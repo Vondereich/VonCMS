@@ -19,13 +19,15 @@ Unlike traditional CMS that feels heavy, VonCMS loads instantly, feels like a mo
 
 ---
 
-### ℹ️ About This Version (Standard Edition)
-This is the **Standard Version** of VonCMS. What you see is what you get.
+📦 About This Repository
+This repository contains a **DEPLOY / PRODUCTION-ready version** of VonCMS.
 
-We have already pre-packed this release with all **Essential Plugins** (SEO, Ads, Security) and **Premium Themes** (TechPress & Prism) right out of the box. You don't need to hunt for basics or buy extra themes to build a professional site.
+It is intended for:
+- Evaluation & testing
+- Direct usage on hosting
+- Demonstration and walkthroughs
 
-**🐛 Bug Hunting:**
-While this version ("Phoenix") is verified stable, usage scenarios vary. If you spot a bug or have an improvement idea, please report it! We built this to be robust, but community feedback makes it perfect.
+The internal development source and modular architecture are being prepared separately as part of the VonCMS 2.0 roadmap.
 
 ---
 
