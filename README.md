@@ -1,5 +1,5 @@
 # VonCMS v1.7.2 "Phoenix" 🚀
-**The Ultra-Fast, Hybrid Headless CMS.**
+A Fast, Lightweight Hybrid Headless CMS
 
 ![Version](https://img.shields.io/badge/version-1.7.2-blue.svg) ![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg) ![React](https://img.shields.io/badge/React-18-cyan.svg) ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
