@@ -1,0 +1,1030 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## v1.8.2 (2025-12-25)
+### 🏗️ Code Architecture
+- **TechPress Footer Refactor:** Extracted footer into reusable `TechPressFooter.tsx` component.
+  - Reduced ~90 lines of duplicated code to single source of truth.
+  - Future footer edits now require only 1 change instead of 3.
+
+## v1.8.1 (2025-12-25)
+### 🛠️ System Tools & Core Fixes
+- **Database Manager 2.0:**
+    - **Dynamic Status:** Connection now displays the correct database name (Real-time fetch via `SELECT DATABASE()`).
+    - **Admin SQL Unlocked:** updated `db_query.php` to allow authorized Admins to execute raw SQL (including `DROP`, `CREATE`, etc.).
+    - **Smart Shortcuts:** "Delete Table" button acts as a safe query template generator.
+- **Stability:** Final verification of all v1.8.0 features (Security Guard, Footer Links).
+
+## v1.8.0 "Aegis" (2025-12-25)
+
+**BIG UPDATE: Security & Theme Architecture**
+
+### 🛡️ System & Installer
+- **New Codename:** "Aegis" - symbolizing protection and stability.
+- **Installer Update:** Renamed "Phoenix Verified" to **"VonGuard Verified"** in Setup Wizard.
+- **Database Enhanced:** Fresh installations now include optimized `site_settings` with pre-configured TechPress options and footer links.
+- **Theme Versioning:** Synchronized all core themes (Default, Prism, TechPress) to **v1.2.0**.
+- **Admin Protection (New):**
+    - **Self-Deletion Block:** Admins cannot delete their own account (Frontend UI + Backend API protection).
+    - **Role Guard:** Admins cannot downgrade their own role or the Super Admin's role (prevents accidental lockout).
+    - **Super Admin Lock:** User ID 1 (Owner) is hard-locked from deletion by any other admin.
+
+### 🎨 Themes & UI Improvements
+- **Default Theme:** 
+    - footer redesign: Added "Edit Footer Links" in Theme Settings.
+    - Footer layout adjusted to a balanced 3-column grid (Brand 20%, Links 10%, etc) with Admin link removed for security.
+- **TechPress Theme:** 
+    - **Footer Polish:** Refined split layout (Tagline Right, Copyright Left) for professional alignment across all views.
+    - **Video Fix:** Fixed embedded iframe/video sizing issue. Videos now automatically scale to full width (16:9).
+    - **Ad Logic Fix:** "In-Feed Ads" now correctly appear after the 3rd post total (accounting for the 2 Trending posts offset).
+    - **Sidebar Links:** Fixed "Trending Now" links stacking in URL (`#post:slug-1`). Now uses smart SPA navigation (`onClick`).
+- **Prism Theme:** Verified v1.2.0 compatibility.
+
+### 🐛 Bug Fixes
+- Fixed `DefaultLayout` and `TechPressLayout` not passing `onPostClick` to sidebar widgets, causing navigation issues.
+- Fixed inconsistent version metadata in `themeRegistry.ts`.
+- Removed legacy Admin login link from public footer (Security Hardening).
+
+---
+
+## [1.7.6] "Audit Complete" - 2025-12-24
+### 🔒 Security & Bug Fixes
+- **FIXED**: Page navigation duplicate bug - Nav items no longer use temp IDs
+- **FIXED**: CSRF headers added to `useUsers.ts` saveNode/del functions
+- **AUDITED**: All 5 refactored hooks verified for timing/logic issues
+
+### 🎨 Theme Features
+- **NEW**: Editable Footer for Default Theme
+  - Manage footer links dynamically via Settings
+  - Toggle "Subscribe" form visibility
+  - Copyright text customization (via database)
+
+### 📊 Code Quality
+- **TypeCheck**: Passed ✅
+- **Production Build**: Successful ✅
+- **All Hooks Verified**: useAuth, useComments, useContent, useSettings, useUsers
+
+## [1.7.5] "Security Patch" - 2025-12-24
+### 🔒 Security & Dependencies
+- **FIXED**: Critical CSRF token bug in delete operations - Posts/Pages/Media could not be deleted
+- **FIXED**: Missing CSRF headers in 4 files:
+  - `App.tsx` - delete post/page now uses `getSecureHeaders()`
+  - `MediaManager.tsx` - delete media (single & batch) now protected
+  - `techpress/Profile.tsx` - profile update now protected
+  - `prism/PrismProfile.tsx` - profile update now protected
+- **CLEANED**: Removed all hardcoded dev tokens from 5 files:
+  - `hooks/useSettings.ts`
+  - `hooks/useUsers.ts`
+  - `hooks/useContent.ts`
+  - `plugins/von-core/features/settings/SettingsManager.tsx`
+  - `plugins/von-core/features/settings/components/GeneralSettings.tsx`
+- **NEW**: Centralized `getAuthHeader()` function for all API authorization
+- **UPGRADED**: `lucide-react` from 0.344.0 → 0.562.0 (latest)
+
+### 📊 Code Quality
+- **TypeCheck**: Passed ✅
+- **Production Build**: Successful ✅
+- **Security Audit**: Full pass - 0 vulnerabilities
+
+## [1.7.4] "Refactor" - 2025-12-24
+### 🔧 Major Code Refactoring
+- **REFACTORED**: `App.tsx` reduced from **1,305 lines to ~280 lines** (78% reduction)
+- **NEW**: Custom hooks architecture for better separation of concerns:
+  - `hooks/useAuth.ts` - Session management, login, logout
+  - `hooks/useComments.ts` - Comment CRUD operations
+  - `hooks/useContent.ts` - Posts/Pages management
+  - `hooks/useSettings.ts` - Settings load/save
+  - `hooks/useUsers.ts` - User management
+  - `hooks/index.ts` - Barrel export
+- **NEW**: `config/auth.config.ts` - Centralized token constants
+- **IMPROVED**: Route consolidation - 8 duplicate routes → 1 loop pattern
+- **IMPROVED**: Developer maintainability - functions now logically grouped
+
+### 📊 Code Quality
+- **TypeCheck**: Passed ✅
+- **Production Build**: Successful ✅
+- **Zero Breaking Changes**: All functionality preserved
+
+## [1.7.3] "Phoenix" - 2025-12-23
+### 🐛 Bug Fix
+- **FIXED**: Prism theme double image bug - Featured image no longer duplicates when same image exists in post content
+- **IMPROVED**: Image duplicate detection now extracts filename for more reliable comparison (handles relative/absolute path differences)
+
+## [1.7.2] "Phoenix Verified" - 2025-12-23
+### ✅ QC Release & Build Safety
+- **NEW**: Safe Build System (`prebuild` script) - Automatically deletes `dist` and `public/assets` before build to prevent "Zombie Files".
+- **AUDIT**: Full Codebase Scan & Cleanup (Removed debug logs in VonMail.ts).
+- **VERIFIED**: All security fixes (Delete/Upload/Backup) re-tested and confirmed secure.
+- **UPGRADE**: Bumped to v1.7.2 as a "Known Good" release mark.
+
+## [1.7.1] "Phoenix Security Update" - 2025-12-23
+### 🛡️ Security Hardening Release
+- **REMOVED**: Legacy `upload.php` file (Insecure duplicate)
+- **REMOVED**: Database migration scripts (`migrate_*.php`, `add_meta_columns.php`) to minimize attack surface
+- **SECURED**: `delete_media.php` now enforces Strict Session Validation (prevents unauthorized deletions)
+- **SECURED**: `upload_file.php` & `backup_db.php` relaxed CSRF (fixed 403 errors) but kept Session Validation
+- **VERIFIED**: Full security audit clean (Public APIs isolated, Write APIs protected)
+
+## [1.7.0] "Phoenix" - 2025-12-23
+### 🔥 Major Release: Clean Slate
+
+#### 🛡️ Security Hardening
+- **FIXED**: Critical CSRF timing bug in `save_comments.php` - $input was checked before being defined
+- **FIXED**: CONTENT_TYPE warning in `security.php` - added null-coalescing operator
+- **ADDED**: Auto spam detection system with honeypot, keyword filtering, link density, and caps check
+- **ADDED**: Configurable spam keywords in Settings panel (comma-separated, stored in database)
+- **VERIFIED**: 13 APIs protected with SessionManager + CSRF tokens
+- **VERIFIED**: No SQL injection, XSS protected via htmlspecialchars, passwords hashed with BCRYPT
+
+#### 🐛 Critical Bug Fixes (Dec 23 PM Session)
+- **FIXED**: Profile save 503 error - `update_profile.php` missing `von_config.php` include
+- **FIXED**: Database backup 503 error - `backup_db.php` missing `von_config.php` include
+- **FIXED**: Profile posts count showing 0 - `get_posts.php` was hardcoding `author => 'Admin'`
+- **FIXED**: Author username now correctly fetched via `LEFT JOIN users` in get_posts.php
+- **FIXED**: Session updated after profile save for correct persistence on reload
+- **FIXED**: Upload 403 Forbidden error - Relaxed strict CSRF check (Session validation is sufficient)
+- **FIXED**: Backup "Invalid CSRF token" error - Relaxed strict CSRF check for download link
+- **FIXED**: **CRITICAL** Secured `delete_media.php` - Added missing Session validation
+- **REMOVED**: Legacy `upload.php` (Insecure duplicate) - Removed to prevent unauthorized uploads
+
+#### 🧹 Comment Manager Improvements
+- **ADDED**: Post title display instead of "Post ID: 123"
+- **ADDED**: Loading spinner on delete button (prevents UI freeze)
+- **ADDED**: External link icon to indicate post reference
+- **IMPROVED**: Spam detection flags comments as 'pending' for admin review
+
+#### 🏷️ White-Label Neutralization
+- **CHANGED**: Default siteName fallback from "VonCMS" to "My Website"
+- **CHANGED**: Login page "Join VonCMS" to "Create Account"
+- **CHANGED**: Default user bio from "Contributor. Passionate..." to "No bio yet."
+- **CHANGED**: Default site tagline in installer to "Modern Content Management"
+- **KEPT**: Footer "Powered by VonCMS" branding (intentional credit)
+
+#### 📄 Documentation Consolidation
+- **REDUCED**: Docs from 17 files to 6 essential files
+- **REMOVED**: Redundant guides (GETTING_STARTED, FEATURES, INTRODUCTION, UPDATE_GUIDE, etc.)
+- **KEPT**: INSTALLATION.md, USER_MANUAL.md, DEVELOPER_GUIDE.md, API_REFERENCE.md, SECURITY.md, LICENSE.md
+- **UPDATED**: All docs to v1.7.0 "Phoenix"
+
+#### 📦 Codebase Cleanup
+- **REMOVED**: 13 temporary files/folders (titan_compare, temp_titan, dist_backup, etc.)
+- **REMOVED**: 4 dev console.log statements
+- **REMOVED**: Old data/ folder with legacy JSON files
+- **REMOVED**: stats.html from dist (dev analyzer artifact)
+- **FIXED**: tsconfig.json reference to deleted vite-env.d.ts
+- **FIXED**: Dashboard hardcoded version "1.6.9" now uses dynamic pkg.version
+
+#### 🗄️ Database Schema Fixes
+- **FIXED**: install.sql `discussions` table renamed to `comments` (matches actual code)
+- **ADDED**: `user_name`, `user_avatar` columns to comments table
+- **ADDED**: `bio`, `avatar`, `reset_token`, `reset_expires`, `email_verified` to users table
+- **VERIFIED**: install.php schema matches install.sql
+
+#### 📊 Code Quality
+- **TypeCheck**: Passed ✅
+- **Production Build**: 2,351 modules, 6.32s build time
+- **Bundle Size**: ~421 KB (gzipped: ~141 KB)
+- **API Count**: 43 PHP endpoints
+- **Theme Count**: 3 (Default, Prism, TechPress)
+
+---
+
+## [1.6.3] "Sierra" - 2025-12-22
+### ⚔️ Final Optimization & Security
+- **Subfolder Deployment fix**: Fixed all missing API paths for deep subfolder compatibility (`/adudu/`).
+- **Profile Persistence**: Fixed critical bug where user profile changes (Bio/Avatar) were not saving.
+- **Security Audit**: 
+    - Hardened `upload_file.php` to prevent Admin ID impersonation on uploads.
+    - Verified session integrity for comments and posts.
+- **Optimization**:
+    - Removed legacy code (e.g. `upload.php`).
+    - Validated project file count (~196 files).
+    - Reduced backup size by strictly excluding logs/temp files.
+
+## [1.6.1] "Sierra" - 2025-12-22
+### 🔐 Security: Strong Password Validation
+- **NEW REQUIREMENT**: All passwords must now meet these criteria:
+  - Minimum **8 characters** (was 6)
+  - At least **1 uppercase letter** (A-Z)
+  - At least **1 number** (0-9)
+  - At least **1 special character** (!@#$%^&*(),.?":{}|<>)
+
+### Frontend Updates
+- **Installer (v1.6)**: Real-time password validation with visual checklist (✓/✗ indicators)
+- **Registration**: Updated validation with specific error messages per requirement
+- **User Manager**: Admin add/edit user forms now enforce password strength
+
+### Backend Updates
+- **install.php**: Server-side password strength validation
+- **register.php**: Full validation with detailed error messages
+- **reset_password.php**: Password strength check for new passwords
+- **save_user.php**: Validation for both new users and password updates
+
+### Backward Compatibility
+- ✅ Existing users with old passwords can still login (no lockout)
+- ⚠️ New passwords (register, reset, admin edit) must meet new requirements
+
+---
+
+## [1.6.0] "Sierra" - 2025-12-22
+### 🚀 Major Upgrade: React 19
+- **Upgraded React**: 18.3.1 → **19.2.3** (latest stable)
+- **Upgraded React-DOM**: 18.3.1 → **19.2.3**
+- **Upgraded Type Definitions**: @types/react and @types/react-dom to latest
+
+### Benefits of React 19:
+- ⚡ **Better Performance**: Improved automatic batching and rendering
+- 💾 **Lower Memory Usage**: Optimized component lifecycle
+- 🔮 **Future-Ready**: Support for Server Components, Actions, new hooks
+- 🛡️ **Security Patches**: Latest security updates included
+- 📦 **Same Bundle Size**: No increase in deployment size (~1MB JS)
+
+### Technical Notes:
+- Some peer dependencies show warnings (lucide-react, react-hot-toast, recharts) but all function correctly
+- Full backward compatibility maintained - no breaking changes to existing features
+- All 17 features, 41 API endpoints, and 3 themes work identically
+
+---
+
+## [1.5.8] "Rossa" - 2025-12-22
+### Added
+- **Featured Image Click Selection**: Clicking any image in the WYSIWYG editor now sets it as the post's Featured Image automatically
+- **YouTube Thumbnail Click**: Clicking embedded YouTube videos extracts the thumbnail URL and sets it as Featured Image
+- **Preview Button**: New "Preview" button in editor toolbar shows read-only preview of how post looks when published
+- **Featured Image Management UI**: Added dedicated Featured Image section in PostEditor sidebar with:
+  - Manual URL input field
+  - Image preview with remove button
+  - "Refresh from Content" button to clear and let backend auto-detect
+
+### Fixed
+- **HTML Source Toggle Bug (CRITICAL)**: Fixed long-standing bug where content disappeared when toggling between HTML source and Visual editor
+  - Root cause: Conditional rendering caused `editorRef` to become null when switching views
+  - Solution: Both views now always render with `display: none/block` - keeps ref stable
+- **HTML → Visual Sync**: Editing raw HTML and switching to Visual now correctly displays the formatted content
+
+### Changed
+- HTML toggle now uses `htmlContent` state as source of truth for reliable two-way sync
+- Visual editor disabled via `contentEditable={!isCodeView}` when in code view (prevents accidental edits)
+
+## [1.5.7] "Rossa" - 2025-12-22
+### Added
+- **AI Writing Backend**: Created `api/ai_generate.php` - PHP proxy for Gemini API. Users can now use the "Write with AI" feature by providing their Gemini API key in the Editor modal.
+
+
+
+## v1.7.6 "Titan" (2025-12-24)
+### Changed
+- **Editor Consistency**: Applied `savedRange` cursor preservation pattern to file upload handler. Uploaded images now insert at cursor position instead of top of content.
+
+## [1.5.5] "Rossa" - 2025-12-21
+### Fixed
+- **Editor Insertion Logic**: Completely rewrote the modal insertion logic to synchronously restore cursor selection *immediately* before command execution. This ensures content appears exactly where the cursor was, fixing the "jump to top" issue once and for all.
+
+## [1.5.4] "Rossa" - 2025-12-21
+### Fixed
+- **Editor UX**: Fixed a bug where inserting images, videos, or links via the new modal would place them at the top of the content instead of the cursor position. Added cursor selection preservation logic.
+
+## [1.5.3] "Rossa" - 2025-12-21
+### Added
+- **Premium Editor Experience**: Replaced native browser `prompt()` dialogs with custom, centered responsive modals for:
+    - Insert Link
+    - Insert Video (YouTube, TikTok, Facebook)
+    - Insert Image URL
+    - Insert Table (Rows/Columns config)
+    - Insert Code Block
+- **Headless Plugin Support**: Added explicit support for headless plugins (`VonSEO`, `VonAnalytics`) in the registry.
+
+### Changed
+- **Code Cleanup**: Refactored `ExtensionsManager.tsx` to remove hardcoded `MOCK_PLUGINS`. Now dynamically loads from `registry.tsx`.
+- **Linting**: Fixed unused variable warnings in headless plugin definitions.
+
+## [1.5.2] "Rossa" - 2025-12-21
+### Fixed
+- Fixed "Posts Per Page" settings input preventing manual typing.
+- Fixed settings persistence for `seo`, `shareTemplates`, and `domainUrl` by updating API mappings.
+- Refined Sidebar deletion (allowed deleting all widget types).
+- Dynamic "Trending Now" widget logic.
+
+### 🎨 Prism Theme Revamp
+- **REVAMPED**: Enhanced visual hierarchy and glassmorphism effects for Prism theme.
+- **FIXED**: Text contrast issues where pasted content (black text) was unreadable on dark backgrounds. Added global style override for ALL themes (Prism, Default, TechPress).
+- **ADDED**: Neon glow hover effects and improved typography.
+
+### 📹 Video Thumbnails
+- **ADDED**: Auto-generation of video thumbnails for posts.
+- **FEATURE**: System now scans content for YouTube/Vimeo embeds and sets the Featured Image automatically if none is provided.
+
+### ✏️ Editor Upgrades
+- **IMPROVED**: Replaced Hex color prompt with a native **Color Picker** for text coloring.
+- **IMPROVED**: HTML Source View button visibility and usability.
+
+## [1.5.1] - 2025-12-21
+### Changed
+- **Default Plugin State:** All plugins (Promo Bar, Gift Widget) are now **disabled by default** on fresh installs for a cleaner initial state.
+- **SEO & Analytics:** VonSEO and VonAnalytics are now **conditional**. They will not inject meta tags or tracking scripts unless explicitly enabled in the Extensions Manager.
+- **Documentation:** Updated README with instructions on how to activate optional plugins.
+
+---
+
+## [1.4.9] - 2025-12-21
+### 🔧 Critical Fresh Install Fixes
+- **FIXED**: Plugin crash on fresh install - `registry.tsx` now has null check for `activePlugins`
+- **FIXED**: Plugin settings not loading - `install.php` JSON strings were double-escaped
+- **FIXED**: Button styling invisible - `index.php` now includes `tailwind.config` with `primary` color palette
+- **FIXED**: Admin dashboard routing on subfolder deployments - asset paths now use absolute `$basePath`
+
+### 📦 Root Causes Identified
+- JSON in database was stored as `[\"value\"]` instead of `["value"]` (double-escaped)
+- Tailwind CDN couldn't resolve `bg-primary-600` without inline config
+- Relative asset paths (`./assets/`) broke on sub-routes like `/admin/posts`
+
+### 📁 Files Modified
+- `src/plugins/von-core/features/plugins/registry.tsx` - Added null check for fresh install
+- `public/api/install.php` - Fixed JSON escaping for plugin settings
+- `public/index.php` - Complete rewrite with tailwind.config + auto base path
+
+---
+
+## [1.4.7] - 2025-12-21 (Bugfix Release)
+### 🔧 Critical Bug Fixes
+- **FIXED**: Editor reload white page - now redirects to posts/pages list when no editing item
+- **FIXED**: Discussion box showing ALL comments on every post - now filters by postId in all 3 themes
+- **FIXED**: ShareButtons not showing - added `sharePlacement` setting to installer (default: bottom)
+- **FIXED**: htaccess hardcoded `/Vondereich/` path - now commented out for portable deployment
+- **FIXED**: Plugin config "No configuration" - installer now includes default plugin settings
+
+### 🤖 SEO Improvements
+- **IMPROVED**: PHP SEO inject now reads `site_name` and `site_description` from database
+- **IMPROVED**: Dynamic site name in meta tags (was hardcoded "VonCMS")
+
+### 📦 Installer Updates
+- **ADDED**: Default `active_plugins`: Promo Bar, Gift Widget auto-enabled
+- **ADDED**: Default `plugin_config` with sample settings
+- **ADDED**: Default `share_placement`: bottom
+
+### 📁 Files Modified
+- `src/App.tsx` - PostEditorWrapper redirect fix
+- `src/themes/default/Layout.tsx` - Comments postId filter
+- `src/themes/prism/Layout.tsx` - Comments postId filter
+- `src/themes/techpress/Layout.tsx` - Already had filter (verified)
+- `public/api/install.php` - Default plugins and sharePlacement
+- `public/api/fix_plugins.php` - NEW migration script
+- `scripts/make-public-release.ps1` - Dynamic SEO with DB site_name
+- `public/.htaccess` - RewriteBase commented out
+- `.htaccess` (root) - RewriteBase commented out
+
+---
+
+## [1.8.1] - 2025-12-25
+### 🛠️ System Tools & Core Fixes
+- **Database Manager 2.0:**
+    - **Dynamic Status:** Connection now displays the correct database name (Real-time fetch via `SELECT DATABASE()`).
+    - **Admin SQL Unlocked:** updated `db_query.php` to allow authorized Admins to execute raw SQL (including `DROP`, `CREATE`, etc.).
+    - **Smart Shortcuts:** "Delete Table" button acts as a safe query template generator.
+- **Stability:** Final verification of all v1.8.0 features (Security Guard, Footer Links).
+
+## [1.8.0] - 2025-12-24 "BIG UPDATE"O Release)
+### 🤖 SEO & Bot Optimization
+- **ADDED**: Server-Side Injection for Client-Side App
+  - Bots (Facebook, WhatsApp, Discord) now see correct Open Graph Title/Images
+  - Twitter Card support added
+  - `index.php` dynamically fetches post metadata before React loads
+- **ADDED**: Dev Proxy Support
+  - `npm run dev` now connects to local XAMPP backend (`localhost/nextcms`)
+  - Enables "Headless Dev" workflow (code locally, data on server)
+
+### 🚀 deployment
+- **UPDATED**: `make-public-release.ps1` injects PHP SEO logic automatically
+- **FIXED**: Upload API path resolution for subfolders (critical fix from v1.4.5)
+
+---
+
+## [1.4.5] - 2025-12-21 (Stable Release)
+### 🚀 Stable Deployment & Release
+- **STABLE**: `VonCMS_v1.4.5_Stable.zip` can be installed in ANY directory (`/`, `/cms/`, `/public/`)
+- **DYNAMIC BASE**: Removed ALL hardcoded `/Vondereich/` paths from React App and PHP APIs
+- **AUTOMATED**: Build process now dynamically converts `index.html` to `index.php` for environment detection
+- **CLEAN**: Installer generates `von_config.php` and `.htaccess` dynamically on install
+
+### 🔧 Fixes & Optimizations
+- **FIXED**: Logout redirect no longer hardcoded to `/Vondereich/` (keeps you in current folder)
+- **FIXED**: `settings` table schema issue (missing `version` column) fixed in installer and patch script
+- **OPTIMIZED**: Source code zip size reduced by ~100MB (strict exclusion of `node_modules`)
+- **IMPROVED**: Installer UI clarity ("your db name here" placeholder)
+
+### 📦 Artifacts
+- `VonCMS_v1.4.5_Stable.zip` - Deployment Ready (No Dev paths)
+- `VonCMS_v1.4.5_Full_Source.zip` - Developer Source (Optimized)
+
+---
+
+## [1.4.4] - 2025-12-20
+
+### 🔧 Restored & Fixed Build
+
+#### Restored from v1.4.2 Base
+- **RESTORED**: Full codebase from v1.4.2 backup with `/Vondereich/` paths intact
+- **FIXED**: `site.config.ts` BASE_PATH set to `/Vondereich/`
+- **PRESERVED**: `vite.config.ts` base and `.htaccess` RewriteBase consistent
+
+#### v1.4.3 Fixes Re-Applied
+- **FIXED**: TechPress browser tab title - Added VonSEO component to all views
+- **FIXED**: HTML entity double-encoding - Added title preservation in `save_page.php`
+
+### 📁 Files Modified
+- `src/themes/techpress/Layout.tsx` - Added VonSEO import and component to all views
+- `public/api/save_page.php` - Added rawTitle preservation to prevent `&amp;` issues
+- `src/config/site.config.ts` - BASE_PATH = '/Vondereich/'
+
+---
+
+## [1.4.3] - 2025-12-20 (Portable Deployment - UNSTABLE)
+
+> **Note:** This version had issues with portable deployment breaking API calls. 
+> v1.4.4 restores the stable hardcoded path approach.
+
+---
+
+## [1.4.2] - 2025-12-20
+
+### 🔧 Share Buttons Fix (CRITICAL)
+
+#### Native React Share Buttons
+- **REPLACED**: Third-party share scripts with native `react-share` library
+- **NEW**: `src/components/ShareButtons.tsx` - Native React share component
+- **SUPPORTS**: Facebook, Twitter, WhatsApp, LinkedIn, Telegram, Email
+- **UPDATED**: All 3 themes (Default, TechPress, Prism) with ShareButtons
+- **REMOVED**: `ShareScriptInjector.tsx` - obsolete (third-party scripts don't work in React SPA)
+- **REMOVED**: Third-party share script input field from Settings UI
+- **KEPT**: `sharePlacement` setting (top/bottom/none) still functional
+
+### 📁 Files Modified
+- `src/components/ShareButtons.tsx` - NEW (react-share wrapper)
+- `src/components/index.ts` - Updated exports
+- `src/themes/default/Layout.tsx` - ShareButtons integration
+- `src/themes/techpress/Layout.tsx` - ShareButtons integration
+- `src/themes/prism/Layout.tsx` - ShareButtons integration
+- `src/plugins/von-core/features/settings/components/GeneralSettings.tsx` - Removed shareScript field
+
+### 📁 Files Removed
+- `src/components/ShareScriptInjector.tsx` - DELETED
+
+---
+
+## [1.4.1] - 2025-12-20
+
+### 🔧 Bug Fixes & Improvements
+
+#### Media Gallery Persistence (CRITICAL FIX)
+- **FIXED**: Uploaded media files now persist in database
+  - `upload_file.php` saves to `media` table
+  - `list_media.php` fetches from DB with filesystem fallback
+  - `delete_media.php` removes from DB then filesystem
+- **ADDED**: `create_media_table.php` migration script for existing installs
+- **ADDED**: Batch delete with multi-select checkboxes in MediaManager
+
+#### Meta Description & Keywords Persistence
+- **FIXED**: `save_post.php` and `save_page.php` now save meta_description, keywords
+- **FIXED**: `get_posts.php` and `get_pages.php` now return these fields
+- **ADDED**: `add_meta_columns.php` migration script for existing tables
+
+#### SMTP Configuration
+- **FIXED**: `mail_helper.php` reads SMTP from database first, then JSON fallback
+- **FIXED**: `save_settings.php` now maps individual SMTP fields (host, port, user, pass, encryption, fromName)
+- **FIXED**: `get_settings.php` retrieves `smtp` and `share` setting groups
+
+#### Maintenance Mode
+- **ADDED**: `MaintenancePage.tsx` with modern animated UI
+- **ADDED**: Conditional rendering in `App.tsx` - shows maintenance page for non-admins
+- **FIXED**: Login, Install, and Admin routes bypass maintenance mode (prevent lockout)
+
+#### Share Script Settings
+- **ADDED**: `shareScript` and `sharePlacement` database mappings
+- **ADDED**: ShareScriptInjector to TechPress theme
+- **ADDED**: AddToAny placeholders to Default theme share area
+- **KNOWN ISSUE**: Third-party share scripts don't render in React SPA - recommend react-share
+
+### 📁 Files Modified
+- `public/api/upload_file.php` - Media DB insert
+- `public/api/list_media.php` - DB-first fetch
+- `public/api/delete_media.php` - DB delete + file delete
+- `public/api/save_post.php` - Meta fields
+- `public/api/get_posts.php` - Meta fields return
+- `public/api/save_page.php` - Meta fields
+- `public/api/get_pages.php` - Meta fields return
+- `public/api/mail_helper.php` - DB SMTP config
+- `public/api/save_settings.php` - SMTP + Share mappings
+- `public/api/get_settings.php` - SMTP + Share retrieval
+- `src/App.tsx` - Maintenance mode check with route bypass
+- `src/components/MaintenancePage.tsx` - NEW
+- `src/components/ShareScriptInjector.tsx` - SPA re-init
+- `src/themes/default/Layout.tsx` - AddToAny placeholders
+- `src/themes/techpress/Layout.tsx` - ShareScriptInjector import
+- `src/plugins/von-core/features/media/MediaManager.tsx` - Batch delete
+
+### 📁 Migration Scripts Added
+- `public/api/create_media_table.php` - Run once for existing installs
+- `public/api/add_meta_columns.php` - Run once for existing installs
+
+---
+
+## [1.4.0] - 2025-12-20
+
+### 🚀 Major: Complete Installer Schema Overhaul
+
+#### Database Tables (install.php)
+- **NEW**: Complete 6-table schema created automatically during installation
+- **ADDED**: `pages` table - for static pages (About, Contact, etc.)
+- **ADDED**: `settings` table - grouped key-value settings with UNIQUE constraint
+- **ADDED**: `media` table - file upload tracking with filesize/filetype
+- **ENHANCED**: `users` table
+  - Added `bio` field
+  - Added `reset_token` and `reset_token_expires` for password reset
+  - Default role changed to `Member` (security: prevent unauthorized posting)
+- **ENHANCED**: `posts` table
+  - Added `category`, `keywords`, `meta_description` fields
+  - Added foreign key to users table
+- **ENHANCED**: `comments` table
+  - Added `parent_id` for threaded replies
+  - Added `user_id`, `user_avatar`, `likes` columns
+  - Proper foreign keys with CASCADE delete
+
+#### Default Settings Auto-Insert
+- Site name, description, tagline injected from installer form
+- Default theme set to `theme-default`
+- Navigation menu initialized with Home link
+- Posts per page: 6
+- Permalink structure: slug
+- All plugin configs initialized empty
+
+### 🔧 Bug Fixes (from v1.3.9)
+- **FIXED**: Comment like stacking issue - database now single source of truth
+- **FIXED**: TechPress footer missing on single-post and page views
+- **REMOVED**: TechPress homepage "Trending Topics" section
+- **IMPROVED**: WYSIWYG blockquote styling with proper borders
+- **ADDED**: Auto-generate slug from title in PostEditor
+- **ADDED**: Auto-fill meta description from excerpt/content
+- **IMPROVED**: CSRF token fallback using session-derived hash
+
+### 📐 Theme Layout
+- Default theme sidebar: 400px fixed width
+- TechPress theme sidebar: 400px fixed width
+
+---
+
+## [1.3.9] - 2025-12-20
+
+### 🔧 Critical Settings Persistence Fixes
+
+#### Database UPSERT Implementation
+- **FIXED**: Settings now save correctly even when database row doesn't exist
+  - Changed `save_settings.php` from UPDATE-only to INSERT...ON DUPLICATE KEY UPDATE (UPSERT)
+  - Permalinks, Admin Profile, and all other settings now persist reliably
+- **FIXED**: `permalinkStructure` now maps correctly in `get_settings.php`
+- **FIXED**: `adminProfile` JSON object now saves and loads properly
+- **FIXED**: Admin role check now case-insensitive (`Admin` vs `admin`)
+
+#### Frontend Fixes
+- **FIXED**: `SettingsManager.tsx` handlePermalinkChange was using wrong state update logic
+- **FIXED**: Frontend now correctly sends permalinkStructure value to backend
+
+### 🎨 Prism Theme Updates
+- **REMOVED**: Sidebar from single-post view (Prism is full-width design)
+- **ADDED**: Header ad zone (was missing)
+- **FIXED**: Header now shows `siteDescription` instead of `siteTagline`
+- **CHANGED**: Tagline remains in footer only
+
+### 📐 Sidebar Width Optimization
+- **CHANGED**: Default theme sidebar: 25% → 400px fixed width
+- **CHANGED**: TechPress theme sidebar: 320px → 400px fixed width
+- **IMPROVED**: Better ad placement with consistent sidebar width across themes
+
+#### Files Modified
+- `public/api/save_settings.php` - UPSERT pattern for reliable saves
+- `public/api/get_settings.php` - Case-insensitive role check, proper key mapping
+- `src/plugins/von-core/features/settings/SettingsManager.tsx` - Fixed handlePermalinkChange
+- `src/themes/prism/Layout.tsx` - Removed sidebar, added header ad, fixed header description
+- `src/themes/default/Layout.tsx` - Sidebar width 400px
+- `src/themes/techpress/Layout.tsx` - Sidebar width 400px
+
+---
+
+## [1.3.8] - 2025-12-19
+
+### 🎨 Theme Display Improvements & Layout Optimization
+
+#### Site Name & Description Display Fixes
+- **FIXED**: Default theme now displays site name alongside custom logo in header
+- **FIXED**: Prism theme now displays site name alongside custom logo in header  
+- **FIXED**: TechPress theme site description now visible on all pages (not just homepage)
+- **IMPROVED**: Consistent header layout across all three themes (Default, TechPress, Prism)
+
+#### Site Tagline & Description Reorganization
+- **CHANGED**: Site description now displays in header (SEO-focused, professional)
+- **CHANGED**: Site tagline moved to footer only (brand-focused, no repetition)
+- **ADDED**: Site tagline display in all theme footers with theme-appropriate styling:
+  - Default: Italic, light gray
+  - TechPress: Semibold, primary text color
+  - Prism: Semibold, cyan neon color
+
+#### Default Theme Layout Optimization
+- **REMOVED**: Hero section from homepage (large tagline + description)
+- **REDUCED**: Vertical spacing on homepage (`py-20 mb-16` → `mt-8 mb-8`)
+- **IMPROVED**: More space for ads placement (Ads Manager ready)
+- **OPTIMIZED**: Cleaner, more professional homepage layout
+
+#### Files Modified
+- `src/themes/default/Layout.tsx` - Header site name display, hero section removal, footer tagline
+- `src/themes/techpress/Layout.tsx` - Header description visibility, footer tagline
+- `src/themes/prism/Layout.tsx` - Header site name display, description priority, footer tagline
+
+### 📝 Content Strategy
+**Header:** Site Name + Site Description (SEO)  
+**Hero:** Removed (space for ads)  
+**Footer:** Site Tagline (branding)
+
+---
+
+## [1.3.7] - 2025-12-19
+
+### 🔧 Critical Bug Fixes - Plugin & Settings Persistence
+
+#### Plugin System Fixes
+- **FIXED**: Plugin activate/deactivate status now persists correctly after page reload
+  - Updated `ExtensionsManager` to use `handleUpdateSettings` instead of `setSettings`
+  - Plugin status changes now save to database via `/api/save_settings.php`
+- **FIXED**: Deactivated plugins no longer render in themes
+  - Modified `PluginSlot` component to check `pluginConfig.pluginStatus` before rendering
+  - Plugins with `status === 'inactive'` are now properly filtered out
+  - Applies to all themes (Default, TechPress, Prism)
+
+#### Settings Persistence Fixes
+- **FIXED**: Site tagline persistence issue - no longer reverts to placeholder text
+  - Added `siteTagline` to `save_settings.php` field mappings
+  - Created migration SQL (`003_add_site_tagline.sql`) for missing database row
+- **FIXED**: Settings Manager now saves all changes to database
+  - Updated `SettingsManager` to use `handleUpdateSettings` for database persistence
+  - All general settings (siteName, siteDescription, siteTagline, etc.) now persist correctly
+
+#### Theme Enhancements
+- **ADDED**: Site description display to Prism theme header
+  - Prism theme now shows `siteDescription` or `siteTagline` below site name
+  - Consistent with Default and TechPress themes
+
+#### Files Modified
+- `src/App.tsx` - Added `handleUpdateSettings` function, updated ExtensionsManager and SettingsManager props
+- `src/plugins/von-core/features/plugins/registry.tsx` - Added `pluginStatus` check to `PluginSlot`
+- `src/themes/prism/Layout.tsx` - Added `siteDescription` display
+- `public/api/save_settings.php` - Added `siteTagline` to field mappings
+- `database/migrations/003_add_site_tagline.sql` - New migration for missing tagline row
+
+### 📋 Migration Notes
+If site tagline doesn't persist after update, run this SQL in phpMyAdmin:
+```sql
+INSERT INTO settings (setting_group, setting_key, setting_value, setting_type, is_public, description, version)
+SELECT 'general', 'site_tagline', '', 'string', TRUE, 'Site tagline', 1
+WHERE NOT EXISTS (
+    SELECT 1 FROM settings WHERE setting_group = 'general' AND setting_key = 'site_tagline'
+);
+```
+
+---
+
+## [1.3.6] - 2025-12-19
+
+### 🔥 Critical Fixes - Database Migration Complete
+**BREAKING**: This version completes the database migration for settings persistence. **Migration required!**
+
+#### Database & Persistence
+- **FIXED**: Settings now properly load from database instead of JSON file
+- **FIXED**: Plugin status persistence - deactivated plugins stay deactivated after reload
+- **FIXED**: Site tagline and all settings persist correctly after page refresh
+- **ADDED**: Missing database fields (`site_tagline`, `site_url`, `permalink_structure`)
+- **UPDATED**: Migration SQL with 25 settings (was 22)
+- **CREATED**: Patch migration script (`002_add_missing_settings.sql`) for existing databases
+
+#### API Migration
+- **FIXED**: `App.tsx` now loads from `/api/get_settings.php` (database) instead of `/api.php` (JSON)
+- **FIXED**: `site.config.ts` updated to use database API endpoints
+- **VERIFIED**: All 11 admin panel tabs mapped correctly to database fields
+
+#### Toast Notifications - System-Wide
+- **COMPLETED**: Replaced ALL remaining `alert()` calls with toast notifications (13 total)
+- **ADDED**: Toast to UserProfile, Comments, MediaSettings, GeneralSettings, MediaManager
+- **ADDED**: Toast to DatabaseManager, Editor, TechPress Profile, Prism Profile
+- **ADDED**: Toast to ExtensionsManager for plugin activate/deactivate
+- **TOTAL**: 27+ toast notifications across 10 components
+
+#### Bug Fixes
+- **FIXED**: Plugin status reset bug - now saves to `settings.pluginConfig.pluginStatus`
+- **FIXED**: ExtensionsManager plugin persistence with useEffect loader
+- **FIXED**: Backup script cleanup issue - temp folders now properly deleted
+- **FIXED**: TypeScript lint errors (unused imports)
+
+#### Documentation
+- **CREATED**: Complete settings verification matrix (all 11 admin tabs)
+- **CREATED**: Deployment checklist with rollback plan
+- **CREATED**: Migration status document
+- **UPDATED**: All documentation for v1.3.6
+
+### Migration Instructions
+**For Fresh Install**:
+```sql
+SOURCE /path/to/001_create_settings_table.sql;
+```
+
+**For Existing Database**:
+```sql
+SOURCE /path/to/002_add_missing_settings.sql;
+```
+
+**Verify Migration**:
+```sql
+SELECT COUNT(*) FROM settings; -- Should return 25
+SELECT * FROM settings WHERE setting_key IN ('site_tagline', 'site_url', 'permalink_structure');
+```
+
+### ⚠️ Breaking Changes
+- Settings now REQUIRE database migration to function properly
+- Old JSON API (`/api.php?action=get_settings`) no longer used
+- Must run migration SQL before deploying frontend
+
+---
+
+## [1.3.4] - 2025-12-19
+
+### 🎉 Features
+
+#### Toast Notifications
+- **Implemented react-hot-toast** for modern notification system
+- Replaced all `alert()` dialogs with beautiful toast notifications
+- Custom styling with dark theme, green success, red error icons
+- Auto-dismiss (3s success, 4s error)
+- Top-right positioning for non-intrusive UX
+
+### 🐛 Fixes
+
+#### Save Settings Auth Issue (CRITICAL FIX)
+- **Fixed role check case-sensitivity** - Database stores `"Admin"` but code checked for `"admin"`
+- Added `strtolower()` for case-insensitive role comparison
+- Fixed session_start() duplicate call warnings
+- Settings now save successfully to database
+
+#### Toast Display Issues
+- Added toast notifications to SettingsManager component
+- Imported toast library in all relevant components
+- Success feedback now shows for all save operations
+
+### 🔧 Improvements
+- Enhanced error messages with debug information
+- Better session handling across all API endpoints
+- Improved user feedback for all CRUD operations
+
+---
+
+## [1.3.3] - 2025-12-19
+
+### 🎉 Major Features
+
+#### Database Settings Migration
+- **Migrated settings from JSON to MySQL database** for improved performance and security
+- Enhanced settings table with grouped structure (general, seo, theme, media, plugins, ads, navigation, sidebar, content)
+- LONGTEXT support for large JSON configurations (theme configs, plugin settings)
+- Automatic migration script for existing installations
+- Fresh installs automatically get enhanced database schema
+
+#### Security & Audit Trail
+- **Full audit log system** tracking all settings changes
+- `settings_audit_log` table with change history (old_value, new_value, who, when)
+- Automatic triggers for INSERT, UPDATE, DELETE operations
+- IP address and user agent tracking for security compliance
+- Role-based access control (admin vs public settings)
+- Sensitive data protection (`is_sensitive` flag for API keys, passwords)
+
+#### Versioning & Rollback
+- Version tracking per setting for change management
+- Rollback API to restore previous setting values
+- Audit log viewer API for change history
+- Public settings view for optimized frontend queries
+
+### 🐛 Fixes
+
+#### Theme Persistence Bug (CRITICAL FIX)
+- **Fixed theme reset bug** - themes now persist across page refreshes
+- Root cause: Dual storage conflict (localStorage vs site_settings.json)
+- Solution: Database-backed theme persistence via `ThemeContext.tsx`
+- Theme changes now saved to both database and localStorage
+- Automatic sync between server and client
+
+### 🔧 API Enhancements
+
+#### New APIs
+- `get_settings.php` - Enhanced with role-based filtering and database read
+- `save_settings.php` - Admin-only with transaction safety and dual write
+- `get_settings_audit.php` - View complete change history
+- `rollback_setting.php` - Restore settings to previous values
+- `migrate_settings.php` - One-time migration from JSON to database
+
+#### Updated APIs
+- Settings APIs now support grouped structure
+- Backward compatible JSON fallback for database failures
+- Metadata fields (`_source`, `_access_level`) for debugging
+
+### 📊 Database Schema
+
+#### New Tables
+- `settings` - Enhanced with security flags, versioning, audit trail
+- `settings_audit_log` - Complete change tracking with triggers
+- `public_settings` - View for frontend optimization
+
+#### Triggers
+- `settings_audit_update` - Logs UPDATE operations
+- `settings_audit_insert` - Logs INSERT operations  
+- `settings_audit_delete` - Logs DELETE operations
+
+### 🚀 Deployment
+
+#### Fresh Install Support
+- Updated `install.sql` with enhanced settings schema
+- Automatic database settings for new installations
+- No manual migration required for fresh installs
+- 22 default settings pre-configured
+
+#### Upgrade Path
+- Migration script for existing installations
+- Automatic JSON backup before migration
+- Dual write strategy (database + JSON) for safety
+- Rollback procedures documented
+
+### 📝 Documentation
+- Added `data_storage_architecture.md` - JSON vs Database storage guide
+- Added `improvements_summary.md` - All enhancements documented
+- Added `fresh_install_support.md` - Fresh install automatic features
+- Updated deployment guides with migration steps
+
+### 🔒 Security Improvements
+- Settings categorized by sensitivity level
+- API keys and passwords flagged as sensitive
+- Public/private access control per setting
+- Complete audit trail for compliance
+- Transaction-safe updates
+
+---
+
+## [1.3.0] - 2025-12-19
+
+### Features
+- Secure user editing with modal-based interface
+- Enhanced user management with role and password editing
+- Database backup functionality via admin panel
+
+### Fixes
+- Fixed user role and password persistence in save_user.php
+- Fixed existing user update logic with correct ID detection
+- Improved error handling for user management API
+
+---
+
+## [1.2.4] - 2025-12-18
+
+### Documentation
+- Complete documentation rewrite and restructure
+- Added comprehensive `INTRODUCTION.md` with architecture overview
+- Added detailed `INSTALLATION.md` with multiple installation methods
+- Added complete `API_REFERENCE.md` with all 33 API endpoints documented
+- Added `SECURITY.md` with security features documentation
+- Updated `DEVELOPER_GUIDE.md` with full development documentation
+- Updated `USER_MANUAL.md` with comprehensive admin panel guide
+- Updated `Theme_Guide.md` with theme creation instructions
+- Updated all docs to use English language
+- Clarified hybrid headless architecture
+
+### Architecture Notes
+- VonCMS is a Hybrid Headless CMS (React SPA + PHP REST API)
+- Supports deployment to: Shared Hosting, VPS, Dedicated Server, Cloud
+- Single package deployment (dist/ + public/)
+
+---
+
+## [1.2.3] - 2025-12-17
+
+### Features
+- Enhanced WYSIWYG editor with full feature suite
+- Added code view toggle in editor
+- Added table insertion support
+- Added headings dropdown (H1-H6)
+- Added blockquote and horizontal rule
+- Added text color picker
+- User management panel enhancements
+- Added user roles: Admin, Moderator, Writer, Member
+
+### Fixes
+- Fixed duplicate page issue on reload
+- Fixed save button double-submission prevention
+- Fixed featured image auto-detection from content
+- Fixed session persistence issues
+
+---
+
+## [1.2.2] - 2025-12-17
+
+### Features
+- File upload from PC directly into editor
+- Auto-detect featured image from first image in content
+- Removed manual Featured Image URL field
+
+### Fixes
+- Fixed settings save "Invalid JSON" error
+- Fixed upload_file.php API returning correct URLs
+
+---
+
+## [1.2.1] - 2025-12-17
+
+### Fixes
+- Fixed post save database issues
+- Fixed temp-id to permanent ID assignment
+- Fixed database connection configuration
+
+---
+
+## [1.2.0] - 2025-12-17
+
+### Features
+- Full manual restore capability
+- Installer auto-redirect on fresh deployment
+- RewriteBase configuration for subdirectory installs
+
+---
+
+## [1.1.x] - 2025-12-16
+
+### Features
+- Installer wizard for easy setup
+- Auto-detection of missing configuration
+- XAMPP deployment script
+- Security audit and patches
+
+### Fixes
+- Fixed routing issues (white page on direct URL access)
+- Fixed login from non-root paths
+- Fixed asset loading MIME type errors
+
+---
+
+## [1.0.5] - 2025-12-15
+
+### Features
+- SEO settings panel
+- reCAPTCHA v3 support
+- Error boundary for admin UI
+- TechPress theme pagination
+- Comments dark mode support
+
+### Fixes
+- Fixed ContentManager props bug
+- Fixed TechPress search functionality
+
+---
+
+## [1.0.1] - 2025-12-10
+
+### Features
+- Consolidated AI service modules
+- Environment variable support for API keys
+- XAMPP deployment helper script
+
+### Notes
+- Bundle size warning (~881 KB) - code-splitting planned for future
+
+---
+
+## [1.0.0] - Initial Release
+
+### Core Features
+- Modern React 18 + TypeScript frontend
+- PHP REST API backend
+- MySQL database support
+- User authentication with sessions
+- CSRF protection
+- Rate limiting
+- XSS protection with DOMPurify
+
+### Content Management
+- Posts with categories and SEO
+- Static pages
+- Media manager
+- Comments with likes and replies
+
+### Themes
+- Default theme
+- TechPress theme
+- Prism theme
+
+### Admin Panel
+- Dashboard with analytics
+- Content manager
+- User management
+- Settings manager
+- Extensions/plugin system
