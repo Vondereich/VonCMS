@@ -4,7 +4,7 @@
 > [!NOTE]
 > **This Release is the DEPLOY VERSION (Ready-to-Run).**
 > It contains the compiled production files optimized for hosting. It does **NOT** contain the full React source code (`src` folder).
-> Users looking to modify the core code should download the `_Source.zip` package instead.
+> As stated in the License, this is a closed-source deploy package.
 
 ---
 
