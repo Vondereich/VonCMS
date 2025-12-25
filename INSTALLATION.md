@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.7.2 "Phoenix"**
+> **VonCMS v1.8.3 "Aegis"**
 
 ---
 
@@ -66,6 +66,34 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 ---
 
+## Updating VonCMS
+
+> [!CAUTION]
+> # **CRITICAL UPGRADE STEP: DELETE `assets/` FOLDER**
+> **You MUST delete the `assets` folder from your hosting before uploading the new version.**
+> This is to prevent **"Zombie Files"** (old, dead files) from conflicting with your new code.
+> *Failure to do this will result in a broken site (White Screen of Death).*
+
+### Step 1: Backup
+1. Download your `uploads/` folder (your images)
+2. Export database from phpMyAdmin
+
+### Step 2: Clean Update
+1. Delete the `assets/` folder from your hosting
+2. Download new `VonCMS_Deploy.zip`
+3. Extract and upload (overwrite existing files)
+    > [!TIP]
+    > **Safe to Overwrite:** Uploading the new files will NOT delete your database configuration (`von_config.php`) or your images (`uploads/`) because those files are not included in the update package. However, having a backup is always recommended.
+
+### Step 3: Verify
+1. Hard refresh browser: `Ctrl + Shift + R`
+2. Check version in Admin Dashboard
+
+> [!WARNING]
+> If you skip deleting `assets/`, old JavaScript files may cause display issues.
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -73,7 +101,9 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 | White page | Enable `mod_rewrite` in Apache |
 | Permission error | Folders: `755`, Files: `644` |
 | DB connection failed | Check credentials in phpMyAdmin |
+| Old version showing | Delete `assets/` folder, re-upload, hard refresh |
 
 ---
 
-*VonCMS v1.7.2 "Phoenix"*
+*VonCMS v1.8.3 "Aegis"*
+
