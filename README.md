@@ -4,7 +4,7 @@
 > [!NOTE]
 > **This Release is the DEPLOY VERSION (Ready-to-Run).**
 > It contains the compiled production files optimized for hosting. It does **NOT** contain the full React source code (`src` folder).
-> As stated in the License, this is a closed-source deploy package.
+> This follows the **"Use What's Provided"** philosophy. The system is designed to work out-of-the-box without core modifications.
 
 ---
 
