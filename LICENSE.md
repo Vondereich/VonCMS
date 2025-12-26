@@ -1,6 +1,6 @@
 # VonCMS License
 
-**Version:** 1.8.3 "Aegis"  
+**Version:** 1.8.5 "Aegis"  
 **Release Date:** December 2025  
 **Copyright:** © 2025 VonCMS. All Rights Reserved.
 
@@ -85,5 +85,5 @@ For source code licensing, custom development, or enterprise support, contact th
 
 ---
 
-*VonCMS v1.8.3 "Aegis" — Deploy Version*  
+*VonCMS v1.8.5 "Aegis" — Deploy Version*  
 *Released: December 2025*
