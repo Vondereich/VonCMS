@@ -34,6 +34,24 @@
 
 ---
 
+## 🎬 Watch Demo
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=A4Rd9D4HtmQ">
+    <img src="https://img.youtube.com/vi/A4Rd9D4HtmQ/maxresdefault.jpg" alt="VonCMS Demo" width="600">
+  </a>
+  <p><strong>▶️ Why I Built VonCMS (Click to Watch)</strong></p>
+</div>
+
+### 📚 More Tutorials
+
+| Topic | Video |
+|-------|-------|
+| 🔧 Installation Guide | [Watch →](https://www.youtube.com/watch?v=kybRZDPDVBY) |
+| 🌉 WP Migration Demo | [Watch →](https://www.youtube.com/watch?v=mHXNfc6bGkk) |
+
+---
+
 ## 🔥 NEW in v1.8.5: WordPress Bridge
 
 ### Migrate from WordPress in Minutes, Not Hours
