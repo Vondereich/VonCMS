@@ -208,6 +208,24 @@ If you prefer maximum safety:
 
 ---
 
+
+---
+
+## Upgrade to v1.8.6 (Critical SEO Update)
+
+**Required for:** Any version → v1.8.6
+
+> [!IMPORTANT]
+> This update introduces Dynamic SEO Handlers (`robots.txt` & `sitemap.xml`). You **MUST** update your `.htaccess` file.
+
+### Steps:
+1. **Delete `assets/` folder** (Standard procedure).
+2. **Upload new files** (Overwrite all).
+3. **Overwrite `.htaccess`**: Ensure you upload the new `.htaccess` from the zip. It contains the new routing rules for SEO.
+4. **Clear Cache**: `Ctrl + Shift + R`.
+
+---
+
 ## Getting Help
 
 - **Documentation:** Check `docs/` folder in Source package
