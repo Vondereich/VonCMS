@@ -1,118 +1,163 @@
 # 🚀 VonCMS v1.8.5 "Aegis"
-## A Fast, Lightweight Hybrid Headless CMS
 
-> [!NOTE]
-> **This Release is the DEPLOY VERSION (Ready-to-Run).**
-> It contains the compiled production files optimized for hosting. It does **NOT** contain the full React source code (`src` folder).
-> This follows the **"Use What's Provided"** philosophy. The system is designed to work out-of-the-box without core modifications.
+<div align="center">
+
+### ⚡ The Ultra-Fast, Hybrid Headless CMS ⚡
+**React + PHP | Blazing Fast | Zero Plugin Headaches**
+
+[![Version](https://img.shields.io/badge/version-1.8.5-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
+[![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
+
+**[📥 Download](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/) • [🐛 Report Bug](https://github.com/Vondereich/VonCMS/issues)**
 
 ---
 
-## 🌟 What is VonCMS?
+*If you find VonCMS useful, please consider giving it a ⭐ — it helps others discover the project!*
 
-## VonCMS v1.8.5 🚀
-> **The "Battery-Included" CMS for Modern Developers.**
-> Built with React (Vite) + PHP (API). Fast, Secure, and Ready to Deploy.
+</div>
 
-![Version](https://img.shields.io/badge/version-1.8.5-blue.svg)
-![License](https://img.shields.io/badge/license-Private-red.svg)
+---
 
-## 🔥 NEW in v1.8.5: WordPress Bridge 🚀
+## 🎯 Why VonCMS?
+
+| Feature | VonCMS | WordPress | Ghost |
+|---------|:------:|:---------:|:-----:|
+| **Setup Time** | 2 min | 15+ min | 5 min |
+| **Core Files** | ~200 | 3,000+ | ~500 |
+| **Built-in SEO** | ✅ | ❌ (needs Yoast) | ✅ |
+| **Built-in Ads Manager** | ✅ | ❌ (needs plugin) | ❌ |
+| **WP Migration Tool** | ✅ | N/A | ✅ |
+| **Plugin Dependencies** | 0 | 10-30+ typical | 0 |
+| **Security Patches Needed** | Rare | Weekly | Rare |
+| **Lighthouse SEO Score** | 100 | 70-90 (optimized) | 95+ |
+
+---
+
+## 🔥 NEW in v1.8.5: WordPress Bridge
 
 ### Migrate from WordPress in Minutes, Not Hours
 
-**Tired of WordPress complexity?** VonCMS v1.8.5 introduces the **WordPress Bridge** - a powerful one-click migration tool that transfers your entire WordPress site to VonCMS with zero data loss.
+**Tired of WordPress complexity?** VonCMS v1.8.5 introduces the **WordPress Bridge** — a powerful one-click migration tool.
 
-#### ✨ What WordPress Bridge Does:
-- 🎯 **One-Click Migration** — Upload your WXR export XML file and click import
-- 🖼️ **Auto-Extract Featured Images** — Automatically detects and imports post thumbnails
-- 📦 **Batch Processing** — Handles sites with 1,000+ posts without timeout issues
-- 🔄 **Smart Duplicate Detection** — Re-run imports safely without creating duplicates
-- 🛡️ **Self-Healing** — Automatically fixes incomplete imports from crashes
-- ⚡ **Zero Downtime** — Import in background while your site stays online
-
-#### 💡 Why Migrate?
-WordPress has **3,000+ core files**. VonCMS has **~200**. That's **15x lighter**, faster, and way easier to manage.
+| Feature | Description |
+|---------|-------------|
+| 🎯 **One-Click Migration** | Upload WXR export file → Click import → Done |
+| 🖼️ **Auto-Extract Thumbnails** | Automatically detects and imports featured images |
+| 📦 **Batch Processing** | Handles 1,000+ posts without timeout |
+| 🔄 **Smart Duplicate Detection** | Re-run imports safely without duplicates |
+| 🛡️ **Self-Healing** | Automatically fixes incomplete imports |
 
 ---
 
-## 🛡️ Also New: Enhanced Security
-v1.8.5 patches **14 vulnerabilities** with multi-layer authentication:
-- Session validation
-- CSRF token protection  
-- Admin role enforcement
+## 🛡️ Enhanced Security (v1.8.5)
+
+**14 vulnerabilities patched** with multi-layer protection:
+
+```
+Request → CORS → Session → CSRF → Admin Check → Execute
+```
+
+- ✅ Session validation on all write endpoints
+- ✅ CSRF token protection
+- ✅ Super Admin (ID 1) immutable protection
+- ✅ Avatar privacy (Gravatar MD5 hashing)
+
+---
 
 ## ⚡ Key Features
 
-- ⚡ **Blazing Fast** — Built with React & Vite for instant page transitions (< 1s load)
-- 🕒 **Content Scheduling** — Auto-publish posts perfectly on time (New in v1.8.3)
-- 🗑️ **Bulk Management** — Delete multiple posts/pages in two clicks (New in v1.8.3)
-- 🛡️ **Security Hardening** — 14 vulnerabilities patched (New in v1.8.5)
-- 🔌 **Easy Installation** — Automated wizard installer (upload & click)
-- 🎨 **Premium Themes** — TechPress (News Portal) & Prism (Modern Grid) included
-- 💰 **Built-in Ads Manager** — Header, Sidebar, Popup & In-Feed (AdSense ready)
-- 📱 **Mobile-First Design** — Fully responsive & touch-optimized
-- 🔒 **Secure by Default** — Auto-sanitization, clean APIs & secure authentication
-- 📂 **File Manager** — Drag-and-drop uploads with gallery management
-- 🪶 **Ultra-Light** — **~187** source files vs WP's 3,000+
+<table>
+<tr>
+<td width="50%">
+
+### 🚀 Performance
+- ⚡ React + Vite = <1s page loads
+- 🪶 15x lighter than WordPress
+- 📱 Mobile-first responsive design
+
+### 🎨 Themes
+- 📰 TechPress (News/Magazine)
+- 🌙 Prism (Modern Dark Grid)
+- 🎛️ Fully customizable
+
+</td>
+<td width="50%">
+
+### 🛠️ Content Management
+- 🕒 Content scheduling
+- 🗑️ Bulk delete operations
+- 📂 Drag-drop file manager
+- ✏️ WYSIWYG editor
+
+### 💰 Monetization
+- 📊 Built-in Ads Manager
+- 🎯 Header, Sidebar, In-Feed ads
+- 💵 AdSense-ready
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 📦 About This Repository
+## 📥 Quick Start
 
-This repository contains a **DEPLOY / PRODUCTION-ready** version of VonCMS.
+```bash
+# 1. Download from GitHub Releases
+# 2. Upload to your hosting (cPanel, DirectAdmin, etc.)
+# 3. Extract ZIP
+# 4. Open your domain in browser
+# 5. Follow installation wizard (2 minutes!)
+```
 
-It is intended for:
-- ✅ Direct usage on hosting environments
-- ✅ Evaluation & testing
-- ✅ Demonstration and walkthroughs
+### System Requirements
+- **PHP**: 8.0+ 
+- **Database**: MySQL / MariaDB
+- **Server**: Apache (recommended) or Nginx
 
-### ℹ️ About This Version (Standard Edition)
-This is the **Standard Edition** of VonCMS — what you see is what you get for this release.
-The system is pre-packed with:
-- Essential plugins (SEO, Ads, Security)
-- Premium themes (TechPress & Prism)
+---
 
-You can build a professional-looking website immediately without installing additional plugins or purchasing extra themes.
+## 📦 What's Included
+
+| Component | Description |
+|-----------|-------------|
+| 🎨 2 Premium Themes | TechPress + Prism |
+| 🔍 VonSEO | Built-in SEO optimization (Lighthouse 100) |
+| 💰 Ads Manager | Full advertising system |
+| 🌉 WP Bridge | WordPress migration tool |
+| 🛡️ Security Suite | Multi-layer authentication |
+
+---
+
+## 🙋‍♂️ Default Admin Access
+
+After installation:
+```
+URL: yoursite.com/admin
+Username: (created during install)
+Password: (created during install)
+```
 
 ---
 
 ## 🐛 Bug Reports & Feedback
 
-While this version ("Aegis") is verified stable, usage environments may vary.
-If you encounter bugs or have improvement ideas, please report them — community feedback helps shape the future of VonCMS.
+Found a bug? Have an idea? [Open an issue](https://github.com/Vondereich/VonCMS/issues) — community feedback shapes VonCMS!
 
 ---
 
-## 📥 Installation Guide
+<div align="center">
 
-**No terminal or command-line knowledge required.**
+### 🌟 Star History
 
-1. **Download** the latest `VonCMS_v1.8.5_Deploy.zip` from [GitHub Tags](https://github.com/Vondereich/VonCMS/tags)
-2. **Upload** it to your hosting (cPanel / DirectAdmin) or localhost (`htdocs/`)
-3. **Extract** the ZIP file
-4. **Open** your website URL (e.g. `https://www.yourdomain.com`)
-   - The installation wizard will start automatically
-5. **Enter** database details (Host, Name, User, Password)
-6. **Create** an admin account
+If VonCMS helped you, leave a ⭐ to support the project!
 
-**Done! Your website is live 🎉**
-
-### ⚠️ System Requirements
-- **PHP**: 8.0, 8.1, or 8.2
-- **Database**: MySQL or MariaDB
-- **Server**: Apache (recommended) or Nginx
-- **PHP Extensions**: `mysqli`, `json`, `mbstring` (standard on most hosting)
-
----
-
-## 🙋‍♂️ Default Login
-
-After installation, access the admin panel at:
-`yoursite.com/admin`
-
-Login using the credentials created during installation.
+**[⭐ Star on GitHub](https://github.com/Vondereich/VonCMS)**
 
 ---
 
 *Built with ❤️ by the VonCMS Team*
+
+</div>
+
