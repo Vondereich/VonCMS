@@ -1,11 +1,11 @@
-# 🚀 VonCMS v1.8.5 "Aegis"
+# 🚀 VonCMS v1.8.6 "Aegis"
 
 <div align="center">
 
 ### ⚡ The Ultra-Fast, Hybrid Headless CMS ⚡
 **React + PHP | Blazing Fast | Zero Plugin Headaches**
 
-[![Version](https://img.shields.io/badge/version-1.8.5-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
+[![Version](https://img.shields.io/badge/version-1.8.6-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
 
@@ -52,23 +52,23 @@
 
 ---
 
-## 🔥 NEW in v1.8.5: WordPress Bridge
+## 🔥 NEW in v1.8.6: VonContact & Portfolio Theme
 
-### Migrate from WordPress in Minutes, Not Hours
+### Complete Contact Form System + Portfolio Theme Updates
 
-**Tired of WordPress complexity?** VonCMS v1.8.5 introduces the **WordPress Bridge** — a powerful one-click migration tool.
+**VonCMS v1.8.6** brings the **VonContact** system and major improvements to the Portfolio theme.
 
 | Feature | Description |
 |---------|-------------|
-| 🎯 **One-Click Migration** | Upload WXR export file → Click import → Done |
-| 🖼️ **Auto-Extract Thumbnails** | Automatically detects and imports featured images |
-| 📦 **Batch Processing** | Handles 1,000+ posts without timeout |
-| 🔄 **Smart Duplicate Detection** | Re-run imports safely without duplicates |
-| 🛡️ **Self-Healing** | Automatically fixes incomplete imports |
+| 📞 **VonContact Manager** | Admin interface for creating/editing multiple contact forms |
+| 🏷️ **Dynamic Shortcodes** | Use `[von-contact id="..."]` anywhere in your content |
+| 🎨 **Portfolio VonSEO** | Full SEO meta tags support for Portfolio theme |
+| 🔗 **Dynamic robots.txt** | Real-time generation from Admin Settings |
+| 🗺️ **Dynamic sitemap.xml** | Auto-generated sitemap from your content |
 
 ---
 
-## 🛡️ Enhanced Security (v1.8.5)
+## 🛡️ Enhanced Security (v1.8.6)
 
 **14 vulnerabilities patched** with multi-layer protection:
 
