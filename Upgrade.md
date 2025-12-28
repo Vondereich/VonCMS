@@ -25,7 +25,7 @@
 
 **Old Structure (v1.8.1-v1.8.4):**
 ```
-VonCMS/
+your-site/
 ├── public/
 │   ├── api/
 │   └── uploads/
@@ -33,13 +33,13 @@ VonCMS/
 └── von_config.php
 ```
 
-**New Structure (v1.8.5):**
+**New Structure (v1.8.5+):**
 ```
-VonCMS/
-├── api/          ← Moved from public/api/
-├── uploads/      ← Moved from public/uploads/
-├── assets/       ← Built frontend assets
-├── index.html    ← Entry point
+your-site/
+├── api/          ← Moved out of public/
+├── uploads/      ← Moved out of public/
+├── assets/       ← Frontend files
+├── index.html
 └── von_config.php
 ```
 
@@ -58,17 +58,14 @@ Before doing **ANYTHING**:
 #### Step 2: 🗑️ Delete Old Installation
 
 > [!WARNING]
-> You **MUST** delete the old VonCMS folder completely.
+> You **MUST** delete the old installation folder completely.
 
-**Why?**
-- Old `public/` folder conflicts with new structure
-- Security risk (old unpatched API files still accessible)
-- Routing issues (Apache may serve old files)
+**Why?** Old `public/` folder conflicts with new structure.
 
 **How:**
 1. Login to cPanel File Manager or FTP
-2. Navigate to your VonCMS folder
-3. **DELETE THE ENTIRE FOLDER** (after Step 1 backup!)
+2. Navigate to your site folder
+3. Delete all files (after Step 1 backup!)
 
 #### Step 3: 📤 Upload New Version
 
@@ -78,23 +75,27 @@ Before doing **ANYTHING**:
 
 #### Step 4: ⚙️ Restore Your Config
 
-1. Copy your backed-up `von_config.php`
-2. Paste into new VonCMS root folder
-3. Overwrite the dummy config file
+1. Copy your backed-up `von_config.php` into your site folder
+2. Overwrite the dummy config file
 
 #### Step 5: 📁 Restore Uploads (Optional)
 
 If you had custom uploaded media:
-1. Copy old `uploads/` folder contents
-2. Paste into new `VonCMS/uploads/` folder
+1. Copy your backed-up `uploads/` folder contents
+2. Paste into the new `uploads/` folder
 
 #### Step 6: 🔧 Update .htaccess (If Needed)
 
-If site is in subdirectory (e.g., `/voncms/`):
+If site is in subdirectory (e.g., `/my-folder/`):
+
+> [!NOTE]
+> **v1.8.6+ users:** You can skip this. The new `.htaccess` auto-detects subdirectories.
+
+**For older versions only:**
 1. Open `.htaccess` file
 2. Update `RewriteBase` to match your path:
    ```apache
-   RewriteBase /voncms/
+   RewriteBase /my-folder/
    ```
 
 #### Step 7: ✅ Verify Installation
@@ -111,33 +112,16 @@ If site is in subdirectory (e.g., `/voncms/`):
 
 **For:** v1.8.5 → v1.8.6, v1.8.7, etc.
 
-> [!CAUTION]
-> **ALWAYS delete the `assets/` folder before uploading new version!**
+### 3 Simple Steps
 
-### Quick Upgrade Steps
+1. **Delete** the `assets/` folder from your server
+2. **Upload** the new version files (overwrite existing)
+3. **Refresh** your browser (`Ctrl + Shift + R`)
 
-1. **Backup database** (recommended, optional for minor updates)
-2. **Keep** your `von_config.php` and `uploads/` folder
-3. **DELETE** the `assets/` folder from server
-4. Upload new version files (overwrite existing)
-5. **Clear browser cache** (`Ctrl + Shift + R`)
-
-### Why Delete assets/?
-
-**Zombie Files Problem:**
-- VonCMS is a Single Page App (SPA)
-- Asset filenames change every build (e.g., `index-a1b2.js` → `index-c3d4.js`)
-- Old files remain and conflict with new ones
-- Causes: white screen, display bugs, broken features
+That's it! Your `von_config.php` and `uploads/` folder will stay intact.
 
 > [!TIP]
-> The Dashboard shows an "Upgrade Tip" banner reminding you to delete assets folder after each update.
-
-### Alternative: Full Clean Install
-
-If you prefer maximum safety:
-- Follow Steps 1-7 from [Major Version Upgrade](#major-version-upgrade)
-- Takes more time but guarantees clean installation
+> **Why delete assets/?** VonCMS generates new asset filenames each build. Old files can cause display issues if not removed.
 
 ---
 
@@ -208,21 +192,15 @@ If you prefer maximum safety:
 
 ---
 
+## Upgrade to v1.8.6
 
----
-
-## Upgrade to v1.8.6 (Critical SEO Update)
-
-**Required for:** Any version → v1.8.6
-
-> [!IMPORTANT]
-> This update introduces Dynamic SEO Handlers (`robots.txt` & `sitemap.xml`). You **MUST** update your `.htaccess` file.
+This version adds dynamic SEO files (`robots.txt` & `sitemap.xml`).
 
 ### Steps:
-1. **Delete `assets/` folder** (Standard procedure).
-2. **Upload new files** (Overwrite all).
-3. **Overwrite `.htaccess`**: Ensure you upload the new `.htaccess` from the zip. It contains the new routing rules for SEO.
-4. **Clear Cache**: `Ctrl + Shift + R`.
+1. Delete `assets/` folder
+2. Upload new files (overwrite all)
+3. **Important:** Also overwrite `.htaccess` - it has new routing rules
+4. Refresh browser (`Ctrl + Shift + R`)
 
 ---
 
@@ -234,7 +212,7 @@ If you prefer maximum safety:
 
 ---
 
-**Version:** 1.8.5  
+**Version:** 1.8.6  
 **Release Date:** December 2025  
 **Package:** Deploy Edition
 
