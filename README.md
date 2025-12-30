@@ -1,15 +1,15 @@
-# 🚀 VonCMS v1.8.6 "Aegis"
+# 🚀 VonCMS v1.9.3 "Rafflesia"
 
 <div align="center">
 
 ### ⚡ The Ultra-Fast, Hybrid Headless CMS ⚡
 **React + PHP | Blazing Fast | Zero Plugin Headaches**
 
-[![Version](https://img.shields.io/badge/version-1.8.6-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
+[![Version](https://img.shields.io/badge/version-1.9.3-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
 
-**[📥 Download](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/) • [🐛 Report Bug](https://github.com/Vondereich/VonCMS/issues)**
+**[📥 Download Latest Release](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/) • [🐛 Report Bug](https://github.com/Vondereich/VonCMS/issues)**
 
 ---
 
@@ -26,6 +26,7 @@
 | **Setup Time** | 2 min | 15+ min | 5 min |
 | **Core Files** | ~200 | 3,000+ | ~500 |
 | **Built-in SEO** | ✅ | ❌ (needs Yoast) | ✅ |
+| **Newsletter System** | ✅ | ❌ (needs Mailchimp) | ✅ |
 | **Built-in Ads Manager** | ✅ | ❌ (needs plugin) | ❌ |
 | **WP Migration Tool** | ✅ | N/A | ✅ |
 | **Plugin Dependencies** | 0 | 10-30+ typical | 0 |
@@ -52,19 +53,29 @@
 
 ---
 
-## 🔥 NEW in v1.8.6: VonContact & Portfolio Theme
+## 🔥 Feature Spotlight: The v1.9 Era
 
-### Complete Contact Form System + Portfolio Theme Updates
+We skipped straight to **v1.9.3** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
 
-**VonCMS v1.8.6** brings the **VonContact** system and major improvements to the Portfolio theme.
+### 1. 🛡️ Enterprise Database Safety (v1.9.3)
+*   **Safety Switch**: A fail-safe toggle that blocks destructive queries (`DROP`, `DELETE`) by default.
+*   **Auto-Repair Tool**: A "Self-Healing" engine that detects missing tables/columns and rebuilds them instantly.
+*   **Atomic Architecture**: Config files use "Write-Verify-Rename" logic to prevent corruption during server crashes.
 
-| Feature | Description |
-|---------|-------------|
-| 📞 **VonContact Manager** | Admin interface for creating/editing multiple contact forms |
-| 🏷️ **Dynamic Shortcodes** | Use `[von-contact id="..."]` anywhere in your content |
-| 🎨 **Portfolio VonSEO** | Full SEO meta tags support for Portfolio theme |
-| 🔗 **Dynamic robots.txt** | Real-time generation from Admin Settings |
-| 🗺️ **Dynamic sitemap.xml** | Auto-generated sitemap from your content |
+### 2. 📧 Native Newsletter CRM (v1.9.2)
+*   **Subscriber Database**: Built-in management for your audience.
+*   **Growth Widgets**: Ready-to-use subscription forms for Footer & Sidebar.
+*   **Data Sovereignty**: Full CSV export ownership. No external dependencies.
+
+### 3. 📰 "Von Digest" Theme (v1.9.2)
+*   **Modern Magazine UI**: Designed for high-readability and engagement.
+*   **Smart Categories**: Dynamic hero sections for topic filtering.
+*   **Dark Mode 2.0**: Refined high-contrast dark theme.
+
+### 4. ⚡ Smart UX Engine (v1.9.0)
+*   **Skeleton Loading**: Eliminated "white screen" flashes.
+*   **Instant Feel**: Perceptual performance optimized for slower networks.
+*   **React Hydration**: Seamless transition from static HTML to interactive App.
 
 ---
 
@@ -92,11 +103,14 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 ### 🚀 Performance
 - ⚡ React + Vite = <1s page loads
 - 🪶 15x lighter than WordPress
+- 📊 **Smart Analytics** (Auto-purge + Throttling)
 - 📱 Mobile-first responsive design
 
 ### 🎨 Themes
 - 📰 TechPress (News/Magazine)
+- 🗞️ **Digest** (Modern Blog/Magazine) *New*
 - 🌙 Prism (Modern Dark Grid)
+- 💼 Portfolio (Clean, Professional Showcase)
 - 🎛️ Fully customizable
 
 </td>
@@ -107,6 +121,7 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 - 🗑️ Bulk delete operations
 - 📂 Drag-drop file manager
 - ✏️ WYSIWYG editor
+- 📞 **VonContact System** (New)
 
 ### 💰 Monetization
 - 📊 Built-in Ads Manager
@@ -140,8 +155,10 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 
 | Component | Description |
 |-----------|-------------|
-| 🎨 2 Premium Themes | TechPress + Prism |
+| 🎨 3 Premium Themes | TechPress + Prism + Portfolio |
 | 🔍 VonSEO | Built-in SEO optimization (Lighthouse 100) |
+| 📞 **VonContact** | Special Contact Form Builder (SMTP Ready) |
+| 💾 **Autosave** | Never lose work with 60s background save |
 | 💰 Ads Manager | Full advertising system |
 | 🌉 WP Bridge | WordPress migration tool |
 | 🛡️ Security Suite | Multi-layer authentication |
