@@ -1,4 +1,4 @@
-# 🚀 VonCMS v1.9.3 "Rafflesia"
+# 🚀 VonCMS v1.9.5 "Rafflesia"
 
 <div align="center">
 
@@ -56,9 +56,14 @@
 
 ## 🔥 Feature Spotlight: The v1.9 Era
 
-We skipped straight to **v1.9.3** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
+We skipped straight to **v1.9.5** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
 
-### 1. 🛡️ Enterprise Database Safety (v1.9.3)
+### 1. 🏗️ Theme Standardization (v1.9.5)
+*   **Shared Hooks**: Centralized logic for Profiles, Popups, and UX across themes.
+*   **Discussion Tabs**: Standardized "Articles vs Discussion" tabs on user profiles.
+*   **Developer SOP**: Full `THEME_DEV_GUIDE` included for future-proof theming.
+
+### 2. 🛡️ Enterprise Database Safety (v1.9.3)
 *   **Safety Switch**: A fail-safe toggle that blocks destructive queries (`DROP`, `DELETE`) by default.
 *   **Auto-Repair Tool**: A "Self-Healing" engine that detects missing tables/columns and rebuilds them instantly.
 *   **Atomic Architecture**: Config files use "Write-Verify-Rename" logic to prevent corruption during server crashes.
