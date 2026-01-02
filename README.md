@@ -1,11 +1,12 @@
-# 🚀 VonCMS v1.9.5 "Rafflesia"
+# 🚀 VonCMS v1.9.7
+
 
 <div align="center">
 
 ### ⚡ The Ultra-Fast, Hybrid Headless CMS ⚡
 **React + PHP | Blazing Fast | Zero Plugin Headaches**
 
-[![Version](https://img.shields.io/badge/version-1.9.3-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
+[![Version](https://img.shields.io/badge/version-1.9.7-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
 [![Lighthouse](https://img.shields.io/badge/Lighthouse-89%2F96%2F100%2F100-brightgreen.svg)](https://web.dev/measure/)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
@@ -58,27 +59,33 @@
 
 We skipped straight to **v1.9.5** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
 
-### 1. 🏗️ Theme Standardization (v1.9.5)
+### 1. 🧠 Smart Systems (v1.9.7)
+*   **Algorithmic Dark Mode**: Mathematically detects and cleans "dirty" inline colors.
+*   **Intelligent SEO**: Auto-keywords weighted by Title priority.
+*   **XSS Shield**: Deep sanitization for ads and custom blocks.
+*   **Privacy-First Avatar Sync**: Consistent Gravatars across Profile/Comments using secure MD5 hashing.
+
+### 2. 🏗️ Theme Standardization (v1.9.5)
 *   **Shared Hooks**: Centralized logic for Profiles, Popups, and UX across themes.
 *   **Discussion Tabs**: Standardized "Articles vs Discussion" tabs on user profiles.
 *   **Developer SOP**: Full `THEME_DEV_GUIDE` included for future-proof theming.
 
-### 2. 🛡️ Enterprise Database Safety (v1.9.3)
+### 3. 🛡️ Enterprise Database Safety (v1.9.3)
 *   **Safety Switch**: A fail-safe toggle that blocks destructive queries (`DROP`, `DELETE`) by default.
 *   **Auto-Repair Tool**: A "Self-Healing" engine that detects missing tables/columns and rebuilds them instantly.
 *   **Atomic Architecture**: Config files use "Write-Verify-Rename" logic to prevent corruption during server crashes.
 
-### 2. 📧 Native Newsletter CRM (v1.9.2)
+### 4. 📧 Native Newsletter CRM (v1.9.2)
 *   **Subscriber Database**: Built-in management for your audience.
 *   **Growth Widgets**: Ready-to-use subscription forms for Footer & Sidebar.
 *   **Data Sovereignty**: Full CSV export ownership. No external dependencies.
 
-### 3. 📰 "Von Digest" Theme (v1.9.2)
+### 5. 📰 "Von Digest" Theme (v1.9.2)
 *   **Modern Magazine UI**: Designed for high-readability and engagement.
 *   **Smart Categories**: Dynamic hero sections for topic filtering.
 *   **Dark Mode 2.0**: Refined high-contrast dark theme.
 
-### 4. ⚡ Smart UX Engine (v1.9.0)
+### 6. ⚡ Smart UX Engine (v1.9.0)
 *   **Skeleton Loading**: Eliminated "white screen" flashes.
 *   **Instant Feel**: Perceptual performance optimized for slower networks.
 *   **React Hydration**: Seamless transition from static HTML to interactive App.
