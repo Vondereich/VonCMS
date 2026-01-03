@@ -1,19 +1,6 @@
 # User Manual
 
-> **VonCMS v1.8.3 "Aegis"** | Complete Admin Panel Guide
-
----
-
-## Welcome to VonCMS
-
-VonCMS is a modern, lightweight Content Management System designed for bloggers, news portals, and businesses. This guide will walk you through every feature of the admin panel step by step.
-
-### Who is this guide for?
-
-- **Website Owners** - Manage your content without coding
-- **Content Writers** - Create and publish articles
-- **Administrators** - Manage users and settings
-- **Beginners** - No technical experience required!
+> **VonCMS v1.9.7 "Rafflesia"** | Complete Admin Panel Guide
 
 ---
 
@@ -28,9 +15,11 @@ VonCMS is a modern, lightweight Content Management System designed for bloggers,
 7. [Managing Comments](#managing-comments)
 8. [User Management](#user-management)
 9. [Settings](#settings)
-10. [Extensions (Plugins)](#extensions-plugins)
-11. [Backup & Database](#backup--database)
-12. [Troubleshooting](#troubleshooting)
+10. [Newsletter Management](#newsletter-management)
+11. [Extensions (Plugins)](#extensions-plugins)
+12. [WordPress Migration](#wordpress-migration)
+13. [Backup & Database](#backup--database)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -292,231 +281,222 @@ Moderate discussions on your posts.
 
 ## User Management
 
-Control who can access your admin panel.
+Control who has access to your admin panel.
 
-### User Roles Explained
+### User Roles
 
 | Role | Permissions |
 |------|-------------|
 | **Admin** | Full access to everything |
-| **Moderator** | Manage posts, pages, comments. Cannot access settings |
-| **Writer** | Create and edit their own posts only |
-| **Member** | Can login and comment only |
+| **Moderator** | Manage comments and content |
+| **Writer** | Create and edit own posts |
+| **Member** | View-only access |
 
 ### Adding a New User
 
 1. Go to **Users**
 2. Click **+ Add User**
-3. Fill in the form:
-   - **Username** - Login name
-   - **Email** - User's email address
-   - **Password** - Strong password
-   - **Role** - Select appropriate role
-4. Click **Save**
+3. Fill in username, email, password
+4. Select a role
+5. Click **Save**
 
 ### Editing a User
 
-1. Find the user in the list
-2. Click **Edit**
-3. Modify the information
-4. Click **Save**
+1. Go to **Users**
+2. Find the user
+3. Click **Edit**
+4. Change role or reset password
+5. Click **Save**
 
 ### Deleting a User
 
-1. Find the user in the list
-2. Click **Delete**
-3. Confirm deletion
+1. Go to **Users**
+2. Find the user
+3. Click **Delete**
+4. Confirm
 
-> ⚠️ **Note:** You cannot delete your own account!
+> ⚠️ **Note:** You cannot delete the primary admin account!
 
 ---
 
 ## Settings
 
-Configure every aspect of your website.
+Configure your entire website from one place.
 
 ### General Settings
 
-| Option | Description |
-|--------|-------------|
-| **Site Name** | Your website's name (appears in browser tab) |
-| **Site Description** | Short description for SEO |
-| **Logo** | Your site's logo image |
-| **Favicon** | Small icon in browser tab |
-| **Posts Per Page** | How many posts to show per page |
-
-### Theme Settings
-
-| Option | Description |
-|--------|-------------|
-| **Active Theme** | Choose between Default, TechPress, or Prism |
-| **Primary Color** | Main color used throughout the site |
-| **Dark Mode** | Enable/disable dark theme |
-
-### Navigation Settings
-
-Customize your menu:
-
-1. Go to **Settings** → **Navigation**
-2. Click **+ Add Item** to add a menu link
-3. Enter the label (what users see) and URL
-4. Drag items to reorder
-5. Click **Save**
-
-### Sidebar Settings
-
-Customize your sidebar widgets:
-
-1. Go to **Settings** → **Sidebar**
-2. Toggle widgets on/off
-3. Drag to reorder
-4. Click **Save**
+| Setting | Description |
+|---------|-------------|
+| Site Name | Your website's title |
+| Site Tagline | Short description |
+| Site URL | Your domain (e.g., https://example.com) |
+| Timezone | Your local timezone |
 
 ### SEO Settings
 
-Optimize for search engines:
+| Setting | Description |
+|---------|-------------|
+| Meta Description | Default description for search engines |
+| Meta Keywords | Keywords for SEO |
+| Google Verification | Google Search Console code |
+| robots.txt | Control search engine crawling |
 
-| Option | Description |
-|--------|-------------|
-| **Meta Title** | Title shown in search results |
-| **Meta Description** | Description in search results |
-| **Keywords** | Relevant keywords for your site |
+### Theme Settings
+
+1. Go to **Settings** → **Appearance**
+2. Choose from available themes:
+   - **Default** - Clean and minimal
+   - **TechPress** - News/Magazine style
+   - **Prism** - Modern dark grid
+   - **Portfolio** - Showcase projects
+3. Click **Save** to apply
+
+### Navigation Menu
+
+1. Go to **Settings** → **Navigation**
+2. Click **+ Add Item**
+3. Enter label and URL
+4. Arrange order by dragging
+5. Click **Save**
+
+---
+
+---
+
+## Newsletter Management
+
+Manage your email subscribers and widget settings.
+
+### Configuring the Widget
+
+1.  Go to **Newsletter** via the Sidebar (Settings icon).
+2.  **Enable/Disable**: Toggle the master switch to show/hide the widget public-wide.
+3.  **Customization**:
+    *   **Title**: "Subscribe to our Newsletter"
+    *   **Description**: "Get the latest updates..."
+    *   **Button Text**: "Join Now"
+4.  **Position**: Choose between `Footer`, `Sidebar`, or `Both`.
+5.  Click **Save Settings**.
+
+### Managing Subscribers
+
+1.  Click the **Subscribers** tab.
+2.  **Search**: Find specific emails using the search bar.
+3.  **Filter**: View only `Active` or `Unsubscribed` users.
+4.  **Delete**: Click the Trash icon to remove a subscriber (Admin only).
+
+### Exporting Data
+
+1.  Go to **Newsletter** → **Subscribers**.
+2.  Click the **Export CSV** button.
+3.  A `.csv` file will download containing all filtered subscribers.
 
 ---
 
 ## Extensions (Plugins)
 
-Extend your site with additional features.
+Extend your site with plugins.
 
-### Built-in Plugins
+### Available Plugins
 
 | Plugin | Description |
 |--------|-------------|
-| **Promo Bar** | Shows a promotional banner at the top |
-| **Gift Widget** | Floating gift button for promotions |
-| **VonSEO** | Automatic meta tags for SEO |
+| **Promo Bar** | Show announcements at top of site |
+| **Gift Widget** | Display promotional gifts/offers |
+| **VonSEO** | Advanced SEO optimization |
 | **VonAnalytics** | Track visitor statistics |
 
-### Enabling a Plugin
+### Activating/Deactivating Plugins
 
 1. Go to **Extensions**
-2. Find the plugin you want
-3. Click **Enable**
-4. Configure settings if needed
+2. Find the plugin
+3. Toggle the switch ON/OFF
+4. Changes apply immediately
 
-### Disabling a Plugin
+---
 
-1. Go to **Extensions**
-2. Find the active plugin
-3. Click **Disable**
+## WordPress Migration
+
+VonCMS includes a powerful tool to migrate your content from WordPress easily.
+
+### Step 1: Export from WordPress
+
+1. Log in to your **WordPress Admin Panel**
+2. Go to **Tools** → **Export**
+3. Select **All content**
+4. Click **Download Export File**
+5. You will get an `.xml` file (e.g., `wordpress.xml`)
+
+### Step 2: Import into VonCMS
+
+1. Log in to your **VonCMS Admin Panel**
+2. Go to **Settings** → **Content**
+3. Locate the **WordPress Bridge** section
+4. Click **Upload XML** and select your file
+5. Check the **Safety Check** box (confirming you have a backup)
+6. Click **Start Scan**
+
+### Step 3: Run Migration
+
+1. The system will analyze your file and show stats (Post count, Pages, etc.)
+2. Click **Start Import**
+3. Wait for the progress bar to reach 100%
+4. Done! Your posts, pages, and authors are now in VonCMS.
+
+> **Feature Note:**
+> - **Smart Images:** VonCMS automatically finds the first image in your post content and sets it as the Featured Image.
+> - **Self-Healing:** If the import stops, just run it again. It automatically skips duplicates.
 
 ---
 
 ## Backup & Database
 
-Keep your data safe.
+Protect your data with regular backups.
 
 ### Creating a Backup
 
 1. Go to **Database**
-2. Click **Backup Now**
-3. A `.sql` file will download to your computer
-4. Store this file safely
+2. Click **Export Database**
+3. The `.sql` file will download automatically
 
-### When to Backup
+### Restoring from Backup
 
-- Before updating VonCMS
-- Weekly (recommended)
-- Before major content changes
+1. Go to **Database**
+2. Click **Import Database**
+3. Select your `.sql` backup file
+4. Confirm the restore
+
+> ⚠️ **Warning:** Restoring will overwrite current data!
+
+### Running SQL Queries
+
+For advanced users:
+1. Go to **Database** → **Query Editor**
+2. Type your SQL query
+3. Click **Execute**
+4. View results
 
 ---
 
 ## Troubleshooting
 
-Common problems and solutions.
+### Common Issues
 
-### White/Blank Page
+| Problem | Solution |
+|---------|----------|
+| White screen | Delete `assets/` folder, re-upload, hard refresh |
+| Can't login | Check credentials, clear cookies |
+| Images not showing | Check file permissions (755/644) |
+| Settings not saving | Check database connection |
+| Slow performance | Clear browser cache, optimize images |
 
-**Cause:** Browser cache or server issue
+### Getting Help
 
-**Solution:**
-1. Press `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac)
-2. Clear browser cache completely
-3. Check if `mod_rewrite` is enabled on your server
-
-### Images Won't Upload
-
-**Cause:** File too large
-
-**Solution:**
-1. Resize images to under 2MB
-2. Use .jpg or .webp format for smaller size
-3. Check folder permissions (755 for folders, 644 for files)
-
-### Can't Login
-
-**Cause:** Incorrect credentials or session issue
-
-**Solution:**
-1. Double-check username and password
-2. Clear browser cookies
-3. Try incognito/private browsing mode
-
-### Settings Won't Save
-
-**Cause:** Session timeout
-
-**Solution:**
-1. Log out completely
-2. Log back in
-3. Try saving again
-
-### Old Version Showing After Update
-
-**Cause:** Cached JavaScript files
-
-**Solution:**
-1. Delete the `assets` folder from your hosting
-2. Upload the new version files
-3. Hard refresh with `Ctrl + Shift + R`
+If you need assistance:
+1. Check the documentation in `docs/` folder
+2. Review the CHANGELOG for recent changes
+3. Contact support at **kurama87@gmail.com**
 
 ---
 
-## Keyboard Shortcuts
-
-Speed up your workflow:
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl + S` | Save |
-| `Ctrl + B` | Bold |
-| `Ctrl + I` | Italic |
-| `Ctrl + U` | Underline |
-| `Ctrl + K` | Insert Link |
-| `Ctrl + Z` | Undo |
-| `Ctrl + Y` | Redo |
-
----
-
-## Best Practices
-
-1. **Backup regularly** - At least weekly
-2. **Use strong passwords** - Never share login credentials
-3. **Optimize images** - Compress before uploading
-4. **Update VonCMS** - Keep your system current
-5. **Moderate comments** - Check pending comments daily
-6. **Log out when done** - Especially on shared computers
-
----
-
-## Getting Help
-
-If you encounter issues:
-
-1. Check this documentation first
-2. Review the [CHANGELOG.md](CHANGELOG.md) for known issues
-3. Contact your website administrator
-
----
-
-*VonCMS v1.8.3 "Aegis"*
+*VonCMS v1.9.7 "Rafflesia"* - User Manual
