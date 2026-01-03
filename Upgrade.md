@@ -1,14 +1,14 @@
 # VonCMS Upgrade Guide
 
 > [!CAUTION]
-> **CRITICAL: Read this BEFORE upgrading from v1.8.1 - v1.8.4**
+> **CRITICAL: Read this BEFORE upgrading from v1.8.x**
 
 ---
 
 ## 📋 Table of Contents
 
-1. [Major Version Upgrade (v1.8.1-1.8.4 → v1.8.5)](#major-version-upgrade)
-2. [Minor Version Upgrade (v1.8.5 → v1.8.6+)](#minor-version-upgrade)
+1. [Major Version Upgrade (v1.8.x → v1.9.0)](#major-version-upgrade)
+2. [Minor Version Upgrade (v1.9.0 → v1.9.x)](#minor-version-upgrade)
 3. [Troubleshooting](#troubleshooting)
 4. [What's New in v1.8.5](#whats-new)
 
@@ -16,10 +16,10 @@
 
 ## Major Version Upgrade
 
-**Required for:** v1.8.1, v1.8.2, v1.8.3, v1.8.4 → v1.8.5
+**Required for:** v1.8.x → v1.9.0
 
 > [!IMPORTANT]
-> VonCMS v1.8.5 has a **NEW FOLDER STRUCTURE**. You MUST follow the clean install process below.
+> VonCMS v1.9.0 maintains the v1.8.5+ folder structure but requires a **clean assets update** to enable the new Skeleton Loader UX.
 
 ### What Changed?
 
@@ -67,6 +67,13 @@ Before doing **ANYTHING**:
 2. Navigate to your site folder
 3. Delete all files (after Step 1 backup!)
 
+> [!TIP]
+> **Why Upgrade is Safe:** The VonCMS deployment package **does not** contain `von_config.php` or the `uploads/` folder.
+> This means you can drag-and-drop the new version into your server without worrying about overwriting your database connection or images.
+>
+> **But... Backup Anyway:**
+> We still recommend a quick backup just to "satisfy the OCD" and sleep better at night. 🛌💤
+
 #### Step 3: 📤 Upload New Version
 
 1. Download `VonCMS_v1.8.5_Deploy.zip`
@@ -89,7 +96,7 @@ If you had custom uploaded media:
 If site is in subdirectory (e.g., `/my-folder/`):
 
 > [!NOTE]
-> **v1.8.6+ users:** You can skip this. The new `.htaccess` auto-detects subdirectories.
+> **v1.8.7+ users:** You can skip this. The new `.htaccess` auto-detects subdirectories.
 
 **For older versions only:**
 1. Open `.htaccess` file
@@ -102,7 +109,7 @@ If site is in subdirectory (e.g., `/my-folder/`):
 
 1. Visit your site URL
 2. Login to admin panel
-3. Check Dashboard → **"Platform Version 1.8.5"**
+3. Check Dashboard → **"Platform Version 1.9.0"**
 4. Test creating/editing a post
 5. Test WordPress Bridge (if migrating from WP)
 
@@ -110,7 +117,7 @@ If site is in subdirectory (e.g., `/my-folder/`):
 
 ## Minor Version Upgrade
 
-**For:** v1.8.5 → v1.8.6, v1.8.7, etc.
+**For:** v1.9.0 → v1.9.1, etc.
 
 ### 3 Simple Steps
 
@@ -192,28 +199,136 @@ That's it! Your `von_config.php` and `uploads/` folder will stay intact.
 
 ---
 
-## Upgrade to v1.8.6
+## Upgrade to v1.9.0 (Rafflesia)
 
-This version adds dynamic SEO files (`robots.txt` & `sitemap.xml`).
+This version introduces the **Smart Skeleton Loader** for instant perceived performance.
 
 ### Steps:
+1. **Delete `assets/` folder** (Critical for new CSS/JS loader logic)
+2. Upload new files (overwrite all)
+3. **Overwrite `index.html`** (Contains the new skeleton HTML structure)
+4. Refresh browser (`Ctrl + Shift + R`)
+
+---
+
+## Upgrade to v1.9.2 (Newsletter Release)
+
+This version adds the **Newsletter System** with subscriber management.
+
+> [!IMPORTANT]
+> **Existing users upgrading from v1.8.x or v1.9.0/v1.9.1** must run the newsletter migration SQL.
+
+### Steps:
+
+#### Step 1: Upload New Files
 1. Delete `assets/` folder
 2. Upload new files (overwrite all)
-3. **Important:** Also overwrite `.htaccess` - it has new routing rules
-4. Refresh browser (`Ctrl + Shift + R`)
+3. Overwrite `index.html`
+
+#### Step 2: Run Newsletter Migration SQL
+
+> [!CAUTION]
+> **REQUIRED** for newsletter functionality to work!
+
+**Option A: Via VonCMS Database Manager (Easiest)**
+1. Login to VonCMS Admin Panel
+2. Go to **Database** → **Query Editor**
+3. Paste this SQL and click **Execute**:
+
+```sql
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    status ENUM('active', 'unsubscribed') DEFAULT 'active',
+    subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at DATETIME NULL,
+    ip_address VARCHAR(45),
+    source VARCHAR(50) DEFAULT 'widget',
+    INDEX idx_email (email),
+    INDEX idx_status (status),
+    INDEX idx_subscribed_at (subscribed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Option B: Via phpMyAdmin**
+1. Login to phpMyAdmin
+2. Select your VonCMS database
+3. Go to **SQL** tab
+4. Paste and run the SQL above
+
+**Option C: Via Migration File**
+(See Option A - SQL is provided above)
+
+#### Step 3: Verify
+1. Visit Admin → Newsletter
+2. If page loads without errors, you're done!
+
+---
+
+## Upgrade to v1.9.3 (Config & Security)
+
+This version introduces **Auto-Log Creation**, **Secure Session Wrappers**, and **API Error Shielding**.
+
+> [!IMPORTANT]
+> Your existing `von_config.php` will work fine, but upgrading it is **HIGHLY RECOMMENDED** for better security and stability.
+
+### How to Upgrade Config Manually:
+
+Since the update process preserves your old config, you must do this manually:
+
+1.  **Backup** your current `von_config.php` (Rename to `von_config_old.php`).
+2.  **Find** `von_config.sample.php` in your **Downloaded ZIP** (Deploy Version).
+3.  **Rename** it to `von_config.php`.
+4.  **Edit** the new `von_config.php`:
+    -   Find `$db_name = '';` and change it to your database name (e.g., `'pulutdb'`).
+    -   If you have a database password, fill it in `$db_pass`.
+4.  **Save & Upload**.
+
+**Benefits:**
+-   **Auto-Logs:** Automatically creates `logs/` folder if missing (No more silent errors).
+-   **API Shield:** Prevents "Unexpected Token" JSON errors if PHP throws warnings.
+-   **Conflict Safety:** Functions are wrapped to prevent crashes with plugins.
+
+---
+
+## Upgrade to v1.9.5 (Standardization & Security)
+
+This is a **Quality of Life & Security** update. It standardizes how themes work (Profile Tabs, Popups) and patches a high-severity vulnerability in the core system.
+
+### Steps:
+
+1.  **Delete `assets/` folder** from your server.
+    *   *Why?* New hook logic requires fresh JavaScript bundles.
+2.  **Upload new files** (Overwrite all).
+3.  **Refresh browser** (`Ctrl + Shift + R`).
+
+**No database migration required.** Your existing data is safe.
+
+---
+
+## Upgrade to v1.9.7 (Final Polish)
+
+This version includes **Dark Mode Fixes** for TechPress/Portfolio themes, **Security Hardening** (Honeypot, XXE), and **Roadmap Updates**.
+
+### Steps:
+
+1.  **Delete `assets/` folder** from your server.
+2.  **Upload new files** (Overwrite all).
+3.  **Refresh browser** (`Ctrl + Shift + R`).
+
+**No database migration required.**
 
 ---
 
 ## Getting Help
 
 - **Documentation:** Check `docs/` folder in Source package
-- **Community:** [Your forum/Discord URL]
-- **Issues:** [Your GitHub Issues URL]
+- **Support:** Email kurama87@gmail.com
 
 ---
 
-**Version:** 1.8.6  
-**Release Date:** December 2025  
+**Version:** 1.9.7 "Rafflesia"
+**Release Date:** January 2026  
 **Package:** Deploy Edition
 
 © VonCMS - Modern Content Management System
