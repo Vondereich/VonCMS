@@ -1,8 +1,8 @@
 # 🔌 VonCMS API Reference
 
-> **Version**: 1.7.2  
-> **Base URL**: `/api/` or `/api.php`  
-> **Last Updated**: December 21, 2025
+> **Version**: 1.9.7
+> **Base URL**: `/api/` or `/api.php`
+> **Last Updated**: January 1, 2026
 
 ---
 
@@ -616,6 +616,71 @@ Import SQL file.
 
 ---
 
+---
+
+## Newsletter Endpoints
+
+### POST `/api/newsletter_subscribe.php`
+
+Subscribe a new email to the newsletter.
+
+**Request:**
+```json
+{
+    "email": "user@example.com"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Thank you for subscribing!"
+}
+```
+
+**Rate Limiting:** Max 5 subscriptions per IP per hour.
+
+---
+
+### GET `/api/newsletter_list.php`
+
+Fetch subscribers list (Admin only).
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `page` | int | Page number (default: 1) |
+| `status` | string | Filter by status (active/unsubscribed) |
+| `search` | string | Search by email |
+
+**Response:**
+```json
+{
+    "success": true,
+    "subscribers": [...],
+    "pagination": {
+        "pages": 5,
+        "total": 50
+    }
+}
+```
+
+---
+
+### POST `/api/newsletter_export.php`
+
+Export subscribers to CSV (Admin only).
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `status` | string | Filter status to export |
+
+**Response:** CSV File Download
+
+---
+
 ## Utility Endpoints
 
 ### POST `/api/track_visit.php`
@@ -699,7 +764,7 @@ Rate limit data stored in: `/data/rate_limits/`
 
 ---
 
-**VonCMS v1.7.2** - API Reference
+**VonCMS v1.9.7** - API Reference
 
 ---
 
