@@ -57,7 +57,7 @@
 
 ## 🔥 Feature Spotlight: The v1.9 Era
 
-We skipped straight to **v1.9.5** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
+We skipped straight to **v1.9.7** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
 
 ### 1. 🧠 Smart Systems (v1.9.7)
 *   **Algorithmic Dark Mode**: Mathematically detects and cleans "dirty" inline colors.
