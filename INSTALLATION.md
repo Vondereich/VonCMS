@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.8.3 "Aegis"**
+> **VonCMS v1.9.7 "Rafflesia"**
 
 ---
 
@@ -82,8 +82,11 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 1. Delete the `assets/` folder from your hosting
 2. Download new `VonCMS_Deploy.zip`
 3. Extract and upload (overwrite existing files)
+   
     > [!TIP]
-    > **Safe to Overwrite:** Uploading the new files will NOT delete your database configuration (`von_config.php`) or your images (`uploads/`) because those files are not included in the update package. However, having a backup is always recommended.
+    > **Safe to Overwrite:** Uploading the new files will NOT delete your database configuration (`von_config.php`) or your images (`uploads/`) because those files are not included in the update package.
+    >
+    > **Peace of Mind:** Even though it's safe, we still recommend a quick backup to satisfy the "OCD" and avoid any accidental data loss. Better safe than sorry! 🛡️
 
 ### Step 3: Verify
 1. Hard refresh browser: `Ctrl + Shift + R`
@@ -105,5 +108,5 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 ---
 
-*VonCMS v1.8.3 "Aegis"*
+*VonCMS v1.9.7 "Rafflesia"*
 
