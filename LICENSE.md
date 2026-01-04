@@ -28,7 +28,9 @@ VonCMS follows a **"Use What's Provided"** philosophy. All themes, plugins, and 
 
 ## Distribution
 
-VonCMS is available from official GitHub releases. Hosting providers interested in bundling VonCMS may contact us for partnership.
+VonCMS is officially distributed via GitHub Releases. 
+
+**Hosting Providers:** You may integrate VonCMS into auto-installers (e.g., Softaculous) by pulling directly from official GitHub Releases. For formal partnerships, contact us.
 
 ## Ownership
 
