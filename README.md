@@ -8,7 +8,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.9.x-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
 [![Lighthouse](https://img.shields.io/badge/Lighthouse-89%2F96%2F100%2F100-brightgreen.svg)](https://web.dev/measure/)
-[![License](https://img.shields.io/badge/license-Private-red.svg)](docs/LICENSE.md)
+[![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE.md)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
 
 **[📥 Download Latest Release](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/) • [🐛 Report Bug](https://github.com/Vondereich/VonCMS/issues)**
