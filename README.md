@@ -21,6 +21,13 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 ---
 
+---
+
+> [!NOTE]
+> **Versioning Philosophy**: VonCMS does not strictly follow Semantic Versioning. Instead of incremental updates, we prioritize **"Milestone Leaps"**. We jump versions (e.g., v1.8 -> v1.9) only when delivering transformative features that redefine the user experience, preferring impactful releases over minor noise.
+
+<div align="center">
+
 ## 🎯 Why VonCMS?
 
 | Feature                     | VonCMS v1.9.x |      WordPress       | Ghost |
@@ -34,6 +41,8 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 | **Plugin Dependencies**     |   0    |    10-30+ typical    |   0   |
 | **Security Patches Needed** |  Rare  |        Weekly        | Rare  |
 | **Lighthouse SEO Score**    |  100   |  70-90 (optimized)   |  95+  |
+
+</div>
 
 ---
 
@@ -59,38 +68,49 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 We skipped straight to **v1.9.x** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
 
-### 1. 🧠 Smart Systems (v1.9.x)
+### 1. 🚀 Next-Gen Engagement Plugins (v1.9.9)
+
+- **🤖 AI Summary Engine**: 
+  - Generates bullet-point summaries instantly from content.
+  - Zero API cost (uses local text extraction logic).
+  - Flexible positioning (Top/Bottom).
+- **🔗 Contextual Discovery Engine**:
+  - Auto-suggests "Related Posts" based on Category + Keywords + Tags.
+  - Boosts SEO via internal linking structure.
+  - Multiple Layouts: Grid, List, Cards.
+
+### 2. 🧠 Smart Systems (v1.9.x)
 
 - **Algorithmic Dark Mode**: Mathematically detects and cleans "dirty" inline colors.
 - **Intelligent SEO**: Auto-keywords weighted by Title priority.
 - **XSS Shield**: Deep sanitization for ads and custom blocks.
 - **Privacy-First Avatar Sync**: Consistent Gravatars across Profile/Comments using secure MD5 hashing.
 
-### 2. 🏗️ Theme Standardization (v1.9.5)
+### 3. 🏗️ Theme Standardization (v1.9.5)
 
 - **Shared Hooks**: Centralized logic for Profiles, Popups, and UX across themes.
 - **Discussion Tabs**: Standardized "Articles vs Discussion" tabs on user profiles.
 - **Developer SOP**: Full `THEME_DEV_GUIDE` included for future-proof theming.
 
-### 3. 🛡️ Enterprise Database Safety (v1.9.3)
+### 4. 🛡️ Enterprise Database Safety (v1.9.3)
 
 - **Safety Switch**: A fail-safe toggle that blocks destructive queries (`DROP`, `DELETE`) by default.
 - **Auto-Repair Tool**: A "Self-Healing" engine that detects missing tables/columns and rebuilds them instantly.
 - **Atomic Architecture**: Config files use "Write-Verify-Rename" logic to prevent corruption during server crashes.
 
-### 4. 📧 Native Newsletter CRM (v1.9.2)
+### 5. 📧 Native Newsletter CRM (v1.9.2)
 
 - **Subscriber Database**: Built-in management for your audience.
 - **Growth Widgets**: Ready-to-use subscription forms for Footer & Sidebar.
 - **Data Sovereignty**: Full CSV export ownership. No external dependencies.
 
-### 5. 📰 "Von Digest" Theme (v1.9.2)
+### 6. 📰 "Von Digest" Theme (v1.9.2)
 
 - **Modern Magazine UI**: Designed for high-readability and engagement.
 - **Smart Categories**: Dynamic hero sections for topic filtering.
 - **Dark Mode 2.0**: Refined high-contrast dark theme.
 
-### 6. ⚡ Smart UX Engine (v1.9.0)
+### 7. ⚡ Smart UX Engine (v1.9.0)
 
 - **Skeleton Loading**: Eliminated "white screen" flashes.
 - **Instant Feel**: Perceptual performance optimized for slower networks.
@@ -130,9 +150,11 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 ### 🎨 Themes
 
 - 📰 TechPress (News/Magazine)
-- 🗞️ **Digest** (Modern Blog/Magazine) _New_
+- 🗞️ **Digest** (Modern Blog/Magazine)
 - 🌙 Prism (Modern Dark Grid)
-- 💼 Portfolio (Clean, Professional Showcase)
+- 💼 Portfolio (Showcase)
+- 🏢 **Corporate Pro** (Business) _New_
+- 🍃 Default (Clean Minimal)
 - 🎛️ Fully customizable
 
 </td>
@@ -144,7 +166,8 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 - 🗑️ Bulk delete operations
 - 📂 Drag-drop file manager
 - ✏️ WYSIWYG editor
-- 📞 **VonContact System** (New)
+- 📞 **VonContact System**
+- 🧩 **Plugin System** (AI Summary, Related Posts) _New_
 
 ### 💰 Monetization
 
@@ -180,7 +203,7 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 
 | Component           | Description                                |
 | ------------------- | ------------------------------------------ |
-| 🎨 3 Premium Themes | TechPress + Prism + Portfolio              |
+| 🎨 6 Premium Themes | TechPress + Prism + Portfolio + Digest + Default + Corporate Pro |
 | 🔍 VonSEO           | Built-in SEO optimization (Lighthouse 100) |
 | 📞 **VonContact**   | Special Contact Form Builder (SMTP Ready)  |
 | 💾 **Autosave**     | Never lose work with 60s background save   |
