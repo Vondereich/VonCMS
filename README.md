@@ -1,4 +1,4 @@
-# 🚀 VonCMS v1.9.x
+# 🚀 VonCMS v1.10.x
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 
 **React + PHP | Blazing Fast | Zero Plugin Headaches**
 
-[![Version](https://img.shields.io/badge/version-1.9.x-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
+[![Version](https://img.shields.io/badge/version-1.10.x-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
 [![Lighthouse](https://img.shields.io/badge/Lighthouse-89%2F96%2F100%2F100-brightgreen.svg)](https://web.dev/measure/)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE.md)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
@@ -30,17 +30,18 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 ## 🎯 Why VonCMS?
 
-| Feature                     | VonCMS v1.9.x |      WordPress       | Ghost |
-| --------------------------- | :----: | :------------------: | :---: |
-| **Setup Time**              | 2 min  |       15+ min        | 5 min |
-| **Core Files**              |  ~200  |        3,000+        | ~500  |
-| **Built-in SEO**            |   ✅   |   ❌ (needs Yoast)   |  ✅   |
-| **Newsletter System**       |   ✅   | ❌ (needs Mailchimp) |  ✅   |
-| **Built-in Ads Manager**    |   ✅   |  ❌ (needs plugin)   |  ❌   |
-| **WP Migration Tool**       |   ✅   |         N/A          |  ✅   |
-| **Plugin Dependencies**     |   0    |    10-30+ typical    |   0   |
-| **Security Patches Needed** |  Rare  |        Weekly        | Rare  |
-| **Lighthouse SEO Score**    |  100   |  70-90 (optimized)   |  95+  |
+| Feature                     | VonCMS v1.10.x |      WordPress       | Ghost |
+| --------------------------- | :-----------: | :------------------: | :---: |
+| **Setup Time**              |     2 min     |       15+ min        | 5 min |
+| **Core Files**              |     ~200      |        3,000+        | ~500  |
+| **Built-in SEO**            |      ✅       |   ❌ (needs Yoast)   |  ✅   |
+| **Newsletter System**       |      ✅       | ❌ (needs Mailchimp) |  ✅   |
+| **Built-in Ads Manager**    |      ✅       |  ❌ (needs plugin)   |  ❌   |
+| **WP Migration Tool**       |      ✅       |         N/A          |  ✅   |
+| **One-Click OTA Updates**   |      ✅       |         ✅           |  ✅   |
+| **Plugin Dependencies**     |       0       |    10-30+ typical    |   0   |
+| **Security Patches Needed** |     Rare      |        Weekly        | Rare  |
+| **Lighthouse SEO Score**    |      100      |  70-90 (optimized)   |  95+  |
 
 </div>
 
@@ -64,13 +65,23 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 ---
 
-## 🔥 Feature Spotlight: The v1.9 Era
+## 🔥 Feature Spotlight: The v1.10 Era
 
-We skipped straight to **v1.9.x** to bring you a consolidated, feature-complete experience. Here is the breakdown of the major systems added in this generation:
+### 🚀 NEW: One-Click OTA Updates (v1.10.0)
+
+- **GitHub-Powered Updates**: Update VonCMS directly from Dashboard with one click.
+- **Smart Version Detection**: Automatic semantic versioning ensures safe upgrades.
+- **Protected Files**: Your `von_config.php`, `uploads/`, and `.htaccess` are never touched.
+- **Real-time Progress**: Visual progress bar with server logs during update.
+
+> [!TIP]
+> **Starting from v1.10.x**, you will receive update notifications automatically in your Admin Dashboard. No more manual file uploads! 🚀
+
+Here is the breakdown of the major systems added in this generation:
 
 ### 1. 🚀 Next-Gen Engagement Plugins (v1.9.9)
 
-- **🤖 AI Summary Engine**: 
+- **🤖 AI Summary Engine**:
   - Generates bullet-point summaries instantly from content.
   - Zero API cost (uses local text extraction logic).
   - Flexible positioning (Top/Bottom).
@@ -201,15 +212,15 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 
 ## 📦 What's Included
 
-| Component           | Description                                |
-| ------------------- | ------------------------------------------ |
+| Component           | Description                                                      |
+| ------------------- | ---------------------------------------------------------------- |
 | 🎨 6 Premium Themes | TechPress + Prism + Portfolio + Digest + Default + Corporate Pro |
-| 🔍 VonSEO           | Built-in SEO optimization (Lighthouse 100) |
-| 📞 **VonContact**   | Special Contact Form Builder (SMTP Ready)  |
-| 💾 **Autosave**     | Never lose work with 60s background save   |
-| 💰 Ads Manager      | Full advertising system                    |
-| 🌉 WP Bridge        | WordPress migration tool                   |
-| 🛡️ Security Suite   | Multi-layer authentication                 |
+| 🔍 VonSEO           | Built-in SEO optimization (Lighthouse 100)                       |
+| 📞 **VonContact**   | Special Contact Form Builder (SMTP Ready)                        |
+| 💾 **Autosave**     | Never lose work with 60s background save                         |
+| 💰 Ads Manager      | Full advertising system                                          |
+| 🌉 WP Bridge        | WordPress migration tool                                         |
+| 🛡️ Security Suite   | Multi-layer authentication                                       |
 
 ---
 
