@@ -71,7 +71,7 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 - **GitHub-Powered Updates**: Update VonCMS directly from Dashboard with one click.
 - **Smart Version Detection**: Automatic semantic versioning ensures safe upgrades.
-- **Protected Files**: Your `von_config.php`, `uploads/`, and `.htaccess` are never touched.
+- **Protected Files**: Your `_config.php`, `uploads/`, and `.htaccess` are never touched.
 - **Real-time Progress**: Visual progress bar with server logs during update.
 
 > [!TIP]
