@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## v1.10.0 (2026-01-09) - THE "AUTO-UPDATE" ERA 🚀
+## v1.10.x (2026-01-09) - THE "AUTO-UPDATE" ERA 🚀
 
 ### 🔄 One-Click OTA Updates
 
