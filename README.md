@@ -1,4 +1,4 @@
-# 🚀 VonCMS v1.10.x
+# 🚀 VonCMS v1.10.x "Solana"
 
 <div align="center">
 
@@ -25,6 +25,9 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 > [!NOTE]
 > **Versioning Philosophy**: VonCMS does not strictly follow Semantic Versioning. Instead of incremental updates, we prioritize **"Milestone Leaps"**. We jump versions (e.g., v1.8 -> v1.9) only when delivering transformative features that redefine the user experience, preferring impactful releases over minor noise.
+
+> [!TIP]
+> **Why "Solana"?** The codename comes from the Italian/Spanish word meaning **"sunny place"** ☀️ — symbolizing brightness, warmth, and a fresh new era for VonCMS. It is not affiliated with any blockchain project.
 
 <div align="center">
 
@@ -71,7 +74,7 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 - **GitHub-Powered Updates**: Update VonCMS directly from Dashboard with one click.
 - **Smart Version Detection**: Automatic semantic versioning ensures safe upgrades.
-- **Protected Files**: Your `_config.php`, `uploads/`, and `.htaccess` are never touched.
+- **Protected Files**: Your `von_config.php`, `uploads/`, and `.htaccess` are never touched.
 - **Real-time Progress**: Visual progress bar with server logs during update.
 
 > [!TIP]
