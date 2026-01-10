@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.10.1 "Solana/Patch" (2026-01-11) - VISUAL STABILITY & SECURITY 🛠️
+
+### 👁️ Visual Stability
+- **Skeleton Loader Fix**: Resolved a regression where the loading skeleton would disappear prematurely, causing a "Flash of Unstyled Content" (FOUC). The loader now persists smoothly until all core data is ready.
+- **Clean Transitions**: Optimized the initial loading state to ensure a seamless transition from index to dashboard.
+
+### 🛡️ Security Hardening
+- **Security Dashboard Integration**: Added `/admin/security` route with a comprehensive visual dashboard (`Live Monitoring`, `Auto-Purge`, `Login Monitoring`).
+- **Startup Protection**: Patched an initialization logic issue that could trigger a false-positive `403 Forbidden` error for guest users.
+- **Context-Aware CORS**: Validated and secured Cross-Origin policies to strictly whitelist allowed environments (Mobile App / Dev) while rejecting unauthorized external access.
+- **CSRF Enforcement**: Verified strict token validation across all write operations.
+
+### 🛡️ Security Dashboard (Full Integration)
+- **Dedicated Dashboard**: Added `/admin/security` route with a comprehensive visual dashboard (`SecurityDashboard`).
+- **Live Monitoring**: Real-time charts for Security Events (Line), Severity Breakdown (Pie), and Top IP Offenders (Bar).
+- **Auto-Purge**: Implemented intelligent probabilistic auto-purge (10% chance) to delete logs older than 30 days during insertions, preventing database bloat.
+- **Deep Integration**:
+  - **Login Monitoring**: Failed login attempts are now auto-logged with 'medium' severity.
+  - **Honeypot**: Captures suspicious bot activity on forms.
+  - **Admin Menu**: Added direct access via Admin Sidebar > Security.
+
 ## v1.10.x (2026-01-09) - THE "AUTO-UPDATE" ERA 🚀
 
 ### 🔄 One-Click OTA Updates
