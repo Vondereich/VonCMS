@@ -24,7 +24,7 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 ---
 
 > [!NOTE]
-> **Versioning Philosophy**: VonCMS does not strictly follow Semantic Versioning. Instead of incremental updates, we prioritize **"Milestone Leaps"**. We jump versions (e.g., v1.8 -> v1.9) only when delivering transformative features that redefine the user experience, preferring impactful releases over minor noise.
+> **Versioning Philosophy & Velocity**: VonCMS operates on **Startup Velocity**. We ship features and fixes as soon as they are polished. During active development cycles, you may see multiple updates per week. This is a deliberate choice to prioritize transparency and immediate improvement over artificial release delays. We believe in shipping daily if it means a better experience for you. We jump major versions only when delivering transformative feature leaps.
 
 > [!TIP]
 > **Why "Solana"?** The codename comes from the Italian/Spanish word meaning **"sunny place"** ☀️ — symbolizing brightness, warmth, and a fresh new era for VonCMS. It is not affiliated with any blockchain project.
@@ -37,22 +37,22 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 **✅ News Portals** - You need Speed, Ads, and SEO built-in from Day 1.
 **✅ Solo Entrepreneurs** - You need a "Done-For-You" website engine on cheap hosting.
 
-*⚠️ Less suitable for: Developers looking for a fully Open Source framework to modify the core kernel.*
+_⚠️ Less suitable for: Developers looking for a fully Open Source framework to modify the core kernel._
 
 ## ⚔️ Why VonCMS?
 
 | Feature                     | VonCMS v1.10.x |      WordPress       | Ghost |
-| --------------------------- | :-----------: | :------------------: | :---: |
-| **Setup Time**              |     2 min     |       15+ min        | 5 min |
-| **Core Files**              |     ~200      |        3,000+        | ~500  |
-| **Built-in SEO**            |      ✅       |   ❌ (needs Yoast)   |  ✅   |
-| **Newsletter System**       |      ✅       | ❌ (needs Mailchimp) |  ✅   |
-| **Built-in Ads Manager**    |      ✅       |  ❌ (needs plugin)   |  ❌   |
-| **WP Migration Tool**       |      ✅       |         N/A          |  ✅   |
-| **One-Click OTA Updates**   |      ✅       |         ✅           |  ✅   |
-| **Plugin Dependencies**     |       0       |    10-30+ typical    |   0   |
-| **Security Patches Needed** |     Rare      |        Weekly        | Rare  |
-| **Lighthouse SEO Score**    |      100      |  70-90 (optimized)   |  95+  |
+| --------------------------- | :------------: | :------------------: | :---: |
+| **Setup Time**              |     2 min      |       15+ min        | 5 min |
+| **Core Files**              |      ~200      |        3,000+        | ~500  |
+| **Built-in SEO**            |       ✅       |   ❌ (needs Yoast)   |  ✅   |
+| **Newsletter System**       |       ✅       | ❌ (needs Mailchimp) |  ✅   |
+| **Built-in Ads Manager**    |       ✅       |  ❌ (needs plugin)   |  ❌   |
+| **WP Migration Tool**       |       ✅       |         N/A          |  ✅   |
+| **One-Click OTA Updates**   |       ✅       |          ✅          |  ✅   |
+| **Plugin Dependencies**     |       0        |    10-30+ typical    |   0   |
+| **Security Patches Needed** |      Rare      |        Weekly        | Rare  |
+| **Lighthouse SEO Score**    |      100       |  70-90 (optimized)   |  95+  |
 
 </div>
 
@@ -212,6 +212,17 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 # 4. Open your domain in browser
 # 5. Follow installation wizard (2 minutes!)
 ```
+
+## 🔄 How to Upgrade (v1.9.9 -> v1.10.x)
+
+1. **Backup** your site.
+2. **Download** the latest release.
+3. **Overwrite** all files on your server (except `von_config.php` and `uploads/`).
+4. **Login** to Admin Panel.
+5. **Navigate** to the **Security** tab to auto-initialize the new database tables.
+6. **Done!** Future updates will be One-Click via the Dashboard.
+
+> See [UPGRADE.md](docs/UPGRADE.md) for detailed instructions.
 
 ### System Requirements
 
