@@ -1,8 +1,8 @@
 # 🔌 VonCMS API Reference
 
-> **Version**: 1.9.7
+> **Version**: 1.10.x "Solana"
 > **Base URL**: `/api/` or `/api.php`
-> **Last Updated**: January 1, 2026
+> **Last Updated**: January 9, 2026
 
 ---
 
@@ -14,26 +14,27 @@ VonCMS provides a REST API for all content management operations. All responses 
 
 VonCMS has two types of API endpoints:
 
-| Type | Location | Usage |
-|------|----------|-------|
-| **Individual Endpoints** | `/api/*.php` | Specific operations |
-| **Central API** | `/api.php?action=*` | Settings and utility |
+| Type                     | Location            | Usage                |
+| ------------------------ | ------------------- | -------------------- |
+| **Individual Endpoints** | `/api/*.php`        | Specific operations  |
+| **Central API**          | `/api.php?action=*` | Settings and utility |
 
 ### Authentication
 
 Most write operations require:
+
 1. **Session** - User must be logged in
 2. **CSRF Token** - Must be included in request header
 
 ```javascript
 // Example: Authenticated request
 fetch('/api/save_post.php', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': csrfToken
-    },
-    body: JSON.stringify(postData)
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRF-TOKEN': csrfToken,
+  },
+  body: JSON.stringify(postData),
 });
 ```
 
@@ -46,33 +47,36 @@ fetch('/api/save_post.php', {
 Authenticate a user.
 
 **Request:**
+
 ```json
 {
-    "username": "admin",
-    "password": "password123"
+  "username": "admin",
+  "password": "password123"
 }
 ```
 
 **Response (Success):**
+
 ```json
 {
-    "success": true,
-    "user": {
-        "id": "1",
-        "username": "admin",
-        "email": "admin@example.com",
-        "role": "Admin",
-        "avatar": ""
-    },
-    "csrf_token": "abc123xyz..."
+  "success": true,
+  "user": {
+    "id": "1",
+    "username": "admin",
+    "email": "admin@example.com",
+    "role": "Admin",
+    "avatar": ""
+  },
+  "csrf_token": "abc123xyz..."
 }
 ```
 
 **Response (Error):**
+
 ```json
 {
-    "success": false,
-    "message": "Invalid credentials"
+  "success": false,
+  "message": "Invalid credentials"
 }
 ```
 
@@ -85,10 +89,11 @@ Authenticate a user.
 End user session.
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Logged out"
+  "success": true,
+  "message": "Logged out"
 }
 ```
 
@@ -99,22 +104,24 @@ End user session.
 Check if user session is valid.
 
 **Response (Logged In):**
+
 ```json
 {
-    "authenticated": true,
-    "user": {
-        "id": "1",
-        "username": "admin",
-        "email": "admin@example.com",
-        "role": "Admin"
-    }
+  "authenticated": true,
+  "user": {
+    "id": "1",
+    "username": "admin",
+    "email": "admin@example.com",
+    "role": "Admin"
+  }
 }
 ```
 
 **Response (Not Logged In):**
+
 ```json
 {
-    "authenticated": false
+  "authenticated": false
 }
 ```
 
@@ -125,25 +132,27 @@ Check if user session is valid.
 Register a new user.
 
 **Request:**
+
 ```json
 {
-    "username": "newuser",
-    "email": "user@example.com",
-    "password": "password123"
+  "username": "newuser",
+  "email": "user@example.com",
+  "password": "password123"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Registration successful",
-    "user": {
-        "id": "2",
-        "username": "newuser",
-        "email": "user@example.com",
-        "role": "Member"
-    }
+  "success": true,
+  "message": "Registration successful",
+  "user": {
+    "id": "2",
+    "username": "newuser",
+    "email": "user@example.com",
+    "role": "Member"
+  }
 }
 ```
 
@@ -163,24 +172,25 @@ Fetch all posts.
 | `limit` | int | Number of posts to return |
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "posts": [
-        {
-            "id": "1",
-            "title": "Hello World",
-            "slug": "hello-world",
-            "excerpt": "Welcome to VonCMS...",
-            "content": "<p>Full content here...</p>",
-            "image": "/uploads/featured.jpg",
-            "status": "published",
-            "category": "News",
-            "author": "admin",
-            "updatedAt": "2025-12-18T10:00:00Z",
-            "keywords": "cms, blog"
-        }
-    ]
+  "success": true,
+  "posts": [
+    {
+      "id": "1",
+      "title": "Hello World",
+      "slug": "hello-world",
+      "excerpt": "Welcome to VonCMS...",
+      "content": "<p>Full content here...</p>",
+      "image": "/uploads/featured.jpg",
+      "status": "published",
+      "category": "News",
+      "author": "admin",
+      "updatedAt": "2025-12-18T10:00:00Z",
+      "keywords": "cms, blog"
+    }
+  ]
 }
 ```
 
@@ -197,22 +207,23 @@ Fetch single post.
 | `slug` | string | Post slug (alternative to ID) |
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "post": {
-        "id": "1",
-        "title": "Hello World",
-        "slug": "hello-world",
-        "content": "<p>Full content...</p>",
-        "excerpt": "Short summary...",
-        "image": "/uploads/featured.jpg",
-        "status": "published",
-        "category": "News",
-        "author": "admin",
-        "keywords": "cms, blog",
-        "metaDescription": "SEO description"
-    }
+  "success": true,
+  "post": {
+    "id": "1",
+    "title": "Hello World",
+    "slug": "hello-world",
+    "content": "<p>Full content...</p>",
+    "excerpt": "Short summary...",
+    "image": "/uploads/featured.jpg",
+    "status": "published",
+    "category": "News",
+    "author": "admin",
+    "keywords": "cms, blog",
+    "metaDescription": "SEO description"
+  }
 }
 ```
 
@@ -223,38 +234,42 @@ Fetch single post.
 Create or update a post.
 
 **Headers Required:**
+
 - `X-CSRF-TOKEN`: CSRF token
 
 **Request (Create):**
+
 ```json
 {
-    "title": "New Post",
-    "content": "<p>Post content...</p>",
-    "excerpt": "Short summary",
-    "status": "published",
-    "category": "News",
-    "keywords": "tag1, tag2"
+  "title": "New Post",
+  "content": "<p>Post content...</p>",
+  "excerpt": "Short summary",
+  "status": "published",
+  "category": "News",
+  "keywords": "tag1, tag2"
 }
 ```
 
 **Request (Update):**
+
 ```json
 {
-    "id": "1",
-    "title": "Updated Title",
-    "content": "<p>Updated content...</p>",
-    "status": "published"
+  "id": "1",
+  "title": "Updated Title",
+  "content": "<p>Updated content...</p>",
+  "status": "published"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Post created",
-    "id": "5",
-    "slug": "new-post",
-    "image": "/uploads/auto-detected.jpg"
+  "success": true,
+  "message": "Post created",
+  "id": "5",
+  "slug": "new-post",
+  "image": "/uploads/auto-detected.jpg"
 }
 ```
 
@@ -265,17 +280,19 @@ Create or update a post.
 Delete a post.
 
 **Request:**
+
 ```json
 {
-    "id": "5"
+  "id": "5"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Post deleted"
+  "success": true,
+  "message": "Post deleted"
 }
 ```
 
@@ -286,18 +303,19 @@ Delete a post.
 Fetch all pages.
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "pages": [
-        {
-            "id": "1",
-            "title": "About Us",
-            "slug": "about-us",
-            "content": "<p>About page content...</p>",
-            "status": "published"
-        }
-    ]
+  "success": true,
+  "pages": [
+    {
+      "id": "1",
+      "title": "About Us",
+      "slug": "about-us",
+      "content": "<p>About page content...</p>",
+      "status": "published"
+    }
+  ]
 }
 ```
 
@@ -308,22 +326,24 @@ Fetch all pages.
 Create or update a page.
 
 **Request:**
+
 ```json
 {
-    "title": "Contact",
-    "content": "<p>Contact us at...</p>",
-    "slug": "contact",
-    "status": "published"
+  "title": "Contact",
+  "content": "<p>Contact us at...</p>",
+  "slug": "contact",
+  "status": "published"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Page saved",
-    "id": "3",
-    "slug": "contact"
+  "success": true,
+  "message": "Page saved",
+  "id": "3",
+  "slug": "contact"
 }
 ```
 
@@ -334,9 +354,10 @@ Create or update a page.
 Delete a page.
 
 **Request:**
+
 ```json
 {
-    "id": "3"
+  "id": "3"
 }
 ```
 
@@ -355,22 +376,23 @@ Fetch comments for a post.
 | `status` | string | Filter by status |
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "comments": [
-        {
-            "id": "1",
-            "postId": "1",
-            "userId": "2",
-            "username": "user1",
-            "content": "Great post!",
-            "likes": 5,
-            "status": "approved",
-            "createdAt": "2025-12-18T10:00:00Z",
-            "replies": []
-        }
-    ]
+  "success": true,
+  "comments": [
+    {
+      "id": "1",
+      "postId": "1",
+      "userId": "2",
+      "username": "user1",
+      "content": "Great post!",
+      "likes": 5,
+      "status": "approved",
+      "createdAt": "2025-12-18T10:00:00Z",
+      "replies": []
+    }
+  ]
 }
 ```
 
@@ -381,20 +403,22 @@ Fetch comments for a post.
 Add or update a comment.
 
 **Request:**
+
 ```json
 {
-    "postId": "1",
-    "content": "Nice article!",
-    "parentId": null
+  "postId": "1",
+  "content": "Nice article!",
+  "parentId": null
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Comment saved",
-    "id": "5"
+  "success": true,
+  "message": "Comment saved",
+  "id": "5"
 }
 ```
 
@@ -407,19 +431,20 @@ Add or update a comment.
 List all uploaded media files.
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "media": [
-        {
-            "id": "1",
-            "name": "photo.jpg",
-            "type": "image",
-            "url": "/uploads/photo.jpg",
-            "size": "245 KB",
-            "uploadedAt": "2025-12-18"
-        }
-    ]
+  "success": true,
+  "media": [
+    {
+      "id": "1",
+      "name": "photo.jpg",
+      "type": "image",
+      "url": "/uploads/photo.jpg",
+      "size": "245 KB",
+      "uploadedAt": "2025-12-18"
+    }
+  ]
 }
 ```
 
@@ -430,15 +455,17 @@ List all uploaded media files.
 Upload a file.
 
 **Request:** `multipart/form-data`
+
 - `file`: The file to upload
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "File uploaded",
-    "url": "/uploads/2025/12/filename.jpg",
-    "name": "filename.jpg"
+  "success": true,
+  "message": "File uploaded",
+  "url": "/uploads/2025/12/filename.jpg",
+  "name": "filename.jpg"
 }
 ```
 
@@ -449,9 +476,10 @@ Upload a file.
 Delete a media file.
 
 **Request:**
+
 ```json
 {
-    "path": "/uploads/photo.jpg"
+  "path": "/uploads/photo.jpg"
 }
 ```
 
@@ -464,18 +492,19 @@ Delete a media file.
 Fetch all users (Admin only).
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "users": [
-        {
-            "id": "1",
-            "username": "admin",
-            "email": "admin@example.com",
-            "role": "Admin",
-            "avatar": ""
-        }
-    ]
+  "success": true,
+  "users": [
+    {
+      "id": "1",
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "Admin",
+      "avatar": ""
+    }
+  ]
 }
 ```
 
@@ -486,12 +515,13 @@ Fetch all users (Admin only).
 Create or update user.
 
 **Request:**
+
 ```json
 {
-    "username": "newuser",
-    "email": "new@example.com",
-    "password": "password123",
-    "role": "Writer"
+  "username": "newuser",
+  "email": "new@example.com",
+  "password": "password123",
+  "role": "Writer"
 }
 ```
 
@@ -502,9 +532,10 @@ Create or update user.
 Delete a user.
 
 **Request:**
+
 ```json
 {
-    "id": "5"
+  "id": "5"
 }
 ```
 
@@ -515,10 +546,11 @@ Delete a user.
 Change user role.
 
 **Request:**
+
 ```json
 {
-    "id": "5",
-    "role": "Moderator"
+  "id": "5",
+  "role": "Moderator"
 }
 ```
 
@@ -531,6 +563,7 @@ Change user role.
 Fetch site settings.
 
 **Response:**
+
 ```json
 {
     "success": true,
@@ -552,11 +585,12 @@ Fetch site settings.
 Update site settings.
 
 **Request:**
+
 ```json
 {
-    "siteName": "Updated Name",
-    "siteDescription": "New description",
-    "postsPerPage": 12
+  "siteName": "Updated Name",
+  "siteDescription": "New description",
+  "postsPerPage": 12
 }
 ```
 
@@ -567,54 +601,12 @@ Update site settings.
 Get CSRF token for frontend.
 
 **Response:**
+
 ```json
 {
-    "csrf_token": "abc123xyz..."
+  "csrf_token": "abc123xyz..."
 }
 ```
-
----
-
-## Database Endpoints
-
-### POST `/api/db_query.php`
-
-Execute SQL query (Admin only, use with caution).
-
-**Request:**
-```json
-{
-    "query": "SELECT * FROM posts LIMIT 10"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": [...],
-    "headers": ["id", "title", "slug", "..."]
-}
-```
-
----
-
-### POST `/api/backup_db.php`
-
-Create database backup.
-
-**Response:** SQL file download
-
----
-
-### POST `/api/import_db.php`
-
-Import SQL file.
-
-**Request:** `multipart/form-data`
-- `file`: SQL file to import
-
----
 
 ---
 
@@ -625,17 +617,19 @@ Import SQL file.
 Subscribe a new email to the newsletter.
 
 **Request:**
+
 ```json
 {
-    "email": "user@example.com"
+  "email": "user@example.com"
 }
 ```
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "message": "Thank you for subscribing!"
+  "success": true,
+  "message": "Thank you for subscribing!"
 }
 ```
 
@@ -655,6 +649,7 @@ Fetch subscribers list (Admin only).
 | `search` | string | Search by email |
 
 **Response:**
+
 ```json
 {
     "success": true,
@@ -688,10 +683,11 @@ Export subscribers to CSV (Admin only).
 Track page visit (analytics).
 
 **Request:**
+
 ```json
 {
-    "page": "/post/hello-world",
-    "referrer": "https://google.com"
+  "page": "/post/hello-world",
+  "referrer": "https://google.com"
 }
 ```
 
@@ -702,14 +698,15 @@ Track page visit (analytics).
 Get storage usage statistics.
 
 **Response:**
+
 ```json
 {
-    "success": true,
-    "storage": {
-        "used": "150 MB",
-        "total": "1 GB",
-        "percentage": 15
-    }
+  "success": true,
+  "storage": {
+    "used": "150 MB",
+    "total": "1 GB",
+    "percentage": 15
+  }
 }
 ```
 
@@ -721,23 +718,23 @@ All endpoints return consistent error formats:
 
 ```json
 {
-    "success": false,
-    "error": "Error message here",
-    "message": "Human readable message"
+  "success": false,
+  "error": "Error message here",
+  "message": "Human readable message"
 }
 ```
 
 ### HTTP Status Codes
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 400 | Bad Request (missing/invalid params) |
-| 401 | Unauthorized (not logged in) |
-| 403 | Forbidden (CSRF invalid or no permission) |
-| 404 | Not Found |
-| 429 | Too Many Requests (rate limited) |
-| 500 | Server Error |
+| Code | Meaning                                   |
+| ---- | ----------------------------------------- |
+| 200  | Success                                   |
+| 400  | Bad Request (missing/invalid params)      |
+| 401  | Unauthorized (not logged in)              |
+| 403  | Forbidden (CSRF invalid or no permission) |
+| 404  | Not Found                                 |
+| 429  | Too Many Requests (rate limited)          |
+| 500  | Server Error                              |
 
 ---
 
@@ -756,6 +753,7 @@ Access-Control-Allow-Headers: Content-Type, X-CSRF-TOKEN
 ## Rate Limiting
 
 Login endpoint is rate limited:
+
 - **Max attempts**: 5 per 15 minutes
 - **Lockout duration**: 15 minutes
 - **Reset on**: Successful login
@@ -764,9 +762,8 @@ Rate limit data stored in: `/data/rate_limits/`
 
 ---
 
-**VonCMS v1.9.7** - API Reference
+**VonCMS v1.10.x** - API Reference
 
 ---
 
 [ Back to Documentation Home](README.md)
-
