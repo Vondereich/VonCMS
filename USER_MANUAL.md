@@ -1,6 +1,6 @@
 # User Manual
 
-> **VonCMS v1.9.7 "Rafflesia"** | Complete Admin Panel Guide
+> **VonCMS v1.10.x "Solana"** | Complete Admin Panel Guide
 
 ---
 
@@ -36,16 +36,18 @@
 ### Forgot Your Password?
 
 If you forgot your password:
+
 1. Click "Forgot Password" on the login page
 2. Enter your email address
 3. Check your email for reset instructions
 4. Follow the link to create a new password
 
 > **Password Requirements:**
+>
 > - At least 8 characters
 > - At least 1 uppercase letter (A-Z)
 > - At least 1 number (0-9)
-> - At least 1 special character (!@#$%^&*)
+> - At least 1 special character (!@#$%^&\*)
 
 ---
 
@@ -55,17 +57,18 @@ After logging in, you'll see the Dashboard - your control center.
 
 ### What You'll See
 
-| Section | Description |
-|---------|-------------|
-| **Total Posts** | Number of published articles |
-| **Total Pages** | Number of static pages |
-| **Total Users** | Registered users on your site |
-| **Total Comments** | All comments received |
-| **Recent Activity** | Latest actions on your site |
+| Section             | Description                   |
+| ------------------- | ----------------------------- |
+| **Total Posts**     | Number of published articles  |
+| **Total Pages**     | Number of static pages        |
+| **Total Users**     | Registered users on your site |
+| **Total Comments**  | All comments received         |
+| **Recent Activity** | Latest actions on your site   |
 
 ### Navigation Sidebar
 
 The sidebar on the left contains all admin sections:
+
 - 📝 **Posts** - Manage articles
 - 📄 **Pages** - Manage static pages
 - 🖼️ **Media** - Upload and manage images
@@ -87,13 +90,13 @@ Posts are your blog articles or news items.
 2. Click the green **+ New Post** button
 3. Fill in the following:
 
-| Field | What to Enter |
-|-------|---------------|
-| **Title** | Your article headline (e.g., "10 Tips for Better Writing") |
-| **Content** | The full article text |
-| **Category** | Select a category (News, Updates, etc.) |
-| **Featured Image** | The main image that appears on listings |
-| **Status** | Draft (save for later) or Published (go live) |
+| Field              | What to Enter                                              |
+| ------------------ | ---------------------------------------------------------- |
+| **Title**          | Your article headline (e.g., "10 Tips for Better Writing") |
+| **Content**        | The full article text                                      |
+| **Category**       | Select a category (News, Updates, etc.)                    |
+| **Featured Image** | The main image that appears on listings                    |
+| **Status**         | Draft (save for later) or Published (go live)              |
 
 4. Click **Save** when done
 
@@ -119,6 +122,7 @@ Posts are your blog articles or news items.
 ## Creating Pages
 
 Pages are for static content that doesn't change often, like:
+
 - About Us
 - Contact
 - Privacy Policy
@@ -146,34 +150,36 @@ The visual editor makes content creation easy without knowing HTML.
 
 ### Editor Toolbar Explained
 
-| Button | Name | What It Does |
-|--------|------|--------------|
-| **B** | Bold | Makes text **bold** |
-| *I* | Italic | Makes text *italic* |
-| U̲ | Underline | Adds underline to text |
-| S̶ | Strikethrough | ~~Crosses out~~ text |
-| 🔗 | Link | Adds a clickable hyperlink |
-| 📷 | Image | Inserts an image |
-| 📹 | Video | Embeds YouTube, TikTok, or Facebook video |
-| 📊 | Table | Creates a table |
-| 📝 | Code | Adds a code block |
-| 🎨 | Text Color | Changes text color |
-| H1-H6 | Headings | Creates different sized headings |
-| • | Bullet List | Creates a bulleted list |
-| 1. | Numbered List | Creates a numbered list |
-| " | Quote | Creates a blockquote |
-| 🤖 | AI Write | Generate content with AI |
-| `</>` | HTML View | Edit raw HTML code |
+| Button | Name          | What It Does                              |
+| ------ | ------------- | ----------------------------------------- |
+| **B**  | Bold          | Makes text **bold**                       |
+| _I_    | Italic        | Makes text _italic_                       |
+| U̲      | Underline     | Adds underline to text                    |
+| S̶      | Strikethrough | ~~Crosses out~~ text                      |
+| 🔗     | Link          | Adds a clickable hyperlink                |
+| 📷     | Image         | Inserts an image                          |
+| 📹     | Video         | Embeds YouTube, TikTok, or Facebook video |
+| 📊     | Table         | Creates a table                           |
+| 📝     | Code          | Adds a code block                         |
+| 🎨     | Text Color    | Changes text color                        |
+| H1-H6  | Headings      | Creates different sized headings          |
+| •      | Bullet List   | Creates a bulleted list                   |
+| 1.     | Numbered List | Creates a numbered list                   |
+| "      | Quote         | Creates a blockquote                      |
+| 🤖     | AI Write      | Generate content with AI                  |
+| `</>`  | HTML View     | Edit raw HTML code                        |
 
 ### Inserting Images
 
 **Method 1: From Media Library**
+
 1. Click the 📷 button in the editor
 2. Click **Choose from Library**
 3. Select an image
 4. Click **Insert**
 
 **Method 2: Upload New**
+
 1. Click the 📷 button
 2. Click **Upload New**
 3. Select a file from your computer
@@ -181,6 +187,7 @@ The visual editor makes content creation easy without knowing HTML.
 5. Click **Insert**
 
 **Method 3: From URL**
+
 1. Click the 📷 button
 2. Paste the image URL
 3. Click **Insert**
@@ -188,11 +195,13 @@ The visual editor makes content creation easy without knowing HTML.
 ### Embedding Videos
 
 **YouTube:**
+
 1. Click the 📹 button
 2. Paste the YouTube URL (e.g., `https://youtube.com/watch?v=ABC123`)
 3. Click **Insert**
 
 **TikTok:**
+
 1. Click the 📹 button
 2. Paste the TikTok video URL
 3. Click **Insert**
@@ -202,11 +211,13 @@ The visual editor makes content creation easy without knowing HTML.
 VonCMS includes an AI writing helper powered by Google Gemini.
 
 **First Time Setup:**
+
 1. Click the 🤖 button in the editor
 2. Enter your Gemini API Key
 3. Get a free key at: https://aistudio.google.com/apikey
 
 **Using AI:**
+
 1. Click the 🤖 button
 2. Type a prompt (e.g., "Write an introduction about climate change")
 3. Click **Generate**
@@ -222,22 +233,24 @@ Store and manage all your images and files.
 ### Uploading Files
 
 **Method 1: Click Upload**
+
 1. Go to **Media**
 2. Click the **Upload** button
 3. Select files from your computer
 
 **Method 2: Drag and Drop**
+
 1. Go to **Media**
 2. Drag files from your computer
 3. Drop them in the upload area
 
 ### Supported File Types
 
-| Type | Extensions |
-|------|------------|
-| Images | .jpg, .jpeg, .png, .gif, .webp |
-| Documents | .pdf, .doc, .docx |
-| Video | .mp4, .webm |
+| Type      | Extensions                     |
+| --------- | ------------------------------ |
+| Images    | .jpg, .jpeg, .png, .gif, .webp |
+| Documents | .pdf, .doc, .docx              |
+| Video     | .mp4, .webm                    |
 
 ### Deleting Files
 
@@ -253,11 +266,11 @@ Moderate discussions on your posts.
 
 ### Comment Statuses
 
-| Status | Meaning |
-|--------|---------|
-| ✅ **Approved** | Visible to public |
-| ⏳ **Pending** | Waiting for your approval |
-| 🚫 **Spam** | Marked as spam, hidden |
+| Status          | Meaning                   |
+| --------------- | ------------------------- |
+| ✅ **Approved** | Visible to public         |
+| ⏳ **Pending**  | Waiting for your approval |
+| 🚫 **Spam**     | Marked as spam, hidden    |
 
 ### Approving Comments
 
@@ -285,12 +298,12 @@ Control who has access to your admin panel.
 
 ### User Roles
 
-| Role | Permissions |
-|------|-------------|
-| **Admin** | Full access to everything |
+| Role          | Permissions                 |
+| ------------- | --------------------------- |
+| **Admin**     | Full access to everything   |
 | **Moderator** | Manage comments and content |
-| **Writer** | Create and edit own posts |
-| **Member** | View-only access |
+| **Writer**    | Create and edit own posts   |
+| **Member**    | View-only access            |
 
 ### Adding a New User
 
@@ -325,21 +338,21 @@ Configure your entire website from one place.
 
 ### General Settings
 
-| Setting | Description |
-|---------|-------------|
-| Site Name | Your website's title |
-| Site Tagline | Short description |
-| Site URL | Your domain (e.g., https://example.com) |
-| Timezone | Your local timezone |
+| Setting      | Description                             |
+| ------------ | --------------------------------------- |
+| Site Name    | Your website's title                    |
+| Site Tagline | Short description                       |
+| Site URL     | Your domain (e.g., https://example.com) |
+| Timezone     | Your local timezone                     |
 
 ### SEO Settings
 
-| Setting | Description |
-|---------|-------------|
-| Meta Description | Default description for search engines |
-| Meta Keywords | Keywords for SEO |
-| Google Verification | Google Search Console code |
-| robots.txt | Control search engine crawling |
+| Setting             | Description                            |
+| ------------------- | -------------------------------------- |
+| Meta Description    | Default description for search engines |
+| Meta Keywords       | Keywords for SEO                       |
+| Google Verification | Google Search Console code             |
+| robots.txt          | Control search engine crawling         |
 
 ### Theme Settings
 
@@ -372,9 +385,9 @@ Manage your email subscribers and widget settings.
 1.  Go to **Newsletter** via the Sidebar (Settings icon).
 2.  **Enable/Disable**: Toggle the master switch to show/hide the widget public-wide.
 3.  **Customization**:
-    *   **Title**: "Subscribe to our Newsletter"
-    *   **Description**: "Get the latest updates..."
-    *   **Button Text**: "Join Now"
+    - **Title**: "Subscribe to our Newsletter"
+    - **Description**: "Get the latest updates..."
+    - **Button Text**: "Join Now"
 4.  **Position**: Choose between `Footer`, `Sidebar`, or `Both`.
 5.  Click **Save Settings**.
 
@@ -393,18 +406,38 @@ Manage your email subscribers and widget settings.
 
 ---
 
-## Extensions (Plugins)
+---
 
-Extend your site with plugins.
+## 9. Extensions (Plugins)
 
-### Available Plugins
+VonCMS v1.10.0 introduces a robust Plugin System designed to enhance your content without bloating the core.
 
-| Plugin | Description |
-|--------|-------------|
-| **Promo Bar** | Show announcements at top of site |
-| **Gift Widget** | Display promotional gifts/offers |
-| **VonSEO** | Advanced SEO optimization |
-| **VonAnalytics** | Track visitor statistics |
+### 🤖 AI Summary (New)
+
+Automatically generates a "TL;DR" summary at the top of your posts.
+
+- **Enable**: Go to **Admin > Extensions > AI Summary**.
+- **Settings**:
+  - **Mode**: Choose between "First Paragraph" or "Keyword Density".
+  - **Bullets**: Set the number of summary points (3-5 recommended).
+  - **Label**: Customize the header text (e.g., "AI Insights", "Quick Summary").
+
+### 🔗 Related Posts (New)
+
+Keeps readers engaged by suggesting similar content at the bottom of articles.
+
+- **Enable**: Go to **Admin > Extensions > Related Posts**.
+- **Settings**:
+  - **Algorithm**: Match by Tags, Category, or Random.
+  - **Layout**: Choose **Grid** (visual), **List** (compact), or **Cards** (modern).
+  - **Count**: Control how many posts to display (3, 6, or 9).
+
+### Other Available Plugins
+
+- **Promo Bar**: Show announcements at top of site.
+- **Gift Widget**: Display promotional gifts/offers.
+- **VonSEO**: Advanced SEO optimization.
+- **VonAnalytics**: Track visitor statistics.
 
 ### Activating/Deactivating Plugins
 
@@ -444,6 +477,7 @@ VonCMS includes a powerful tool to migrate your content from WordPress easily.
 4. Done! Your posts, pages, and authors are now in VonCMS.
 
 > **Feature Note:**
+>
 > - **Smart Images:** VonCMS automatically finds the first image in your post content and sets it as the Featured Image.
 > - **Self-Healing:** If the import stops, just run it again. It automatically skips duplicates.
 
@@ -471,6 +505,7 @@ Protect your data with regular backups.
 ### Running SQL Queries
 
 For advanced users:
+
 1. Go to **Database** → **Query Editor**
 2. Type your SQL query
 3. Click **Execute**
@@ -482,21 +517,22 @@ For advanced users:
 
 ### Common Issues
 
-| Problem | Solution |
-|---------|----------|
-| White screen | Delete `assets/` folder, re-upload, hard refresh |
-| Can't login | Check credentials, clear cookies |
-| Images not showing | Check file permissions (755/644) |
-| Settings not saving | Check database connection |
-| Slow performance | Clear browser cache, optimize images |
+| Problem             | Solution                                         |
+| ------------------- | ------------------------------------------------ |
+| White screen        | Delete `assets/` folder, re-upload, hard refresh |
+| Can't login         | Check credentials, clear cookies                 |
+| Images not showing  | Check file permissions (755/644)                 |
+| Settings not saving | Check database connection                        |
+| Slow performance    | Clear browser cache, optimize images             |
 
 ### Getting Help
 
 If you need assistance:
+
 1. Check the documentation in `docs/` folder
 2. Review the CHANGELOG for recent changes
 3. Contact support at **kurama87@gmail.com**
 
 ---
 
-*VonCMS v1.9.7 "Rafflesia"* - User Manual
+_VonCMS v1.10.x "Solana"_ - User Manual
