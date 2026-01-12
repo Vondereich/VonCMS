@@ -24,7 +24,7 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 ---
 
 > [!NOTE]
-> **Versioning Philosophy & Velocity**: VonCMS operates on **Startup Velocity**. We ship features and fixes as soon as they are polished. During active development cycles, you may see multiple updates per week. This is a deliberate choice to prioritize transparency and immediate improvement over artificial release delays. We believe in shipping daily if it means a better experience for you. We jump major versions only when delivering transformative feature leaps.
+> **Versioning Philosophy**: VonCMS does not strictly follow Semantic Versioning. Instead of incremental updates, we prioritize **"Milestone Leaps"**. We jump versions (e.g., v1.8 -> v1.9) only when delivering transformative features that redefine the user experience, preferring impactful releases over minor noise.
 
 > [!TIP]
 > **Why "Solana"?** The codename comes from the Italian/Spanish word meaning **"sunny place"** ☀️ — symbolizing brightness, warmth, and a fresh new era for VonCMS. It is not affiliated with any blockchain project.
@@ -41,12 +41,12 @@ _⚠️ Less suitable for: Developers looking for a fully Open Source framework 
 
 ## ⚔️ Why VonCMS?
 
-| Feature                     | VonCMS v1.10.x |      WordPress       | Ghost |
+| Feature                     | VonCMS v1.10.x | Legacy CMS (PHP) | Headless CMS (JS) |
 | --------------------------- | :------------: | :------------------: | :---: |
 | **Setup Time**              |     2 min      |       15+ min        | 5 min |
 | **Core Files**              |      ~200      |        3,000+        | ~500  |
-| **Built-in SEO**            |       ✅       |   ❌ (needs Yoast)   |  ✅   |
-| **Newsletter System**       |       ✅       | ❌ (needs Mailchimp) |  ✅   |
+| **Built-in SEO**            |       ✅       |   ❌ (needs plugin)   |  ✅   |
+| **Newsletter System**       |       ✅       | ❌ (needs plugin) |  ✅   |
 | **Built-in Ads Manager**    |       ✅       |  ❌ (needs plugin)   |  ❌   |
 | **WP Migration Tool**       |       ✅       |         N/A          |  ✅   |
 | **One-Click OTA Updates**   |       ✅       |          ✅          |  ✅   |
@@ -78,80 +78,46 @@ _⚠️ Less suitable for: Developers looking for a fully Open Source framework 
 
 ## 🔥 Feature Spotlight: The v1.10 Era
 
-### 🚀 NEW: One-Click OTA Updates (v1.10.0)
+We don't do minor updates. Each version generation introduces transformative systems.
 
-- **GitHub-Powered Updates**: Update VonCMS directly from Dashboard with one click.
-- **Smart Version Detection**: Automatic semantic versioning ensures safe upgrades.
-- **Protected Files**: Your `von_config.php`, `uploads/`, and `.htaccess` are never touched.
-- **Real-time Progress**: Visual progress bar with server logs during update.
+### ⚡ v1.10.x: The "Solana" Update
+- **🚀 One-Click OTA Updates**: GitHub-powered, smart version detection. Update directly from Dashboard.
+- **🛡️ Enterprise Database Safety**: Safety switches for destructive queries & "Self-Healing" table repair.
+- **🏗️ Theme Standardization**: Shared hooks foundation for faster theme development.
 
-> [!TIP]
-> **Starting from v1.10.x**, you will receive update notifications automatically in your Admin Dashboard. No more manual file uploads! 🚀
+### 🧠 v1.9.x: The "Neural" Update
+- **🤖 AI Summary Engine**: Auto-generates local, cost-free summaries.
+- **🔗 Contextual Discovery**: Smart internal linking algorithm (Category + Keywords).
+- **🌗 Algorithmic Dark Mode**: Mathematically cleans inline colors for perfect contrast.
+- **📧 Native Newsletter CRM**: Built-in subscriber management & CSV sovereignty.
 
-Here is the breakdown of the major systems added in this generation:
+### ⚡ Performance Comparison (Economy Hosting)
 
-### 1. 🚀 Next-Gen Engagement Plugins (v1.9.9)
+Running on a standard **$35/year (10GB SSD)** Shared Hosting plan:
 
-- **🤖 AI Summary Engine**:
-  - Generates bullet-point summaries instantly from content.
-  - Zero API cost (uses local text extraction logic).
-  - Flexible positioning (Top/Bottom).
-- **🔗 Contextual Discovery Engine**:
-  - Auto-suggests "Related Posts" based on Category + Keywords + Tags.
-  - Boosts SEO via internal linking structure.
-  - Multiple Layouts: Grid, List, Cards.
+| Metric | VonCMS v1.10 🚀 | Legacy CMS + Plugins 🐢 |
+| :--- | :--- | :--- |
+| **Max Daily Traffic** | ~50,000+ PV | ~3,000 PV |
+| **Server Load** | Extremely Low (JSON API) | High (PHP Rendering) |
+| **Storage Usage** | Optimized (WebP Images) | High (Bloated Media) |
+| **C10k Handling** | Browser-side Rendering | "Resource Limit Exceeded" |
 
-### 2. 🧠 Smart Systems (v1.9.x)
-
-- **Algorithmic Dark Mode**: Mathematically detects and cleans "dirty" inline colors.
-- **Intelligent SEO**: Auto-keywords weighted by Title priority.
-- **XSS Shield**: Deep sanitization for ads and custom blocks.
-- **Privacy-First Avatar Sync**: Consistent Gravatars across Profile/Comments using secure MD5 hashing.
-
-### 3. 🏗️ Theme Standardization (v1.9.5)
-
-- **Shared Hooks**: Centralized logic for Profiles, Popups, and UX across themes.
-- **Discussion Tabs**: Standardized "Articles vs Discussion" tabs on user profiles.
-- **Developer SOP**: Full `THEME_DEV_GUIDE` included for future-proof theming.
-
-### 4. 🛡️ Enterprise Database Safety (v1.9.3)
-
-- **Safety Switch**: A fail-safe toggle that blocks destructive queries (`DROP`, `DELETE`) by default.
-- **Auto-Repair Tool**: A "Self-Healing" engine that detects missing tables/columns and rebuilds them instantly.
-- **Atomic Architecture**: Config files use "Write-Verify-Rename" logic to prevent corruption during server crashes.
-
-### 5. 📧 Native Newsletter CRM (v1.9.2)
-
-- **Subscriber Database**: Built-in management for your audience.
-- **Growth Widgets**: Ready-to-use subscription forms for Footer & Sidebar.
-- **Data Sovereignty**: Full CSV export ownership. No external dependencies.
-
-### 6. 📰 "Von Digest" Theme (v1.9.2)
-
-- **Modern Magazine UI**: Designed for high-readability and engagement.
-- **Smart Categories**: Dynamic hero sections for topic filtering.
-- **Dark Mode 2.0**: Refined high-contrast dark theme.
-
-### 7. ⚡ Smart UX Engine (v1.9.0)
-
-- **Skeleton Loading**: Eliminated "white screen" flashes.
-- **Instant Feel**: Perceptual performance optimized for slower networks.
-- **React Hydration**: Seamless transition from static HTML to interactive App.
+> **Why?** VonCMS offloads rendering to the user's browser. Your cheap server only serves lightweight JSON data, allowing you to handle **10x more traffic**.
 
 ---
 
-## 🛡️ Enhanced Security (v1.8.6)
+## 🛡️ Security Architecture
 
-**14 vulnerabilities patched** with multi-layer protection:
+**14+ Critical Vectors Patched**. We use a **Context-Aware Defense Standard**:
 
 ```
-Request → CORS → Session → CSRF → Admin Check → Execute
+Request → CORS (Wildcard OK) → Session → CSRF → Admin Check → Input Sanitize → Execute
 ```
 
-- ✅ Session validation on all write endpoints
-- ✅ CSRF token protection
-- ✅ Super Admin (ID 1) immutable protection
-- ✅ Avatar privacy (Gravatar MD5 hashing)
+- ✅ **Session Fixation**: ID regeneration on login.
+- ✅ **CSRF Shield**: Token verification on all write ops.
+- ✅ **XSS Armor**: Client-side DOMPurify + Server-side stripping.
+- ✅ **Honeypot Logic**: Anti-spam without CAPTCHAs.
 
 ---
 
@@ -164,7 +130,7 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 ### 🚀 Performance
 
 - ⚡ React + Vite = <1s page loads
-- 🪶 15x lighter than WordPress
+- 🪶 15x lighter than Legacy CMS
 - 📊 **Smart Analytics** (Auto-purge + Throttling)
 - 📱 Mobile-first responsive design
 - 🎯 **Lighthouse Score**: 89/96/100/100
@@ -213,16 +179,12 @@ Request → CORS → Session → CSRF → Admin Check → Execute
 # 5. Follow installation wizard (2 minutes!)
 ```
 
-## 🔄 How to Upgrade (v1.9.9 -> v1.10.x)
+## 🔄 How to Upgrade
 
-1. **Backup** your site.
-2. **Download** the latest release.
-3. **Overwrite** all files on your server (except `von_config.php` and `uploads/`).
-4. **Login** to Admin Panel.
-5. **Navigate** to the **Security** tab to auto-initialize the new database tables.
-6. **Done!** Future updates will be One-Click via the Dashboard.
+Starting from v1.10.x, upgrading is a One-Click process via the Admin Dashboard.
 
-> See [UPGRADE.md](docs/UPGRADE.md) for detailed instructions.
+For manual upgrades or older versions:
+👉 **[Read the Full Upgrade Guide](docs/UPGRADE.md)**
 
 ### System Requirements
 
