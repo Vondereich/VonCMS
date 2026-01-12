@@ -1,7 +1,7 @@
 # VonCMS License
 
-**Version:** 1.0  
-**Software:** VonCMS 1.9.x  
+**Version:** 1.10
+**Software:** VonCMS 1.10.x  
 **Publisher:** Vondereich
 
 ---
@@ -28,7 +28,7 @@ VonCMS follows a **"Use What's Provided"** philosophy. All themes, plugins, and 
 
 ## Distribution
 
-VonCMS is officially distributed via GitHub Releases. 
+VonCMS is officially distributed via GitHub Releases.
 
 **Hosting Providers:** You may integrate VonCMS into auto-installers (e.g., Softaculous) by pulling directly from official GitHub Releases. For formal partnerships, contact us.
 
