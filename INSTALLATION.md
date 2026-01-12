@@ -71,36 +71,21 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 ## Updating VonCMS
 
-> [!CAUTION]
->
-> # **CRITICAL UPGRADE STEP: DELETE `assets/` FOLDER**
->
-> **You MUST delete the `assets` folder from your hosting before uploading the new version.**
-> This is to prevent **"Zombie Files"** (old, dead files) from conflicting with your new code.
-> _Failure to do this will result in a broken site (White Screen of Death)._
+Good news! Starting from **v1.10.x**, updating is automatic.
 
-### Step 1: Backup
+### One-Click OTA Update (Recommended)
+1.  Login to your Admin Dashboard.
+2.  Go to **Settings > System**.
+3.  Click **"Check for Updates"**.
+4.  If available, click **"Update Now"**.
 
-1. Download your `uploads/` folder (your images)
-2. Export database from phpMyAdmin
+### Manual Update (Fallback)
+If the auto-updater fails or your server creates permission errors, follow these steps:
 
-### Step 2: Clean Update
-
-1. Delete the `assets/` folder from your hosting
-2. Download new `VonCMS_Deploy.zip`
-3. Extract and upload (overwrite existing files)
-   > [!TIP]
-   > **Safe to Overwrite:** Uploading the new files will NOT delete your database configuration (`von_config.php`) or your images (`uploads/`) because those files are not included in the update package.
-   >
-   > **Peace of Mind:** Even though it's safe, we still recommend a quick backup to satisfy the "OCD" and avoid any accidental data loss. Better safe than sorry! 🛡️
-
-### Step 3: Verify
-
-1. Hard refresh browser: `Ctrl + Shift + R`
-2. Check version in Admin Dashboard
-
-> [!WARNING]
-> If you skip deleting `assets/`, old JavaScript files may cause display issues.
+1.  **Backup**: Download your `uploads/` folder and `von_config.php`.
+2.  **Clean**: Delete the `assets/` folder in your hosting (Crucial to prevent cache conflicts!).
+3.  **Upload**: Upload the new `VonCMS_Deploy.zip` content and overwrite existing files.
+4.  **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
 
 ---
 
