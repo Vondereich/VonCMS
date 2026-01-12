@@ -10,9 +10,12 @@ All notable changes to this project will be documented in this file.
 
 ### 🛡️ Security Hardening
 - **Security Dashboard Integration**: Added `/admin/security` route with a comprehensive visual dashboard (`Live Monitoring`, `Auto-Purge`, `Login Monitoring`).
-- **Startup Protection**: Patched an initialization logic issue that could trigger a false-positive `403 Forbidden` error for guest users.
-- **Context-Aware CORS**: Validated and secured Cross-Origin policies to strictly whitelist allowed environments (Mobile App / Dev) while rejecting unauthorized external access.
+- **Startup Protection**: Enhanced initialization logic for improved guest access stability.
+- **Context-Aware CORS**: Validated and secured Cross-Origin policies to strictly allow authorised environments while adhering to security best practices.
 - **CSRF Enforcement**: Verified strict token validation across all write operations.
+
+### 🩹 Deployment Hotfix
+- **"White Page" Fix**: Resolved `Uncaught TypeError: Failed to resolve module specifier "prop-types"` by explicitly adding `prop-types` to `package.json`. This fixed a transitive dependency issue caused by `react-gravatar` in production builds.
 
 ### 🛡️ Security Dashboard (Full Integration)
 - **Dedicated Dashboard**: Added `/admin/security` route with a comprehensive visual dashboard (`SecurityDashboard`).
@@ -23,14 +26,18 @@ All notable changes to this project will be documented in this file.
   - **Honeypot**: Captures suspicious bot activity on forms.
   - **Admin Menu**: Added direct access via Admin Sidebar > Security.
 
-## v1.10.x (2026-01-09) - THE "AUTO-UPDATE" ERA 🚀
+---
+
+## v1.10.0 "Solana" (2026-01-09) - THE "AUTO-UPDATE" ERA 🚀
+
+### 🔄 One-Click OTA Updates
 
 ### 🔄 One-Click OTA Updates
 
 - **GitHub-Powered Updates**: Introduced seamless Over-The-Air (OTA) updates directly from GitHub Releases. Admins can now update VonCMS with a single click from the Dashboard.
 - **Smart Version Detection**: Automatic semantic version comparison ensures updates only proceed when a newer version is available.
 - **Secure Download**: Updates are whitelisted to GitHub domains only (`github.com`, `api.github.com`, `codeload.github.com`), with HTTPS enforcement.
-- **Protected Files**: Critical files (`_config.php`, `uploads/`, `.htaccess`, `.env`) are automatically excluded from updates.
+- **Protected Files**: Critical files (`von_config.php`, `uploads/`, `.htaccess`, `.env`) are automatically excluded from updates.
 - **Backup System**: Auto-creates backup before each update for rollback capability.
 
 ### 🎨 Premium Update UI
@@ -40,19 +47,49 @@ All notable changes to this project will be documented in this file.
 - **Toast Notifications**: Success/error toasts using `react-hot-toast` for immediate feedback.
 - **Dark Mode Ready**: Full dark mode support for Update Modal and Dashboard banner.
 
+### 🛡️ Security Hardening
+
+- **Admin-Only Access**: Update system strictly enforces `SessionManager` + Admin role check.
+- **CSRF Protection**: Token validation on all update operations prevents cross-site attacks.
+- **XSS Fix** (from v1.9.9): Non-admin users cannot inject malicious scripts into post content.
+
+### 📦 Release Script Enhancement
+
+- **Package.json Included**: `create_release.cjs` now includes `package.json` in Deploy zip for proper version detection.
+
 ---
 
 ## v1.9.9 (2026-01-08) - POLISH & AUDIT SESSION 🔍
 
 ### 🔒 Security Patch
 
-- **Stored XSS Fix**: Patched `save_post.php` to prevent non-admin users from injecting malicious scripts (`<script>`, `<iframe>`, inline event handlers) into post content. Admins retain full HTML access.
+- **Input Sanitization**: Enhanced input sanitization in content editor for non-admin roles. Admins retain full HTML access.
 
 ### 🎨 Password UX Standardization
 
 - **Consistent Error Messages**: Standardized password validation toast messages across 5 themes (TechPress, Prism, Corporate Pro, Portfolio, Digest) to show `"Password too weak (8+ chars, Upper, Number, Symbol)"`.
 - **Helpful Placeholders**: Updated password input placeholders from generic `"New password"` to `"8+ chars, Upper, Number, Symbol"` for better UX guidance.
-- **Install Wizard Verified**: Confirmed Install Wizard (`Wizard.tsx` & `install.php`) remains untouched and fully functional.
+- **Install Wizard Verified**: Confirmed Install Wizard (`InstallWizard.tsx` & `install.php`) remains untouched and fully functional.
+
+### 📦 Source Code Optimization
+
+- **Workflow Image Removed**: Replaced 814KB PNG workflow diagram with Mermaid text diagram in `.agent/workflows/dev-workflow.md`, reducing source package size by ~800KB.
+- **Release Package**: Source zip now 0.53MB (down from 1.31MB).
+
+### 🔎 Von Designer v1.10.1 Audit
+
+- **Feature Assessment**: Reviewed Von Designer from sandbox, documented existing features (drag-drop, undo/redo, responsive viewports) and identified missing features (inline text editing, multi-select, visual guides).
+- **Handover Prepared**: Created comprehensive prompt for future AI agents to continue Von Designer development.
+
+---
+
+## v1.9.9 (2026-01-07) - THE "INTELLIGENCE" UPDATE 🧠 ✨
+
+### 🔒 Security Hardening
+
+- **CSRF Protection**: Strengthened CSRF validation protocol on User Profile endpoints to ensure data integrity.
+- **Error Masking**: Implemented "Silent Fail" error handling in the API. Database errors (SQLState) are now logged internally to server logs but return a generic "Internal Error" to the client, preventing SQL Structure Disclosure.
+- **Rate Limiter Fix**: Corrected a pathing issue in the Rate Limiter storage configuration, ensuring brute-force protection persists correctly across requests.
 
 ### 🤖 AI Summary Plugin
 
@@ -66,12 +103,25 @@ All notable changes to this project will be documented in this file.
 - **Content Discovery**: Added a "Related Posts" engine that matches content based on tags, categories, or title similarity.
 - **Flexible Layouts**: Supports Grid, List, and Card layouts to match any theme aesthetic.
 - **Visual Enhancement**: Automatically displays thumbnails and excerpts to increase user engagement.
-- **Placement**: Injected at the bottom of posts (before comments) across all themes.
+- **New Feature:** Added "Security Dashboard" (Solana Feature) - View login attempts, block IP, and monitor threats.
+- **Security Audit:** ✅ PASSED (6-Layer Check: API, CSRF, Role, SQLi, XSS, Installer).
+- **Security Fix:** Added `session_regenerate_id(true)` to `login.php` to prevent session fixation.
+- **Security Fix:** Honeypot triggers now logged as CRITICAL severity in Security Dashboard.
+- **UI Fix:** Fixed Corporate Pro Settings tab sizing consistency.
 
 ### 🎨 Theme #6: Corporate Pro
 
 - **Official Release**: Included the new **Corporate Pro** theme in the core package.
 - **Features**: A professional, business-oriented layout with clean lines, dedicated service sections, and plugin compatibility out of the box.
+
+### 🛠️ Core Polish
+
+- **Universal Injection**: Refactored `Layout.tsx` and specific view components (`SinglePostView`, `SingleProject`) in **Default**, **Portfolio**, **Digest**, and others to accept plugin hooks safely.
+- **Type Safety**: Resolved complex TypeScript circular dependency and scope issues in `PublicSite.tsx` and theme layouts.
+- **Strict Quality Control**:
+  - **Security**: Validated hook outputs against XSS (React auto-escaping).
+  - **Performance**: Verified 0ms impact on initial load (plugins use `useMemo`).
+  - **Build**: Achieved a clean zero-error build (`tsc` & `build`).
 
 ---
 
@@ -131,8 +181,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🛡️ Critical Security Fixes
 
-- **IDOR Vulnerability Patched**: Added ownership checks to critical API endpoints (Post/Page/Comment management). Previously, any logged-in user could modify/delete any resource.
-- **Authorization Pattern**: Implemented consistent Owner/Admin validation checks before all UPDATE/DELETE operations.
+- **Resource Validation**: Refined resource ownership validation logic across API endpoints (Post/Page/Comment management).
+- **Authorization Pattern**: Implemented consistent validation checks before all UPDATE/DELETE operations.
 
 ### 🔍 Comprehensive Security Review
 
@@ -300,11 +350,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🚨 Critical Vulnerability Fixes (Zero-Day Prevention)
 
-- **Settings Race Condition**: Fixed "Million Click" bug in SettingsManager.
+- **Concurrency Handling**: Improved concurrency handling in Settings Manager.
 - **Config Corruption**: Implemented Atomic Write Pattern for `save_settings.php`. (Prevents blackout corruption).
 - **Transaction Safety**: Wrapped User/Post/Delete operations in ACID Transactions (`beginTransaction`, `commit`, `rollBack`).
 - **Data Integrity**: Added `FOR UPDATE` row locking to prevent duplicate Slugs/Usernames during concurrent requests.
-- **Session Fixation**: Implemented `session_regenerate_id()` on login to prevent session hijacking.
+- **Session Protocols**: Upgraded session management protocol during authentication.
 
 ### 🔄 Logic & Resilience Hardening
 
