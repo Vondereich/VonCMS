@@ -1,87 +1,49 @@
-# VonCMS Upgrade Guide
+# 🔄 VonCMS Upgrade Guide
 
-> **Current Version:** v1.10.x "Solana"
-
----
-
-## 📋 Table of Contents
-
-1. [🚀 Auto-Update (Recommended)](#auto-update-recommended)
-2. [📦 Manual Upgrade (Fallback)](#manual-upgrade-minor-versions)
-3. [❓ Troubleshooting](#troubleshooting)
-4. [📚 Legacy Upgrade Guide](#legacy-versions)
+> [!TIP]
+> **Good News:** Starting from v1.10.0, manual upgrades are a thing of the past!
+> Use the **One-Click Update** feature in your Admin Dashboard under **Settings > System**.
 
 ---
 
-## Auto-Update (Recommended)
+## 🚀 Scenario A: Updating from v1.10.x or Newer
+*(E.g., v1.10.0 -> v1.10.1)*
 
-> **Available in v1.10.0+** | One-Click OTA Updates
-
-### How It Works:
-
-1. Login to **Admin Dashboard**.
-2. If an update is available, you will see an **"Update Available!"** banner.
-3. Click **"Update Now"**.
-4. Follow the on-screen progress bar.
-5. **Done!** Site reloads automatically with the new version.
-
-### 🛡️ Safety Mechanisms
-- **Protected Files**: `von_config.php`, `uploads/`, and `.htaccess` are **never** touched.
-- **Auto-Backup**: The system creates a temporary backup before patching.
-- **Validation**: Checks for valid GitHub signatures before downloading.
-
-### ⚠️ If Auto-Update Fails
-If the update fails (e.g., due to **Disk Space Full**, **Permissions**, or **Timeout**), don't panic! Your site content is safe.
-Simply use the **Manual Upgrade** method below.
+1.  Login to **Admin Dashboard**.
+2.  Go to **Settings > System**.
+3.  Look for the **"System Update"** card.
+4.  If an update is available, click **"Update Now"**.
+5.  Wait for the progress bar to complete (approx 10-30 seconds).
+6.  The page will refresh. **Done!**
 
 ---
 
-## Manual Upgrade (Minor Versions)
+## 🛠️ Scenario B: Updating from Older Versions (v1.9.x)
+*(Manual Upgrade Required - One Last Time)*
 
-**Use this method if Auto-Update fails.**
-(e.g., updating from v1.10.0 → v1.10.1)
+If you are on version v1.9.9 or below, you must perform a manual file overwrite to get the new OTA updater engine.
 
-### 3 Simple Steps:
+### Step 1: Backup
+Download a copy of your `von_config.php` file and `uploads/` folder to your computer. (Just in case!)
 
-1. **Delete** the `assets/` folder from your server.
-   > _Critical! Old assets can cause display issues._
-2. **Upload** the new version contents to your server (Overwrite existing files).
-   > _Safe to overwrite! Config and Uploads are not included in the zip._
-3. **Refresh** your browser (`Ctrl + Shift + R`).
+### Step 2: Download
+Get the latest `VonCMS_Deploy.zip` from our [**GitHub Releases**](https://github.com/Vondereich/VonCMS/releases) page.
 
-That's it!
+### Step 3: Upload & Overwrite
+1.  Open your hosting **File Manager** (cPanel/DirectAdmin).
+2.  Upload the ZIP file to your website root folder.
+3.  **Extact** the ZIP.
+4.  When asked to overwrite files, select **"Yes / Overwrite All"**.
 
----
+> **Note:** Our ZIP file does NOT contain `von_config.php` or `uploads/`, so your database settings and images are **SAFE**.
 
-## Troubleshooting
+### Step 4: Run Database Migration
+1.  Login to your Admin Dashboard.
+2.  Navigate to the **Security** tab (sidebar).
+3.  The system will automatically detect the new version and run any missing SQL migrations (e.g., creating `security_logs` table).
+4.  You will see a success message if any tables were fixed.
 
-### "Page Not Found / 404"
-- Ensure `.htaccess` exists.
-- Contact hosting support to enable `mod_rewrite`.
+### Step 5: Verify
+Check the **Settings > System** page. It should now say **Version: 1.10.1**.
 
-### "Database Connection Failed"
-- Verify `von_config.php` credentials.
-- Ensure database user has permissions.
-
-### White Screen After Update
-- **Cause:** You likely forgot to delete the `assets/` folder.
-- **Fix:** Delete `assets/` manually, re-upload the new `assets/` folder, and clear browser cache.
-
-### Update Stuck / Timeout
-- **Cause:** Slow server or strict firewall.
-- **Fix:** Use the **Manual Upgrade** method above.
-
----
-
-## Legacy Versions
-
-Upgrading from an older version (v1.8.x, v1.9.x)?
-Please refer to the **[Legacy Upgrade Archive](UPGRADE_ARCHIVE.md)** for specific instructions.
-
----
-
-**Version:** 1.10.x "Solana"
-**Release Date:** January 2026
-**Package:** Deploy Edition
-
-© VonCMS - Modern Content Management System
+Congratulations! Future updates will now be automatic. 🎉
