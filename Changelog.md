@@ -35,7 +35,7 @@ All notable changes to this project will be documented in this file.
   - Added missing Tags/Keywords display to **Prism**, **Portfolio**, and **Corporate-Pro** themes.
 - **Audit & Verification**:
   - **Codebase Audit**: Passed full `/audit-code` review (Security, Logic, Regression).
-  - **Opencode Comparison**: Verified superior security architecture compared to external "Sandbox" variants.
+  - **code Comparison**: Verified superior security architecture compared to external "Sandbox" variants.
 
 ### 🧹 Code Cleanup
 
