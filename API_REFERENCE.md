@@ -1,8 +1,8 @@
 # 🔌 VonCMS API Reference
 
-> **Version**: 1.10.x "Solana"
+> **Version**: 1.10.6 "Solana"
 > **Base URL**: `/api/` or `/api.php`
-> **Last Updated**: January 9, 2026
+> **Last Updated**: January 21, 2026
 
 ---
 
@@ -762,7 +762,7 @@ Rate limit data stored in: `/data/rate_limits/`
 
 ---
 
-**VonCMS v1.10.x** - API Reference
+**VonCMS v1.10.6** - API Reference
 
 ---
 
