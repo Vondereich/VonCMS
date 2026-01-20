@@ -141,9 +141,9 @@ All notable changes to this project will be documented in this file.
 
 - **Edit Profile Button Fix**: Fixed issue where Member/Writer users couldn't see "Edit Profile" button. Root cause: Public API previously omitted `user.id` for strict privacy, causing frontend permission checks to fail. Fix: Safely exposed `id` in `get_public_profile.php` (non-sensitive public data) to restore self-edit functionality for non-admins.
 
-### 📝 Agent SOP Updates
+### 📝 SOP Updates
 
-- Added **Anti-Assumption Protocol** to dev-reference.md - agents must verify features before making claims
+- Added **Anti-Assumption Protocol** to dev-reference.md - editors must verify features before making claims
 - Added **Mandatory Reading** section - all agents must read docs before starting work
 - Updated security feature counts in SOP documentation
 
