@@ -116,7 +116,7 @@ All notable changes to this project will be documented in this file.
 
 - **S3/Cloudinary Removed**: Removed "Coming Soon" placeholder options from Storage Location dropdown. CDN URL field handles CDN delivery use case.
 
-### 📝 Agent SOP
+### 📝 SOP
 
 - **Security Audit SOP**: Added `/audit-code` workflow with comprehensive 4-category checklist for pre-release code audits.
 
