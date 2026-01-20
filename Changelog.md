@@ -144,7 +144,7 @@ All notable changes to this project will be documented in this file.
 ### 📝 SOP Updates
 
 - Added **Anti-Assumption Protocol** to dev-reference.md - editors must verify features before making claims
-- Added **Mandatory Reading** section - all agents must read docs before starting work
+- Added **Mandatory Reading** section - all editors must read docs before starting work
 - Updated security feature counts in SOP documentation
 
 ---
