@@ -2,22 +2,173 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.10.6 "Solana/Fortified" - SCALABILITY & SECURITY 🛡️🚀
+
+### 🧱 Scalability & Performance (100K+ Posts)
+
+- **Server-Side Search**:
+  - Added `?search=keyword` parameter to `get_posts.php` with prepared statements.
+  - Searches title, excerpt, content, and category.
+  - Implemented `useServerSearch` hook for scalable search.
+  - **Digest Theme**: Hybrid search implementation (Client-side instant + Server-side on Enter).
+- **Backend Optimization**:
+  - **Category Filtering**: Added `?category=` parameter to `get_posts.php` for server-side filtering.
+  - **Scalability Indexes**: Integrated index creation into **Repair Database** tool. No manual queries required.
+- **Sitemap Index**:
+  - Rewrote `sitemap.php` to use Sitemap Index architecture.
+  - Automatically chunks posts into multiple sitemaps (50,000 URLs limit per file).
+  - Supports `/sitemap.xml?type=posts&page=X` structure.
+  - Fixes memory issues when generating sitemaps for large datasets.
+
+### 🛡️ Critical Security Hardening
+
+- **Enhanced Error Handling**: Updated API response logic to implement standardized error masking strategies, preventing potential information disclosure during server exceptions.
+- **Data Sanitization**: Hardened system configuration endpoints to enforce strict output filtering and prevent inadvertent exposure of internal parameters.
+- **Recovery Resilience**: Improved backup recovery logic to ensure consistent session handling during restoration procedures.
+
+### 🐛 Critical Bug Fixes
+
+- **Single Post Content**:
+  - Fixed "Missing Content" issue caused by Slim Query optimization.
+  - Implemented `useSinglePost` hook to fetch full content on demand.
+- **Tags Display**:
+  - Added missing Tags/Keywords display to **Prism**, **Portfolio**, and **Corporate-Pro** themes.
+- **Audit & Verification**:
+  - **Codebase Audit**: Passed full `/audit-code` review (Security, Logic, Regression).
+  - **Opencode Comparison**: Verified superior security architecture compared to external "Sandbox" variants.
+
+### 🧹 Code Cleanup
+
+- **Refactoring**:
+  - Refactored `App.tsx` (reduced by ~60 lines) by moving logic to `useSinglePost`.
+  - Removed unused variables (`totalResults`) in Digest theme.
+  - Removed TODO comments in `useContent.ts`.
+
+### ⚡ Verified Performance Benchmark
+
+- **Stress Test Results** (Localhost XAMPP, 100 concurrent):
+  - **7,300 requests** completed with **98.7% success rate**.
+  - **70ms average latency** per API response.
+  - **Peak RPS: 1,316** | **Sustained RPS: 521**.
+  - 67/73 batches (92%) stable before server resource exhaustion.
+
+---
+
+## v1.10.4 "Solana/Performance" (Pre-Planned Release) - PAGINATION UNIFIED ⚡
+
+### 🚀 Scalability & Performance
+
+- **Backend Optimization (`get_posts.php`)**:
+  - **Slim Query**: Removed heavy `content` field from list queries (payload reduced by ~95%).
+  - **Hard Limits**: Enforced safe defaults (20 posts) and strict max cap (100 posts) to prevent server overload.
+  - **Author Filter**: Added `?author=` parameter for efficient server-side profile filtering.
+- **Frontend Scalability**:
+  - **Independent Profile Fetching**: `UserProfile` now fetches its own data server-side, enabling unlimited history access (solved "empty profile" bug).
+  - **Admin Dashboard**: Updated `useContent` to handle new API envelope `{ posts, meta }` correctly.
+
+### 🔄 Unified Pagination Strategy
+
+- **Standardized "Load More"**: Replaced inconsistent numbered pagination and "View All" toggles with a unified "Load More" pattern across ALL themes and profile components.
+- **Affected Themes**:
+  - **Corporate Pro**: Removed complex "View All" toggle; implemented clean Load More flow for Main Feed and User Profile.
+  - **Portfolio**: Converted to shared `LoadMoreButton` logic (preserving custom styling).
+  - **TechPress & UserProfile**: Fully converted to efficient client-side slicing + server data envelope.
+- **Code Cleanup**: Removed ~175 lines of duplicate pagination logic (`currentPage`, `totalPages`, `.slice` redundancy).
+
+### 🛡️ Security & Stability
+
+- **6-Layer Defense Audit**: Passed comprehensive security audit (SQL Injection, XSS, CSRF, Access Control, Data Exposure, Business Logic).
+- **Hardened API**: `get_posts.php` inputs (`page`, `limit`) are strictly cast to integers; uses PDO prepared statements.
+- **Type Safety**: Passed strict TypeScript checks across all theme modifications.
+
+### 🧩 Components
+
+- **LoadMoreButton**: Enhanced shared component to support `style` prop for theme-specific customizations (used by Portfolio).
+
+---
+
+## v1.10.3 "Solana/Patch" (2026-01-14) - MEDIA SETTINGS COMPLETE 📷
+
+### 🖼️ Media Optimization (Now Fully Functional)
+
+- **WebP Conversion**: Images automatically converted to WebP format when enabled. Both original + WebP versions saved for browser fallback compatibility.
+- **Image Compression**: Compression levels (Low/Medium/High) now correctly applied during upload.
+- **Auto-Resize**: Images exceeding max dimensions are automatically resized while maintaining aspect ratio.
+- **Settings Path Fix**: Fixed media optimization not reading settings (was looking at wrong JSON file path).
+
+### 🚀 CDN URL Support
+
+- **CDN Prefix Logic**: When CDN URL is configured in Media Settings, all uploaded file URLs are automatically prefixed with the CDN domain.
+- **Upload Response Enhanced**: Response now includes `cdnEnabled` flag and `webpUrl` when applicable.
+
+### ⚡ Lazy Loading (Now Functional)
+
+- **Native Lazy Load**: `loading="lazy"` attribute automatically injected into `<img>` and `<iframe>` tags in post content.
+- **Configurable**: Can be toggled on/off via Media Settings → Performance.
+- **Smart Injection**: Only applies to tags that don't already have the attribute.
+
+### 🐛 Bug Fixes
+
+- **spamKeywords**: Fixed spam keywords not saving to database (was missing from save_settings.php mappings).
+- **Type Sync**: Synchronized duplicate `types/index.ts` with main `types.ts` to prevent TypeScript confusion.
+
+### 🧹 Cleanup
+
+- **S3/Cloudinary Removed**: Removed "Coming Soon" placeholder options from Storage Location dropdown. CDN URL field handles CDN delivery use case.
+
+### 📝 Agent SOP
+
+- **Security Audit SOP**: Added `/audit-code` workflow with comprehensive 4-category checklist for pre-release code audits.
+
+---
+
+## v1.10.2 "Solana/Patch" (2026-01-13) - UX POLISH 🎯
+
+### 🔄 Navigation & UX
+
+- **Scroll to Top**: Added `ScrollToTop` component that automatically scrolls to top when navigating between routes. No more stuck scroll positions when clicking Home or navigating to new pages.
+
+### 🔐 Session Management
+
+- **Silent Session Kick**: Improved session expiry handling. When session expires after 30 minutes of inactivity:
+  - Admin users are silently redirected to home (no scary error messages)
+  - Public users viewing content are gracefully logged out and page reloads
+  - **Loop Prevention**: Fixed infinite reload bug when already on login page
+- **Clean Logout Flow**: Removed confusing "Session Expired" messages for a smoother UX.
+- **Login Route Guard**: Logged-in users accessing `/login` are now auto-redirected to home instead of seeing the login form.
+
+### 🐛 Bug Fixes
+
+- **Edit Profile Button Fix**: Fixed issue where Member/Writer users couldn't see "Edit Profile" button. Root cause: Public API previously omitted `user.id` for strict privacy, causing frontend permission checks to fail. Fix: Safely exposed `id` in `get_public_profile.php` (non-sensitive public data) to restore self-edit functionality for non-admins.
+
+### 📝 Agent SOP Updates
+
+- Added **Anti-Assumption Protocol** to dev-reference.md - agents must verify features before making claims
+- Added **Mandatory Reading** section - all agents must read docs before starting work
+- Updated security feature counts in SOP documentation
+
+---
+
 ## v1.10.1 "Solana/Patch" (2026-01-11) - VISUAL STABILITY & SECURITY 🛠️
 
 ### 👁️ Visual Stability
+
 - **Skeleton Loader Fix**: Resolved a regression where the loading skeleton would disappear prematurely, causing a "Flash of Unstyled Content" (FOUC). The loader now persists smoothly until all core data is ready.
 - **Clean Transitions**: Optimized the initial loading state to ensure a seamless transition from index to dashboard.
 
 ### 🛡️ Security Hardening
+
 - **Security Dashboard Integration**: Added `/admin/security` route with a comprehensive visual dashboard (`Live Monitoring`, `Auto-Purge`, `Login Monitoring`).
-- **Startup Protection**: Enhanced initialization logic for improved guest access stability.
-- **Context-Aware CORS**: Validated and secured Cross-Origin policies to strictly allow authorised environments while adhering to security best practices.
+- **Startup Protection**: Patched an initialization logic issue that could trigger a false-positive `403 Forbidden` error for guest users.
+- **Context-Aware CORS**: Validated and secured Cross-Origin policies to strictly whitelist allowed environments (Mobile App / Dev) while rejecting unauthorized external access.
 - **CSRF Enforcement**: Verified strict token validation across all write operations.
 
 ### 🩹 Deployment Hotfix
+
 - **"White Page" Fix**: Resolved `Uncaught TypeError: Failed to resolve module specifier "prop-types"` by explicitly adding `prop-types` to `package.json`. This fixed a transitive dependency issue caused by `react-gravatar` in production builds.
 
 ### 🛡️ Security Dashboard (Full Integration)
+
 - **Dedicated Dashboard**: Added `/admin/security` route with a comprehensive visual dashboard (`SecurityDashboard`).
 - **Live Monitoring**: Real-time charts for Security Events (Line), Severity Breakdown (Pie), and Top IP Offenders (Bar).
 - **Auto-Purge**: Implemented intelligent probabilistic auto-purge (10% chance) to delete logs older than 30 days during insertions, preventing database bloat.
@@ -63,7 +214,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔒 Security Patch
 
-- **Input Sanitization**: Enhanced input sanitization in content editor for non-admin roles. Admins retain full HTML access.
+- **Content Sanitization**: Enhanced content filtering for non-admin users to ensure only safe HTML is saved. Admins retain full HTML access.
 
 ### 🎨 Password UX Standardization
 
@@ -87,7 +238,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔒 Security Hardening
 
-- **CSRF Protection**: Strengthened CSRF validation protocol on User Profile endpoints to ensure data integrity.
+- **CSRF Protection**: Strengthened token validation on the Profile Update endpoint for improved request authenticity verification.
 - **Error Masking**: Implemented "Silent Fail" error handling in the API. Database errors (SQLState) are now logged internally to server logs but return a generic "Internal Error" to the client, preventing SQL Structure Disclosure.
 - **Rate Limiter Fix**: Corrected a pathing issue in the Rate Limiter storage configuration, ensuring brute-force protection persists correctly across requests.
 
@@ -181,8 +332,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🛡️ Critical Security Fixes
 
-- **Resource Validation**: Refined resource ownership validation logic across API endpoints (Post/Page/Comment management).
-- **Authorization Pattern**: Implemented consistent validation checks before all UPDATE/DELETE operations.
+- **Authorization Hardening**: Added ownership checks to critical API endpoints. Enhanced validation ensures proper access control on all resource operations.
+- **Authorization Pattern**: Implemented consistent Owner/Admin validation checks before all UPDATE/DELETE operations.
 
 ### 🔍 Comprehensive Security Review
 
@@ -226,7 +377,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔒 Security
 
-- **Install Route Protection**: Fixed vulnerability where installation page remained accessible. Server-side check now redirects to homepage if the system is already configured.
+- **Install Route Protection**: Enhanced installation page access control to prevent unintended access after initial setup.
 
 ---
 
@@ -350,11 +501,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🚨 Critical Vulnerability Fixes (Zero-Day Prevention)
 
-- **Concurrency Handling**: Improved concurrency handling in Settings Manager.
+- **Settings Race Condition**: Fixed "Million Click" bug in SettingsManager.
 - **Config Corruption**: Implemented Atomic Write Pattern for `save_settings.php`. (Prevents blackout corruption).
 - **Transaction Safety**: Wrapped User/Post/Delete operations in ACID Transactions (`beginTransaction`, `commit`, `rollBack`).
 - **Data Integrity**: Added `FOR UPDATE` row locking to prevent duplicate Slugs/Usernames during concurrent requests.
-- **Session Protocols**: Upgraded session management protocol during authentication.
+- **Session Fixation**: Implemented `session_regenerate_id()` on login to prevent session hijacking.
 
 ### 🔄 Logic & Resilience Hardening
 
