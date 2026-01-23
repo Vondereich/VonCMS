@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.10.9 (2026-01-23) - SYSTEM STABILITY & PERFORMANCE REFINEMENT 🚨
+
 ### 🛡️ System Hardening & Data Integrity
 
 - **Optimized Metadata Filtering**: Refined server-side object scrubbing to strictly limit configuration exposure during public-state calls.
