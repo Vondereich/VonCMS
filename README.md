@@ -6,7 +6,7 @@
 
 **React + PHP | Blazing Fast | Zero Plugin Headaches**
 
-[![Version](https://img.shields.io/badge/version-1.10.6-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
+[![Version](https://img.shields.io/badge/version-1.10.8-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
 [![Lighthouse](https://img.shields.io/badge/Lighthouse-89%2F96%2F100%2F100-brightgreen.svg)](https://web.dev/measure/)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE.md)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
