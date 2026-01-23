@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.10.8 "Solana/Patch" (2026-01-23) - SECURITY UPDATE 🛡️
+
+### 🤖 Generative AI: Next-Gen Engine
+- **Gemini 2.0 Integration**: Upgraded default engine to **Gemini 2.0 Flash** for faster, more accurate, and context-aware responses.
+- **Smart Input Calibration**: Enhanced API configuration logic to automatically detect and correct key formatting issues (e.g., accidental whitespace).
+- **Quick-Select Interface**: Added one-click model selection (GPT-4o / Gemini 2.0) to streamline admin setup.
+
+### 🛡️ System Integrity & OTA Assurance
+- **Release Assurance Protocol**: Implemented strict **Build Integrity Checks** within the release pipeline. The system now validates the existence of all critical API endpoints before generating release packages.
+- **OTA Reliability**: Fortified the Over-The-Air update mechanism to ensure zero possibility of partial file delivery during upgrades.
+- **Build Optimization**: Refined `post-build` scripts to guarantee consistent asset migration to the distribution layer.
+
+### ⚡ General Improvements
+- **Input Sanitization**: Hardened input trimming on critical settings fields to prevent "invisible character" errors.
+- **Stability**: Resolved potential race conditions in the build process that could affect high-latency environments.
+
 ## v1.10.6 "Solana/Fortified" - SCALABILITY & SECURITY 🛡️🚀
 
 ### 🧱 Scalability & Performance (100K+ Posts)
