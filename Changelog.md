@@ -47,6 +47,7 @@ All notable changes to this project will be documented in this file.
 - **Dashboard Synchronization**: Modernized the Admin Dashboard with colorful statistic cards matching the new sidebar theme.
 - **Atomic Statistics**: Split the "Total Content" stat into independent **"Articles"** and **"Pages"** counters for more granular data visibility.
 - **Hardened Styling**: Implemented HEX-based inline styling for navigation icons to ensure visual consistency across all browser and cache environments.
+- **Visual Pulse (NProgress)**: Integrated lightweight loading bars (`nprogress`) for all route transitions. Provides immediate visual feedback during page loads, enhancing the perception of speed and "aliveness."
 
 ### 🛡️ Contact Form Architecture (Security & Pulse)
 
@@ -62,6 +63,10 @@ All notable changes to this project will be documented in this file.
 - **Structural Symmetry**: Standardized 60+ API endpoints to a unified structural baseline (Preflight → Security → Config), restoring the "Aman Damai" stability of v1.10.9 while preserving next-gen features.
 - **Monolithic Tracking**: Consolidated `track_visit.php` and `track_view.php` into a single high-efficiency `track_monolithic.php`. Reduces server CPU load and database connection overhead by 50% per page load.
 - **Google Sitelinks Searchbox**: Enhanced **VonSEO** with `SearchAction` JSON-LD schema, enabling Google to display a dedicated search box for your site in search results.
+- **Global Settings Expansion**:
+  - **Membership Control**: Added "Anyone can register" toggle to enable/disable public registrations.
+  - **SMTP Engine**: Integrated full SMTP configuration (Host, Port, Encryption, Auth) for reliable email delivery.
+  - **Localization**: Added Timezone selection and Domain URL configuration for accurate logging and link generation.
 
 ### 🧹 System-Wide Modernization
 
@@ -85,6 +90,7 @@ All notable changes to this project will be documented in this file.
 
 - **Hardened Branding**: Applied explicit `!text-white` overrides to Dashboard and Installer headings.
 - **Fix**: Prevents "invisible/sunken" text caused by global heading styles conflicting with dark-themed components in Light Mode.
+
 
 
 ## v1.10.9 (2026-01-23) - SYSTEM STABILITY & PERFORMANCE REFINEMENT 🚨
