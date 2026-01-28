@@ -1,6 +1,31 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+
+## v1.10.11 (2026-01-28) - OTA INTEGRITY HOTFIX 🚑
+
+### 🚨 Critical Action Required (If Site Crashes)
+
+> [!IMPORTANT]
+> **Did your site revert to "Hello Universe" after updating?**
+>
+> This is expected for some users updating from **v1.10.9 or older** because the old updater fails to update the security config file (`.htaccess`).
+>
+> **How to Fix (One-Click):**
+> 1. Visit: `https://yoursite.com/api/system/fix_integrity.php` (Login as Admin first)
+> 2. The script will automatically repair your configuration.
+> 3. Your site will instantly return to normal.
+> 4. **Optional:** Once fixed, you may safely delete the `public/api/system/fix_integrity.php` file from your server.
+>
+> **If the script fails (Manual Force Update):**
+> 1. Delete your `/assets` folder manually.
+> 2. Upload the **new v1.10.11 zip file**.
+> 3. Extract and overwrite everything.
+
+### 🛡️ What's Fixed
+
+- **Updater Logic**: The OTA updater now **forces overwrite of .htaccess** to ensure system integrity for all future updates.
+- **Self-Healing Tool**: Included `/api/system/fix_integrity.php` as a permanent recovery tool.
+- Note: This update automatically replaces your root `.htaccess` with the secure v1.10.10 standard. **Custom rules will be reset.**
 
 ## v1.10.10 (2026-01-28) - THE GOLDEN RELEASE (SOLANA SERIES) 🛡️🏆
 
@@ -91,12 +116,15 @@ All notable changes to this project will be documented in this file.
 - **Hardened Branding**: Applied explicit `!text-white` overrides to Dashboard and Installer headings.
 - **Fix**: Prevents "invisible/sunken" text caused by global heading styles conflicting with dark-themed components in Light Mode.
 
+---
 
+## v1.10.9 (2026-01-23) - SYSTEM STABILITY & SECURITY HARDENING 🛡️
 
-## v1.10.9 (2026-01-23) - SYSTEM STABILITY & PERFORMANCE REFINEMENT 🚨
+### 🛡️ Critical Security Hardening & Data Integrity
 
-### 🛡️ System Hardening & Data Integrity
-
+- **CSRF Protection**: Implemented strict token validation on AI API endpoints (`ai_check.php`, `ai_generate.php`) preventing cross-site Request Forgery.
+- **XSS Sanitization (Frontend)**: Applied comprehensive DOMPurify sanitization to all content renderers (`ContentRenderer`, `ContactFormRenderer`) and theme components, including a specific fix for the `TechPress` AdBlock renderer.
+- **Synchronized Secure Headers**: Refactored AI services to utilize unified secure header propagation, ensuring CSRF tokens are consistently delivered.
 - **Optimized Metadata Filtering**: Refined server-side object scrubbing to strictly limit configuration exposure during public-state calls.
 - **Input Processing Normalization**: Standardized credential handling logic to ensure total data persistence across diverse character sets.
 - **Unified Request Validation**: Consolidated administrative endpoints with the core system's secure request verification standards.
@@ -113,7 +141,24 @@ All notable changes to this project will be documented in this file.
 - **Standardized Execution Path**: Purged experimental logic to restore the core engine to a lean, high-reliability execution path.
 - **Interface Verbosity Adjustment**: Fine-tuned client-side logging and suppressed non-critical system warnings for improved workspace clarity.
 
-## v1.10.6 "Solana/Fortified" - SCALABILITY & SECURITY 🛡️🚀
+---
+
+## v1.10.7 "Solana/Pre-release" - UI POLISH & UPDATER FIX 🛠️
+
+### 🎨 Theme & UI Polish
+
+- **Default Theme**: Fixed Footer Logo issue where it was hardcoded. It now dynamically checks `settings.logoUrl` to match the Header logo, falling back to the default Von Logo only if unset.
+- **Login Modal**: Increased modal width (`max-w-md` → `max-w-lg`) for better readability and input spacing on desktop screens.
+- **Form Accessibility**:
+  - Added `id` and `name` attributes to Search inputs across all themes (Default, TechPress, Prism, Digest) to resolve browser warnings.
+  - Added `autoComplete` attributes to Newsletter and Comment forms for better autofill support.
+- **TechPress Ads**: Optimized In-Feed Ad frequency from every 3 posts to every 6 posts for better reading experience.
+
+### 🛡️ Core Stability
+
+- **Updater Hardening**: Fixed SSL verification issue in `updater.php`. Now correctly detects XAMPP/Localhost environments to prevent SSL certificate errors during local testing, while strictly enforcing SSL on production.
+
+---
 
 ### 🧱 Scalability & Performance (100K+ Posts)
 
@@ -136,6 +181,8 @@ All notable changes to this project will be documented in this file.
 - **Enhanced Error Handling**: Updated API response logic to implement standardized error masking strategies, preventing potential information disclosure during server exceptions.
 - **Data Sanitization**: Hardened system configuration endpoints to enforce strict output filtering and prevent inadvertent exposure of internal parameters.
 - **Recovery Resilience**: Improved backup recovery logic to ensure consistent session handling during restoration procedures.
+- **SSL Hardening**: Implemented Smart SSL Verification in `updater.php` (Auto-detects Localhost vs Production) to prevent Man-in-the-Middle attacks during updates.
+- **UI UX Polish**: Increased Login Modal width (Medium → Large) for better readability and input spacing.
 
 ### 🐛 Critical Bug Fixes
 
@@ -146,7 +193,7 @@ All notable changes to this project will be documented in this file.
   - Added missing Tags/Keywords display to **Prism**, **Portfolio**, and **Corporate-Pro** themes.
 - **Audit & Verification**:
   - **Codebase Audit**: Passed full `/audit-code` review (Security, Logic, Regression).
-  - **code Comparison**: Verified superior security architecture compared to external "Sandbox" variants.
+  - **Opencode Comparison**: Verified superior security architecture compared to external "Sandbox" variants.
 
 ### 🧹 Code Cleanup
 
@@ -227,7 +274,7 @@ All notable changes to this project will be documented in this file.
 
 - **S3/Cloudinary Removed**: Removed "Coming Soon" placeholder options from Storage Location dropdown. CDN URL field handles CDN delivery use case.
 
-### 📝 SOP
+### 📝 Agent SOP
 
 - **Security Audit SOP**: Added `/audit-code` workflow with comprehensive 4-category checklist for pre-release code audits.
 
@@ -252,10 +299,10 @@ All notable changes to this project will be documented in this file.
 
 - **Edit Profile Button Fix**: Fixed issue where Member/Writer users couldn't see "Edit Profile" button. Root cause: Public API previously omitted `user.id` for strict privacy, causing frontend permission checks to fail. Fix: Safely exposed `id` in `get_public_profile.php` (non-sensitive public data) to restore self-edit functionality for non-admins.
 
-### 📝 SOP Updates
+### 📝 Agent SOP Updates
 
-- Added **Anti-Assumption Protocol** to dev-reference.md - editors must verify features before making claims
-- Added **Mandatory Reading** section - all editors must read docs before starting work
+- Added **Anti-Assumption Protocol** to dev-reference.md - agents must verify features before making claims
+- Added **Mandatory Reading** section - all agents must read docs before starting work
 - Updated security feature counts in SOP documentation
 
 ---
