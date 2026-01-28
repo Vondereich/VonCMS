@@ -28,8 +28,6 @@ _If you find VonCMS useful, please consider giving it a ⭐ — it helps others 
 
 > [!TIP]
 > **Why "Solana"?** The codename comes from the Italian/Spanish word meaning **"sunny place"** ☀️ — symbolizing a fresh new era for VonCMS.
->
-> **Why "Nara"?** (v1.11) Based on **Kamus Dewan**, **Nara** means **"Perwira"** (Hero/Valiant Warrior) ⚔️ — representing the strength and security of the upcoming "Perwira" series.
 
 <div align="center">
 
