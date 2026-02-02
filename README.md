@@ -23,7 +23,7 @@ We are currently working on the **Nara series**, a performance update focused on
 
 <div align="center">
 
-| Performance Metric | WordPress (Legacy) | **VonCMS (Nara Preview)** | **Performance Gap** |
+| Performance Metric |CMS (Legacy) | **VonCMS (Nara Preview)** | **Performance Gap** |
 | :--- | :---: | :---: | :--- |
 | **Average RPS** | 10.81 | **606.70** | ⚡ **56x Faster** |
 | **Peak Throughput** | 11.40 | **853.90** | 🚀 **74x Faster** |
