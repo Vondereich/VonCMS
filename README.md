@@ -1,276 +1,117 @@
-# 🚀 VonCMS v1.10.11 "Solana/Hotfix"
+# VonCMS v1.10.11 "Integrity"
+> **A Simple, Efficient, and Hybrid Headless CMS for Content Portals.**
 
 <div align="center">
 
-### ⚡ The Ultra-Fast, Hybrid Headless CMS ⚡
+![VonCMS Banner](https://i.postimg.cc/mrynRLYk/Google-AI-Studio-2026-02-02T17-23-37-480Z.png)
 
-**React + PHP | Blazing Fast | Zero Plugin Headaches**
+**React + Vite Frontend | PHP API Engine | Built-in SEO & Ads | One-Click OTA**
 
-[![Version](https://img.shields.io/badge/version-1.10.11-blue.svg)](https://github.com/Vondereich/VonCMS/releases)
-[![Lighthouse](https://img.shields.io/badge/Lighthouse-89%2F96%2F100%2F100-brightgreen.svg)](https://web.dev/measure/)
-[![License](https://img.shields.io/badge/license-Private-red.svg)](LICENSE.md)
-[![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=social)](https://github.com/Vondereich/VonCMS)
+[![Stable Release](https://img.shields.io/badge/Status-Stable_v1.10.11-brightgreen.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS/releases)
+[![Upcoming Preview](https://img.shields.io/badge/Preview-v1.11.x_Nara-blue.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS)
+[![Tech](https://img.shields.io/badge/Core-React_%2B_PHP_8-blue.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
+[![SEO](https://img.shields.io/badge/Lighthouse-100%2F100-orange.svg?style=for-the-badge)](https://web.dev/measure/)
 
-**[📥 Download Latest Release](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/) • [🐛 Report Bug](https://github.com/Vondereich/VonCMS/issues)**
-
----
-
-_If you find VonCMS useful, please consider giving it a ⭐ — it helps others discover the project!_
+[📥 Download Stable v1.10.11](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md) • [🐛 Report Bugs](https://github.com/Vondereich/VonCMS/issues)
 
 </div>
 
 ---
 
----
+## 🛰️ Performance Preview: The "Nara" Engine (v1.11.x)
+We are currently working on the **Nara series**, a performance update focused on hardware efficiency and speed. The data below is from current development builds.
 
 > [!NOTE]
-> **Versioning Philosophy**: VonCMS does not strictly follow Semantic Versioning. Instead of incremental updates, we prioritize **"Milestone Leaps"**. We jump versions (e.g., v1.8 -> v1.9) only when delivering transformative features that redefine the user experience, preferring impactful releases over minor noise.
-
-> [!TIP]
-> **Why "Solana"?** The codename comes from the Italian/Spanish word meaning **"sunny place"** ☀️ — symbolizing a fresh new era for VonCMS.
+> **Focus on Efficiency.**
+> The Nara Engine aims to optimize resource usage, allowing for higher traffic capacity on entry-level hardware compared to legacy architectures.
 
 <div align="center">
 
-## 🎯 Who Is This For?
-
-**✅ Content Creators & Journalists** - You want to write news/articles, not manage software.
-**✅ News Portals** - You need Speed, Ads, and SEO built-in from Day 1.
-**✅ Solo Entrepreneurs** - You need a "Done-For-You" website engine on cheap hosting.
-
-_⚠️ Less suitable for: Developers looking for a fully Open Source framework to modify the core kernel._
-
-## ⚔️ Why VonCMS?
-
-| Feature                     | VonCMS v1.10.10 | Legacy CMS (PHP)  | Headless CMS (JS) |
-| --------------------------- | :-------------: | :---------------: | :---------------: |
-| **Setup Time**              |      2 min      |      15+ min      |       5 min       |
-| **Core Files**              |      ~200       |      3,000+       |       ~500        |
-| **Built-in SEO**            |       ✅        | ❌ (needs plugin) |        ✅         |
-| **Newsletter System**       |       ✅        | ❌ (needs plugin) |        ✅         |
-| **Built-in Ads Manager**    |       ✅        | ❌ (needs plugin) |        ❌         |
-| **WP Migration Tool**       |       ✅        |        N/A        |        ✅         |
-| **One-Click OTA Updates**   |       ✅        |        ✅         |        ✅         |
-| **Plugin Dependencies**     |        0        |  10-30+ typical   |         0         |
-| **Security Patches Needed** |      Rare       |      Weekly       |       Rare        |
-| **Lighthouse SEO Score**    |       100       | 70-90 (optimized) |        95+        |
+| Performance Metric | WordPress (Legacy) | **VonCMS (Nara Preview)** | **Performance Gap** |
+| :--- | :---: | :---: | :--- |
+| **Average RPS** | 10.81 | **606.70** | ⚡ **56x Faster** |
+| **Peak Throughput** | 11.40 | **853.90** | 🚀 **74x Faster** |
+| **Avg. Latency** | 5,667ms | **125ms** | 🛡️ **Factual Delay** |
+| **Daily PV Cap** | ~930k | **~52.4M** | ⚙️ **High Capacity** |
 
 </div>
 
 ---
 
-## 🎬 Watch Demo
+## 🎬 Learn & Explore
 
 <div align="center">
   <a href="https://www.youtube.com/watch?v=A4Rd9D4HtmQ">
     <img src="https://img.youtube.com/vi/A4Rd9D4HtmQ/maxresdefault.jpg" alt="VonCMS Demo" width="600">
   </a>
-  <p><strong>▶️ Why I Built VonCMS (Click to Watch)</strong></p>
+  <p><strong>📽️ The Practical Philosophy: Keeping it Simple & Fast</strong></p>
 </div>
 
-### 📚 More Tutorials
+### 📚 Quick Tutorials
+
+<div align="center">
 
 | Topic                 | Video                                                  |
 | --------------------- | ------------------------------------------------------ |
 | 🔧 Installation Guide | [Watch →](https://www.youtube.com/watch?v=kybRZDPDVBY) |
 | 🌉 WP Migration Demo  | [Watch →](https://www.youtube.com/watch?v=mHXNfc6bGkk) |
 
----
-
-## 🔥 Feature Spotlight: The v1.10 Era
-
-We don't do minor updates. Each version generation introduces transformative systems.
-
-### ⚡ v1.10.10: The "Integrity" Update 🛡️
-
-- **Contact Form Architecture**: Dedicated `contact_forms` table & `contact_submissions` lead storage.
-- **Pulse Monitoring**: New Monolithic Tracking API for 50% faster visitor analytics.
-- **Google Searchbox**: Built-in Sitelinks Searchbox JSON-LD schema integration.
-
-#### v1.10.5: The "Scalability" Update 🚀
-
-- **100k+ Posts Ready**: Optimized database indexes and server-side search.
-- **Auto-Healing Database**: Detects and fixes missing indexes via "Repair Database" tool.
-- **Sitemap Indexing**: Smart chunking for massive sites (Google SEO compliant).
-
-#### Key Features
-
-- **🚀 One-Click OTA Updates**: GitHub-powered, smart version detection. Update directly from Dashboard.
-- **🛡️ Enterprise Database Safety**: Safety switches for destructive queries & "Self-Healing" table repair.
-- **🏗️ Theme Standardization**: Shared hooks foundation for faster theme development.
-
-### 🧠 v1.9.x: The "Neural" Update
-
-- **🤖 AI Summary Engine**: Auto-generates local, cost-free summaries.
-- **🔗 Contextual Discovery**: Smart internal linking algorithm (Category + Keywords).
-- **🌗 Algorithmic Dark Mode**: Mathematically cleans inline colors for perfect contrast.
-- **📧 Native Newsletter CRM**: Built-in subscriber management & CSV sovereignty.
-
-### ⚡ Performance Benchmark (Verified Stress Test)
-
-**Test Environment:** Localhost (Windows), Node.js Autocannon, 50 Concurrent Users.
-
-| Metric                 | VonCMS v1.10.10 🚀  | Result (Solana Integrity)       |
-| :--------------------- | :------------------ | :------------------------------ |
-| **Requests Completed** | **12,500** (10s)    | **Tests Completed Successfully**|
-| **Success Rate**       | **99.95%**          | Solid under extreme load        |
-| **Overall RPS**        | **1,134 req/sec**   | Hyper-Optimized (Localhost)     |
-| **Daily PV Capacity**  | **~48M PV/day**     | Theoretical Maximum             |
-| **Stability Status**   | ✅ **PASSED**       | Enterprise Grade Verified       |
-
-### 🆚 VonCMS vs Legacy CMS (Benchmark)
-
-| Metric                    | VonCMS 🚀 | Legacy CMS 🐢 | Difference     |
-| :------------------------ | :-------- | :------------ | :------------- |
-| **Requests/sec**          | 1,134     | 11            | **103x faster**|
-
-> [!IMPORTANT]
-> **Why so fast?** VonCMS offloads rendering to the browser. Server only serves lightweight JSON (~2KB vs ~50KB HTML), allowing **the system to survive 100x more hits** on the same hardware compared to Legacy CMS architectures.
+</div>
 
 ---
 
-## 🛡️ Security Architecture
+## 💎 The Practical Advantages of VonCMS
 
-**15+ Critical Vectors Patched**. We use a **Context-Aware Defense Standard**:
+### 🚀 Optimized Performance
+- **Efficient Navigation**: Responsive transitions powered by React + Unified Fetching.
+- **Resource Management**: Designed to help sites stay online during traffic spikes.
+- **Simple Updates**: One-click OTA updates to keep your system current.
 
-```
-Request → CORS (Wildcard OK) → Session → CSRF → Admin Check → Input Sanitize → Execute
-```
+### 🔍 Practical SEO (VonSEO)
+- **Standard Metadata**: Built-in support for required SEO schemas.
+- **Sitemap Management**: Automatic handling for larger content collections.
+- **Redirects**: Simple 301 manager to prevent broken links.
 
-- ✅ **Session Fixation**: ID regeneration on login.
-- ✅ **CSRF Shield**: Token verification on all write ops.
-- ✅ **XSS Armor**: Client-side DOMPurify + Server-side stripping.
-- ✅ **File Upload Hygiene**: Strict Whitelist (JPG/PNG/WEBP only). SVGs Blocked.
-- ✅ **Honeypot Logic**: Anti-spam without CAPTCHAs.
-
----
-
-## ⚡ Key Features
-
-<table>
-<tr>
-<td width="50%">
-
-### 🚀 Performance
-
-- ⚡ React + Vite = <1s page loads
-- 🪶 15x lighter than Legacy CMS
-- 📊 **Smart Analytics** (Auto-purge + Throttling)
-- 📱 Mobile-first responsive design
-- 🎯 **Lighthouse Score**: 89/96/100/100
-
-### 🎨 Themes
-
-- 📰 TechPress (News/Magazine)
-- 🗞️ **Digest** (Modern Blog/Magazine)
-- 🌙 Prism (Modern Dark Grid)
-- 💼 Portfolio (Showcase)
-- 🏢 **Corporate Pro** (Business) _New_
-- 🍃 Default (Clean Minimal)
-- 🎛️ Fully customizable
-
-</td>
-<td width="50%">
-
-### 🛠️ Content Management
-
-- 🕒 Content scheduling
-- 🗑️ Bulk delete operations
-- 📂 Drag-drop file manager
-- ✏️ WYSIWYG editor
-- 📞 **VonContact System**
-- 🧩 **Plugin System** (AI Summary, Related Posts) _New_
-
-### 💰 Monetization
-
-- 📊 Built-in Ads Manager
-- 🎯 Header, Sidebar, In-Feed ads
-- 💵 AdSense-ready
-
-</td>
-</tr>
-</table>
+### 🛡️ Core Security
+- **Context-Aware Defense**: Basic defense layers that adapt to user roles.
+- **Data Integrity**: Uses standard patterns to prevent data corruption.
+- **Lean Architecture**: Minimal dependencies to reduce potential vulnerabilities.
 
 ---
 
-## 📥 Quick Start
+## 📋 Standard Feature Matrix (v1.10.x)
 
-```bash
-# 1. Download from GitHub Releases
-# 2. Upload to your hosting (cPanel, DirectAdmin, etc.)
-# 3. Extract ZIP
-# 4. Open your domain in browser
-# 5. Follow installation wizard (2 minutes!)
-```
+<div align="center">
 
-## 🔄 How to Update
+| Feature | VonCMS v1.10.11 | Legacy CMS (WP) |
+| :--- | :---: | :---: |
+| **Setup Time** | ⚡ ~2 Minutes | 🐢 15+ Minutes |
+| **File Count** | 🪶 ~200 Files | 🐘 3,000+ Files |
+| **Integrated SEO** | ✅ Built-in | ❌ Needs Plugin |
+| **Integrated Ads** | ✅ Built-in | ❌ Needs Plugin |
+| **OTA Updates** | ✅ Supported | ✅ Supported |
+| **Setup Process** | 🛡️ Simple | ⚠️ Multi-step |
 
-### For Existing Users (v1.10.x)
-
-1.  **Download & Replace**: Overwrite your `public` and `src` folders with the new version (Keep `von_config.php` & `data/` folder).
-2.  **Database Optimization (Crucial)**:
-    - Go to **Admin Dashboard > Settings > Database**.
-    - Click **"Repair Database"** (Installs new contact management tables).
-3.  **Migrate Leads**:
-    - Go to **Admin Dashboard > Contact Forms**.
-    - Click **"Migrate"** to move data from old settings table to dedicated storage.
-
-### For New Users
-
-- Just run the installer (`/install.php`). Everything is automatic.
-
-For manual upgrades or older versions:
-👉 **[Read the Full Upgrade Guide](docs/UPGRADE.md)**
-
-### System Requirements
-
-- **PHP**: 8.0+
-- **Database**: MySQL / MariaDB
-- **Server**: Apache (recommended) or Nginx
+</div>
 
 ---
 
-## 📦 What's Included
+## 🚀 Getting Started
 
-| Component           | Description                                                      |
-| ------------------- | ---------------------------------------------------------------- |
-| 🎨 6 Premium Themes | TechPress + Prism + Portfolio + Digest + Default + Corporate Pro |
-| 🔍 VonSEO           | Built-in SEO optimization (Lighthouse 100)                       |
-| 📞 **VonContact**   | Special Contact Form Builder (SMTP Ready)                        |
-| 💾 **Autosave**     | Never lose work with 60s background save                         |
-| 💰 Ads Manager      | Full advertising system                                          |
-| 🌉 WP Bridge        | WordPress migration tool                                         |
-| 🛡️ Security Suite   | Multi-layer auth + **Self-Healing DB**                           |
-
----
-
-## 🙋‍♂️ Default Admin Access
-
-After installation:
-
-```
-URL: yoursite.com/admin
-Username: (created during install)
-Password: (created during install)
-```
-
----
-
-## 🐛 Bug Reports & Feedback
-
-Found a bug? Have an idea? [Open an issue](https://github.com/Vondereich/VonCMS/issues) — community feedback shapes VonCMS!
+1. **Upload**: Place the `Deploy` package on your server.
+2. **Install**: Visit `yoursite.com/install.php` in your browser.
+3. **Setup**: Follow the simple wizard to get your site online.
+4. **Publish**: Start creating your content with ease.
 
 ---
 
 <div align="center">
 
-### 🌟 Star History
+### 🌟 Project Status
+**Stable Release**: [v1.10.11](https://github.com/Vondereich/VonCMS/releases)  
+**In Progress**: [v1.11.x "Nara"](https://github.com/Vondereich/VonCMS) (Optimization focused)
 
-If VonCMS helped you, leave a ⭐ to support the project!
+[⭐ Star vonCMS on GitHub](https://github.com/Vondereich/VonCMS)
 
-**[⭐ Star on GitHub](https://github.com/Vondereich/VonCMS)**
-
----
-
-_Built with ❤️ by the VonCMS Team_
-
+_Built with care. Driven by feedback._
 </div>
