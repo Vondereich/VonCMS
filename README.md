@@ -89,7 +89,7 @@ We are currently working on the **Nara series**, a performance update focused on
 
 <div align="center">
 
-| Feature | VonCMS v1.10.11 | Legacy CMS (WP) |
+| Feature | VonCMS v1.10.11 | Legacy CMS |
 | :--- | :---: | :---: |
 | **Setup Time** | ⚡ ~2 Minutes | 🐢 15+ Minutes |
 | **File Count** | 🪶 ~200 Files | 🐘 3,000+ Files |
