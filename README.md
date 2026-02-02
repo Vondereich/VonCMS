@@ -54,6 +54,10 @@ We are currently working on the **Nara series**, a performance update focused on
 | :---: | :---: |
 | ![Dashboard](https://i.postimg.cc/htLJS6fw/Dashboard.png) | ![Plugin](https://i.postimg.cc/vmG4DhVt/Plugin.png) |
 
+| **Flagship: TechPress Theme (News/Portal)** |
+| :---: |
+| ![Frontpage](https://i.postimg.cc/hPqzHKt6/screencapture-localhost-portalkini-2026-01-29-02-30-04.png) |
+
 | **Premium Themes Ecosystem** |
 | :---: |
 | ![Themes](https://i.postimg.cc/XvnrXLCg/Themessss.png) |
