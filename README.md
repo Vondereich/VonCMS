@@ -21,10 +21,6 @@
 ## 🛰️ Performance Preview: The "Nara" Engine (v1.11.x)
 We are currently working on the **Nara series**, a performance update focused on hardware efficiency and speed. The data below is from current development builds.
 
-> [!NOTE]
-> **Focus on Efficiency.**
-> The Nara Engine aims to optimize resource usage, allowing for higher traffic capacity on entry-level hardware compared to legacy architectures.
-
 <div align="center">
 
 | Performance Metric | WordPress (Legacy) | **VonCMS (Nara Preview)** | **Performance Gap** |
@@ -47,14 +43,20 @@ We are currently working on the **Nara series**, a performance update focused on
   <p><strong>📽️ The Practical Philosophy: Keeping it Simple & Fast</strong></p>
 </div>
 
-### 📚 Quick Tutorials
+---
+
+## 📸 Visualizing the Experience
+> *Designed for simplicity, engineered for results.*
 
 <div align="center">
 
-| Topic                 | Video                                                  |
-| --------------------- | ------------------------------------------------------ |
-| 🔧 Installation Guide | [Watch →](https://www.youtube.com/watch?v=kybRZDPDVBY) |
-| 🌉 WP Migration Demo  | [Watch →](https://www.youtube.com/watch?v=mHXNfc6bGkk) |
+| **Modern Dashboard** | **Native Plugin System** |
+| :---: | :---: |
+| ![Dashboard](https://i.postimg.cc/htLJS6fw/Dashboard.png) | ![Plugin](https://i.postimg.cc/vmG4DhVt/Plugin.png) |
+
+| **Premium Themes Ecosystem** |
+| :---: |
+| ![Themes](https://i.postimg.cc/XvnrXLCg/Themessss.png) |
 
 </div>
 
