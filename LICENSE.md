@@ -20,9 +20,7 @@ VonCMS follows a **"Use What's Provided"** philosophy. All themes, plugins, and 
 
 ## What's Not Allowed
 
-- Redistributing without permission
 - Reselling as your own product
-- Creating custom themes, plugins, or features
 - Modifying the core system
 - Removing VonCMS branding
 
@@ -45,3 +43,4 @@ Provided "as is" without warranty.
 **© 2026 Vondereich**
 
 **Contact:** kurama87@gmail.com
+
