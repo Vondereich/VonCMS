@@ -3,7 +3,7 @@
 
 <div align="center">
 
-![VonCMS Banner](https://i.postimg.cc/XVCsnh6W/Google-AI-Studio-2026-02-04T16-36-39-272Z.png)
+![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
 **React + Vite Frontend | PHP API Engine | Built-in SEO & Ads | One-Click OTA**
 
