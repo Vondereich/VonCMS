@@ -1,5 +1,263 @@
 # Changelog
 
+### [v1.11.6] - 2026-02-08 (Infrastructure Hardening & Stability) 🛡️🚀
+
+This release introduces **Absolute Path Standardisation** across the entire core engine (66+ files), ensuring 100% path resolution consistency. This upgrade provides maximum stability for environments with complex symlinks or shared hosting architectures.
+
+### 🛡️ Infrastructure & Stability
+
+- **Absolute Path Standardisation**: Every core component has been upgraded to use `__DIR__` based pathing for all internal inclusions. This eliminates configuration resolution issues across diverse server topologies.
+- **Integrity Radar Integration**: Full synchronisation with the **Integrity System**. The built-in "Hammer Fix" now covers 100% of the hardened API layer to ensure zero-downtime recovery.
+- **Consistent Resolution**: Standardised the internal inclusion chain (Security -> Configuration -> Logic) into a single unified GPS pattern, preventing session and metadata resolution errors.
+
+### ⚡ SEO & Performance
+
+- **IndexNow Powerhouse**: Verified and hardened the **IndexNow** async ping architecture. Search engine notification is now more resilient and optimized for peak performance.
+- **Open Graph Precision**: Hardened the SEO engine's URL construction logic to ensure clean, 100% accurate canonical and `og:image` tags without path regressions.
+
+### 🔍 Quality Control
+
+- **Professional Audit**: Successfully passed a comprehensive security and logic audit (`/qc-security`) focused on the hardened infrastructure.
+- **SOP Synchronisation**: Formally integrated "Absolute Pathing" into the official `/api-standard` developer workflow for all future iterations.
+
+---
+
+### [v1.11.5] - 2026-02-08 (Stability & Pathing Refinement - LEGACY) 🎁
+
+### 🔧 API Path Stability (Reverted to v1.11.3 Style)
+
+- **Relative Path Reversion**: Audited and stabilized **66 API files** by reverting `__DIR__` based inclusions to relative paths (`require_once '../security.php'`).
+  - **Stability Fix**: Resolves "Session Kick-out" and 500 errors on cPanel/Shared Hosting (Symlink-sensitive) environments.
+  - **Full Coverage**: Standardized all sub-folders: `contact/`, `security/`, `system/`, and `tools/`.
+  - **Router Fix**: Patched `public/api.php` to ensure consistent path resolution across all endpoints.
+- **500 Internal Error (General Settings)**: Fixed a critical pathing conflict when `api.php` calls `save_settings.php` by standardizing all inclusions using `__DIR__`.
+- **403 Forbidden (DB Status)**: Corrected the endpoint mapping for `checkDbStatus` in `site.config.ts`, ensuring it points to the lightweight `system/check_db_status.php`.
+- **Double Slash Prevention**: Verified `rtrim()` protection in `upload_file.php` prevents `//uploads/` path issues.
+
+### ✨ New Features
+
+- **Logo Toggle System**: Added "Use Logo as Title" option in General Settings.
+  - **Smart Visibility**: Hides Site Title and Description when enabled for a clean branded look.
+- **Google Services Hub**: Centralized Search Console, Analytics, and AdSense into a "Google Services" tab.
+  - **Verification**: Added direct Search Console HTML tag injection.
+
+### 🌐 Social Sharing & SEO (Fully Verified)
+
+- **Facebook 403 Fix (VVIP Lane)**: Confirmed L12-19 of `.htaccess` allows social bots to bypass security checks for image fetching.
+- **OG Square Support**: Integrated `og:image:square` support in `index.php` for better previews on specific platforms.
+- **Absolute URLs**: Forced `domain_url` prefixing for all `og:image` tags to ensure reliability.
+- **Install Template Sync**: Verified `install.php` generates the exact same high-performance `.htaccess` for fresh installs.
+
+### 🛡️ Technical Verification
+
+- **Files Audited**: 66 API files, `index.php`, `.htaccess`, `install.php`.
+- **Error Reference Manual**: Restructured into a searchable "Manual Book" format with unique error codes (`V-500-INC`, `V-403-GUARD`, etc.) for faster troubleshooting.
+- **Build**: TypeScript ✅ | Prettier ✅ | Audit ✅ (0 vulnerabilities)
+- **Stability**: Confirmed clean sessions on simulated cPanel environments.
+
+---
+
+### [v1.11.4] - 2026-02-05 (Security & Protocol-Safety Release) 🛡️💎
+
+This update marks a complete overhaul of the CMS's protocol-awareness and security, resolving complex "Mixed Content" and "Broken HTTPS" warnings across diverse hosting environments (cPanel, Cloudflare, XAMPP).
+
+### 🛡️ Critical Security & HTTPS Hardening
+
+- **Smart Protocol Detection (is_https)**: Implemented a robust, proxy-aware detection engine. It correctly identifies SSL status even behind Load Balancers or Reverse Proxies by validating `X-Forwarded-Proto` and `HTTPS` server variables.
+- **Dynamic URL Upgrading (scrubUrl)**: Introduced `ResponseHelper::scrubUrl()`. This intelligent middleware dynamically upgrades `http://` links to `https://` **only when the site is accessed via SSL**. This prevents "Mixed Content" warnings without breaking local development (`http://localhost`).
+- **Global Security Headers**: Standardised `sendApiHeaders()` and `is_https()` availability across all entry points (Sitemaps, Robots, API).
+- **Session Persistence**: Fixed issue where `Secure` cookies prevented login on HTTP connections, while ensuring strict security on HTTPS.
+- **Force HTTPS**: Updated `.htaccess` with **Proxy-Aware** logic to safely redirect traffic without loops.
+
+### 🛠️ Global Path Standardisation
+
+- **Protocol-Agnostic Sitemap**: `sitemap.php` and `IndexNow.php` now generate absolute URLs that dynamically match the current access protocol.
+- **Secure Auth URLs**: Reset links and Email Verification tokens now use `SCRIPT_NAME` and `is_https()` for 100% path accuracy on subfolders and SSL.
+- **Double-Slash Sanitization**: Hardened `vonFetch` and `upload_file.php` to prevent malformed URL construction (`//api/` -> `/api/`) that previously caused `ERR_EMPTY_RESPONSE`.
+
+### 🌐 Social & SEO Enhancements
+
+- **Facebook Open Graph Fix**: `index.php` now generates **Absolute Canonical URLs** (using `domain_url`) for `og:image` and `og:url` tags, ensuring rich link previews work correctly on social media.
+- **AdSense & Analytics Verification**: Patched `index.php` to correctly inject verification codes without path or variable issues ($siteName handling).
+- **Dynamic Robots & Sitemap**: Hardened `robots.php` and `sitemap.php` to correctly include the security layer, preventing fatal errors on SSL-enabled sites.
+
+### 🧹 System Stability
+
+- **Logic & Syntax Hardening**: Conducted a comprehensive brace and variable audit of `index.php` to eliminate "Blank Screen" (500) errors and orphaned logic blocks.
+- **Localhost Compatibility**: SSL enforcement logic is automatically bypassed on `localhost` to ensure a smooth development experience.
+- **Security Audit**: Passed a rigorous final `@[/audit-code]` review for all modified files.
+
+---
+
+### [v1.11.3] - 2026-02-04 (Integrity Release) - INSTANT INDEXING (INDEXNOW) ⚡
+
+### 🛡️ Hotfixes (Feb 4)
+
+- **Fix (Backend)**: Added missing database retrieval logic for `IndexNow` settings and mappings for `analytics`.
+- **Fix (System)**: Implemented auto-cleanup for IndexNow verification files (`.txt`) to prevent root directory clutter.
+- **Fix (Frontend)**: Moved Cookie Banner to frontend only (Was appearing in Admin).
+- **Fix (App)**: Implemented Async/Await Save logic to prevent race conditions.
+
+### ⚡ IndexNow Integration (New Feature)
+
+- **Instant Indexing**: Automatically notifies Bing, Yandex, and 1000+ other search engines whenever you publish or update content.
+- **Backend**: New `IndexNow` class (`public/api/system/IndexNow.php`) handles key generation, validation, and batch pinging.
+- **Auto-Ping**: `save_post.php` now triggers a non-blocking ping immediately after a post is published.
+- **Admin UI**: New "IndexNow" section in **SEO Settings**.
+  - **One-Click Setup**: Generate API key and verification file automatically.
+  - **Status Dashboard**: See real-time status of API key and verification file.
+  - **Manual Ping**: Test button to ping homepage instantly.
+
+### 💹 Analytics & Privacy (New Feature)
+
+- **GA4 Injection**: Native Google Analytics 4 integration. Automatically loads `gtag.js` if an ID is provided.
+- **Privacy Hardening**: Added strict Regex validation for GA IDs to prevent XSS via settings.
+- **GDPR Compliance**: Built-in **Cookie Consent Banner**. Tracking is strictly blocked until user grants consent.
+- **IP Anonymization**: Supports `anonymize_ip` flag for global privacy standards.
+
+### 👥 User Management & Scaling
+
+- **Increased Capacity**: Backend user fetch limit increased from 50 to **1000** (Max 2000) to support larger teams.
+- **Verified Pagination**: Confirmed client-side pagination in User Manager.
+
+### 🛡️ Compatibility & Security
+
+- **OTA Safe**: Auto-ping logic is wrapped in `try-catch` blocks to prevent blocking post saves on older environments.
+- **Performance**: Uses `curl` with strict 3-second timeout to ensure the Admin UI remains snappy even if Bing is down.
+- **Type Safety**: Fixed TypeScript conflicts in `AnalyticsInjector` and `VonProviders`.
+- **Prettier**: Codebase-wide formatting pass for clean source code.
+
+### 🔒 Stability & UX Polish (Feb 4 - Final)
+
+- **Redirect Engine Integration**: Moved redirect logic from fragile `.htaccess` rules directly into `index.php` (Root & Public). This ensures redirects work on all hosting environments (Apache/Nginx/IIS) without "White Screen of Death" risks.
+- **Opt-In Performance Mode**: Reverted `.htaccess` rules to commented-out state. Advanced users can uncomment for high-performance C-level redirects, but default is now "Safe Mode".
+- **Remember Me**: Added "Remember Me" checkbox to Login UI. Extends session lifetime to **30 Days** when checked (Default: Session-only).
+- **Public Index Sync**: Synced redirect logic to `public/index.php` so shared hosting setups (cPanel) benefit from the same robust redirect engine.
+- **IndexNow Hardening**: Added auto-cleanup for verification files `.txt`. System now self-cleaning when keys are regenerated.
+- **Audit**: Passed strict Security Audit for new features (SQL/XSS/CSRF).
+
+---
+
+> [!IMPORTANT]
+> **DATABASE UPDATE REQUIRED** ⚠️
+> After updating, you **MUST** go to **Admin > System > Repair Database**.
+> Until you do this, new features like **Redirect Manager** and **Smart Slug Protection** will **NOT WORK** (they will fail silently to prevent crashes).
+
+### 🔀 Redirect Manager (New Feature)
+
+- **301 Redirect Engine**: High-performance server-side redirect handler (`redirect_engine.php`) that runs BEFORE the SPA boots.
+- **Admin UI**: Full CRUD interface integrated into VonSEO Settings → Redirects tab.
+- **Hit Counter**: Track redirect usage for analytics and cleanup.
+- **Smart Slug Protection**: Automatically creates 301 redirects when post slugs are changed to prevent broken links.
+
+### 🔗 Custom Category Permalinks (New Feature)
+
+- **New URL Structure**: Added `/%category%/%slug%/` permalink option.
+- **Settings UI**: New "Category & Name" option in Permalink Settings.
+- **Frontend Hotfix**: Added routing support for `/:category/:slug` pattern.
+
+### 🎨 UI/UX Improvements
+
+- **VonSEO Settings**: Expanded modal width (`max-w-5xl`) with new Redirects tab.
+- **VonAnalytics Settings**: Expanded modal width (`max-w-4xl`).
+- **AI Summary Redesign**: Premium card-based UI with gradient header and violet/purple numbered badges.
+
+### 📐 Theme & UI Standardization
+
+- **Navigation Overflow**: Implemented consistent "More" dropdown for navigation menus with > 5 items. Fixed `Corporate-Pro` theme.
+- **Unified Pagination**: Standardized default items-per-page to **6** across all themes (adjusted `Digest` from 12) and Admin Extensions Manager (adjusted from 10).
+
+### 🛡️ Security & Integrity Hotfixes (Feb 2)
+
+- **Installation Enforcer**: Fixed critical redirect loophole in `index.php` that allowed access to nested paths (e.g., `/install/install`) on unconfigured sites.
+- **Fresh Install Schema**: Updated `install.php` to include `media` metadata columns (`alt_text`, `caption`) by default, preventing false "Repair Database" warnings.
+- **SQL Injection**: Fixed parameterization of LIMIT/OFFSET in `list_redirects.php`.
+- **Open Redirect Hardening**: Improved target URL validation in `redirect_engine.php` to block `//` prefix attacks.
+- **Subfolder Support**: Redirect Engine now auto-detects installation path (e.g. `/cms/`) and handles links correctly.
+- **OTA Hardening**: `save_post.php` now safely handles missing `redirects` table (prevents post-update WSOD).
+
+### 📦 Notes
+
+- **Hammer Fix (Integrity Radar)**: Included since v1.11.1. If your site breaks after update, use `fix_integrity.php`.
+- **Redirect Engine**: Available as `redirect_engine.php` but NOT auto-enabled in .htaccess (opt-in only).
+- **Database**: Run "Repair Database" to create the `redirects` table (Auto-included for new installs).
+
+---
+
+## v1.11.1 (2026-02-02) - THEME SDK & PRIVACY SYNC 🦅🛡️
+
+### 🛡️ Iron-Clad Session Security (v1.11.1 Overhaul)
+
+- **Centralized Session Engine**: Consistently managed via `security.php`. Standardized secure cookie parameters (`Secure`, `HttpOnly`, `SameSite: Strict`).
+- **Anti-Hijacking (UA Binding)**: Implemented session-to-identity binding using User-Agent hashing to prevent session stealing.
+- **Anti-Fixation Protection**: Forced session regeneration (`session_regenerate_id`) during login and registration.
+- **Auto-Handshake**: Harmonized include order in `api.php` and `index.php` to prioritize security headers before configuration load.
+
+### 🛠️ Integrity Radar (New System Feature)
+
+- **Proactive Monitoring**: System now automatically scans for missing or damaged `.htaccess` files and security shields.
+- **Dashboard Alerts**: Real-time "Integrity Warning" toast in the Admin Dashboard with a one-click **"Hammer Fix"** button.
+- **Emergency Bypass**: Added a safe `fix.flag` mechanism for `fix_integrity.php` to allow recovery even if admin access is lost (e.g., "Hello Universe" fallback).
+- **Auto-Cleanup**: Emergency flags are automatically securely deleted after a successful repair.
+
+### 🏗️ Theme SDK & System Stability
+
+- **Standardized Imports**: Introduced `src/themes/shared` (Theme SDK). All themes now use a unified entry point for hooks, components, and utilities.
+- **Fix (Security)**: Simplified `install.php` generation to prevent redundant session configuration in user files.
+- **Fix (Updater)**: Resolved property syntax regression in `updater.php`.
+- **Fix (Database)**: Implemented `FOR UPDATE` locking in `save_page.php` for concurrency-safe slug generation.
+
+### 🎨 Classic Theme & UX Polish
+
+- **Advanced Search**: Integrated real-time search powered by `useServerSearch` for high-volume post scalability.
+- **UI/UX Refinement**: Clickable author profiles, full-width profile layouts, and improved Newsletter visibility.
+
+### 🧹 Final Release Audit
+
+- **Audit Revision 2**: Successfully passed the `/audit-code` SOP for session security and integrity features.
+- **Verified**: 100% compliance with `vonFetch` standards and role-based authorization.
+
+---
+
+## v1.11.0 "Nara" (2026-01-31) - MEDIA METADATA & SECURITY POLISH 🦌
+
+### 🖼️ Media Intelligence (New Feature)
+
+> [!IMPORTANT]
+> **Database Sync Required**: After updating to v1.11.0, please go to **Admin > System > Repair Database** to automatically add the new metadata columns to your library.
+
+- **Media Metadata**: Added full support for **Alt Text**, **Captions**, and **Descriptions** for all media assets.
+- **Editor Integration**:
+  - **Inline Editing**: Double-click images or use the new "Bubble Menu" to edit Alt Text directly in the post editor.
+  - **Alignment Controls**: Added Left/Center/Right alignment buttons to the image context menu.
+- **SEO Sync**: SEO Analyzer now correctly reads Alt Text from images for accurate scoring.
+
+### 🛡️ Release Quality & Security (Jan 31)
+
+- **Gold Version (Final)**: System stabilized and certified for production.
+- **Improved**: **"Smart Lookup"** implemented in `update_media.php`. Metadata now syncs back to the Gallery even for legacy images and subdirectory installations (e.g. `/portalkini/`).
+- **Fix**: Resolved "Bubble Menu" disappearance issue in `Editor.tsx` by removing conflicting selection listeners.
+- **Fix**: Restored database connectivity in `list_media.php` for persistent metadata retrieval.
+- **Improvement**: Added default Alt Text and Caption (derived from filename) during file upload to ensure SEO-friendly library.
+- **Security**: Added strict numeric ID validation and path-based fallback security in `update_media.php`.
+- **Audit Passed**: Successfully completed `/qc-security` and `/api-standard` audits.
+
+### 🛠️ Hotfix (Media API Improvement)
+
+- **Media API Fix**: Resolved JSON syntax error in `list_media.php` and auth check in `update_media.php`.
+- **Verified**: Metadata (Alt/Caption) editing is fully functional.
+
+### 🚀 Major Release: Nara Series
+
+- **New Versioning**: Officially upgraded to v1.11.x series.
+- **System Stability**: Consolidated fixes from the endpoint of Solana (v1.10.x) series.
+- **Ready for Roadmap**: Foundation laid for Advanced Search and VonSEO 2.0.
+
+### 🧹 Maintenance
+
+- **Version Clean Sweep**: Updated all internal version references to 1.11.0.
+
+---
 
 ## v1.10.11 (2026-01-28) - OTA INTEGRITY HOTFIX 🚑
 
@@ -11,12 +269,14 @@
 > This is expected for some users updating from **v1.10.9 or older** because the old updater fails to update the security config file (`.htaccess`).
 >
 > **How to Fix (One-Click):**
+>
 > 1. Visit: `https://yoursite.com/api/system/fix_integrity.php` (Login as Admin first)
 > 2. The script will automatically repair your configuration.
 > 3. Your site will instantly return to normal.
 > 4. **Optional:** Once fixed, you may safely delete the `public/api/system/fix_integrity.php` file from your server.
 >
 > **If the script fails (Manual Force Update):**
+>
 > 1. Delete your `/assets` folder manually.
 > 2. Upload the **new v1.10.11 zip file**.
 > 3. Extract and overwrite everything.
@@ -38,21 +298,24 @@
 - **Zero-Trust Audit**: Successfully achieved 100% compliance in a global security audit, ensuring no unsynchronized communication channels remain.
 
 ### 🛡️ Critical Security Patch (Jan 28) - Sync Required
+
 > [!IMPORTANT]
 > **Action Required for Existing Users:** Because the OTA update system protects `.htaccess` from being overwritten to preserve custom rules, existing users must manually sync the new security hardening.
 >
 > **Patch Instructions:**
 > Overwrite these three files in your installation with the versions from the **v1.10.10 Release Package** to immediately apply the new safety baseline:
+>
 > 1.  `/.htaccess` (Root)
 > 2.  `/public/.htaccess` (Public Folder)
 > 3.  `/public/uploads/.htaccess` (Media Folder - **Critical for RCE Prevention**)
 >
 > **The v1.10.10 Security Baseline Includes:**
+>
 > - **Unified Header Guard**: Implements `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy`.
 > - **Zero-Exposure Policy**: Disables directory listing (`Options -Indexes`) globally.
 > - **Package Protection**: Blocks direct HTTP access to sensitive extensions (`.sql`, `.env`, `.zip`, `.log`).
 > - **Media Lockdown**: Prevents script execution (RCE) in the `public/uploads/` directory.
->
+
 - **Stored XSS Remediation**: Specifically patched a **Critical Vulnerability** involving SVG uploads.
   - **Action**: Removed `image/svg+xml` from the allowed whitelist in the File Upload API.
   - **Reason**: SVG files can harbor executable JavaScript (`<script>` context) which triggers XSS when viewed directly.
