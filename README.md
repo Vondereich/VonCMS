@@ -100,7 +100,8 @@ Standardised engine using `__DIR__` absolute pathing, ensuring 100% reliability 
 
 1. **Upload**: Place the `Deploy` package on your server.
 2. **Install**: Visit `yoursite.com/install.php`.
-3. **Setup**: Follow the simple wizard at [skripglobal.com](https://skripglobal.com/).
+3. **Setup**: Follow the simple wizard to get your site online.
+4. **Showcase**: Visit [skripglobal.com](https://skripglobal.com/) to see VonCMS in a real-world production environment.
 
 ---
 
