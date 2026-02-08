@@ -44,6 +44,9 @@ Standard SQL database optimized with advanced indexing.
 ---
 
 ## 🚀 The "Nara" Engine (v1.11.x)
+> **[na.ra] | نارا**  
+> _Derived from the ancient term for **Warrior**; signifying strength, guard, and absolute reliability._
+
 **VonCMS Nara** represents a fundamental shift in how lightweight CMS platforms handle reliability and speed. Unlike legacy systems that rely on complex directory mapping, Nara uses **Absolute Path Hardening** to eliminate "Ghost Issues" common on cPanel and Shared Hosting.
 
 ### ⚡ Performance Benchmark
