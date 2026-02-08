@@ -7,7 +7,7 @@ VonCMS "Nara" is a hybrid content management system designed to break the limita
 
 <div align="center">
 
-![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
+![VonCMS Banner](https://i.ibb.co/rG2K4f1d/Generated-image-1.png)
 
 **React 19 + Vite 7 Frontend | PHP 8.2+ API Engine | Native IndexNow | Self-Healing Integrity**
 
