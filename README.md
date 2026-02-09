@@ -7,7 +7,7 @@ VonCMS "Nara" is a hybrid content management system designed to break the limita
 
 <div align="center">
 
-![VonCMS Banner](https://i.ibb.co/rG2K4f1d/Generated-image-1.png)
+![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
 **React 19 + Vite 7 Frontend | PHP 8.2+ API Engine | Native IndexNow | Self-Healing Integrity**
 
@@ -15,6 +15,7 @@ VonCMS "Nara" is a hybrid content management system designed to break the limita
 [![GitHub stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&color=yellow)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Stable Release](https://img.shields.io/badge/Status-Stable_v1.11.6-brightgreen.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS/releases)
 [![Build Standard](https://img.shields.io/badge/Release-Nara_Stable-orange?style=for-the-badge)](#)
+[![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&color=blueviolet)](https://github.com/Vondereich/VonCMS/releases)
 
 [🌐 Official Website](https://skripglobal.com/) • [📥 Download v1.11.6](https://github.com/Vondereich/VonCMS/releases) • [📖 Full Docs](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
 
@@ -49,6 +50,16 @@ All styling is handled via **TailwindCSS**, a utility-first CSS framework.
 Standard SQL database optimized with advanced indexing.
 
 - **Why?** Reliable, fast, and easy to backup. Optimized specifically for the **Nara** schema to handle millions of rows without slowing down.
+
+---
+
+## 🏛️ The VonCMS Philosophy
+
+After 5 months of dedicated development, VonCMS is built on three unbreakable pillars:
+
+1. **Security First**: Protection isn't a plugin; it's the foundation. From the "Fortress-Grade" API hardening to the self-healing integrity radar, your data is guarded at every layer.
+2. **Easiness Second**: Technology should work for you, not against you. A 2-minute setup, intuitive interfaces, and zero-config essentials mean you spend time publishing, not configuring.
+3. **Flexibility Third**: A hybrid architecture (React + PHP) that runs anywhere. Whether it's a simple blog or a high-traffic news portal, the system adapts to your scale without breaking.
 
 ---
 
