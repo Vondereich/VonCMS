@@ -1,4 +1,4 @@
-# VonCMS v1.11.6 "Nara Stable"
+# VonCMS v1.11.7 "Nara Stable"
 
 > **The Hybrid CMS for the Modern Web.**
 > Performance of a Static Site, Flexibility of a Headless CMS, Ease of WordPress.
@@ -13,11 +13,11 @@ VonCMS "Nara" is a hybrid content management system designed to break the limita
 
 [![Official Website](https://img.shields.io/badge/Website-skripglobal.com-blue?style=for-the-badge)](https://skripglobal.com/)
 [![GitHub stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&color=yellow)](https://github.com/Vondereich/VonCMS/stargazers)
-[![Stable Release](https://img.shields.io/badge/Status-Stable_v1.11.6-brightgreen.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS/releases)
+[![Stable Release](https://img.shields.io/badge/Status-Stable_v1.11.7-brightgreen.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS/releases)
 [![Build Standard](https://img.shields.io/badge/Release-Nara_Stable-orange?style=for-the-badge)](#)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&color=blueviolet)](https://github.com/Vondereich/VonCMS/releases)
 
-[🌐 Official Website](https://skripglobal.com/) • [📥 Download v1.11.6](https://github.com/Vondereich/VonCMS/releases) • [📖 Full Docs](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
+[🌐 Official Website](https://skripglobal.com/) • [📥 Download v1.11.7](https://github.com/Vondereich/VonCMS/releases) • [📖 Full Docs](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
 
 </div>
 
@@ -165,7 +165,7 @@ The **Nara** architecture is designed for extreme portability.
 
 ## 🛠️ Quick Start Guide
 
-1. **Download**: Grab the `VonCMS_v1.11.6_Deploy.zip` from the releases page.
+1. **Download**: Grab the `VonCMS_v1.11.7_Deploy.zip` from the releases page.
 2. **Upload**: Extract contents to your root directory or a subfolder.
 3. **Install**: Navigate to `yoursite.com/install.php` and follow the 2-minute wizard.
 4. **Login**: Access the dashboard at `yoursite.com/admin` to start creating.
@@ -176,7 +176,7 @@ The **Nara** architecture is designed for extreme portability.
 
 ### 🌟 Project Status
 
-**Current Release**: v1.11.6 (Absolute Hardening)  
+**Current Release**: v1.11.7 (Absolute Hardening)  
 **Main Showcase**: [skripglobal.com](https://skripglobal.com/)
 
 _Built for speed. Hardened for security. Designed for you._
