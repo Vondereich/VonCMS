@@ -1,224 +1,547 @@
-# VonCMS Legacy Upgrade Archive
+# User Manual
 
-> **Note:** This document contains upgrade instructions for older versions of VonCMS. For the latest upgrade guide, please refer to `UPGRADE.md`.
-
----
-
-## 📋 Table of Contents
-
-1. [Major Version Upgrade (v1.8.x → v1.9.0)](#major-version-upgrade)
-2. [Upgrade to v1.9.2 (Newsletter)](#upgrade-to-v192-newsletter-release)
-3. [Upgrade to v1.9.3 (Config)](#upgrade-to-v193-config--security)
-4. [Upgrade to v1.9.5 (Standardization)](#upgrade-to-v195-standardization--security)
+> # 📘 VonCMS User Manual (v1.11.7) "Nara"\*\* | Complete Admin Panel Guide
 
 ---
 
-## Major Version Upgrade
+## Table of Contents
 
-**Required for:** v1.8.x → v1.9.0
-
-> [!IMPORTANT]
-> VonCMS v1.9.0 maintains the v1.8.5+ folder structure but requires a **clean assets update** to enable the new Skeleton Loader UX.
-
-### What Changed?
-
-**Old Structure (v1.8.1-v1.8.4):**
-
-```
-your-site/
-├── public/
-│   ├── api/
-│   └── uploads/
-├── dist/
-└── von_config.php
-```
-
-**New Structure (v1.8.5+):**
-
-```
-your-site/
-├── api/          ← Moved out of public/
-├── uploads/      ← Moved out of public/
-├── assets/       ← Frontend files
-├── index.html
-└── von_config.php
-```
+1. [Logging In](#logging-in)
+2. [Dashboard Overview](#dashboard-overview)
+3. [Managing Posts](#managing-posts)
+4. [Creating Pages](#creating-pages)
+5. [Using the Editor](#using-the-editor)
+6. [Media Library](#media-library)
+7. [Managing Comments](#managing-comments)
+8. [User Management](#user-management)
+9. [Settings](#settings)
+10. [Newsletter Management](#newsletter-management)
+11. [Extensions (Plugins)](#extensions-plugins)
+12. [WordPress Migration](#wordpress-migration)
+13. [Backup & Database](#backup--database)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
-### Upgrade Steps
+## Logging In
 
-#### Step 1: 🛡️ Backup Your Data
+### How to Access Admin Panel
 
-Before doing **ANYTHING**:
+1. Open your web browser (Chrome, Firefox, Safari, or Edge)
+2. Type your website address followed by `/admin` or `/login`
+   - Example: `https://yoursite.com/admin`
+3. Enter your **Username** and **Password**
+4. Click the **Login** button
 
-- ✅ **Backup MySQL database** (phpMyAdmin → Export)
-- ✅ **Copy `von_config.php`** to safe location
-- ✅ **Backup `uploads/` folder** (optional, if you have custom media)
+### Forgot Your Password?
 
-#### Step 2: 🗑️ Delete Old Installation
+If you forgot your password:
 
-> [!WARNING]
-> You **MUST** delete the old installation folder completely if coming from pre-1.8.5.
+1. Click "Forgot Password" on the login page
+2. Enter your email address
+3. Check your email for reset instructions
+4. Follow the link to create a new password
 
-**Why?** Old `public/` folder conflicts with new structure.
-
-**How:**
-
-1. Login to cPanel File Manager or FTP
-2. Navigate to your site folder
-3. Delete all files (after Step 1 backup!)
-
-> [!TIP]
-> **Why Upgrade is Safe:** The VonCMS deployment package **does not** contain `von_config.php` or the `uploads/` folder.
-> This means you can drag-and-drop the new version into your server without worrying about overwriting your database connection or images.
-
-#### Step 3: 📤 Upload New Version
-
-1. Download **Deploy.zip**
-2. Extract to a **CLEAN** folder location
-3. Upload to your server
-
-#### Step 4: ⚙️ Restore Your Config
-
-1. Copy your backed-up `von_config.php` into your site folder
-2. Overwrite the dummy config file
-
-#### Step 5: 📁 Restore Uploads (Optional)
-
-If you had custom uploaded media:
-
-1. Copy your backed-up `uploads/` folder contents
-2. Paste into the new `uploads/` folder
-
-#### Step 6: 🔧 Update .htaccess (If Needed)
-
-If site is in subdirectory (e.g., `/my-folder/`):
-
-> [!NOTE]
-> **v1.8.7+ users:** You can skip this. The new `.htaccess` auto-detects subdirectories.
-
-**For older versions only:**
-
-1. Open `.htaccess` file
-2. Update `RewriteBase` to match your path:
-   ```apache
-   RewriteBase /my-folder/
-   ```
-
-#### Step 7: ✅ Verify Installation
-
-1. Visit your site URL
-2. Login to admin panel
-3. Check Dashboard version
-4. Test creating/editing a post
+> **Password Requirements:**
+>
+> - At least 8 characters
+> - At least 1 uppercase letter (A-Z)
+> - At least 1 number (0-9)
+> - At least 1 special character (!@#$%^&\*)
 
 ---
 
-## Upgrade to v1.9.0 (Rafflesia)
+## Dashboard Overview
 
-This version introduces the **Smart Skeleton Loader** for instant perceived performance.
+After logging in, you'll see the Dashboard - your control center.
 
-### Steps:
+### What You'll See
 
-1. **Delete `assets/` folder** (Critical for new CSS/JS loader logic)
-2. Upload new files (overwrite all)
-3. **Overwrite `index.html`** (Contains the new skeleton HTML structure)
-4. Refresh browser (`Ctrl + Shift + R`)
+| Section             | Description                   |
+| ------------------- | ----------------------------- |
+| **Total Posts**     | Number of published articles  |
+| **Total Pages**     | Number of static pages        |
+| **Total Users**     | Registered users on your site |
+| **Total Comments**  | All comments received         |
+| **Recent Activity** | Latest actions on your site   |
 
----
+### Navigation Sidebar
 
-## Upgrade to v1.9.2 (Newsletter Release)
+The sidebar on the left contains all admin sections:
 
-This version adds the **Newsletter System** with subscriber management.
-
-> [!IMPORTANT]
-> **Existing users upgrading from v1.8.x or v1.9.0/v1.9.1** must run the newsletter migration SQL.
-
-### Steps:
-
-#### Step 1: Upload New Files
-
-1. Delete `assets/` folder
-2. Upload new files (overwrite all)
-3. Overwrite `index.html`
-
-#### Step 2: Run Newsletter Migration SQL
-
-> [!CAUTION]
-> **REQUIRED** for newsletter functionality to work!
-
-**Option A: Via VonCMS Database Manager (Easiest)**
-
-1. Login to VonCMS Admin Panel
-2. Go to **Database** → **Query Editor**
-3. Paste this SQL and click **Execute**:
-
-```sql
-CREATE TABLE IF NOT EXISTS newsletter_subscribers (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    status ENUM('active', 'unsubscribed') DEFAULT 'active',
-    subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    unsubscribed_at DATETIME NULL,
-    ip_address VARCHAR(45),
-    source VARCHAR(50) DEFAULT 'widget',
-    INDEX idx_email (email),
-    INDEX idx_status (status),
-    INDEX idx_subscribed_at (subscribed_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
-
-**Option B: Via phpMyAdmin**
-
-1. Login to phpMyAdmin
-2. Select your VonCMS database
-3. Go to **SQL** tab
-4. Paste and run the SQL above
-
-#### Step 3: Verify
-
-1. Visit Admin → Newsletter
-2. If page loads without errors, you're done!
+- 📝 **Posts** - Manage articles
+- 📄 **Pages** - Manage static pages
+- 🖼️ **Media** - Upload and manage images
+- 💬 **Comments** - Moderate discussions
+- 👥 **Users** - Manage user accounts
+- 🧩 **Extensions** - Enable/disable plugins
+- ⚙️ **Settings** - Configure your site
+- 💾 **Database** - Backup your data
 
 ---
 
-## Upgrade to v1.9.3 (Config & Security)
+## Managing Posts
 
-This version introduces **Auto-Log Creation**, **Secure Session Wrappers**, and **API Error Shielding**.
+Posts are your blog articles or news items.
 
-> [!IMPORTANT]
-> Your existing `von_config.php` will work fine, but upgrading it is **HIGHLY RECOMMENDED** for better security and stability.
+### Creating a New Post
 
-### How to Upgrade Config Manually:
+1. Click **Posts** in the sidebar
+2. Click the green **+ New Post** button
+3. Fill in the following:
 
-Since the update process preserves your old config, you must do this manually:
+| Field              | What to Enter                                              |
+| ------------------ | ---------------------------------------------------------- |
+| **Title**          | Your article headline (e.g., "10 Tips for Better Writing") |
+| **Content**        | The full article text                                      |
+| **Category**       | Select a category (News, Updates, etc.)                    |
+| **Featured Image** | The main image that appears on listings                    |
+| **Status**         | Draft (save for later) or Published (go live)              |
 
-1.  **Backup** your current `von_config.php` (Rename to `von_config_old.php`).
-2.  **Find** `von_config.sample.php` in your **Downloaded ZIP** (Deploy Version).
-3.  **Rename** it to `von_config.php`.
-4.  **Edit** the new `von_config.php`:
-    - Find `$db_name = '';` and change it to your database name (e.g., `'pulutdb'`).
-    - If you have a database password, fill it in `$db_pass`.
-5.  **Save & Upload**.
+4. Click **Save** when done
 
-**Benefits:**
+### Editing an Existing Post
 
-- **Auto-Logs:** Automatically creates `logs/` folder if missing (No more silent errors).
-- **API Shield:** Prevents "Unexpected Token" JSON errors if PHP throws warnings.
-- **Conflict Safety:** Functions are wrapped to prevent crashes with plugins.
+1. Go to **Posts**
+2. Find the post in the list
+3. Click the **Edit** button (pencil icon)
+4. Make your changes
+5. Click **Save**
+
+### Deleting a Post
+
+1. Go to **Posts**
+2. Find the post you want to delete
+3. Click the **Delete** button (trash icon)
+4. Confirm the deletion
+
+> ⚠️ **Warning:** Deleted posts cannot be recovered!
 
 ---
 
-## Upgrade to v1.9.5 (Standardization & Security)
+## Creating Pages
 
-This is a **Quality of Life & Security** update. It standardizes how themes work (Profile Tabs, Popups) and patches a high-severity vulnerability in the core system.
+Pages are for static content that doesn't change often, like:
 
-### Steps:
+- About Us
+- Contact
+- Privacy Policy
+- Terms of Service
 
-1.  **Delete `assets/` folder** from your server.
-    - _Why?_ New hook logic requires fresh JavaScript bundles.
-2.  **Upload new files** (Overwrite all).
-3.  **Refresh browser** (`Ctrl + Shift + R`).
+### Creating a New Page
 
-**No database migration required.** Your existing data is safe.
+1. Click **Pages** in the sidebar
+2. Click **+ New Page**
+3. Enter the **Title** and **Content**
+4. Check **Add to Navigation** if you want it in the menu
+5. Click **Save**
+
+### Adding a Page to Your Menu
+
+1. When editing a page, enable **Add to Navigation**
+2. Or go to **Settings** → **Navigation** → **Add Item**
+3. Select the page from the dropdown
+
+---
+
+## Using the Editor
+
+The visual editor makes content creation easy without knowing HTML.
+
+### Editor Toolbar Explained
+
+| Button | Name          | What It Does                              |
+| ------ | ------------- | ----------------------------------------- |
+| **B**  | Bold          | Makes text **bold**                       |
+| _I_    | Italic        | Makes text _italic_                       |
+| U̲      | Underline     | Adds underline to text                    |
+| S̶      | Strikethrough | ~~Crosses out~~ text                      |
+| 🔗     | Link          | Adds a clickable hyperlink                |
+| 📷     | Image         | Inserts an image                          |
+| 📹     | Video         | Embeds YouTube, TikTok, or Facebook video |
+| 📊     | Table         | Creates a table                           |
+| 📝     | Code          | Adds a code block                         |
+| 🎨     | Text Color    | Changes text color                        |
+| H1-H6  | Headings      | Creates different sized headings          |
+| •      | Bullet List   | Creates a bulleted list                   |
+| 1.     | Numbered List | Creates a numbered list                   |
+| "      | Quote         | Creates a blockquote                      |
+| 🤖     | AI Write      | Generate content with AI                  |
+| `</>`  | HTML View     | Edit raw HTML code                        |
+
+### Inserting Images
+
+**Method 1: From Media Library**
+
+1. Click the 📷 button in the editor
+2. Click **Choose from Library**
+3. Select an image
+4. Click **Insert**
+
+**Method 2: Upload New**
+
+1. Click the 📷 button
+2. Click **Upload New**
+3. Select a file from your computer
+4. Wait for upload to complete
+5. Click **Insert**
+
+**Method 3: From URL**
+
+1. Click the 📷 button
+2. Paste the image URL
+3. Click **Insert**
+
+### Embedding Videos
+
+**YouTube:**
+
+1. Click the 📹 button
+2. Paste the YouTube URL (e.g., `https://youtube.com/watch?v=ABC123`)
+3. Click **Insert**
+
+**TikTok:**
+
+1. Click the 📹 button
+2. Paste the TikTok video URL
+3. Click **Insert**
+
+### Using AI Writing Assistant
+
+VonCMS includes an AI writing helper powered by Google Gemini.
+
+**First Time Setup:**
+
+1. Click the 🤖 button in the editor
+2. Enter your Gemini API Key
+3. Get a free key at: https://aistudio.google.com/apikey
+
+**Using AI:**
+
+1. Click the 🤖 button
+2. Type a prompt (e.g., "Write an introduction about climate change")
+3. Click **Generate**
+4. The AI will write content for you
+5. Edit as needed
+
+---
+
+## Media Library
+
+Store and manage all your images and files.
+
+### Uploading Files
+
+**Method 1: Click Upload**
+
+1. Go to **Media**
+2. Click the **Upload** button
+3. Select files from your computer
+
+**Method 2: Drag and Drop**
+
+1. Go to **Media**
+2. Drag files from your computer
+3. Drop them in the upload area
+
+### Supported File Types
+
+| Type      | Extensions                     |
+| --------- | ------------------------------ |
+| Images    | .jpg, .jpeg, .png, .gif, .webp |
+| Documents | .pdf, .doc, .docx              |
+| Video     | .mp4, .webm                    |
+
+### Deleting Files
+
+1. In Media Library, click the checkbox on files to delete
+2. Click the **Delete** button
+3. Confirm deletion
+
+---
+
+## Managing Comments
+
+Moderate discussions on your posts.
+
+### Comment Statuses
+
+| Status          | Meaning                   |
+| --------------- | ------------------------- |
+| ✅ **Approved** | Visible to public         |
+| ⏳ **Pending**  | Waiting for your approval |
+| 🚫 **Spam**     | Marked as spam, hidden    |
+
+### Approving Comments
+
+1. Go to **Comments**
+2. Find pending comments (marked with yellow)
+3. Click **Approve** to make visible
+
+### Deleting Spam
+
+1. Go to **Comments**
+2. Find spam comments
+3. Click **Delete** to remove permanently
+
+### Bulk Actions
+
+1. Select multiple comments using checkboxes
+2. Use the dropdown to choose action (Approve All, Delete All)
+3. Click **Apply**
+
+---
+
+## User Management
+
+Control who has access to your admin panel.
+
+### User Roles
+
+| Role          | Permissions                 |
+| ------------- | --------------------------- |
+| **Admin**     | Full access to everything   |
+| **Moderator** | Manage comments and content |
+| **Writer**    | Create and edit own posts   |
+| **Member**    | View-only access            |
+
+### Adding a New User
+
+1. Go to **Users**
+2. Click **+ Add User**
+3. Fill in username, email, password
+4. Select a role
+5. Click **Save**
+
+### Editing a User
+
+1. Go to **Users**
+2. Find the user
+3. Click **Edit**
+4. Change role or reset password
+5. Click **Save**
+
+### Deleting a User
+
+1. Go to **Users**
+2. Find the user
+3. Click **Delete**
+4. Confirm
+
+> ⚠️ **Note:** You cannot delete the primary admin account!
+
+---
+
+## Settings
+
+Configure your entire website from one place.
+
+### General Settings
+
+| Setting      | Description                             |
+| ------------ | --------------------------------------- |
+| Site Name    | Your website's title                    |
+| Site Tagline | Short description                       |
+| Site URL     | Your domain (e.g., https://example.com) |
+| Timezone     | Your local timezone                     |
+
+### SEO Settings
+
+| Setting             | Description                            |
+| ------------------- | -------------------------------------- |
+| Meta Description    | Default description for search engines |
+| Meta Keywords       | Keywords for SEO                       |
+| Google Verification | Google Search Console code             |
+| robots.txt          | Control search engine crawling         |
+
+### ⚡ IndexNow (Instant Indexing)
+
+New in v1.11.3, this feature instantly notifies Bing, Yandex, and other search engines when you publish content.
+
+1. Go to **Settings** → **SEO**
+2. Scroll to the **IndexNow** section
+3. Toggle **Enable IndexNow** to ON
+4. Click **Generate Key** (This creates the required verification file automatically)
+5. Verify the status says **Ready (Green)**
+
+Once enabled, VonCMS will automatically ping search engines whenever you:
+
+- Publish a new post
+- Update an existing published post
+
+### Theme Settings
+
+1. Go to **Settings** → **Appearance**
+2. Choose from available themes:
+   - **Default** - Clean and minimal
+   - **TechPress** - News/Magazine style
+   - **Prism** - Modern dark grid
+   - **Portfolio** - Showcase projects
+3. Click **Save** to apply
+
+### Navigation Menu
+
+1. Go to **Settings** → **Navigation**
+2. Click **+ Add Item**
+3. Enter label and URL
+4. Arrange order by dragging
+5. Click **Save**
+
+---
+
+---
+
+## Newsletter Management
+
+Manage your email subscribers and widget settings.
+
+### Configuring the Widget
+
+1.  Go to **Newsletter** via the Sidebar (Settings icon).
+2.  **Enable/Disable**: Toggle the master switch to show/hide the widget public-wide.
+3.  **Customization**:
+    - **Title**: "Subscribe to our Newsletter"
+    - **Description**: "Get the latest updates..."
+    - **Button Text**: "Join Now"
+4.  **Position**: Choose between `Footer`, `Sidebar`, or `Both`.
+5.  Click **Save Settings**.
+
+### Managing Subscribers
+
+1.  Click the **Subscribers** tab.
+2.  **Search**: Find specific emails using the search bar.
+3.  **Filter**: View only `Active` or `Unsubscribed` users.
+4.  **Delete**: Click the Trash icon to remove a subscriber (Admin only).
+
+### Exporting Data
+
+1.  Go to **Newsletter** → **Subscribers**.
+2.  Click the **Export CSV** button.
+3.  A `.csv` file will download containing all filtered subscribers.
+
+---
+
+---
+
+## 9. Extensions (Plugins)
+
+VonCMS introduces a robust Plugin System designed to enhance your content without bloating the core.
+
+### 🤖 AI Summary (New)
+
+Automatically generates a "TL;DR" summary at the top of your posts.
+
+- **Enable**: Go to **Admin > Extensions > AI Summary**.
+- **Settings**:
+  - **Mode**: Choose between "First Paragraph" or "Keyword Density".
+  - **Bullets**: Set the number of summary points (3-5 recommended).
+  - **Label**: Customize the header text (e.g., "AI Insights", "Quick Summary").
+
+### 🔗 Related Posts (New)
+
+Keeps readers engaged by suggesting similar content at the bottom of articles.
+
+- **Enable**: Go to **Admin > Extensions > Related Posts**.
+- **Settings**:
+  - **Algorithm**: Match by Tags, Category, or Random.
+  - **Layout**: Choose **Grid** (visual), **List** (compact), or **Cards** (modern).
+  - **Count**: Control how many posts to display (3, 6, or 9).
+
+### Other Available Plugins
+
+- **Promo Bar**: Show announcements at top of site.
+- **Gift Widget**: Display promotional gifts/offers.
+- **VonSEO**: Advanced SEO optimization.
+- **VonAnalytics**: Track visitor statistics.
+
+### Activating/Deactivating Plugins
+
+1. Go to **Extensions**
+2. Find the plugin
+3. Toggle the switch ON/OFF
+4. Changes apply immediately
+
+---
+
+## WordPress Migration
+
+VonCMS includes a powerful tool to migrate your content from WordPress easily.
+
+### Step 1: Export from WordPress
+
+1. Log in to your **WordPress Admin Panel**
+2. Go to **Tools** → **Export**
+3. Select **All content**
+4. Click **Download Export File**
+5. You will get an `.xml` file (e.g., `wordpress.xml`)
+
+### Step 2: Import into VonCMS
+
+1. Log in to your **VonCMS Admin Panel**
+2. Go to **Settings** → **Content**
+3. Locate the **WordPress Bridge** section
+4. Click **Upload XML** and select your file
+5. Check the **Safety Check** box (confirming you have a backup)
+6. Click **Start Scan**
+
+### Step 3: Run Migration
+
+1. The system will analyze your file and show stats (Post count, Pages, etc.)
+2. Click **Start Import**
+3. Wait for the progress bar to reach 100%
+4. Done! Your posts, pages, and authors are now in VonCMS.
+
+> **Feature Note:**
+>
+> - **Smart Images:** VonCMS automatically finds the first image in your post content and sets it as the Featured Image.
+> - **Self-Healing:** If the import stops, just run it again. It automatically skips duplicates.
+
+---
+
+## Backup & Database
+
+Protect your data with regular backups.
+
+### Creating a Backup
+
+1. Go to **Database**
+2. Click **Export Database**
+3. The `.sql` file will download automatically
+
+### Restoring from Backup
+
+1. Go to **Database**
+2. Click **Import Database**
+3. Select your `.sql` backup file
+4. Confirm the restore
+
+> ⚠️ **Warning:** Restoring will overwrite current data!
+
+### Running SQL Queries
+
+For advanced users:
+
+1. Go to **Database** → **Query Editor**
+2. Type your SQL query
+3. Click **Execute**
+4. View results
+
+---
+
+| Slow performance | Clear browser cache, optimize images |
+
+### 📘 Error Reference Manual (Agent SOP)
+
+If you encounter specific error codes (e.g., `V-500-INC`), please refer to `.agent/workflows/error-reference-manual.md` for in-depth diagnosis.
+
+### Getting Help
+
+If you need assistance:
+
+1. Check the documentation in `docs/` folder
+2. Review the CHANGELOG for recent changes
+3. Contact support at **kurama87@gmail.com**
+
+---
+
+_VonCMS v1.11.7 "Nara" — Complete Admin Panel Guide_
