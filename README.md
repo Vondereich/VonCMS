@@ -1,9 +1,19 @@
-# VonCMS v1.11.7 "Nara Stable"
+# VonCMS v1.11.8 "SEO & Social Cleanup"
 
 > **The Hybrid CMS for the Modern Web.**
 > Performance of a Static Site, Flexibility of a Headless CMS, Ease of WordPress.
 
 VonCMS "Nara" is a hybrid content management system designed to break the limitations of legacy platforms. Built for high-traffic portals, it combines a blazing-fast **React 19** frontend with a hardened **PHP 8.2** backend. Unlike traditional monoliths, VonCMS is decoupled yet perfectly synchronized, delivery enterprise-grade speed (LCP 0.40s) on standard shared hosting.
+
+### 🗺️ Future Roadmap: Open Source Goal
+
+VonCMS is currently a private enterprise project. However, we are considering a transition to **Open Source** once the following milestones are achieved:
+
+- **Community Growth**: Reaching 5,000 to 10,000 active users.
+- **Ecosystem Maturity**: Completion of the central Theme & Plugin Marketplace.
+- **Market Presence**: Launch of a dedicated high-performance landing page.
+
+---
 
 <div align="center">
 
@@ -12,12 +22,12 @@ VonCMS "Nara" is a hybrid content management system designed to break the limita
 **React 19 + Vite 7 Frontend | PHP 8.2+ API Engine | Native IndexNow | Self-Healing Integrity**
 
 [![Official Website](https://img.shields.io/badge/Website-skripglobal.com-blue?style=for-the-badge)](https://skripglobal.com/)
-[![GitHub stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&color=yellow)](https://github.com/Vondereich/VonCMS/stargazers)
-[![Stable Release](https://img.shields.io/badge/Status-Stable_v1.11.7-brightgreen.svg?style=for-the-badge)](https://github.com/Vondereich/VonCMS/releases)
-[![Build Standard](https://img.shields.io/badge/Release-Nara_Stable-orange?style=for-the-badge)](#)
-[![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&color=blueviolet)](https://github.com/Vondereich/VonCMS/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=yellow)](https://github.com/Vondereich/VonCMS/stargazers)
+[![Latest Release](https://img.shields.io/badge/Release-v1.11.8-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS/releases)
+[![Build Standard](https://img.shields.io/badge/DNA_Standard-v1.11x-orange?style=for-the-badge)](https://github.com/Vondereich/VonCMS)
+[![Total Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blueviolet)](https://github.com/Vondereich/VonCMS/releases)
 
-[🌐 Official Website](https://skripglobal.com/) • [📥 Download v1.11.7](https://github.com/Vondereich/VonCMS/releases) • [📖 Full Docs](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
+[🌐 Official Website](https://skripglobal.com/) • [📥 Download v1.11.8](https://github.com/Vondereich/VonCMS/releases) • [📖 Full Docs](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
 
 </div>
 
@@ -165,7 +175,7 @@ The **Nara** architecture is designed for extreme portability.
 
 ## 🛠️ Quick Start Guide
 
-1. **Download**: Grab the `VonCMS_v1.11.7_Deploy.zip` from the releases page.
+1. **Download**: Grab the `VonCMS_v1.11.8_Deploy.zip` from the releases page.
 2. **Upload**: Extract contents to your root directory or a subfolder.
 3. **Install**: Navigate to `yoursite.com/install.php` and follow the 2-minute wizard.
 4. **Login**: Access the dashboard at `yoursite.com/admin` to start creating.
@@ -176,7 +186,7 @@ The **Nara** architecture is designed for extreme portability.
 
 ### 🌟 Project Status
 
-**Current Release**: v1.11.7 (Absolute Hardening)  
+**Current Release**: v1.11.8 (SEO & Social Cleanup)  
 **Main Showcase**: [skripglobal.com](https://skripglobal.com/)
 
 _Built for speed. Hardened for security. Designed for you._
