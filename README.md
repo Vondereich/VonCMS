@@ -104,6 +104,37 @@ VonCMS is optimized for **Core Web Vitals**. By decoupling the React frontend fr
 
 </div>
 
+### ⚡ Core Web Vitals (Production Verified)
+
+Despite being a hybrid React SPA, VonCMS Nara delivers static-like performance (Chrome UX Report):
+
+- **LCP (Largest Contentful Paint)**: `0.29s` (Target: <2.5s) - 🚀 Instant Load.
+- **CLS (Cumulative Layout Shift)**: `0` (Target: <0.1) - 🧱 Rock Stable.
+- **INP (Interaction to Next Paint)**: `8ms` (Target: <200ms) - ⚡ snappy.
+
+> **Note**: These metrics were achieved on a standard production installation with 40+ content-heavy posts.
+
+### 🚦 Lighthouse Audit (v12)
+
+> **Source**: [skripglobal.com](https://skripglobal.com/) (Production Snapshot - Feb 2026)
+> _Scores may vary based on content volume, server load, and third-party scripts._
+
+| Category | Score | Verdict |
+| :--- | :---: | :--- |
+| **Performance** | **94** | 🟢 Excellent |
+| **Accessibility** | **96** | 🟢 Excellent |
+| **Best Practices** | **100** | 🌟 Perfect |
+| **SEO** | **100** | 🌟 Perfect |
+
+### �📉 Resource Efficiency (Production Verified)
+
+Real-world usage statistics confirm the efficiency of the "Pure DNA" architecture (cPanel Metrics):
+
+- **Disk Usage**: `44.6 MB` (0.03% of 150GB quota) - Extremely lightweight.
+- **CPU/RAM**: `0%` Usage at idle - Zero overhead when inactive.
+- **Database**: `1.03 MB` - Highly optimized schema.
+- **File Count**: `938` files - Minimal footprint compared to legacy CMS bloat.
+
 ---
 
 ## 💎 Power Features
