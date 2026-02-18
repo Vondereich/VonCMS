@@ -1,16 +1,204 @@
 # Changelog
 
+### [v1.11.10] - 2026-02-18 (Nara Finalized — Semantic Color Engine & Dark Mode) 🎨🌙
+
+#### 🔗 Slug Hyphen Fix
+
+- **Root Cause**: Slugs containing intentional hyphens (e.g., `how-to-use`) were stripped during save. Regex `[^a-z0-9]+` was replacing hyphens with hyphens, collapsing double-hyphens and stripping intentional formatting.
+- **Fix**: Updated regex to `[^a-z0-9\-]+` in both `save_post.php` (backend) and `useContent.ts` (frontend) to preserve existing hyphens.
+
+#### 🏷️ Branding Footer
+
+- **Corporate-Pro**: Added "Powered by VonCMS" to footer copyright.
+- **Prism**: Replaced hardcoded `VON_CMS` with dynamic `settings.siteName` + "Powered by VonCMS" branding.
+
+#### 🎨 Semantic Color Engine (Full Audit)
+
+Deep audit of all 6 themes for hardcoded hex values and semantic theming compliance:
+
+| Theme             | Status   | Notes                                                       |
+| ----------------- | -------- | ----------------------------------------------------------- |
+| Default           | ✅ Clean | CSS Custom Properties (`--color-primary`, `--bg-nav`)       |
+| TechPress         | ✅ Clean | Centralized `getColors(isDark, primaryColor)`               |
+| Digest            | ✅ Clean | Centralized `getColors(isDark, accentColor)`                |
+| Portfolio         | ✅ Clean | Centralized `getColors(isDark, accent)`                     |
+| Prism             | ✅ Clean | CSS vars + cyberpunk `colorMap` scheme selector             |
+| **Corporate-Pro** | 🔧 Fixed | 3x `#2563eb` → `settings.theme.primaryColor \|\| '#2563eb'` |
+
+- **Corporate-Pro Fix**: Theme was ignoring admin-configured primary color. `useRelatedPosts`, `VonNewsletter`, and `VpComments` now respect `settings.theme.primaryColor`.
+
+#### 🌙 Neutral Dark Mode (Industry Standard Migration)
+
+Migrated dark mode from blue-tinted Tailwind `slate` to neutral grey matching YouTube/Facebook/X standard:
+
+| Old (Blue-Tinted)     | New (Neutral Grey) | Role                     |
+| --------------------- | ------------------ | ------------------------ |
+| `#020617` slate-950   | `#0a0a0a`          | Darkest background       |
+| `#0f172a` slate-900   | `#121212`          | Surface alt              |
+| `#1e293b` slate-800   | `#1a1a1a`          | Surface / border         |
+| `#334155` slate-700   | `#2a2a2a`          | Border                   |
+| `#f8fafc` / `#f1f5f9` | `#E5E7EB`          | Primary text (off-white) |
+| `#94a3b8` slate-400   | `#9CA3AF`          | Secondary text           |
+
+**Files Modified:**
+
+- `ContactFormRenderer.tsx` — Removed 5 hardcoded blue refs (submit button, focus ring, spinner, accent blob), converted dark Tailwind classes to `neutral`
+- `default/Layout.tsx` — Nav color + 21 Tailwind `dark:slate-*` → `dark:neutral-*` + 3 themeColor hex blocks
+- `corporate-pro/Layout.tsx` — 74 Tailwind `dark:slate-*` → `dark:neutral-*` + 2 themeColor hex blocks
+- `default/Layout.tsx` — Restored Dark Header/Footer default (Neutral `#171717`) for unconfigured themes.
+- `techpress/Layout.tsx` — Unified Category Bubbles (Applied "Featured" style to Trending/Latest lists).
+- `ContactFormRenderer.tsx` — Restored Primary Color for Submit Button (Removed hardcoded gray gradient).
+
+#### 🛡️ Master Audit & Integrity System
+
+- **Admin Dashboard**: Removed legacy "Repair Popup" notices. The dashboard is now standard and clean.
+- **Security Audit**:
+  - ✅ **XSS/SQLi**: Clean. No unsafe `dangerouslySetInnerHTML` or raw SQL interpolation found in themes.
+  - ✅ **Output Safety**: `ob_start()` implemented in `get_posts.php` to prevent "JSON Crash" on older plugins.
+  - ✅ **Footer**: Fixed Mojibake (`Â©`) in Corporate-Pro footer.
+- **Code Quality**: `Prettier` formatting applied to all files. TypeScript check passed (0 errors).
+
+#### 📝 Notes
+
+- **Files Modified**: 5 (`save_post.php`, `useContent.ts`, `ContactFormRenderer.tsx`, `default/Layout.tsx`, `corporate-pro/Layout.tsx`)
+- **Themes Untouched**: TechPress, Digest, Portfolio, Prism — already had clean color systems
+- **Build**: TypeScript ✅ | Build ✅ | Master Audit ✅
+- **Backup**: `_backup_v1.11.10/` created before changes
+
+#### 🏝️ Development Hiatus (Ramadan & Syawal)
+
+This is the final planned release before the **Ramadan and Aidilfitri** break. Development will be paused for a spiritual recharge and festive celebration. See you in **v1.12 (Mandala)**! 🌙✨
+
+---
+
+### [v1.11.9] - 2026-02-18 (Google Soft 404 SEO Fix) 🔍
+
+#### 🔍 Critical SEO Fix: Google Soft 404 Resolution
+
+- **Root Cause**: Google classified homepage as "Soft 404" because `<body>` contained only an empty `<div id="root"></div>` — zero visible text content for crawlers despite valid `<head>` meta tags.
+- **Noscript Content Injection**: Added dynamic `<noscript>` block with site title, description, and 5 latest posts (title + excerpt + link) — gives Googlebot meaningful body content without any visual change for users.
+- **Enhanced Schema.org JSON-LD**: Upgraded homepage schema from basic `WebSite` to `CollectionPage` with `ItemList` containing latest articles — stronger structured data signal for Google indexing.
+- **Permalink-Aware URLs**: All generated URLs (Schema + noscript) auto-detect the user's permalink structure setting (`slug`, `date`, `category`, `plain`) from database.
+- **Subfolder-Aware URLs**: Fixed URL generation to include `$basePath` prefix (e.g. `/blog/slug`) — works correctly for root, subdomain, and subfolder installations.
+- **Zero Visual Impact**: All changes are invisible to users — `<noscript>` only renders when JS is disabled, Schema is in `<head>`, and `<div id="root">` + skeleton remain untouched.
+
+#### 📝 Notes
+
+- **Files Modified**: 1 (`public/index.php` — ~40 lines added)
+- **Files NOT Modified**: All other files unchanged
+
+---
+
+### [v1.11.9] - 2026-02-17 (API Reliability Hotfix) 🛡️🔧
+
+#### 🚨 Critical Fix: Posts Not Appearing (Root Cause)
+
+- **SQL Optimization (Root Cause Fix)**: Reverted `get_posts.php` from `SELECT p.*` back to **explicit column selection**. The `SELECT p.*` pulled full post content (including invalid UTF-8 characters from WordPress XML imports) into `json_encode()`, causing it to silently return 0 bytes — making all posts invisible on the frontend.
+- **SQL Optimization (Pages)**: Applied same explicit column treatment to `get_pages.php` for consistency and future-proofing.
+
+#### 🛡️ Safety Net Restoration (v1.10.11 Parity)
+
+Restored critical error-handling mechanisms that were accidentally stripped during v1.11.5–v1.11.8 mass batch edits (66+ files rewritten 3 times for path standardization):
+
+- **Output Buffering**: Restored `ob_start()` to `get_posts.php`, `get_post.php`, `save_settings.php`, `get_pages.php` — prevents PHP warnings from corrupting JSON responses.
+- **Modern Error Catching**: Restored `catch (Throwable $e)` (from `catch (Exception $e)`) in `get_posts.php`, `get_post.php`, `get_settings.php`, `save_settings.php`, `get_pages.php` — catches fatal errors (TypeError, OutOfMemoryError) that `Exception` misses.
+- **UTF-8 Safety Net**: Added `JSON_INVALID_UTF8_SUBSTITUTE` flag to `get_post.php` and `get_pages.php` — the only endpoints that return full content where bad characters could exist.
+
+#### 📝 Notes
+
+- **Files Modified**: 5 (`get_posts.php`, `get_post.php`, `get_settings.php`, `save_settings.php`, `get_pages.php`)
+- **Files NOT Modified**: 64 remaining API files — verified clean via quarter-scan audit
+- **`security.php`**: NOT modified — already provides full security infrastructure to all endpoints
+
+---
+
+### [v1.11.9] - 2026-02-15 (Specialized Agents & Hybrid Contract) 🛡️🤖
+
+This release introduces the **Specialized Agent System** and critical **Type System Synchronization** to ensure 100% theme compatibility and developer productivity.
+
+#### 🎨 TechPress & UI Aesthetics
+
+- **Surgical Layout Repair**: Successfully restored `TechPress/Layout.tsx` to v1.11.8 stability while preserving critical v1.11.9 improvements (Breaking News borders, Header Ad slot styling).
+- **Username Recognition**: Fixed a regression in `Layout.tsx` where author usernames were not correctly mapped to their profile data.
+- **Header Ad Optimization**: Replaced solid background colors in header ad slots with `rgba(0,0,0,0.02)` / `rgba(0,0,0,0.2)` for a cleaner, theme-aware integration.
+- **Theme-Aware Comments**: Updated `VpComments` to use `themeColors.border` for consistent dark mode dividers.
+
+#### 🚀 UX & Performance (FOUC Fix)
+
+- **Double Guard FOUC Prevention**: Implemented a synchronous Theme Guard in `index.php` and `index.html` to detect dark mode before any CSS/JS loads, eliminating the "white flash" on reload.
+- **Dark Mode Persistence**: Shifted `isDarkMode` state to `localStorage` in `App.tsx`, ensuring theme preferences survive hard reloads and deep linking.
+- **Skeleton Neutralization**: Removed rogue `@media (prefers-color-scheme: dark)` queries from `skeleton.css` and `SkeletonLoader.tsx` to prevent color mismatches (dark skeletons on light backgrounds) during slow network conditions.
+
+#### 🧠 AI Summary (v1.13.0 Engine)
+
+- **Pure Intelligence (LAIR)**: Implemented Language-Agnostic Intelligent Ranking. No more "first 5 sentences" — the system now mathematically identifies the most relevant points in any language.
+- **Dynamic Context**: Word frequency analysis for automatic filler detection and positional weight boosting.
+- **Plugin Audit**: Verified syntax integrity, closed all lexical scopes, and removed internal legacy remnants.
+
+#### 🔗 Hybrid Contract & Type Safety
+
+- **Hybrid Author Support**: Synchronized the "Double Contract" for authors. API now returns both `author` (String) and `author_data` (Object) to prevent **React Error #31** while supporting rich avatars.
+- **Dual Date Standard**: Officially added snake_case date fields (`created_at`, `updated_at`, `scheduled_at`) to the TypeScript `Post` and `Page` interfaces for 100% legacy theme compatibility.
+- **Type Intelligence**: Hardened `src/types/index.ts` to reflect the current hybrid state of the CMS.
+
+#### � Stability & Security Hardening (Feb 16)
+
+- **Post Date Accuracy**: Resolved a legacy issue where post dates would display the current timestamp on frontend hydration. Implemented strict `created_at` mapping between API v1.11.9 and the React hydration layer.
+- **Upload System Hardening**: Standardized `ImageProcessor` inclusion using absolute paths (`__DIR__`) to prevent include path resolution conflicts across different hosting environments.
+- **AI Service Architecture**: Confirmed path resolution integrity for `ai_generate.php` and `ai_check.php`, ensuring consistent behavior across version upgrades.
+- **Theme Persistence**: Fixed a long-standing issue where Dark/Light mode would reset on hard reload. By shifting state to `localStorage` (App.tsx) and enforcing a synchronous guard, theme preference now persists permanently across sessions and restarts.
+
+### [v1.11.8] - 2026-02-14 (Core Stability & SEO Cleanup) 🏗️🚀
+
+This release focuses on foundational "Day 1" architecture fixes and CORRECTING Soft 404 behavior for better search engine crawling.
+
+### 🏗️ Core Architecture & Skeleton Fix
+
+- **Skeleton Animation Fix**: Resolved a long-standing "Day 1" issue where the Skeleton Loader transition was non-functional due to missing `@keyframes fadeOut`. The exit transition into the main app is now smooth and premium.
+- **Optimized Asset Loading**: Removed a redundant direct CSS link in `index.html` that conflicted with Vite's bundling process. This improves build reliability and prevents unnecessary 404 requests in production.
+- **Unified Scrollbar Standard**: Synchronized the custom scrollbar styles across `index.html`, `index.css`, and the Server-Side SEO Engine (`public/index.php`). The system now uses a consistent 8px standard from the first byte of server response to the final hydrated React app.
+
+### 🔍 SEO & Soft 404 Fix
+
+- **Explicit 404 Support**: The Master SEO Engine (`index.php` and `dist/index.php`) now correctly returns `HTTP 404` status codes for missing posts, pages, and categories instead of a soft 200 OK.
+- **Root Shim Strategy**: The root `index.php` now employs a "Smart Shim" strategy that prioritizes the production build (`dist/index.php`) to ensure assets load correctly while falling back to source only if necessary.
+
+### 📉 Analytics & Dashboard Fix
+
+- **Analytics CSRF Fix**: Resolved guest tracking failure by re-injecting the `csrf-token` meta tag into `public/index.php`. Standardized human vs bot tracking security.
+- **Dashboard Overlap Fix**: Corrected the "Last 7 Days" query to return exactly 7 days of data, eliminating the "dual day" overlap (e.g., two Fridays) on the visitor chart.
+
+### 🧹 Social & UI Cleanup
+
+- **Reverted Zero-Dependency**: Re-integrated `react-share` to ensure 100% URL stability and social metadata compliance.
+- **Dark Mode UI Fix**: Fixed a "Double Line" styling bug in social sharing buttons when viewed in Dark Mode.
+- **Remove AddToAny**: Completely removed all traces of `AddToAny` external scripts for better privacy and performance.
+
+### 📢 Ad System & Theme Standardization
+
+- **Unified Ad Slot Isolation**: Implemented `slotId` based CSS scoping in `AdBlock` to prevent ad styles from leaking into theme layouts.
+- **Universal Popup Consolidation**: Introduced `VonPopupAd` (Shared Component) and `useAdsPopup` (Shared Hook) across all 6 themes.
+- **Thematic Consistency**: Refactored `Portfolio` and `Corporate-Pro` to ensure zero-glitch navigation during ad display.
+- **Layout Audit Completion**: Successfully audited all 6 active themes (**Default**, **Prism**, **TechPress**, **Digest**, **Portfolio**, **Corporate Pro**) for responsive ad parity and CSS normalization.
+- **Legacy Cleanup**: Completely removed the **Classic Theme** from the core registry and TypeScript definitions for an atomic cleanup.
+
+### 📅 Post Date & Stabilization (Feb 15)
+
+- **Hybrid Author Contract (Fix Error #31)**: Resolved the critical "Objects are not valid as a React child" error. The API now returns `author` as a **String** (for legacy theme rendering) and `author_data` as an **Object** (for modern frontend hooks). 100% theme compatibility restored.
+- **Post Date Correctness**: Resolved a critical issue where old posts displayed the current date. Themes now consistently use `createdAt` with robust fallbacks to `updatedAt` for 100% accurate historical reporting.
+- **Type System Integrity**: Restored and hardened `src/types/index.ts`. All original interfaces are preserved, and `createdAt`/`scheduledAt` are now native to the `Post` and `Page` types.
+- **Label Clarity**: Updated theme labels (e.g., Default theme) to correctly reflect "Post Date" instead of "Updated Date" for better user transparency.
+
+### 🛡️ Absolute Path Integrity & Security
+
+- **10-Round "Sula" Path Patch**: Standardized **100% of the API layer** (51 files) to use `__DIR__` for all inclusions. This ensures the CMS is portable across subfolders, symlinked hosting (cPanel), and OTA updates without session drops.
+- **Master Audit Protocol**: Passed the full `/audit-code` and `/api-standard` deep scan. Verified SQLi, XSS, CSRF, and Session enforcement across all endpoints.
+- **Production Certified**: Completed final pipeline (`tsc`, `prettier`, `audit`, `build`) with zero errors. Release packages v1.11.8 generated and sealed.
+
 ### [v1.11.7] - 2026-02-11 (Maintenance, Security & Mail Optimization) 🛡️📧
 
 This release focuses on security hardening, documentation accessibility, and a major fix for contact form SMTP integration.
 
-### 🔍 SEO Enhancement
-
-- **Canonical Tag**: Added dynamic `<link rel="canonical">` tag to all pages (homepage, posts, categories) to prevent duplicate content penalties from URL variants (trailing slashes, query params). Uses same `$seoUrl` logic as `og:url`.
-
-### 📧 Contact Form & SMTP System
-
-- **Dynamic Tags**: Replaced hardcoded `voncms.com` email defaults with dynamic `[_site_email]` and `[_site_name]` tags.
 - **Auto-Resolution**: Backend now automatically resolves system settings in contact form templates.
 - **SMTP Alignment**: Improved mail transport logic to use authenticated SMTP accounts as the sender, significantly reducing spam flagging in Gmail/Outlook.
 - **Reply-To Integrity**: Properly handles `Reply-To` headers for direct communication.
@@ -31,14 +219,9 @@ This release focuses on security hardening, documentation accessibility, and a m
 
 ### 🎨 Theme & UI Polish
 
-- **Classic Theme Fixes**:
-  - Balanced Ad frequency (reduced from 1/3 to 1/6 posts).
-  - Fixed Ad container compression by standardizing dimensions (`md:max-w-[728px] min-h-[90px]`).
-  - Added "Site Banner" and "Sidebar About Us" dynamic toggles in Theme Settings.
 - **Universal Pagination Fix**: Standardized pagination behavior across **Extension Manager**, **Content Manager**, and **Newsletter Manager**. The current page now automatically resets to 1 when switching tabs, applying filters, or changing search queries, preventing "empty result" issues.
-- **Universal Ad Standardization**: Implemented standard container dimensions (`md:max-w-[728px] min-h-[90px]`) for Header Ads across all themes (**TechPress**, **Prism**, **Corporate-Pro**, **Digest**, **Default**, **Classic**) to prevent compression and layout shifts.
-- **Responsive Popup Ads**: Optimized Popup Ad containers across all themes to be fully responsive (`max-w-[95vw] md:max-w-2xl`), ensuring compatibility with Google Responsive Ad Units. Added missing Popup UI to the **Classic Theme**.
-- **Smart Image Logic**: Added de-duplication logic to the **Classic Theme** single post view (prevents featured image from appearing twice if already in content).
+- **Universal Ad Standardization**: Implemented standard container dimensions (`md:max-w-[728px] min-h-[90px]`) for Header Ads across all themes (**TechPress**, **Prism**, **Corporate-Pro**, **Digest**, **Default**) to prevent compression and layout shifts.
+- **Responsive Popup Ads**: Optimized Popup Ad containers across all themes to be fully responsive (`max-w-[95vw] md:max-w-2xl`), ensuring compatibility with Google Responsive Ad Units.
 
 ### ⚙️ Build & Release
 
@@ -257,11 +440,6 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 - **Fix (Security)**: Simplified `install.php` generation to prevent redundant session configuration in user files.
 - **Fix (Updater)**: Resolved property syntax regression in `updater.php`.
 - **Fix (Database)**: Implemented `FOR UPDATE` locking in `save_page.php` for concurrency-safe slug generation.
-
-### 🎨 Classic Theme & UX Polish
-
-- **Advanced Search**: Integrated real-time search powered by `useServerSearch` for high-volume post scalability.
-- **UI/UX Refinement**: Clickable author profiles, full-width profile layouts, and improved Newsletter visibility.
 
 ### 🧹 Final Release Audit
 
@@ -608,7 +786,7 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 
 - **Edit Profile Button Fix**: Fixed issue where Member/Writer users couldn't see "Edit Profile" button. Root cause: Public API previously omitted `user.id` for strict privacy, causing frontend permission checks to fail. Fix: Safely exposed `id` in `get_public_profile.php` (non-sensitive public data) to restore self-edit functionality for non-admins.
 
- ---
+  ***
 
 ## v1.10.1 "Solana/Patch" (2026-01-11) - VISUAL STABILITY & SECURITY 🛠️
 
