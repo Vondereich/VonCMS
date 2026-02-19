@@ -15,6 +15,14 @@ VonCMS is currently a private enterprise project. We are considering a transitio
 
 ---
 
+> [!WARNING]
+> **🚨 CRITICAL UPDATE NOTICE (v1.11.10)**
+> Users on version **v1.11.9 or older** MUST perform a **MANUAL UPDATE**.
+> 1. **Backup**: Backup your site.
+> 2. **Clean**: DELETE the `public/assets` folder entirely. (Do not just overwrite).
+> 3. **Upload**: Upload new files from the ZIP and overwrite.
+> Do NOT use the built-in OTA Updater for this version.
+
 > [!NOTE]
 > **🏝️ Development Hiatus (Ramadan & Aidilfitri)**
 > Use of VonCMS is currently stable. Development is paused for a spiritual recharge regarding the holy month of Ramadan and the celebration of Aidilfitri. We will return with **v1.12 "Mandala"** after the festive season! 🌙✨
@@ -119,12 +127,12 @@ Despite being a hybrid React SPA, VonCMS Nara delivers static-like performance (
 > **Source**: [skripglobal.com](https://skripglobal.com/) (Production Snapshot - Feb 2026)
 > _Scores may vary based on content volume, server load, and third-party scripts._
 
-| Category | Score | Verdict |
-| :--- | :---: | :--- |
-| **Performance** | **94** | 🟢 Excellent |
-| **Accessibility** | **96** | 🟢 Excellent |
-| **Best Practices** | **100** | 🌟 Perfect |
-| **SEO** | **100** | 🌟 Perfect |
+| Category           |  Score  | Verdict      |
+| :----------------- | :-----: | :----------- |
+| **Performance**    | **94**  | 🟢 Excellent |
+| **Accessibility**  | **96**  | 🟢 Excellent |
+| **Best Practices** | **100** | 🌟 Perfect   |
+| **SEO**            | **100** | 🌟 Perfect   |
 
 ### �📉 Resource Efficiency (Production Verified)
 
