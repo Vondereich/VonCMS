@@ -1,16 +1,63 @@
 # Changelog
+<br>
 
-### [v1.11.10] - 2026-02-18 (Nara Finalized — Semantic Color Engine & Dark Mode) 🎨🌙
+### [v1.11.11] - 2026-02-21 (Nara Final — The Absolute Fix) 🛡️
+
+> **"The Absolute Fix for introducing your website to the web."**
+>
+> This release perfects the bridge between PHP and React, ensuring your content is visible to search engines instantly and flawlessly.
+
+#### 👤 Author Identity Resolution (Smart Detection)
+- **Smart Author Detection**: Upgraded SQL queries in `index.php` to use `LEFT JOIN` with the `users` table. Author names are now dynamically resolved from the RBAC system, eliminating "null" or "Admin" fallbacks for bots and initial page loads.
+- **Removed Hardcoded "Admin"**: Fully eliminated the surgical fallback to "Admin" in all API endpoints (`get_posts.php`, `get_post.php`) and React hooks (`useSinglePost.ts`, `useContent.ts`).
+- **Dynamic Authorship**: The system now correctly honors database values. If an author is missing, it fails gracefully to an empty string instead of forcing a generic identity.
+- **Hydration Sync**: Added the `author` field to the PHP-side post queries in `index.php` to ensure bots and initial renders have access to correct authorship data before React boots.
+
+#### 🖼️ Branding & Theme Persistence (SEO Layer)
+- **Logo Hydration**: Added server-side fetching of `logo_url` in `index.php`. Bots now see the user-configured company logo instead of the default theme logo.
+- **Theme Color Sync**: Injected theme customization settings (colors/fonts) into the `__INITIAL_SETTINGS__` block. This prevents "flicker" where the site briefly shows default theme colors before applying user settings.
+- **Noscript Logo**: Updated the `<noscript>` header to include the site logo, ensuring consistent branding even for non-JS crawlers.
 
 #### 🔗 Slug Hyphen Fix
 
 - **Root Cause**: Slugs containing intentional hyphens (e.g., `how-to-use`) were stripped during save. Regex `[^a-z0-9]+` was replacing hyphens with hyphens, collapsing double-hyphens and stripping intentional formatting.
-- **Fix**: Updated regex to `[^a-z0-9\-]+` in both `save_post.php` (backend) and `useContent.ts` (frontend) to preserve existing hyphens.
+- **Fix**: Updated regex to `[^a-z0-9\-]+` in `useContent.ts` (frontend slug generator) to preserve existing hyphens. Slug generation is handled entirely client-side.
+
+#### ⚡ Session Cache Hydration Fix
+
+- **Root Cause**: During the initial injection of `__INITIAL_STATE__` by PHP, the `useSinglePost.ts` hook was incorrectly nullifying the state object after its first use, despite comments stating otherwise.
+- **Impact**: Navigating away from an article and pressing the browser's Back button would trigger a redundant network fetch instead of instantly loading from the session cache, causing a slight loading spinner delay.
+- **Fix**: Removed the `(window as any).__INITIAL_STATE__ = null;` line. The initial payload is now properly preserved as a true Session Cache, ensuring instantaneous Back/Forward navigation.
+
+#### 🚨 Critical Security Fix: Updater Path Logic
+
+- **Root Cause**: The System Updater (`updater.php`) was using incorrect path resolution (`realpath(__DIR__ . '/../..')`) which resolved to the `public/` directory instead of the **Project Root**.
+- **Impact**: OTA Updates would fail to backup the correct files, place `index.html` in the wrong directory, and potentially corrupt the installation by overwriting public assets instead of root files.
+- **Fix**: Updated logic to `realpath(__DIR__ . '/../../..')` (up 3 levels) to correctly target the true Project Root. Validated across Windows/Linux environments.
+
+#### 🗺️ Sitemap Robustness & Safety
+
+- **Date Fallback**: Implemented `updated_at ?: created_at` logic in `sitemap.php` to handle NULL timestamps, preventing "1970-01-01" dates in XML feeds.
+- **Permalink Resilience**: Added an explicit `default` case to the sitemap's permalink `switch` statement, ensuring URL generation fails gracefully to `/post/{id}` if a malformed setting is detected.
+- **Bot Response Code**: Forced `200 OK` for social crawlers (Facebook/Twitter/WhatsApp) to prevent preview failure even when logic is still booting.
+
+#### 🛡️ Stability & Syntax Hardening
+
+- **Unicode Support**: added `JSON_UNESCAPED_UNICODE` to all hydration blocks to support special characters (Jawi, Emojis) in SEO metadata.
+- **Final SEO Audit**: Fixed syntax errors and brace mismatches in the `public/index.php` entry point.
+- **Production Integrity**: Re-synced production assets to ensure the latest fixes are present in the final build.
+
+### [v1.11.10] - 2026-02-20 (Nara Finalized — Hydration & UI Overhaul) 🎨🌙
 
 #### 🏷️ Branding Footer
 
-- **Corporate-Pro**: Added "Powered by VonCMS" to footer copyright.
-- **Prism**: Replaced hardcoded `VON_CMS` with dynamic `settings.siteName` + "Powered by VonCMS" branding.
+Added "Powered by VonCMS" branding to footer copyright across **all 6 themes**:
+
+- **Corporate-Pro**: Added `settings.siteName` + "Powered by VonCMS" to footer.
+- **Prism**: Replaced hardcoded `VON_CMS` with dynamic `settings.siteName` + "Powered by VonCMS".
+- **Default / TechPress / Digest / Portfolio**: Standardized footer with "Powered by VonCMS" branding.
+
+- **Default / TechPress / Digest / Portfolio**: Standardized footer with "Powered by VonCMS" branding.
 
 #### 🎨 Semantic Color Engine (Full Audit)
 
@@ -29,7 +76,7 @@ Deep audit of all 6 themes for hardcoded hex values and semantic theming complia
 
 #### 🌙 Neutral Dark Mode (Industry Standard Migration)
 
-Migrated dark mode from blue-tinted Tailwind `slate` to neutral grey matching YouTube/Facebook/X standard:
+Migrated dark mode from blue-tinted Tailwind `slate` to neutral grey matching YouTube/Facebook/X standard. Implemented via **inline style objects** using `isDarkMode` ternary operators across theme Layouts:
 
 | Old (Blue-Tinted)     | New (Neutral Grey) | Role                     |
 | --------------------- | ------------------ | ------------------------ |
@@ -42,12 +89,12 @@ Migrated dark mode from blue-tinted Tailwind `slate` to neutral grey matching Yo
 
 **Files Modified:**
 
-- `ContactFormRenderer.tsx` — Removed 5 hardcoded blue refs (submit button, focus ring, spinner, accent blob), converted dark Tailwind classes to `neutral`
-- `default/Layout.tsx` — Nav color + 21 Tailwind `dark:slate-*` → `dark:neutral-*` + 3 themeColor hex blocks
-- `corporate-pro/Layout.tsx` — 74 Tailwind `dark:slate-*` → `dark:neutral-*` + 2 themeColor hex blocks
-- `default/Layout.tsx` — Restored Dark Header/Footer default (Neutral `#171717`) for unconfigured themes.
+- `ContactFormRenderer.tsx` — Removed 5 hardcoded blue refs (submit button, focus ring, spinner, accent blob). Restored Primary Color for Submit Button (removed hardcoded gray gradient).
+- `default/Layout.tsx` — Migrated dark mode hex values to neutral grey inline styles. Restored Dark Header/Footer default (Neutral `#0a0a0a`) for unconfigured themes.
+- `corporate-pro/Layout.tsx` — Migrated dark mode hex values to neutral grey inline styles.
 - `techpress/Layout.tsx` — Unified Category Bubbles (Applied "Featured" style to Trending/Latest lists).
-- `ContactFormRenderer.tsx` — Restored Primary Color for Submit Button (Removed hardcoded gray gradient).
+- `skeleton.css` + `SkeletonLoader.tsx` — Dark skeleton background `#1e293b` → `#1a1a1a`. Light skeleton standardized to `#e5e7eb`. Scrollbar thumb migrated to neutral.
+- `index.css` — Dark mode CSS vars migrated: `--bg-card`, `--text-primary`, `--text-secondary`, `--border-color`.
 
 #### 🛡️ Master Audit & Integrity System
 
@@ -58,10 +105,35 @@ Migrated dark mode from blue-tinted Tailwind `slate` to neutral grey matching Yo
   - ✅ **Footer**: Fixed Mojibake (`Â©`) in Corporate-Pro footer.
 - **Code Quality**: `Prettier` formatting applied to all files. TypeScript check passed (0 errors).
 
-#### 📝 Notes
+#### 🔍 JSON-LD Schema Fix (Triple HTML Encoding)
 
-- **Files Modified**: 5 (`save_post.php`, `useContent.ts`, `ContactFormRenderer.tsx`, `default/Layout.tsx`, `corporate-pro/Layout.tsx`)
-- **Themes Untouched**: TechPress, Digest, Portfolio, Prism — already had clean color systems
+- **Root Cause**: Database stores `&` as `&amp;` (HTML entity). When outputting to JSON-LD schema via `json_encode()`, the entities were passed through raw — resulting in `&amp;amp;amp;` (triple-encoded) in the rendered HTML source.
+- **Fix**: Applied `html_entity_decode()` to all JSON-LD text fields (`name`, `description`, `headline`) before `json_encode()`.
+- **Scope**: Homepage `CollectionPage` schema (item names + descriptions) + Article schema (`headline`) for both `/post/` and plain slug URLs.
+- **Safety Net**: Added a final decode loop on all top-level schema text fields before output to prevent future encoding chain issues.
+
+#### 🚀 Theme Flicker Fix (FOUC Prevention)
+
+- **Root Cause**: Default theme briefly appeared before user's selected theme loaded, especially in incognito mode. Pre-fetched theme settings were not being passed correctly to the theme provider.
+- **Fix**: Modified `ThemeContext.tsx` and `VonProviders.tsx` to correctly pass and utilize pre-fetched theme settings, ensuring the correct theme renders immediately on page load.
+
+#### 🔄 React Hydration Overhaul (Deep Atom Scan)
+
+- **Full Data Seeding**: `public/index.php` now injects a complete `window.__INITIAL_DATA__` (homepage) and `window.__INITIAL_STATE__` (single posts) with all necessary fields (`id`, `slug`, `content`, `category`, `image_url`, `keywords`).
+- **SQL Optimization**: Audited and updated all SELECT queries in `index.php` to include missing hydration columns, ensuring React has immediate access to full article content.
+- **Accurate 404 Detection**: Corrected the "Not Found" logic from `!isset($post)` to `empty($post)`, ensuring the backend correctly flags missing content for both the browser and crawlers.
+- **Zero-Flicker Hooks**:
+  - `useContent.ts` now seeds posts instantly on mount.
+  - `useSinglePost.ts` check for PHP-injected state before triggering any API calls or loading states.
+- **Routing Intelligence**: `App.tsx` now prioritizes the PHP-provided status code over frontend guesses, effectively ending "Soft 404" classifications.
+
+
+
+#### �📝 Notes
+
+- **Files Modified**: 11 (`useContent.ts`, `ContactFormRenderer.tsx`, `default/Layout.tsx`, `corporate-pro/Layout.tsx`, `techpress/Layout.tsx`, `public/index.php`, `ThemeContext.tsx`, `VonProviders.tsx`, `skeleton.css`, `SkeletonLoader.tsx`, `index.css`)
+- **Themes Untouched**: Digest, Portfolio, Prism — already had clean color systems
+- **Admin Panel**: Intentionally retains blue-tinted slate design (`#0F172A` sidebar) for visual harmony with blue accent buttons
 - **Build**: TypeScript ✅ | Build ✅ | Master Audit ✅
 - **Backup**: `_backup_v1.11.10/` created before changes
 
