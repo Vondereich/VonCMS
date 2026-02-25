@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.10.x "Solana"**
+> **VonCMS v1.11.12 "Nara — Foundation Complete"**
 
 ---
 
@@ -71,15 +71,17 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 ## Updating VonCMS
 
-Good news! Starting from **v1.10.x**, updating is automatic.
+Good news! Starting from **v1.11.x**, updating is automatic.
 
 ### One-Click OTA Update (Recommended)
+
 1.  Login to your Admin Dashboard.
 2.  Go to **Settings > System**.
 3.  Click **"Check for Updates"**.
 4.  If available, click **"Update Now"**.
 
 ### Manual Update (Fallback)
+
 If the auto-updater fails or your server creates permission errors, follow these steps:
 
 1.  **Backup**: Download your `uploads/` folder and `von_config.php`.
@@ -100,4 +102,4 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 ---
 
-_VonCMS v1.10.x "Solana"_
+_VonCMS v1.11.12 "Nara — Foundation Complete"_
