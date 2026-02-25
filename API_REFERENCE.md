@@ -1,8 +1,8 @@
 # 🔌 VonCMS API Reference
 
-> **Version**: 1.10.6 "Solana"
+> **Version**: 1.11.12 "Nara — Foundation Complete"
 > **Base URL**: `/api/` or `/api.php`
-> **Last Updated**: January 21, 2026
+> **Last Updated**: February 18, 2026
 
 ---
 
@@ -676,6 +676,69 @@ Export subscribers to CSV (Admin only).
 
 ---
 
+---
+
+## IndexNow Endpoints (v1.11.3)
+
+### POST `/api/system/indexnow_setup.php`
+
+Generates API Key and verification file.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "IndexNow key generated and verification file created",
+  "key": "32-char-random-key...",
+  "file_created": true
+}
+```
+
+---
+
+### GET `/api/system/indexnow_status.php`
+
+Check IndexNow configuration status.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "enabled": true,
+  "key_configured": true,
+  "key_file_exists": true,
+  "status": "ready"
+}
+```
+
+---
+
+### POST `/api/system/indexnow_ping.php`
+
+Manually trigger a ping to IndexNow.
+
+**Request:**
+
+```json
+{
+  "url": "https://mysite.com/post-slug" // Optional, default: homepage
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "URL submitted to IndexNow",
+  "status_code": 200
+}
+```
+
+---
+
 ## Utility Endpoints
 
 ### POST `/api/track_visit.php`
@@ -762,7 +825,7 @@ Rate limit data stored in: `/data/rate_limits/`
 
 ---
 
-**VonCMS v1.10.6** - API Reference
+**VonCMS v1.11.8** - API Reference
 
 ---
 
