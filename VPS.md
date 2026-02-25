@@ -8,9 +8,9 @@ This guide is specifically designed for those used to **cPanel** but wanting to 
 
 ## 🛠️ Project Summary
 
-- **Server**: Ubuntu 22.04 LTS (Most stable).
+- **Server**: Ubuntu 24.04 LTS (or 22.04 LTS).
 - **Control Panel**: **aaPanel** (Free, with a beautiful interface).
-- **Stack**: **LNMP** (Linux, Nginx, MySQL, PHP 8.2).
+- **Stack**: **LNMP** (Linux, Nginx, MySQL, PHP 8.2+).
 - **Region**: **Singapore / ASEAN** (Mandatory for low latency).
 
 ---
@@ -30,7 +30,7 @@ IMPORTANT: Don't choose a server in the US or Europe if your target audience is 
 **Minimum Specs:**
 
 - 1 vCPU / 1GB RAM / 25GB SSD.
-- OS: **Ubuntu 22.04 x86_64**.
+- OS: **Ubuntu 24.04 x86_64** (or 22.04).
 
 ---
 
@@ -84,9 +84,9 @@ URL=https://www.aapanel.com/script/install_7.0_en.sh && if [ -f /usr/bin/curl ];
 
 When logged into aaPanel in the browser, a popup will ask what to install. Choose **LNMP**:
 
-1. **Nginx 1.22+** (Fastest web engine).
+1. **Nginx 1.24+** (Fastest web engine).
 2. **MySQL 8.0** (Modern database).
-3. **PHP 8.2** (Mandatory for the latest VonCMS).
+3. **PHP 8.2+** (Mandatory for VonCMS — enable extensions: `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `json`).
 4. **phpMyAdmin 5.2** (Managing the database via UI).
 5. **Pure-FTPD** (For uploading files).
 
@@ -109,9 +109,29 @@ Click **One-click Install** (Method: **Fast** / RPM). Wait for completion.
 1. Go to the **Files** menu in aaPanel.
 2. Find your domain folder (usually `/www/wwwroot/yourdomain.my`).
 3. Delete default files (index.html, etc.).
-4. **Upload** the `VonCMS_Source.zip` file.
+4. **Upload** the `VonCMS_v1.11.12_Deploy.zip` file.
 5. Right-click on the zip > **Unzip**.
-6. **Final Step**: Open `yourdomain.my/install` in your browser and follow the wizard instructions.
+6. **Final Step**: Open `yourdomain.my` in your browser — it will auto-redirect to the install wizard.
+
+---
+
+## ⚙️ PHASE 8: Nginx Rewrite Rules (Important!)
+
+VonCMS is an SPA — Nginx needs rewrite rules (Apache uses `.htaccess` automatically, but Nginx does not).
+
+In aaPanel, click your domain > **Config** > add this inside the `server {}` block:
+
+```nginx
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+location /api/ {
+    try_files $uri $uri/ =404;
+}
+```
+
+Without this, refreshing any page besides the homepage will show a 404.
 
 ---
 
@@ -119,5 +139,6 @@ Click **One-click Install** (Method: **Fast** / RPM). Wait for completion.
 
 - **Fast CGI**: Activate in PHP settings in aaPanel for even better speed.
 - **Auto Backup**: Use the **Cron** menu in aaPanel to automatically backup the database to Google Drive.
+- **PHP Extensions**: Make sure `fileinfo` is enabled (needed for upload MIME sniffing).
 
 **Done! Your news portal is now living in its "Own House" and it is very fast!**
