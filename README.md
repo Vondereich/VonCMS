@@ -29,7 +29,7 @@ VonCMS is currently a private enterprise project. We are considering a transitio
 >    Do NOT use the built-in OTA Updater for this version.
 
 > [!NOTE]
-> **🏛️ Nara Foundation Complete — v1.2.x Mandala is Next**
+> **🏛️ Nara Foundation Complete — v1.20.x Mandala is Next**
 > The Nara series (v1.11.x) is now production-locked. All security, hydration, and theme foundations are battle-tested and stable. Development is paused for Ramadan & Aidilfitri, and will resume with **v1.20 "Mandala"** — the next evolution of VonCMS. 🌙✨
 
 ---
