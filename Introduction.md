@@ -1,6 +1,4 @@
-# Introduction to VonCMS
-
-> **VonCMS v1.10.x "Solana"** | The Hybrid CMS Revolution
+# 🚀 Introduction to VonCMS (v1.11.12 "Nara — Foundation Complete") | The Hybrid CMS Revolution
 
 ---
 
@@ -32,7 +30,7 @@ VonCMS was built to solve the frustration of "empty shell" CMS installations whe
 - ✅ **AdSense Ready:** Dedicated field for verification using native rendering (zero script bloat).
 - ✅ **Performance:** Ads load instantly with the page, not after a delay.
 
-### 2. 🛡️ Fortress-Grade Security (No Setup)
+### 2. 🛡️ Built-In Security (No Setup)
 
 **The Problem:** Security plugins slow down your site and constantly nag you to upgrade to "Pro".
 **VonCMS Solution:** Enterprise-grade security logic baked into the architecture.
@@ -89,6 +87,12 @@ graph LR
 
 ## 🚀 Key Capabilities
 
+### 🚅 Velocity & Precision (v1.11.2)
+
+- **Redirect Engine**: Blazing fast 301 server-side redirects for SEO stability.
+- **Smart Slug Protection**: Automatically handles URL changes without manual config.
+- **Category Hierarchy**: Professional permalink support for complex news structures.
+
 ### 🧠 Smart Intelligence (v1.9)
 
 - **Dark Mode Sniper:** Algorithmically cleans "dirty" colors from MS Word writes.
@@ -118,4 +122,4 @@ graph LR
 
 ---
 
-_VonCMS v1.10.x "Solana" — Built for the Modern Web._
+_VonCMS v1.11.12 "Nara — Foundation Complete" — Built with Security, Easiness, and Flexibility. Next: v1.20 "Mandala"._
