@@ -6,17 +6,36 @@
 
 ---
 
-## 🚀 Scenario A: Updating to v1.11.12 (Nara — Foundation Complete)
+## 🚀 Scenario A: Updating to v1.21.0 (Breeze Series)
 
-**Focus: Final Nara release — Security Hardened, Hydration Locked, Theme System Stable**
+**Focus: Performance & UI Refinement — TechPress & PHP 8.5**
 
 1.  **Update Files**: Use **One-Click Update** (Dashboard > Settings > System).
-2.  **Verify**: Check your dark mode appearance. It should now be a neutral grey (Facebook/X style) instead of blue-tinted.
-3.  **Note**: This is the final release of the Nara series. The foundation is now production-locked. Next: **v1.20 "Mandala"**.
+2.  **Verify UI**: Check the **TechPress** hero section on desktop. Vertical gaps should now be perfectly eliminated.
+3.  **PHP Readiness**: The system is now fully compatible with **PHP 8.5+** expectations regarding cURL handles.
 
 ---
 
-## 🚀 Scenario B: Updating to v1.11.9 (Previous Stable)
+## 🚀 Scenario B: Updating to v1.20.12 (Mandala Hardening)
+
+**Focus: Phase 2 Security Hardening — Installer & Comments**
+
+1.  **Update Files**: Use **One-Click Update** (Dashboard > Settings > System).
+2.  **Verify Installer**: Try accessing `/install`. You should see a **"System Locked"** message.
+3.  **Verify Feedback**: Try posting a very short comment (< 10 chars). You should now see a specific **Toast notification** explaining the validation error.
+
+---
+
+## 🚀 Scenario C: Updating to v1.20.10 (Mandala Foundation)
+
+**Focus: Mandala Release — The New Foundation**
+
+1.  **Update Files**: Use **One-Click Update** (Dashboard > Settings > System).
+2.  **Verify UI**: Check your dark mode appearance. It should now be a neutral grey (Facebook/X style) instead of blue-tinted.
+
+---
+
+## 🚀 Scenario D: Updating to v1.11.9 (Previous Stable)
 
 **Focus: Security Hardening & Functional Integrity**
 
@@ -25,7 +44,7 @@
 
 ---
 
-## 🚀 Scenario B: Updating to v1.11.5 (Stability & Pathing Refinement)
+## 🚀 Scenario E: Updating to v1.11.5 (Stability & Pathing Refinement)
 
 **Focus: cPanel & Shared Hosting Stability**
 
@@ -37,7 +56,7 @@ This version focuses on restoring session stability and fixing 500/403 errors ex
 
 ---
 
-## 🚀 Scenario C: Updating from v1.11.x or Newer
+## 🚀 Scenario F: Updating from v1.11.x or Newer
 
 _(E.g., v1.10.0 -> v1.10.1)_
 
@@ -50,7 +69,7 @@ _(E.g., v1.10.0 -> v1.10.1)_
 
 ---
 
-## 🛠️ Scenario D: Updating from Older Versions (v1.9.x)
+## 🛠️ Scenario G: Updating from Older Versions (v1.9.x)
 
 _(Manual Upgrade Required - One Last Time)_
 
@@ -82,7 +101,7 @@ Get the latest `VonCMS_Deploy.zip` from our [**GitHub Releases**](https://github
 
 ### Step 5: Verify
 
-Check the **Settings > System** page. It should now say **Version: 1.20.x**.
+Check the **Settings > System** page. It should now say **Version: 1.21.x**.
 
 Congratulations! Future updates will now be automatic. 🎉
 
