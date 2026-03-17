@@ -1,10 +1,147 @@
-# Changelog
+### [v1.21.0] - 2026-03-17 (Breeze Series — Performance & UI Refinement) 🌬️
 
-### [v1.11.12] - 2026-02-23 (Nara — Foundation Complete) 🏛️
+- **🎨 UI Refinement (TechPress Hero Fix)**:
+  - **Hero Gap Elimination (Precision Fix)**: Resolved the persistent vertical image gap on desktop by adding `lg:h-auto` to the featured content container. This ensures the image side always stretches to perfectly match the text content height without being capped by mobile-inherited fixed heights.
+- **🏷️ Version Series (Breeze Transition)**:
+  - **Official Codename Update**: Transitioned from the "Mandala" infrastructure series to the "Breeze" performance and aesthetics series.
+  - **Unified Versioning**: Synchronized version strings across 25+ files, including themes, plugins, `package.json`, `metadata.json`, and `.cursorrules`.
+- **🛠️ Maintenance (PHP 8.5 Preparation)**:
+  - **Deprecated cURL Cleanup**: Removed all 7 instances of `curl_close()` from the core engine (`IndexNow.php`, `updater.php`, `ai_generate.php`, `ai_check.php`). This preemptively resolves "Deprecated" warnings in PHP 8.5+ while improving object-based handle management.
+- **🛡️ Documentation Alignment**:
+  - Updated `README.md`, `ROADMAP.md`, and system rules to reflect the v1.21.x "Breeze" standards, including the updated open-source roadmap (Public Repository at 1,000 users).
 
-> **The Nara foundation is complete.**
+### [v1.20.12] - 2026-03-12 (Phase 2 Security Hardening + Image SEO Engine) 🛡️🖼️
+
+- **🛡️ Permalink Leakage Hardening (Sanitation Fix)**:
+  - **Variable Initialization Fix**: Corrected `$path` and `$hp['url']` initialization in `sitemap.php` and `index.php`. This absolute fix prevents internal status leakage and ensures Googlebot always receives the user-configured permalink structure instead of defaulting to `/post/{id}`.
+  - **Parity Sync**: Verified logic synchronization between `siteUtils.ts` (Frontend) and PHP (Backend) for 100% URL parity.
+- **🔍 Image SEO Engine (Visual Discovery Indexing)**:
+  - **Image Sitemap Support**: Added `xmlns:image` namespace and `<image:image>` tags to `sitemap.php`. Google can now explicitly associate images with their respective post URLs.
+  - **Sitemap Performance Optimization**: Lowered the `MAX_URLS_PER_SITEMAP` limit from 50,000 to **1,000** for better server efficiency and faster Google crawling, following industry standards.
+  - **Homepage Schema Enhancement**: Added `image` property to the `ItemList` schema in `index.php`. Googlebot now identifies post-specific images directly from the homepage crawl.
+  - **Safe URL Fallback**: Implemented robust absolute URL generation for images in both sitemap and schema, supporting root, subfolder, and subdomain environments.
+
+- **🛡️ Comment System Redux (Master Logic)**:
+  - **Identity Pinning**: User ID and name are now derived directly from session data for logged-in users, preventing identity impersonation.
+  - **CSRF Enforcement**: Mandatory CSRF validation for authenticated comment additions.
+  - **Quality Gates**: Implemented a mandatory **10-character minimum** and strict link density checks (Max 5 links for guests).
+  - **Sanitized Pagination**: Replaced problematic PDO parameter binding for `LIMIT` with sanitized integer interpolation, fixing the "Comments Disappeared" bug.
+  - **Role-Based Visibility**: Guests now see only approved comments, while Staff/Admin see pending items for moderation.
+  - **✨ Feedback UI**: Updated `useComments` hook and `ResponseHelper` to allow validation error messages (e.g. "Comment too short") to be displayed via **Toast notifications** on the frontend.
+- **🛡️ OTA Updater Hardening**:
+  - **SSL Enforcement**: Mandatory SSL verification for all update downloads to prevent MITM-based RCE attacks.
+  - **Integrity Validation**: Optional but strict SHA256 hash verification for update packages before extraction.
+- **🛡️ Core Infrastructure Locking**:
+  - **Installer Double-Lock**: Introduced `install.lock` mechanism. Re-installation is fully blocked even if `von_config.php` is missing.
+  - **Installer UI Blocking**: Updated `public/index.php` to display a "System Locked" message if the installer is accessed post-installation, preventing UI-level exploit attempts.
+  - **POST-Only Backups**: Restricted `backup_db.php` to POST requests with strict CSRF enforcement to prevent token leakage.
+- **🛡️ Data Leakage Mitigation**:
+  - **Allowlist Masking**: Upgraded `security.php` to "Allowlist-First" masking for credentials (`db_`, `smtp_`, etc.).
+  - **Safe Fallback Query**: Hardened `get_settings.php` to request only whitelisted safe keys when the `is_public` column is missing.
+  - **Double Key Unification**: Unified `domain_url`, `domainurl`, and `siteurl` into a single standard **`siteUrl`** key in `get_settings.php` for cleaner API responses.
+- **🛡️ Forced Action Prevention**:
+  - **Logout CSRF Protection**: Added mandatory CSRF token validation to `logout.php`.
+- **🎨 UI Harmonization & Refinement**:
+  - **TechPress & Digest Parity**: Standardized all article thumbnails to **4:3 aspect ratio** (`aspect-[4/3]`) across the TechPress theme for a "smart" and consistent visual rhythm.
+  - **Hero Gap Elimination (Desktop)**: Re-engineered the featured post container using `lg:self-stretch` with a `lg:min-h-[420px]` safety baseline. The image now dynamically follows the height of adjacent text content, eliminating unsightly gaps.
+  - **Reinforced Mobile Hero**: Switched from fluid aspect-video to a **fixed 280px height** on mobile, matching the robust feel of the Digest theme.
+  - **Enhanced List Thumbnails**: Increased horizontal thumbnail width to `w-56` (224px) on desktop for improved visual hierarchy and premium aesthetic.
+  - **Gallery Grid Update**: Increased items per page to **32** (8x4 grid) for higher administrative efficiency.
+- **📦 Packaging Integrity**:
+  - **Full Release Scan**: Verified 22-item file count in the deployable ZIP, including root meta-files (`README.md`, `CHANGELOG.md`, `package.json`).
+
+### [v1.20.11] - 2026-03-10 (Universal Path Agnosticism & Core Polish) 💎
+
+- **🛡️ Master Security Hardening**: Addressed 3 critical/high vulnerabilities to ensure enterprise-grade security:
+  - **SMTP Header Injection**: Patched `mail_helper.php` by strictly stripping CRLF (`\r\n`) characters from email headers to prevent command injection and spam relaying.
+  - **Administrative RCE Prevention**: Hardened `db_query.php` (Database Manager) by restricting raw queries exclusively to read-only `SELECT` and `SHOW` commands, blocking destructive SQL execution. _(Hotfix: Restored support for standard semicolon-terminated queries in Database Manager while maintaining strict `SELECT` and `SHOW` locks)._
+  - **Code Injection Mitigation**: Upgraded `install.php` to use `var_export()` instead of `addslashes()` for database credentials, preventing PHP code injection during the initial setup configuration.
+- **🛡️ Universal Path Agnosticism (Master Seal)**: Completed a 360-degree audit of URI generation. Resolved critical "double pathing" in Social Meta tags (OG/Twitter) and SEO Schema (JSON-LD).
+- **Hardened Host Detection**: Unified host detection regex `/[^a-zA-Z0-9.\-:]/` across **all 70+ entry points and API scripts**, adding robust support for subdomains, hyphens, and custom ports (e.g., `localhost:8080`).
+- **Critical Variable Order Fix**: Corrected `$protocol` and `$host` initialization in `index.php` to ensure robust fallbacks even during database downtime or fresh installs.
+- **Universal SEO Consistency**: Synchronized path-detection logic across `robots.php`, `sitemap.php`, and `llms.php` for 100% environment-agnostic XML/TXT generation.
+- **Installer Precision**: Updated `install.php` to use the new hardened host regex during initial "birth" of the site configuration.
+- **Pro Robots Rules**: Enhanced default `robots.txt` with stricter security directives (Disallowing `/install/`, `/data/`, `/logs/`, and `von_config.php`).
+- **Favicon Double-Request Fix**: Eliminated redundant favicon downloads by implementing a robust `new URL()` comparison logic in the React frontend.
+- **Agnostic Dashboard Preview**: Updated SEO Settings components to use dynamic `BASE_PATH` for robots.txt rules.
+
+### [v1.20.10] - 2026-03-09 (Absolute Path Agnosticism & TechPress Polish) 🛡️🏆
+
+- **TechPress Image Standardization (YouTube-Style)**: Fixed vertical image stretching in the `HeroArticle` by enforcing a stable `16:9` aspect ratio and `420px` height. Standardized "Trending Stories" (4:3) and "Latest Updates" (16:9) thumbnails with `object-fit: cover` for a uniform grid look.
+- **Universal Path Agnosticism (Mandala Standard)**: VonCMS is now 100% path-agnostic. Implemented dynamic base path injection via PHP (`window.VON_BASE`) and updated React routing/permalinks to auto-detect root, subdomain, or subfolder environments.
+- **🛡️ Hotfix: Path Redundancy**: Resolved critical path duplication (e.g., `/folder/folder/`) by introducing `noBase` flag for internal navigation and fixing `domainUrl` vs `BASE_PATH` overlap logic in `getPermalink`.
+- **Deep Integrity Audit**: Performed a bulk scan of all 70 API endpoints to verify relative pathing (`__DIR__`) and eliminate `DOCUMENT_ROOT` dependencies.
+- **Documentation & Versioning Alignment**: Synchronized all `docs/*.md` and `README.md` to correctly reflect the stable `v1.20.10` build, reverting experimental version strings.
+- **✅ MASTER AUDIT COMPLETE**: 100% Bit-by-bit comparison against original source zip verified. Zero regressions. Path detection is now "Universal".
+
+### [v1.20.9] - 2026-03-08 (SPA Ad Intelligence & Security UI) 📺✨
+
+- **SPA Ad Persistence (Iframe Isolation)**: Solved the "manual refresh" requirement for script-based ads (AdSense/RoboForex). Ads now automatically re-execute during SPA navigation through dynamic Iframe Isolation and ResizeObserver height syncing.
+- **Security Hardening (Iframe Sandbox)**: Enhanced ad isolation by implementing strict `sandbox` attributes on all ad and widget iframes.
+- **Premium Ad Manager UI**: Redesigned the Ad Settings interface with Card-based layout and full English (i18n). Optimized for widescreen with `max-w-6xl` container.
+- **Security Log Management**: Upgraded auto-purge to be 100% reliable. Added manual "Maintenance" and "Full Reset" buttons (including `clear_all_logs.php`) to the Security Dashboard.
+- **Sidebar Ad Purge (Atomic Level)**: Completely removed the redundant "Sidebar Ad" slot; Custom Widgets are now the 100% standardized way to manage sidebar content.
+- **SEO Permalink Fix (ID -> Slug Redirection)**: Implemented automated 301 redirects from ID-based URLs to true slug-based permalinks.
+- **Strict Canonical Logic**: Re-engineered `<link rel="canonical">` generation to always point to the calculated permalink.
+
+### [v1.20.8] - 2026-03-04 (Content Engagement Update) 🛠️
+
+- **Smarter Content Summaries**: Improved the automated summary engine to include categories and publication dates, providing better context for visitors and automated systems.
+- **Global Timezone Support**: Standardized time handling across the system for improved scheduling and logging accuracy.
+- **Language Management**: Added dedicated site language settings for easier content localization.
+- **Theme Polish**: Refined media display and ad backgrounds across several themes for a cleaner look.
+
+### [v1.20.7] - 2026-03-04 (Discovery & SEO) 🤖
+
+- **Enhanced Search Engine Visibility**: Implemented a modern, lightweight summary system to help search engines index content more accurately.
+- **Link Reliability**: Improved URL generation logic to ensure permalinks remain consistent under various configurations.
+- **Smart Data Extraction**: Upgraded the internal analysis engine for better identification of key topics and keywords in articles.
+
+### [v1.20.0 - v1.20.6] - 2026-03-02 (Mandala Series Kickoff) 🏛️🚀
+
+> **The Mandala series marks a major milestone in performance and authoring stability.**
+
+#### Editor & Content Precision
+
+- **Intelligent Copy-Paste**: Redesigned the editor to preserve visual formatting while automatically stripping problematic external styles.
+- **Background Auto-Save**: Implemented seamless background saving to prevent data loss without interrupting the workflow.
+- **UI Refinement**: Consolidated the media insertion tools into a single, clean interface for a faster authoring experience.
+
+#### Performance & Media Optimization
+
+- **Automated WebP Conversion**: Systems now automatically optimize images upon upload for faster page delivery.
+- **Media Cleanup Tools**: Added interactive tools for managing and removing unused files from the server safely.
+
+#### System Hardening & Accessibility
+
+- **Infrastructure Audit**: Extensive review and cleanup of core security layers, specifically targeting access control and input safety.
+- **Standardized Navigation**: Implemented smart pagination systems across all administrative managers for better data navigation.
+- **Responsive Typography**: Unified heading and text scaling across all themes for professional readability on any device.
+
+---
+
+### [v1.11.12] - 2026-02-27 (Nara — Foundation Complete) 🏛️🚀
+
+> **The Nara foundation is complete — now with Smart Navigation and Media Integrity.**
 >
-> This release marks the culmination of the Nara series (v1.11.x) — a fully hardened, production-certified CMS engine. Every security layer, hydration bridge, and theme system has been battle-tested and locked in. This is the stable foundation upon which **v1.20 "Mandala"** will be built.
+> This release marks the culmination of the Nara series (v1.11.x) — a fully hardened, production-certified CMS engine. Every security layer, hydration bridge, and theme system has been battle-tested and locked in. This version includes the new global Smart Pagination system and critical server-side media fixes.
+
+#### 🌐 Smart Pagination (UX Overhaul)
+
+- **Smart Navigation**: Replaced basic pagination with a dynamic "Smart Pagination" component across all admin managers.
+- **Ellipses Logic**: Automatically condenses large page lists with ellipses (1 ... 4 5 6 ... 100), preventing UI breakage.
+- **Premium Styling**: Implemented modern glassmorphism and smooth transitions for a high-end administrative experience.
+- **Unified Consistency**: Standardized navigation behavior across Content, User, Comment, Extension, Newsletter, and Security managers.
+
+#### 🖼️ Media Integrity (Hotfix 2026-02-27)
+
+- **PNG Transparency Fix**: Added explicit alpha channel preservation in `ImageProcessor.php`. PNG images now retain transparency even when processing skips resizing, preventing the "black background" issue.
+- **Deep Clean Deletion**: `delete_media.php` now surgically removes all file variants including `.webp` versions and associated thumbnails, ensuring no orphaned "ghost images" remain.
+- **Path Consistency**: Updated `delete_media.php` to support both `uploads/` and `/uploads/` path formats in database lookups. Fixes deletion failures for files uploaded in the latest version.
+
+#### 📝 Documentation
+
+- **README Refactor**: Redesigned README for better visual appeal. Moved banner to top, streamlined sections, and preserved product screenshots. Updated business proposal contact information (**kurama87@gmail.com**).
 
 #### 🛡️ Security Hardening
 
@@ -277,9 +414,9 @@ Restored critical error-handling mechanisms that were accidentally stripped duri
 
 ---
 
-### [v1.11.9] - 2026-02-15 (Specialized Agents & Hybrid Contract) 🛡️🤖
+### [v1.11.9] - 2026-02-15 (Refined Core Architecture & Hybrid Contract) 🛡️⚙️
 
-This release introduces the **Specialized Agent System** and critical **Type System Synchronization** to ensure 100% theme compatibility and developer productivity.
+This release introduces the **Advanced Core Processing** and critical **Type System Synchronization** to ensure 100% theme compatibility and developer productivity.
 
 #### 🎨 TechPress & UI Aesthetics
 
@@ -294,7 +431,7 @@ This release introduces the **Specialized Agent System** and critical **Type Sys
 - **Dark Mode Persistence**: Shifted `isDarkMode` state to `localStorage` in `App.tsx`, ensuring theme preferences survive hard reloads and deep linking.
 - **Skeleton Neutralization**: Removed rogue `@media (prefers-color-scheme: dark)` queries from `skeleton.css` and `SkeletonLoader.tsx` to prevent color mismatches (dark skeletons on light backgrounds) during slow network conditions.
 
-#### 🧠 AI Summary (v1.13.0 Engine)
+#### 🧠 Automated Content Analysis (v1.13.0 Engine)
 
 - **Pure Intelligence (LAIR)**: Implemented Language-Agnostic Intelligent Ranking. No more "first 5 sentences" — the system now mathematically identifies the most relevant points in any language.
 - **Dynamic Context**: Word frequency analysis for automatic filler detection and positional weight boosting.
@@ -357,7 +494,7 @@ This release focuses on foundational "Day 1" architecture fixes and CORRECTING S
 ### 🛡️ Absolute Path Integrity & Security
 
 - **10-Round "Sula" Path Patch**: Standardized **100% of the API layer** (51 files) to use `__DIR__` for all inclusions. This ensures the CMS is portable across subfolders, symlinked hosting (cPanel), and OTA updates without session drops.
-- **Master Audit Protocol**: Passed the full `/audit-code` and `/api-standard` deep scan. Verified SQLi, XSS, CSRF, and Session enforcement across all endpoints.
+- **Master Audit Protocol**: Passed the full comprehensive security and logic deep scan. Verified SQLi, XSS, CSRF, and Session enforcement across all endpoints.
 - **Production Certified**: Completed final pipeline (`tsc`, `prettier`, `audit`, `build`) with zero errors. Release packages v1.11.8 generated and sealed.
 
 ### [v1.11.7] - 2026-02-11 (Maintenance, Security & Mail Optimization) 🛡️📧
@@ -559,7 +696,7 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 
 - **VonSEO Settings**: Expanded modal width (`max-w-5xl`) with new Redirects tab.
 - **VonAnalytics Settings**: Expanded modal width (`max-w-4xl`).
-- **AI Summary Redesign**: Premium card-based UI with gradient header and violet/purple numbered badges.
+- **Automated Content Analysis Redesign**: Premium card-based UI with gradient header and violet/purple numbered badges.
 
 ### 📐 Theme & UI Standardization
 
