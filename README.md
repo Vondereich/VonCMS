@@ -1,189 +1,111 @@
-# VonCMS v1.20.x "Mandala" [Exclusive Preview]
-*(Official Public Release: Post-Aidilfitri / April 2026)*
+# VonCMS v1.21.x "Breeze" — Stable Release v1.21.0
+
 <div align="center">
 
 ![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
-**React 19 + Vite 6 Frontend | PHP 8.2+ API Engine | Native IndexNow | Self-Healing Integrity**
+### The Anti-Monolithic Hybrid CMS.
 
-[![Official Website](https://img.shields.io/badge/Website-skripglobal.com-blue?style=for-the-badge)](https://skripglobal.com/)
-[![GitHub Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=yellow)](https://github.com/Vondereich/VonCMS/stargazers)
-[![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blueviolet)](https://github.com/Vondereich/VonCMS/releases)
-[![Latest Release](https://img.shields.io/github/v/release/Vondereich/VonCMS?style=for-the-badge&logo=github&color=brightgreen)](https://github.com/Vondereich/VonCMS/releases)
-[![Build Standard](https://img.shields.io/badge/Foundation-Mandala-orange?style=for-the-badge)](https://github.com/Vondereich/VonCMS)
+**Performance of a Static Site. Flexibility of a Headless CMS. Ease of WordPress.**
 
-[🌐 Website](https://skripglobal.com/) • [📥 Download](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](https://github.com/Vondereich/VonCMS/blob/main/Introduction.md)
+[![Version](https://img.shields.io/badge/Version-1.21.0-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](LICENSE.md)
+
+[🌐 Official Website](https://skripglobal.com/) • [📥 Download](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/USER_MANUAL.md)
 
 </div>
 
 ---
 
-> **The Hybrid CMS for the Modern Web.**
-> Performance of a Static Site, Flexibility of a Headless CMS, Ease of WordPress.
+## 🌬️ The "Breeze" Philosophy
 
-VonCMS "Mandala" is a hybrid content management system built for high-traffic portals. It is the **Anti-Monolithic** answer to bloated traditional CMS platforms (like WordPress).
+VonCMS "Breeze" (v1.21.x) is the evolution of the battle-hardened "Mandala" series. Where Mandala focused on infrastructure and security, **Breeze** focuses on **Weightlessness**. It is optimized for enterprise portals that demand sub-0.4s load times, 100/100 PageSpeed scores, and absolute management fluidity.
 
-> 🌀 **The "Mandala" Philosophy (v1.20.x)**
-> In ancient Sanskrit, a Mandala represents a geometric center, unity, and a completed foundation. The `v1.20` series earns this codename because it finalizes the Absolute Architecture of VonCMS—locking down security, API endpoints, and database structures so perfectly that future updates (v1.30.x and beyond) can be built upon it without breaking changes.
+### ⚡ Why VonCMS?
 
-### 🔥 Why VonCMS Kills The Monolith:
-- **Zero Plugin Bloat**: Everything you need—**Auto WebP Conversion**, **Smart AI Writer**, **Language-Agnostic SEO Tags**, **Native `llms.txt`**, and **Sitemap Generators**—are built directly into the core engine. No clashing third-party plugins.
-- **Micro-Query Performance**: While traditional CMS executes 40+ database queries per page load, VonCMS executes **only 1 single query**. It sips just ~20MB of RAM, achieving 100% Google PageSpeed scores natively without expensive CDN or Caching plugins.
-- **AI-Ready (RAG Standard)**: The first CMS to natively support `llmstxt.org` standards out-of-the-box, serving clean Markdown vectors directly to ChatGPT, Claude, and Gemini crawlers.
-- **Enterprise Speed on Shared Hosting**: Built with a blazing-fast **React 19** frontend and a hardened **PHP 8.2** backend to deliver LCP in < 0.40s.
-
-> [!WARNING]
-> **🚨 CRITICAL UPDATE NOTICE (v1.20.7)**
-> Users on **v1.11.11 or older** MUST perform a **MANUAL UPDATE**. Delete the `public/assets` folder before uploading new files. 
-> Users on **v1.11.12 or newer** can safely use the built-in **OTA Updater**.
+| Feature         | VonCMS                         | Traditional CMS (WP/Joomla)     |
+| :-------------- | :----------------------------- | :------------------------------ |
+| **DB Queries**  | **1 Single Query** per page    | 40 - 120 Queries                |
+| **RAM Usage**   | **~15MB - 25MB**               | 150MB - 500MB+                  |
+| **Performance** | **LCP < 0.4s** (Native)        | ~1.5s - 3.0s (Requires Plugins) |
+| **Security**    | **6-Layer Defense** (Built-in) | Relies on 3rd party plugins     |
+| **AI Ready**    | **LLMS.txt + RAG Native**      | Requires massive overhead       |
 
 ---
 
-## 🌍 The Road to Open Source
+## 💎 Elite Feature Set
 
-VonCMS is currently a closed-ecosystem under active, aggressive development. However, our ultimate goal is to **open-source the core engine** to the community. 
+### 🛡️ Hardened Security (Mandala Standard)
 
-This will happen when these two milestones are achieved:
-1. **Critical Mass**: Reaching a stable benchmark of **1,000 to 5,000 active users/installations**.
-2. **Ecosystem Readiness**: The official launch of the **VonCMS Marketplace & Landing Page**, ensuring third-party developers have a structured, secure platform to distribute themes and plugins.
+- **6-Layer Defense**: Integrated CSRF, Session Binding, Rate Limiting, SQLi Prepared Statements, XSS Sanitization, and Data Leakage Masking.
+- **Integrity Radar**: Built-in self-healing logic that detects and protects core files and security layers.
+- **OTA Hardening**: Secure Over-the-Air updates with SSL enforcement and SHA256 integrity validation.
 
-Until then, the codebase remains proprietary as we finalize the Core Foundation and upcoming codename series.
+### 🤖 AI & Discovery Ecosystem
 
----
+- **Native `llms.txt` Standard**: Automatically serves structured Markdown summaries to AI crawlers (Perplexity, ChatGPT, Gemini).
+- **Image SEO Engine**: Automated `<image:image>` sitemap generation and Schema.org `ItemList` image injection.
+- **Smart Tags Engine**: Language-agnostic keyword extraction using statistical analysis—Zero manual tagging required.
 
-## 🚀 The Great Leap: What's New in v1.20 (vs v1.11)
+### 🖼️ Advanced Media & Performance
 
-If you are upgrading from the legacy `v1.11` series, you are moving into a completely different league. Here is the **Wow Factor** you'll experience immediately:
-
-### ⚡ Performance & Core
-
-- **React 19 + Vite 6 Infrastructure**: The entire frontend has been rewritten for modern standards—blazing fast HMR and zero-latency UI.
-- **Lighthouse LCP Optimizer**: Native `fetchPriority="high"` injection for hero images, pushing page load speeds to < 0.4s.
-- **Absolute Mandala Engine**: Full path hardening across all 69 API endpoints to eliminate hosting "ghost bugs."
-- **Hardened SMTP Engine**: Direct socket-based SMTP with TLS enforcement, automatic fallback to PHP mail().
-
-### 🎨 Design & Experience
-
-- **Neutral Dark Mode (`#0a0a0a`)**: A professional, high-contrast dark palette that matches premium SaaS standards.
-- **Semantic Color Engine**: Change your entire brand's aesthetic via simple, unified color tokens.
-- **Admin Smart Pagination**: Media Library and Posts now lazy-load in chunks (24 items/page) for a fluid management experience.
-
-### 🤖 AI & LLM Ecosystem
-
-- **Native `llms.txt` Standard**: The first CMS to serve structured, organized Markdown summaries directly to AI crawlers (Perplexity, ChatGPT Search, Gemini).
-- **Smart Tags Engine**: 100% automated, language-agnostic keyword extraction using bigrams, casing analysis, and statistical paragraph spread. Zero manual tagging required.
-- **Von Writer API**: Prompt-engineered AI content generation built-in, producing SEO-ready, properly structured HTML (Listicles, headings, bullet points) with just a single title input.
-
-### ✍️ Next-Gen Authoring
-
-- **Editor Sanity**: No more "Ghost Paragraphs." Enter-key normalization, sticky formatting fixes, and intelligent backspace handling make writing a joy.
-- **Silent Auto-Save**: Your drafts are protected every 60 seconds without interrupting your flow.
-- **Layout Scrubber**: Copy-paste from Word or external sites safely—excessive layout CSS is automatically stripped while preserving typography.
-
-### 🖼️ The Beast Media Engine
-
-- **WebP Auto-Conversion**: Upload a JPEG/PNG, and VonCMS automatically generates an optimized `.webp` variant for the frontend. Enabled by default.
-- **Beast Cleaner**: A two-step orphaned media scanner to keep your disk storage lean and efficient.
-- **Smart Thumbnail Detection**: Automatic `_thumb` variant lookup for gallery previews.
-
----
-
-## 🏛️ The VonCMS Philosophy
-
-1.  **Security First**: 6-layer defense (CSRF, session binding, rate limiting, etc.) baked into a single `security.php` middleware.
-2.  **Easiness Second**: 2-minute setup with zero-config essentials.
-3.  **Flexibility Third**: Runs anywhere (cPanel, Shared Hosting, VPS) with a < 15MB memory footprint.
+- **The Beast Engine**: Automated WebP conversion on upload. JPEG/PNG are surgically mirrored to WebP for 80% smaller payloads.
+- **SPA Ad Intelligence**: Solves script-based ad freezing. AdSense/RoboForex ads persist perfectly across SPA transitions via Iframe Isolation.
+- **Absolute Path Agnosticism**: Runs perfectly in root, subfolders, or subdomains without manual config tweaking.
 
 ---
 
 ## 🛠️ The Technology Stack
 
-- **Frontend**: React 19 + Vite 6 + TailwindCSS (Single Page Application experience)
-- **Backend**: PHP 8.2+ (Universal compatibility, high performance)
-- **Database**: MySQL/MariaDB (Optimized for millions of rows)
-- **Editor**: Lightweight contentEditable (Professional coding/authoring environment)
-
----
-
-## ⚡ Performance Showcase
-
-| **Requests Per Sec** | 10.81 | **606.70** | ⚡ **56x Faster** |
-| **Avg. Server Latency** | 5,667ms | **125ms** | 🛡️ **Ultra-Low** |
-| **Largest Contentful Paint** | ~2.5s | **0.40s** | ✨ **Grade-A** |
-
----
-
-## 💎 Key Features
-
-- **🚀 Mandala Engine**: Absolute Path Hardening for zero "Ghost Issues" on hosting.
-- **📡 IndexNow**: Instant search engine notification on publish.
-- **🛡️ Integrity Radar**: Self-healing core files and security layers.
-- **🌙 Neutral Dark Mode**: Eye-comfort palette matching industry standards.
-- **🖼️ WebP Auto-Conversion**: Native image optimization with automatic generation on upload.
-- **🧹 Beast Cleaner**: Integrated orphaned media scanner and disk optimizer.
-- **✍️ Editor Sanity**: Enter-Key Normalization, Sticky Formatting Fix, and Backspace Safety.
-- **🔗 Smart Redirects**: Managed 301 redirects for SEO lifecycle.
-- **📬 Contact Form Builder**: CF7-style template engine with CSRF, rate limiting, and honeypot protection.
-- **🎯 Favicon Cache-Busting**: Automatic versioning to force browser and crawler refresh on favicon change.
-
----
-
-## 📸 Visualizing the Experience
-
 <div align="center">
 
-|                **Clean, Modern Dashboard**                |              **Native Plugin System**               |
-| :-------------------------------------------------------: | :-------------------------------------------------: |
-| ![Dashboard](https://i.postimg.cc/htLJS6fw/Dashboard.png) | ![Plugin](https://i.postimg.cc/vmG4DhVt/Plugin.png) |
-
-|                                **Flagship Experience: TechPress Theme**                                |
-| :----------------------------------------------------------------------------------------------------: |
-| ![Frontpage](https://i.postimg.cc/hPqzHKt6/screencapture-localhost-portalkini-2026-01-29-02-30-04.png) |
-
-|            **Expanding Premium Ecosystem**             |
-| :----------------------------------------------------: |
-| ![Themes](https://i.postimg.cc/XvnrXLCg/Themessss.png) |
+| **Frontend**                                                                    | **Backend**                                                                | **Infrastructure**                                                                |
+| :------------------------------------------------------------------------------ | :------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square)        | ![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square)      | ![Apache](https://img.shields.io/badge/Apache-Litespeed-D22128?style=flat-square) |
+| ![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=flat-square)           | ![PDO](https://img.shields.io/badge/PDO-MySQL-4479A1?style=flat-square)    | ![VON](https://img.shields.io/badge/Mandala-Engine-orange?style=flat-square)      |
+| ![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=flat-square) | ![JSON](https://img.shields.io/badge/API-RESTful-000000?style=flat-square) | ![GIT](https://img.shields.io/badge/OTA-Updates-F05032?style=flat-square)         |
 
 </div>
 
 ---
 
-## ✨ Coming Soon: v1.21.x & Beyond
+## 🏛️ The 6-Layer Defense
 
-The Mandala foundation is locked. Here's what's on the horizon:
+Security isn't a plugin; it's the foundation. Every request in VonCMS passes through:
 
-- **Glassmorphism UI Refresh**: Premium frosted-glass aesthetics across admin panels.
-- **Advanced Search 2.0**: Zero-reload results with multi-taxonomy filtering.
-- **Smart Keyword Engine**: AI-powered tag suggestions and SEO keyword analysis.
-- **CDN Connector (Full SDK)**: Native R2/S3 integration for edge-delivered media.
-- **VonLive Blog Engine**: Real-time news updates with live polling.
-- **Static Forge**: Export your entire site to 100% static HTML for extreme edge delivery.
-- **VonStore (Early Access)**: Centralized ecosystem for third-party themes and plugins.
-
----
-
-## ⚙️ Requirements & Quick Start
-
-- **PHP**: 8.1+ (Optimized for 8.2) | **DB**: MySQL 5.7+
-- **Server**: Apache / Litespeed (Supports .htaccess)
-
-1. **Download**: Grab the latest stable release from [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
-   *(Note: The `v1.20.x` Mandala series is currently in private deployment and will be officially released on GitHub post-Aidilfitri 2026).*
-2. **Upload**: Extract to your root or subfolder.
-3. **Install**: Navigate to `yoursite.com/install`.
-4. **Configure**: Set your SMTP, favicon (48x48px+), and site details.
-5. **Publish**: Access `/admin` and start creating!
+1.  **SQLi Protection**: 100% Parameterized queries via PDO.
+2.  **XSS Shield**: Multi-stage DOMPurify + context-aware server-side stripping.
+3.  **CSRF Lock**: Mandatory token validation for ALL state-changing requests.
+4.  **Session Binding**: Cryptographic UA-binding to prevent session hijacking.
+5.  **Rate Limiting**: IP-based flood protection on high-risk endpoints.
+6.  **Data Masking**: Automatic redacting of sensitive credentials in API responses.
 
 ---
 
-### 🤝 Business Proposals & Contact
+## 🚀 The Road to Open Source
 
-If you have any business proposals or collaboration ideas, feel free to contact me at: **kurama87@gmail.com**
+VonCMS is moving toward a community-driven future. We will open-source the core engine upon reaching:
+
+1. **1,000 Active Installations**.
+2. **Public GitHub Repository** transition (Planned for Late 2026).
+3. **VonCMS Marketplace** launch for themes and plugins.
 
 ---
+
+## ⚙️ Quick Start (3 Steps)
+
+1. **Upload**: Extract the `Deploy.zip` to your web root.
+2. **Install**: Navigate to `yoursite.com/install`.
+3. **Profit**: Log in to `/admin` and experience the future of content management.
+
+---
+
+### 🤝 Contact & Proposals
+
+For business inquiries, enterprise support, or collaboration: 📩 **kurama87@gmail.com**
 
 <div align="center">
-
-_The Mandala foundation is locked._ 🌙✨
-
+_Experience the Breeze. Built by Vondereich._
 </div>
