@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.11.12 "Nara — Foundation Complete"**
+> **VonCMS v1.21.0 "Breeze"**
 
 ---
 
@@ -102,4 +102,4 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 ---
 
-_VonCMS v1.11.12 "Nara — Foundation Complete"_
+_VonCMS v1.21.0 "Breeze"_
