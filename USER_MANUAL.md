@@ -1,6 +1,6 @@
 # User Manual
 
-> **VonCMS v1.10.x "Solana"** | Complete Admin Panel Guide
+> # 📘 VonCMS User Manual (v1.20.0) "Mandala" | Complete Admin Panel Guide
 
 ---
 
@@ -354,6 +354,21 @@ Configure your entire website from one place.
 | Google Verification | Google Search Console code             |
 | robots.txt          | Control search engine crawling         |
 
+### ⚡ IndexNow (Instant Indexing)
+
+Standardized in v1.21.0, this feature instantly notifies Bing, Yandex, and other search engines when you publish content.
+
+1. Go to **Settings** → **SEO**
+2. Scroll to the **IndexNow** section
+3. Toggle **Enable IndexNow** to ON
+4. Click **Generate Key** (This creates the required verification file automatically)
+5. Verify the status says **Ready (Green)**
+
+Once enabled, VonCMS will automatically ping search engines whenever you:
+
+- Publish a new post
+- Update an existing published post
+
 ### Theme Settings
 
 1. Go to **Settings** → **Appearance**
@@ -410,7 +425,7 @@ Manage your email subscribers and widget settings.
 
 ## 9. Extensions (Plugins)
 
-VonCMS v1.10.0 introduces a robust Plugin System designed to enhance your content without bloating the core.
+VonCMS introduces a robust Plugin System designed to enhance your content without bloating the core.
 
 ### 🤖 AI Summary (New)
 
@@ -513,17 +528,11 @@ For advanced users:
 
 ---
 
-## Troubleshooting
+| Slow performance | Clear browser cache, optimize images |
 
-### Common Issues
+### 📘 Error Reference Manual (Agent SOP)
 
-| Problem             | Solution                                         |
-| ------------------- | ------------------------------------------------ |
-| White screen        | Delete `assets/` folder, re-upload, hard refresh |
-| Can't login         | Check credentials, clear cookies                 |
-| Images not showing  | Check file permissions (755/644)                 |
-| Settings not saving | Check database connection                        |
-| Slow performance    | Clear browser cache, optimize images             |
+If you encounter specific error codes (e.g., `V-500-INC`), please refer to `.agent/workflows/error-reference-manual.md` for in-depth diagnosis.
 
 ### Getting Help
 
@@ -535,4 +544,4 @@ If you need assistance:
 
 ---
 
-_VonCMS v1.10.x "Solana"_ - User Manual
+_VonCMS v1.20.0 "Mandala" — Complete Admin Panel Guide_
