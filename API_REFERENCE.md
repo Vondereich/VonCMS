@@ -1,8 +1,8 @@
 # 🔌 VonCMS API Reference
 
-> **Version**: 1.11.12 "Nara — Foundation Complete"
+> **Version**: 1.21.0 "Breeze"
 > **Base URL**: `/api/` or `/api.php`
-> **Last Updated**: February 18, 2026
+> **Last Updated**: March 17, 2026
 
 ---
 
