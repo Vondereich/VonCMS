@@ -2,7 +2,7 @@
 
 > "Confused by the black and white terminal? Don't worry. We will use a free 'Control Panel' that looks like cPanel but is more modern!"
 
-This guide is specifically designed for those used to **cPanel** but wanting to switch to a **VPS** to get 10x the speed (Nara Architecture style).
+This guide is specifically designed for those used to **cPanel** but wanting to switch to a **VPS** to get 10x the speed (Mandala Architecture style).
 
 ---
 
@@ -109,7 +109,7 @@ Click **One-click Install** (Method: **Fast** / RPM). Wait for completion.
 1. Go to the **Files** menu in aaPanel.
 2. Find your domain folder (usually `/www/wwwroot/yourdomain.my`).
 3. Delete default files (index.html, etc.).
-4. **Upload** the `VonCMS_v1.11.12_Deploy.zip` file.
+4. **Upload** the `VonCMS_v1.20.0_Deploy.zip` file.
 5. Right-click on the zip > **Unzip**.
 6. **Final Step**: Open `yourdomain.my` in your browser — it will auto-redirect to the install wizard.
 
