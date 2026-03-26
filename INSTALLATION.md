@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.21.2 "Breeze"**
+> **VonCMS v1.21.x "Breeze"**
 
 ---
 
