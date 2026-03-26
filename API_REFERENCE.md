@@ -1,832 +1,186 @@
-# 🔌 VonCMS API Reference
+# VonCMS API Guide
 
-> **Version**: 1.21.0 "Breeze"
-> **Base URL**: `/api/` or `/api.php`
-> **Last Updated**: March 17, 2026
+Version: `1.21.2`
+Primary API location: `/api/*.php`
+System endpoints: `/api/system/*.php`
 
----
+This guide is a practical map of the current API surface. It focuses on the endpoint structure that exists in the project today instead of trying to document every response field in exhaustive detail.
 
-## Overview
+## How the API is organized
 
-VonCMS provides a REST API for all content management operations. All responses are in JSON format.
+VonCMS mainly uses file-based PHP endpoints.
 
-### API Structure
+Examples:
 
-VonCMS has two types of API endpoints:
+- `/api/login.php`
+- `/api/get_posts.php`
+- `/api/save_settings.php`
+- `/api/system/fix_integrity.php`
 
-| Type                     | Location            | Usage                |
-| ------------------------ | ------------------- | -------------------- |
-| **Individual Endpoints** | `/api/*.php`        | Specific operations  |
-| **Central API**          | `/api.php?action=*` | Settings and utility |
+Most read endpoints use `GET`. Most write endpoints use `POST`.
 
-### Authentication
+## Authentication and request rules
 
-Most write operations require:
+Admin write operations usually require:
 
-1. **Session** - User must be logged in
-2. **CSRF Token** - Must be included in request header
+- an authenticated session
+- a valid CSRF token
+- JSON or `multipart/form-data`, depending on the endpoint
+
+Frontend code in the app should use the project fetch helpers instead of building raw requests everywhere.
+
+### Example authenticated request
 
 ```javascript
-// Example: Authenticated request
 fetch('/api/save_post.php', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
     'X-CSRF-TOKEN': csrfToken,
   },
-  body: JSON.stringify(postData),
+  body: JSON.stringify(payload),
 });
 ```
 
----
+## Endpoint groups
 
-## Authentication Endpoints
+### Authentication
 
-### POST `/api/login.php`
+- `login.php`
+- `logout.php`
+- `check_auth.php`
+- `register.php`
+- `reset_password.php`
+- `verify_email.php`
 
-Authenticate a user.
+### Posts and pages
 
-**Request:**
+- `get_posts.php`
+- `get_post.php`
+- `save_post.php`
+- `delete_post.php`
+- `get_pages.php`
+- `save_page.php`
+- `delete_page.php`
 
-```json
-{
-  "username": "admin",
-  "password": "password123"
-}
-```
+### Comments and discussion
 
-**Response (Success):**
+- `get_comments.php`
+- `save_comments.php`
+
+### Media
+
+- `list_media.php`
+- `upload_file.php`
+- `update_media.php`
+- `delete_media.php`
+- `sync_media.php`
+- `media_tools.php`
+- `ImageProcessor.php` (internal processing utility used by media flows)
+
+### Users and profiles
+
+- `get_users.php`
+- `save_user.php`
+- `delete_user.php`
+- `update_profile.php`
+- `get_public_profile.php`
+
+### Settings and system data
+
+- `get_settings.php`
+- `save_settings.php`
+- `get_settings_audit.php`
+- `rollback_setting.php`
+- `get_storage.php`
+- `repair_db.php`
+- `backup_db.php`
+- `import_db.php`
+- `db_query.php`
+- `cron_publish.php`
+
+### Redirects
+
+- `list_redirects.php`
+- `save_redirect.php`
+- `delete_redirect.php`
+
+### Newsletter
+
+- `newsletter_subscribe.php`
+- `newsletter_list.php`
+- `newsletter_export.php`
+
+### Tracking and contact
+
+- `track_visit.php`
+- `track_monolithic.php`
+- `submit_contact.php`
+
+### AI helpers
+
+- `ai_check.php`
+- `ai_generate.php`
+
+### System endpoints
+
+- `system/check_db_status.php`
+- `system/fix_integrity.php`
+- `system/indexnow_setup.php`
+- `system/indexnow_status.php`
+- `system/indexnow_ping.php`
+- `system/updater.php`
+- `system/IndexNow.php`
+
+## Common response pattern
+
+Most endpoints return JSON with a success flag and a message or payload.
+
+Typical shapes:
 
 ```json
 {
   "success": true,
-  "user": {
-    "id": "1",
-    "username": "admin",
-    "email": "admin@example.com",
-    "role": "Admin",
-    "avatar": ""
-  },
-  "csrf_token": "abc123xyz..."
+  "message": "Saved successfully"
 }
 ```
-
-**Response (Error):**
 
 ```json
 {
   "success": false,
-  "message": "Invalid credentials"
+  "message": "Forbidden"
 }
 ```
 
-**Rate Limiting:** 5 failed attempts = 15 minute lockout
+Some older endpoints may return slightly different keys, so treat the API as a practical system rather than a perfect textbook REST layer.
 
----
+## Error handling
 
-### POST `/api/logout.php`
+In general, expect these cases:
 
-End user session.
+- `400` for bad or missing input
+- `401` for unauthenticated requests
+- `403` for permission or CSRF failures
+- `404` for missing resources
+- `429` for rate-limited actions
+- `500` for server-side failures
 
-**Response:**
+## CORS and origin behavior
 
-```json
-{
-  "success": true,
-  "message": "Logged out"
-}
-```
+Do not assume the API is an open public cross-origin API.
 
----
+VonCMS is primarily designed for same-site use. Origin handling is intentionally conservative and depends on the request context. If you are building a custom external integration, test the exact endpoint and host setup instead of assuming wildcard CORS access.
 
-### GET `/api/check_auth.php`
+## Notes for developers
 
-Check if user session is valid.
+- Keep write requests behind session and CSRF checks.
+- Follow the project backend pattern for headers and path resolution.
+- On the frontend, prefer the existing fetch wrappers instead of ad-hoc request code.
+- If you add a new endpoint, document the request method, auth requirement, and payload shape.
 
-**Response (Logged In):**
+## Related docs
 
-```json
-{
-  "authenticated": true,
-  "user": {
-    "id": "1",
-    "username": "admin",
-    "email": "admin@example.com",
-    "role": "Admin"
-  }
-}
-```
-
-**Response (Not Logged In):**
-
-```json
-{
-  "authenticated": false
-}
-```
-
----
-
-### POST `/api/register.php`
-
-Register a new user.
-
-**Request:**
-
-```json
-{
-  "username": "newuser",
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Registration successful",
-  "user": {
-    "id": "2",
-    "username": "newuser",
-    "email": "user@example.com",
-    "role": "Member"
-  }
-}
-```
-
----
-
-## Content Endpoints
-
-### GET `/api/get_posts.php`
-
-Fetch all posts.
-
-**Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `status` | string | Filter by status (published/draft) |
-| `category` | string | Filter by category |
-| `limit` | int | Number of posts to return |
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "posts": [
-    {
-      "id": "1",
-      "title": "Hello World",
-      "slug": "hello-world",
-      "excerpt": "Welcome to VonCMS...",
-      "content": "<p>Full content here...</p>",
-      "image": "/uploads/featured.jpg",
-      "status": "published",
-      "category": "News",
-      "author": "admin",
-      "updatedAt": "2025-12-18T10:00:00Z",
-      "keywords": "cms, blog"
-    }
-  ]
-}
-```
-
----
-
-### GET `/api/get_post.php`
-
-Fetch single post.
-
-**Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `id` | string | Post ID |
-| `slug` | string | Post slug (alternative to ID) |
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "post": {
-    "id": "1",
-    "title": "Hello World",
-    "slug": "hello-world",
-    "content": "<p>Full content...</p>",
-    "excerpt": "Short summary...",
-    "image": "/uploads/featured.jpg",
-    "status": "published",
-    "category": "News",
-    "author": "admin",
-    "keywords": "cms, blog",
-    "metaDescription": "SEO description"
-  }
-}
-```
-
----
-
-### POST `/api/save_post.php`
-
-Create or update a post.
-
-**Headers Required:**
-
-- `X-CSRF-TOKEN`: CSRF token
-
-**Request (Create):**
-
-```json
-{
-  "title": "New Post",
-  "content": "<p>Post content...</p>",
-  "excerpt": "Short summary",
-  "status": "published",
-  "category": "News",
-  "keywords": "tag1, tag2"
-}
-```
-
-**Request (Update):**
-
-```json
-{
-  "id": "1",
-  "title": "Updated Title",
-  "content": "<p>Updated content...</p>",
-  "status": "published"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Post created",
-  "id": "5",
-  "slug": "new-post",
-  "image": "/uploads/auto-detected.jpg"
-}
-```
-
----
-
-### POST `/api/delete_post.php`
-
-Delete a post.
-
-**Request:**
-
-```json
-{
-  "id": "5"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Post deleted"
-}
-```
-
----
-
-### GET `/api/get_pages.php`
-
-Fetch all pages.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "pages": [
-    {
-      "id": "1",
-      "title": "About Us",
-      "slug": "about-us",
-      "content": "<p>About page content...</p>",
-      "status": "published"
-    }
-  ]
-}
-```
-
----
-
-### POST `/api/save_page.php`
-
-Create or update a page.
-
-**Request:**
-
-```json
-{
-  "title": "Contact",
-  "content": "<p>Contact us at...</p>",
-  "slug": "contact",
-  "status": "published"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Page saved",
-  "id": "3",
-  "slug": "contact"
-}
-```
-
----
-
-### POST `/api/delete_page.php`
-
-Delete a page.
-
-**Request:**
-
-```json
-{
-  "id": "3"
-}
-```
-
----
-
-## Comments Endpoints
-
-### GET `/api/get_comments.php`
-
-Fetch comments for a post.
-
-**Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `post_id` | string | Post ID (optional, returns all if omitted) |
-| `status` | string | Filter by status |
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "comments": [
-    {
-      "id": "1",
-      "postId": "1",
-      "userId": "2",
-      "username": "user1",
-      "content": "Great post!",
-      "likes": 5,
-      "status": "approved",
-      "createdAt": "2025-12-18T10:00:00Z",
-      "replies": []
-    }
-  ]
-}
-```
-
----
-
-### POST `/api/save_comments.php`
-
-Add or update a comment.
-
-**Request:**
-
-```json
-{
-  "postId": "1",
-  "content": "Nice article!",
-  "parentId": null
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Comment saved",
-  "id": "5"
-}
-```
-
----
-
-## Media Endpoints
-
-### GET `/api/list_media.php`
-
-List all uploaded media files.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "media": [
-    {
-      "id": "1",
-      "name": "photo.jpg",
-      "type": "image",
-      "url": "/uploads/photo.jpg",
-      "size": "245 KB",
-      "uploadedAt": "2025-12-18"
-    }
-  ]
-}
-```
-
----
-
-### POST `/api/upload_file.php`
-
-Upload a file.
-
-**Request:** `multipart/form-data`
-
-- `file`: The file to upload
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "File uploaded",
-  "url": "/uploads/2025/12/filename.jpg",
-  "name": "filename.jpg"
-}
-```
-
----
-
-### POST `/api/delete_media.php`
-
-Delete a media file.
-
-**Request:**
-
-```json
-{
-  "path": "/uploads/photo.jpg"
-}
-```
-
----
-
-## User Endpoints
-
-### GET `/api/get_users.php`
-
-Fetch all users (Admin only).
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "users": [
-    {
-      "id": "1",
-      "username": "admin",
-      "email": "admin@example.com",
-      "role": "Admin",
-      "avatar": ""
-    }
-  ]
-}
-```
-
----
-
-### POST `/api/save_user.php`
-
-Create or update user.
-
-**Request:**
-
-```json
-{
-  "username": "newuser",
-  "email": "new@example.com",
-  "password": "password123",
-  "role": "Writer"
-}
-```
-
----
-
-### POST `/api/delete_user.php`
-
-Delete a user.
-
-**Request:**
-
-```json
-{
-  "id": "5"
-}
-```
-
----
-
-### POST `/api/update_user_role.php`
-
-Change user role.
-
-**Request:**
-
-```json
-{
-  "id": "5",
-  "role": "Moderator"
-}
-```
-
----
-
-## Settings Endpoints
-
-### GET `/api.php?action=get_settings`
-
-Fetch site settings.
-
-**Response:**
-
-```json
-{
-    "success": true,
-    "settings": {
-        "siteName": "My Site",
-        "siteDescription": "A VonCMS website",
-        "postsPerPage": 10,
-        "activeThemeId": "default",
-        "navigation": [...],
-        "categories": [...]
-    }
-}
-```
-
----
-
-### POST `/api.php?action=save_settings`
-
-Update site settings.
-
-**Request:**
-
-```json
-{
-  "siteName": "Updated Name",
-  "siteDescription": "New description",
-  "postsPerPage": 12
-}
-```
-
----
-
-### GET `/api.php?action=get_csrf_token`
-
-Get CSRF token for frontend.
-
-**Response:**
-
-```json
-{
-  "csrf_token": "abc123xyz..."
-}
-```
-
----
-
-## Newsletter Endpoints
-
-### POST `/api/newsletter_subscribe.php`
-
-Subscribe a new email to the newsletter.
-
-**Request:**
-
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Thank you for subscribing!"
-}
-```
-
-**Rate Limiting:** Max 5 subscriptions per IP per hour.
-
----
-
-### GET `/api/newsletter_list.php`
-
-Fetch subscribers list (Admin only).
-
-**Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `page` | int | Page number (default: 1) |
-| `status` | string | Filter by status (active/unsubscribed) |
-| `search` | string | Search by email |
-
-**Response:**
-
-```json
-{
-    "success": true,
-    "subscribers": [...],
-    "pagination": {
-        "pages": 5,
-        "total": 50
-    }
-}
-```
-
----
-
-### POST `/api/newsletter_export.php`
-
-Export subscribers to CSV (Admin only).
-
-**Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `status` | string | Filter status to export |
-
-**Response:** CSV File Download
-
----
-
----
-
-## IndexNow Endpoints (v1.11.3)
-
-### POST `/api/system/indexnow_setup.php`
-
-Generates API Key and verification file.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "IndexNow key generated and verification file created",
-  "key": "32-char-random-key...",
-  "file_created": true
-}
-```
-
----
-
-### GET `/api/system/indexnow_status.php`
-
-Check IndexNow configuration status.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "enabled": true,
-  "key_configured": true,
-  "key_file_exists": true,
-  "status": "ready"
-}
-```
-
----
-
-### POST `/api/system/indexnow_ping.php`
-
-Manually trigger a ping to IndexNow.
-
-**Request:**
-
-```json
-{
-  "url": "https://mysite.com/post-slug" // Optional, default: homepage
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "URL submitted to IndexNow",
-  "status_code": 200
-}
-```
-
----
-
-## Utility Endpoints
-
-### POST `/api/track_visit.php`
-
-Track page visit (analytics).
-
-**Request:**
-
-```json
-{
-  "page": "/post/hello-world",
-  "referrer": "https://google.com"
-}
-```
-
----
-
-### GET `/api/get_storage.php`
-
-Get storage usage statistics.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "storage": {
-    "used": "150 MB",
-    "total": "1 GB",
-    "percentage": 15
-  }
-}
-```
-
----
-
-## Error Responses
-
-All endpoints return consistent error formats:
-
-```json
-{
-  "success": false,
-  "error": "Error message here",
-  "message": "Human readable message"
-}
-```
-
-### HTTP Status Codes
-
-| Code | Meaning                                   |
-| ---- | ----------------------------------------- |
-| 200  | Success                                   |
-| 400  | Bad Request (missing/invalid params)      |
-| 401  | Unauthorized (not logged in)              |
-| 403  | Forbidden (CSRF invalid or no permission) |
-| 404  | Not Found                                 |
-| 429  | Too Many Requests (rate limited)          |
-| 500  | Server Error                              |
-
----
-
-## CORS Headers
-
-All API endpoints include:
-
-```
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, POST, OPTIONS
-Access-Control-Allow-Headers: Content-Type, X-CSRF-TOKEN
-```
-
----
-
-## Rate Limiting
-
-Login endpoint is rate limited:
-
-- **Max attempts**: 5 per 15 minutes
-- **Lockout duration**: 15 minutes
-- **Reset on**: Successful login
-
-Rate limit data stored in: `/data/rate_limits/`
-
----
-
-**VonCMS v1.11.8** - API Reference
-
----
-
-[ Back to Documentation Home](README.md)
+- [INSTALL.md](INSTALL.md)
+- [SECURITY.md](SECURITY.md)
+- [UPGRADE.md](UPGRADE.md)
+- [../README.md](../README.md)
