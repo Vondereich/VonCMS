@@ -1,111 +1,110 @@
-# VonCMS v1.21.x "Breeze" — Stable Release v1.21.0
+# VonCMS v1.21.3 "Breeze"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
-### The Anti-Monolithic Hybrid CMS.
-
-**Performance of a Static Site. Flexibility of a Headless CMS. Ease of WordPress.**
-
-[![Version](https://img.shields.io/badge/Version-1.21.0-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
-[![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
+[![Version](https://img.shields.io/badge/Version-1.21.3-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](LICENSE.md)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](docs/LICENSE.md)
 
-[🌐 Official Website](https://skripglobal.com/) • [📥 Download](https://github.com/Vondereich/VonCMS/releases) • [📖 Documentation](docs/USER_MANUAL.md)
-
-</div>
-
----
-
-## 🌬️ The "Breeze" Philosophy
-
-VonCMS "Breeze" (v1.21.x) is the evolution of the battle-hardened "Mandala" series. Where Mandala focused on infrastructure and security, **Breeze** focuses on **Weightlessness**. It is optimized for enterprise portals that demand sub-0.4s load times, 100/100 PageSpeed scores, and absolute management fluidity.
-
-### ⚡ Why VonCMS?
-
-| Feature         | VonCMS                         | Traditional CMS (WP/Joomla)     |
-| :-------------- | :----------------------------- | :------------------------------ |
-| **DB Queries**  | **1 Single Query** per page    | 40 - 120 Queries                |
-| **RAM Usage**   | **~15MB - 25MB**               | 150MB - 500MB+                  |
-| **Performance** | **LCP < 0.4s** (Native)        | ~1.5s - 3.0s (Requires Plugins) |
-| **Security**    | **6-Layer Defense** (Built-in) | Relies on 3rd party plugins     |
-| **AI Ready**    | **LLMS.txt + RAG Native**      | Requires massive overhead       |
-
----
-
-## 💎 Elite Feature Set
-
-### 🛡️ Hardened Security (Mandala Standard)
-
-- **6-Layer Defense**: Integrated CSRF, Session Binding, Rate Limiting, SQLi Prepared Statements, XSS Sanitization, and Data Leakage Masking.
-- **Integrity Radar**: Built-in self-healing logic that detects and protects core files and security layers.
-- **OTA Hardening**: Secure Over-the-Air updates with SSL enforcement and SHA256 integrity validation.
-
-### 🤖 AI & Discovery Ecosystem
-
-- **Native `llms.txt` Standard**: Automatically serves structured Markdown summaries to AI crawlers (Perplexity, ChatGPT, Gemini).
-- **Image SEO Engine**: Automated `<image:image>` sitemap generation and Schema.org `ItemList` image injection.
-- **Smart Tags Engine**: Language-agnostic keyword extraction using statistical analysis—Zero manual tagging required.
-
-### 🖼️ Advanced Media & Performance
-
-- **The Beast Engine**: Automated WebP conversion on upload. JPEG/PNG are surgically mirrored to WebP for 80% smaller payloads.
-- **SPA Ad Intelligence**: Solves script-based ad freezing. AdSense/RoboForex ads persist perfectly across SPA transitions via Iframe Isolation.
-- **Absolute Path Agnosticism**: Runs perfectly in root, subfolders, or subdomains without manual config tweaking.
-
----
-
-## 🛠️ The Technology Stack
-
-<div align="center">
-
-| **Frontend**                                                                    | **Backend**                                                                | **Infrastructure**                                                                |
-| :------------------------------------------------------------------------------ | :------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
-| ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square)        | ![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square)      | ![Apache](https://img.shields.io/badge/Apache-Litespeed-D22128?style=flat-square) |
-| ![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=flat-square)           | ![PDO](https://img.shields.io/badge/PDO-MySQL-4479A1?style=flat-square)    | ![VON](https://img.shields.io/badge/Mandala-Engine-orange?style=flat-square)      |
-| ![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=flat-square) | ![JSON](https://img.shields.io/badge/API-RESTful-000000?style=flat-square) | ![GIT](https://img.shields.io/badge/OTA-Updates-F05032?style=flat-square)         |
+[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](docs/INSTALL.md) | [Manual](docs/MANUAL.md) | [API](docs/API.md) | [Upgrade Guide](docs/UPGRADE.md)
 
 </div>
 
----
+VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the backend. It is designed for teams that want a modern publishing experience without moving to a Node-only hosting stack.
 
-## 🏛️ The 6-Layer Defense
+> **Surprise:** Open Source is coming much sooner than we planned! Stay tuned for the official transition. 🚀
 
-Security isn't a plugin; it's the foundation. Every request in VonCMS passes through:
+## Why VonCMS
 
-1.  **SQLi Protection**: 100% Parameterized queries via PDO.
-2.  **XSS Shield**: Multi-stage DOMPurify + context-aware server-side stripping.
-3.  **CSRF Lock**: Mandatory token validation for ALL state-changing requests.
-4.  **Session Binding**: Cryptographic UA-binding to prevent session hijacking.
-5.  **Rate Limiting**: IP-based flood protection on high-risk endpoints.
-6.  **Data Masking**: Automatic redacting of sensitive credentials in API responses.
+- Runs on standard PHP hosting, including cPanel and shared hosting.
+- Uses a SPA frontend for fast navigation after the first load.
+- Includes SEO, analytics, newsletter, discussion, media, and theme tools in the core system.
+- Supports root domains, subdomains, and subfolders without manual path rewrites.
+- Ships with OTA update tooling plus a split Integrity Check / `Repair .htaccess` recovery workflow.
 
----
+## What's New in v1.21.3
 
-## 🚀 The Road to Open Source
+- Integrity Check is now read-only, while `Repair .htaccess` refreshes the managed block and keeps a rolling `.htaccess.bak` snapshot.
+- The installer preserves existing `.htaccess` content and refreshes only the VonCMS-managed block when possible.
+- AI Write and AI Check now handle missing `curl`, malformed upstream JSON, and non-JSON server responses more gracefully.
+- TechPress member profile pages now use a full-height layout so the footer stays pinned correctly.
+- The release script now ships `Deploy.zip` and `Source.zip` only.
 
-VonCMS is moving toward a community-driven future. We will open-source the core engine upon reaching:
+## Core Features
 
-1. **1,000 Active Installations**.
-2. **Public GitHub Repository** transition (Planned for Late 2026).
-3. **VonCMS Marketplace** launch for themes and plugins.
+- React 19 + Vite frontend
+- PHP + PDO backend
+- Built-in admin dashboard
+- Built-in SEO, `llms.txt`, and sitemap support
+- Media upload pipeline with WebP support
+- Comments, newsletter, widgets, and ads support
+- OTA update flow and integrity repair tools
+- Security layers including CSRF, session checks, rate limiting, and data masking
 
----
+## Included Themes
 
-## ⚙️ Quick Start (3 Steps)
+- Default
+- TechPress
+- Prism
+- Digest
+- Portfolio
+- Corporate Pro
 
-1. **Upload**: Extract the `Deploy.zip` to your web root.
-2. **Install**: Navigate to `yoursite.com/install`.
-3. **Profit**: Log in to `/admin` and experience the future of content management.
+## Requirements
 
----
+- PHP 8.2+
+- MySQL 5.7+
+- Apache/LiteSpeed rewrite support or equivalent server routing
+- Around 50MB storage for a basic install
 
-### 🤝 Contact & Proposals
+## Quick Start
 
-For business inquiries, enterprise support, or collaboration: 📩 **kurama87@gmail.com**
+1. Extract the `Deploy.zip` package to your web root.
+2. Open `yoursite.com/install` in your browser.
+3. Complete the installer and sign in to `/admin`.
+
+## Local Testing
+
+- Recommended local stacks: `XAMPP` or `WAMP`.
+- `XAMPP` is the easiest baseline for quick VonCMS install and feature checks, especially on PHP `8.2`.
+- `WAMP` is a reasonable choice if you want easier local PHP version switching for future `8.4+` tests.
+- `Laragon` is currently best-effort only for VonCMS. It can work, but local setup tends to be more fragile around vhosts, SSL, `index.php` vs `index.html`, and installer/database bootstrap behavior.
+- For serious PHP `8.4+` compatibility validation, a staging subdomain on the target hosting is more representative than a Laragon-only localhost test.
+
+> Shared hosting note: if the destination folder already has a host-generated or custom `.htaccess`, back it up first. The installer and `Repair .htaccess` now preserve existing content and refresh only the VonCMS-managed block, but manual ZIP extraction can still overwrite `.htaccess` depending on your hosting file manager or unzip tool.
+
+## Release Packages
+
+- Use `Deploy.zip` for fresh installs.
+- Use `Deploy.zip` cautiously for manual live updates. If your site has host-generated `.htaccess` rules, cPanel PHP handlers, custom redirects, or hardcoded rewrites, back up `.htaccess` first and verify it after extraction.
+- `Source.zip` is provided for development, audits, and source-level inspection.
+
+## Documentation
+
+- [Installation Guide](docs/INSTALL.md)
+- [User Manual](docs/MANUAL.md)
+- [API Reference](docs/API.md)
+- [Upgrade Guide](docs/UPGRADE.md)
+- [Security Notes](docs/SECURITY.md)
+- [Comparison Guide](docs/COMPARISON.md)
+- [Introduction](docs/INTRODUCTION.md)
+- [VPS Guide](docs/VPS.md)
+
+## Stack
+
+- Frontend: React 19, Vite, Tailwind CSS
+- Backend: PHP, PDO, MySQL
+- Infrastructure: Apache/LiteSpeed, OTA ZIP updates, shared-hosting friendly deployment
+
+## Contact
+
+For business inquiries, enterprise support, or collaboration:
+
+`kurama87@gmail.com`
 
 <div align="center">
-_Experience the Breeze. Built by Vondereich._
+Built by Vondereich.
 </div>
