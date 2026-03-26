@@ -31,7 +31,7 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 - The installer preserves existing `.htaccess` content and refreshes only the VonCMS-managed block when possible.
 - AI Write and AI Check now handle missing `curl`, malformed upstream JSON, and non-JSON server responses more gracefully.
 - TechPress member profile pages now use a full-height layout so the footer stays pinned correctly.
-- The release script now ships `Deploy.zip` and `Source.zip` only.
+- The release script now ships `Deploy.zip` only.
 
 ## Core Features
 
