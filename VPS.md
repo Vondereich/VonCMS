@@ -18,7 +18,7 @@ Prepare these first:
 - A VPS with at least 1 vCPU, 1 GB RAM, and 25 GB SSD
 - A domain name
 - SSH access from your provider
-- The latest `VonCMS_v1.21.2_Deploy.zip` package
+- The latest `VonCMS_v1.21.x_Deploy.zip` package
 
 If your audience is in Malaysia or ASEAN, choose a Singapore region when possible. It usually gives better latency than US or Europe.
 
