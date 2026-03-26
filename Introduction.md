@@ -1,4 +1,4 @@
-# Introduction to VonCMS v1.21.2
+# Introduction to VonCMS v1.21.x
 
 VonCMS is a hybrid CMS built for teams that want a modern frontend without leaving the PHP hosting world. The public site runs as a React app, while the backend stays in PHP and MySQL so it can live comfortably on shared hosting, cPanel, subdomains, and subfolders.
 
