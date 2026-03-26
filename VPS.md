@@ -1,125 +1,129 @@
-# 🌐 Guide to Setting Up VonCMS on Linux VPS (Noob-Friendly Edition)
+# VPS Deployment Guide
 
-> "Confused by the black and white terminal? Don't worry. We will use a free 'Control Panel' that looks like cPanel but is more modern!"
+This guide is for users who are comfortable with cPanel or shared hosting but want to run VonCMS on their own VPS without getting lost in server jargon.
 
-This guide is specifically designed for those used to **cPanel** but wanting to switch to a **VPS** to get 10x the speed (Mandala Architecture style).
+The stack used in this guide:
 
----
+- Ubuntu 24.04 LTS or 22.04 LTS
+- aaPanel
+- Nginx
+- MySQL 8.0
+- PHP 8.2+
+- VonCMS v1.21.2 Deploy package
 
-## 🛠️ Project Summary
+## Before You Start
 
-- **Server**: Ubuntu 24.04 LTS (or 22.04 LTS).
-- **Control Panel**: **aaPanel** (Free, with a beautiful interface).
-- **Stack**: **LNMP** (Linux, Nginx, MySQL, PHP 8.2+).
-- **Region**: **Singapore / ASEAN** (Mandatory for low latency).
+Prepare these first:
 
----
+- A VPS with at least 1 vCPU, 1 GB RAM, and 25 GB SSD
+- A domain name
+- SSH access from your provider
+- The latest `VonCMS_v1.21.2_Deploy.zip` package
 
-## 🏗️ PHASE 1: Buy VPS & Choose Region (Singapore Mandatory!)
+If your audience is in Malaysia or ASEAN, choose a Singapore region when possible. It usually gives better latency than US or Europe.
 
-IMPORTANT: Don't choose a server in the US or Europe if your target audience is in Malaysia/ASEAN. **You must choose the Singapore (SG) region** – the speed will feel like the server is sitting right next to you!
+## Step 1: Point Your Domain to the VPS
 
-**Providers with Singapore (SG) Nodes:**
+After buying the VPS, you will receive a public IP address.
 
-1. **DigitalOcean** (Choose Region: Singapore).
-2. **Vultr** (Choose Region: Singapore).
-3. **UpCloud** (Among the fastest in Singapore).
-4. **Hetzner** (Now has a Singapore Region!).
-5. **Azozo / Shinjiru** (If you want servers specifically inside Malaysia).
+Option A: Use Cloudflare
 
-**Minimum Specs:**
+1. Add your domain to Cloudflare.
+2. Change your domain nameservers to the ones Cloudflare gives you.
+3. In Cloudflare DNS, create these records:
+   - `A` record for `@` pointing to your VPS IP
+   - `A` record for `www` pointing to your VPS IP
 
-- 1 vCPU / 1GB RAM / 25GB SSD.
-- OS: **Ubuntu 24.04 x86_64** (or 22.04).
+Option B: Use your registrar DNS directly
 
----
+1. Open the DNS management panel where you bought the domain.
+2. Create the same two `A` records for `@` and `www`.
 
-## 🌐 PHASE 2: Connect Domain to VPS (DNS Setup)
+Wait for DNS to propagate before continuing.
 
-After buying a VPS, you will get an **IP Address**. Now, your domain must "know" that IP.
+## Step 2: Log In to the Server
 
-### Option A: Use Cloudflare (Highly Recommended!)
+Use Bitvise SSH Client, PuTTY, or any SSH client you prefer.
 
-1. Register at [Cloudflare.com](https://www.cloudflare.com) (Free).
-2. Enter your domain. Cloudflare will give you new **Nameservers**.
-3. Change your original domain Nameservers (at MyNIC/Namecheap/etc.) to Cloudflare's Nameservers.
-4. In the Cloudflare Dashboard, go to the **DNS** tab and add **Record A**:
-   - Type: `A` | Host: `@` | Value: `YOUR VPS IP`
-   - Type: `A` | Host: `www` | Value: `YOUR VPS IP`
+Login details:
 
-### Option B: Direct Method
+- Host: your VPS IP
+- Username: `root`
+- Password: the root password from your provider
 
-Add **Record A** in the DNS Management menu where you bought your domain, pointing directly to the VPS IP.
+Once connected, you should see a shell prompt like `root@ubuntu:~#`.
 
----
+## Step 3: Install aaPanel
 
-## 🖥️ PHASE 3: Accessing the Server (The Only Terminal Part)
-
-Now we want to log in to the "brain" of the server.
-
-1. Install **Bitvise SSH Client** or **PuTTY** on your PC.
-2. Login using:
-   - **Host**: Your Server IP.
-   - **Username**: `root`
-   - **Password**: (Password from provider).
-3. Once logged in, you will see a black screen saying `root@ubuntu:~#`.
-
----
-
-## 🎨 PHASE 4: Install aaPanel (The Magic Command)
-
-Copy & Paste this command into the black screen (Right-click to paste) and press **Enter**:
+Run this command on the server:
 
 ```bash
 URL=https://www.aapanel.com/script/install_7.0_en.sh && if [ -f /usr/bin/curl ];then curl -ksSO "$URL" ;else wget --no-check-certificate -O install_7.0_en.sh "$URL";fi;bash install_7.0_en.sh ipssl
 ```
 
-- Wait 2-5 minutes.
-- At the end, it will provide the **Login URL, Username, & Password**.
-- **COPY & SAVE THIS INFO!** Open that URL in your browser.
+After installation finishes, aaPanel will show:
 
----
+- panel URL
+- admin username
+- admin password
 
-## 🚀 PHASE 5: Setup Software Stack (LNMP)
+Save these details before you close the terminal.
 
-When logged into aaPanel in the browser, a popup will ask what to install. Choose **LNMP**:
+## Step 4: Install the Software Stack
 
-1. **Nginx 1.24+** (Fastest web engine).
-2. **MySQL 8.0** (Modern database).
-3. **PHP 8.2+** (Mandatory for VonCMS — enable extensions: `pdo_mysql`, `mbstring`, `curl`, `fileinfo`, `json`).
-4. **phpMyAdmin 5.2** (Managing the database via UI).
-5. **Pure-FTPD** (For uploading files).
+Log in to aaPanel and install an LNMP stack.
 
-Click **One-click Install** (Method: **Fast** / RPM). Wait for completion.
+Recommended versions:
 
----
+- Nginx 1.24+
+- MySQL 8.0
+- PHP 8.2+
+- phpMyAdmin 5.2
+- Pure-FTPD if you want FTP access
 
-## 🏠 PHASE 6: Add Website & SSL
+Required PHP extensions for VonCMS:
 
-1. Go to **Website** > **Add site**.
-2. Enter your domain (e.g., `ournews.my`).
-3. Under **Database**, choose **MySQL** (set a new username & password).
-4. Click **Submit**.
-5. **SSL (HTTPS)**: Click on the domain name > **SSL** menu > Choose **Let's Encrypt** > Click **Apply**. (Free for life!).
+- `pdo_mysql`
+- `mbstring`
+- `curl`
+- `fileinfo`
+- `json`
+- `gd`
 
----
+If your panel image already enables most of these, just verify them before deployment.
 
-## 📦 PHASE 7: Upload & Install VonCMS
+## Step 5: Create the Website in aaPanel
 
-1. Go to the **Files** menu in aaPanel.
-2. Find your domain folder (usually `/www/wwwroot/yourdomain.my`).
-3. Delete default files (index.html, etc.).
-4. **Upload** the `VonCMS_v1.20.0_Deploy.zip` file.
-5. Right-click on the zip > **Unzip**.
-6. **Final Step**: Open `yourdomain.my` in your browser — it will auto-redirect to the install wizard.
+1. Open `Website` in aaPanel.
+2. Click `Add site`.
+3. Enter your domain, for example `example.com`.
+4. Create a MySQL database for the site.
+5. Save the generated database name, username, and password.
 
----
+## Step 6: Enable SSL
 
-## ⚙️ PHASE 8: Nginx Rewrite Rules (Important!)
+1. Open your website entry in aaPanel.
+2. Go to the `SSL` tab.
+3. Choose `Let's Encrypt`.
+4. Apply the certificate.
 
-VonCMS is an SPA — Nginx needs rewrite rules (Apache uses `.htaccess` automatically, but Nginx does not).
+Once SSL is active, open the site with `https://`.
 
-In aaPanel, click your domain > **Config** > add this inside the `server {}` block:
+## Step 7: Upload VonCMS
+
+1. Open the `Files` section in aaPanel.
+2. Go to your site folder, usually `/www/wwwroot/yourdomain.com`.
+3. Delete the default placeholder files such as `index.html` if they exist.
+4. Upload `VonCMS_v1.21.2_Deploy.zip`.
+5. Extract the ZIP into the site root.
+
+After extraction, your root should contain files such as `index.php`, `.htaccess`, `api/`, `assets/`, and the other deploy files.
+
+## Step 8: Add Nginx Rewrite Rules
+
+VonCMS supports Apache through `.htaccess`, but on Nginx you must add rewrite rules manually.
+
+Open your site config in aaPanel and make sure your `server {}` block includes this:
 
 ```nginx
 location / {
@@ -131,14 +135,78 @@ location /api/ {
 }
 ```
 
-Without this, refreshing any page besides the homepage will show a 404.
+Your PHP handler block must still be present in the Nginx config. aaPanel usually creates it for you automatically.
 
----
+Reload Nginx after saving changes.
 
-### 🔥 Extra Tips:
+## Step 9: Run the Installer
 
-- **Fast CGI**: Activate in PHP settings in aaPanel for even better speed.
-- **Auto Backup**: Use the **Cron** menu in aaPanel to automatically backup the database to Google Drive.
-- **PHP Extensions**: Make sure `fileinfo` is enabled (needed for upload MIME sniffing).
+1. Open your domain in the browser.
+2. The installer should appear automatically.
+3. Fill in:
+   - database host
+   - database name
+   - database user
+   - database password
+   - admin username
+   - admin email
+   - admin password
+4. Complete the install.
+5. Sign in at `/admin`.
 
-**Done! Your news portal is now living in its "Own House" and it is very fast!**
+## Step 10: Post-Install Checks
+
+Check these before you call the deployment done:
+
+- Homepage loads
+- Admin login works
+- Settings can be saved
+- `robots.txt` opens
+- `sitemap.xml` opens
+- One article page opens without 404
+
+If you later change PHP version or handler rules in the panel, VonCMS Integrity Fix will create a `.bak` backup and repair only the VonCMS-managed routing block.
+
+## Common Problems
+
+### Installer does not load
+
+Check:
+
+- DNS has propagated
+- SSL is active if you force HTTPS
+- Nginx rewrite rules are present
+- PHP 8.2+ is selected
+
+### API returns 404 on VPS
+
+Check the Nginx config again. Most VPS issues here come from missing rewrite rules or broken PHP handling.
+
+### Uploads fail
+
+Check:
+
+- `fileinfo` is enabled
+- `gd` is enabled
+- PHP upload limits are large enough
+- folder permissions are correct
+
+### White page or 500 error
+
+Check:
+
+- Nginx error log
+- PHP error log in aaPanel
+- database credentials in `von_config.php`
+
+## Recommended Hardening
+
+After the site is live:
+
+- change the default aaPanel password
+- disable root password login if you use SSH keys
+- keep Ubuntu, Nginx, MySQL, and PHP updated
+- back up both `uploads/` and the database regularly
+- avoid leaving test files in the web root
+
+Once these checks pass, your VPS deployment is ready.
