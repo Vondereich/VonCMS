@@ -80,7 +80,6 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 
 - Use `Deploy.zip` for fresh installs.
 - Use `Deploy.zip` cautiously for manual live updates. If your site has host-generated `.htaccess` rules, cPanel PHP handlers, custom redirects, or hardcoded rewrites, back up `.htaccess` first and verify it after extraction.
-- `Source.zip` is provided for development, audits, and source-level inspection.
 
 ## Documentation
 
