@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.21.0 "Breeze"**
+> **VonCMS v1.21.2 "Breeze"**
 
 ---
 
@@ -25,7 +25,7 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 | Requirement | Minimum |
 | ----------- | ------- |
-| PHP         | 8.0+    |
+| PHP         | 8.2+    |
 | MySQL       | 5.7+    |
 | Storage     | 50MB    |
 
@@ -37,9 +37,11 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 ### Step 1: Upload
 
-1. Download `VonCMS_Deploy.zip`
+1. Download `Deploy.zip`
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. Extract all files
+
+> **Shared Hosting Note:** If your target folder already contains a host-generated `.htaccess` (for example from cPanel, LiteSpeed, or an older subfolder site), back it up first before running the installer. A fresh VonCMS install writes its own `.htaccess` template during setup.
 
 ### Step 2: Create Database
 
@@ -67,6 +69,8 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 4. Click **Install Now**
 5. Done! Login at `yoursite.com/admin`
 
+> **PHP Version Changes Later:** After the site is installed, changing PHP version in cPanel may add or update handler rules inside `.htaccess`. If you later run **Integrity Fix**, VonCMS creates a `.bak` backup first and repairs only the VonCMS-managed routing block.
+
 ---
 
 ## Updating VonCMS
@@ -86,8 +90,11 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 1.  **Backup**: Download your `uploads/` folder and `von_config.php`.
 2.  **Clean**: Delete the `assets/` folder in your hosting (Crucial to prevent cache conflicts!).
-3.  **Upload**: Upload the new `VonCMS_Deploy.zip` content and overwrite existing files.
-4.  **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
+3.  **Pick the right ZIP**:
+    - Use `Deploy.zip` if the site still uses the default VonCMS `.htaccess` and standard routing rules.
+    - Use `Upgrade.zip` if the site has cPanel-generated PHP handlers, custom `.htaccess` rules, hardcoded redirects, or any host-level rewrite rules you want to preserve.
+4.  **Upload**: Upload the chosen package and overwrite existing files.
+5.  **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
 
 ---
 
@@ -102,4 +109,4 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 ---
 
-_VonCMS v1.21.0 "Breeze"_
+_VonCMS v1.21.2 "Breeze"_
