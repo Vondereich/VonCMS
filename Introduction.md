@@ -1,125 +1,76 @@
-# 🚀 Introduction to VonCMS (v1.11.12 "Nara — Foundation Complete") | The Hybrid CMS Revolution
+# Introduction to VonCMS v1.21.2
 
----
+VonCMS is a hybrid CMS built for teams that want a modern frontend without leaving the PHP hosting world. The public site runs as a React app, while the backend stays in PHP and MySQL so it can live comfortably on shared hosting, cPanel, subdomains, and subfolders.
 
-## ⚡ The Best of Both Worlds
+## What makes VonCMS different
 
-VonCMS represents a paradigm shift in web development. We asked a simple question: **"Why can't we have the blazing speed of a Headless React app with the effortless hosting of WordPress?"**
+- The frontend is loaded once, so navigation feels closer to an app than a page-by-page PHP site.
+- The backend stays simple: PHP handles API requests, sessions, uploads, and database work.
+- You do not need a separate Node deployment just to publish content.
+- Core publishing features ship inside the system instead of depending on a long plugin chain.
 
-The answer is **VonCMS**.
+## Good fit for
 
-It effectively bridges the gap between modern technology and accessible infrastructure:
+VonCMS works best for:
 
-- **For Users:** It feels like a native app. Instant transitions. Zero loading spinners.
-- **For Hosts:** It runs on standard PHP hosting ($2/month). No Node.js required.
+- news and magazine sites
+- content portals and blogs
+- company sites that need posts, pages, forms, SEO, and themes in one system
+- teams that want React UX but still deploy on normal PHP hosting
 
----
+It is less ideal if you specifically want a pure headless stack, a giant third-party plugin marketplace, or full ecommerce as the main product.
 
-## 🚀 Why Choose VonCMS?
+## Core features at a glance
 
-> **"Battery Included"** — Install and run your business immediately. No plugin hunting, no hidden costs.
+- React 19 + Vite frontend
+- PHP + PDO + MySQL backend
+- admin dashboard for posts, pages, media, users, and settings
+- built-in SEO, sitemap, robots.txt, and IndexNow support
+- media upload tools with WebP workflow support
+- comments, newsletter, widgets, and ads support
+- OTA updater and Integrity Fix recovery tools
+- support for root domains, subdomains, and subfolders
 
-VonCMS was built to solve the frustration of "empty shell" CMS installations where you spend the first 3 hours searching for plugins just to get basic functionality. We include the premium essentials out of the box.
+## How the stack works
 
-### 1. 💰 Built-in Moneymaker (Ads Manager)
+1. The browser loads the frontend bundle.
+2. The frontend fetches content and settings from PHP endpoints.
+3. PHP talks to MySQL and returns JSON.
+4. Themes render the public site on the client side.
 
-**The Problem:** Most CMSs require complex, paid plugins just to place ads effectively.
-**VonCMS Solution:** A native, dedicated Ads Manager built directly into the core settings.
+This keeps hosting requirements low while still giving the public site a modern feel.
 
-- ✅ **Strategic Slots:** Pre-defined high-conversion spots (Header 728x90, Sidebar 300x250, In-Feed injection, Popup modals).
-- ✅ **AdSense Ready:** Dedicated field for verification using native rendering (zero script bloat).
-- ✅ **Performance:** Ads load instantly with the page, not after a delay.
+## Source package vs deploy package
 
-### 2. 🛡️ Built-In Security (No Setup)
+VonCMS usually appears in two forms:
 
-**The Problem:** Security plugins slow down your site and constantly nag you to upgrade to "Pro".
-**VonCMS Solution:** Enterprise-grade security logic baked into the architecture.
+- Source package: the full project used for development.
+- Deploy package: the production-ready package uploaded to hosting.
 
-- ✅ **Invisible Honeypot:** Smart traps for bots that humans never see (No Captchas needed!).
-- ✅ **Intelligent Rate Limiting:** Brute-force attacks are cooled down automatically by IP.
-- ✅ **Crypto-Signed Forms:** CSRF protection ensures hackers can't fake requests.
+If you are building locally, use the source tree. If you are publishing to hosting, use the deploy ZIP from the release package.
 
-### 3. 📈 SEO & Marketing Powerhouse
+## Pathing and hosting notes
 
-**The Problem:** You build a site, but Google ignores it until you configure a complex SEO plugin.
-**VonCMS Solution:** VonSEO is the engine, not an afterthought.
+VonCMS is designed to work in these common setups:
 
-- ✅ **Zero-Config SEO:** Auto-generated Canonical URLs, Smart Meta Tags, and Sitemaps.
-- ✅ **VonAnalytics:** Privacy-focused traffic stats without leaking user data.
-- ✅ **Growth Tools:** Sticky Promo Bars and Engagement Widgets included free.
+- `https://example.com`
+- `https://news.example.com`
+- `https://example.com/blog`
 
-### 4. ⚡ "Use What's Provided" Philosophy
+Fresh installs write their own `.htaccess` template. If your hosting folder already contains a host-generated `.htaccess`, back it up first. After the site is live, the Integrity Fix tool creates a `.bak` backup and repairs only the VonCMS-managed routing block.
 
-VonCMS is opinionated software. We give you the **best way** to do things, not 50 broken ways.
+## Start here
 
-- ✅ **Hybrid Tech:** React 19 Frontend + PHP Backend. The speed of a Single Page App (SPA) with the ease of Shared Hosting.
-- ✅ **Native Comments:** Nested replies and moderation without heavy external scripts (Disqus/Facebook).
-- ✅ **System Dark Mode:** It's 2026. Dark mode isn't a plugin, it's a standard.
+| I want to...                          | Read this                      |
+| ------------------------------------- | ------------------------------ |
+| Install on shared hosting             | [INSTALL.md](INSTALL.md)       |
+| Install on a VPS                      | [VPS.md](VPS.md)               |
+| Learn the admin flow                  | [MANUAL.md](MANUAL.md)         |
+| Understand the API                    | [API.md](API.md)               |
+| Upgrade safely                        | [UPGRADE.md](UPGRADE.md)       |
+| Review security notes                 | [SECURITY.md](SECURITY.md)     |
+| Compare VonCMS with other CMS options | [COMPARISON.md](COMPARISON.md) |
 
----
+## Final note
 
-### Key Takeaway
-
-With other CMSs, the "free" download is just the start of your payments.
-With **VonCMS**, the download is the entire package.
-
-**Start publishing. Start earning. Stop configuring.**
-
----
-
-## 🏗️ The Hybrid Architecture
-
-Unlike WordPress (Monolithic) or Strapi (Headless), VonCMS is **Hybrid**.
-
-```mermaid
-graph LR
-    A[Public Visitor] -->|Loads React Bundle| B(Browser Memory)
-    B -->|User Navigates| B
-    B -->|Fetch Content JSON| C[PHP API Layer]
-    C -->|Secure Query| D[(MySQL Database)]
-```
-
-1.  **Browser:** Loads the entire UI once. Navigation is instant (0ms latency).
-2.  **Server:** PHP acts purely as a lightweight API. It creates no HTML, saving massive server CPU.
-3.  **Result:** Your cheap shared hosting can handle 10x the traffic of a WordPress site.
-
----
-
-## 🚀 Key Capabilities
-
-### 🚅 Velocity & Precision (v1.11.2)
-
-- **Redirect Engine**: Blazing fast 301 server-side redirects for SEO stability.
-- **Smart Slug Protection**: Automatically handles URL changes without manual config.
-- **Category Hierarchy**: Professional permalink support for complex news structures.
-
-### 🧠 Smart Intelligence (v1.9)
-
-- **Dark Mode Sniper:** Algorithmically cleans "dirty" colors from MS Word writes.
-- **Contextual SEO:** Auto-generates keywords based on Title weight, not just content density.
-
-### 💰 Monetization First
-
-- **Native Ads Manager:** Inject ads into headers, sidebars, and _inside_ content (e.g., "After Paragraph 3").
-- **Newsletter CRM:** Own your audience. Collect emails directly into your database. No Mailchimp fees.
-
-### 🛡️ Enterprise Security
-
-- **Atomic Writes:** Configuration files use "Write-Verify-Swap" to prevent corruption.
-- **Honeypot Logic:** Invisible traps for bots in every form.
-- **Session Shield:** 30-minute auto-rotation and IP locking.
-
----
-
-## 📚 Where to Start?
-
-| I want to...        | Guide                                 |
-| ------------------- | ------------------------------------- |
-| **Deploy a Site**   | [Installation Guide](INSTALLATION.md) |
-| **Manage Content**  | [User Manual](USER_MANUAL.md)         |
-| **Upgrade Version** | [Upgrade Guide](UPGRADE.md)           |
-| **Develop/Hack**    | [API Reference](API_REFERENCE.md)     |
-
----
-
-_VonCMS v1.11.12 "Nara — Foundation Complete" — Built with Security, Easiness, and Flexibility. Next: v1.20 "Mandala"._
+VonCMS is at its best when you want a practical publishing stack: modern enough to feel fast, simple enough to host almost anywhere, and opinionated enough to stay maintainable.
