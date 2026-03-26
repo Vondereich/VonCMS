@@ -9,7 +9,7 @@ The stack used in this guide:
 - Nginx
 - MySQL 8.0
 - PHP 8.2+
-- VonCMS v1.21.2 Deploy package
+- VonCMS v1.21.x Deploy package
 
 ## Before You Start
 
