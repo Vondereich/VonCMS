@@ -83,8 +83,8 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 
 ## Documentation
 
-- [Installation Guide](/INSTALL.md)
-- [User Manual](/MANUAL.md)
+- [Installation Guide](/INSTALLATION.md)
+- [User Manual](/USER_MANUAL.md)
 - [API Reference](/API_REFERENCE.md)
 - [Upgrade Guide](/Upgrade.md)
 - [Introduction](/WHY_VONCMS.md)
