@@ -9,7 +9,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](docs/LICENSE.md)
 
-[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](docs/INSTALL.md) | [Manual](docs/MANUAL.md) | [API](docs/API.md) | [Upgrade Guide](docs/UPGRADE.md)
+[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](/INSTALLATION.md) | [Manual](/USER_MANUAL.md) | [API](/API_REFERENCE.md) | [Upgrade Guide](/Upgrade.md)
 
 </div>
 
@@ -83,14 +83,12 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 
 ## Documentation
 
-- [Installation Guide](docs/INSTALL.md)
-- [User Manual](docs/MANUAL.md)
-- [API Reference](docs/API.md)
-- [Upgrade Guide](docs/UPGRADE.md)
-- [Security Notes](docs/SECURITY.md)
-- [Comparison Guide](docs/COMPARISON.md)
-- [Introduction](docs/INTRODUCTION.md)
-- [VPS Guide](docs/VPS.md)
+- [Installation Guide](/INSTALL.md)
+- [User Manual](/MANUAL.md)
+- [API Reference](/API_REFERENCE.md)
+- [Upgrade Guide](/Upgrade.md)
+- [Introduction](/WHY_VONCMS.md)
+- [VPS Guide](/VPS.md)
 
 ## Stack
 
