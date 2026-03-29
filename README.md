@@ -1,10 +1,10 @@
-# VonCMS v1.21.3 "Breeze"
+# VonCMS v1.21.5 "Breeze"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
-[![Version](https://img.shields.io/badge/Version-1.21.3-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.21.5-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](docs/LICENSE.md)
@@ -25,13 +25,13 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 - Supports root domains, subdomains, and subfolders without manual path rewrites.
 - Ships with OTA update tooling plus a split Integrity Check / `Repair .htaccess` recovery workflow.
 
-## What's New in v1.21.3
+## What's New in v1.21.5
 
-- Integrity Check is now read-only, while `Repair .htaccess` refreshes the managed block and keeps a rolling `.htaccess.bak` snapshot.
-- The installer preserves existing `.htaccess` content and refreshes only the VonCMS-managed block when possible.
-- AI Write and AI Check now handle missing `curl`, malformed upstream JSON, and non-JSON server responses more gracefully.
-- TechPress member profile pages now use a full-height layout so the footer stays pinned correctly.
-- The release script now ships `Deploy.zip` only.
+- **Responsive Image Pipeline (SrcSet):** Dynamically scales images to `480px`, `960px`, and `1920px` to smash Lighthouse scores while eliminating the old "dummy thumbnail" system.
+- **Enterprise-Grade OTA Security:** The dashboard updater now enforces strict SHA256 integrity checks, preventing any corrupt or malicious package from being extracted.
+- **Timezone Parity Lock:** Complete synchronization between Homepage, Cron, and Admin Scheduler limits, preventing scheduled posts from misfiring.
+- **Solid UI Redesign:** Replaced glassy interfaces with a sharp, professional "Solid Slate" Auth UI and editorial Digest theme refinements.
+- **Backend Guardrails:** `db_query.php` and `fix_integrity.php` are now strictly POST-only, admin-gated, and CSRF protected to prevent RCE vectors.
 
 ## Core Features
 
@@ -39,9 +39,9 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 - PHP + PDO backend
 - Built-in admin dashboard
 - Built-in SEO, `llms.txt`, and sitemap support
-- Media upload pipeline with WebP support
+- Media upload pipeline with WebP & Responsive SrcSet variants
 - Comments, newsletter, widgets, and ads support
-- OTA update flow and integrity repair tools
+- OTA update flow with SHA256 integrity repair tools
 - Security layers including CSRF, session checks, rate limiting, and data masking
 
 ## Included Themes
@@ -80,6 +80,8 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 
 - Use `Deploy.zip` for fresh installs.
 - Use `Deploy.zip` cautiously for manual live updates. If your site has host-generated `.htaccess` rules, cPanel PHP handlers, custom redirects, or hardcoded rewrites, back up `.htaccess` first and verify it after extraction.
+- `Source.zip` is provided for development, audits, and source-level inspection.
+- `Source.zip` excludes the live `public/von_config.php` file and keeps `public/von_config.sample.php` as the safe template for future public source releases.
 
 ## Documentation
 
