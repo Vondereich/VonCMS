@@ -1,3 +1,69 @@
+### [v1.21.5] - 2026-03-29 (Security, Scheduler & Editor Hardening)
+
+- **Security Hardening Follow-up**:
+  - **OTA SHA256 Enforcement**: The updater now requires a verified SHA256 digest before swap, resolving it from a caller-supplied hash, a sidecar checksum asset, or GitHub release metadata.
+  - **OTA Dashboard Digest Wiring**: The admin dashboard now forwards GitHub release asset digests into the updater request so OTA stays fail-closed without depending on sidecar checksum files alone.
+  - **Recovery Query Token Retirement**: Integrity check and .htaccess repair now accept authenticated POST + CSRF only, instead of allowing recovery tokens in query strings.
+  - **Dev Theme API Fallback Limiter**: The local theme API now falls back to an in-memory rate limiter when express-rate-limit is unavailable, instead of disabling throttling outright.
+  - **Database Manager Query Guardrails**: `db_query.php` is now POST-only, requires admin session + CSRF, rejects multi-statement and non-read SQL, blocks risky file/function operations, and caps raw/helper result sizes for safer inspection use.
+
+- **Auth UI Refresh**:
+  - **Solid Auth Surfaces**: Login, register, forgot-password, and reset-password states now use solid slate surfaces instead of gradient-heavy/glass styling.
+  - **State-Aware Header Icons**: The auth header now swaps icons by mode so sign-in, registration, recovery, and password reset each read more clearly at a glance.
+  - **Modal Shell Simplification**: The public auth popup now uses a simpler solid overlay and a single card shell instead of layered modal chrome.
+
+- **Editor Hardening**:
+  - **TikTok Iframe Migration**: The WYSIWYG editor now converts TikTok URLs to sanitizer-safe player iframes instead of relying on script-based embeds that would be stripped during save/render.
+  - **Instagram Guardrail**: Instagram URLs now return an explicit "not supported yet" editor message instead of pretending to accept an embed path that the current renderer cannot honor.
+  - **Paste & Save Sanitizer Tightening**: External pasted HTML now routes through the same DOMPurify-backed insert sanitizer as other editor HTML inserts, and the PostEditor save path now performs a final DOMPurify pass after the color/style scrubber before persistence.
+  - **External Paste Article Extraction**: Full-page HTML pasted from external sites now drops obvious chrome/noise blocks such as related lists, share/follow prompts, sponsored markers, and link-heavy navigation wrappers while preserving article-style content markup.
+  - **Page Save Parity**: `save_page.php` now mirrors the post-save content guardrails with a content-size limit, non-admin tag allowlist, and stripping of inline event handlers plus `javascript:` URLs.
+  - **Scheduled Editor Repair**: PostEditor now preserves `scheduledAt` when reopening scheduled posts, limits background autosave to drafts so scheduled items cannot silently fall back to draft, and removes the corrupted scheduling labels in the publish-time panel.
+
+- **Scheduler Runtime Hardening**:
+  - **Shared Runtime Alignment**: Admin read paths still delegate to the shared scheduler helper, while public visibility filters compare against PHP/CMS time instead of raw MySQL `NOW()`.
+  - **Homepage Timezone Bootstrap**: `public/index.php` now reapplies the configured CMS timezone after loading `von_config.php`, so request-driven homepage scheduling uses the same timezone basis as post save, admin reads, and the cron endpoint.
+  - **Cron Timezone Parity**: `cron_publish.php` now reapplies the configured site timezone after loading config as well, so direct cron-triggered publishing uses the same schedule basis as the homepage and admin read paths.
+  - **Shared Site Timezone Helper**: The old dashboard-named timezone bootstrap is now exposed through a site-wide helper name, while a backward-compatible alias remains in place for legacy internal call sites.
+
+- **Digest Frontpage Polish**:
+  - **Search Bar Width Tuning**: The Digest homepage search shell is now slightly wider for a less cramped frontpage layout.
+
+- **Theme Icon Standardization & Mojibake Cleanup**:
+  - **Thematic Visual Consistency**: Standardized all theme dark mode toggles across all 5 built-in themes (`Default`, `TechPress`, `Digest`, `Portfolio`, `Corporate Pro`) using `Moon` and `Sun` components from `lucide-react` with a consistent color palette (`text-amber-500` for Sun, `text-blue-400` for Moon).
+  - **Mojibake Eradication**: Fixed character encoding issues in the `Digest` and `Corporate Pro` themes, replacing corrupted symbols with stable alternatives.
+  - **Digest Metadata Polish**: Replaced corrupted likes/comments symbols in `Digest` with standardized `ThumbsUp` and `MessageSquare` icons.
+  - **TechPress Navigation Polish**: Standardized `Back to Home` navigation links with `ChevronLeft` icons, replacing problematic non-ASCII arrow characters that were prone to corruption.
+  - **Corporate Pro Separator Fix**: Cleaned up the metadata bullet separator (`&bull;`) in the `Corporate Pro` layout to ensure visual stability.
+  - **Default Mobile Toggle Fix**: Resolved a visual inconsistency in the `Default` theme where the dark mode switch in the mobile menu was uncolored; it now follows the standardized amber/blue palette.
+
+- **Admin Polish & Build Hardening**:
+  - **Cleanup UI Fix**: Removed mojibake characters from the media cleanup result panel, ensuring that success/failure messages are now readable again.
+  - **Release Entry Compatibility**: `package-release.cjs` now acts as a compatibility shim that forwards to `create_release.cjs` instead of maintaining a second release packager.
+  - **Release Automation Sync**: `create_release.cjs` and the release packaging flow were refreshed to stay aligned with the current source tree.
+  - **Smoke Gate Expansion**: `server/test-integration.cjs` now validates the integrity of the OTA digest wiring, scheduler runtime alignment, the shared site-timezone helper wiring, and stricter Database Manager method/auth/CSRF guard markers.
+  - **Backend Audit Coverage Tightening**: The smoke audit now asserts that `db_query.php` remains POST-only, admin-gated, and CSRF-protected so the core Database Manager hardening cannot silently regress.
+
+### [v1.21.4] - 2026-03-28 (Responsive Images, Srcset Rollout & Media Settings Reset)
+
+- **Media Settings Simplification**:
+  - **Sizes Tab Reset**: Media Settings now manages `Max Width` and `Max Height` only, instead of exposing legacy `thumbnail`, `medium`, `large`, or custom size fields in the admin UI.
+  - **Settings Model Cleanup**: Frontend defaults, TypeScript types, install seed data, and media save handling no longer persist the removed `media.sizes` structure.
+
+- **Responsive Image Delivery**:
+  - **Upload Pipeline Variants**: Content-image uploads now generate responsive width variants from the canonical processed image, while system assets such as logos and favicons explicitly skip responsive variant generation.
+  - **Hydration & API Contract**: Post payloads and PHP hydration now expose `imageSrcSet` alongside the canonical image URL so React can render responsive images without deriving paths in the theme layer.
+  - **Theme Rollout**: Public card/listing/hero slots across the main bundled themes, related posts, and public profile views now consume shared responsive image attributes instead of always shipping the original content image.
+  - **Digest Hero Discipline**: Digest now keeps its featured hero closer to the TechPress baseline instead of over-expanding the featured slot, and long category pills/badges now truncate cleanly with tooltip access to the full label.
+  - **Digest Accent Sync**: Digest category pills and badges now follow the active accent color setting directly instead of relying on a separate hardcoded category palette.
+  - **Original-Only Exceptions**: Lightboxes, logos, avatars, and other non-content/system asset paths continue to use their original source directly.
+
+- **Media Tools & Maintenance**:
+  - **Responsive Rebuild Tool**: Media Settings now includes a `Rebuild Responsive Variants` action for regenerating width-based variants on existing featured images referenced by posts.
+  - **Rollback Safety Switch**: Media Settings now includes preview and purge actions for generated responsive variants, guarded by a job lock and designed to leave original uploads untouched.
+  - **Legacy Thumbnail Retirement**: The old `regenerate_thumbnails` media-tools action now returns an explicit `410` deprecation response instead of pretending the legacy thumbnail workflow still exists.
+  - **Compatibility Cleanup Kept**: Orphan scanning and media deletion still recognize legacy `_thumb` files and new `_*w` responsive variants so upgrades and cleanup flows stay safe.
+
 ### [v1.21.3] - 2026-03-26 (Stabilization & Packaging Realignment)
 
 - **Integrity & Installer Hardening**:
@@ -10,6 +76,16 @@
   - **Frontend JSON Safety**: `PostEditor.tsx` now reads AI responses as text first and surfaces readable errors when the server returns HTML, warnings, or any non-JSON body.
   - **Canonical Permalink Tightening**: `index.php` now recalculates the official post permalink even in the fallback slug route, so alternate legacy paths collapse to the correct canonical URL instead of mirroring the request path.
 
+- **Security & Privilege Hardening**:
+  - **Legacy Comment Path Lockdown**: `save_comments.php` now restricts legacy bulk comment migration and JSON fallback writes to authenticated admin + CSRF flows only, instead of accepting unactioned public payloads.
+  - **Like Delta Whitelist**: Comment like updates now accept only `+1` or `-1` deltas so the API cannot be nudged with arbitrary like counts through manipulated requests.
+  - **Admin Boundary & User Privacy Tightening**: `wp_import.php` now enforces admin access explicitly, and `get_users.php` no longer exposes e-mail fields to non-admin staff responses.
+
+- **Pagination & Settings Guardrails**:
+  - **Posts Per Page Clamp**: General Settings now enforces a `6..50` range in the UI and backend, so malformed or legacy values cannot collapse public pagination to `0`, `1`, or runaway counts.
+  - **Pages API Server Clamp**: `get_pages.php` now follows the same server-side pagination style as `get_posts.php`, including `page` support and a `200` item cap even when the admin hook requests `limit=500`.
+  - **Theme Pagination Sync**: Portfolio profile views and Corporate Pro load-more sections now inherit the global `postsPerPage` setting instead of keeping separate hardcoded `6` values.
+
 - **Theme & QA Stability**:
   - **TechPress Profile Footer Fix**: Member profile pages now use a full-height flex layout so the footer is pushed to the bottom cleanly without whitespace gaps.
   - **Share Placement Polish**: Bottom share buttons now follow a consistent `post -> share -> tags -> related posts` order in the affected themes so the share action stays close to the article ending without pushing related content ahead of the post metadata.
@@ -18,7 +94,8 @@
 
 - **Packaging Realignment**:
   - **Deploy + Source Only**: Restored `create_release.cjs` to the simpler release flow that generates `Deploy.zip` and `Source.zip` only.
-  - **Documentation Sync**: README package guidance now reflects the current no-`Upgrade.zip` workflow and warns shared-hosting users to back up `.htaccess` before manual extraction.
+  - **Sample Config Packaging**: `Source.zip` now excludes the live `public/von_config.php` file and keeps `public/von_config.sample.php` as the portable template for future public/open-source source drops.
+  - **Documentation Sync**: README package guidance now reflects the current no-`Upgrade.zip` workflow, the sample-config packaging rule, and the shared-hosting `.htaccess` backup warning for manual extraction.
 
 ### [v1.21.2] - 2026-03-24 (The Managed Block & UI Stabilization Update)
 
@@ -66,11 +143,14 @@
 
 - **UI Refinement (TechPress Hero Fix)**:
   - **Hero Gap Elimination (Precision Fix)**: Resolved the persistent vertical image gap on desktop by adjusting the content container. Removed contradictory `mt-auto` constraints in `HeroArticle` to ensure text stays vertically balanced against full-frame images (`object-cover`).
+
 - **Version Series (Breeze Transition)**:
   - **Official Codename Update**: Transitioned from the "Mandala" infrastructure series to the "Breeze" performance and aesthetics series.
   - **Unified Versioning**: Synchronized version strings across 25+ files, including themes, plugins, `package.json`, `metadata.json`, and `.cursorrules`.
+
 - **Maintenance (PHP 8.5 Preparation)**:
   - **Deprecated cURL Cleanup**: Removed all 7 instances of `curl_close()` from the core engine (`IndexNow.php`, `updater.php`, `ai_generate.php`, `ai_check.php`). This preemptively resolves "Deprecated" warnings in PHP 8.5+ while improving object-based handle management.
+
 - **Legacy Settings Cleanup & Analytics Rationalization**:
   - **Single Source of Truth**: Consolidated Google Analytics configuration into `GoogleSettings.tsx`. Removed redundant `api.analyticsId` and `SEO` settings tab from `SettingsManager.tsx` to eliminate configuration overlap.
   - **Type Synchronization Power-Up**: Synchronized the `SiteSettings` interface with all v1.21.x active fields, including `analytics`, `logoUrl`, and `timeZone`. Eliminated the redundant `src/types/` directory to prevent ghost imports.
@@ -139,7 +219,7 @@
 
 ### [v1.20.10] - 2026-03-09 (Absolute Path Agnosticism & TechPress Polish)
 
-- **TechPress Image Standardization (YouTube-Style)**: Fixed vertical image stretching in the `HeroArticle` by enforcing a stable `16:9` aspect ratio and `420px` height. Standardized "Trending Stories" (4:3) and "Latest Updates" (16:9) thumbnails with `object-fit: cover` for a uniform grid look.
+- **TechPress Image Standardization (YouTube-Style)**: Fixed vertical image stretching in the `HeroArticle` by enforcing a stable `16:9` aspect ratio and `420px` height. Standardized "Trending Stories" (4:3) and "Latest Updates" (16:9) tthumbnails with `object-fit: cover` for a uniform grid look.
 - **Universal Path Agnosticism (Mandala Standard)**: VonCMS is now 100% path-agnostic. Implemented dynamic base path injection via PHP (`window.VON_BASE`) and updated React routing/permalinks to auto-detect root, subdomain, or subfolder environments.
 - **Hotfix: Path Redundancy**: Resolved critical path duplication (e.g., `/folder/folder/`) by introducing `noBase` flag for internal navigation and fixing `domainUrl` vs `BASE_PATH` overlap logic in `getPermalink`.
 - **Deep Integrity Audit**: Performed a bulk scan of all 70 API endpoints to verify relative pathing (`__DIR__`) and eliminate `DOCUMENT_ROOT` dependencies.
@@ -208,7 +288,7 @@
 #### Media Integrity (Hotfix 2026-02-27)
 
 - **PNG Transparency Fix**: Added explicit alpha channel preservation in `ImageProcessor.php`. PNG images now retain transparency even when processing skips resizing, preventing the "black background" issue.
-- **Deep Clean Deletion**: `delete_media.php` now surgically removes all file variants including `.webp` versions and associated thumbnails, ensuring no orphaned "ghost images" remain.
+- **Deep Clean Deletion**: `delete_media.php` now surgically removes all file variants including `.webp` versions and associated tthumbnails, ensuring no orphaned "ghost images" remain.
 - **Path Consistency**: Updated `delete_media.php` to support both `uploads/` and `/uploads/` path formats in database lookups. Fixes deletion failures for files uploaded in the latest version.
 
 #### Documentation
@@ -246,12 +326,12 @@
 - **Homepage Payload Trim**: Removed `p.content` from homepage seed query homepage only needs title/excerpt/image, not full article HTML.
 - **Dynamic og:type**: Single post/page views now correctly output `og:type="article"` instead of always `website`.
 - **SPA Route Guard Sync**: Expanded slug-detection exclusion to skip all SPA routes (`profile`, `register`, `search`, etc.), preventing wasted DB queries and false 404 headers.
-- **Mobile Heading Scale**: Content headings (H1H4) now scale down on mobile screens (Ã¢â€°Â¤ 640px) for better readability across all 6 themes.
+- **Mobile Heading Scale**: Content headings (H1-H4) now scale down on mobile screens (≤ 640px) for better readability across all 6 themes.
 
 #### Foundation & Schema
 
 - **Install Schema Sync**: Added missing `featured_image` column to `pages` CREATE TABLE in `install.php`, aligning with `repair_db.php`. Fresh installs now match upgraded databases.
-- **TechPress Mobile Feed**: Increased mobile thumbnail heights in TechPress theme Trending cards `h-48 h-56`, Latest cards `h-56 h-72` for a fuller, more immersive FB-style feed scroll.
+- **TechPress Mobile Feed**: Increased mobile thumbnail heights in TechPress theme Trending cards `h-48 -> h-56`, Latest cards `h-56 -> h-72` for a fuller, more immersive FB-style feed scroll.
 
 ---
 
@@ -1266,7 +1346,7 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 
 - **Content Discovery**: Added a "Related Posts" engine that matches content based on tags, categories, or title similarity.
 - **Flexible Layouts**: Supports Grid, List, and Card layouts to match any theme aesthetic.
-- **Visual Enhancement**: Automatically displays thumbnails and excerpts to increase user engagement.
+- **Visual Enhancement**: Automatically displays tthumbnails and excerpts to increase user engagement.
 - **Quality Assurance**: PASSED (Comprehensive 6-Layer Security Review covers API, CSRF, Role, SQLi, XSS, and Installer).
 - **Security Hardening**: Implemented session regeneration on login to prevent session fixation.
 - **Security Hardening**: Critical honeypot triggers are now prioritized in the Security Dashboard.
@@ -1294,11 +1374,11 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 
 - **Automatic Optimization**: Implemented seamless server-side resizing and compression for all new uploads using PHP GD Library.
 - **Smart Compression**: Configured the **Internal Engine** to use intelligent compression (Level 6 PNG / 85% JPEG) ensuring 90% file size reduction with zero visual loss.
-- **Thumbnail Generation**: Added auto-generation of 300x300 thumbnails for every upload, preparing the system for high-performance gallery views.
+- **Tthumbnail Generation**: Added auto-generation of 300x300 tthumbnails for every upload, preparing the system for high-performance gallery views.
 
 ### Media Management Tools
 
-- **Regenerate Thumbnails**: Added a powerful utility (Tools Tab) to recursively scan and regenerate thumbnails for the entire existing media library.
+- **Regenerate Tthumbnails**: Added a powerful utility (Tools Tab) to recursively scan and regenerate tthumbnails for the entire existing media library.
 - **Performance**: Optimized for handling large libraries with thousands of images without interruption.
 - **Cleanup Scanner**: Introduced a "Scan for Unused" tool that safely identifies orphaned files (files not linked in DB or Posts) to help reclaim disk space.
 
