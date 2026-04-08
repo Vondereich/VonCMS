@@ -1,76 +1,60 @@
-# Introduction to VonCMS v1.21.x
+# Introduction to VonCMS v1.22.0 "Kirana"
 
-VonCMS is a hybrid CMS built for teams that want a modern frontend without leaving the PHP hosting world. The public site runs as a React app, while the backend stays in PHP and MySQL so it can live comfortably on shared hosting, cPanel, subdomains, and subfolders.
+## Publishing should not feel like plugin maintenance.
+
+Most people start a site because they have something to publish, not because they want to spend their week juggling plugins, updates, rebuilds, and hosting workarounds.
+
+VonCMS came from that frustration. The goal was simple: keep the editing experience modern, keep deployment practical, and reduce the amount of glue work needed to run a content site.
+
+Many CMS choices still force a tradeoff:
+
+- **WordPress** - flexible, but often dependent on a long plugin stack for the basics.
+- **Headless CMS** - fast and modern, but usually means a separate frontend deploy and a more complex hosting setup.
+- **Static site generators** - great for some sites, but awkward for teams that publish and update content every day.
+
+**VonCMS is built to avoid that tradeoff.**
+
+## What you actually get
+
+| You're tired of...                         | VonCMS gives you...                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Installing plugins for every basic feature | SEO, analytics, newsletter, comments, and media tools built in from the start.     |
+| Waiting for pages to reload                | React 19 SPA navigation that stays fast after first load.                          |
+| Needing a VPS for modern tech              | A PHP backend that still fits shared hosting and straightforward server setups.    |
+| Your site breaking after an update         | OTA updates from the dashboard and a simpler stack to maintain.                    |
+| Choosing between pretty and functional     | Six bundled themes with responsive layouts and dark mode support.                  |
+| Google can't find your content             | Built-in sitemap, robots.txt, JSON-LD schema, IndexNow, and canonical URL support. |
+
+## Who is this for?
+
+- **You run a news site or content portal** - you need authors, editors, scheduled posts, editorial tracking, and quick publishing.
+- **You are a blogger or creator** - you want a cleaner editor, bundled themes, and built-in SEO without extra setup.
+- **You build client sites** - you want to deliver something modern without maintaining a large plugin stack on every install.
+- **You work with a team** - roles, audit logs, draft workflows, and moderation need to be part of the CMS, not bolted on later.
+- **You want fewer moving parts** - less time maintaining software, more time publishing.
 
 ## What makes VonCMS different
 
-- The frontend is loaded once, so navigation feels closer to an app than a page-by-page PHP site.
-- The backend stays simple: PHP handles API requests, sessions, uploads, and database work.
-- You do not need a separate Node deployment just to publish content.
-- Core publishing features ship inside the system instead of depending on a long plugin chain.
+It's not trying to be everything. It's trying to be **the right thing** for people who publish content and want the technology to get out of the way.
 
-## Good fit for
+- **One codebase.** Not a frontend repo + backend repo + deployment pipeline. One download. One install. You're live.
+- **One hosting target.** Shared hosting. cPanel. The same $3/month plan you already have. No Docker. No Node.js. No DevOps degree required.
+- **One system that includes the basics.** SEO? Built in. Analytics? Built in. Newsletter? Built in. Comments? Built in. You don't assemble your CMS from 15 different plugins hoping they don't fight each other.
+- **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
+- **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-VonCMS works best for:
+## This is v1.22.0 "Kirana"
 
-- news and magazine sites
-- content portals and blogs
-- company sites that need posts, pages, forms, SEO, and themes in one system
-- teams that want React UX but still deploy on normal PHP hosting
+_"Kirana" - a ray of light; beauty and elegance that radiates._
 
-It is less ideal if you specifically want a pure headless stack, a giant third-party plugin marketplace, or full ecommerce as the main product.
+In classical Malay, **kirana** means light, radiance, beauty, or grace - a word from old literary tradition that describes the kind of beauty which shines through.
 
-## Core features at a glance
+It's the name we chose for the release that gave VonCMS a clearer identity: a **Hybrid Decoupled CMS** with a React SPA on the front and a PHP API on the back, shipped as one deploy without a Node.js production requirement.
 
-- React 19 + Vite frontend
-- PHP + PDO + MySQL backend
-- admin dashboard for posts, pages, media, users, and settings
-- built-in SEO, sitemap, robots.txt, and IndexNow support
-- media upload tools with WebP workflow support
-- comments, newsletter, widgets, and ads support
-- OTA updater and Integrity Fix recovery tools
-- support for root domains, subdomains, and subfolders
+_A ray of light that finally gave this project its name._
 
-## How the stack works
+---
 
-1. The browser loads the frontend bundle.
-2. The frontend fetches content and settings from PHP endpoints.
-3. PHP talks to MySQL and returns JSON.
-4. Themes render the public site on the client side.
-
-This keeps hosting requirements low while still giving the public site a modern feel.
-
-## Source package vs deploy package
-
-VonCMS usually appears in two forms:
-
-- Source package: the full project used for development.
-- Deploy package: the production-ready package uploaded to hosting.
-
-If you are building locally, use the source tree. If you are publishing to hosting, use the deploy ZIP from the release package.
-
-## Pathing and hosting notes
-
-VonCMS is designed to work in these common setups:
-
-- `https://example.com`
-- `https://news.example.com`
-- `https://example.com/blog`
-
-Fresh installs write their own `.htaccess` template. If your hosting folder already contains a host-generated `.htaccess`, back it up first. After the site is live, the Integrity Fix tool creates a `.bak` backup and repairs only the VonCMS-managed routing block.
-
-## Start here
-
-| I want to...                          | Read this                      |
-| ------------------------------------- | ------------------------------ |
-| Install on shared hosting             | [INSTALL.md](INSTALL.md)       |
-| Install on a VPS                      | [VPS.md](VPS.md)               |
-| Learn the admin flow                  | [MANUAL.md](MANUAL.md)         |
-| Understand the API                    | [API.md](API.md)               |
-| Upgrade safely                        | [UPGRADE.md](UPGRADE.md)       |
-| Review security notes                 | [SECURITY.md](SECURITY.md)     |
-| Compare VonCMS with other CMS options | [COMPARISON.md](COMPARISON.md) |
-
-## Final note
-
-VonCMS is at its best when you want a practical publishing stack: modern enough to feel fast, simple enough to host almost anywhere, and opinionated enough to stay maintainable.
+**Ready to see it in action?** -> [Installation Guide](INSTALL.md)  
+**Want the full feature list?** -> [Features Overview](FEATURES.md)  
+**Need help getting started?** -> [User Manual](MANUAL.md)
