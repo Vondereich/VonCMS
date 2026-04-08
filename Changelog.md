@@ -23,7 +23,7 @@
   - **Editor & Publishing UX**: Includes image credit support, toolbar polish, heading pills through H6, mobile Save Draft support, focus-ring cleanup, frontend quick-edit flow, direct featured-image selection, category-management improvements, and post/page audit history visibility.
   - **Media, Migration & Content Cleanup**: Brings multi-upload media flow, FTP/File Manager sync, responsive-variant cleanup, WordPress re-hosting and embed conversion, Gutenberg cleanup, profile double-encoding removal, and live avatar priority across comments/posts.
   - **Routing & SEO Consistency**: Carries the permalink fallback move to `/{slug}`, base-path-aware canonicals, safer theme navigation, exact public page lookups, redirect loop protections, and sitemap/`llms.php` parity.
-  - **Audit & Reliability Fixes**: Includes `get_pages.php` / `get_users.php` response envelope fixes, `rollback_setting.php` fallback stability, `domain_url` preference for reset/verification URLs, newsletter/media OOM fixes, importer SSRF blocking, autosave timer repair, load-more pagination and page-menu persistence repairs, comment reply save-path stabilization, SMTP verification-boundary hardening, importer self-redirect skipping, RSS edge-case compliance plus subfolder-safe VonSEO feed links, and content API warning logs.
+  - **Audit & Reliability Fixes**: Includes `get_pages.php` / `get_users.php` response envelope fixes, `rollback_setting.php` fallback stability, `domain_url` preference for reset/verification URLs, newsletter/media OOM fixes, importer SSRF blocking, autosave timer repair, load-more pagination and page-menu persistence repairs, comment reply save-path stabilization, SMTP verification-boundary hardening, registration no longer auto-verifying when verification delivery falls back and fails, importer self-redirect skipping, RSS edge-case compliance plus subfolder-safe VonSEO feed links, language-aware RSS output, absolute enclosure URL normalization, `public/install.sql` parity for the `redirects` table, `media.created_at` install/repair sync, removal of unsupported pages-schema SQL drift, settings-schema parity between SQL/install/repair flows, app-side `settings_audit_log` writes for standard settings/category/IndexNow saves, trigger-free SQL alignment for settings audit history, default-settings parity across install SQL, legacy migration SQL, and the live installer, and content API warning logs.
 
 ### Development Milestones (Internal)
 
@@ -39,10 +39,10 @@
   - **Dead Dependency Removal**: Removed `@google/genai` from `package.json` as it is server-side only and unnecessary in the frontend bundle, reducing dependency surface.
 
 - **PostEditor UI Polish**:
-  - **AI Buttons**: AI Write (`bg-purple-600`) and AI Check (`bg-indigo-600`) buttons use solid colors with hover states for a cleaner, distraction-free toolbar.
+  - **AI Buttons**: AI Write (`bg-purple-600`) and AI Check (`bg-rose-600`) buttons use solid colors with hover states for a cleaner, distraction-free toolbar.
   - **Save Draft Mobile Support**: No longer hidden on mobile - now displays as an icon button on small screens with full text on desktop.
   - **Focus Rings**: Added visible `focus:ring-2 focus:ring-blue-500/20` with smooth transitions to title input and sidebar form inputs for accessibility.
-  - **Editor Heading Pills**: Replaced native `<select>` dropdowns in the Editor toolbar with H1/H2/H3/H4/Paragraph button pills for a cleaner feel.
+  - **Editor Heading Pills**: Replaced native `<select>` dropdowns in the Editor toolbar with H1-H6 plus Paragraph button pills for a cleaner feel.
   - **Modal Close Buttons**: Replaced `&times;` text with consistent Lucide `<X size={18} />` icon buttons with rounded-full hover styling across PostEditor modals.
   - **Toolbar Button Polish**: All toolbar icons use consistent sizing with `hover:scale-105` transitions, softer dividers, and color-coded icons (amber for code, cyan for HTML, violet for preview, violet for eye).
   - **HTML & Preview Buttons**: Converted from text labels to icon-only buttons (`<Code />` for HTML source, `<Eye />` for live preview) matching the rest of the toolbar icon style.
@@ -54,10 +54,10 @@
   - **Backend Sitemap**: Updated `sitemap.php` and `llms.php` to match - the default permalink case now falls back to `/{slug}` instead of `/post/{id}`, with an explicit `'plain'` case for the ID format. This keeps canonical URLs aligned across sitemap, canonical tags, OG tags, JSON-LD, and redirects.
 
 - **RSS Feed**:
-  - **New `public/rss.php`**: Standard RSS 2.0 feed with Atom self-link, full content, images, and author metadata. Supports `?limit`, `?category`, and `?offset` query params. Accessible via VonSEO Settings -> Advanced -> `View RSS Feed`.
+  - **New `public/rss.php`**: RSS feed endpoint with Atom self-link, full content, image support, and author metadata. Supports `?limit`, `?category`, and `?offset` query params. Accessible via VonSEO Settings -> Advanced -> `View RSS Feed`.
   - **Clean URL Routing**: Added `.htaccess` rewrite rules so RSS is accessible via `/rss`, `/rss.xml`, `/feed`, and `/feed.xml` (all route to `rss.php`). This matches the same clean-URL pattern used for `/robots.txt`, `/sitemap.xml`, and `/llms.txt`. Both root `.htaccess` (with `public/` prefix) and `public/.htaccess` (without prefix) are covered.
   - **Ultra-Early Interceptor**: `public/index.php` now intercepts RSS clean URLs before the React SPA boots, preventing HTML fallback and serving XML directly.
-  - **Sitemap & LLMs Cross-Reference**: `sitemap.php` includes `/rss.xml` as a `<sitemap>` entry in the sitemap index. `llms.php` outputs an "RSS Feed" section with a link for AI/LLM crawlers.
+  - **RSS Discoverability References**: `sitemap.php` and `llms.php` both cross-reference `/rss.xml`, and `llms.php` outputs an "RSS Feed" section for AI/LLM crawlers.
   - **Theme Footer Links**: All 6 bundled themes (TechPress, Digest, Prism, Default, Portfolio, Corporate Pro) now include an RSS icon/link (`<Rss />` from lucide-react) in their footer.
   - **BASE_PATH-Aware Footer Links**: Theme footer RSS links use `getBasePathPrefix()` so subfolder installs generate correct paths like `/blog/rss` instead of broken `/rss`.
   - **Exported `getBasePathPrefix` Helper**: `getBasePathPrefix` in `siteUtils.ts` is now exported so themes and plugins can reuse it for subfolder-safe URL generation.
@@ -73,7 +73,7 @@
   - **Database Import Allowlist**: The SQL import endpoint now allowlists `INSERT`, `CREATE`, `SET`, and `DROP` statements, blocking schema-altering payloads such as `ALTER` and `UPDATE` from tampered SQL files. `DROP` is required to restore VonCMS-generated backups which include `DROP TABLE IF EXISTS` for round-trip compatibility.
   - **Password Redaction Removal**: Database backup export no longer redacts `users.password` to `[REDACTED]` - the full bcrypt hash is preserved in the SQL output. Redaction previously prevented successful round-trip restore (login would fail after import) and was redundant since the backup endpoint already requires admin session + CSRF.
   - **Strict Privilege Boundaries**: Self-account deletion and Root (Admin 1) modification protections have been tightened to use absolute strict-type evaluations, completely neutralizing loose-type PHP coercion vectors (e.g. `1e0`).
-  - **Avatar URL Sterilization**: Guest comment endpoints now execute stringent `FILTER_VALIDATE_URL` validation over custom avatar links, severing any non-standard or script-based protocol insertions from the presentation loop.
+  - **Avatar URL Validation**: Guest comment endpoints now apply `FILTER_VALIDATE_URL` checks to custom avatar links before those URLs reach the presentation loop.
   - **Status Integrity Pipeline**: The page-creation architecture now mirrors the post-creation core by invoking a hardcoded `['published', 'draft', 'archived']` whitelist filter. Untrusted status payloads are defaulted down to `draft`.
 
 - **Server Optimization & Infrastructure**:
