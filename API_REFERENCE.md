@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.21.2`
+Version: `1.22.0`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -27,16 +27,20 @@ Admin write operations usually require:
 - a valid CSRF token
 - JSON or `multipart/form-data`, depending on the endpoint
 
-Frontend code in the app should use the project fetch helpers instead of building raw requests everywhere.
+Frontend code in the app should use the project fetch helpers instead of building raw requests everywhere. The current repo standard is `vonFetch`, which injects credentials and adds the CSRF header automatically for mutating requests.
 
 ### Example authenticated request
 
-```javascript
-fetch('/api/save_post.php', {
+```ts
+import { getAuthHeader } from '../config/auth.config';
+import { API } from '../config/site.config';
+import { vonFetch } from '../utils/api';
+
+await vonFetch(API.savePost, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-CSRF-TOKEN': csrfToken,
+    ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
   },
   body: JSON.stringify(payload),
 });
@@ -152,7 +156,7 @@ Typical shapes:
 }
 ```
 
-Some older endpoints may return slightly different keys, so treat the API as a practical system rather than a perfect textbook REST layer.
+Some older endpoints may return slightly different keys or object shapes, so treat the API as a practical system rather than a perfect textbook REST layer.
 
 ## Error handling
 
