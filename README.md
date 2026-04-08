@@ -15,6 +15,9 @@
 
 </div>
 
+<img width="1920" height="991" alt="screencapture-localhost-raya-admin-database-2026-04-02-05_02_12" src="https://github.com/user-attachments/assets/c3b01898-01c3-41d3-a129-f756e5a7fcd5" />
+
+
 VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is built for publishers who want a modern editing and reading experience without turning deployment into a separate frontend/backend project.
 
 ### Why "Kirana"?
@@ -81,6 +84,9 @@ If you run a news site, blog, or content portal, the tradeoff is familiar:
 The goal is simple: make content work easier to run, easier to maintain, and less fragile on ordinary hosting. If a feature removes friction for the person publishing the site, it matters.
 
 ## What's New in v1.22.0
+
+<img width="1920" height="990" alt="capture-20260408-215903" src="https://github.com/user-attachments/assets/2d797455-94c7-46e0-880c-154b86a636e4" />
+
 
 > **v1.22.0 "Kirana"** is a cumulative release that consolidates all work from **v1.21.6 through v1.21.12** into a single GitHub release. If you are upgrading from v1.21.5 or earlier, everything below is new.
 
