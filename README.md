@@ -46,6 +46,9 @@ _Performance figures above come from the project's internal benchmark notes and 
 
 Taken together, the release is aimed at one thing: giving publishers a modern workflow on ordinary hosting without forcing a split frontend/backend deployment model by default.
 
+<img width="1920" height="988" alt="56" src="https://github.com/user-attachments/assets/ff910d81-f770-4a0b-a98d-7dd7a44d2dcd" />
+
+
 ## Why VonCMS
 
 Most CMS platforms force a tradeoff between a modern interface and straightforward hosting. VonCMS is built to keep both in one package.
