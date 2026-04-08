@@ -1,23 +1,23 @@
 # Installation Guide
 
-> **VonCMS v1.21.x "Breeze"**
+> **VonCMS v1.22.0 "Kirana"**
 
 ---
 
 ## What is VonCMS?
 
-VonCMS is a modern, ultra-fast Content Management System built with React and PHP. It combines the speed of a Single-Page Application (SPA) with the simplicity of traditional CMS platforms.
+VonCMS is a modern content management system built with React and PHP. It combines the feel of a Single-Page Application (SPA) with the deployment model of a traditional PHP CMS.
 
 ### Why VonCMS?
 
-| Feature               | Benefit                                  |
-| --------------------- | ---------------------------------------- |
-| ⚡ **Blazing Fast**   | React + Vite for instant page loads      |
-| 🔌 **Easy Install**   | No coding required, wizard-based setup   |
-| 🎨 **Premium Themes** | TechPress, Prism, Default included       |
-| 💰 **Ads Ready**      | Built-in ad zones (AdSense compatible)   |
-| 📱 **Mobile-First**   | Responsive on all devices                |
-| 🔒 **Secure**         | Session protection, CSRF, XSS prevention |
+| Feature               | Benefit                                                      |
+| --------------------- | ------------------------------------------------------------ |
+| **Fast Frontend**     | React + Vite keep the public UI and dashboard responsive     |
+| **Easy Install**      | Wizard-based setup with no manual code edits required        |
+| **Bundled Themes**    | Six built-in themes included                                 |
+| **Ad Ready**          | Built-in ad zones, including AdSense-friendly placements     |
+| **Mobile Friendly**   | Responsive on phones, tablets, and desktop                   |
+| **Security Baseline** | Session protection, CSRF checks, and XSS guardrails included |
 
 ---
 
@@ -29,11 +29,11 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 | MySQL       | 5.7+    |
 | Storage     | 50MB    |
 
-✅ Works on: cPanel, VPS, XAMPP, WAMP
+Works on: cPanel, VPS, XAMPP, WAMP
 
 ---
 
-## Quick Install (5 Minutes)
+## Quick Install
 
 ### Step 1: Upload
 
@@ -46,7 +46,7 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 ### Step 2: Create Database
 
 1. Open **phpMyAdmin**
-2. Click **New** → Enter name → **Create**
+2. Click **New** &rarr; Enter name &rarr; **Create**
 
 ### Step 3: Run Installer
 
@@ -75,26 +75,25 @@ VonCMS is a modern, ultra-fast Content Management System built with React and PH
 
 ## Updating VonCMS
 
-Good news! Starting from **v1.11.x**, updating is automatic.
+Current VonCMS releases support OTA updates from the admin dashboard.
 
 ### One-Click OTA Update (Recommended)
 
-1.  Login to your Admin Dashboard.
-2.  Go to **Settings > System**.
-3.  Click **"Check for Updates"**.
-4.  If available, click **"Update Now"**.
+1. Login to your Admin Dashboard.
+2. Go to **Settings > System**.
+3. Click **"Check for Updates"**.
+4. If available, click **"Update Now"**.
 
 ### Manual Update (Fallback)
 
 If the auto-updater fails or your server creates permission errors, follow these steps:
 
-1.  **Backup**: Download your `uploads/` folder and `von_config.php`.
-2.  **Clean**: Delete the `assets/` folder in your hosting (Crucial to prevent cache conflicts!).
-3.  **Pick the right ZIP**:
-    - Use `Deploy.zip` if the site still uses the default VonCMS `.htaccess` and standard routing rules.
-    - Use `Upgrade.zip` if the site has cPanel-generated PHP handlers, custom `.htaccess` rules, hardcoded redirects, or any host-level rewrite rules you want to preserve.
-4.  **Upload**: Upload the chosen package and overwrite existing files.
-5.  **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
+1. **Backup**: Download your `uploads/` folder and your live `von_config.php`.
+2. **Clean**: Delete the `assets/` folder in your hosting to prevent stale asset conflicts.
+3. **Use the current Deploy.zip package** and overwrite the existing deployment files.
+4. **Verify `.htaccess` carefully** if your hosting folder already contains cPanel-generated handlers, custom redirects, or any host-managed rewrite rules. Restore your backup or the generated `.bak` copy if extraction changed something you needed to keep.
+5. **Keep your real config**: do not replace your live `von_config.php` with a sample file.
+6. **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
 
 ---
 
@@ -109,4 +108,4 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 ---
 
-_VonCMS v1.21.2 "Breeze"_
+_VonCMS v1.22.0 "Kirana"_
