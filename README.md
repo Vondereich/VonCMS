@@ -1,4 +1,5 @@
-# VonCMS v1.22.0 "Kirana" PREVIEW
+# VonCMS v1.22.0 "Kirana"
+> Preview release. Public launch scheduled for Friday, April 10, 2026.
 
 <div align="center">
 
