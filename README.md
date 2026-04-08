@@ -1,37 +1,104 @@
-# VonCMS v1.21.5 "Breeze"
+# VonCMS v1.22.0 "Kirana" PREVIEW
 
 <div align="center">
 
 ![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
-[![Version](https://img.shields.io/badge/Version-1.21.5-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.22.0-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=orange)](https://github.com/Vondereich/VonCMS/releases)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](docs/LICENSE.md)
 
-[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](/INSTALLATION.md) | [Manual](/USER_MANUAL.md) | [API](/API_REFERENCE.md) | [Upgrade Guide](/Upgrade.md)
+[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](docs/INSTALL.md) | [Manual](docs/MANUAL.md) | [API](docs/API.md) | [Upgrade Guide](docs/UPGRADE.md)
 
 </div>
 
-VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the backend. It is designed for teams that want a modern publishing experience without moving to a Node-only hosting stack.
+VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is built for publishers who want a modern editing and reading experience without turning deployment into a separate frontend/backend project.
 
-> **Surprise:** Open Source is coming much sooner than we planned! Stay tuned for the official transition. 🚀
+### Why "Kirana"?
+
+> _"Kirana" - a ray of light; beauty and elegance that radiates._
+>
+> In classical Malay, **kirana** carries the sense of light, radiance, beauty, and grace. We chose it for the release that gave VonCMS a clearer identity: a **Hybrid Decoupled CMS** with a React SPA on the front and a PHP API on the back, shipped as one deploy without a Node.js production requirement.
+
+> **Surprise:** Open Source is coming much sooner than we planned! Stay tuned for the official transition. &#128640;
+
+## v1.22.0 Snapshot
+
+> These figures come from the current release cycle's packaging and validation checks. Treat them as release notes, not as a blanket guarantee for every host.
+
+| Metric                 | Result                         | Context                                                                                             |
+| ---------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **API Endpoints**      | 78 endpoints                   | Current repo surface across public, admin, and system flows.                                        |
+| **Release Hardening**  | Current audit pass             | Covered response contracts, host-header handling, XSS edges, race conditions, and packaging checks. |
+| **Dependency Surface** | Trimmed for release            | Verify your own `npm audit` in the target environment.                                              |
+| **Load Performance**   | 11,600 req/s @ 50 concurrent\* | Internal benchmark note from the current release cycle.                                             |
+| **Estimated Capacity** | ~2,300 PV/s theoretical\*      | Directional estimate from the same benchmark note, not a universal hosting guarantee.               |
+| **Build Size**         | Deploy 0.85MB, Source 0.77MB   | Current packaged release artifacts.                                                                 |
+| **Release Baseline**   | Current audit pass             | TypeScript, production build, and targeted PHP lint passed in the v1.22.x release audit.            |
+
+_Performance figures above come from the project's internal benchmark notes and should be treated as directional, not as a blanket SLA for every host._
+
+Taken together, the release is aimed at one thing: giving publishers a modern workflow on ordinary hosting without forcing a split frontend/backend deployment model by default.
 
 ## Why VonCMS
 
-- Runs on standard PHP hosting, including cPanel and shared hosting.
-- Uses a SPA frontend for fast navigation after the first load.
-- Includes SEO, analytics, newsletter, discussion, media, and theme tools in the core system.
-- Supports root domains, subdomains, and subfolders without manual path rewrites.
-- Ships with OTA update tooling plus a split Integrity Check / `Repair .htaccess` recovery workflow.
+Most CMS platforms force a tradeoff between a modern interface and straightforward hosting. VonCMS is built to keep both in one package.
 
-## What's New in v1.21.5
+### Built for modern publishing on simple hosting
 
-- **Responsive Image Pipeline (SrcSet):** Dynamically scales images to `480px`, `960px`, and `1920px` to smash Lighthouse scores while eliminating the old "dummy thumbnail" system.
-- **Enterprise-Grade OTA Security:** The dashboard updater now enforces strict SHA256 integrity checks, preventing any corrupt or malicious package from being extracted.
-- **Timezone Parity Lock:** Complete synchronization between Homepage, Cron, and Admin Scheduler limits, preventing scheduled posts from misfiring.
-- **Solid UI Redesign:** Replaced glassy interfaces with a sharp, professional "Solid Slate" Auth UI and editorial Digest theme refinements.
-- **Backend Guardrails:** `db_query.php` and `fix_integrity.php` are now strictly POST-only, admin-gated, and CSRF protected to prevent RCE vectors.
+If you run a news site, blog, or content portal, the tradeoff is familiar:
+
+- **WordPress** - powerful, but often dependent on a long plugin stack for the basics.
+- **Headless CMS** - flexible and fast, but usually means a separate frontend deploy and a more complex hosting setup.
+- **Static site generators** - excellent for some projects, but awkward for teams that publish and update content every day.
+
+**VonCMS is built for a different workflow:**
+
+| What you get                                                           | Why it matters                                                                                                                                                                            |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **React 19 SPA frontend**                                              | Once the page loads, navigation stays fast - no full page reload on every click.                                                                                                          |
+| **PHP backend - no Node.js in production**                             | Deploy to shared hosting, cPanel, or a small VPS without running a separate Node.js stack.                                                                                                |
+| **SEO, analytics, newsletter, comments, media manager - all built-in** | Install once and start publishing without assembling the basics from a pile of plugins.                                                                                                   |
+| **6 modern themes included**                                           | TechPress for news portals, Digest for magazines, Portfolio for showcases, Prism for creative sites, Corporate Pro for business, and Default for clean minimal sites. All with dark mode. |
+| **OTA updates from the dashboard**                                     | Update without FTP or manual file replacement when the environment supports it.                                                                                                           |
+| **Works on subdomains and subfolders**                                 | Install at `yoursite.com`, `blog.yoursite.com`, or `yoursite.com/blog` without rewriting the app around one path layout.                                                                  |
+
+### Who is VonCMS for?
+
+- **News agencies and publishers** - manage authors, scheduled posts, editorial history, and frequent publishing in one system.
+- **Bloggers and content creators** - get a cleaner editor, bundled themes, and built-in SEO without extra setup.
+- **Small agencies** - deliver modern sites to clients on simple hosting without maintaining a large plugin stack.
+- **Teams with clear roles** - use admin, moderator, writer, and subscriber roles with audit logs and draft workflows.
+- **People who want fewer moving parts** - keep the publishing stack simpler and easier to maintain over time.
+
+### Our philosophy
+
+**VonCMS is built for publishers first.**
+
+The goal is simple: make content work easier to run, easier to maintain, and less fragile on ordinary hosting. If a feature removes friction for the person publishing the site, it matters.
+
+## What's New in v1.22.0
+
+> **v1.22.0 "Kirana"** is a cumulative release that consolidates all work from **v1.21.6 through v1.21.12** into a single GitHub release. If you are upgrading from v1.21.5 or earlier, everything below is new.
+
+- **Architecture Name - Hybrid Decoupled CMS**: First official architecture classification. VonCMS is now documented as a "Hybrid Decoupled CMS" - React 19 SPA frontend + PHP REST API backend, single codebase, single deploy, no Node.js required in production.
+- **RSS Feed System**: New `public/rss.php` - standard RSS 2.0 feed with Atom self-link, full content, images, and author metadata. Supports `?limit`, `?category`, and `?offset`. Accessible via VonSEO Settings -> Advanced -> `View RSS Feed`.
+- **Frontend Security Hardening**: Removed auth token fallback, hardened custom plugin HTML sanitization, and blocked `javascript:` URLs across 5 themes/plugins.
+- **PostEditor UI Polish**: Image credit/attribution field, icon-only HTML/Preview buttons, toolbar hover animations, focus rings, AI buttons solid colors, heading pills, mobile-friendly Save Draft.
+- **Canonical URL Consistency**: Fixed `index.php`, `sitemap.php`, `llms.php`, and `siteUtils.ts` to all fall back to `/{slug}` instead of `/post/{id}` when permalink structure is unset.
+- **Admin Security Hardening**: Database import allowlist (including `DROP` for round-trip backup restore), backup password-hash preservation, strict Admin 1 protection, avatar URL validation, status whitelist filter.
+- **Server Optimization**: Get-posts payload optimization (SQL reading time calculation), memory-safe SQL streaming for backups, audit observability, FK lock recovery fallback.
+- **Media Workflow**: Dashboard media sync, editor multi-upload, variant filtering, legacy variant cleanup.
+- **Editorial Audit Trail**: Edit log panel, self-healing audit schema, unified save/delete logging.
+- **Admin Convenience**: Direct featured image picker, dedicated category manager, reusable category picker.
+- **Frontend Quick Edit**: Staff users (admin/moderator/writer) can now launch a modal-based editor directly on the public post/page view - no need to open the dashboard. Edit, save, and stay on the page. RBAC-aligned so each role only sees content they can actually edit.
+- **WordPress Importer Upgrade**: Import batch accuracy, auto media re-hosting, Gutenberg cleanup, embed conversion, internal link remap, checkpoint resume.
+- **Data Integrity**: Removed `htmlspecialchars()` from `update_profile.php`. Avatar priority system - live profile avatars override Gravatar across all content.
+- **Tablet Grid Responsiveness**: 4-col -> 2-col tablet drop, with tighter 3-col tablet behavior across TechPress, Prism, Digest, and Corporate Pro.
+
+> Full changelog available in [CHANGELOG.md](CHANGELOG.md).
 
 ## Core Features
 
@@ -39,9 +106,9 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 - PHP + PDO backend
 - Built-in admin dashboard
 - Built-in SEO, `llms.txt`, and sitemap support
-- Media upload pipeline with WebP & Responsive SrcSet variants
+- Media upload pipeline with WebP support
 - Comments, newsletter, widgets, and ads support
-- OTA update flow with SHA256 integrity repair tools
+- OTA update flow and integrity repair tools
 - Security layers including CSRF, session checks, rate limiting, and data masking
 
 ## Included Themes
@@ -80,17 +147,19 @@ VonCMS is a hybrid CMS built with React on the frontend and PHP/MySQL on the bac
 
 - Use `Deploy.zip` for fresh installs.
 - Use `Deploy.zip` cautiously for manual live updates. If your site has host-generated `.htaccess` rules, cPanel PHP handlers, custom redirects, or hardcoded rewrites, back up `.htaccess` first and verify it after extraction.
-- `Source.zip` is provided for development, audits, and source-level inspection.
-- `Source.zip` excludes the live `public/von_config.php` file and keeps `public/von_config.sample.php` as the safe template for future public source releases.
+- The current public release package is `Deploy.zip`.
 
 ## Documentation
 
-- [Installation Guide](/INSTALLATION.md)
-- [User Manual](/USER_MANUAL.md)
-- [API Reference](/API_REFERENCE.md)
-- [Upgrade Guide](/Upgrade.md)
-- [Introduction](/WHY_VONCMS.md)
-- [VPS Guide](/VPS.md)
+- [Features Guide](docs/FEATURES.md)
+- [Installation Guide](docs/INSTALL.md)
+- [User Manual](docs/MANUAL.md)
+- [API Reference](docs/API.md)
+- [Upgrade Guide](docs/UPGRADE.md)
+- [Security Notes](docs/SECURITY.md)
+- [Comparison Guide](docs/COMPARISON.md)
+- [Introduction](docs/INTRODUCTION.md)
+- [VPS Guide](docs/VPS.md)
 
 ## Stack
 
