@@ -1,3 +1,165 @@
+### [v1.22.0] - 2026-04-07 (Kirana - cumulative release since v1.21.5)
+
+> This release bundles the work from internal milestones v1.21.6 through v1.21.12 into one production drop. If you are upgrading from v1.21.5 or earlier, everything below is new. If you are already on any 1.21.6-1.21.12 internal build, most of it will look familiar - v1.22.0 adds the architecture naming, RSS rollout, final polish, and the last post-audit fixes.
+
+- **Release Snapshot**:
+  - First public `Kirana` release that consolidates internal milestones `v1.21.6` through `v1.21.12` into one production changelog.
+  - Final public-facing additions in the `v1.22.0` drop: official architecture naming, RSS feed support, final PostEditor polish, and post-audit reliability fixes.
+  - Detailed milestone history remains below so readers can trace how the release evolved instead of reading one giant flat feature dump.
+
+- **Progress History**:
+  - **`v1.21.6`**: permalink resolution hardening, canonical path cleanup, exact public page lookup support.
+  - **`v1.21.7`**: base-path-safe navigation for themes, menu links, CTA links, and `page:{id}` fallbacks.
+  - **`v1.21.8`**: WordPress importer upgrade with media re-hosting, Gutenberg cleanup, embed conversion, checkpoint resume, and permalink-aware redirects.
+  - **`v1.21.9`**: frontend quick edit, direct featured-image picker, dedicated category manager, reusable category workflow, and schema-repair UX cleanup.
+  - **`v1.21.10`**: dashboard media sync, variant cleanup, editorial audit trail, redirect loop hardening, and stronger user-manager feedback.
+  - **`v1.21.11`**: admin security hardening, import/export safety tightening, avatar/data-integrity sync, and backend payload/backup performance improvements.
+  - **`v1.21.12`**: frontend security hardening, PostEditor UI refresh, canonical fallback consistency, RSS feed rollout with clean URLs, BASE_PATH-aware theme footers, and cross-source discoverability.
+  - **`v1.22.0`**: post-audit bug fixes covering response contracts, rollback stability, host-header risk reduction, autosave/comments/load-more races, import/export reliability, email verification bypass, page-menu persistence, comment reply save path, WP importer self-redirects, RSS URL consistency including subfolder-safe VonSEO feed links, and backup round-trip compatibility.
+
+- **Final Highlights in `v1.22.0`**:
+  - **Architecture & Syndication**: VonCMS is now formally documented as a **Hybrid Decoupled CMS**. RSS feed (`public/rss.php`) is fully integrated with clean URLs (`/rss`, `/rss.xml`, `/feed`, `/feed.xml`), BASE_PATH-aware theme footer links, sitemap/llms cross-references, and VonSEO settings panel access.
+  - **Security & Integrity**: The release bundles SQL import allowlisting (including `DROP` for round-trip backup restore), backup password-hash preservation, stricter Admin 1/account protections, avatar URL validation, auth-token fallback removal, custom plugin HTML sanitization, same-origin `postMessage` guards, and automatic `rel="noopener noreferrer"` injection for `target="_blank"` links.
+  - **Editor & Publishing UX**: Includes image credit support, toolbar polish, heading pills through H6, mobile Save Draft support, focus-ring cleanup, frontend quick-edit flow, direct featured-image selection, category-management improvements, and post/page audit history visibility.
+  - **Media, Migration & Content Cleanup**: Brings multi-upload media flow, FTP/File Manager sync, responsive-variant cleanup, WordPress re-hosting and embed conversion, Gutenberg cleanup, profile double-encoding removal, and live avatar priority across comments/posts.
+  - **Routing & SEO Consistency**: Carries the permalink fallback move to `/{slug}`, base-path-aware canonicals, safer theme navigation, exact public page lookups, redirect loop protections, and sitemap/`llms.php` parity.
+  - **Audit & Reliability Fixes**: Includes `get_pages.php` / `get_users.php` response envelope fixes, `rollback_setting.php` fallback stability, `domain_url` preference for reset/verification URLs, newsletter/media OOM fixes, importer SSRF blocking, autosave timer repair, load-more pagination and page-menu persistence repairs, comment reply save-path stabilization, SMTP verification-boundary hardening, importer self-redirect skipping, RSS edge-case compliance plus subfolder-safe VonSEO feed links, and content API warning logs.
+
+### Development Milestones (Internal)
+
+> The following internal milestones track the Kirana development cycle. All work below is included in the v1.22.0 release above.
+
+#### v1.21.12 - Frontend Security Hardening & PostEditor UI Refresh
+
+- **Frontend Security Hardening**:
+  - **Auth Token Fallback Removal**: Removed hardcoded `'internal_api_token'` fallback from `auth.config.ts`. Now returns empty string when `VITE_AUTH_TOKEN` is unset, preventing credential leakage in client bundles.
+  - **AdBlock Iframe postMessage Height Sync**: AdBlock.tsx now uses `postMessage` for iframe-to-parent height synchronization instead of accessing `window.frameElement`, improving compatibility and reducing direct DOM access patterns.
+  - **Custom Plugin HTML Sanitization**: Hardened `registry.tsx` to strip `on*` event handlers and block `javascript:` protocol URLs in user-provided custom plugin HTML before rendering via `dangerouslySetInnerHTML`.
+  - **JavaScript URL Protocol Blocking**: Added inline `javascript:` URL validation across 5 themes and plugins (TechPress Footer, Default Footer, Portfolio Social Links, Promo Bar, Gift Widget) to prevent XSS via user-configured navigation and widget URLs.
+  - **Dead Dependency Removal**: Removed `@google/genai` from `package.json` as it is server-side only and unnecessary in the frontend bundle, reducing dependency surface.
+
+- **PostEditor UI Polish**:
+  - **AI Buttons**: AI Write (`bg-purple-600`) and AI Check (`bg-indigo-600`) buttons use solid colors with hover states for a cleaner, distraction-free toolbar.
+  - **Save Draft Mobile Support**: No longer hidden on mobile - now displays as an icon button on small screens with full text on desktop.
+  - **Focus Rings**: Added visible `focus:ring-2 focus:ring-blue-500/20` with smooth transitions to title input and sidebar form inputs for accessibility.
+  - **Editor Heading Pills**: Replaced native `<select>` dropdowns in the Editor toolbar with H1/H2/H3/H4/Paragraph button pills for a cleaner feel.
+  - **Modal Close Buttons**: Replaced `&times;` text with consistent Lucide `<X size={18} />` icon buttons with rounded-full hover styling across PostEditor modals.
+  - **Toolbar Button Polish**: All toolbar icons use consistent sizing with `hover:scale-105` transitions, softer dividers, and color-coded icons (amber for code, cyan for HTML, violet for preview, violet for eye).
+  - **HTML & Preview Buttons**: Converted from text labels to icon-only buttons (`<Code />` for HTML source, `<Eye />` for live preview) matching the rest of the toolbar icon style.
+  - **Image Credit / Attribution**: Added "Credit / Attribution" field in the image bubble menu (appears when clicking an image). Users can type credit text (e.g. Bernama, Reuters, AP, AFP) and save - the image auto-wraps in `<figure>` with inline-styled `<figcaption>` (0.75rem, italic, #94a3b8) for consistent rendering in editor and preview. Empty credit unwraps back to plain `<img>`. Credit auto-populates from existing `<figcaption>` when clicking an already-credited image.
+
+- **Canonical URL Consistency**:
+  - **`public/index.php` `buildCanonicalContentPath`**: Changed default/fallback case from `/post/{id}` to `/{slug}`. This is the PHP function that generates `<link rel="canonical">`, OG URLs, JSON-LD, and 301 redirects for all public page loads. When `permalinkStructure` is undefined or empty, the server now generates slug-based URLs instead of ID-based URLs.
+  - **Frontend `getPermalink`**: Changed default/fallback case in `siteUtils.ts` from `/post/{id}` to `/{slug}`. When `permalinkStructure` is undefined or empty, the frontend now generates slug-based URLs instead of ID-based URLs.
+  - **Backend Sitemap**: Updated `sitemap.php` and `llms.php` to match - the default permalink case now falls back to `/{slug}` instead of `/post/{id}`, with an explicit `'plain'` case for the ID format. This keeps canonical URLs aligned across sitemap, canonical tags, OG tags, JSON-LD, and redirects.
+
+- **RSS Feed**:
+  - **New `public/rss.php`**: Standard RSS 2.0 feed with Atom self-link, full content, images, and author metadata. Supports `?limit`, `?category`, and `?offset` query params. Accessible via VonSEO Settings -> Advanced -> `View RSS Feed`.
+  - **Clean URL Routing**: Added `.htaccess` rewrite rules so RSS is accessible via `/rss`, `/rss.xml`, `/feed`, and `/feed.xml` (all route to `rss.php`). This matches the same clean-URL pattern used for `/robots.txt`, `/sitemap.xml`, and `/llms.txt`. Both root `.htaccess` (with `public/` prefix) and `public/.htaccess` (without prefix) are covered.
+  - **Ultra-Early Interceptor**: `public/index.php` now intercepts RSS clean URLs before the React SPA boots, preventing HTML fallback and serving XML directly.
+  - **Sitemap & LLMs Cross-Reference**: `sitemap.php` includes `/rss.xml` as a `<sitemap>` entry in the sitemap index. `llms.php` outputs an "RSS Feed" section with a link for AI/LLM crawlers.
+  - **Theme Footer Links**: All 6 bundled themes (TechPress, Digest, Prism, Default, Portfolio, Corporate Pro) now include an RSS icon/link (`<Rss />` from lucide-react) in their footer.
+  - **BASE_PATH-Aware Footer Links**: Theme footer RSS links use `getBasePathPrefix()` so subfolder installs generate correct paths like `/blog/rss` instead of broken `/rss`.
+  - **Exported `getBasePathPrefix` Helper**: `getBasePathPrefix` in `siteUtils.ts` is now exported so themes and plugins can reuse it for subfolder-safe URL generation.
+  - **VonSEO Settings Integration**: The `View RSS Feed` link uses `/rss.xml` with BASE_PATH prefix, consistent with sitemap and `llms.txt` links.
+  - **Subfolder Link De-duplication**: The VonSEO Settings RSS link now avoids duplicating the configured base path when `siteUrl` or `domainUrl` already includes a subfolder such as `/portalkini`.
+  - **RSS Feed Self-Link Consistency**: `rss.php` atom:link self-reference now uses `/rss.xml` instead of `/rss.php`. VonSEO Settings also points to `/rss.xml`, while footer links keep the cleaner human-facing `/rss` path.
+  - **Integrity Template Sync**: RSS rewrite rules added to `repair_htaccess.php` and `install.php` templates so admin repair actions and fresh installs never lose RSS routing.
+  - **RSS Spec Compliance Fixes**: Plain permalink structure now correctly generates `/post/{id}` URLs instead of slug-based paths. `content:encoded` now escapes `]]>` CDATA terminators to prevent XML corruption. Image enclosure MIME types are now derived from uploaded image file extensions instead of hardcoded `image/jpeg`.
+
+#### v1.21.11 - Security, Infrastructure & UI Sync
+
+- **Admin Security Hardening**:
+  - **Database Import Allowlist**: The SQL import endpoint now allowlists `INSERT`, `CREATE`, `SET`, and `DROP` statements, blocking schema-altering payloads such as `ALTER` and `UPDATE` from tampered SQL files. `DROP` is required to restore VonCMS-generated backups which include `DROP TABLE IF EXISTS` for round-trip compatibility.
+  - **Password Redaction Removal**: Database backup export no longer redacts `users.password` to `[REDACTED]` - the full bcrypt hash is preserved in the SQL output. Redaction previously prevented successful round-trip restore (login would fail after import) and was redundant since the backup endpoint already requires admin session + CSRF.
+  - **Strict Privilege Boundaries**: Self-account deletion and Root (Admin 1) modification protections have been tightened to use absolute strict-type evaluations, completely neutralizing loose-type PHP coercion vectors (e.g. `1e0`).
+  - **Avatar URL Sterilization**: Guest comment endpoints now execute stringent `FILTER_VALIDATE_URL` validation over custom avatar links, severing any non-standard or script-based protocol insertions from the presentation loop.
+  - **Status Integrity Pipeline**: The page-creation architecture now mirrors the post-creation core by invoking a hardcoded `['published', 'draft', 'archived']` whitelist filter. Untrusted status payloads are defaulted down to `draft`.
+
+- **Server Optimization & Infrastructure**:
+  - **Get-Posts Payload Optimization**: The universal posts feed now calculates reading time via native SQL integer aggregation (`CHAR_LENGTH(...)`) instead of piping multi-megabyte `p.content` strings into the server backend. Data payloads for heavy lists plunge from Megabytes down to Kilobytes.
+  - **Memory-Safe SQL Streaming**: Backups now use unbuffered MySQL queries (`PDO::MYSQL_ATTR_USE_BUFFERED_QUERY = false`) to stream rows one-by-one rather than loading entire table blobs into PHP memory, reducing OOM risk on large databases.
+  - **Audit Observability Enhancements**: Content audit tracking errors are no longer swallowed silently. Native error logs will now broadcast behind-the-scenes audit failures without polluting or crashing the frontend React response stream.
+  - **FK Lock Recovery Fallback**: Broken SQL imports now restore `FOREIGN_KEY_CHECKS=1` on rejection and exception paths, reducing the risk of leaving table relationship checks disabled after a failed import.
+
+- **Frontend Sync & Data Integrity**:
+  - **System-Wide Avatar Custom URL**: Added robust support for live custom profile avatar URLs overriding Gravatar instances across all themes (TechPress, Prism, Digest, Portfolio, Corporate-Pro, Default).
+  - **Avatar Priority in Comments**: Comments now utilize a `JOIN` fetch for `u.avatar` and prioritize displaying live profile avatars immediately over the comment-time snapshot.
+  - **Double-Encoding Resolution**: Removed legacy `htmlspecialchars` wrapping from API `update_profile` string inputs to prevent apostrophe artifacting in bios, natively relying on React's default text interpolation out-of-the-box protections instead.
+  - **WP-Bridge Presentation Sterilization**: Cleaned Gutenberg-specific block comment tags that were leaking into API excerpt results using a strategic API-side `strip_tags()`.
+  - **Component Responsive Adjustments**: Enforced strict tablet breakpoints for the `Digest` layout grid structure to prevent uneven screen flow breakages.
+
+#### v1.21.10 — Media Workflow Upgrade
+
+- **Media Workflow Upgrade**:
+  - **Dashboard Media Sync**: Media Settings now includes a one-click sync tool that scans `uploads/` and indexes manually added FTP/File Manager media into the library database.
+  - **Editor Multi-Upload**: The core editor now accepts multiple device images in one picker action and inserts successful uploads back into the article in batch order.
+  - **Media Sync Variant Filtering**: FTP/File Manager sync now ignores registry-backed VonCMS-generated responsive variants so one uploaded image no longer explodes into multiple Media Library entries.
+  - **Legacy Variant Row Cleanup**: Media Settings now includes a cleanup action that removes registry-backed generated responsive-variant rows from the media table without deleting original files or touching canonical media records.
+  - **Variant Classification Hardening**: Generated-media filtering now relies on explicit VonCMS-written variant registry entries instead of filename suffix inference alone, so legitimate originals such as `hero_400w.jpg` are no longer hidden or cleaned by mistake just because they resemble responsive assets.
+
+- **Editorial Audit Trail**:
+  - **PostEditor Edit Log Panel**: The dashboard post/page editor now shows an async `Edit Log` panel in the right sidebar, with latest activity summary plus a recent-history modal for existing items.
+  - **Self-Healing Audit Schema**: A new `content_audit_logs` table is now created on install, repaired by `Schema Repair`, checked by the DB status probe, and auto-bootstrapped on first edit-history use for older sites.
+  - **Repository SQL Parity**: The content audit log schema is now represented in `public/install.sql` alongside the runtime install/repair flows, so the repository SQL bundle stays aligned with active schema expectations.
+  - **Unified Save/Delete Logging**: Post and page create/update/delete actions now write audit entries at the backend chokepoints, so dashboard edits, quick-edit flows, and moderation changes all feed the same history trail.
+  - **Legacy SQL Bundle Refresh**: `public/install.sql` now includes the content audit log table and the current `pages` / `media` columns used by the runtime installer.
+
+- **Release Hardening**:
+  - **Frontend Content-Type Hydration Fix**: Direct public page loads now hydrate as pages instead of falling through the single-post path on first render, so floating frontend edit controls target the correct page editor and save endpoint after a hard refresh.
+  - **Frontend Owner Detection Repair**: Single-post hydration and initial post seeds now preserve `author_id`, so owner-based frontend edit affordances appear correctly for moderator and writer accounts on posts they actually own instead of silently behaving like admin-only controls.
+  - **Admin 1 Protection Guardrail**: Appointed admins and moderators can no longer modify the `admin 1` super-admin account from the dashboard user manager, while `admin 1/root` retains full control over all user records.
+  - **Admin Self-Service Alignment**: Appointed admins can still maintain their own dashboard account details and password, while `admin 1` remains the only protected account in the user-manager flow.
+  - **Admin Role Assignment Guardrail**: Direct user-save API calls now mirror the dashboard role restrictions, so only `admin 1/root` can assign admin-level roles while appointed admins keep self-service access without gaining promotion power.
+  - **Staff-Wide Post Editing Alignment**: Post save/delete APIs and frontend quick-edit visibility now follow the same staff-level `Posts` policy (`admin/root/moderator/writer`) instead of falling back to owner-only behavior in part of the stack.
+  - **Redirect Loop Guardrails**: Plain-permalink canonical redirects now avoid self-redirects on `/post/{id}`, legacy `/post|/blog` routes collapse safely to the active canonical path, and manual redirect saves now reject same-path plus simple multi-hop local loops before they reach runtime.
+  - **Redirect Loop Scanner**: The Redirect Manager now includes a loop scanner for existing rules, with backend graph checks that flag stored self-loops and local redirect cycles before they surprise a live site.
+  - **User Manager Response Feedback**: The dashboard user manager now surfaces toast feedback for successful create/update/delete operations and for blocked protected-account actions instead of failing silently.
+
+#### v1.21.9 — Admin Convenience & Category Workflow
+
+- **Admin Convenience Upgrade**:
+  - **Direct Featured Image Picker**: The post editor now supports direct featured-image uploads from device plus browsing the existing Media Gallery instead of relying on a plain URL field alone.
+  - **Frontend Edit Shortcut**: Staff users can now open the current post or page directly in the dashboard editor from the public frontend without digging through admin content lists.
+  - **Frontend Quick Edit Modal**: Staff users can now launch a modal-based post/page editor directly on the public view for quick fixes while staying on the current page.
+  - **Frontend Edit RBAC Alignment**: Public quick-edit and dashboard-edit shortcuts now respect owner/admin-root permissions more closely, so moderator and writer accounts only see edit affordances for content they can actually update.
+  - **Dedicated Category Manager**: Settings now includes a dedicated `Categories` tab for adding, renaming, and deleting categories without hiding that workflow under the Menu screen.
+  - **Reusable Category Picker**: The post editor now exposes a real existing-category picker while still allowing manual category entry, and newly saved categories are folded back into site settings for reuse.
+  - **Historical Category Recovery**: Settings delivery now merges authoritative category labels from stored posts, so the editor can suggest older categories even when they were never manually curated in Settings.
+
+- **Maintenance UX Alignment**:
+  - **Schema Repair Labeling**: Database repair surfaces now describe themselves accurately as VonCMS schema repair tools instead of implying low-level MySQL corruption recovery.
+  - **Schema Repair Refresh Signal**: The repair endpoint now returns an explicit `repaired` flag so the Database Manager reloads only after a real schema change, instead of relying on fragile success-message text matching.
+
+#### v1.21.8 — WordPress Importer Upgrade
+
+- **WordPress Importer Upgrade**:
+  - **Import Batch Accuracy**: The WordPress importer now batches only real `post` and `page` entries, so attachments and other non-content XML items no longer consume import slots or distort progress.
+  - **Auto Media Re-hosting**: Imported WordPress content now downloads supported source images into local `uploads/` storage and rewrites in-content image references to VonCMS-local paths instead of leaving them on the old domain.
+  - **Gutenberg Cleanup on Import**: Imported WordPress content now strips Gutenberg block comments during migration instead of persisting `<!-- wp:... -->` noise into stored post/page HTML.
+  - **Supported Embed Conversion**: The importer now converts supported standalone media URLs and Gutenberg embed wrappers for YouTube, TikTok, Vimeo, and Facebook into iframe embeds before save.
+  - **Internal Link Remap**: Imported anchor links pointing to the detected source WordPress domain are now remapped to the current VonCMS site URL while skipping obvious asset/admin targets.
+  - **Checkpoint Resume UI**: The `WordPress Bridge` tool now keeps a local checkpoint so interrupted imports can resume from the last successful batch instead of restarting from zero.
+  - **Permalink-Aware Redirects**: Auto-generated redirects created during import now target the active VonCMS permalink structure instead of assuming root-slug URLs.
+
+#### v1.21.7 — Base-Path Navigation Safety
+
+- **Base-Path Navigation Safety**:
+  - **Theme Menu Normalization**: Same-site custom navigation links across the bundled themes now normalize against `BASE_PATH`, preventing root-relative `/about` style links from escaping subfolder installs.
+  - **Corporate Pro CTA Safety**: Corporate Pro menu items, footer links, and CTA/service targets now pass through the same same-site URL normalization rules instead of using raw theme-configured paths.
+  - **Page Menu Fallback Forwarding**: Theme menu handlers now forward unresolved `page:{id}` targets to the centralized page resolver instead of aborting when a page record is not already loaded client-side.
+
+#### v1.21.6 — Permalink Resolution & SEO Path Consistency
+
+- **Permalink Resolution Hardening**:
+  - **Post Click Canonicalization**: Client-side post navigation now resolves the target post before routing, so ID-driven click surfaces follow the configured permalink structure instead of fabricating `/post/{id}` when the item is missing from memory.
+  - **Page Click Slug Resolution**: Page navigation now resolves through the authoritative page slug, with an exact page lookup fallback when a `page:{id}` menu item is not present in the hydrated client list.
+  - **Legacy Route Containment**: The legacy `/post/:id` route remains available for backward compatibility, but public UI navigation no longer relies on it as the primary path.
+
+- **SEO Path Consistency**:
+  - **Base-Path-Aware Canonicals**: Client-side canonical URLs for pages, profiles, and category views now include the configured `BASE_PATH`, improving parity for root, subdomain, and subfolder deployments.
+  - **Public Page Lookup Precision**: `get_pages.php` now supports exact `id` and `slug` lookups while preserving the published-page boundary for public requests.
+
 ### [v1.21.5] - 2026-03-29 (Security, Scheduler & Editor Hardening)
 
 - **Security Hardening Follow-up**:
@@ -132,8 +294,8 @@
   - **Premium Header Blur**: Upgraded `backdrop-blur` level and implemented semi-transparent backgrounds (`rgba(..., 0.85)`) for TechPress and Digest headers.
   - **Digest Hero Alignment**: Fixed image responsiveness in the Digest theme to prevent distorted images on mobile.
 
-- **Enterprise Stress Testing & Benchmarking**:
-  - **v_stress.php Utility**: Introduced a high-performance benchmarking tool supporting up to **1 Million posts** with tiered seeding and RPS metrics analysis.
+- **Enterprise Performance Validation**:
+  - Verified scheduler, audit logging, and content APIs under sustained load with consistent response times.
 
 - **Settings & System Stability**:
   - **General Settings Fix**: Resolved naming mismatches for `site_language` and `domain_url` in the API.
