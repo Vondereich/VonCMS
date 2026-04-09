@@ -11,7 +11,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](docs/LICENSE.md)
 
-[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](/INSTALLATION.md) | [Manual](/USER_MANUAL.md) | [API](/API_REFERENCE.md) | [Upgrade](/Upgrade.md)
+[Demo Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](/INSTALLATION.md) | [Manual](/USER_MANUAL.md) | [API](/API_REFERENCE.md) | [Upgrade](/Upgrade.md)
 
 </div>
 
