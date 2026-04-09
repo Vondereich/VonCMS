@@ -7,11 +7,12 @@
   - **Avatar URL Sync**: Comments API removed login-gate on `userAvatar` output (returned for all users). Login and Check Auth APIs scrubbed avatar URL with http→https upgrade on HTTPS sites.
   - **Email Verification Consistency**: Fresh install admin created with `email_verified = 1`. Staff roles auto-verified on dashboard create. Schema repair auto-verifies stuck staff users.
   - **RSS Language Fix**: Comma-separated `site_language` (e.g. `ms, en`) extracts first language as primary feed `<language>` tag.
-  - **Permalink Settings UI**: Fixed misleading plain permalink example: `/post/abc123` → `/post/123`.
+  - **Permalink Settings UI**: Fixed misleading plain permalink example: /post/abc123 -> /post/123.
+  - **FastCGI Base-Path Normalization**: `public/index.php` now normalizes `SCRIPT_NAME` before deriving `window.VON_BASE`, preventing `/./` router basenames on CGI/FastCGI shared hosting and restoring correct root/subfolder routing.
 
 - **Release Snapshot**:
   - First public `Kirana` release that consolidates internal milestones `v1.21.6` through `v1.21.12` into one production changelog.
-  - Final public-facing additions in the `v1.22.0` drop: official architecture naming, RSS feed support, final PostEditor polish, post-audit reliability fixes, and pre-release hotfixes (UTF-8 cleanup, avatar sync, email verification consistency).
+  - Final public-facing additions in the `v1.22.0` drop: official architecture naming, RSS feed support, final PostEditor polish, post-audit reliability fixes, and pre-release hotfixes (UTF-8 cleanup, avatar sync, email verification consistency, and FastCGI base-path normalization).
   - Detailed milestone history remains below so readers can trace how the release evolved instead of reading one giant flat feature dump.
 
 - **Progress History**:
@@ -51,7 +52,7 @@
   - **Focus Rings**: Added visible `focus:ring-2 focus:ring-blue-500/20` with smooth transitions to title input and sidebar form inputs for accessibility.
   - **Editor Heading Pills**: Replaced native `<select>` dropdowns in the Editor toolbar with H1-H6 plus Paragraph button pills for a cleaner feel.
   - **Modal Close Buttons**: Replaced `&times;` text with consistent Lucide `<X size={18} />` icon buttons with rounded-full hover styling across PostEditor modals.
-  - **Toolbar Button Polish**: All toolbar icons use consistent sizing with `hover:scale-105` transitions, softer dividers, and color-coded icons (amber for code, cyan for HTML, violet for preview, violet for eye).
+  - **Toolbar Button Polish**: All toolbar icons use consistent sizing with `hover:scale-105` transitions, softer dividers, and color-coded icons (amber for code, cyan for HTML, violet for preview).
   - **HTML & Preview Buttons**: Converted from text labels to icon-only buttons (`<Code />` for HTML source, `<Eye />` for live preview) matching the rest of the toolbar icon style.
   - **Image Credit / Attribution**: Added "Credit / Attribution" field in the image bubble menu (appears when clicking an image). Users can type credit text (e.g. Bernama, Reuters, AP, AFP) and save - the image auto-wraps in `<figure>` with inline-styled `<figcaption>` (0.75rem, italic, #94a3b8) for consistent rendering in editor and preview. Empty credit unwraps back to plain `<img>`. Credit auto-populates from existing `<figcaption>` when clicking an already-credited image.
 
@@ -96,7 +97,7 @@
   - **WP-Bridge Presentation Sterilization**: Cleaned Gutenberg-specific block comment tags that were leaking into API excerpt results using a strategic API-side `strip_tags()`.
   - **Component Responsive Adjustments**: Enforced strict tablet breakpoints for the `Digest` layout grid structure to prevent uneven screen flow breakages.
 
-#### v1.21.10 — Media Workflow Upgrade
+#### v1.21.10 - Media Workflow, Audit Trail & Release Hardening
 
 - **Media Workflow Upgrade**:
   - **Dashboard Media Sync**: Media Settings now includes a one-click sync tool that scans `uploads/` and indexes manually added FTP/File Manager media into the library database.
@@ -123,7 +124,7 @@
   - **Redirect Loop Scanner**: The Redirect Manager now includes a loop scanner for existing rules, with backend graph checks that flag stored self-loops and local redirect cycles before they surprise a live site.
   - **User Manager Response Feedback**: The dashboard user manager now surfaces toast feedback for successful create/update/delete operations and for blocked protected-account actions instead of failing silently.
 
-#### v1.21.9 — Admin Convenience & Category Workflow
+#### v1.21.9 - Admin Convenience & Category Workflow
 
 - **Admin Convenience Upgrade**:
   - **Direct Featured Image Picker**: The post editor now supports direct featured-image uploads from device plus browsing the existing Media Gallery instead of relying on a plain URL field alone.
@@ -138,7 +139,7 @@
   - **Schema Repair Labeling**: Database repair surfaces now describe themselves accurately as VonCMS schema repair tools instead of implying low-level MySQL corruption recovery.
   - **Schema Repair Refresh Signal**: The repair endpoint now returns an explicit `repaired` flag so the Database Manager reloads only after a real schema change, instead of relying on fragile success-message text matching.
 
-#### v1.21.8 — WordPress Importer Upgrade
+#### v1.21.8 - WordPress Importer Upgrade
 
 - **WordPress Importer Upgrade**:
   - **Import Batch Accuracy**: The WordPress importer now batches only real `post` and `page` entries, so attachments and other non-content XML items no longer consume import slots or distort progress.
@@ -149,14 +150,14 @@
   - **Checkpoint Resume UI**: The `WordPress Bridge` tool now keeps a local checkpoint so interrupted imports can resume from the last successful batch instead of restarting from zero.
   - **Permalink-Aware Redirects**: Auto-generated redirects created during import now target the active VonCMS permalink structure instead of assuming root-slug URLs.
 
-#### v1.21.7 — Base-Path Navigation Safety
+#### v1.21.7 - Base-Path Navigation Safety
 
 - **Base-Path Navigation Safety**:
   - **Theme Menu Normalization**: Same-site custom navigation links across the bundled themes now normalize against `BASE_PATH`, preventing root-relative `/about` style links from escaping subfolder installs.
-  - **Corporate Pro CTA Safety**: Corporate Pro menu items, footer links, and CTA/service targets now pass through the same same-site URL normalization rules instead of using raw theme-configured paths.
+  - **Corporate Pro CTA Safety**: Corporate Pro menu items, footer links, and CTA/service targets now pass through the standard same-site URL normalization rules instead of using raw theme-configured paths.
   - **Page Menu Fallback Forwarding**: Theme menu handlers now forward unresolved `page:{id}` targets to the centralized page resolver instead of aborting when a page record is not already loaded client-side.
 
-#### v1.21.6 — Permalink Resolution & SEO Path Consistency
+#### v1.21.6 - Permalink Resolution & SEO Path Consistency
 
 - **Permalink Resolution Hardening**:
   - **Post Click Canonicalization**: Client-side post navigation now resolves the target post before routing, so ID-driven click surfaces follow the configured permalink structure instead of fabricating `/post/{id}` when the item is missing from memory.
@@ -199,7 +200,7 @@
   - **Search Bar Width Tuning**: The Digest homepage search shell is now slightly wider for a less cramped frontpage layout.
 
 - **Theme Icon Standardization & Mojibake Cleanup**:
-  - **Thematic Visual Consistency**: Standardized all theme dark mode toggles across all 5 built-in themes (`Default`, `TechPress`, `Digest`, `Portfolio`, `Corporate Pro`) using `Moon` and `Sun` components from `lucide-react` with a consistent color palette (`text-amber-500` for Sun, `text-blue-400` for Moon).
+  - **Thematic Visual Consistency**: Standardized all theme dark mode toggles across the 5 togglable built-in themes (`Default`, `TechPress`, `Digest`, `Portfolio`, `Corporate Pro`; Prism excluded as an always-dark theme) using `Moon` and `Sun` components from `lucide-react` with a consistent color palette (`text-amber-500` for Sun, `text-blue-400` for Moon).
   - **Mojibake Eradication**: Fixed character encoding issues in the `Digest` and `Corporate Pro` themes, replacing corrupted symbols with stable alternatives.
   - **Digest Metadata Polish**: Replaced corrupted likes/comments symbols in `Digest` with standardized `ThumbsUp` and `MessageSquare` icons.
   - **TechPress Navigation Polish**: Standardized `Back to Home` navigation links with `ChevronLeft` icons, replacing problematic non-ASCII arrow characters that were prone to corruption.
