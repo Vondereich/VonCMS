@@ -9,6 +9,7 @@
   - **RSS Language Fix**: Comma-separated `site_language` (e.g. `ms, en`) extracts first language as primary feed `<language>` tag.
   - **Permalink Settings UI**: Fixed misleading plain permalink example: /post/abc123 -> /post/123.
   - **FastCGI Base-Path Normalization**: `public/index.php` now normalizes `SCRIPT_NAME` before deriving `window.VON_BASE`, preventing `/./` router basenames on CGI/FastCGI shared hosting and restoring correct root/subfolder routing.
+  - **WordPress Importer Attachment Fix**: `wp_import.php` now processes `<wp:post_type>attachment</wp:post_type>` items instead of skipping them. Downloads, validates, and registers standalone media entries. Auto-infers `sourceBaseUrls` from attachment URLs when not provided. Double-import guard checks `media` table before re-downloading. Batch pagination respects `$count` for all item types to prevent reprocessing across batches.
 
 - **Release Snapshot**:
   - First public `Kirana` release that consolidates internal milestones `v1.21.6` through `v1.21.12` into one production changelog.
