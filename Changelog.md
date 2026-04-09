@@ -1,10 +1,17 @@
-### [v1.22.0] - 2026-04-07 (Kirana - cumulative release since v1.21.5)
+### [v1.22.0] - 2026-04-09 (Kirana - cumulative release since v1.21.5)
 
 > This release bundles the work from internal milestones v1.21.6 through v1.21.12 into one production drop. If you are upgrading from v1.21.5 or earlier, everything below is new. If you are already on any 1.21.6-1.21.12 internal build, most of it will look familiar - v1.22.0 adds the architecture naming, RSS rollout, final polish, and the last post-audit fixes.
 
+- **Final Hotfixes**:
+  - **UTF-8 Encoding Cleanup**: Replaced Windows-1252 encoded em-dashes and arrows with ASCII-safe hyphens across 13 PHP files (`rss.php`, `wp_import.php`, `backup_db.php`, `import_db.php`, `install.php`, `list_media.php`, `mail_helper.php`, `newsletter_export.php`, `register.php`, `reset_password.php`, `index.php`, `llms.php`, `sitemap.php`). Eliminated mojibake rendering issues in non-UTF-8 environments.
+  - **Avatar URL Sync**: Comments API removed login-gate on `userAvatar` output (returned for all users). Login and Check Auth APIs scrubbed avatar URL with http→https upgrade on HTTPS sites.
+  - **Email Verification Consistency**: Fresh install admin created with `email_verified = 1`. Staff roles auto-verified on dashboard create. Schema repair auto-verifies stuck staff users.
+  - **RSS Language Fix**: Comma-separated `site_language` (e.g. `ms, en`) extracts first language as primary feed `<language>` tag.
+  - **Permalink Settings UI**: Fixed misleading plain permalink example: `/post/abc123` → `/post/123`.
+
 - **Release Snapshot**:
   - First public `Kirana` release that consolidates internal milestones `v1.21.6` through `v1.21.12` into one production changelog.
-  - Final public-facing additions in the `v1.22.0` drop: official architecture naming, RSS feed support, final PostEditor polish, and post-audit reliability fixes.
+  - Final public-facing additions in the `v1.22.0` drop: official architecture naming, RSS feed support, final PostEditor polish, post-audit reliability fixes, and pre-release hotfixes (UTF-8 cleanup, avatar sync, email verification consistency).
   - Detailed milestone history remains below so readers can trace how the release evolved instead of reading one giant flat feature dump.
 
 - **Progress History**:
