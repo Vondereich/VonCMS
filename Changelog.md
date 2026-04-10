@@ -1,3 +1,33 @@
+### [v1.22.1] - 2026-04-13
+
+- **WordPress Importer Featured Image Fix**:
+  - **Pre-scan attachment map**: Before batch processing, a quick XML pre-scan reads all `<wp:post_type>attachment</wp:post_type>` items and builds a `{ wp:post_id → wp:attachment_url }` lookup map.
+  - **`_thumbnail_id` resolution (new Strategy 1)**: Post import reads `<wp:postmeta>` for `<wp:meta_key>_thumbnail_id</wp:meta_key>`, looks up the attachment ID in the pre-scanned map, downloads the image via `rehost_import_image_url()`, and saves the local URL as `image_url` in the `posts` table. WordPress stores featured images as separate attachment items referenced by `_thumbnail_id` — not as `<image>` tags or `<img>` in content — so this resolves the root cause for sites where posts have no inline images.
+  - **Fallback chain preserved**: Strategy 2 — explicit `<image>` tag for non-WordPress generic XML imports. Strategy 3 — first `<img>` in content for posts without `_thumbnail_id`.
+  - **Duplicate download protection**: `rehost_import_image_url()` static cache prevents the same URL from being downloaded twice (once by attachment handler, once by Strategy 1).
+  - **Result**: Tested against real WordPress WXR export from LeCatho.fr (24 posts, 25 attachments, all 24 posts have `_thumbnail_id`). Expected `image_url` coverage: ~100% (previously ~4%).
+- **WPMigrator "Start New Import" Button**:
+  - Added "Start New Import" button on the complete screen that resets all UI state (file, progress, logs, checkpoint, safety checkbox) back to upload view. Previously users had to refresh the browser to import another XML file.
+- **Media Rebuild WebP Crash Fix**:
+  - GD's `imagecreatefromwebp()` crashes with `cannot allocate temporary buffer` fatal errors on certain WebP encodings (especially WordPress-imported images). The Rebuild Responsive Variants tool now skips WebP files entirely and reports them separately — they're already compressed and don't benefit significantly from responsive variants. Stats now show `WebP skipped (already compressed): X` alongside processed/skipped counts.
+- **Editor Blockquote Spacing Fix**:
+  - Removed redundant `<p><br/></p>` after blockquote insertion in the editor. The blockquote already has `margin: 16px 0` for natural spacing, so the trailing empty paragraph was creating unnecessary blank lines after quoted text.
+- **Root DirectoryIndex Priority Fix**:
+  - When both `index.html` and `index.php` exist in the root directory (common after deploy zip extraction on shared hosting), Apache's default `DirectoryIndex` serves `index.html` first — a blank React shell with no PHP routing, no API, no SEO engine.
+  - Added `DirectoryIndex index.php index.html` to all `.htaccess` templates (root `.htaccess`, `public/.htaccess`, installer, and repair tool) to force PHP priority. Existing deployments with this conflict are now fixed automatically on Integrity Repair.
+- **Google Search Index Cleanup — Hardcoded Default Text Removed**:
+  - Removed hardcoded "Welcome to our website" text from `useSettings.ts` sidebar widget default and promo bar plugin default. These strings were indexed by Google from fresh installs before settings were saved.
+  - Synced `install.sql` and `install.php` default plugin_config to empty strings to match frontend fallback.
+  - `sidebarLayout` default now contains only the Trending widget (matching `install.sql` database default).
+- **PHP 8.2 Minimum Version Enforcement**:
+  - Added `version_compare(PHP_VERSION, '8.2.0', '<')` checks to `public/index.php`, `public/security.php`, and `public/api/install.php`.
+  - Clear HTML error page for homepage access (shows current PHP version and upgrade instruction).
+  - JSON error response for API endpoints and installer.
+  - Prevents silent crashes and undefined behavior on unsupported PHP versions.
+- **RSS Sitemap `<enclosure>` Length Attribute Fix**:
+  - Added required `length` attribute to `<enclosure>` tags in `public/rss.php`. Fixes Google Search Console "Missing XML attribute" errors (20 instances).
+  - File size derived from local image path when available, defaults to `0` for external URLs.
+
 ### [v1.22.0] - 2026-04-09 (Kirana - cumulative release since v1.21.5)
 
 > This release bundles the work from internal milestones v1.21.6 through v1.21.12 into one production drop. If you are upgrading from v1.21.5 or earlier, everything below is new. If you are already on any 1.21.6-1.21.12 internal build, most of it will look familiar - v1.22.0 adds the architecture naming, RSS rollout, final polish, and the last post-audit fixes.
