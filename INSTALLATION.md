@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.22.0 "Kirana"**
+> **VonCMS v1.22.1 "Kirana"**
 
 ---
 
@@ -23,13 +23,42 @@ VonCMS is a modern content management system built with React and PHP. It combin
 
 ## Requirements
 
+VonCMS runs on a standard **LAMP** stack:
+
 | Requirement | Minimum |
 | ----------- | ------- |
 | PHP         | 8.2+    |
 | MySQL       | 5.7+    |
 | Storage     | 50MB    |
 
-Works on: cPanel, VPS, XAMPP, WAMP
+**Server:** Apache (required for `.htaccess` routing)
+**Hosting:** cPanel (Apache), DirectAdmin (Apache), WAMP, XAMPP, Laragon
+
+> **Important:** VonCMS uses `.htaccess` for routing. This requires **Apache** or **Apache behind Nginx proxy** (common on cPanel/DirectAdmin). If your hosting runs **Nginx-only** (no Apache), `.htaccess` rules are ignored and assets will return 403 — the site will appear broken. Ask your host if they use Apache, or refer to the [VPS Guide](VPS.md) for manual Nginx config.
+
+---
+
+## Local Testing
+
+### XAMPP / WAMP (Recommended)
+- **XAMPP** is the easiest baseline — phpMyAdmin included out of the box.
+- **WAMP** offers easier PHP version switching for `8.4+` testing.
+
+### Laragon
+Laragon is lightweight but requires a small manual step:
+
+1. **Download phpMyAdmin** from [phpmyadmin.net](https://www.phpmyadmin.net/)
+2. **Extract** to `C:\laragon\etc\apps\phpMyAdmin`
+3. **Start Laragon** → **Start All** (Apache + MySQL/MariaDB)
+4. **Access phpMyAdmin** → `http://localhost/phpmyadmin`
+5. **Connect via database manager** (HeidiSQL/other):
+   - **Connection type:** TCP/IP
+   - **Host:** `localhost`
+   - **Port:** `3306`
+   - **Username:** `root`
+   - **Password:** *(leave empty)*
+
+> **Default DB credentials:** Host: `localhost`, User: `root`, Password: *(empty)*. MariaDB is fully compatible with VonCMS (uses standard `mysql:` PDO DSN).
 
 ---
 
@@ -37,11 +66,9 @@ Works on: cPanel, VPS, XAMPP, WAMP
 
 ### Step 1: Upload
 
-1. Download `Deploy.zip`
+1. Download the latest VonCMS Deploy package
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
-3. Extract all files
-
-> **Shared Hosting Note:** If your target folder already contains a host-generated `.htaccess` (for example from cPanel, LiteSpeed, or an older subfolder site), back it up first before running the installer. A fresh VonCMS install writes its own `.htaccess` template during setup.
+3. For Laragon: extract to `C:\laragon\www\your-project`
 
 ### Step 2: Create Database
 
@@ -90,7 +117,7 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 1. **Backup**: Download your `uploads/` folder and your live `von_config.php`.
 2. **Clean**: Delete the `assets/` folder in your hosting to prevent stale asset conflicts.
-3. **Use the current Deploy.zip package** and overwrite the existing deployment files.
+3. **Use the latest VonCMS Deploy package** and overwrite the existing deployment files.
 4. **Verify `.htaccess` carefully** if your hosting folder already contains cPanel-generated handlers, custom redirects, or any host-managed rewrite rules. Restore your backup or the generated `.bak` copy if extraction changed something you needed to keep.
 5. **Keep your real config**: do not replace your live `von_config.php` with a sample file.
 6. **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
@@ -108,4 +135,4 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 ---
 
-_VonCMS v1.22.0 "Kirana"_
+_VonCMS v1.22.2 "Kirana"_
