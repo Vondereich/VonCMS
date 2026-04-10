@@ -1,5 +1,7 @@
-### [v1.22.1] - 2026-04-13
+### [v1.22.1] - 2026-04-10
 
+- **Navigation Toggle Stale Closure Fix**:
+  - Fixed `onToggleNav` in `useSettings.ts` — navigation state is now computed once and shared between UI update (`setSettings`) and server save (`vonFetch`). Previously, two independent computations could diverge on rapid toggles, causing UI/database mismatch after page refresh.
 - **WordPress Importer Featured Image Fix**:
   - **Pre-scan attachment map**: Before batch processing, a quick XML pre-scan reads all `<wp:post_type>attachment</wp:post_type>` items and builds a `{ wp:post_id → wp:attachment_url }` lookup map.
   - **`_thumbnail_id` resolution (new Strategy 1)**: Post import reads `<wp:postmeta>` for `<wp:meta_key>_thumbnail_id</wp:meta_key>`, looks up the attachment ID in the pre-scanned map, downloads the image via `rehost_import_image_url()`, and saves the local URL as `image_url` in the `posts` table. WordPress stores featured images as separate attachment items referenced by `_thumbnail_id` — not as `<image>` tags or `<img>` in content — so this resolves the root cause for sites where posts have no inline images.
@@ -9,7 +11,7 @@
 - **WPMigrator "Start New Import" Button**:
   - Added "Start New Import" button on the complete screen that resets all UI state (file, progress, logs, checkpoint, safety checkbox) back to upload view. Previously users had to refresh the browser to import another XML file.
 - **Media Rebuild WebP Crash Fix**:
-  - GD's `imagecreatefromwebp()` crashes with `cannot allocate temporary buffer` fatal errors on certain WebP encodings (especially WordPress-imported images). The Rebuild Responsive Variants tool now skips WebP files entirely and reports them separately — they're already compressed and don't benefit significantly from responsive variants. Stats now show `WebP skipped (already compressed): X` alongside processed/skipped counts.
+  - GD's `imagecreatefromwebp()` can crash with `cannot allocate temporary buffer` fatal errors on certain WebP encodings (especially WordPress-imported images). The error is now suppressed to prevent fatal crashes during the responsive variants rebuild. WebP files are already well-compressed and don't benefit significantly from responsive variant regeneration.
 - **Editor Blockquote Spacing Fix**:
   - Removed redundant `<p><br/></p>` after blockquote insertion in the editor. The blockquote already has `margin: 16px 0` for natural spacing, so the trailing empty paragraph was creating unnecessary blank lines after quoted text.
 - **Root DirectoryIndex Priority Fix**:
@@ -27,6 +29,7 @@
 - **RSS Sitemap `<enclosure>` Length Attribute Fix**:
   - Added required `length` attribute to `<enclosure>` tags in `public/rss.php`. Fixes Google Search Console "Missing XML attribute" errors (20 instances).
   - File size derived from local image path when available, defaults to `0` for external URLs.
+  - External/CDN image URLs no longer output `<enclosure>` tags with `length="0"` — the tag is skipped entirely for remote images to avoid RSS validator warnings.
 
 ### [v1.22.0] - 2026-04-09 (Kirana - cumulative release since v1.21.5)
 
@@ -49,8 +52,8 @@
 - **Progress History**:
   - **`v1.21.6`**: permalink resolution hardening, canonical path cleanup, exact public page lookup support.
   - **`v1.21.7`**: base-path-safe navigation for themes, menu links, CTA links, and `page:{id}` fallbacks.
-  - **`v1.21.8`**: WordPress importer upgrade with media re-hosting, Gutenberg cleanup, embed conversion, checkpoint resume, and permalink-aware redirects.
-  - **`v1.21.9`**: frontend quick edit, direct featured-image picker, dedicated category manager, reusable category workflow, and schema-repair UX cleanup.
+  - **`v1.21.8`**: WordPress importer upgrade with media re-hosting, Gutenberg cleanup, embed conversion, internal link remap, and permalink-aware redirects.
+  - **`v1.21.9`**: frontend quick edit, direct featured-image picker, dedicated category manager, and schema-repair UX cleanup.
   - **`v1.21.10`**: dashboard media sync, variant cleanup, editorial audit trail, redirect loop hardening, and stronger user-manager feedback.
   - **`v1.21.11`**: admin security hardening, import/export safety tightening, avatar/data-integrity sync, and backend payload/backup performance improvements.
   - **`v1.21.12`**: frontend security hardening, PostEditor UI refresh, canonical fallback consistency, RSS feed rollout with clean URLs, BASE_PATH-aware theme footers, and cross-source discoverability.
@@ -163,7 +166,7 @@
   - **Frontend Quick Edit Modal**: Staff users can now launch a modal-based post/page editor directly on the public view for quick fixes while staying on the current page.
   - **Frontend Edit RBAC Alignment**: Public quick-edit and dashboard-edit shortcuts now respect owner/admin-root permissions more closely, so moderator and writer accounts only see edit affordances for content they can actually update.
   - **Dedicated Category Manager**: Settings now includes a dedicated `Categories` tab for adding, renaming, and deleting categories without hiding that workflow under the Menu screen.
-  - **Reusable Category Picker**: The post editor now exposes a real existing-category picker while still allowing manual category entry, and newly saved categories are folded back into site settings for reuse.
+  - **Category Management Improvements**: The post editor category selection now displays existing categories in a dedicated selector while still allowing manual entry, and newly saved categories are folded back into site settings for reuse.
   - **Historical Category Recovery**: Settings delivery now merges authoritative category labels from stored posts, so the editor can suggest older categories even when they were never manually curated in Settings.
 
 - **Maintenance UX Alignment**:
@@ -178,7 +181,6 @@
   - **Gutenberg Cleanup on Import**: Imported WordPress content now strips Gutenberg block comments during migration instead of persisting `<!-- wp:... -->` noise into stored post/page HTML.
   - **Supported Embed Conversion**: The importer now converts supported standalone media URLs and Gutenberg embed wrappers for YouTube, TikTok, Vimeo, and Facebook into iframe embeds before save.
   - **Internal Link Remap**: Imported anchor links pointing to the detected source WordPress domain are now remapped to the current VonCMS site URL while skipping obvious asset/admin targets.
-  - **Checkpoint Resume UI**: The `WordPress Bridge` tool now keeps a local checkpoint so interrupted imports can resume from the last successful batch instead of restarting from zero.
   - **Permalink-Aware Redirects**: Auto-generated redirects created during import now target the active VonCMS permalink structure instead of assuming root-slug URLs.
 
 #### v1.21.7 - Base-Path Navigation Safety
