@@ -148,11 +148,11 @@ The goal is simple: make content work easier to run, easier to maintain, and les
 
 ## Local Testing
 
-- Recommended local stacks: `XAMPP` or `WAMP`.
+- Recommended local stacks: `XAMPP`, `WAMP`, or `Laragon`.
 - `XAMPP` is the easiest baseline for quick VonCMS install and feature checks, especially on PHP `8.2`.
 - `WAMP` is a reasonable choice if you want easier local PHP version switching for future `8.4+` tests.
-- `Laragon` is currently best-effort only for VonCMS. It can work, but local setup tends to be more fragile around vhosts, SSL, `index.php` vs `index.html`, and installer/database bootstrap behavior.
-- For serious PHP `8.4+` compatibility validation, a staging subdomain on the target hosting is more representative than a Laragon-only localhost test.
+- `Laragon` is lightweight and works well. Note: phpMyAdmin is not bundled — download from [phpmyadmin.net](https://www.phpmyadmin.net/) and extract to `C:\laragon\etc\apps\phpMyAdmin`. Default DB credentials: `root` / *(empty)*.
+- For serious PHP `8.4+` compatibility validation, a staging subdomain on the target hosting is more representative than a localhost-only test.
 
 > Shared hosting note: if the destination folder already has a host-generated or custom `.htaccess`, back it up first. The installer and `Repair .htaccess` now preserve existing content and refresh only the VonCMS-managed block, but manual ZIP extraction can still overwrite `.htaccess` depending on your hosting file manager or unzip tool.
 
