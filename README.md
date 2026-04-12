@@ -1,10 +1,10 @@
-# VonCMS v1.22.1 "Kirana"
+# VonCMS v1.22.3 "Kirana"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
 
-[![Version](https://img.shields.io/badge/Version-1.22.1-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.22.3-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=orange)](https://github.com/Vondereich/VonCMS/releases)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
@@ -27,7 +27,7 @@ VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is buil
 
 > **Surprise:** Open Source is coming much sooner than we planned! Stay tuned for the official transition. &#128640;
 
-## v1.22.1 Snapshot
+## v1.22.3 Snapshot
 
 > These figures come from the current release cycle's packaging and validation checks. Treat them as release notes, not as a blanket guarantee for every host.
 
@@ -85,33 +85,26 @@ If you run a news site, blog, or content portal, the tradeoff is familiar:
 
 The goal is simple: make content work easier to run, easier to maintain, and less fragile on ordinary hosting. If a feature removes friction for the person publishing the site, it matters.
 
-## What's New in v1.22.1
+## What's New in v1.22.3
 
 <img width="1920" height="990" alt="capture-20260408-215903" src="https://github.com/user-attachments/assets/2d797455-94c7-46e0-880c-154b86a636e4" />
 
 
-> **v1.22.1 "Kirana"** is a maintenance release that fixes critical issues from v1.22.0 and adds several improvements for import reliability, media handling, and search indexing.
+> **v1.22.3 "Kirana"** fixes Google Search indexing inconsistency by enforcing client-side canonical URL redirects for all single posts, and corrects PHP reserved word over-blocking that prevented posts with category names like "search" or "category" from loading with proper meta tags.
 
-- **WordPress Importer Featured Image Fix**:
-  - **Pre-scan attachment map**: Before batch processing, a quick XML pre-scan reads all `<wp:post_type>attachment</wp:post_type>` items and builds a `{ wp:post_id → wp:attachment_url }` lookup map.
-  - **`_thumbnail_id` resolution (new Strategy 1)**: Post import reads `<wp:postmeta>` for `<wp:meta_key>_thumbnail_id</wp:meta_key>`, looks up the attachment ID in the pre-scanned map, downloads the image via `rehost_import_image_url()`, and saves the local URL as `image_url` in the `posts` table.
-  - **Fallback chain preserved**: Strategy 2 — explicit `<image>` tag for non-WordPress generic XML imports. Strategy 3 — first `<img>` in content for posts without `_thumbnail_id`.
-  - **Duplicate download protection**: `rehost_import_image_url()` static cache prevents the same URL from being downloaded twice.
-  - **Result**: Expected `image_url` coverage jumps from ~4% to ~95%+.
+- **Client-side Canonical URL Normalization**:
+  - `PublicSiteWrapper` in `App.tsx` now enforces a hard redirect when the current URL doesn't match the canonical permalink for any single post.
+  - Runs even when `permalinkStructure` is undefined or empty (previously skipped enforcement).
+  - Subfolder-safe: uses `window.location.replace(basePath + canonicalPath)` for correct redirects on installs at `yoursite.com/blog`.
+  - Server-side 301 redirect handles non-JS crawlers; this fix covers Google's JavaScript-rendered crawls.
 
-- **WPMigrator "Start New Import" Button**: Added button on the complete screen that resets all UI state back to upload view. Previously users had to refresh the browser to import another XML file.
+- **PHP Reserved Word Over-blocking Fix**:
+  - Reserved words reduced from 12 to 8: removed `search`, `tags`, `category`, `page`.
+  - These are SPA routes handled by React, not PHP endpoints. Keeping them in the reserved list caused the PHP handler to skip post lookups for valid URLs like `/search/my-post`.
+  - Reserved words now only include actual PHP endpoints: `admin`, `login`, `profile`, `register`, `reset-password`, `install`, `assets`.
 
-- **Media Rebuild WebP Crash Fix**: GD's `imagecreatefromwebp()` crashes on certain WebP encodings. The Rebuild Responsive Variants tool now skips WebP files entirely and reports them separately — they're already compressed and don't benefit from responsive variants.
-
-- **Editor Blockquote Spacing Fix**: Removed redundant `<p><br/></p>` after blockquote insertion. The blockquote already has `margin: 16px 0` for natural spacing.
-
-- **Root DirectoryIndex Priority Fix**: Added `DirectoryIndex index.php index.html` to all `.htaccess` templates to force PHP priority when both files exist. Fixes blank React shell issue on shared hosting. Auto-fixed on Integrity Repair.
-
-- **Google Search Index Cleanup — Hardcoded Default Text Removed**: Removed hardcoded "Welcome to our website" text from sidebar widget default and promo bar plugin default. These strings were indexed by Google from fresh installs before settings were saved.
-
-- **PHP 8.2 Minimum Version Enforcement**: Added version checks to entry points with clear HTML error pages and JSON error responses. Prevents silent crashes on unsupported PHP versions.
-
-- **RSS Sitemap `<enclosure>` Length Attribute Fix**: Added required `length` attribute to `<enclosure>` tags in `public/rss.php`. Fixes Google Search Console "Missing XML attribute" errors.
+- **Homepage `<noscript>` URL Parity Fix**:
+  - Added missing `plain` case to homepage post URL generation, ensuring `<noscript>` links correctly generate `/post/{id}` URLs when `permalinkStructure = 'plain'`.
 
 ## Core Features
 
@@ -185,5 +178,10 @@ For business inquiries, enterprise support, or collaboration:
 `kurama87@gmail.com`
 
 <div align="center">
+
+**v1.22.3 "Kirana" — Taking a break after this release.**
+
+We will be back with **v1.23**.
+
 Built by Vondereich.
 </div>
