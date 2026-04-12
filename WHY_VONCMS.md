@@ -203,7 +203,7 @@ Most CMS promise speed. VonCMS **proves** it — with real numbers, on real hard
 
 **The Result:**
 
-| Metric                 | VonCMS v1.22.0         | Typical WordPress Setup |
+| Metric                 | VonCMS v1.22.3         | Typical WordPress Setup |
 | ---------------------- | ---------------------- | ----------------------- |
 | **Throughput**         | 11,600 requests/second | ~500-2,000 req/s        |
 | **Avg Latency**        | 50ms                   | 200-800ms               |
