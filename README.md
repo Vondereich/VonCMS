@@ -27,6 +27,13 @@ VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is buil
 
 > **Surprise:** Open Source is coming much sooner than we planned! Stay tuned for the official transition. &#128640;
 
+## ⚠️ IMPORTANT: OTA Update & `.htaccess` Warning
+
+> **[!CAUTION]** OTA updates do **NOT** include `.htaccess` changes. The v1.22.x release cycle introduces critical `.htaccess` security rules (DirectoryIndex priority, localhost HTTPS bypass, RSS routing, WebP MIME type, CORS, and XSS protections). If these rules are missing after an OTA update, your site may show a **white page** or fail to route correctly. **After every OTA update, you MUST do one of the following:**
+>
+> 1. **Dashboard (easiest):** Go to **General Setting → Tools → Fix .htaccess** to apply the latest rules from the server.
+> 2. **Manual upload (safest):** Download the latest VonCMS Deploy package, extract only the root `.htaccess` and `public/.htaccess` files, and upload them to your server via FTP or file manager. This guarantees you get the exact shipping version.
+
 ## v1.22.3 Snapshot
 
 > These figures come from the current release cycle's packaging and validation checks. Treat them as release notes, not as a blanket guarantee for every host.
