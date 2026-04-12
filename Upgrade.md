@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.22.0
+## Recommended path to v1.22.3
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.22.0
+## What to verify after updating to v1.22.3
 
-This release affects routing consistency, editor stability, response contracts, importer hardening, and several admin reliability paths.
+This release focuses on upload reliability, editor stability, comment pagination, search clarity, and WebP MIME hardening.
 
 Check these items:
 
@@ -21,7 +21,9 @@ Check these items:
 - one single post page loads without layout glitches
 - one public page route resolves correctly
 - the editor opens and saves normally for one draft
-- TechPress trending cards look stable on long titles
+- search results show correct counts on Digest and Default themes
+- comments display numbered pagination (Prev/Next, page buttons)
+- if you upload or import images on restrictive hosting, they appear correctly on the frontend (no broken images)
 - if you use shared hosting, `.htaccess` still contains your host-managed PHP handler block
 
 ## When to use Integrity Fix
@@ -52,7 +54,7 @@ There is no benefit in pressing Integrity Fix on every update if the site is alr
 If your site is too old for the current OTA flow or the admin panel is unavailable:
 
 1. download the latest release package from the official release
-2. use the current Deploy.zip package and overwrite the old deployment files
+2. use the latest VonCMS Deploy package and overwrite the old deployment files
 3. back up your database, `uploads/`, and your live `von_config.php`
 4. if the hosting folder already contains cPanel-generated PHP handlers, custom `.htaccess` blocks, or hardcoded redirects, verify `.htaccess` after extraction and restore your backup or `.bak` copy if needed
 5. keep your real `von_config.php` in place and do not replace it with the sample file
