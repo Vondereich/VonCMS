@@ -1,11 +1,64 @@
+### [v1.22.3] - 2026-04-12
+
+- **ISS-1015 — Client-side Canonical URL Normalization**:
+  - `PublicSiteWrapper` in `App.tsx` now enforces canonical URL redirect for ALL single posts, including when `permalinkStructure` is undefined/empty (previously skipped enforcement).
+  - If current URL doesn't match the canonical permalink, fires `window.location.replace(basePath + canonicalPath)` — subfolder-safe hard redirect.
+  - Server-side 301 redirect already handles non-JS crawlers; this fix covers Google's JavaScript-rendered crawls.
+- **ISS-1015 — PHP Reserved Word Over-blocking Fix**:
+  - `public/index.php` slug handler reserved words reduced from 12 to 8: removed `search`, `tags`, `category`, `page`.
+  - These are SPA routes handled by React, not PHP endpoints. Keeping them in the reserved list caused the PHP handler to skip post lookups for valid URLs like `/search/my-post`.
+  - Reserved words now only include actual PHP endpoints: `admin`, `api`, `login`, `install`, `assets`, `profile`, `register`, `reset-password`.
+- **Homepage `<noscript>` URL Parity Fix**:
+  - Added missing `plain` case to homepage post URL generation in `public/index.php`.
+  - When `permalinkStructure = 'plain'`, homepage `<noscript>` links now correctly generate `/post/{id}` URLs instead of incorrectly falling through to `/{slug}`.
+  - This was the last remaining inconsistency between `buildCanonicalContentPath()` (which correctly handled `plain`) and the homepage URL switch (which did not).
+
+### [v1.22.2] - 2026-04-11
+
+- **Laragon HTTPS Redirect Fix**:
+  - Added localhost bypass to the `FORCE HTTPS` rewrite rule across all `.htaccess` templates.
+  - The previous rule forced HTTPS on `localhost` and `127.0.0.1`, breaking local development on stacks without SSL certs (Laragon, fresh XAMPP/WAMP).
+  - Added `RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]` so localhost stays on HTTP while production domains still enforce HTTPS.
+  - Updated in: root `.htaccess`, `public/.htaccess`, `public/api/install.php`, `public/api/system/repair_htaccess.php`, and `dist/` copies.
+- **Navigation Toggle Save Hardening**:
+  - `onToggleNav` in `useSettings.ts` now builds the next settings object before calling `setSettings`, then reuses that exact payload for API persistence.
+  - This removes reliance on React updater timing during rapid toggles and keeps UI state plus saved navigation in lockstep.
+- **Release Audit Alignment**:
+  - Updated the integration smoke gate to validate the active release entry instead of stale `v1.22.0` changelog markers.
+  - Synced version headers in key docs to `v1.22.2` so release notes and manifests stop drifting, while the installer header stays on the `1.22.0` Kirana baseline.
+- **INSTALL.md â€” Laragon Setup Notes**:
+  - Added Laragon local testing section with phpMyAdmin manual setup steps (`C:\laragon\etc\apps\phpMyAdmin`).
+  - Documented default database credentials (Host: `localhost`, User: `root`, Password: empty) and MariaDB compatibility note.
+  - Listed TCP/IP connection type, port `3306`, and Laragon project path (`C:\laragon\www\your-project`).
+- **Media Variant Warning Copy**:
+  - Hardened the dashboard warning text around generated variant preview/delete so admins are told more explicitly that deleting variants can remove live `srcset` candidates until a rebuild restores them.
+  - Added a stronger caution for WebP-heavy imports where deleted variants may not regenerate automatically under the current rebuild safety rules.
+- **Final Release Audit Cleanup**:
+  - Corrected the README snapshot label and synced remaining public docs that were still carrying stale `v1.22.1` / `v1.22.0` release labels.
+  - Removed a stray `public/data/test_write.txt` artifact so current source/deploy packages no longer ship an unnecessary test file.
+- **Search Result Count Clarity**:
+  - Default theme search results now report the full matched result count instead of the currently visible card count.
+  - Digest now renders a dedicated search-results header and uses `useServerSearch` `totalResults` for server-triggered searches, with `displayedPosts.length` fallback for client-side filtering.
+- **Public Comment Pagination Upgrade**:
+  - Replaced the old "show 3 / view more" expand-collapse behavior in `Comments.tsx` with numbered client-side pagination.
+  - Added `Prev` / `Next`, numbered page buttons, and a `Page X of Y` status while keeping the change isolated to the public comments component.
+- **Server Load More Error Feedback**:
+  - `useLoadMore()` now surfaces fetch failures through an explicit error state instead of silently collapsing into a generic no-more-items state.
+  - `LoadMoreButton` now supports an optional error message plus retry label, and `UserProfile.tsx` passes that error for the server-backed article list.
+- **Upload & Import File Permission Hardening**:
+  - `wp_import.php`, `upload_file.php`, and `ImageProcessor.php` now enforce `0644` permissions on all newly created media files.
+  - Fixes broken images on restrictive hosting setups where server `umask` creates files at `0600` (owner-only), preventing Apache from serving them to visitors.
+  - Added `AddType image/webp .webp` to all `.htaccess` templates (root, public, installer, repair, and dist copies) as defense-in-depth for WebP MIME recognition.
+  - Documentation updated: `SECURITY.md` (File Permission Reference table), `INSTALL.md` (File Permissions troubleshooting), `VPS.md` (Uploads troubleshooting).
+
 ### [v1.22.1] - 2026-04-10
 
 - **Navigation Toggle Stale Closure Fix**:
-  - Fixed `onToggleNav` in `useSettings.ts` — navigation state is now computed once and shared between UI update (`setSettings`) and server save (`vonFetch`). Previously, two independent computations could diverge on rapid toggles, causing UI/database mismatch after page refresh.
+  - Fixed `onToggleNav` in `useSettings.ts` â€” navigation state is now computed once and shared between UI update (`setSettings`) and server save (`vonFetch`). Previously, two independent computations could diverge on rapid toggles, causing UI/database mismatch after page refresh.
 - **WordPress Importer Featured Image Fix**:
-  - **Pre-scan attachment map**: Before batch processing, a quick XML pre-scan reads all `<wp:post_type>attachment</wp:post_type>` items and builds a `{ wp:post_id → wp:attachment_url }` lookup map.
-  - **`_thumbnail_id` resolution (new Strategy 1)**: Post import reads `<wp:postmeta>` for `<wp:meta_key>_thumbnail_id</wp:meta_key>`, looks up the attachment ID in the pre-scanned map, downloads the image via `rehost_import_image_url()`, and saves the local URL as `image_url` in the `posts` table. WordPress stores featured images as separate attachment items referenced by `_thumbnail_id` — not as `<image>` tags or `<img>` in content — so this resolves the root cause for sites where posts have no inline images.
-  - **Fallback chain preserved**: Strategy 2 — explicit `<image>` tag for non-WordPress generic XML imports. Strategy 3 — first `<img>` in content for posts without `_thumbnail_id`.
+  - **Pre-scan attachment map**: Before batch processing, a quick XML pre-scan reads all `<wp:post_type>attachment</wp:post_type>` items and builds a `{ wp:post_id â†’ wp:attachment_url }` lookup map.
+  - **`_thumbnail_id` resolution (new Strategy 1)**: Post import reads `<wp:postmeta>` for `<wp:meta_key>_thumbnail_id</wp:meta_key>`, looks up the attachment ID in the pre-scanned map, downloads the image via `rehost_import_image_url()`, and saves the local URL as `image_url` in the `posts` table. WordPress stores featured images as separate attachment items referenced by `_thumbnail_id` â€” not as `<image>` tags or `<img>` in content â€” so this resolves the root cause for sites where posts have no inline images.
+  - **Fallback chain preserved**: Strategy 2 â€” explicit `<image>` tag for non-WordPress generic XML imports. Strategy 3 â€” first `<img>` in content for posts without `_thumbnail_id`.
   - **Duplicate download protection**: `rehost_import_image_url()` static cache prevents the same URL from being downloaded twice (once by attachment handler, once by Strategy 1).
   - **Result**: Tested against real WordPress WXR export from LeCatho.fr (24 posts, 25 attachments, all 24 posts have `_thumbnail_id`). Expected `image_url` coverage: ~100% (previously ~4%).
 - **WPMigrator "Start New Import" Button**:
@@ -15,9 +68,9 @@
 - **Editor Blockquote Spacing Fix**:
   - Removed redundant `<p><br/></p>` after blockquote insertion in the editor. The blockquote already has `margin: 16px 0` for natural spacing, so the trailing empty paragraph was creating unnecessary blank lines after quoted text.
 - **Root DirectoryIndex Priority Fix**:
-  - When both `index.html` and `index.php` exist in the root directory (common after deploy zip extraction on shared hosting), Apache's default `DirectoryIndex` serves `index.html` first — a blank React shell with no PHP routing, no API, no SEO engine.
+  - When both `index.html` and `index.php` exist in the root directory (common after deploy zip extraction on shared hosting), Apache's default `DirectoryIndex` serves `index.html` first â€” a blank React shell with no PHP routing, no API, no SEO engine.
   - Added `DirectoryIndex index.php index.html` to all `.htaccess` templates (root `.htaccess`, `public/.htaccess`, installer, and repair tool) to force PHP priority. Existing deployments with this conflict are now fixed automatically on Integrity Repair.
-- **Google Search Index Cleanup — Hardcoded Default Text Removed**:
+- **Google Search Index Cleanup â€” Hardcoded Default Text Removed**:
   - Removed hardcoded "Welcome to our website" text from `useSettings.ts` sidebar widget default and promo bar plugin default. These strings were indexed by Google from fresh installs before settings were saved.
   - Synced `install.sql` and `install.php` default plugin_config to empty strings to match frontend fallback.
   - `sidebarLayout` default now contains only the Trending widget (matching `install.sql` database default).
@@ -29,7 +82,7 @@
 - **RSS Sitemap `<enclosure>` Length Attribute Fix**:
   - Added required `length` attribute to `<enclosure>` tags in `public/rss.php`. Fixes Google Search Console "Missing XML attribute" errors (20 instances).
   - File size derived from local image path when available, defaults to `0` for external URLs.
-  - External/CDN image URLs no longer output `<enclosure>` tags with `length="0"` — the tag is skipped entirely for remote images to avoid RSS validator warnings.
+  - External/CDN image URLs no longer output `<enclosure>` tags with `length="0"` â€” the tag is skipped entirely for remote images to avoid RSS validator warnings.
 
 ### [v1.22.0] - 2026-04-09 (Kirana - cumulative release since v1.21.5)
 
@@ -37,7 +90,7 @@
 
 - **Final Hotfixes**:
   - **UTF-8 Encoding Cleanup**: Replaced Windows-1252 encoded em-dashes and arrows with ASCII-safe hyphens across 13 PHP files (`rss.php`, `wp_import.php`, `backup_db.php`, `import_db.php`, `install.php`, `list_media.php`, `mail_helper.php`, `newsletter_export.php`, `register.php`, `reset_password.php`, `index.php`, `llms.php`, `sitemap.php`). Eliminated mojibake rendering issues in non-UTF-8 environments.
-  - **Avatar URL Sync**: Comments API removed login-gate on `userAvatar` output (returned for all users). Login and Check Auth APIs scrubbed avatar URL with http→https upgrade on HTTPS sites.
+  - **Avatar URL Sync**: Comments API removed login-gate on `userAvatar` output (returned for all users). Login and Check Auth APIs scrubbed avatar URL with httpâ†’https upgrade on HTTPS sites.
   - **Email Verification Consistency**: Fresh install admin created with `email_verified = 1`. Staff roles auto-verified on dashboard create. Schema repair auto-verifies stuck staff users.
   - **RSS Language Fix**: Comma-separated `site_language` (e.g. `ms, en`) extracts first language as primary feed `<language>` tag.
   - **Permalink Settings UI**: Fixed misleading plain permalink example: /post/abc123 -> /post/123.
@@ -529,7 +582,7 @@
 - **Homepage Payload Trim**: Removed `p.content` from homepage seed query homepage only needs title/excerpt/image, not full article HTML.
 - **Dynamic og:type**: Single post/page views now correctly output `og:type="article"` instead of always `website`.
 - **SPA Route Guard Sync**: Expanded slug-detection exclusion to skip all SPA routes (`profile`, `register`, `search`, etc.), preventing wasted DB queries and false 404 headers.
-- **Mobile Heading Scale**: Content headings (H1-H4) now scale down on mobile screens (≤ 640px) for better readability across all 6 themes.
+- **Mobile Heading Scale**: Content headings (H1-H4) now scale down on mobile screens (â‰¤ 640px) for better readability across all 6 themes.
 
 #### Foundation & Schema
 
@@ -1845,3 +1898,4 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 - **Email System**: Verified SMTP integration for Reset Password and Contact Form.
 
 ---
+
