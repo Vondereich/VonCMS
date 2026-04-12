@@ -2,6 +2,8 @@
 
 This guide is for users who are comfortable with cPanel or shared hosting but want to run VonCMS on their own VPS without getting lost in server jargon.
 
+> **Note:** VonCMS is designed for the **LAMP** stack (Linux, Apache, MySQL, PHP). This guide uses **LNMP** (Nginx instead of Apache) as an alternative for VPS users who prefer Nginx — but it requires manual rewrite rules (included below). If you want the standard setup, install **Apache** instead.
+
 The stack used in this guide:
 
 - Ubuntu 24.04 LTS or 22.04 LTS
@@ -9,7 +11,7 @@ The stack used in this guide:
 - Nginx
 - MySQL 8.0
 - PHP 8.2+
-- VonCMS v1.22.0 Deploy package
+- Latest VonCMS Deploy package
 
 ## Before You Start
 
@@ -18,7 +20,7 @@ Prepare these first:
 - A VPS with at least 1 vCPU, 1 GB RAM, and 25 GB SSD
 - A domain name
 - SSH access from your provider
-- The latest `VonCMS_v1.22.0_Deploy.zip` package
+- The latest VonCMS Deploy package
 
 If your audience is in Malaysia or ASEAN, choose a Singapore region when possible. It usually gives better latency than US or Europe.
 
@@ -114,7 +116,7 @@ Once SSL is active, open the site with `https://`.
 1. Open the `Files` section in aaPanel.
 2. Go to your site folder, usually `/www/wwwroot/yourdomain.com`.
 3. Delete the default placeholder files such as `index.html` if they exist.
-4. Upload `VonCMS_v1.22.0_Deploy.zip`.
+4. Upload the latest VonCMS Deploy package.
 5. Extract the ZIP into the site root.
 
 After extraction, your root should contain files such as `index.php`, `.htaccess`, `api/`, `assets/`, and the other deploy files.
@@ -189,7 +191,9 @@ Check:
 - `fileinfo` is enabled
 - `gd` is enabled
 - PHP upload limits are large enough
-- folder permissions are correct
+- folder permissions are correct (`755` for directories, `644` for files)
+
+If images appear broken on the frontend: file permission may be `600`. Run `chmod -R 644 uploads/` and `chmod -R 755 uploads/*/` (for subdirectories). Apache/Nginx needs read access to serve images to visitors.
 
 ### White page or 500 error
 
