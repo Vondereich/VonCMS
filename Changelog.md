@@ -1,9 +1,5 @@
 ### [v1.22.3] - 2026-04-12
 
-- **ISS-1015 — Client-side Canonical URL Normalization**:
-  - `PublicSiteWrapper` in `App.tsx` now enforces canonical URL redirect for ALL single posts, including when `permalinkStructure` is undefined/empty (previously skipped enforcement).
-  - If current URL doesn't match the canonical permalink, fires `window.location.replace(basePath + canonicalPath)` — subfolder-safe hard redirect.
-  - Server-side 301 redirect already handles non-JS crawlers; this fix covers Google's JavaScript-rendered crawls.
 - **ISS-1015 — PHP Reserved Word Over-blocking Fix**:
   - `public/index.php` slug handler reserved words reduced from 12 to 8: removed `search`, `tags`, `category`, `page`.
   - These are SPA routes handled by React, not PHP endpoints. Keeping them in the reserved list caused the PHP handler to skip post lookups for valid URLs like `/search/my-post`.
@@ -12,6 +8,14 @@
   - Added missing `plain` case to homepage post URL generation in `public/index.php`.
   - When `permalinkStructure = 'plain'`, homepage `<noscript>` links now correctly generate `/post/{id}` URLs instead of incorrectly falling through to `/{slug}`.
   - This was the last remaining inconsistency between `buildCanonicalContentPath()` (which correctly handled `plain`) and the homepage URL switch (which did not).
+- **ISS-1017 — SPA Canonical Permalink Consistency Fix (Google Index Inconsistency)**:
+  - **Root cause:** `window.__INITIAL_SETTINGS__` in `public/index.php` did not include `permalinkStructure`, causing React first render to fall back to `slug`-based URLs until the async settings API responded. Sidebar `<a href>` links, VonSEO canonical tags, and `getPermalink()` calls generated inconsistent URLs on initial paint.
+  - **Fix 1 (`public/index.php`):** PHP now queries `permalink_structure` from the `settings` table and injects it into `window.__INITIAL_SETTINGS__` as `permalinkStructure`. Guarded by `isset($pdo) && $pdo` check and wrapped in `try/catch` to prevent crashes on DB outage.
+  - **Fix 2 (`src/hooks/useSettings.ts`):** `INITIAL_SETTINGS` now reads `permalinkStructure` from `__INITIAL_SETTINGS__` on first render via conditional spread, eliminating the async gap between React mount and settings API response.
+  - **Scope:** Affects all `getPermalink()` call sites — TechPress Sidebar, Digest Sidebar, public Sidebar, VonSEO canonical tag, and App.tsx `onPostClick` navigation. Applies globally to all posts (old and new) because `permalinkStructure` is a site-level setting, not per-post.
+  - **Not touched:** `App.tsx` (stable, zero changes), `public/security.php` (golden rule 7), `src/utils/siteUtils.ts` (`getPermalink()` logic already correct), theme Layout files (all use `onPostClick` SPA navigation, not manual URL construction).
+- **PrismProfile GlitchText Class Fix**:
+  - `src/themes/prism/components/PrismProfile.tsx` line 24: fixed `className="relative inline - block group"` → `className="relative inline-block group"` (removed erroneous space in Tailwind class name).
 
 ### [v1.22.2] - 2026-04-11
 
