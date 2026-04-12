@@ -90,13 +90,12 @@ The goal is simple: make content work easier to run, easier to maintain, and les
 <img width="1920" height="990" alt="capture-20260408-215903" src="https://github.com/user-attachments/assets/2d797455-94c7-46e0-880c-154b86a636e4" />
 
 
-> **v1.22.3 "Kirana"** fixes Google Search indexing inconsistency by enforcing client-side canonical URL redirects for all single posts, and corrects PHP reserved word over-blocking that prevented posts with category names like "search" or "category" from loading with proper meta tags.
+> **v1.22.3 "Kirana"** fixes PHP reserved word over-blocking that prevented posts with category names like "search" or "category" from loading with proper meta tags, corrects homepage `<noscript>` URL generation for the `plain` permalink structure, and resolves Google Search indexing inconsistency caused by missing `permalinkStructure` in React's initial settings hydration.
 
-- **Client-side Canonical URL Normalization**:
-  - `PublicSiteWrapper` in `App.tsx` now enforces a hard redirect when the current URL doesn't match the canonical permalink for any single post.
-  - Runs even when `permalinkStructure` is undefined or empty (previously skipped enforcement).
-  - Subfolder-safe: uses `window.location.replace(basePath + canonicalPath)` for correct redirects on installs at `yoursite.com/blog`.
-  - Server-side 301 redirect handles non-JS crawlers; this fix covers Google's JavaScript-rendered crawls.
+- **ISS-1017 — SPA Canonical Permalink Consistency Fix**:
+  - `window.__INITIAL_SETTINGS__` now includes `permalinkStructure` injected from the database, ensuring React first render generates correct category-based URLs instead of falling back to slug-based URLs during the async settings load gap.
+  - Affects all sidebar links, VonSEO canonical tags, and SPA navigation — globally for all posts.
+  - 2 files changed: `public/index.php` (inject setting), `src/hooks/useSettings.ts` (read on first render).
 
 - **PHP Reserved Word Over-blocking Fix**:
   - Reserved words reduced from 12 to 8: removed `search`, `tags`, `category`, `page`.
