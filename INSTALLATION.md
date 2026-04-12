@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.22.1 "Kirana"**
+> **VonCMS v1.22.3 "Kirana"**
 
 ---
 
@@ -132,7 +132,21 @@ If the auto-updater fails or your server creates permission errors, follow these
 | Permission error     | Folders: `755`, Files: `644`                     |
 | DB connection failed | Check credentials in phpMyAdmin                  |
 | Old version showing  | Delete `assets/` folder, re-upload, hard refresh |
+| Images broken on frontend but work in admin | File permission is `600` — change to `644` |
+
+### File Permissions
+
+VonCMS sets `644` on uploaded files automatically. If images appear broken on the public site after manual upload:
+
+```bash
+# Fix all files in uploads/
+find uploads/ -type f -exec chmod 644 {} +
+# Fix all directories
+find uploads/ -type d -exec chmod 755 {} +
+```
+
+Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.22.2 "Kirana"_
+_VonCMS v1.22.3 "Kirana"_
