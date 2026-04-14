@@ -25,7 +25,7 @@ VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is buil
 >
 > In classical Malay, **kirana** carries the sense of light, radiance, beauty, and grace. We chose it for the release that gave VonCMS a clearer identity: a **Hybrid Decoupled CMS** with a React SPA on the front and a PHP API on the back, shipped as one deploy without a Node.js production requirement.
 
-> **Open Source:** Targeting the **v1.3 series** for the official open source transition. The codebase is already mature with a clear roadmap — the goal is to ship a solid, well-documented release before opening it to the community. Stay tuned. &#128640;
+> **Open Source:** Targeting the **v1.3 series** for the official open source transition. License will be **MIT or GPL** — final choice depends on community feedback and project goals. The codebase is already mature with a clear roadmap — the goal is to ship a solid, well-documented release before opening it to the community. Stay tuned. &#128640;
 
 ## ⚠️ IMPORTANT: OTA Update & `.htaccess` Warning
 
