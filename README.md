@@ -8,9 +8,9 @@
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=orange)](https://github.com/Vondereich/VonCMS/releases)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](docs/LICENSE.md)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)](LICENSE.md)
 
-[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](/INSTALLATION.md) | [Manual](/USER_MANUAL.md) | [API](/API_REFERENCE.md) | [Upgrade](/Upgrade.md)
+[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](INSTALL.md) | [Manual](MANUAL.md) | [API](API.md) | [Upgrade](UPGRADE.md)
 
 </div>
 
@@ -168,13 +168,13 @@ The goal is simple: make content work easier to run, easier to maintain, and les
 
 ## Documentation
 
-- [Features Guide](/WHY_VONCMS.md)
-- [Installation Guide](/INSTALLATION.md)
-- [User Manual](/USER_MANUAL.md)
-- [API Reference](/API_REFERENCE.md)
-- [Upgrade Guide](/UPGRADE.md)
-- [Introduction](/Introduction.md)
-- [VPS Guide](/VPS.md)
+- [Features Guide](FEATURES.md)
+- [Installation Guide](INSTALL.md)
+- [User Manual](MANUAL.md)
+- [API Reference](API.md)
+- [Upgrade Guide](UPGRADE.md)
+- [Introduction](INTRODUCTION.md)
+- [VPS Guide](VPS.md)
 
 ## Stack
 
