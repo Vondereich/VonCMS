@@ -213,4 +213,37 @@ After the site is live:
 - back up both `uploads/` and the database regularly
 - avoid leaving test files in the web root
 
+## Scaling Guidance
+
+VonCMS is designed to run efficiently across hosting tiers with the right indexes in place. The bottleneck is almost always **missing indexes + shared hosting physics**, not row count.
+
+### Hosting Tier Recommendations
+
+| Scale                | Hosting type     | Spec                           | Notes                                                                                                                                                                                                                                        |
+| -------------------- | ---------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **< 5k – 10k posts** | Shared hosting   | Default shared plan            | Indexes eliminate table scans — the real bottleneck on shared I/O. VonCMS caps admin bulk requests at 200 items for safety. Actual capacity depends on your host's resource sharing — these are directional estimates, not a guaranteed SLA. |
+| **10k – 100k posts** | VPS (high-end)   | 8-16GB RAM, 4-8 vCPU, NVMe SSD | Index fits in InnoDB buffer pool. No drama for normal publishing traffic. Set `innodb_buffer_pool_size` to 50-70% of available RAM.                                                                                                          |
+| **100k – 1M+ posts** | Dedicated server | 32GB+ RAM, 8+ cores, NVMe      | InnoDB handles 1M rows as a small table. PDO + proper indexes = solid foundation. Beyond 1M rows or millions of concurrent hits, consider partitioning.                                                                                      |
+
+### MySQL Tuning for Scale
+
+On VPS or dedicated servers, adjust these in `/etc/mysql/my.cnf` or via aaPanel:
+
+- `innodb_buffer_pool_size` — set to 50-70% of available RAM. This keeps indexes in memory and eliminates disk reads for most queries.
+- `innodb_log_file_size` — 256M or higher for write-heavy workloads (frequent publishing, imports).
+- `ft_min_word_len` — default is 4. Lower to 3 if you need shorter keyword matching in FULLTEXT search (requires rebuild: `REPAIR TABLE posts QUICK`).
+- `max_connections` — default 151. Increase if you expect high concurrent traffic, but monitor RAM usage per connection.
+
+### Why Indexes Matter Most
+
+Without indexes, a search like `LIKE '%keyword%'` scans every row in the table. On shared hosting with 5k posts, this already feels slow because:
+
+1. Table scan = read every row, every query
+2. Shared I/O = disk reads queue behind other tenants
+3. CPU/RAM limits = no buffer pool caching to compensate
+
+With proper indexes (`FULLTEXT`, `idx_slug`, `idx_status`, etc.), the same search becomes an **index lookup** — logarithmic reads instead of linear scans. On a VPS with NVMe and enough RAM for buffer pool, the index sits in memory and the query returns in milliseconds.
+
+**TL;DR:** Fix indexes first. Upgrade hosting second. Most "slow CMS" problems are missing indexes, not insufficient hardware.
+
 Once these checks pass, your VPS deployment is ready.

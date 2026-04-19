@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.22.3
+## Recommended path to v1.23.0
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.22.3
+## What to verify after updating to v1.23.0
 
-This release focuses on upload reliability, editor stability, comment pagination, search clarity, and WebP MIME hardening.
+This release line focuses on installer and `.htaccess` safety, admin scalability, media-cleanup review flow, and editor/save-path hardening carried into the `v1.23.0` baseline.
 
 Check these items:
 

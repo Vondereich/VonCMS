@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.22.3
+# VonCMS User Manual v1.23.0
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -257,9 +257,9 @@ If something feels wrong, check in this order:
 
 ## Where to go next
 
-- Installation and hosting: [INSTALL.md](INSTALL.md)
+- Installation and hosting: [INSTALLATION.md](INSTALLATION.md)
 - Security notes: [SECURITY.md](SECURITY.md)
-- Upgrade workflow: [UPGRADE.md](UPGRADE.md)
-- API map: [API.md](API.md)
+- Upgrade workflow: [Upgrade.md](Upgrade.md)
+- API map: [API_REFERENCE.md](API_REFERENCE.md)
 
 VonCMS works best when the admin workflow stays boring: publish, verify, back up, and only repair when there is a real reason.

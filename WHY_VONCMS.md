@@ -1,4 +1,4 @@
-# VonCMS Features
+﻿# VonCMS Features
 
 ## Everything you need. Nothing you don't.
 
@@ -203,7 +203,7 @@ Most CMS promise speed. VonCMS **proves** it — with real numbers, on real hard
 
 **The Result:**
 
-| Metric                 | VonCMS v1.22.3         | Typical WordPress Setup |
+| Metric                 | VonCMS v1.23.0         | Typical WordPress Setup |
 | ---------------------- | ---------------------- | ----------------------- |
 | **Throughput**         | 11,600 requests/second | ~500-2,000 req/s        |
 | **Avg Latency**        | 50ms                   | 200-800ms               |
@@ -219,7 +219,7 @@ WordPress needs caching plugins, a CDN, and a prayer. VonCMS just needs PHP and 
 
 ### What's behind the numbers?
 
-- **78 API-facing endpoints** — current repo surface across public, admin, and system flows.
+- **73 HTTP API request handlers** — 71 dedicated handlers under `public/api/` plus 2 legacy bridge handlers in `public/`.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
 - **Package surface cleanup** — the release trimmed unnecessary manifest entries, but you should still run `npm audit` in your own target environment.
 - **Direct API calls** — no 50-plugin middleware stack. React talks to PHP. PHP talks to MySQL. Done.

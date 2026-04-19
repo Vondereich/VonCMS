@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.22.3 "Kirana"**
+> **VonCMS v1.23.0 "Rentaka"**
 
 ---
 
@@ -41,10 +41,12 @@ VonCMS runs on a standard **LAMP** stack:
 ## Local Testing
 
 ### XAMPP / WAMP (Recommended)
+
 - **XAMPP** is the easiest baseline — phpMyAdmin included out of the box.
 - **WAMP** offers easier PHP version switching for `8.4+` testing.
 
 ### Laragon
+
 Laragon is lightweight but requires a small manual step:
 
 1. **Download phpMyAdmin** from [phpmyadmin.net](https://www.phpmyadmin.net/)
@@ -56,9 +58,9 @@ Laragon is lightweight but requires a small manual step:
    - **Host:** `localhost`
    - **Port:** `3306`
    - **Username:** `root`
-   - **Password:** *(leave empty)*
+   - **Password:** _(leave empty)_
 
-> **Default DB credentials:** Host: `localhost`, User: `root`, Password: *(empty)*. MariaDB is fully compatible with VonCMS (uses standard `mysql:` PDO DSN).
+> **Default DB credentials:** Host: `localhost`, User: `root`, Password: _(empty)_. MariaDB is fully compatible with VonCMS (uses standard `mysql:` PDO DSN).
 
 ---
 
@@ -126,13 +128,13 @@ If the auto-updater fails or your server creates permission errors, follow these
 
 ## Troubleshooting
 
-| Problem              | Solution                                         |
-| -------------------- | ------------------------------------------------ |
-| White page           | Enable `mod_rewrite` in Apache                   |
-| Permission error     | Folders: `755`, Files: `644`                     |
-| DB connection failed | Check credentials in phpMyAdmin                  |
-| Old version showing  | Delete `assets/` folder, re-upload, hard refresh |
-| Images broken on frontend but work in admin | File permission is `600` — change to `644` |
+| Problem                                     | Solution                                         |
+| ------------------------------------------- | ------------------------------------------------ |
+| White page                                  | Enable `mod_rewrite` in Apache                   |
+| Permission error                            | Folders: `755`, Files: `644`                     |
+| DB connection failed                        | Check credentials in phpMyAdmin                  |
+| Old version showing                         | Delete `assets/` folder, re-upload, hard refresh |
+| Images broken on frontend but work in admin | File permission is `600` — change to `644`       |
 
 ### File Permissions
 
@@ -149,4 +151,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.22.3 "Kirana"_
+_VonCMS v1.23.0 "Rentaka"_

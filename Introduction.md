@@ -1,4 +1,4 @@
-# Introduction to VonCMS v1.22.3 "Kirana"
+# Introduction to VonCMS v1.23.0 "Rentaka"
 
 ## Publishing should not feel like plugin maintenance.
 
@@ -43,18 +43,18 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-## This is v1.22.3 "Kirana"
+## This is v1.23.0 "Rentaka"
 
-_"Kirana" - a ray of light; beauty and elegance that radiates._
+_"Rentaka" - the public line after Kirana, carrying the release forward with a harder, clearer baseline._
 
-In classical Malay, **kirana** means light, radiance, beauty, or grace - a word from old literary tradition that describes the kind of beauty which shines through.
+**Rentaka** is the release that promotes the cumulative `v1.22.x` Kirana work into a cleaner public baseline.
 
-It's the name we chose for the release that gave VonCMS a clearer identity: a **Hybrid Decoupled CMS** with a React SPA on the front and a PHP API on the back, shipped as one deploy without a Node.js production requirement.
+It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
 
-_A ray of light that finally gave this project its name._
+_A clearer release boundary for the same publisher-first direction._
 
 ---
 
-**Ready to see it in action?** -> [Installation Guide](INSTALL.md)  
-**Want the full feature list?** -> [Features Overview](FEATURES.md)  
-**Need help getting started?** -> [User Manual](MANUAL.md)
+**Ready to see it in action?** -> [Installation Guide](INSTALLATION.md)  
+**Want the full feature list?** -> [Features Overview](WHY_VONCMS.md)  
+**Need help getting started?** -> [User Manual](USER_MANUAL.md)

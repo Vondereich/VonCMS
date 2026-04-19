@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.22.3`
+Version: `1.23.0`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -184,7 +184,7 @@ VonCMS is primarily designed for same-site use. Origin handling is intentionally
 
 ## Related docs
 
-- [INSTALL.md](INSTALL.md)
+- [INSTALLATION.md](INSTALLATION.md)
 - [SECURITY.md](SECURITY.md)
-- [UPGRADE.md](UPGRADE.md)
+- [Upgrade.md](Upgrade.md)
 - [../README.md](../README.md)
