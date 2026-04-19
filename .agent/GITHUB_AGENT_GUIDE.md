@@ -1,6 +1,6 @@
-# VonCMS Agent Intelligence Guide
+# VonCMS GitHub Agent Guide
 
-This guide is for AI coding agents assisting with the VonCMS repository. It defines the operational boundaries and standards to ensure project integrity and alignment with the owner's roadmap.
+This guide is for AI coding agents assisting with the VonCMS repository on GitHub. It defines the operational boundaries and standards to ensure project integrity and alignment with the owner's roadmap.
 
 ## 🚨 CRITICAL DIRECTIVES
 
