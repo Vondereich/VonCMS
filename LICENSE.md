@@ -1,49 +1,47 @@
-# VonCMS License Summary
+# VonCMS License
 
-Version: `1.22.3`
-Software: `VonCMS`
-Publisher: `Vondereich`
+**Version:** 1.0  
+**Software:** VonCMS 1.22.3 "Kirana"  
+**Publisher:** Vondereich
 
-This file is a plain-language summary for the current release line. It explains the general usage model of VonCMS, but it is not a replacement for any separate commercial agreement or written permission from the publisher.
+---
 
-## License model
+## Terms of Use
 
-VonCMS is distributed as proprietary software.
+By using VonCMS, you agree to these terms.
 
-You may use VonCMS to build and operate your own sites within the scope of your licensed copy or approved distribution.
+## License
 
-## What this generally allows
+You receive a license to **use** VonCMS for building websites. This grants usage rights, not ownership.
 
-- installing VonCMS on your own site or client project
-- using the bundled core features, themes, and plugins as part of that installation
-- customizing configuration, content, and normal site behavior for your deployment
+## How It Works
 
-## What this does not grant by default
+VonCMS follows a **"Use What's Provided"** philosophy. All themes, plugins, and features are included and maintained by VonCMS. Use them as provided to build and manage your websites.
 
-- ownership of the VonCMS core
-- redistribution of the core as your own product
-- resale or relicensing of the core without permission
-- bundling VonCMS into another commercial product or auto-installer without approval
-- removing authorship or branding in ways not covered by a separate agreement
+## What's Not Allowed
 
-## Themes, plugins, and extensions
+- Redistributing without permission
+- Reselling as your own product
+- Creating custom themes, plugins, or features
+- Modifying the core system
+- Removing VonCMS branding
 
-Bundled themes, plugins, and supporting assets remain part of the VonCMS product unless a separate license states otherwise.
+## Distribution
 
-If you plan to redistribute modified themes, bundle custom builds for clients at scale, or offer VonCMS as part of a managed platform, get written approval first.
+VonCMS is officially distributed via GitHub Releases.
 
-## Official distribution
+**Hosting Providers:** You may integrate VonCMS into auto-installers (e.g., Softaculous) by pulling directly from official GitHub Releases. For formal partnerships, contact us.
 
-Use official release packages and official project channels when distributing or installing VonCMS.
+## Ownership
 
-## Warranty disclaimer
+VonCMS, including all themes, plugins, and features, remains property of Vondereich.
 
-VonCMS is provided as-is, without any guarantee that it will fit every hosting environment or business use case.
+## Disclaimer
 
-You are responsible for testing updates, keeping backups, and verifying your hosting setup.
+Provided "as is" without warranty.
 
-## Contact
+---
 
-For licensing, partnerships, redistribution, or white-label questions:
+**© 2026 Vondereich**
 
-`kurama87@gmail.com`
+**Contact:** kurama87@gmail.com

@@ -1,3 +1,148 @@
+### [v1.23.0] - 2026-04-18
+
+> Public `Rentaka` release that rolls the cumulative `v1.22.x` Kirana work into the new `v1.23.0` baseline.
+
+- **Release Promotion**:
+  - Promoted the public release line to `v1.23.0 "Rentaka"` across the main docs, manifests, and release metadata.
+  - Updated installer, bundled theme, and bundled plugin version labels to the `1.23` series baseline.
+
+- **Kirana Line Consolidation**:
+  - Carries forward the cumulative `v1.22.0` baseline together with the `v1.22.8` admin scalability work and the `v1.22.9` save-path and settings hardening.
+  - Keeps the detailed `v1.22.x` milestone history below for release traceability.
+
+- **Content Manager Alignment**:
+  - Page mode no longer shows unsupported page search or page-only filter behavior.
+  - Post search and post filters continue to use the existing server-side admin contract.
+
+- **Media Cleanup Review Flow**:
+  - Orphaned-file cleanup now starts with a scan-first review flow instead of deleting against a fresh rescan.
+  - The admin UI now shows the reviewed file list before deletion, and the delete step follows the saved review snapshot for safer cleanup.
+
+- **Documentation Refresh**:
+  - README now presents `Rentaka` as the active public release line with the inherited `v1.22.x` improvements folded into it.
+  - ROADMAP now treats `v1.23.0` as the shipped baseline while the remaining follow-up work continues inside the `v1.23.x` series.
+
+- **API Contract & Audit Cleanup**:
+  - `update_media.php` now follows the standard `POST + OPTIONS` preflight/auth/CSRF guard pattern instead of remaining as the lone metadata endpoint outlier.
+  - The integration smoke gate now locks that media metadata contract so stale audit claims do not drift back into the release sign-off.
+
+- **Packaging, Surface Count & Version Alignment**:
+  - README package guidance now matches the real Deploy ZIP layout for manual `.htaccess` recovery, including the package-root `.htaccess` file and optional `uploads/.htaccess` refresh.
+  - Public docs and internal workflow references now use the code-derived API count: `71` dedicated handlers under `public/api/`, `8` support files in that tree, and `2` legacy bridge handlers in `public/` for `73` total HTTP API request handlers.
+  - Residual `v1.22.x` release labels in public docs plus the outbound `IndexNow` and WordPress importer user-agent version strings are now aligned to `v1.23.0`.
+
+- **Release Flow Cleanup**:
+  - Removed the stale `release:quick` package script because it pointed to the missing `release_quick.cjs` entry and failed immediately with `MODULE_NOT_FOUND`.
+  - Removed the unused `deploy.cjs` local copy helper so the repo now points cleanly to `create_release.cjs` as the active release packager.
+  - Removed the deprecated `package-release.cjs` compatibility shim; `create_release.cjs` is now the only release entry point left in the repo.
+
+- **Admin System Alerts Tray**:
+  - The admin header bell now opens a lightweight system alerts tray instead of staying as a dead icon.
+  - The tray surfaces integrity-repair and database-repair alerts from the current system state, and the smoke gate now locks that contract into the admin shell.
+
+### [v1.22.9] - 2026-04-18
+
+> Follow-up hardening release for editor SEO text save paths and legacy settings compatibility.
+
+- **Manual Excerpt Preservation**:
+  - Post and page editors now preserve manual `excerpt` input as raw text, so plain characters like `&` no longer get re-saved as HTML entities.
+
+- **Meta Description Alias Alignment**:
+  - Post and page saves now keep both `metaDescription` and `meta_description` aligned to the same raw value.
+  - This prevents save-path drift between the editor payload and the backend save flow.
+
+- **Legacy Settings Bridge**:
+  - The older settings bridge now follows the main public/admin settings contract instead of maintaining its own partial local filter.
+  - This reduces the risk of configuration drift on older compatibility paths.
+
+- **Regression Coverage**:
+  - Release smoke coverage was expanded so these editor and settings behaviors stay locked in.
+
+### [v1.22.8] - 2026-04-18
+
+> This release keeps the public release line on `v1.22.x` while folding in the admin scalability work that had previously been staged under an early `v1.23.0` pre-release heading.
+
+- **Release Alignment**:
+  - Normalized the active release line to `v1.22.8` across `CHANGELOG.md`, `package.json`, `package-lock.json`, `metadata.json`, and `README.md`.
+  - Removed the premature `v1.23.0` pre-release label from the active release path so release packaging and public notes stay in sync.
+
+- **Admin Discussion Moderation**:
+  - `DiscussionManager` now uses server-bound pagination for comments instead of filtering a partial in-memory batch.
+  - This live search now runs global across all statuses, with matched counts still shown in the moderation tabs for quick triage.
+  - Older comments remain reachable through normal pagination; they are no longer hidden behind a limited initial client load.
+  - Comment deletion now requires a delete confirmation step in the live moderation screen.
+  - CommentManager is explicitly marked as legacy because the active admin route is wired to `DiscussionManager`.
+  - Admin moderation/avatar fallback now matches the public comments flow, and logged-in comment saves use the correct session avatar key.
+
+- **Admin User Management**:
+  - `UserManager` now uses server-bound pagination and search instead of slicing a fixed local fetch.
+  - Add, edit, and delete flows re-fetch the current page so the visible list stays in sync after admin actions.
+  - The user search bar follows the tighter ContentManager admin pattern instead of the older stretched input style.
+
+- **API Contract Updates**:
+  - Admin comments now support server-side `status`, `search`, `page`, and `totalPages` in the active moderation flow.
+  - Admin users now support server-side `search`, `page`, and `totalPages`.
+  - Comment moderation search intentionally stays on the existing indexed moderation path rather than adding a separate FULLTEXT layer.
+
+- **Scalability Baseline**:
+  - Posts and pages both use server-side pagination metadata for admin browsing instead of relying on a fixed preload.
+  - Posts search is FULLTEXT-backed for larger libraries, while pages remain pagination / id / slug based in this release line.
+  - The release line is positioned for large editorial datasets, including `100k+` post architecture readiness, without turning that into a blanket hosting guarantee.
+
+- **Included Milestones In This Release Line**:
+  - **`v1.22.4`**: Admin bulk load limit alignment, RSS normalization, crawler compatibility fixes.
+  - **`v1.22.5`**: Server-side ContentManager pagination, exact `COUNT` metadata, and AI writing default refresh.
+  - **`v1.22.6`**: Posts FULLTEXT search, missing index repair coverage, and supporting install/repair schema alignment.
+
+### Earlier Included Milestones
+
+> The entries below capture earlier `v1.22.x` development steps that are already included in the active `v1.23.0` release line.
+
+#### v1.22.6 — Search Performance & Index Alignment
+
+- **Posts Search Upgrade**:
+  - Post search moved from wildcard `LIKE` matching to MySQL FULLTEXT search for better performance on larger datasets.
+  - Frontend search behavior stays the same; the change is in the backend query path.
+
+- **Index Coverage Alignment**:
+  - Added the supporting FULLTEXT and secondary indexes across `posts`, `comments`, `pages`, and `media`.
+  - Fresh installs, schema repair, and bundled SQL were aligned so new and existing sites share the same index baseline.
+
+- **Scope Notes**:
+  - Pages remain pagination / id / slug based in this release and do not add page search yet.
+  - Comment search logic remains on the existing moderation path, while the added indexes support current query patterns.
+
+#### v1.22.5 — Admin Unlimited Pagination (ContentManager Server-Side)
+
+- **Content Manager Pagination**:
+  - Admin ContentManager moved from a fixed local preload to server-side pagination for posts and pages.
+  - Browsing is no longer capped by the initial admin fetch, and current-page data is refreshed after delete or save flows.
+
+- **Pagination Metadata & Filters**:
+  - Posts and pages now return exact pagination metadata for admin browsing.
+  - Post lists gained a server-side status filter to match the newer admin browsing flow.
+
+- **Admin Search & Refresh**:
+  - Search and filter interactions now follow the active page fetch instead of client-side slicing.
+  - The editor hydration flow remains separate, so admin browsing changes do not disturb editing behavior.
+
+- **AI Writing Default Refresh**:
+  - The default AI writing fallback was refreshed for new installs and untouched settings screens.
+  - Existing saved user choices remain unchanged.
+
+#### v1.22.4 - Maintenance & Limits Alignment
+
+- **Admin Bulk Load Limit Alignment (500 → 200)**:
+  - `src/hooks/useContent.ts` `loadContent()`: `get_posts.php?limit=500` → `limit=200`, `get_pages.php?limit=500` → `limit=200`.
+  - Backend already caps both endpoints at 200 (`min(200, $requestedLimit)`), so `limit=500` was an illusion — effectively returned 200 anyway. This removes the "500" number that attracted crawler spam in server logs, with zero functional change.
+
+- **RSS Feed Image URL Normalization**:
+  - `public/rss.php`: `<img src>` relative URLs inside `<content:encoded>` (e.g. `/bankai/uploads/...`) now auto-convert to full absolute URLs (`http://localhost/bankai/uploads/...`) so RSS readers can load images correctly. Supports both double and single quote attributes. Protocol-relative URLs (`//cdn.example.com/...`) are skipped. External images (CDN, picsum, etc.) are untouched. Subfolder-safe — preserves base path.
+
+- **robots.txt Crawler Compatibility Fix**:
+  - `public/robots.php`: Moved `Allow: /api/public/` above `Disallow: /api/` for top-to-bottom crawler compatibility (Bing, Yandex). Added `Crawl-delay: 1`. Removed redundant `Allow: /`.
+  - `VonSEOSettings.tsx` FALLBACK_ROBOTS: Same order sync — `Allow` before `Disallow`, added `Crawl-delay: 1`. Reset button auto-picks up from API.
+
 ### [v1.22.3] - 2026-04-12
 
 - **ISS-1015 — PHP Reserved Word Over-blocking Fix**:
@@ -124,9 +269,9 @@
   - **Routing & SEO Consistency**: Carries the permalink fallback move to `/{slug}`, base-path-aware canonicals, safer theme navigation, exact public page lookups, redirect loop protections, and sitemap/`llms.php` parity.
   - **Audit & Reliability Fixes**: Includes `get_pages.php` / `get_users.php` response envelope fixes, `rollback_setting.php` fallback stability, `domain_url` preference for reset/verification URLs, newsletter/media OOM fixes, importer SSRF blocking, autosave timer repair, load-more pagination and page-menu persistence repairs, comment reply save-path stabilization, SMTP verification-boundary hardening, registration no longer auto-verifying when verification delivery falls back and fails, importer self-redirect skipping, RSS edge-case compliance plus subfolder-safe VonSEO feed links, language-aware RSS output, absolute enclosure URL normalization, `public/install.sql` parity for the `redirects` table, `media.created_at` install/repair sync, removal of unsupported pages-schema SQL drift, settings-schema parity between SQL/install/repair flows, app-side `settings_audit_log` writes for standard settings/category/IndexNow saves, trigger-free SQL alignment for settings audit history, default-settings parity across install SQL, legacy migration SQL, and the live installer, and content API warning logs.
 
-### Development Milestones (Internal)
+### Earlier Kirana Milestones
 
-> The following internal milestones track the Kirana development cycle. All work below is included in the v1.22.0 release above.
+> The following milestones track the Kirana development cycle. All work below is included in the v1.22.0 release above.
 
 #### v1.21.12 - Frontend Security Hardening & PostEditor UI Refresh
 
@@ -415,7 +560,7 @@
   - **Single Source of Truth**: Consolidated Google Analytics configuration into `GoogleSettings.tsx`. Removed redundant `api.analyticsId` and `SEO` settings tab from `SettingsManager.tsx` to eliminate configuration overlap.
   - **Type Synchronization Power-Up**: Synchronized the `SiteSettings` interface with all v1.21.x active fields, including `analytics`, `logoUrl`, and `timeZone`. Eliminated the redundant `src/types/` directory to prevent ghost imports.
   - **Orphan Cleanup**: Removed legacy `footerShowSubscribe` from both TypeScript definitions and the PHP backend (`save_settings.php`, `get_settings.php`), reducing technical debt.
-  - **Database Migration Purge (Deep Audit)**: Completely eradicated the `seo.analytics` legacy schema row from `install.sql` and `database/migrations/001_create_settings_table.sql`.
+  - **Database Migration Purge**: Completely eradicated the `seo.analytics` legacy schema row from `install.sql` and `database/migrations/001_create_settings_table.sql`.
   - **API Routing Fix**: Fixed a critical logic blind spot where `save_settings.php` was erroneously writing modern `api` group data back into the dead `seo.analytics` row.
   - **Native Analytics Refocus**: Updated `VonAnalyticsSettings.tsx` to focus exclusively on Native CMS insights and Privacy/Cookie Consent compliance.
 - **Documentation Alignment**:
@@ -678,7 +823,7 @@ Added "Powered by VonCMS" branding to footer copyright across **all 6 themes**:
 
 #### Semantic Color Engine (Full Audit)
 
-Deep audit of all 6 themes for hardcoded hex values and semantic theming compliance:
+Reviewed all 6 themes for hardcoded hex values and semantic theming compliance:
 
 | Theme             | Status | Notes                                                     |
 | ----------------- | ------ | --------------------------------------------------------- |
@@ -1902,4 +2047,3 @@ This update marks a complete overhaul of the CMS's protocol-awareness and securi
 - **Email System**: Verified SMTP integration for Reset Password and Contact Form.
 
 ---
-
