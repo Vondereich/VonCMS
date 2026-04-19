@@ -163,7 +163,7 @@ The goal is simple: make content work easier to run, easier to maintain, and les
 ## Release Packages
 
 - Use the latest VonCMS Deploy package for fresh installs.
-- Use the latest VonCMS Deploy package cautiously for manual live updates. If your site has host-generated `.htaccess` rules, cPanel PHP handlers, custom redirects, or hardcoded rewrites, back up `.htaccess` first and verify it after extraction.
+- Use the latest VonCMS Deploy package cautiously for manual live updates. **Mandatory:** Delete the `assets/` folder in your hosting before extracting the new ZIP to prevent stale asset conflicts or cached CSS/JS from breaking the layout. If your site has host-generated `.htaccess` rules, cPanel PHP handlers, custom redirects, or hardcoded rewrites, back up `.htaccess` first and verify it after extraction.
 - The current public release package is the latest versioned VonCMS Deploy package from the official release.
 
 ## Documentation
