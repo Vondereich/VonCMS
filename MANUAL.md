@@ -257,9 +257,9 @@ If something feels wrong, check in this order:
 
 ## Where to go next
 
-- Installation and hosting: [INSTALLATION.md](INSTALLATION.md)
+- Installation and hosting: [INSTALL.md](INSTALL.md)
 - Security notes: [SECURITY.md](SECURITY.md)
-- Upgrade workflow: [Upgrade.md](Upgrade.md)
-- API map: [API_REFERENCE.md](API_REFERENCE.md)
+- Upgrade workflow: [UPGRADE.md](UPGRADE.md)
+- API map: [API.md](API.md)
 
 VonCMS works best when the admin workflow stays boring: publish, verify, back up, and only repair when there is a real reason.

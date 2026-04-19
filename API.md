@@ -184,7 +184,7 @@ VonCMS is primarily designed for same-site use. Origin handling is intentionally
 
 ## Related docs
 
-- [INSTALLATION.md](INSTALLATION.md)
+- [INSTALL.md](INSTALL.md)
 - [SECURITY.md](SECURITY.md)
-- [Upgrade.md](Upgrade.md)
+- [UPGRADE.md](UPGRADE.md)
 - [../README.md](../README.md)

@@ -55,6 +55,6 @@ _A clearer release boundary for the same publisher-first direction._
 
 ---
 
-**Ready to see it in action?** -> [Installation Guide](INSTALLATION.md)  
-**Want the full feature list?** -> [Features Overview](WHY_VONCMS.md)  
-**Need help getting started?** -> [User Manual](USER_MANUAL.md)
+**Ready to see it in action?** -> [Installation Guide](INSTALL.md)  
+**Want the full feature list?** -> [Features Overview](FEATURES.md)  
+**Need help getting started?** -> [User Manual](MANUAL.md)
