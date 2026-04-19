@@ -1,4 +1,4 @@
-# PREVIEW VonCMS v1.23.0 "Rentaka"
+# VonCMS v1.23.0 "Rentaka"
 
 <div align="center">
 
@@ -22,9 +22,11 @@ VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is buil
 
 ### Why "Rentaka"?
 
-> _"Rentaka" - the next public line after Kirana, carrying the release forward with a harder, clearer baseline._
+> _"Rentaka" — Historically, a swivel gun and a vital piece of artillery in traditional Malay naval warfare._
 >
-> We chose **Rentaka** for the release that promotes the cumulative `v1.22.x` Kirana work into a cleaner public `v1.23.0` baseline. This line is less about a single new feature and more about carrying forward the hardened admin scalability, installer/repair safety, and editor/save-path fixes under one release boundary.
+> We chose **Rentaka** for the v1.23.0 baseline because it represents a transition from a simple blog engine to a high-performance "artillery" for elite publishers. Just as the Rentaka was a game-changer on the seas, this release line is our game-changer for the CMS market—delivering hardened admin scalability, installer safety, and an architecture capable of handling `100k+` posts without breaking a sweat.
+>
+> This line promotes the cumulative `v1.22.x` Kirana work into a cleaner, more powerful public baseline. Rentaka is not just a version; it is the force that carries VonCMS into the elite tier of content management.
 
 > **Open Source:** Targeting the **v1.25.x line** for the official open source transition. License will be **MIT or GPL** — final choice depends on community feedback and project goals. The goal is to carry the project through the next stability and hardening cycle before opening it to the community. Stay tuned. &#128640;
 
