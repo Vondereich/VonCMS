@@ -1,4 +1,4 @@
-### [v1.23.0] - 2026-04-18
+### [v1.23.0] - 2026-04-20
 
 > Public `Rentaka` release that rolls the cumulative `v1.22.x` Kirana work into the new `v1.23.0` baseline.
 
@@ -30,6 +30,12 @@
   - README package guidance now matches the real Deploy ZIP layout for manual `.htaccess` recovery, including the package-root `.htaccess` file and optional `uploads/.htaccess` refresh.
   - Public docs and internal workflow references now use the code-derived API count: `71` dedicated handlers under `public/api/`, `8` support files in that tree, and `2` legacy bridge handlers in `public/` for `73` total HTTP API request handlers.
   - Residual `v1.22.x` release labels in public docs plus the outbound `IndexNow` and WordPress importer user-agent version strings are now aligned to `v1.23.0`.
+  - Renamed and synchronized all root documentation files (`API.md`, `MANUAL.md`, `INSTALL.md`, etc.) for cleaner GitHub presentation and future open-source readiness.
+
+- **Repository & Upgrade Hardening**:
+  - Removed stale `.qwen` AI agent configuration directory from the workspace.
+  - Updated `UPGRADE.md` and `INSTALL.md` to mandate `assets/` folder deletion during manual updates to prevent stale asset conflicts.
+  - Refined `README.md` with historical context for the "Rentaka" name and elite publishing positioning.
 
 - **Release Flow Cleanup**:
   - Removed the stale `release:quick` package script because it pointed to the missing `release_quick.cjs` entry and failed immediately with `MODULE_NOT_FOUND`.
@@ -39,6 +45,7 @@
 - **Admin System Alerts Tray**:
   - The admin header bell now opens a lightweight system alerts tray instead of staying as a dead icon.
   - The tray surfaces integrity-repair and database-repair alerts from the current system state, and the smoke gate now locks that contract into the admin shell.
+  - The tray now dismisses cleanly when the user clicks outside the popup or presses `Escape`.
 
 ### [v1.22.9] - 2026-04-18
 
