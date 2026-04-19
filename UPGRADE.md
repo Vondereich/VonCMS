@@ -54,11 +54,12 @@ There is no benefit in pressing Integrity Fix on every update if the site is alr
 If your site is too old for the current OTA flow or the admin panel is unavailable:
 
 1. download the latest release package from the official release
-2. use the latest VonCMS Deploy package and overwrite the old deployment files
-3. back up your database, `uploads/`, and your live `von_config.php`
-4. if the hosting folder already contains cPanel-generated PHP handlers, custom `.htaccess` blocks, or hardcoded redirects, verify `.htaccess` after extraction and restore your backup or `.bak` copy if needed
-5. keep your real `von_config.php` in place and do not replace it with the sample file
-6. sign in to the admin panel and verify the system version
+2. back up your database, `uploads/`, and your live `von_config.php`
+3. **Delete the `assets/` folder** in your hosting to prevent stale asset conflicts or lingering old files
+4. use the latest VonCMS Deploy package and overwrite the existing deployment files
+5. if the hosting folder already contains cPanel-generated PHP handlers, custom `.htaccess` blocks, or hardcoded redirects, verify `.htaccess` after extraction and restore your backup or `.bak` copy if needed
+6. keep your real `von_config.php` in place and do not replace it with the sample file
+7. sign in to the admin panel and verify the system version
 
 ## Shared hosting note
 
