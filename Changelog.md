@@ -33,7 +33,6 @@
   - Renamed and synchronized all root documentation files (`API.md`, `MANUAL.md`, `INSTALL.md`, etc.) for cleaner GitHub presentation and future open-source readiness.
 
 - **Repository & Upgrade Hardening**:
-  - Removed stale `.qwen` AI agent configuration directory from the workspace.
   - Updated `UPGRADE.md` and `INSTALL.md` to mandate `assets/` folder deletion during manual updates to prevent stale asset conflicts.
   - Refined `README.md` with historical context for the "Rentaka" name and elite publishing positioning.
 
