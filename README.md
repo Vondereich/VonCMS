@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![VonCMS Banner](https://i.postimg.cc/TPM1PbXV/Generated-image-1.png)
+![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
 [![Version](https://img.shields.io/badge/Version-1.23.0-brightgreen?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/badge/Downloads-Latest-orange?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS/releases)
