@@ -27,7 +27,9 @@ VonCMS is a hybrid CMS with a React frontend and a PHP/MySQL backend. It is buil
 > We chose **Rentaka** for the `v1.23` baseline because it represents a transition from a simple blog engine to a high-performance "artillery" for elite publishers. Just as the Rentaka was a game-changer on the seas, this release line is our game-changer for the CMS market—delivering hardened admin scalability, installer safety, and an architecture capable of handling `100k+` posts without breaking a sweat.
 >
 > Rentaka is the force that carries VonCMS into the elite tier of content management.
->
+
+---
+
 > **Open Source Roadmap:** Targeting the **v1.25.x line** for the official open source transition (MIT/GPL). The goal is to complete the next stability cycle before opening to the community. Stay tuned. 🚀
 
 ---
