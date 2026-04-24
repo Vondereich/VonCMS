@@ -1,3 +1,174 @@
+### [v1.23.7] - 2026-04-23
+
+> Audit-only WordPress importer remote-fetch hardening patch for the `v1.23.x` Rentaka line.
+
+- **WordPress Importer Remote Fetch Hardening**:
+  - `wp_import.php` now resolves importer media hosts through DNS and blocks private/reserved IPv4/IPv6 targets, including direct IP and localhost-style hosts.
+  - Remote media downloads no longer use blind cURL or stream redirect following; each redirect hop is resolved, constrained to HTTP(S), DNS/IP-validated, and capped before continuing.
+  - Non-HTTP(S) redirect protocols and over-depth redirect chains are rejected before imported media is written to temp storage.
+  - Normal public WordPress/CDN HTTP-to-HTTPS media redirects remain supported through the validated redirect loop.
+
+- **Regression Coverage**:
+  - Added smoke markers for importer DNS/IP validation, redirect-hop validation, and no blind redirect following.
+  - Added a read-time contract smoke guard so list cards and single-post views stay aligned on stripped-text minute estimates.
+
+- **Content Contract Fixes**:
+  - `get_posts.php` now calculates `readTime` from stripped visible text instead of raw HTML length, aligning featured/list cards with the single-post API and bundled themes that consume the shared posts payload.
+
+- **Settings Mirror Hardening**:
+  - `save_settings.php` now refreshes the legacy `site_settings.json` mirror through a unique locked temp file instead of a shared static `.tmp` path.
+  - If the compatibility JSON mirror cannot be refreshed after the canonical database commit, the API now logs a warning and returns success with a warning payload instead of surfacing a false save failure for already-persisted settings.
+
+- **Database Import Hardening**:
+  - `import_db.php` no longer splits uploaded SQL via naive `explode(';', ...)`; imports are now parsed through a quote-aware streaming statement reader so semicolons inside content strings do not corrupt restore execution.
+  - Destructive import safety backups now stream table rows through unbuffered queries, aligning the pre-import backup path with the main database export flow and reducing PHP memory pressure on larger restores.
+
+- **Release Scope**:
+  - Bumped the active package, metadata, changelog, lockfile, primary docs, and WordPress importer user-agent labels to `v1.23.7`.
+  - Release docs no longer present stale hard-coded benchmark figures as current proof, and the packaged README license link now follows `docs/LICENSE.md`.
+  - README and `docs/FEATURES.md` now carry a dataset-scoped local search benchmark snapshot for the FULLTEXT baseline instead of a universalized performance claim.
+  - No database schema, importer UI, duplicate-download behavior, progress counting, RSS/import sanitation parity, bundled theme labels, or bundled plugin labels are changed.
+
+### [v1.23.6] - 2026-04-23
+
+> Database Manager restore and backup clarity patch for the `v1.23.x` Rentaka line.
+
+- **Database Manager Restore & Backup Clarity**:
+  - `backup_db.php` now uses a sanitized site-name label in SQL export filenames instead of the generic `backup_voncms_<timestamp>.sql` pattern.
+  - Added dedicated Database Manager documentation covering backup, import, restore targets, Laragon/local restore flow, and unsupported server-level SQL dumps.
+  - README, Manual, Features, and API docs now link or describe the Database Manager import/restore contract directly.
+
+- **Database Import Restore Fix**:
+  - The admin import toast now reads backend `error` payloads before `message`, so failed imports show the real backend reason instead of `undefined`.
+  - `import_db.php` now strips leading SQL comments before statement allowlist checks, preserving VonCMS backup restore compatibility for commented `DROP TABLE` and `INSERT` chunks.
+  - Destructive imports containing `DROP` or `CREATE` now require explicit admin confirmation before execution.
+  - Confirmed destructive imports create a protected server-side pre-import safety backup before restore begins.
+  - `CREATE DATABASE` and `CREATE SCHEMA` are blocked because Database Manager restores into the current configured database only.
+  - Transaction rollback/commit handling is guarded so MySQL/MariaDB DDL auto-commits no longer mask the original SQL error with `There is no active transaction`.
+
+- **TechPress Theme Polish**:
+  - `TechPress` now excludes the hero article from the home Trending Stories and Latest Updates lists, matching the Digest no-repeat content baseline.
+  - Added smoke coverage so the hero article cannot silently reappear in TechPress Trending Stories.
+  - Related Posts grid columns now stay balanced on tablet widths: 3/6-item sets use three columns, while 4/8-item sets keep an even two-column tablet layout and four-column desktop layout.
+
+- **Public Theme Performance Polish**:
+  - Public theme layouts now lazy-load by active theme instead of statically importing every bundled theme into the initial public source graph.
+  - This keeps inactive themes such as Corporate Pro out of the first-load path for TechPress, Digest, Default, Prism, and Portfolio pages.
+  - Added smoke coverage so inactive public theme layouts cannot silently drift back into static imports.
+
+- **Settings Manager Hardening**:
+  - Settings save now uses the canonical `save_settings.php` path once instead of also posting through the legacy bridge.
+  - Navigation quick-menu toggles now use the same canonical `save_settings.php` path without the legacy bridge fallback, keeping the single-save contract consistent outside the main Settings form.
+  - The AI settings panel is locked to Google Gemini until another provider has a real backend path, preventing an OpenAI-looking option from saving into a Gemini-only API.
+  - Media upload optimization now honors the `convertToWebP` toggle instead of forcing WebP conversion whenever optimization is enabled.
+  - Comment submission now honors `discussion_enabled` at the API layer and reads the saved `spam_keywords` setting key for moderation.
+  - Google Analytics injection is owned by the React injector so tracking, page views, and anonymized IP settings stay in one runtime path without duplicate server/client tags.
+  - Added smoke coverage for Settings AI provider scope, single-save behavior, comment setting enforcement, WebP toggle behavior, and analytics injection ownership.
+
+- **Roadmap Pull-Forward**:
+  - Pulled the `v1.24` Database Manager descriptive backup filename polish into this smaller `v1.23.6` patch because it shares the same backup/restore surface.
+  - Kept broader `v1.24` media, ads, duplicate-content, and quick-edit work deferred.
+
+- **Release Scope**:
+  - Bumped the active package, metadata, changelog, lockfile, primary docs, and outbound user-agent labels to `v1.23.6`.
+  - No database schema, stored media files, installer wizard display baseline, bundled theme labels, or bundled plugin labels are changed.
+
+### [v1.23.5] - 2026-04-22
+
+> Security audit patch for the `v1.23.x` Rentaka line.
+
+- **Security Audit Hardening**:
+  - `delete_media.php` now requires media-role access before file/database deletion, matching the existing Gallery, upload, list, and media metadata endpoint contract for Admin/Moderator/Writer users.
+  - `install.php` now rejects non-POST requests after preflight while preserving the existing `von_config.php` / `install.lock` installed-site lockout.
+
+- **Regression Coverage**:
+  - The integration smoke gate now locks the media delete authorization guard and installer POST-only method guard.
+
+- **Sidebar Trending Count**:
+  - Default, TechPress, and Digest theme sidebar settings now expose a `10` item option for Trending widgets.
+  - Existing saved `3`, `5`, `7`, and default sidebar layout values remain unchanged; no database schema or API change is required.
+
+- **Deploy Package Hygiene**:
+  - Deploy ZIP no longer includes root `package.json`; runtime version display stays bundled into the built admin assets.
+  - Source ZIP still includes `package.json` and development/build metadata for source audits and local rebuilds.
+  - Removed the legacy `public/migrations` newsletter SQL stub from the source tree; newsletter schema creation remains owned by `install.sql`, `install.php`, and `repair_db.php`.
+
+- **Release Scope**:
+  - Bumped the active package, metadata, changelog, lockfile, primary docs, and outbound user-agent labels to `v1.23.5`.
+  - No database schema, stored media files, installer wizard display baseline, bundled theme labels, or bundled plugin labels are changed.
+
+### [v1.23.4] - 2026-04-22
+
+> Admin polish rollup for the `v1.23.x` Rentaka line.
+
+- **Autosave & Save Feedback Polish**:
+  - `PostEditor` now shows a live `Autosave in` countdown beside the saved timestamp.
+  - Manual draft/save actions now keep visible loading/status feedback until the server confirms the save.
+  - Autosave uses the current editor item snapshot so the timer path does not depend on stale React state.
+
+- **Promo Bar Solid Color Picker**:
+  - The built-in promo bar no longer hardcodes the pink-to-purple gradient.
+  - Extension settings now expose `backgroundColor` with a color picker and default `#db2777`.
+  - Promo bar text color is selected automatically for readable contrast on light or dark solid backgrounds.
+
+- **Build Chunk Optimization**:
+  - Replaced the single oversized `lucide-react` `vendor-icons` manual chunk with deterministic alphabetic icon chunks so the custom Lucide icon-name field keeps its existing behavior without one large icon bundle.
+  - Split the Corporate Pro public theme into its own build chunk to keep the main entry bundle below the Vite warning threshold without changing theme selection behavior.
+  - Kept the explicit `security-core` and `vendor-recharts` chunks in place for the existing security/runtime and chart-library cache boundaries.
+
+- **Release Scope**:
+  - Bumped the active package, metadata, docs, and outbound user-agent version labels to `v1.23.4`.
+  - Kept installer wizard/backend installer labels and bundled theme/plugin extension version labels on the existing `1.23` baseline.
+  - Added smoke coverage for the promo bar solid color picker contract.
+  - Synchronized README and feature-guide package-size notes with the rebuilt `v1.23.4` Deploy/Source ZIPs, and clarified the optional `uploads/.htaccess` manual refresh note.
+
+### [v1.23.2] - 2026-04-21
+
+> Low-risk admin usability patch for the `v1.23.x` Rentaka line.
+
+- **Content Manager Author Column**:
+  - `ContentManager` now shows an `Author` column for both article and page lists.
+  - The display uses the existing post/page author payload contract with a safe `-` fallback instead of adding new API or schema work.
+  - Page mode remains pagination-only and does not add unsupported page search or page filter behavior.
+  - The admin content table now keeps long titles, excerpts, dates, and actions visually compact with a stable minimum-width table, extra title/category breathing room, and horizontal overflow fallback for narrower admin viewports.
+
+- **TechPress Light Mode Contrast**:
+  - Darkened the TechPress light-mode secondary text token so article excerpts, metadata, and card summary text read more clearly on white/surface backgrounds.
+  - Dark mode and other bundled themes are unchanged.
+
+- **PostEditor Paste Typography**:
+  - External paste cleanup now keeps a narrow safe typography style set (`text-align`, `font-size`, `font-weight`, `font-style`, `line-height`) instead of stripping all pasted inline styles before insert.
+  - The paste path still removes layout chrome, classes, IDs, unsafe tags, event-style attack surfaces, and unsupported attributes so copied article content stays cleaner without collapsing every styled paragraph back to the browser default.
+
+- **Dependency Maintenance**:
+  - Refreshed the npm lockfile within the existing semver-safe package ranges, including React `19.2.5`, React Router `7.14.2`, React Share `5.3.0`, Recharts `3.8.1`, DOMPurify `3.4.1`, and related patch/minor tooling updates.
+  - Left major-version tracks such as Vite `8`, Tailwind CSS `4`, TypeScript `6`, Lucide React `1`, and `@vitejs/plugin-react` `6` out of this patch so they can be audited separately.
+
+- **Admin Dashboard Mobile/Tablet Follow-up**:
+  - Parked the broader admin dashboard tablet/phone ergonomics work in the `v1.27` roadmap line instead of expanding the active `v1.23.2` patch scope.
+
+- **Regression Coverage**:
+  - The integration smoke gate now verifies that the Content Manager author-column and compact table markers, TechPress light-mode contrast token, PostEditor paste-typography sanitizer markers, and `v1.27` admin-dashboard roadmap breadcrumb stay present.
+
+- **Release Scope**:
+  - Bumped the active core release metadata to `v1.23.2`.
+  - No PHP API, database schema, importer, installer, security, bundled theme, or bundled plugin version-label changes were required for this patch.
+
+### [v1.23.1] - 2026-04-20
+
+> Core-only compatibility patch after the public `v1.23.0` baseline release.
+
+- **Legacy Settings Bridge Alignment**:
+  - `public/von_system.php` now delegates `save_settings` to the main database-backed `api/save_settings.php` endpoint instead of keeping a separate file-backed save path.
+  - This keeps the legacy bridge aligned with the active public/admin settings contract and avoids save-path drift on older compatibility flows.
+
+- **Regression Coverage**:
+  - The integration smoke gate now verifies that the legacy settings bridge delegates both `get_settings` and `save_settings` to the database-backed endpoints.
+
+- **Release Scope**:
+  - Bumped the active core release metadata to `v1.23.1` for this patch line while keeping `Rentaka` as the broader `v1.23` release-line baseline.
+  - Bundled plugin, bundled theme, and installer version labels remain on the existing `1.23` baseline for this release.
+
 ### [v1.23.0] - 2026-04-20
 
 > Public `Rentaka` release that rolls the cumulative `v1.22.x` Kirana work into the new `v1.23.0` baseline.
@@ -45,6 +216,10 @@
   - The admin header bell now opens a lightweight system alerts tray instead of staying as a dead icon.
   - The tray surfaces integrity-repair and database-repair alerts from the current system state, and the smoke gate now locks that contract into the admin shell.
   - The tray now dismisses cleanly when the user clicks outside the popup or presses `Escape`.
+
+- **Roadmap & Next-Gen Planning**:
+  - Deferred post-`v1.23.x` backlog items are now assigned into explicit later milestones, including `v1.24` content cleanup and Ads Manager polish instead of staying in a mixed holding bucket.
+  - Added `MASTERPLAN_2.0.md` at repo root as the working next-gen VonCMS direction draft for the hybrid publishing platform line.
 
 ### [v1.22.9] - 2026-04-18
 

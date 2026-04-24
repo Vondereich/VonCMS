@@ -1,4 +1,4 @@
-# VonCMS Theme Masterclass v1.23.0
+# VonCMS Theme Masterclass v1.23.5
 
 This guide is the practical contract for building or refactoring public themes in the current VonCMS codebase.
 

@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.23.0
+# VonCMS User Manual v1.23.7
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -38,6 +38,16 @@ The dashboard is your control center. It usually gives you a quick read on:
 - storage or maintenance tools
 
 Use it as the first place to check whether the site is behaving normally after updates or configuration changes.
+
+## Database backups and restores
+
+Use `Database Manager` for the database that the current VonCMS install is already connected to.
+
+The active database is defined by `public/von_config.php`. Backup exports SQL from that database. Import runs the uploaded SQL against that same configured database. It does not switch database names based on the uploaded file.
+
+Use Import for VonCMS-generated SQL backups. A normal VonCMS backup can drop and recreate tables during restore, so importing into the wrong install can overwrite that install's current data.
+
+For the full operating notes, see [Database Manager](DATABASE_MANAGER.md).
 
 ## Managing posts
 

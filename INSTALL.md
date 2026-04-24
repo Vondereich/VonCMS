@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.23.0 "Rentaka"**
+> **VonCMS v1.23.7 "Rentaka"**
 
 ---
 
@@ -151,4 +151,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.23.0 "Rentaka"_
+_VonCMS v1.23.7 "Rentaka"_

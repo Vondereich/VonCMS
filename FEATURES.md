@@ -1,4 +1,6 @@
-﻿# VonCMS Features
+# VonCMS Features
+
+> VonCMS v1.23.7 feature baseline for the Rentaka line.
 
 ## Everything you need. Nothing you don't.
 
@@ -21,7 +23,7 @@ The admin dashboard is where you'll spend most of your time. It should feel good
 - **Media manager** — upload, organize, search, regenerate thumbnails, clean orphaned files. WebP conversion built in.
 - **User manager** — admins, moderators, writers, subscribers. Role-based permissions that actually work.
 - **Comment moderation** — approve, reject, reply, track spam. Staff see pending comments, guests see only approved.
-- **Database manager** — inspect, export, repair. No phpMyAdmin required.
+- **Database manager** — inspect, export, import, and repair the active VonCMS database. See [Database Manager](DATABASE_MANAGER.md).
 - **Security dashboard** — login logs, session monitoring, security health at a glance.
 - **Contact forms manager** — build forms, manage submissions, no third-party service needed.
 - **Newsletter manager** — subscriber lists, export CSV, manage subscriptions.
@@ -191,37 +193,38 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ## Performance Under the Hood
 
-### You asked. We measured.
+### Performance posture
 
-Most CMS promise speed. VonCMS **proves** it — with real numbers, on real hardware, under real conditions.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.23.7` release line keeps a small package surface, server-side pagination and FULLTEXT baselines for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
-**The Setup:**
-
-- Shared hosting ($3/month tier)
-- 50 concurrent connections sustained for 10 seconds
-- Real API endpoint with database queries, not a static file
-
-**The Result:**
-
-| Metric                 | VonCMS v1.23.0         | Typical WordPress Setup |
-| ---------------------- | ---------------------- | ----------------------- |
-| **Throughput**         | 11,600 requests/second | ~500-2,000 req/s        |
-| **Avg Latency**        | 50ms                   | 200-800ms               |
-| **99th Percentile**    | 100ms                  | 2-5 seconds             |
-| **Estimated Daily PV** | ~1.7M PV/day           | ~50K PV/day before 503s |
-| **Build Size**         | 0.85MB deploy          | 50-200MB+ with plugins  |
+Internal Rentaka benchmark notes were useful during tuning, but they are environment-specific and should be treated as directional engineering evidence, not a universal production guarantee. Final throughput depends on hosting tier, database shape, traffic mix, CDN or cache layers, and the exact endpoint under load.
 
 ### Why does this matter?
 
-Because when your article goes viral — when 10,000 people hit your site in the same minute — **VonCMS doesn't blink**.
+Because the important promise is architectural: when traffic climbs, VonCMS already avoids the common plugin-stack overhead and keeps the request path short enough for disciplined tuning.
 
-WordPress needs caching plugins, a CDN, and a prayer. VonCMS just needs PHP and a database.
+### Search benchmark snapshot
 
-### What's behind the numbers?
+This local benchmark snapshot used a dataset of `30,035` posts, with `20,150` published posts in the measured read path.
+
+| Test                                   | Query                                         | Results                | Avg Time | Min      | Max      |
+| -------------------------------------- | --------------------------------------------- | ---------------------- | -------- | -------- | -------- |
+| FULLTEXT Search                        | `MATCH(title, content) AGAINST('teknologi')`  | 5,665                  | 133.98ms | 117.53ms | 186.21ms |
+| LIKE Search (Legacy)                   | `LIKE '%teknologi%'`                          | 5,665                  | 220.69ms | 213.09ms | 235.66ms |
+| FULLTEXT Multi-Word                    | `AGAINST('teknologi carian' IN BOOLEAN MODE)` | 7,615                  | 144.91ms | 136.40ms | 156.49ms |
+| Status Filter (`idx_status_date`)      | `WHERE status = 'published'`                  | 20,150                 | 7.98ms   | 7.52ms   | 8.51ms   |
+| Category Filter (`idx_category`)       | `WHERE category = 'Teknologi'`                | 3,082                  | 1.43ms   | 1.30ms   | 1.78ms   |
+| Comments by Post (`idx_post_id`)       | `WHERE post_id = 1`                           | 1 total / 0 for post 1 | 0.13ms   | 0.11ms   | 0.22ms   |
+| Pages by Status (`idx_status`)         | `WHERE status = 'published'`                  | 0 total / 0 published  | 0.21ms   | 0.11ms   | 0.57ms   |
+| Media Sort by Date (`idx_uploaded_at`) | `ORDER BY uploaded_at DESC LIMIT 20`          | 57 total / 20 returned | 0.29ms   | 0.22ms   | 0.49ms   |
+
+- FULLTEXT was `1.6x` faster than the legacy `LIKE` search path on this dataset.
+- Indexed status, category, comments, pages, and media lookups stayed in the low-millisecond range during the same run.
+- Treat this as a local benchmark snapshot, not as a universal SLA for every host or content mix.
+
+### What's behind the posture?
 
 - **73 HTTP API request handlers** — 71 dedicated handlers under `public/api/` plus 2 legacy bridge handlers in `public/`.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Package surface cleanup** — the release trimmed unnecessary manifest entries, but you should still run `npm audit` in your own target environment.
-- **Direct API calls** — no 50-plugin middleware stack. React talks to PHP. PHP talks to MySQL. Done.
-
-**These numbers come from the project's own benchmark notes.** Treat them as directional evidence of efficiency, not as a blanket SLA for every hosting stack.
+- **Light package surface** — current local `v1.23.7` release artifacts stay in the sub-1MB class while keeping installer, docs, and bundled themes intact.
+- **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.

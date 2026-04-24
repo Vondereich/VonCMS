@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.23.0`
+Version: `1.23.7`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -97,10 +97,10 @@ await vonFetch(API.savePost, {
 - `get_settings_audit.php`
 - `rollback_setting.php`
 - `get_storage.php`
-- `repair_db.php`
-- `backup_db.php`
-- `import_db.php`
-- `db_query.php`
+- `repair_db.php` - admin-only VonCMS schema repair for the configured database
+- `backup_db.php` - admin-only SQL export of the configured database tables
+- `import_db.php` - admin-only SQL restore into the configured database; intended for VonCMS backup files
+- `db_query.php` - admin-only read-only database inspection helper
 - `cron_publish.php`
 
 ### Redirects

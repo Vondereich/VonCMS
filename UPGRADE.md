@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.23.0
+## Recommended path to v1.23.7
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.23.0
+## What to verify after updating to v1.23.7
 
-This release line focuses on installer and `.htaccess` safety, admin scalability, media-cleanup review flow, and editor/save-path hardening carried into the `v1.23.0` baseline.
+This release line focuses on installer and `.htaccess` safety, admin scalability, media-cleanup review flow, editor/save-path hardening, Database Manager restore clarity, and WordPress importer remote-fetch validation carried into the `v1.23.7` baseline.
 
 Check these items:
 
