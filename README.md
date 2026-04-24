@@ -22,10 +22,11 @@
 
 This repository contains **documentation only**.
 
-👉 Download the full system from:
+👉 Download the full system from:  
 https://github.com/Vondereich/VonCMS/releases
 
-VonCMS is distributed as a **deployable ZIP package** designed for shared hosting environments (cPanel, Apache, LiteSpeed). No Node.js is required in production.
+VonCMS is distributed as a **deployable ZIP package** designed for shared hosting environments (cPanel, Apache, LiteSpeed).  
+No Node.js is required in production.
 
 ---
 
@@ -60,54 +61,55 @@ VonCMS sits in the middle:
 This release marks the transition from a simple blog engine into a CMS designed for high-performance publishing.
 
 It focuses on:
-- scalability
-- admin performance
-- large content handling (`100k+ posts`)
+- scalability  
+- admin performance  
+- large content handling (`100k+ posts`)  
 
-**Open Source Roadmap:**  
-Targeting **v1.25.x** for MIT/GPL release.
+Rentaka represents a hardened release line aligned for serious publishing workloads.
 
 ---
 
 ## v1.23 Release Line Snapshot
 
-- 73 HTTP API handlers
-- 100k+ post-ready baseline
-- Server-side pagination
-- FULLTEXT search
-- Lightweight release packages (<1MB class)
+| Metric | Result | Context |
+|-------|--------|--------|
+| API Surface | 73 HTTP API request handlers | 71 under `public/api/` + 2 bridge handlers |
+| Large Dataset | 100k+ post-ready | Server-side pagination + FULLTEXT |
+| Performance | Audited baseline | Depends on hosting + cache/CDN |
+| Build Size | Sub-1MB class | No Node runtime in production |
 
 ---
 
 ## Search Benchmark
 
-Dataset: 30,035 posts (20,150 published)
+Dataset: `30,035 posts` (`20,150` published)
 
-- FULLTEXT: 133.98ms avg
-- LIKE: 220.69ms avg
+- FULLTEXT: `133.98ms`
+- LIKE: `220.69ms`
 - ~1.6x faster
+- Indexed filters remain in low ms range
 
 ---
 
 ## What's New (v1.23.x)
 
-- Unified release baseline across core, installer, and themes
-- WordPress importer security hardening
-- Database manager improvements (clearer error reporting)
-- Media & installer security fixes
-- Admin UI polish (editor feedback, visibility improvements)
-- Server-side pagination for large datasets
-- Improved `.htaccess` repair with backup handling
+- Unified release baseline across core, installer, and themes  
+- WordPress importer security hardening  
+- Database manager improvements (clear error reporting)  
+- Media and installer security fixes  
+- Admin UI improvements and editor feedback  
+- Server-side pagination for large datasets  
+- Improved `.htaccess` repair with backup handling  
 
 ---
 
 ## Core Features
 
-- React SPA navigation (no full reload)
-- PHP backend (shared hosting friendly)
-- Built-in SEO, analytics, newsletter, comments, media manager
-- Roles, audit logs, draft workflow, scheduled posts
-- 6 bundled themes with dark mode
+- React SPA navigation (no full reload)  
+- PHP backend (shared hosting friendly)  
+- Built-in SEO, analytics, newsletter, comments, media manager  
+- Roles, audit logs, draft workflow, scheduled posts  
+- 6 bundled themes with dark mode  
 
 ---
 
@@ -123,17 +125,17 @@ Dataset: 30,035 posts (20,150 published)
 
 ## Requirements
 
-- PHP 8.2+
-- MySQL 5.7+
-- Apache / LiteSpeed (.htaccess required)
+- PHP 8.2+  
+- MySQL 5.7+  
+- Apache / LiteSpeed (.htaccess required)  
 
-Compatible with XAMPP, WAMP, Laragon.
+Compatible with XAMPP, WAMP, and Laragon.
 
 ---
 
 ## ⚠️ .htaccess
 
-Updates do NOT overwrite `.htaccess`.
+Updates do **NOT** overwrite `.htaccess`.
 
 After each update:
 
@@ -149,6 +151,19 @@ After each update:
 - User Manual  
 - API Reference  
 - Upgrade Guide  
+
+---
+
+## Open Source Roadmap
+
+VonCMS is planned to transition to open source in the **v1.25.x** release line under an **MIT/GPL license**.
+
+This timeline is intentional. The current phase focuses on:
+- stabilizing the core system  
+- finalizing internal architecture  
+- completing the security and performance cycle  
+
+The goal is to provide a stable and reliable base before opening the project to external contributors.
 
 ---
 
