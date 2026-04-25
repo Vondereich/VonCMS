@@ -20,52 +20,56 @@
 
 ## ⚠️ Important Notice
 
-This repository contains **documentation only**.
+This repository contains **documentation and source code references only**.
 
-👉 Download the full system from:  
-https://github.com/Vondereich/VonCMS/releases
+👉 **Download the full, deployable system from:**  
+[https://github.com/Vondereich/VonCMS/releases](https://github.com/Vondereich/VonCMS/releases)
 
-VonCMS is distributed as a **deployable ZIP package** designed for shared hosting environments (cPanel, Apache, LiteSpeed).  
-No Node.js is required in production.
+VonCMS is distributed as a **pre-built ZIP package** designed for shared hosting environments.  
+**No Node.js is required in production.**
+
+> [!CAUTION]
+> **Updates & .htaccess**: The Over-The-Air (OTA) update system automatically handles core files and assets. However, it does **not** overwrite your `.htaccess` to prevent breaking host-specific configurations. If a new version requires `.htaccess` changes, a specific note will be provided in the release documentation. You can always use **General Setting → Tools → Fix .htaccess** to sync the latest rules manually.
 
 ---
 
 ## What is VonCMS?
 
-VonCMS is a hybrid CMS with:
-- React frontend (SPA experience)
-- PHP backend (API + server logic)
-- MySQL database
+VonCMS is a hybrid CMS that delivers a **modern React 19 SPA experience** powered by a **practical PHP/MySQL backend**. It is built for publishers who want a premium editing and reading experience without the complexity of managing separate frontend and backend deployments.
 
-It is built for publishers who want a modern editing and reading experience without turning deployment into a separate frontend/backend project.
+### The Core Idea: Modern Frontend, Practical Backend
+Most CMS solutions fall into two extremes:
+- **Traditional CMS**: Easy to deploy, but often heavy and outdated.
+- **Modern Headless CMS**: Powerful, but requires complex DevOps and expensive hosting.
+
+**VonCMS sits in the middle.** It gives you the speed of a Single Page Application (SPA) with the simplicity of a "copy-paste" PHP deployment.
 
 ---
 
-## Key Idea
+## 🚀 Key Advantages
 
-Most CMS solutions today fall into two extremes:
+### 1. SEO & Performance Excellence
+- **Zero-Hydration-Race Engine**: Unlike standard SPAs, our Server-Side SEO Engine ensures bots (Google, Bing, Facebook) see 100% of your content, meta tags, and JSON-LD Schema on the first render.
+- **Proven Indexing Speed**: Users have reported new content being indexed by Google in **under 12 hours**.
+- **Canonical Permalink Logic**: Automatically manages legacy IDs and redirects them to SEO-friendly `{category}/{slug}` structures.
 
-- Traditional CMS (easy to deploy, but plugin-heavy)
-- Modern headless CMS (powerful, but complex setup)
+### 2. Shared Hosting Optimized (cPanel King)
+- **Zero Node.js Runtime**: No need for VPS or specialized JS hosting (Vercel/Netlify). Deploy to any cPanel, Apache, or LiteSpeed host.
+- **Lightweight Footprint**: The entire build is optimized for low memory usage, making it faster than many WordPress setups.
+- **Ready for Scale**: Tested with **100k+ posts** using server-side pagination and MySQL FULLTEXT search.
 
-VonCMS sits in the middle:
-
-**Modern frontend, practical backend.**
+### 3. Defense-in-Depth Security
+- **SSRF Protection**: Hardened media re-hosting engine for safe remote content ingestion (e.g., from WordPress imports).
+- **XSS Mitigation**: Integrated DOMPurify sanitization and secure `dangerouslySetInnerHTML` handling.
+- **Strict API Layer**: 73 dedicated HTTP API request handlers with built-in CSRF protection and role-based access control.
 
 ---
 
 ## Why "Rentaka"?
 
-> _"Rentaka" — Historically, a swivel gun used in traditional Malay naval warfare._
+> _"Rentaka" — Historically, a swivel gun and a vital piece of artillery in traditional Malay naval warfare._
 
-This release marks the transition from a simple blog engine into a CMS designed for high-performance publishing.
-
-It focuses on:
-- scalability  
-- admin performance  
-- large content handling (`100k+ posts`)  
-
-Rentaka represents a hardened release line aligned for serious publishing workloads.
+The `v1.23` release line marks the transition of VonCMS from a simple blog engine to a high-performance "artillery" for serious publishers. It focuses on scalability, admin performance, and hardened security—ready for production-grade publishing workloads.
 
 ---
 
@@ -73,107 +77,59 @@ Rentaka represents a hardened release line aligned for serious publishing worklo
 
 | Metric | Result | Context |
 |-------|--------|--------|
-| API Surface | 73 HTTP API request handlers | 71 under `public/api/` + 2 bridge handlers |
-| Large Dataset | 100k+ post-ready | Server-side pagination + FULLTEXT |
-| Performance | Audited baseline | Depends on hosting + cache/CDN |
-| Build Size | Sub-1MB class | No Node runtime in production |
+| **API Surface** | 73 HTTP API request handlers | 71 under `public/api/` + 2 bridge handlers. |
+| **Large Dataset** | 100k+ post-ready | Server-side pagination + FULLTEXT search standard. |
+| **Performance** | Optimized for Core Web Vitals | Built-in SSR-style hydration for search bots. |
+| **Build Size** | Sub-1MB-class package | No Node manifests or runtime dependencies in Deploy. |
+
+### Search Benchmark (Dataset: 30,035 posts)
+- **FULLTEXT Search**: `133.98ms` average
+- **Legacy LIKE Search**: `220.69ms` average
+- **Speedup**: ~1.6x faster on large datasets.
 
 ---
 
-## Search Benchmark
+## What's New in v1.23.x
 
-Dataset: `30,035 posts` (`20,150` published)
-
-- FULLTEXT: `133.98ms`
-- LIKE: `220.69ms`
-- ~1.6x faster
-- Indexed filters remain in low ms range
-
----
-
-## What's New (v1.23.x)
-
-- Unified release baseline across core, installer, and themes  
-- WordPress importer security hardening  
-- Database manager improvements (clear error reporting)  
-- Media and installer security fixes  
-- Admin UI improvements and editor feedback  
-- Server-side pagination for large datasets  
-- Improved `.htaccess` repair with backup handling  
+- **WordPress Importer Hardening**: DNS-resolved public IP validation for remote media fetch.
+- **Database Manager Clarity**: Real-time SQL error reporting and sanitized backup naming.
+- **Security Audit Polish**: Media role gating and stricter installer preflight checks.
+- **Admin UX**: Real-time autosave countdowns and better manual save feedback.
+- **SEO Hydration**: Improved meta-description alignment and manual excerpt preservation.
 
 ---
 
 ## Core Features
 
-- React SPA navigation (no full reload)  
-- PHP backend (shared hosting friendly)  
-- Built-in SEO, analytics, newsletter, comments, media manager  
-- Roles, audit logs, draft workflow, scheduled posts  
-- 6 bundled themes with dark mode  
+- **React 19 SPA**: Smooth navigation without full page reloads.
+- **Pure PHP Backend**: Easy deployment to shared hosting (cPanel).
+- **Full Suite Built-in**: SEO, Analytics, Newsletter, Comments, and Media Manager included.
+- **6 Modern Themes**: TechPress, Digest, Portfolio, Prism, Corporate Pro, and Default (all with dark mode).
+- **Publisher First**: Roles, audit logs, draft workflows, and scheduled posts are part of the core.
 
 ---
 
-## Quick Start
+## Quick Start & Requirements
 
-1. Download latest release ZIP  
-2. Extract into web root  
-3. Open `/install`  
-4. Complete setup  
-5. Access `/admin`  
+### Requirements
+- **PHP**: 8.2+
+- **Database**: MySQL 5.7+
+- **Server**: Apache/LiteSpeed (.htaccess support required)
+- **Local Testing**: Compatible with XAMPP, WAMP, and Laragon.
 
----
-
-## Requirements
-
-- PHP 8.2+  
-- MySQL 5.7+  
-- Apache / LiteSpeed (.htaccess required)  
-
-Compatible with XAMPP, WAMP, and Laragon.
-
----
-
-## ⚠️ .htaccess
-
-Updates do **NOT** overwrite `.htaccess`.
-
-After each update:
-
-1. Use **Fix .htaccess** in admin panel  
-2. Or manually upload latest `.htaccess`  
-
----
-
-## Documentation
-
-- Features Guide  
-- Installation Guide  
-- User Manual  
-- API Reference  
-- Upgrade Guide  
+### Installation
+1. Download the latest **VonCMS Deploy** ZIP from [Releases](https://github.com/Vondereich/VonCMS/releases).
+2. Extract into your web root.
+3. Open `yoursite.com/install` and follow the wizard.
+4. Access the dashboard at `/admin`.
 
 ---
 
 ## Open Source Roadmap
 
-VonCMS is planned to transition to open source in the **v1.25.x** release line under an **MIT/GPL license**.
+VonCMS is planned to transition to open source in the **v1.25.x release line** under an **MIT/GPL license**.
 
-This timeline is intentional. The current phase focuses on:
-- stabilizing the core system  
-- finalizing internal architecture  
-- completing the security and performance cycle  
-
-The goal is to provide a stable and reliable base before opening the project to external contributors.
-
----
-
-## Summary
-
-VonCMS is designed for developers and publishers who want:
-
-- modern frontend experience  
-- simple deployment  
-- scalable content handling  
+The current phase (v1.23 - v1.24) focuses on stabilizing the core, finalizing internal architecture, and completing the security/performance audit cycle to ensure a rock-solid foundation for the community.
 
 ---
 
@@ -181,5 +137,7 @@ VonCMS is designed for developers and publishers who want:
 
 **v1.23.7 "Rentaka" — Official Release**  
 Built by Vondereich
+
+[Official Website](https://skripglobal.com/) | [kurama87@gmail.com](mailto:kurama87@gmail.com)
 
 </div>
