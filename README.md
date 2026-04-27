@@ -9,9 +9,9 @@
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-Proprietary-gold?style=for-the-badge)](docs/LICENSE.md)
+![License](https://img.shields.io/badge/License-Proprietary-gold?style=for-the-badge)
 
-[Official Website](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Installation](docs/INSTALL.md) | [Manual](docs/MANUAL.md) | [API](docs/API.md) | [Upgrade](docs/UPGRADE.md)
+[Live Demo](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases)
 
 </div>
 
@@ -139,6 +139,6 @@ The current phase (v1.23 - v1.24) focuses on stabilizing the core, finalizing in
 **v1.23.7 "Rentaka" — Official Release**  
 Built by Vondereich
 
-[Official Website](https://skripglobal.com/) | [kurama87@gmail.com](mailto:kurama87@gmail.com)
+[Live Demo](https://skripglobal.com/) | [kurama87@gmail.com](mailto:kurama87@gmail.com)
 
 </div>
