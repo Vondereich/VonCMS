@@ -1,3 +1,97 @@
+### [v1.23.10] - 2026-04-29
+
+> Rentaka closeout/back-up patch for API key privacy, media fallback reporting, Page Manager search parity, vertical video embeds, open-source scanner polish, and form accessibility cleanup.
+
+- **AI Key Privacy & Rotation**:
+  - `save_settings.php` now forces the saved API settings blob (`setting_group = api`, `setting_key = config`) to stay admin-only/private, and `get_settings.php` skips that blob for public reads even if an older row has stale public metadata.
+  - `repair_db.php` corrects existing API config rows to `is_public = 0` during database repair.
+  - The API settings tab now includes an opt-in "Expire saved AI key after 30 days" checkbox, stores `aiKeySavedAt` / `aiKeyExpiresAt` metadata, warns admins when the saved Gemini key has expired, and falls back to the existing AI Write / AI Check prompt flow.
+
+- **Media Fallback Reporting**:
+  - `ImageProcessor.php` and `upload_file.php` now surface responsive-variant status, message, and fallback flags when WebP/responsive variant generation cannot produce mobile candidates.
+  - Upload fallback events are logged so unoptimized original-image fallback is visible instead of silently passing through.
+
+- **Page Manager Search Parity**:
+  - `get_pages.php` now accepts the same server-side `search` flow used by the Post Manager, using the pages FULLTEXT index when available and a safe `LIKE` fallback for older databases.
+  - New installs and database repair now add the `pages.ft_title_content` FULLTEXT index, while the Content Manager exposes the search box for Page Manager and keeps category/status filters post-only.
+
+- **Vertical Video Aspect Ratio**:
+  - The editor and WordPress importer now preserve portrait embeds for YouTube Shorts, TikTok, Instagram Reels, and Facebook Reels.
+  - `ContentRenderer.tsx` applies a portrait 9:16 override for supported vertical iframe embeds so theme-level 16:9 iframe styling does not flatten them.
+  - The editor can now select and align video/reel embeds left, center, or right using the existing alignment controls, and the preview modal uses a stable eager-loading HTML snapshot to avoid repeated Facebook Reel iframe reload/blink loops.
+  - Added editor video aspect controls for Auto, 9:16 portrait, and 16:9 landscape, with sanitizer/renderer support for the saved `data-von-video-aspect` override so wrongly guessed embeds can be corrected without changing the embed URL.
+  - Stabilized the preview render path by memoizing `ContentRenderer.tsx` and the Post Editor media callback so autosave countdown updates do not keep remounting iframe previews.
+
+- **Open Source Scanner Polish**:
+  - Replaced avoidable direct `innerHTML` usage in low-risk surfaces with DOM-safe equivalents (`replaceChildren`, `textContent`, and `DOMParser`) while keeping the intentional editor/sanitizer HTML surfaces intact.
+  - Added smoke coverage for the scanner-polish contract so future cleanup does not regress into broad false-positive noise.
+
+- **Form Accessibility Cleanup**:
+  - React admin, editor, settings, media, auth, public theme, newsletter, comment, and contact-form fields now carry stable `id` / `name` coverage and accessible labels where they render real form controls.
+  - Visual-only label text that was not associated with a control now renders as neutral text instead of broken standalone `<label>` markup, reducing browser autofill/accessibility noise without changing field behavior.
+
+- **Regression Coverage**:
+  - Added smoke coverage for API key privacy/rotation, responsive-variant fallback reporting, Page Manager search parity, vertical video portrait rendering, editor video alignment/preview stability, manual video aspect overrides, and low-risk `innerHTML` scanner polish.
+  - Added smoke coverage to keep the editor cleanup debt cleared by preventing the stale video-thumbnail click path and empty image-bubble placeholder from returning.
+  - Added a source-wide React form accessibility smoke gate so future form fields must keep `id` / `name` coverage and an accessible label.
+
+- **Version Alignment**:
+  - Bumped the active package, metadata, lockfile, primary docs, root/docs license summaries, README badge, and WordPress importer user-agent labels to `v1.23.10`.
+  - Kept installer wizard/backend installer labels and bundled theme/plugin extension labels on the existing `1.23` baseline; those remain tied to the main release line instead of patch-specific versioning.
+  - Updated the README closeout wording so `v1.23.10` is explicit as the closed Rentaka series baseline before `v1.24.x` "HourGlass".
+
+### [v1.23.9] - 2026-04-28
+
+> Audit-only PHP 8.5 and static-analysis cleanup patch for the `v1.23.x` Rentaka line.
+
+- **PHP 8.5 Future Compatibility**:
+  - `wp_import.php` no longer depends on deprecated `curl_close()` or `$http_response_header` behavior in the remote media fetch fallback path.
+  - `backup_db.php` and `import_db.php` now resolve the MySQL buffered-query PDO attribute through a PHP-version-aware helper, preserving PHP 8.2/8.3 behavior while avoiding the older constant on PHP 8.4+.
+
+- **Static Analysis Cleanup**:
+  - Added PHPDoc-first parameter metadata for low-risk public helpers in `public/index.php`, `public/llms.php`, and `public/rss.php`.
+  - Added PHPDoc-first metadata for high-noise API/helper surfaces including `wp_import.php`, `mail_helper.php`, `manage_categories.php`, `sync_media.php`, `import_db.php`, `list_media.php`, and `public/api/system/updater.php`.
+  - Added `@var` metadata for the local `SystemUpdater` class properties, SMTP helper closures, media sync/list globals, and importer cache/map variables called out in the Phase 3 audit handoff.
+  - Added PHPDoc/`@var` metadata for the `public/security.php` core guardrail surface without adding native type signatures or changing runtime security behavior.
+  - Closed the follow-up RSS closure and Phase 5 helper noise by adding PHPDoc-first metadata to scheduler, config sample, backup/storage/contact/email/WP scan, integrity, and `.htaccess` repair helper surfaces.
+  - Initialized and guarded the `get_settings.php` statement handle so static analysis no longer sees a possible undefined `$stmt` path while the successful settings response contract stays unchanged.
+  - Added PHPDoc-first metadata to installer `.htaccess` merge/write helpers so the installer static-analysis surface matches the repair helper cleanup without changing install behavior.
+
+- **Regression Coverage**:
+  - Added smoke coverage for the PHP 8.5 compatibility markers and staged PHPDoc static-analysis markers, including the Phase 4 `public/security.php` metadata markers.
+  - Extended smoke coverage for the final RSS closure metadata marker and Phase 5 remaining-helper metadata markers.
+
+- **Version Alignment**:
+  - Bumped the active package, metadata, lockfile, primary docs, root/docs license summaries, README badge, and WordPress importer user-agent labels to `v1.23.9`.
+  - Kept installer wizard/backend installer labels and bundled theme/plugin extension labels on the existing `1.23` baseline; those remain tied to the main release line instead of patch-specific versioning.
+
+- **Release Scope**:
+  - No runtime API contract, database schema, importer UI, mail flow, media sync behavior, OTA download/update behavior, native type signature, or `public/security.php` behavior is changed.
+  - Removed the legacy root `database/*.sql` and `database/migrations/*.sql` source-only SQL bundle after confirming the active schema owners are `public/install.sql`, `public/api/install.php`, and `public/api/repair_db.php`.
+
+### [v1.23.8] - 2026-04-28
+
+> CI/CD audit-only cleanup patch for the `v1.23.x` Rentaka line.
+
+- **Semgrep False Positive Cleanup**:
+  - Added scoped `nosemgrep` suppression comments for already-sanitized `dangerouslySetInnerHTML` render sites in `ContactFormRenderer.tsx`, `ContentRenderer.tsx`, and `AdBlock.tsx`.
+  - `ContactFormRenderer.tsx` and `ContentRenderer.tsx` continue to route rendered HTML fragments through `sanitizeHtml` / DOMPurify before insertion.
+  - `AdBlock.tsx` continues to render non-executable ad markup from sanitized `safeContent`; script/iframe ads remain handled through the existing sandboxed iframe path.
+
+- **Regression Coverage**:
+  - Added smoke coverage so the Semgrep suppression markers stay paired with the sanitizer contract and cannot silently drift into unsanitized `dangerouslySetInnerHTML` usage.
+
+- **Version Alignment**:
+  - Bumped the active package, metadata, lockfile, primary docs, root/docs license summaries, README badge, and WordPress importer user-agent labels to `v1.23.8`.
+  - Kept installer wizard/backend installer labels and bundled theme/plugin extension labels on the existing `1.23` baseline; those remain tied to the main release line instead of patch-specific versioning.
+
+- **README Smoke Alignment**:
+  - Restored the packaged README local license link to `docs/LICENSE.md`.
+  - Re-aligned the README search benchmark heading and scoped `1.6x faster than legacy LIKE` wording with the existing release smoke gate.
+
+- **Release Scope**:
+  - No runtime behavior, API contract, database schema, importer flow, installer wizard flow, media pipeline, theme layout, bundled theme labels, or bundled plugin labels are changed.
+
 ### [v1.23.7] - 2026-04-23
 
 > Audit-only WordPress importer remote-fetch hardening patch for the `v1.23.x` Rentaka line.
