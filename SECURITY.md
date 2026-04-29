@@ -1,4 +1,4 @@
-# VonCMS Security Guide v1.23.7
+# VonCMS Security Guide v1.23.10
 
 This document explains what VonCMS protects by default, what those protections do, and what the site owner still needs to handle.
 
