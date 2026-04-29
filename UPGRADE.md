@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.23.7
+## Recommended path to v1.23.10
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.23.7
+## What to verify after updating to v1.23.10
 
-This release line focuses on installer and `.htaccess` safety, admin scalability, media-cleanup review flow, editor/save-path hardening, Database Manager restore clarity, and WordPress importer remote-fetch validation carried into the `v1.23.7` baseline.
+This release line focuses on installer and `.htaccess` safety, admin scalability, media-cleanup review flow, editor/save-path hardening, Database Manager restore clarity, WordPress importer remote-fetch validation, CI/Semgrep cleanup, PHP 8.5/static-analysis cleanup, API key privacy/rotation, Page Manager search parity, media fallback reporting, and vertical video embed fixes carried into the `v1.23.10` baseline.
 
 Check these items:
 
@@ -22,6 +22,9 @@ Check these items:
 - one public page route resolves correctly
 - the editor opens and saves normally for one draft
 - search results show correct counts on Digest and Default themes
+- Page Manager search returns matching pages from the server
+- saved Gemini API keys still work, or prompt for a fresh key if the optional 30-day expiry is enabled and expired
+- portrait embeds such as TikTok, Instagram Reels, Facebook Reels, and YouTube Shorts keep a vertical aspect ratio
 - comments display numbered pagination (Prev/Next, page buttons)
 - if you upload or import images on restrictive hosting, they appear correctly on the frontend (no broken images)
 - if you use shared hosting, `.htaccess` still contains your host-managed PHP handler block
