@@ -1,6 +1,6 @@
 # VonCMS Features
 
-> VonCMS v1.23.7 feature baseline for the Rentaka line.
+> VonCMS v1.23.10 feature baseline for the Rentaka line.
 
 ## Everything you need. Nothing you don't.
 
@@ -195,7 +195,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.23.7` release line keeps a small package surface, server-side pagination and FULLTEXT baselines for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.23.10` release line keeps a small package surface, server-side pagination and FULLTEXT baselines for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 Internal Rentaka benchmark notes were useful during tuning, but they are environment-specific and should be treated as directional engineering evidence, not a universal production guarantee. Final throughput depends on hosting tier, database shape, traffic mix, CDN or cache layers, and the exact endpoint under load.
 
@@ -226,5 +226,5 @@ This local benchmark snapshot used a dataset of `30,035` posts, with `20,150` pu
 
 - **73 HTTP API request handlers** — 71 dedicated handlers under `public/api/` plus 2 legacy bridge handlers in `public/`.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** — current local `v1.23.7` release artifacts stay in the sub-1MB class while keeping installer, docs, and bundled themes intact.
+- **Light package surface** — current local `v1.23.10` release artifacts stay in the sub-1MB class while keeping installer, docs, and bundled themes intact.
 - **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.
