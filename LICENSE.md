@@ -1,6 +1,6 @@
 # VonCMS License Summary
 
-Version: `1.23.5`
+Version: `1.23.10`
 Software: `VonCMS`
 Publisher: `Vondereich`
 
