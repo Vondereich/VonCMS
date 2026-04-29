@@ -1,4 +1,4 @@
-# VonCMS v1.23.10 "Rentaka" Preview
+# VonCMS v1.23.10 "Rentaka"
 
 <div align="center">
 
@@ -30,7 +30,7 @@
 | Shared-hosting deployment                | PHP/MySQL backend, Apache/LiteSpeed support, no Node.js runtime    |
 | Search-friendly public pages             | Server-rendered SEO output, meta tags, JSON-LD, canonical URLs     |
 | Publisher workflows without plugin chaos | Roles, drafts, scheduled posts, audit logs, newsletter, comments   |
-| A cleaner path to open source            | Hardened v1.23.x base before the planned v1.25.x public milestone  |
+| A cleaner path to open source            | Closed v1.23.x "Rentaka" baseline before the v1.24.x "HourGlass" line |
 
 ---
 
@@ -75,6 +75,8 @@ You get a CMS that feels modern to manage, stays realistic to host, and is shape
 > _"Rentaka" - historically, a swivel gun and a vital piece of artillery in traditional Malay naval warfare._
 
 The `v1.23.x` line is the hardened publishing baseline: faster admin flows, stronger import safety, clearer release packaging, better search contracts, and tighter scanner/security cleanup before the public open-source milestone.
+
+With `v1.23.10`, the Rentaka series is closed to new feature expansion. Future proof-backed fixes may land only for verified regressions; routine maintenance and product polish move to `v1.24.x` "HourGlass".
 
 ---
 
@@ -157,7 +159,7 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 VonCMS is planned to move toward open source in the **v1.25.x release line** under an **MIT/GPL license**.
 
-The current `v1.23.x` -> `v1.24.x` phase is about making the core boring in the right places: stable install paths, cleaner audits, predictable release packaging, stronger security/performance checks, and documentation that matches what the package actually ships.
+With the `v1.23.x` "Rentaka" series closed at `v1.23.10`, `v1.24.x` "HourGlass" is the next maintenance and product-polish line: stable install paths, cleaner audits, predictable release packaging, stronger security/performance checks, and documentation that matches what the package actually ships.
 
 For planning details, see [ROADMAP.md](ROADMAP.md). For shipped release truth, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -165,7 +167,7 @@ For planning details, see [ROADMAP.md](ROADMAP.md). For shipped release truth, s
 
 <div align="center">
 
-**v1.23.10 "Rentaka" - Official Release**
+**v1.23.10 "Rentaka" - Official Closeout Release**
 
 Built by Vondereich
 
