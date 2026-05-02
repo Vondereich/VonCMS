@@ -18,7 +18,7 @@
 
 | Label | Stack | Notes |
 |-------|-------|-------|
-| **VonCMS** | PHP 8.x + React 19 SPA | Hybrid Decoupled CMS, shared hosting |
+| **VonCMS** | PHP 8.x + React 19 SPA | Shared hosting, no CDN, built-in WebP only |
 | **Site A** | PHP / Media platform | High-traffic Malaysian media site |
 | **Site B** | WordPress | High-traffic entertainment/news site |
 | **Site C** | WordPress | High-traffic news/viral content site |
@@ -187,4 +187,4 @@ VonCMS is 15-23% faster than both Next.js SSR sites on average TTFB, while servi
 
 VonCMS holds its own against established WordPress and Next.js production sites in raw TTFB performance. The key differentiator is consistency. VonCMS delivers predictable sub-127 ms responses across all test scenarios without the tail-end spikes seen in several WordPress deployments.
 
-For a Hybrid Decoupled CMS running on standard shared hosting with no external caching layer, this positions VonCMS competitively against sites that likely benefit from CDN, full-page cache, or managed infrastructure advantages.
+For a CMS running on shared hosting with no CDN and no full-page cache (just built-in WebP image optimization), this positions VonCMS competitively against sites that likely benefit from Cloudflare, Varnish, managed infrastructure, or edge SSR.
