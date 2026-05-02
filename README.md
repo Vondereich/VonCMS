@@ -30,7 +30,7 @@ VonCMS is on a mission to modernize the PHP publishing landscape. We are planned
 
 **Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
 
-For shipped release truth, see [CHANGELOG.md](CHANGELOG.md).
+For shipped release truth, see [Changelog.md](Changelog.md).
 
 ---
 
