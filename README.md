@@ -32,7 +32,7 @@ For shipped release truth, see [Changelog.md](Changelog.md).
 
 ---
 
-<img width="1920" height="991" alt="VonCMS Admin" src="https://github.com/user-attachments/assets/c3b01898-01c3-41d3-a129-f756e5a7fcd5" />
+[![VonCMS Admin Walkthrough](https://img.youtube.com/vi/glbqEG37aiM/maxresdefault.jpg)](https://www.youtube.com/watch?v=glbqEG37aiM)
 
 ---
 
