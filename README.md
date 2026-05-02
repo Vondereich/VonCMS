@@ -4,7 +4,7 @@
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.23.10-ff2800?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.23.10-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
@@ -12,9 +12,11 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Proprietary-gold?style=for-the-badge)](docs/LICENSE.md)
 
-**A modern publishing CMS that runs on practical PHP hosting.**
+**The CMS that gets out of your way.**
 
-[Live Demo](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
+Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** — and actually enjoyable to use.
+
+[Website](https://vondereich.github.io/getvoncms/) | [Live Demo](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
 </div>
 
@@ -45,6 +47,20 @@ For shipped release truth, see [Changelog.md](Changelog.md).
 | Search-friendly public pages             | Server-rendered SEO output, meta tags, JSON-LD, canonical URLs        |
 | Publisher workflows without plugin chaos | Roles, drafts, scheduled posts, audit logs, newsletter, comments      |
 | A cleaner path to open source            | Closed v1.23.x "Rentaka" baseline before the v1.24.x "HourGlass" line |
+
+---
+
+## ⚡ Performance Baseline
+
+VonCMS is built for speed, not just in the editor, but for the final reader and the system owner.
+
+| Metric             | Benchmark / Score                                            |
+| ------------------ | ------------------------------------------------------------ |
+| **Lighthouse SEO** | 🟢 **100/100**                                               |
+| **Lighthouse PERF**| 🟢 **100/100**                                               |
+| **Setup Time**     | 🚀 **< 2 Minutes** (Extractor + Installer wizard)            |
+| **Complexity**     | 📦 **~200 Core Files** (No `node_modules` in production)      |
+| **Plugins Needed** | 🛡️ **0** (Everything is built-in)                            |
 
 ---
 
