@@ -26,7 +26,7 @@
 
 A huge **thank you** to everyone who has tried VonCMS and supported us with a GitHub ⭐! Your interest and feedback are what drive this project forward.
 
-VonCMS is on a mission to modernize the PHP publishing landscape. We are planned to move toward **full open source** in the **v1.25.x release line** under an **MIT/GPL license**. This transition is an invitation for the community to help shape the next era of lightweight publishing.
+VonCMS is on a mission to modernize the PHP publishing landscape. We are planned to move toward **full open source** in the **v1.25.x release line** under an **MIT or GPL license**. This transition is an invitation for the community to help shape the next era of lightweight publishing.
 
 **Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
 
