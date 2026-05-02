@@ -22,14 +22,26 @@
 
 ---
 
+## 🌟 Community & Open Source Transition
+
+A huge **thank you** to everyone who has tried VonCMS and supported us with a GitHub ⭐! Your interest and feedback are what drive this project forward.
+
+VonCMS is on a mission to modernize the PHP publishing landscape. We are planned to move toward **full open source** in the **v1.25.x release line** under an **MIT/GPL license**. This transition is an invitation for the community to help shape the next era of lightweight publishing.
+
+**Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
+
+For planning details, see [ROADMAP.md](ROADMAP.md). For shipped release truth, see [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 ## At A Glance
 
-| If you need...                           | VonCMS gives you...                                                |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| A modern admin experience                | React 19 SPA dashboard, editor, media, comments, themes, analytics |
-| Shared-hosting deployment                | PHP/MySQL backend, Apache/LiteSpeed support, no Node.js runtime    |
-| Search-friendly public pages             | Server-rendered SEO output, meta tags, JSON-LD, canonical URLs     |
-| Publisher workflows without plugin chaos | Roles, drafts, scheduled posts, audit logs, newsletter, comments   |
+| If you need...                           | VonCMS gives you...                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| A modern admin experience                | React 19 SPA dashboard, editor, media, comments, themes, analytics    |
+| Shared-hosting deployment                | PHP/MySQL backend, Apache/LiteSpeed support, no Node.js runtime       |
+| Search-friendly public pages             | Server-rendered SEO output, meta tags, JSON-LD, canonical URLs        |
+| Publisher workflows without plugin chaos | Roles, drafts, scheduled posts, audit logs, newsletter, comments      |
 | A cleaner path to open source            | Closed v1.23.x "Rentaka" baseline before the v1.24.x "HourGlass" line |
 
 ---
@@ -67,6 +79,18 @@ VonCMS keeps the deployment model simple while upgrading the publishing experien
 ### 3. The Result
 
 You get a CMS that feels modern to manage, stays realistic to host, and is shaped around actual publishing work: writing, importing, scheduling, searching, moderating, and shipping content.
+
+---
+
+## 💎 The VonCMS Philosophy
+
+**"Everything you need. Nothing you don't."**
+
+Most CMS projects hand you an empty shell and say "figure it out with plugins." VonCMS arrives with the lights on, the furniture in place, and the kitchen already stocked.
+
+- **Built for Publishers, Not Just Developers**: The dashboard is designed for the person who publishes content daily, not the engineer who configured the server.
+- **Zero Plugin Chaos**: Features that would be 10+ separate plugins in WordPress (SEO, Analytics, Forms, Newsletter, Security, Media Optimization) are built directly into the core. 
+- **Short Request Path**: React talks to PHP. PHP talks to MySQL. No heavy middleware stack, no plugin overhead—just pure performance.
 
 ---
 
@@ -155,13 +179,6 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 ---
 
-## Project Direction
-
-VonCMS is planned to move toward open source in the **v1.25.x release line** under an **MIT/GPL license**.
-
-With the `v1.23.x` "Rentaka" series closed at `v1.23.10`, `v1.24.x` "HourGlass" is the next maintenance and product-polish line: stable install paths, cleaner audits, predictable release packaging, stronger security/performance checks, and documentation that matches what the package actually ships.
-
-For planning details, see [ROADMAP.md](ROADMAP.md). For shipped release truth, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
