@@ -18,8 +18,6 @@
 
 </div>
 
-<img width="1920" height="991" alt="VonCMS Admin" src="https://github.com/user-attachments/assets/c3b01898-01c3-41d3-a129-f756e5a7fcd5" />
-
 ---
 
 ## 🌟 Community & Open Source Transition
@@ -31,6 +29,10 @@ VonCMS is on a mission to modernize the PHP publishing landscape. We are planned
 **Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
 
 For shipped release truth, see [Changelog.md](Changelog.md).
+
+---
+
+<img width="1920" height="991" alt="VonCMS Admin" src="https://github.com/user-attachments/assets/c3b01898-01c3-41d3-a129-f756e5a7fcd5" />
 
 ---
 
