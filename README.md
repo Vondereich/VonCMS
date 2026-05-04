@@ -12,7 +12,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-Proprietary-gold?style=for-the-badge)](docs/LICENSE.md)
 
-**The CMS that gets out of your way.**
+**Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
 
 Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** — and actually enjoyable to use.
 
@@ -54,13 +54,13 @@ For shipped release truth, see [Changelog.md](Changelog.md).
 
 VonCMS is built for speed, not just in the editor, but for the final reader and the system owner.
 
-| Metric             | Benchmark / Score                                            |
-| ------------------ | ------------------------------------------------------------ |
-| **Lighthouse SEO** | 🟢 **100/100**                                               |
-| **Lighthouse PERF**| 🟢 **100/100**                                               |
-| **Setup Time**     | 🚀 **< 2 Minutes** (Extractor + Installer wizard)            |
-| **Complexity**     | 📦 **~200 Core Files** (No `node_modules` in production)      |
-| **Plugins Needed** | 🛡️ **0** (Everything is built-in)                            |
+| Metric              | Benchmark / Score                                        |
+| ------------------- | -------------------------------------------------------- |
+| **Lighthouse SEO**  | 🟢 **100/100**                                           |
+| **Lighthouse PERF** | 🟢 **100/100**                                           |
+| **Setup Time**      | 🚀 **< 2 Minutes** (Extractor + Installer wizard)        |
+| **Complexity**      | 📦 **~200 Core Files** (No `node_modules` in production) |
+| **Plugins Needed**  | 🛡️ **0** (Everything is built-in)                        |
 
 ---
 
@@ -107,18 +107,20 @@ You get a CMS that feels modern to manage, stays realistic to host, and is shape
 Most CMS projects hand you an empty shell and say "figure it out with plugins." VonCMS arrives with the lights on, the furniture in place, and the kitchen already stocked.
 
 - **Built for Publishers, Not Just Developers**: The dashboard is designed for the person who publishes content daily, not the engineer who configured the server.
-- **Zero Plugin Chaos**: Features that would be 10+ separate plugins in WordPress (SEO, Analytics, Forms, Newsletter, Security, Media Optimization) are built directly into the core. 
+- **Zero Plugin Chaos**: Features that would be 10+ separate plugins in WordPress (SEO, Analytics, Forms, Newsletter, Security, Media Optimization) are built directly into the core.
 - **Short Request Path**: React talks to PHP. PHP talks to MySQL. No heavy middleware stack, no plugin overhead—just pure performance.
 
 ---
 
-## Why "Rentaka"?
+## **VonCMS Philosophy**
 
-> _"Rentaka" - historically, a swivel gun and a vital piece of artillery in traditional Malay naval warfare._
+> **"Everything you need. Nothing you don't."**
 
-The `v1.23.x` line is the hardened publishing baseline: faster admin flows, stronger import safety, clearer release packaging, better search contracts, and tighter scanner/security cleanup before the public open-source milestone.
+Most CMS projects hand you an empty shell and say "figure it out with plugins." VonCMS arrives with the lights on, the furniture in place, and the kitchen already stocked.
 
-With `v1.23.10`, the Rentaka series is closed to new feature expansion. Future proof-backed fixes may land only for verified regressions; routine maintenance and product polish move to `v1.24.x` "HourGlass".
+- **Built for Publishers, Not Just Developers**: The dashboard is designed for the person who publishes content daily, not the engineer who configured the server.
+- **Zero Plugin Chaos**: Features that would be 10+ separate plugins in WordPress (SEO, Analytics, Forms, Newsletter, Security, Media Optimization) are built directly into the core.
+- **Short Request Path**: React talks to PHP. PHP talks to MySQL. No heavy middleware stack, no plugin overhead—just pure performance.
 
 ---
 
@@ -196,7 +198,6 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 5. Sign in at `/admin`.
 
 ---
-
 
 ---
 
