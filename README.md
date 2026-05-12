@@ -1,4 +1,4 @@
-# VonCMS v1.24.2 "HourGlass" Preview
+# VonCMS v1.24.2 "HourGlass"
 
 <div align="center">
 
