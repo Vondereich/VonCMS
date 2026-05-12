@@ -1,10 +1,10 @@
-# VonCMS v1.23.10 "Rentaka"
+# VonCMS v1.24.2 "HourGlass" Preview
 
 <div align="center">
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.23.10-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.24.2-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
@@ -126,26 +126,26 @@ Most CMS projects hand you an empty shell and say "figure it out with plugins." 
 
 ## Release Snapshot
 
-| Area             | v1.23.10 status                         | Why it matters                                      |
-| ---------------- | --------------------------------------- | --------------------------------------------------- |
-| API surface      | 73 HTTP API request handlers            | Dedicated endpoints with role and CSRF boundaries   |
-| Editor + media   | Vertical video alignment and previewing | Reels, Shorts, and embeds stay usable in publishing |
-| Page management  | Server-side search parity               | Pages can be searched like posts                    |
-| AI settings      | Private saved API config + expiry flow  | Saved Gemini keys stay admin-only and rotatable     |
-| Media pipeline   | Responsive fallback reporting           | Failed variants are visible instead of silent       |
-| Open-source prep | Scanner-noise cleanup and smoke checks  | Fewer false positives before public review          |
-| Hosting baseline | Shared-hosting first                    | Deploy ZIP runs without Node.js in production       |
+| Area                    | v1.24.2 status                            | Why it matters                                      |
+| ----------------------- | ----------------------------------------- | --------------------------------------------------- |
+| API surface             | 73 HTTP API request handlers              | Dedicated endpoints with role and CSRF boundaries   |
+| HourGlass editor        | TipTap stabilization and live-save guards | Authoring stays reliable across reload/save flows   |
+| Search + content admin  | Smooth manual post search + page parity   | Admin lists stay deliberate, fast, and predictable  |
+| Public rendering        | Table/header parity and noscript safety   | Previewed content matches live posts more closely   |
+| Theme/profile stability | TechPress guards and authentic 404s       | Empty searches and fake profiles do not leak public |
+| AI settings             | Private saved API config + expiry flow    | Saved Gemini keys stay admin-only and rotatable     |
+| Hosting baseline        | Shared-hosting first                      | Deploy ZIP runs without Node.js in production       |
 
 ---
 
-## What Shipped in v1.23.10
+## What Shipped in v1.24.2
 
-- **AI API Key Privacy & Rotation**: saved API settings stay admin-only/private, with optional 30-day Gemini key expiry metadata and fallback prompt flow.
-- **Media Fallback Reporting**: upload fallback status is surfaced when responsive/WebP variant generation cannot produce mobile candidates.
-- **Page Manager Search**: Page Manager now has the same server-side search direction as Post Manager, with FULLTEXT support and safe fallback behavior.
-- **Vertical Video Embeds**: YouTube Shorts, TikTok, Instagram Reels, and Facebook Reels can render in portrait format and use editor alignment controls.
-- **Preview Stability**: editor preview paths were stabilized so iframe previews do not repeatedly remount during normal autosave updates.
-- **Scanner Polish**: avoidable low-risk `innerHTML` noise was reduced while keeping intentional sanitized HTML surfaces intact.
+- **HourGlass TipTap Stabilization**: editor reload recovery, sticky toolbar behavior, save freshness, SEO restore guards, list/quote visibility, and media spacing are locked by smoke coverage.
+- **Post Manager Search Smoothness**: manual search keeps the current table stable while fetching and uses direct FULLTEXT search with a narrow title fallback.
+- **Theme & Profile Reliability**: TechPress empty-search crashes are guarded, invalid public profiles fall through to real 404s, and hard reload FOUC is reduced.
+- **Live Content Parity**: public tables, table headers, mobile heading hierarchy, and single-post noscript output now match the editor/public safety contract more closely.
+- **Page Manager Search**: Page Manager keeps server-side search parity with FULLTEXT support and safe fallback behavior.
+- **Release Guard Coverage**: integration smoke checks now cover editor contracts, search behavior, profile routing, public table styling, noscript safety, docs alignment, and release packaging.
 
 ---
 
@@ -203,7 +203,7 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 <div align="center">
 
-**v1.23.10 "Rentaka" - Official Closeout Release**
+**v1.24.2 "HourGlass" - Current Working Release Line**
 
 Built by Vondereich
 
