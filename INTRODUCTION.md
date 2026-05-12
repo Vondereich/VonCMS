@@ -1,4 +1,4 @@
-# Introduction to VonCMS v1.23.10 "Rentaka"
+# Introduction to VonCMS v1.24.2 "HourGlass"
 
 ## Publishing should not feel like plugin maintenance.
 
@@ -43,15 +43,15 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-## This is v1.23.10 "Rentaka"
+## This is v1.24.2 "HourGlass"
 
-_"Rentaka" - the public line after Kirana, carrying the release forward with a harder, clearer baseline._
+_"HourGlass" - the editor-first line after Rentaka, focused on turning the hardened baseline into a calmer publishing workflow._
 
-**Rentaka** is the release that promotes the cumulative `v1.22.x` Kirana work into a cleaner public baseline.
+**HourGlass** builds on the closed `v1.23.x` Rentaka baseline with the new TipTap editor foundation, cleaner writing surfaces, and safer publishing polish.
 
 It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
 
-_A clearer release boundary for the same publisher-first direction._
+_A cleaner writing boundary for the same publisher-first direction._
 
 ---
 
