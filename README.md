@@ -10,11 +10,11 @@
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-Proprietary-gold?style=for-the-badge)](docs/LICENSE.md)
+[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](LICENSE.md)
 
 **Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
 
-Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** - and actually enjoyable to use.
+Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** — and actually enjoyable to use.
 
 [Website](https://vondereich.github.io/getvoncms/) | [Live Demo](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -26,7 +26,7 @@ Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP t
 
 A huge **thank you** to everyone who has tried VonCMS and supported us with a GitHub ⭐! Your interest and feedback are what drive this project forward.
 
-VonCMS is on a mission to modernize the PHP publishing landscape. We are planned to move toward **full open source** in the **v1.25.x release line** under an **MIT or GPL license**. This transition is an invitation for the community to help shape the next era of lightweight publishing.
+VonCMS is on a mission to modernize the PHP publishing landscape. The project is preparing for the **v1.25.x open-source milestone** under the **GPL-3.0-only license**. This transition is an invitation for the community to help shape the next era of lightweight publishing.
 
 **Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
 
@@ -126,26 +126,24 @@ Most CMS projects hand you an empty shell and say "figure it out with plugins." 
 
 ## Release Snapshot
 
-| Area                    | v1.24.2 status                            | Why it matters                                      |
-| ----------------------- | ----------------------------------------- | --------------------------------------------------- |
-| API surface             | 73 HTTP API request handlers              | Dedicated endpoints with role and CSRF boundaries   |
-| HourGlass editor        | TipTap stabilization and live-save guards | Authoring stays reliable across reload/save flows   |
-| Search + content admin  | Smooth manual post search + page parity   | Admin lists stay deliberate, fast, and predictable  |
-| Public rendering        | Table/header parity and noscript safety   | Previewed content matches live posts more closely   |
-| Theme/profile stability | TechPress guards and authentic 404s       | Empty searches and fake profiles do not leak public |
-| AI settings             | Private saved API config + expiry flow    | Saved Gemini keys stay admin-only and rotatable     |
-| Hosting baseline        | Shared-hosting first                      | Deploy ZIP runs without Node.js in production       |
+| Area                    | v1.24.2 status                                   | Why it matters                                                    |
+| ----------------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| API surface             | 73 HTTP API request handlers                     | Dedicated endpoints with role and CSRF boundaries                 |
+| HourGlass editor        | TipTap closeout and image/theme follow-up guards | Authoring stays reliable across reload/save flows                 |
+| Search + content admin  | Smooth manual post search + truthful dashboard   | Admin lists stay deliberate, fast, and no longer freeze at 200    |
+| Public discovery        | Server-backed search/category/load-more          | Older posts stay discoverable after a site grows beyond 200 posts |
+| Public rendering        | Table/header parity and noscript safety          | Previewed content matches live posts more closely                 |
+| Theme/profile stability | TechPress guards and authentic 404s              | Empty searches and fake profiles do not leak public               |
+| Hosting baseline        | Shared-hosting first                             | Deploy ZIP runs without Node.js in production                     |
 
 ---
 
 ## What Shipped in v1.24.2
 
-- **HourGlass TipTap Stabilization**: editor reload recovery, sticky toolbar behavior, save freshness, SEO restore guards, list/quote visibility, and media spacing are locked by smoke coverage.
-- **Post Manager Search Smoothness**: manual search keeps the current table stable while fetching and uses direct FULLTEXT search with a narrow title fallback.
-- **Theme & Profile Reliability**: TechPress empty-search crashes are guarded, invalid public profiles fall through to real 404s, and hard reload FOUC is reduced.
-- **Live Content Parity**: public tables, table headers, mobile heading hierarchy, and single-post noscript output now match the editor/public safety contract more closely.
-- **Page Manager Search**: Page Manager keeps server-side search parity with FULLTEXT support and safe fallback behavior.
-- **Release Guard Coverage**: integration smoke checks now cover editor contracts, search behavior, profile routing, public table styling, noscript safety, docs alignment, and release packaging.
+- **Dashboard Truth Fix**: the admin welcome stats now read real `meta.total` values instead of freezing at the 200-item public preload boundary.
+- **Public Discovery Beyond 200 Posts**: search-enabled themes now move public search onto the shared server-backed `get_posts.php` path, while bundled themes with category/load-more flows continue through server pagination instead of local-only slicing.
+- **Fallback Search Alignment**: the public fallback search path now matches the narrow server `title` / `content` contract, avoiding local-only matches that disappear once the server result set takes over.
+- **Release Guard Coverage**: integration smoke checks now cover the dashboard total owner path, shared public discovery hook, Default parent wiring, bundled theme discovery integrations, docs alignment, and release packaging.
 
 ---
 
