@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.24.2 "HourGlass"**
+> **VonCMS v1.24.4 "HourGlass"**
 
 ---
 
@@ -151,4 +151,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.24.2 "HourGlass"_
+_VonCMS v1.24.4 "HourGlass"_
