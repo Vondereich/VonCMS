@@ -1,16 +1,16 @@
-# VonCMS v1.24.2 "HourGlass"
+# VonCMS v1.24.4 "HourGlass"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.24.2-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.24.4-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](LICENSE.md)
+[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](docs/LICENSE.md)
 
 **Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
 
@@ -126,24 +126,26 @@ Most CMS projects hand you an empty shell and say "figure it out with plugins." 
 
 ## Release Snapshot
 
-| Area                    | v1.24.2 status                                   | Why it matters                                                    |
-| ----------------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
-| API surface             | 73 HTTP API request handlers                     | Dedicated endpoints with role and CSRF boundaries                 |
-| HourGlass editor        | TipTap closeout and image/theme follow-up guards | Authoring stays reliable across reload/save flows                 |
-| Search + content admin  | Smooth manual post search + truthful dashboard   | Admin lists stay deliberate, fast, and no longer freeze at 200    |
-| Public discovery        | Server-backed search/category/load-more          | Older posts stay discoverable after a site grows beyond 200 posts |
-| Public rendering        | Table/header parity and noscript safety          | Previewed content matches live posts more closely                 |
-| Theme/profile stability | TechPress guards and authentic 404s              | Empty searches and fake profiles do not leak public               |
-| Hosting baseline        | Shared-hosting first                             | Deploy ZIP runs without Node.js in production                     |
+| Area                   | v1.24.4 status                                          | Why it matters                                                          |
+| ---------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- |
+| API surface            | 73 HTTP API request handlers                            | Dedicated endpoints with role and CSRF boundaries                       |
+| HourGlass editor       | TipTap baseline plus video-bubble anchor repair         | Media tools stay attached to the selected embed after layout changes    |
+| Search + content admin | Smooth manual admin search + truthful dashboard         | Admin lists stay deliberate, fast, and no longer freeze at 200          |
+| Public discovery       | Server-backed discovery + smoother repeated search flow | Older posts stay discoverable without empty flashes on repeated fetches |
+| Public interaction     | Immediate old-post route fallback                       | Older public search results open directly instead of waiting to resolve |
+| Public rendering       | Comments-off first-paint parity                         | Disabled discussions no longer leak comment CTA copy on initial paint   |
+| Hosting baseline       | Shared-hosting first + bounded DB import runtime        | Deploy ZIP stays practical without leaving imports unbounded forever    |
 
 ---
 
-## What Shipped in v1.24.2
+## What Shipped in v1.24.4
 
-- **Dashboard Truth Fix**: the admin welcome stats now read real `meta.total` values instead of freezing at the 200-item public preload boundary.
-- **Public Discovery Beyond 200 Posts**: search-enabled themes now move public search onto the shared server-backed `get_posts.php` path, while bundled themes with category/load-more flows continue through server pagination instead of local-only slicing.
-- **Fallback Search Alignment**: the public fallback search path now matches the narrow server `title` / `content` contract, avoiding local-only matches that disappear once the server result set takes over.
-- **Release Guard Coverage**: integration smoke checks now cover the dashboard total owner path, shared public discovery hook, Default parent wiring, bundled theme discovery integrations, docs alignment, and release packaging.
+- **Immediate Old-Post Navigation**: public search/category results that sit outside the preload now open through the internal id-backed post route immediately instead of waiting on a pre-navigation fetch.
+- **Repeated-Search Stability**: the shared public discovery hook now keeps the current visible list on screen while a new server-backed search/category request is in flight, reducing empty flashes on slower devices.
+- **Comments-Off First-Paint Fix**: comments-disabled posts now hydrate `discussionEnabled` from PHP before the async settings fetch, preventing brief public discussion CTA text leaks.
+- **Corporate Pro Preload Cleanup**: non-Corporate public pages no longer preload the Corporate Pro theme chunk from the main Vite entry.
+- **Video Bubble Anchor Repair**: the editor video bubble now anchors to the iframe itself and recenters after aspect/layout changes.
+- **Bounded Import Runtime**: database imports now use a 300-second timeout guard instead of disabling request timeouts entirely.
 
 ---
 
@@ -201,7 +203,7 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 <div align="center">
 
-**v1.24.2 "HourGlass" - Current Working Release Line**
+**v1.24.4 "HourGlass" - Current Working Release Line**
 
 Built by Vondereich
 
