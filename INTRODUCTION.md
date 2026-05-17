@@ -1,4 +1,4 @@
-# Introduction to VonCMS v1.24.2 "HourGlass"
+# Introduction to VonCMS v1.24.4 "HourGlass"
 
 ## Publishing should not feel like plugin maintenance.
 
@@ -43,7 +43,7 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-## This is v1.24.2 "HourGlass"
+## This is v1.24.4 "HourGlass"
 
 _"HourGlass" - the editor-first line after Rentaka, focused on turning the hardened baseline into a calmer publishing workflow._
 
