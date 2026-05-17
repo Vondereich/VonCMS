@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.24.2
+## Recommended path to v1.24.4
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.24.2
+## What to verify after updating to v1.24.4
 
-This release line focuses on installer and `.htaccess` safety, admin scalability, media-cleanup review flow, editor/save-path hardening, Database Manager restore clarity, WordPress importer remote-fetch validation, CI/Semgrep cleanup, PHP 8.5/static-analysis cleanup, API key privacy/rotation, Page Manager search parity, media fallback reporting, vertical video embed fixes, and HourGlass editor/search/profile stabilization carried into the `v1.24.2` baseline.
+This release line focuses on smoother public interaction on older posts, correct comments-off first paint, steadier repeated public searches, tighter editor video-bubble positioning, and a bounded database-import runtime, while carrying forward the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline into `v1.24.4`.
 
 Check these items:
 
@@ -21,7 +21,13 @@ Check these items:
 - one single post page loads without layout glitches
 - one public page route resolves correctly
 - the editor opens and saves normally for one draft
-- search results show correct counts on Digest and Default themes
+- dashboard `Articles` / `Pages` welcome stats match the real totals for sites with 201+ posts
+- bundled public discovery flows can still surface posts older than the latest 200 on search/category/load-more paths
+- older public search/category results open immediately without bouncing on the homepage first
+- repeated public searches do not flash an empty results state before the next server response lands
+- comments-disabled post pages do not briefly show comment CTA copy on first paint
+- the editor video bubble stays attached to the selected video after clicking and changing aspect ratio
+- database imports still complete normally on your host without leaving unbounded request runtime
 - Page Manager search returns matching pages from the server
 - saved Gemini API keys still work, or prompt for a fresh key if the optional 30-day expiry is enabled and expired
 - portrait embeds such as TikTok, Instagram Reels, Facebook Reels, and YouTube Shorts keep a vertical aspect ratio
