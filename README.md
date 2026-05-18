@@ -58,6 +58,7 @@ VonCMS is built for speed, not just in the editor, but for the final reader and 
 | ------------------- | -------------------------------------------------------- |
 | **Lighthouse SEO**  | 🟢 **100/100**                                           |
 | **Lighthouse PERF** | 🟢 **100/100**                                           |
+| **TTFB Snapshot**   | See [Benchmark v7](Benchmark.md.md) for the current no-CDN TTFB report |
 | **Setup Time**      | 🚀 **< 2 Minutes** (Extractor + Installer wizard)        |
 | **Complexity**      | 📦 **~200 Core Files** (No `node_modules` in production) |
 | **Plugins Needed**  | 🛡️ **0** (Everything is built-in)                        |
