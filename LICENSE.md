@@ -22,6 +22,21 @@ a file or third-party dependency states a different license.
 - Third-party packages keep their own licenses.
 - VonCMS is provided without warranty.
 
+## Trademark Notice
+
+VonCMS, Vondereich, and associated logos or brand assets are trademarks or
+service marks of Vondereich.
+
+This GPL-3.0-only license grants rights to use, study, modify, and redistribute
+the software code. It does not grant permission to use the VonCMS or Vondereich
+names, logos, or branding to imply official endorsement, partnership,
+sponsorship, or origin of modified distributions.
+
+You may use the VonCMS name for truthful references, such as identifying the
+original project, describing compatibility, or stating that a work is based on
+VonCMS. Modified distributions should clearly identify that they are modified
+and should not present themselves as official VonCMS releases unless authorized.
+
 ## GPL Text
 
 The full GNU General Public License v3.0 text is available from:
@@ -30,6 +45,6 @@ https://www.gnu.org/licenses/gpl-3.0.en.html
 
 ## Contact
 
-For licensing, partnerships, sponsorship, or commercial support:
+For trademark permissions, partnerships, sponsorship, or commercial support:
 
 `kurama87@gmail.com`
