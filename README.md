@@ -1,10 +1,10 @@
-# VonCMS v1.24.4 "HourGlass"
+# VonCMS v1.24.7 "HourGlass"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.24.4-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.24.7-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
@@ -54,14 +54,14 @@ For shipped release truth, see [Changelog.md](Changelog.md).
 
 VonCMS is built for speed, not just in the editor, but for the final reader and the system owner.
 
-| Metric              | Benchmark / Score                                        |
-| ------------------- | -------------------------------------------------------- |
-| **Lighthouse SEO**  | 🟢 **100/100**                                           |
-| **Lighthouse PERF** | 🟢 **100/100**                                           |
-| **TTFB Snapshot**   | See [Benchmark v7](Benchmark.md) for the current no-CDN TTFB report |
-| **Setup Time**      | 🚀 **< 2 Minutes** (Extractor + Installer wizard)        |
-| **Complexity**      | 📦 **~200 Core Files** (No `node_modules` in production) |
-| **Plugins Needed**  | 🛡️ **0** (Everything is built-in)                        |
+| Metric              | Benchmark / Score                                                   |
+| ------------------- | ------------------------------------------------------------------- |
+| **Lighthouse SEO**  | 🟢 **100/100**                                                      |
+| **Lighthouse PERF** | 🟢 **100/100**                                                      |
+| **TTFB Snapshot**   | See [Benchmark v7](BENCHMARK.md) for the current no-CDN TTFB report |
+| **Setup Time**      | 🚀 **< 2 Minutes** (Extractor + Installer wizard)                   |
+| **Complexity**      | 📦 **~200 Core Files** (No `node_modules` in production)            |
+| **Plugins Needed**  | 🛡️ **0** (Everything is built-in)                                   |
 
 ---
 
@@ -127,20 +127,50 @@ Most CMS projects hand you an empty shell and say "figure it out with plugins." 
 
 ## Release Snapshot
 
-| Area                   | v1.24.4 status                                          | Why it matters                                                          |
-| ---------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- |
-| API surface            | 73 HTTP API request handlers                            | Dedicated endpoints with role and CSRF boundaries                       |
-| HourGlass editor       | TipTap baseline plus video-bubble anchor repair         | Media tools stay attached to the selected embed after layout changes    |
-| Search + content admin | Smooth manual admin search + truthful dashboard         | Admin lists stay deliberate, fast, and no longer freeze at 200          |
-| Public discovery       | Server-backed discovery + smoother repeated search flow | Older posts stay discoverable without empty flashes on repeated fetches |
-| Public interaction     | Immediate old-post route fallback                       | Older public search results open directly instead of waiting to resolve |
-| Public rendering       | Comments-off first-paint parity                         | Disabled discussions no longer leak comment CTA copy on initial paint   |
-| Hosting baseline       | Shared-hosting first + bounded DB import runtime        | Deploy ZIP stays practical without leaving imports unbounded forever    |
+| Area                   | Current HourGlass status                          | Why it matters                                                           |
+| ---------------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
+| API surface            | 73 HTTP API request handlers                      | Dedicated endpoints with role and CSRF boundaries                        |
+| HourGlass editor       | TipTap and save-helper extraction boundaries      | Media rules and save helpers stay isolated while behavior remains stable |
+| Search + content admin | Smooth manual admin search + truthful dashboard   | Admin lists stay deliberate, fast, and no longer freeze at 200           |
+| Public discovery       | Server-backed discovery + complete loading parity | Older posts stay discoverable without empty flashes on slow fetches      |
+| Public interaction     | Immediate old-post route fallback                 | Older public search results open directly instead of waiting to resolve  |
+| Public profiles        | Pending-route guard + theme handoff cache         | Profile routes avoid brief not-found/home flashes while lookup settles   |
+| Built-in extensions    | Shared runtime gating + campaign plugin polish    | SEO/analytics toggles now match public runtime behavior across themes    |
+| Public rendering       | Comments-off first-paint parity                   | Disabled discussions no longer leak comment CTA copy on initial paint    |
+| Hosting baseline       | Shared-hosting first + bounded DB import runtime  | Deploy ZIP stays practical without leaving imports unbounded forever     |
 
 ---
 
-## What Shipped in v1.24.4
+## Developer Extension Guides
 
+Theme and plugin development now use separate packaged guides:
+
+- [Theme Development](docs/THEME_DEVELOPMENT.md) covers public theme architecture, WYSIWYG rendering, theme registration, shared SDK usage, SEO ownership, performance, and verification.
+- [Plugin Development](docs/PLUGIN_DEVELOPMENT.md) covers system plugin registration, activation state, settings ownership, custom HTML sanitization, PHP security principles, article hooks, and release checks.
+
+---
+
+## What Shipped in v1.24.7
+
+- **Shared Extension Runtime Gate**: built-in plugin runtime checks now use one active/pluginStatus helper so inactive or not-installed system plugins stay disabled consistently across registry slots, article hooks, providers, and bundled themes.
+- **VonSEO Toggle and Social Image Repair**: all bundled themes now gate `VonSEO` rendering through the saved plugin state, and social image selection now honors the large OG image fallback without overwriting `og:image` with the square fallback.
+- **VonSEO General Description and Robots Cleanup**: site-level meta descriptions now read from General Settings, stale SEO override defaults are removed on save, and default/served robots output no longer emits unsupported `Crawl-delay` directives.
+- **VonAnalytics Runtime Toggle**: GA injection, native page tracking, and the cookie consent banner now respect the VonAnalytics plugin active state instead of running from analytics settings alone.
+- **Promo/Gift Campaign Polish**: Promo Bar now supports campaign windows, configurable dismiss duration, and target behavior; Gift Widget now supports position, label, color, and target behavior.
+- **Plugin and Theme Guide Refresh**: root `THEME_GUIDE.md` was retired in favor of separate packaged Theme Development and Plugin Development guides under `docs/`.
+- **Extension Upgrade Smoke Coverage**: integration smoke checks now lock the shared plugin runtime helper, VonSEO theme gating, VonAnalytics runtime gating, social image fallback, robots/default-description guards, and Promo/Gift campaign options.
+
+## Current HourGlass Baseline Carried Forward from v1.24.6
+
+- **Shared Public Discovery Loading Guard**: server-backed search/category fetches now enter loading immediately when the local preload fallback is empty, preventing the first paint from jumping into a blank or empty-results state.
+- **Remaining Theme Loading Parity**: TechPress, Prism, Corporate Pro, and Portfolio now render explicit initial loading panels before empty grids while older category/search results are being fetched from the server.
+- **Discovery Loading Smoke Coverage**: integration smoke checks now require the shared hook and all bundled discovery themes to preserve loading-state behavior before release packaging.
+
+## Current HourGlass Baseline Carried Forward from v1.24.5
+
+- **Editor Extension Boundary Split**: TipTap extensions, legacy image/video nodes, media alignment helpers, and editor surface constants now live in `src/components/editor/editorExtensions.ts`, keeping the main editor component focused on UI, state, and save behavior without changing the existing saved HTML/media parse-render subset.
+- **Post Editor Save Helper Split**: autosave countdowns, save-status copy, schedule normalization, saved snapshot merging, and conflict-message ownership now live in `src/components/editor/postEditorSaveHelpers.ts`, while the existing save buttons and publish/schedule flow stay in `PostEditor.tsx`.
+- **Public Profile Route Stability**: profile pages now hold the route skeleton while public profile lookup is pending, reject stale profile fetches during fast profile-to-profile navigation, and hand resolved profiles to active themes without briefly falling back to home or not-found states.
 - **Immediate Old-Post Navigation**: public search/category results that sit outside the preload now open through the internal id-backed post route immediately instead of waiting on a pre-navigation fetch.
 - **Repeated-Search Stability**: the shared public discovery hook now keeps the current visible list on screen while a new server-backed search/category request is in flight, reducing empty flashes on slower devices.
 - **Comments-Off First-Paint Fix**: comments-disabled posts now hydrate `discussionEnabled` from PHP before the async settings fetch, preventing brief public discussion CTA text leaks.
@@ -204,7 +234,7 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 <div align="center">
 
-**v1.24.4 "HourGlass" - Current Working Release Line**
+**v1.24.7 "HourGlass" - Current Working Release Line**
 
 Built by Vondereich
 
