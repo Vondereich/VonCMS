@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.24.4
+## Recommended path to v1.24.7
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.24.4
+## What to verify after updating to v1.24.7
 
-This release line focuses on smoother public interaction on older posts, correct comments-off first paint, steadier repeated public searches, tighter editor video-bubble positioning, and a bounded database-import runtime, while carrying forward the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline into `v1.24.4`.
+This release line focuses on a smaller editor engine boundary, smoother public interaction on older posts, correct comments-off first paint, steadier repeated public searches, tighter editor video-bubble positioning, public discovery loading parity, and a bounded database-import runtime, while carrying forward the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline into `v1.24.7`.
 
 Check these items:
 
