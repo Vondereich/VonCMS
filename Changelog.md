@@ -1,3 +1,39 @@
+### [v1.24.8] - 2026-05-24
+
+> HourGlass maintenance patch for profile activity truth beyond the preload boundary, appointed-admin secret isolation, and the final public/profile/editor privacy closeout.
+
+- **Profile Activity Truth Alignment**:
+  - **Shared Profile Activity Hook**: Added a shared `useProfileActivity` hook that fetches author articles through `get_posts.php?author=...` and profile comments through a server-backed flat comments query, so profile tabs no longer derive totals from the capped global preload arrays.
+  - **Bundled Profile 200+ Parity**: Default/shared UserProfile, TechPress, Prism, Digest, Corporate Pro, and Portfolio profile views now display server `meta.total` counts and load-more state for profile articles/comments instead of freezing around the first 200 posts or first 10 comments.
+  - **Profile Comments API Filter**: `get_comments.php` now supports safe profile filters by `user_id` or username in flat mode while keeping public users restricted to approved comments.
+  - **Profile Activity Stale Response Guard**: The shared profile activity hook now ignores slow article/comment responses from a previous profile after fast profile-to-profile navigation, keeping profile totals and activity lists tied to the current viewed user.
+  - **Dashboard Comments Total Truth**: The admin dashboard comments card now fetches the real comments `meta.total` with a one-row flat query instead of trusting the globally hydrated comments batch.
+  - **Dashboard User Total Truth**: The admin dashboard Active Users card now fetches the real user `meta.total` through a count-only `get_user_stats.php` staff endpoint, so Admin, Moderator, and Writer dashboards no longer show `0` when the hydrated user slice is empty while `get_users.php` remains the User Manager list/search API.
+- **Appointed Admin Secret Boundary**:
+  - **Primary Admin Capability**: Added a server-side primary-admin capability for Root or Admin ID 1, separate from normal appointed Admin access.
+  - **Settings Secret Masking**: `get_settings.php` now masks SMTP/API/token/password-style values for appointed Admin, Moderator, Writer, and public callers; only the primary admin receives unmasked secrets and server-info diagnostics.
+  - **Sensitive Settings Save Guard**: `save_settings.php` strips SMTP/API/indexing secret payloads from non-primary Admin saves, preventing masked or manually crafted requests from overwriting protected credentials.
+  - **Database Manager Lockdown**: Database Manager UI and `db_query.php` are now primary-admin only, so appointed Admin cannot inspect raw settings-table secrets through read-only database queries.
+  - **Masked AI Key Runtime Guard**: AI writing/check flows now treat protected settings values as unavailable keys, so appointed Admin, Moderator, and Writer sessions are prompted for their own Gemini key instead of sending the primary admin's masked placeholder to the AI gateway.
+  - **Admin Tool Surface Lockdown**: Database Manager, database backup/import, settings audit/rollback, Settings Media tools, System Tools, OTA updater, IndexNow owner actions, WordPress Bridge, media maintenance, media deletion, WP scan/import, and system repair endpoints are now primary-admin only while normal editor upload/list metadata paths remain available to staff roles that need them for writing.
+  - **User Manager Admin Parity**: Appointed Admin access to User Manager is restored for normal newsroom management, while server-side save/delete guards keep Admin ID 1 and Root accounts protected from non-primary admins.
+- **Public & Editor Polish**:
+  - **Public Profile Privacy**: `get_public_profile.php` no longer exposes numeric user IDs, staff roles, or joined dates to guest profile lookups; bundled profile views no longer render public account-age/joined-date cards.
+  - **Own Profile Edit/Role Sync Repair**: Bundled profile edit buttons, avatar/bio sync, and own-profile role badges now detect the logged-in owner by username as well as ID, so public numeric ID/role removal does not make appointed Admin, Moderator, or Writer profiles fall back to `Member`.
+  - **Public SSR Visibility Parity**: `public/index.php` direct post/homepage SEO hydration follows the same public published and scheduled cutoff rules as the post APIs, while direct page SSR stays published-only to match the pages API contract, preventing draft or future-scheduled post content from appearing in meta tags, JSON initial state, or noscript output when a URL is known.
+  - **Public SSR Schema Polish**: Direct SSR routes now normalize schema image URLs before JSON-LD output and render resolved pages as `WebPage` schema instead of treating every resolved slug as an article.
+  - **Centralized Public Payload Privacy**: Public post, page, single-post, bootstrap, and comment responses now share server-side response shaping helpers for internal author/comment identifiers; public comments omit `dbId`, `status`, and `emailHash` entirely, appointed staff receive only `hasEmail: true`, and raw comment email hashes stay primary-admin only.
+  - **Avatar URL Safety**: User/comment avatar inputs and outputs now use a shared avatar scrubber that allows local upload paths and HTTPS external avatars while rejecting `javascript:` / `data:` / insecure external URLs, with public comment avatars falling back if the image fails to load.
+  - **Session Check Noise Reduction**: Browser tab visibility checks now throttle `check_auth.php` session pings with a cooldown and in-flight guard, reducing repeated auth requests when switching tabs while preserving session-expiry detection.
+  - **TechPress Profile Asset Cleanup**: Removed the external `grainy-gradients.vercel.app/noise.svg` dependency from the TechPress profile header.
+  - **TipTap Link Repair**: Editor hyperlink insertion now uses one configured official TipTap Link extension and shared URL normalization, preserving selected text and complex query-string links such as WhatsApp send URLs while avoiding duplicate `link` extension registration; public light-mode content links now render with explicit blue underline styling.
+- **Regression & Release Guard**:
+  - **Profile Activity 200+ Smoke Coverage**: Added smoke coverage requiring bundled profile surfaces to use server-backed profile activity totals instead of capped global `posts` / `comments` arrays, with stale-response guards for fast profile-to-profile navigation.
+  - **Appointed Admin Secret Smoke Coverage**: Added smoke coverage requiring server-side settings masking, sensitive-save guarding, and primary-admin Database Manager gating.
+  - **Appointed Admin Closeout Smoke Coverage**: Added smoke coverage requiring masked AI key prompting, User Manager appointed-admin parity with Admin ID 1 protection, dashboard user total truth, primary-admin-only destructive tool/media/WP/system/backup/import/settings-audit/updater/IndexNow surfaces, public profile owner-edit/avatar/role sync after numeric ID/role removal, public SSR visibility/schema parity, centralized public payload/comment/email-hash shaping, avatar URL safety, throttled session visibility checks, TechPress external asset removal, and single-instance TipTap query-string hyperlink/link-color parity.
+  - **v1.24.9 Roadmap Sequencing**: Reordered the next HourGlass polish lane so low-risk helper-copy/profile-email/theme micro-fixes land before broader regression, version-label, claim-verification, and package-audit sweeps.
+  - **Release Version Alignment**: Bumped the HourGlass line to `v1.24.8` so the profile/RBAC maintenance fix ships as its own patch before broader v1.24.8 roadmap polish continues.
+
 ### [v1.24.7] - 2026-05-21
 
 > HourGlass built-in extension upgrade patch for making the older bundled plugin surfaces obey the saved runtime state and carry current campaign/SEO/analytics behavior.
