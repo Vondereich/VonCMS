@@ -1,10 +1,10 @@
-# VonCMS v1.24.7 "HourGlass"
+# VonCMS v1.24.8 "HourGlass"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.24.7-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.24.8-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
@@ -14,7 +14,7 @@
 
 **Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
 
-Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** - and actually enjoyable to use.
+Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** — and actually enjoyable to use.
 
 [Website](https://vondereich.github.io/getvoncms/) | [Live Demo](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -150,15 +150,23 @@ Theme and plugin development now use separate packaged guides:
 
 ---
 
-## What Shipped in v1.24.7
+## What Shipped in v1.24.8
 
-- **Shared Extension Runtime Gate**: built-in plugin runtime checks now use one active/pluginStatus helper so inactive or not-installed system plugins stay disabled consistently across registry slots, article hooks, providers, and bundled themes.
-- **VonSEO Toggle and Social Image Repair**: all bundled themes now gate `VonSEO` rendering through the saved plugin state, and social image selection now honors the large OG image fallback without overwriting `og:image` with the square fallback.
-- **VonSEO General Description and Robots Cleanup**: site-level meta descriptions now read from General Settings, stale SEO override defaults are removed on save, and default/served robots output no longer emits unsupported `Crawl-delay` directives.
-- **VonAnalytics Runtime Toggle**: GA injection, native page tracking, and the cookie consent banner now respect the VonAnalytics plugin active state instead of running from analytics settings alone.
-- **Promo/Gift Campaign Polish**: Promo Bar now supports campaign windows, configurable dismiss duration, and target behavior; Gift Widget now supports position, label, color, and target behavior.
-- **Plugin and Theme Guide Refresh**: root `THEME_GUIDE.md` was retired in favor of separate packaged Theme Development and Plugin Development guides under `docs/`.
-- **Extension Upgrade Smoke Coverage**: integration smoke checks now lock the shared plugin runtime helper, VonSEO theme gating, VonAnalytics runtime gating, social image fallback, robots/default-description guards, and Promo/Gift campaign options.
+- **Profile Activity Truth Beyond 200**: bundled profile pages now use server-backed author/article and comment totals instead of counting only the globally preloaded latest posts or default comments batch, and stale responses from previous profiles are ignored during fast profile-to-profile navigation.
+- **Profile Comment Query Support**: flat comment queries can now filter safely by profile user, keeping public users restricted to approved comments while giving profile tabs accurate totals.
+- **Dashboard Comment/User Total Truth**: the admin dashboard comments and Active Users cards now read real server metadata instead of trusting hydrated slices that can be empty or capped, with Active Users using a count-only staff endpoint separate from the User Manager list API.
+- **Appointed Admin Secret Boundary**: Root/Admin ID 1 is the only role that can see raw SMTP/API credentials or use Database Manager; appointed Admin keeps operational dashboard access without credential visibility.
+- **Settings Save Protection**: non-primary Admin saves cannot overwrite SMTP/API/indexing secrets, even if a crafted request includes those keys.
+- **Primary Admin Tool Boundary**: Media Manager destructive deletes, media maintenance tools, WordPress Bridge, system repair, database backup/import, settings audit/rollback, OTA updater, IndexNow owner actions, and raw database access are primary-admin only; appointed Admin keeps User Manager access while Admin ID 1/Root accounts stay protected.
+- **Public/Profile/Editor Polish**: public profile lookups no longer expose numeric IDs, staff roles, or joined dates while own-profile edit/avatar/role sync still works by username; direct public SSR post/page/homepage hydration follows published/scheduled visibility rules and emits cleaner page/image schema; public post/page/bootstrap/comment payloads share centralized response shaping, public comments omit internal `dbId` / `status` / `emailHash` keys, appointed staff receive only `hasEmail`, avatar URLs are scrubbed to HTTPS-or-local paths, tab visibility `check_auth.php` pings are throttled, TechPress profile pages no longer load an external noise SVG, and TipTap query-string link insertion runs through a single Link extension.
+- **Regression Coverage**: smoke checks now lock profile activity totals, dashboard comment/user total truth, appointed-admin secret masking, sensitive save guarding, primary-admin destructive/owner endpoint boundaries, User Manager Admin ID 1 protection, own-profile edit/avatar/role sync after public numeric ID/role removal, public SSR visibility/schema parity, centralized public payload/comment/email-hash shaping, avatar URL safety, throttled session visibility checks, external asset cleanup, and hyperlink styling.
+
+## Current HourGlass Baseline Carried Forward from v1.24.7
+
+- **Shared Extension Runtime Gate**: built-in plugin runtime checks use one active/pluginStatus helper so inactive or not-installed system plugins stay disabled consistently across registry slots, article hooks, providers, and bundled themes.
+- **VonSEO Toggle and Social Image Repair**: all bundled themes gate `VonSEO` rendering through the saved plugin state, and social image selection honors the large OG image fallback without overwriting `og:image` with the square fallback.
+- **VonSEO General Description and Robots Cleanup**: site-level meta descriptions read from General Settings, stale SEO override defaults are removed on save, and default/served robots output no longer emits unsupported `Crawl-delay` directives.
+- **Promo/Gift Campaign Polish**: Promo Bar supports campaign windows, configurable dismiss duration, and target behavior; Gift Widget supports position, label, color, and target behavior.
 
 ## Current HourGlass Baseline Carried Forward from v1.24.6
 
@@ -234,7 +242,7 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 <div align="center">
 
-**v1.24.7 "HourGlass" - Current Working Release Line**
+**v1.24.8 "HourGlass" - Current Working Release Line**
 
 Built by Vondereich
 
