@@ -2,7 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.24.7
+## Recommended path to v1.24.8
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -10,9 +10,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 4. In the admin panel, go to `Settings > System` and run the updater.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
 
-## What to verify after updating to v1.24.7
+## What to verify after updating to v1.24.8
 
-This release line focuses on a smaller editor engine boundary, smoother public interaction on older posts, correct comments-off first paint, steadier repeated public searches, tighter editor video-bubble positioning, public discovery loading parity, and a bounded database-import runtime, while carrying forward the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline into `v1.24.7`.
+This release line focuses on profile activity totals beyond the preload boundary, appointed-admin secret isolation, primary-admin-only destructive/admin tool surfaces, dashboard comment-count truth, and the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline.
 
 Check these items:
 
@@ -22,6 +22,21 @@ Check these items:
 - one public page route resolves correctly
 - the editor opens and saves normally for one draft
 - dashboard `Articles` / `Pages` welcome stats match the real totals for sites with 201+ posts
+- dashboard `Comments` matches the real moderation total
+- dashboard `Active Users` matches the real user total for Admin, Moderator, and Writer staff accounts without exposing the User Manager list API
+- public profile article/comment totals remain correct beyond the latest 200 posts and first 10 comments
+- fast profile-to-profile navigation does not show stale article/comment totals from the previously viewed profile
+- appointed Admin accounts cannot see SMTP/API secrets in Settings responses, cannot access Database Manager, database backup/import, settings audit/rollback, Media Manager destructive deletes, WordPress Bridge, System Tools, OTA updater, or IndexNow owner actions, and AI writing prompts for their own Gemini key instead of using a protected placeholder
+- appointed Admin accounts can still open User Manager for normal user management, but cannot modify or delete Admin ID 1/Root accounts
+- guest public profile responses do not expose numeric user IDs, staff roles, or joined dates
+- logged-in users can still edit their own public profile and see avatar/bio/role display sync after save even though public profile responses hide staff roles
+- guest/public post, page, single-post, bootstrap, and comment responses do not expose internal numeric `author_id` / `userId` fields, comment `dbId` / `status`, or comment email hashes
+- direct guest requests to known draft or future-scheduled post/page URLs do not render public SSR meta, JSON initial state, or noscript content
+- appointed Admin/Moderator/Writer comment responses show only `hasEmail` instead of raw `emailHash`; raw comment email hashes remain primary-admin only
+- external avatar URLs are HTTPS-only, unsafe `javascript:` / `data:` avatar values are rejected, and broken public comment avatars fall back cleanly
+- switching browser tabs while logged in should no longer spam `check_auth.php`; visibility checks are cooldown and in-flight guarded while still detecting expired sessions
+- TechPress profile pages do not request the external grainy-gradients noise SVG
+- editor hyperlink insertion preserves selected text, keeps WhatsApp-style query-string links intact through a single TipTap Link extension, and public light-mode links render visibly blue
 - bundled public discovery flows can still surface posts older than the latest 200 on search/category/load-more paths
 - older public search/category results open immediately without bouncing on the homepage first
 - repeated public searches do not flash an empty results state before the next server response lands
