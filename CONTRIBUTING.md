@@ -38,7 +38,7 @@ VonCMS is a hybrid decoupled CMS: React admin/public UI, PHP API/runtime, ordina
 Before editing:
 
 1. Read the relevant files first.
-2. Check `Changelog.md` and the relevant public documentation for the active release line.
+2. Check `CHANGELOG.md` and the relevant public documentation for the active release line.
 3. Add or update a focused regression guard in `server/test-integration.cjs` when behavior changes.
 4. Keep the change scoped to the proven issue.
 

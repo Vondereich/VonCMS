@@ -7,9 +7,9 @@ Most modern VonCMS installs can be updated from the admin panel.
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
-4. If your current site is on `v1.24.8` or older, use the manual Deploy ZIP flow for this first jump. The OTA recovery fixes shipped in `v1.24.9`, so older installs should not rely on OTA until the site is already on `v1.24.9` or newer.
+4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.24.10`. OTA updates are available again from the `v1.24.10` series after the updater download and SHA256 verification flow was fixed.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
-6. After the site is already on `v1.24.9` or newer, use the admin panel updater for future patches.
+6. After the site is already on `v1.24.10`, use the admin panel updater for future patches.
 
 ## What to verify after updating to v1.24.10
 
@@ -82,8 +82,8 @@ If your site is too old for the current OTA flow or the admin panel is unavailab
 
 1. download the latest release package from the official release
 2. back up your database, `uploads/`, and your live `von_config.php`
-3. **Delete the `assets/` folder** in your hosting to prevent stale asset conflicts or lingering old files
-4. use the latest VonCMS Deploy package and overwrite the existing deployment files
+3. In cPanel/File Manager or FTP, **delete the old `assets/` folder first** so old hashed JS/CSS files cannot stay behind
+4. upload or extract the latest VonCMS Deploy package and overwrite the existing deployment files
 5. if the hosting folder already contains cPanel-generated PHP handlers, custom `.htaccess` blocks, or hardcoded redirects, verify `.htaccess` after extraction and restore your backup or `.bak` copy if needed
 6. keep your real `von_config.php` in place and do not replace it with the sample file
 7. sign in to the admin panel and verify the system version

@@ -10,7 +10,7 @@
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](docs/LICENSE.md)
+[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](LICENSE.md)
 
 **Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
 
@@ -30,7 +30,7 @@ VonCMS is on a mission to modernize the PHP publishing landscape. The project is
 
 **Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
 
-For shipped release truth, see [CHANGELOG.md](CHANGELOG.md).
+For shipped release truth, see [CHANGELOG](CHANGELOG.md).
 
 ---
 
@@ -76,7 +76,7 @@ Download the full deployable system from:
 VonCMS ships as a **pre-built Deploy ZIP** for shared hosting. Production sites do **not** need Node.js, Vite, npm, or a separate frontend host.
 
 > [!CAUTION]
-> **Updates & .htaccess**: If your site is still on `v1.24.8` or older, update to the current Deploy ZIP with the manual flow first. The OTA recovery fixes for GitHub release-asset redirects and SHA256 forwarding shipped inside `v1.24.9`, so installs before that release should not rely on OTA for the first jump. After a site is on `v1.24.9` or newer, use the admin dashboard OTA updater for future patches. The updater handles core files and assets, but it does **not** overwrite your `.htaccess` because hosting rules are often site-specific. When a release needs updated rewrite rules, use **General Setting -> Tools -> Fix .htaccess** to sync the managed VonCMS block manually.
+> **Update note**: OTA updates are available again in the `v1.24.10` series after the updater download and SHA256 verification flow was fixed. If your site is on an older version and you want to upgrade to `v1.24.10`, use the manual update flow: delete the old `assets` folder, upload the new Deploy ZIP files, then follow the [Upgrade Guide](UPGRADE.md).
 
 ---
 
@@ -151,9 +151,8 @@ Developer documentation now uses the public packaged guide:
 
 ## What Shipped in v1.24.10
 
-- **Comment Avatar Fallback Repair**: account-linked comments now use the current profile avatar source, so clearing a custom external avatar stops stale saved comment URLs from rendering and falls back to email/Gravatar behavior.
-- **Release `.htaccess` Packaging Proof**: Deploy and Source packages now explicitly include routing `.htaccess` files and the uploads shield when present, with smoke coverage locking dotfile packaging.
-- **React Runtime Safety Cleanup**: tightened hook order, effect cleanup, dependency, direct-mutation, missing-alt, and Discussion Manager maintainability surfaces while preserving editor, routing, and public theme contracts.
+- **Final Hotfix**: fixed stale account-linked comment avatars and refreshed release documentation for the current public baseline.
+- **Main HourGlass Closeout Work**: see the `v1.24.9` notes below for the larger editor, search, OTA, loading, profile, media, and polish updates.
 
 ## What Shipped in v1.24.9
 
@@ -165,30 +164,9 @@ Developer documentation now uses the public packaged guide:
 - **Late HourGlass Micro-Polish**: public profile email masking, admin profile read-only boundaries, Media CDN upload URL normalization, TechPress long-logo header alignment, thumbnail crop defaults, and shared ad/widget containment are covered by smoke guards.
 - **Release Truth Sweep**: README, changelog, metadata, and smoke guards now keep `v1.24.9` closed as the HourGlass preflight and late micro-polish lane.
 
-## Current HourGlass Baseline Carried Forward from v1.24.7
+## Current HourGlass Baseline
 
-- **Shared Extension Runtime Gate**: built-in plugin runtime checks use one active/pluginStatus helper so inactive or not-installed system plugins stay disabled consistently across registry slots, article hooks, providers, and bundled themes.
-- **VonSEO Toggle and Social Image Repair**: all bundled themes gate `VonSEO` rendering through the saved plugin state, and social image selection honors the large OG image fallback without overwriting `og:image` with the square fallback.
-- **VonSEO General Description and Robots Cleanup**: site-level meta descriptions read from General Settings, stale SEO override defaults are removed on save, and default/served robots output no longer emits unsupported `Crawl-delay` directives.
-- **Promo/Gift Campaign Polish**: Promo Bar supports campaign windows, configurable dismiss duration, and target behavior; Gift Widget supports position, label, color, and target behavior.
-
-## Current HourGlass Baseline Carried Forward from v1.24.6
-
-- **Shared Public Discovery Loading Guard**: server-backed search/category fetches now enter loading immediately when the local preload fallback is empty, preventing the first paint from jumping into a blank or empty-results state.
-- **Remaining Theme Loading Parity**: TechPress, Prism, Corporate Pro, and Portfolio now render explicit initial loading panels before empty grids while older category/search results are being fetched from the server.
-- **Discovery Loading Smoke Coverage**: integration smoke checks now require the shared hook and all bundled discovery themes to preserve loading-state behavior before release packaging.
-
-## Current HourGlass Baseline Carried Forward from v1.24.5
-
-- **Editor Extension Boundary Split**: TipTap extensions, legacy image/video nodes, media alignment helpers, and editor surface constants now live in `src/components/editor/editorExtensions.ts`, keeping the main editor component focused on UI, state, and save behavior without changing the existing saved HTML/media parse-render subset.
-- **Post Editor Save Helper Split**: autosave countdowns, save-status copy, schedule normalization, saved snapshot merging, and conflict-message ownership now live in `src/components/editor/postEditorSaveHelpers.ts`, while the existing save buttons and publish/schedule flow stay in `PostEditor.tsx`.
-- **Public Profile Route Stability**: profile pages now hold the route skeleton while public profile lookup is pending, reject stale profile fetches during fast profile-to-profile navigation, and hand resolved profiles to active themes without briefly falling back to home or not-found states.
-- **Immediate Old-Post Navigation**: public search/category results that sit outside the preload now open through the internal id-backed post route immediately instead of waiting on a pre-navigation fetch.
-- **Repeated-Search Stability**: the shared public discovery hook now keeps the current visible list on screen while a new server-backed search/category request is in flight, reducing empty flashes on slower devices.
-- **Comments-Off First-Paint Fix**: comments-disabled posts now hydrate `discussionEnabled` from PHP before the async settings fetch, preventing brief public discussion CTA text leaks.
-- **Corporate Pro Preload Cleanup**: non-Corporate public pages no longer preload the Corporate Pro theme chunk from the main Vite entry.
-- **Video Bubble Anchor Repair**: the editor video bubble now anchors to the iframe itself and recenters after aspect/layout changes.
-- **Bounded Import Runtime**: database imports now use a 300-second timeout guard instead of disabling request timeouts entirely.
+HourGlass keeps the TipTap editor migration, public discovery scaling, extension runtime gating, profile stability, and shared-hosting safety work from the earlier `v1.24.x` patches. For full patch-by-patch history, see [CHANGELOG](CHANGELOG.md).
 
 ---
 
@@ -242,9 +220,9 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 ### Updating Existing Sites
 
-If your current site is on `v1.24.8` or older, update manually with the current Deploy ZIP first. The OTA recovery fixes shipped in `v1.24.9`, so older installs should not rely on OTA for that first jump.
+If your site is on an older version, update manually to `v1.24.10` with the current Deploy ZIP first. In cPanel/File Manager or FTP, delete the old `assets/` folder before uploading the new files so old hashed JS/CSS files cannot stay behind.
 
-After the site is already on `v1.24.9` or newer, use the admin dashboard OTA updater first. Go to `Settings -> System`, run the update, and then verify the homepage, one post, and the admin dashboard.
+After the site is already on `v1.24.10`, use the admin dashboard OTA updater for future patches. Go to `Settings -> System`, run the update, and then verify the homepage, one post, and the admin dashboard.
 
 Manual ZIP replacement is only the fallback when the admin panel is unavailable, the install is too old for OTA, or the server blocks the updater.
 

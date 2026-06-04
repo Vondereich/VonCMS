@@ -121,7 +121,7 @@ When docs and code disagree, use this order:
 
 1. Runtime code in `src/`, `public/`, and `server/test-integration.cjs`.
 2. `CHANGELOG.md`.
-3. Product docs in `docs/`.
+3. Product docs in this repository.
 4. Owner-approved release notes and public documentation.
 
 Theme owner files:

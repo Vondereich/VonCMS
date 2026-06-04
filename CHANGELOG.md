@@ -9,7 +9,7 @@
   - **Deploy Routing Dotfile Inclusion**: `create_release.cjs` now explicitly packages `public/.htaccess` as the Deploy ZIP root `.htaccess`, avoiding dotfile omission when folder-based ZIP creation skips hidden files.
   - **Uploads Shield Inclusion**: Deploy and Source packages now explicitly include the uploads shield `.htaccess` when present, so script-execution blocking and directory-listing protection survive packaging.
   - **Source Routing Dotfile Inclusion**: Source packages now explicitly include both source-root `.htaccess` and `public/.htaccess` routing templates.
-  - **Canonical Changelog Packaging**: Release packages now ship the canonical `CHANGELOG.md` only, removing the temporary `Changelog.md` alias before the Open Source handoff.
+  - **Canonical Changelog Packaging**: Release packages now ship the canonical `CHANGELOG.md` only, removing the temporary mixed-case alias before the Open Source handoff.
   - **Smoke Coverage**: Added release smoke guards for account-comment live avatar fallback and explicit `.htaccess` package inclusion markers.
 - **SSR SEO Schema URL Repair**:
   - **Article/Page JSON-LD URL Parity**: Server-rendered VonSEO schema now sets JSON-LD `url` to the same canonical content URL used by `og:url` and `<link rel="canonical">`, so view-source output for posts and pages no longer leaves Article/WebPage schema at the site root.
@@ -77,7 +77,7 @@
   - **Preflight Smoke Coverage**: Added smoke coverage for explicit editor image size/alignment state, image/video bubble active state, image width roundtrip markers, bounded search UI/API paths, skeleton timer removal, and GitHub release asset redirects.
   - **Release Closeout Guard**: Smoke coverage now keeps `v1.24.9` closed as the HourGlass preflight and late micro-polish lane, while `v1.24.10` remains the security hotfix reserve.
   - **Package Audit Dry Run**: Source and Deploy ZIPs were re-inspected for expected `v1.24.9` package contents and accidental local-only config leakage.
-  - **Changelog Casing Package Truth**: Release packaging now reads the canonical `CHANGELOG.md` source and publishes both `CHANGELOG.md` and `Changelog.md` ZIP entries so docs, Source packages, and Deploy packages stay case-safe.
+  - **Changelog Casing Package Truth**: Release packaging now reads the canonical `CHANGELOG.md` source and keeps changelog handling case-safe for docs, Source packages, and Deploy packages.
   - **Upgrade Path Caveat**: README and Upgrade Guide now make the `v1.24.8 -> v1.24.9`
     manual Deploy ZIP jump explicit because the OTA redirect/digest recovery fixes ship inside
     `v1.24.9`; once a site is on `v1.24.9` or newer, the admin OTA updater remains the
@@ -160,7 +160,7 @@
   - **System Asset Upload Smoke Coverage**: Added smoke coverage requiring General Settings system uploads to disable both responsive variants and WebP derivative output.
   - **OTA Redirect Hardening**: The updater now validates every GitHub download redirect hop instead of letting cURL follow redirects automatically before the existing SHA256 package verification.
   - **Safe Dependency Lock Refresh**: Refreshed in-range npm dependencies for the v1.24.7 package lock while holding major-version jumps for the dedicated v1.25 migration lane.
-  - **Source Changelog Casing Parity**: Source packages now include both `Changelog.md` and `CHANGELOG.md` entries so case-sensitive external tooling can resolve either canonical changelog casing.
+  - **Source Changelog Casing Parity**: Source packages now keep changelog casing resolvable for case-sensitive external tooling.
   - **Release Quality Gate Cleanup**: `npm test` now runs the real smoke gate, PHP lint now targets public PHP files recursively when `php` or `PHP_BIN` is available, and stale TypeScript suppressions were removed from typed runtime paths. This cleanup improves the gate wiring, but PHP syntax-clean status still requires verification in an environment with a PHP binary.
   - **Release Version Alignment**: Bumped the HourGlass line to `v1.24.7` so the built-in extension behavior changes ship as a new patch release instead of mutating the already-packaged `v1.24.6` artifacts.
 
@@ -251,8 +251,8 @@
   - **Public Discovery 200+ Smoke Coverage**: Tightened the smoke gate so the shared public posts query hook, Default parent wiring, search-enabled themes, category/load-more themes, category-label contract, and fallback search semantics cannot silently fall back to preload-only filtering capped at the first 200 posts.
   - **TechPress/Digest Hero Framing Smoke Coverage**: Added a smoke guard that rejects the old desktop `lg:aspect-auto` and min-height hero overrides so both sibling news themes keep the intended `aspect-video` frame.
   - **Category Count Metadata Alignment**: `get_posts.php` now binds the same trimmed category label for both the paginated result query and `meta.total`, preventing padded direct category requests from returning correct rows with mismatched counts.
-  - **GPL License Packaging Alignment**: Re-aligned the packaged README license link with `docs/LICENSE.md` and added the current release marker to the packaged GPL license summary so release smoke checks match the GitHub-ready license copy.
-  - **Release Changelog Casing Hygiene**: Release packaging and docs now use the real `Changelog.md` filename casing so Deploy/Source packages and case-sensitive documentation links stay aligned.
+  - **GPL License Packaging Alignment**: Re-aligned the packaged README license link with the public license file and added the current release marker to the packaged GPL license summary so release smoke checks match the GitHub-ready license copy.
+  - **Release Changelog Casing Hygiene**: Release packaging and docs now use the canonical `CHANGELOG.md` filename casing so Deploy/Source packages and case-sensitive documentation links stay aligned.
   - **Release Scope Wording Cleanup**: Clarified `v1.24.3` as the active HourGlass closeout buffer instead of implying unfinished editor/theme follow-ups were already closed.
   - **HourGlass Plan Archive Cleanup**: Removed the stale HourGlass working-plan file so future release work follows one current planning source.
 
