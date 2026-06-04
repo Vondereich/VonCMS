@@ -6,11 +6,11 @@ VonCMS is moving toward an open-source milestone, but contributions still need t
 
 When docs conflict, use this order:
 
-1. Current owner instruction and `.agent/workflows/golden-rules.md`.
+1. Current owner instruction and project guardrails.
 2. Current code and `server/test-integration.cjs`.
 3. `CHANGELOG.md` for shipped release truth.
 4. `README.md` and developer workflow docs for product and workflow context.
-5. `Roadmap.md` and planning docs for future direction.
+5. Public release notes and documentation for current shipped behavior.
 
 ## Core Contracts
 
@@ -31,14 +31,14 @@ VonCMS is a hybrid decoupled CMS: React admin/public UI, PHP API/runtime, ordina
 - Do not move VonCMS to a Node.js production dependency.
 - Do not change saved content from HTML to TipTap JSON in the v1.x line without a dedicated migration plan.
 - Do not "standardize" unrelated files while fixing one issue.
-- Do not mark roadmap items shipped until code, tests, changelog, and release artifacts agree.
+- Do not mark items shipped until code, tests, changelog, and release artifacts agree.
 
 ## Development Workflow
 
 Before editing:
 
 1. Read the relevant files first.
-2. Check `Roadmap.md`, `CHANGELOG.md`, and any focused planning doc for the active release line.
+2. Check `Changelog.md` and the relevant public documentation for the active release line.
 3. Add or update a focused regression guard in `server/test-integration.cjs` when behavior changes.
 4. Keep the change scoped to the proven issue.
 

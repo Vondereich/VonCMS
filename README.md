@@ -1,10 +1,10 @@
-# VonCMS v1.24.8 "HourGlass"
+# VonCMS v1.24.10 "HourGlass"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.24.8-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.24.10-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
@@ -30,7 +30,7 @@ VonCMS is on a mission to modernize the PHP publishing landscape. The project is
 
 **Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
 
-For shipped release truth, see [Changelog.md](Changelog.md).
+For shipped release truth, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -76,7 +76,7 @@ Download the full deployable system from:
 VonCMS ships as a **pre-built Deploy ZIP** for shared hosting. Production sites do **not** need Node.js, Vite, npm, or a separate frontend host.
 
 > [!CAUTION]
-> **Updates & .htaccess**: The Over-The-Air update system handles core files and assets, but it does **not** overwrite your `.htaccess` because hosting rules are often site-specific. When a release needs updated rewrite rules, use **General Setting -> Tools -> Fix .htaccess** to sync the managed VonCMS block manually.
+> **Updates & .htaccess**: If your site is still on `v1.24.8` or older, update to the current Deploy ZIP with the manual flow first. The OTA recovery fixes for GitHub release-asset redirects and SHA256 forwarding shipped inside `v1.24.9`, so installs before that release should not rely on OTA for the first jump. After a site is on `v1.24.9` or newer, use the admin dashboard OTA updater for future patches. The updater handles core files and assets, but it does **not** overwrite your `.htaccess` because hosting rules are often site-specific. When a release needs updated rewrite rules, use **General Setting -> Tools -> Fix .htaccess** to sync the managed VonCMS block manually.
 
 ---
 
@@ -141,25 +141,29 @@ Most CMS projects hand you an empty shell and say "figure it out with plugins." 
 
 ---
 
-## Developer Extension Guides
+## Developer Guide
 
-Theme and plugin development now use separate packaged guides:
+Developer documentation now uses the public packaged guide:
 
-- [Theme Development](docs/THEME_DEVELOPMENT.md) covers public theme architecture, WYSIWYG rendering, theme registration, shared SDK usage, SEO ownership, performance, and verification.
-- [Plugin Development](docs/PLUGIN_DEVELOPMENT.md) covers system plugin registration, activation state, settings ownership, custom HTML sanitization, PHP security principles, article hooks, and release checks.
+- [Theme Guide](THEME_GUIDE.md) covers public theme architecture, WYSIWYG rendering, theme registration, shared SDK usage, SEO ownership, performance, and verification.
 
 ---
 
-## What Shipped in v1.24.8
+## What Shipped in v1.24.10
 
-- **Profile Activity Truth Beyond 200**: bundled profile pages now use server-backed author/article and comment totals instead of counting only the globally preloaded latest posts or default comments batch, and stale responses from previous profiles are ignored during fast profile-to-profile navigation.
-- **Profile Comment Query Support**: flat comment queries can now filter safely by profile user, keeping public users restricted to approved comments while giving profile tabs accurate totals.
-- **Dashboard Comment/User Total Truth**: the admin dashboard comments and Active Users cards now read real server metadata instead of trusting hydrated slices that can be empty or capped, with Active Users using a count-only staff endpoint separate from the User Manager list API.
-- **Appointed Admin Secret Boundary**: Root/Admin ID 1 is the only role that can see raw SMTP/API credentials or use Database Manager; appointed Admin keeps operational dashboard access without credential visibility.
-- **Settings Save Protection**: non-primary Admin saves cannot overwrite SMTP/API/indexing secrets, even if a crafted request includes those keys.
-- **Primary Admin Tool Boundary**: Media Manager destructive deletes, media maintenance tools, WordPress Bridge, system repair, database backup/import, settings audit/rollback, OTA updater, IndexNow owner actions, and raw database access are primary-admin only; appointed Admin keeps User Manager access while Admin ID 1/Root accounts stay protected.
-- **Public/Profile/Editor Polish**: public profile lookups no longer expose numeric IDs, staff roles, or joined dates while own-profile edit/avatar/role sync still works by username; direct public SSR post/page/homepage hydration follows published/scheduled visibility rules and emits cleaner page/image schema; public post/page/bootstrap/comment payloads share centralized response shaping, public comments omit internal `dbId` / `status` / `emailHash` keys, appointed staff receive only `hasEmail`, avatar URLs are scrubbed to HTTPS-or-local paths, tab visibility `check_auth.php` pings are throttled, TechPress profile pages no longer load an external noise SVG, and TipTap query-string link insertion runs through a single Link extension.
-- **Regression Coverage**: smoke checks now lock profile activity totals, dashboard comment/user total truth, appointed-admin secret masking, sensitive save guarding, primary-admin destructive/owner endpoint boundaries, User Manager Admin ID 1 protection, own-profile edit/avatar/role sync after public numeric ID/role removal, public SSR visibility/schema parity, centralized public payload/comment/email-hash shaping, avatar URL safety, throttled session visibility checks, external asset cleanup, and hyperlink styling.
+- **Comment Avatar Fallback Repair**: account-linked comments now use the current profile avatar source, so clearing a custom external avatar stops stale saved comment URLs from rendering and falls back to email/Gravatar behavior.
+- **Release `.htaccess` Packaging Proof**: Deploy and Source packages now explicitly include routing `.htaccess` files and the uploads shield when present, with smoke coverage locking dotfile packaging.
+- **React Runtime Safety Cleanup**: tightened hook order, effect cleanup, dependency, direct-mutation, missing-alt, and Discussion Manager maintainability surfaces while preserving editor, routing, and public theme contracts.
+
+## What Shipped in v1.24.9
+
+- **Durable TipTap Image State**: image size/alignment choices now persist through save, sanitize, reload, editor preview rehydration, and public rendering, with bubble buttons reflecting the selected image/video alignment.
+- **Bounded Search**: public theme search and admin Content Manager search clamp long queries to 120 characters, show visible guidance, debounce server fetches cleanly, and clamp oversized post/page API search terms before SQL binding.
+- **OTA Update Recovery**: the updater accepts GitHub release-asset redirect hosts while validating redirect hops and forwarding caller-supplied SHA256 digests through both dashboard and direct updater entry points.
+- **Readiness-Based Skeleton Loading**: the bundled skeleton no longer fades on a fixed timer; React readiness owns the transition so fast pages move immediately and slower boots avoid a blank shell.
+- **Ads Manager Helper Copy Cleanup**: Ads Manager helper panels now use concise, behavior-neutral guidance for header, in-feed, and popup slots without changing placement, sizing, frequency, or injection behavior.
+- **Late HourGlass Micro-Polish**: public profile email masking, admin profile read-only boundaries, Media CDN upload URL normalization, TechPress long-logo header alignment, thumbnail crop defaults, and shared ad/widget containment are covered by smoke guards.
+- **Release Truth Sweep**: README, changelog, metadata, and smoke guards now keep `v1.24.9` closed as the HourGlass preflight and late micro-polish lane.
 
 ## Current HourGlass Baseline Carried Forward from v1.24.7
 
@@ -228,7 +232,7 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 | Server      | Apache or LiteSpeed with `.htaccess` |
 | Local dev   | XAMPP, WAMP, or Laragon              |
 
-### Installation
+### Fresh Installation
 
 1. Download the latest **VonCMS Deploy** ZIP from [Releases](https://github.com/Vondereich/VonCMS/releases).
 2. Extract it into your web root.
@@ -236,13 +240,21 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 4. Complete the installer wizard.
 5. Sign in at `/admin`.
 
+### Updating Existing Sites
+
+If your current site is on `v1.24.8` or older, update manually with the current Deploy ZIP first. The OTA recovery fixes shipped in `v1.24.9`, so older installs should not rely on OTA for that first jump.
+
+After the site is already on `v1.24.9` or newer, use the admin dashboard OTA updater first. Go to `Settings -> System`, run the update, and then verify the homepage, one post, and the admin dashboard.
+
+Manual ZIP replacement is only the fallback when the admin panel is unavailable, the install is too old for OTA, or the server blocks the updater.
+
 ---
 
 ---
 
 <div align="center">
 
-**v1.24.8 "HourGlass" - Current Working Release Line**
+**v1.24.10 "HourGlass" - Current Working Release Line**
 
 Built by Vondereich
 

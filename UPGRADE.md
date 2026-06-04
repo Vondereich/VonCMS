@@ -2,15 +2,16 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.24.8
+## Recommended path to v1.24.10
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
-4. In the admin panel, go to `Settings > System` and run the updater.
+4. If your current site is on `v1.24.8` or older, use the manual Deploy ZIP flow for this first jump. The OTA recovery fixes shipped in `v1.24.9`, so older installs should not rely on OTA until the site is already on `v1.24.9` or newer.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
+6. After the site is already on `v1.24.9` or newer, use the admin panel updater for future patches.
 
-## What to verify after updating to v1.24.8
+## What to verify after updating to v1.24.10
 
 This release line focuses on profile activity totals beyond the preload boundary, appointed-admin secret isolation, primary-admin-only destructive/admin tool surfaces, dashboard comment-count truth, and the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline.
 
@@ -49,6 +50,8 @@ Check these items:
 - comments display numbered pagination (Prev/Next, page buttons)
 - if you upload or import images on restrictive hosting, they appear correctly on the frontend (no broken images)
 - if you use shared hosting, `.htaccess` still contains your host-managed PHP handler block
+- account-linked public comments fall back to email/Gravatar after the user clears a custom external avatar URL
+- the Deploy ZIP contains the root `.htaccess` routing file and uploads shield `.htaccess`
 
 ## When to use Integrity Fix
 
@@ -66,7 +69,7 @@ That means it is safer than the older full-overwrite approach.
 
 If you are coming from an older Breeze or Mandala install:
 
-1. run the normal updater first
+1. update with the current Deploy ZIP manual flow first
 2. clear your browser cache
 3. open the public homepage and admin once
 4. only run Integrity Fix if you actually see routing or protection issues
