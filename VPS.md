@@ -1,8 +1,8 @@
 # VPS Deployment Guide
 
-This guide is for users who are comfortable with cPanel or shared hosting but want to run VonCMS on their own VPS without getting lost in server jargon.
+This guide is for users who are comfortable with cPanel or shared hosting and want to run VonCMS on a VPS without getting lost in server jargon.
 
-> **Note:** VonCMS is designed for the **LAMP** stack (Linux, Apache, MySQL, PHP). This guide uses **LNMP** (Nginx instead of Apache) as an alternative for VPS users who prefer Nginx — but it requires manual rewrite rules (included below). If you want the standard setup, install **Apache** instead.
+> **Recommended default:** VonCMS is designed for **LAMP**: Linux, Apache, MySQL, PHP. This guide uses **LNMP** with Nginx for VPS users who prefer it, but Nginx does not read `.htaccess`, so the rewrite and protection rules in Step 8 are required. If you want the simplest path, install Apache instead of Nginx.
 
 The stack used in this guide:
 
@@ -121,11 +121,11 @@ Once SSL is active, open the site with `https://`.
 
 After extraction, your root should contain files such as `index.php`, `.htaccess`, `api/`, `assets/`, and the other deploy files.
 
-## Step 8: Add Nginx Rewrite Rules
+## Step 8: Add Nginx Rewrite and Protection Rules
 
-VonCMS supports Apache through `.htaccess`, but on Nginx you must add rewrite rules manually.
+VonCMS ships Apache/LiteSpeed rules in `.htaccess`. On Nginx, add the equivalent rules manually in the same `server {}` block as the site.
 
-Open your site config in aaPanel and make sure your `server {}` block includes this:
+Open your site config in aaPanel and make sure these rules are present:
 
 ```nginx
 location / {
@@ -133,11 +133,37 @@ location / {
 }
 
 location /api/ {
-    try_files $uri $uri/ =404;
+    try_files $uri =404;
+}
+
+# Nginx does not read uploads/.htaccess, so block scripts here.
+location ~* ^/uploads/.*\.(php|php5|phtml|pl|py|jsp|asp|htm|html|shtml|sh|cgi)$ {
+    deny all;
+}
+
+# Mirror the sensitive-file protection normally handled by .htaccess.
+location ~* \.(sql|md|json|log|bak|env|zip|lock)$ {
+    deny all;
+}
+
+location = /von_config.php {
+    deny all;
+}
+
+location = /composer.lock {
+    deny all;
+}
+
+location = /package.json {
+    deny all;
+}
+
+location ~ /\.(?!well-known) {
+    deny all;
 }
 ```
 
-Your PHP handler block must still be present in the Nginx config. aaPanel usually creates it for you automatically.
+Keep the PHP handler block that aaPanel creates automatically. The rules above only add VonCMS routing and file-protection parity; they do not replace PHP-FPM handling.
 
 Reload Nginx after saving changes.
 
@@ -183,6 +209,10 @@ Check:
 ### API returns 404 on VPS
 
 Check the Nginx config again. Most VPS issues here come from missing rewrite rules or broken PHP handling.
+
+### Sensitive files are downloadable on VPS
+
+Nginx is not using the VonCMS `.htaccess` rules. Re-check Step 8 and make sure the sensitive-file and uploads script-blocking `location` rules are inside the same `server {}` block as the site.
 
 ### Uploads fail
 
