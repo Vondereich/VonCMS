@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.24.10
+# VonCMS User Manual v1.24.11
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -216,7 +216,7 @@ Best practice:
 - after changing extension settings, verify the related frontend area
 - if a plugin exposes public UI and admin settings, keep both sides in sync
 
-Developer documentation for building or auditing public themes is available in [Theme Guide](THEME_GUIDE.md).
+Developer documentation for building or auditing extensions is split into [Theme Development](THEME_DEVELOPMENT.md) and [Plugin Development](PLUGIN_DEVELOPMENT.md).
 
 ## Backups and database tools
 
