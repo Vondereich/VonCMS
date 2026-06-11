@@ -2,18 +2,18 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-## Recommended path to v1.24.10
+## Recommended path to v1.24.11
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
-4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.24.10`. OTA updates are available again from the `v1.24.10` series after the updater download and SHA256 verification flow was fixed.
+4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.24.11`. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed.
 5. After the update, verify the homepage, one single post, and the admin dashboard.
-6. After the site is already on `v1.24.10`, use the admin panel updater for future patches.
+6. After the site is already on `v1.24.10` or newer, use the admin panel updater for future patches.
 
-## What to verify after updating to v1.24.10
+## What to verify after updating to v1.24.11
 
-This release line focuses on profile activity totals beyond the preload boundary, appointed-admin secret isolation, primary-admin-only destructive/admin tool surfaces, dashboard comment-count truth, and the existing HourGlass installer, `.htaccess`, editor, and admin reliability baseline.
+This release line focuses on slow-network profile activity stability, dashboard count loading truth, and the existing HourGlass installer, `.htaccess`, editor, privacy, and admin reliability baseline.
 
 Check these items:
 
