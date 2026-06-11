@@ -1,4 +1,4 @@
-# VonCMS Security Guide v1.24.10
+# VonCMS Security Guide v1.24.11
 
 This document explains what VonCMS protects by default, what those protections do, and what the site owner still needs to handle.
 
