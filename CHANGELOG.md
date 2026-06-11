@@ -1,3 +1,35 @@
+### [v1.24.11] - 2026-06-11
+
+> Emergency HourGlass stabilization for slow-network profile loading and admin dashboard count truth before the v1.25 line starts.
+
+- **Profile Loading Stability**:
+  - **Footer-Safe Activity Tabs**: TechPress, Digest, Corporate Pro, and the default public profile now reserve activity-tab height while author articles or comments are loading, preventing the page footer from floating upward during slow profile fetches.
+  - **Activity Skeleton States**: Empty article/comment arrays no longer render a blank or false-empty activity area while `articlesLoading` or `commentsLoading` is active; the affected profile surfaces now show lightweight skeleton placeholders until the first payload settles.
+- **Dashboard Count Loading Truth**:
+  - **Article/Page Total Placeholder**: Dashboard Articles and Pages cards no longer seed their visible values from capped preloaded arrays before the count-only API metadata returns, avoiding the temporary `200` total flash on slow connections.
+  - **Staff Count Placeholder**: Dashboard Comments and Active Users now use the same loading-placeholder pattern while their count-only totals resolve, so slow admin loads do not expose fallback hydrated counts as final totals.
+- **Public Search Count Copy**:
+  - **Approximate Count Wording**: Default and Digest public search headers now avoid exact `results found` wording when discovery is running in count-skipping load-more mode, using loaded-result wording until an exact total is available.
+- **TechPress Public Theme Polish**:
+  - **Top Stories Rank Row**: TechPress now labels the former trending row as `Top Stories` and overlays `01`-style rank badges on the latest-story cards, keeping the simple latest-post ordering while avoiding a false real-time trending claim.
+- **AI-Friendly Robots Defaults**:
+  - **Search-Friendly AI Crawler Policy**: Default robots rules now explicitly allow AI search and user-directed assistant crawlers while keeping sensitive VonCMS paths blocked for general crawlers.
+  - **AI Training Opt-Out Defaults**: Default robots rules now disallow common AI training and bulk dataset crawlers, including `GPTBot`, `Google-Extended`, `ClaudeBot`, `CCBot`, `Applebot-Extended`, and `Bytespider`, while preserving the dynamic sitemap append.
+  - **Robots Response Cleanup**: `robots.php` now serves text and JSON defaults with explicit UTF-8 charset headers and removes the stale `/api/public/` allowance from the default robots rules.
+- **VPS Deployment Guide**:
+  - **Nginx Rewrite Parity**: VPS guide now documents the Nginx equivalents for VonCMS routing, uploads script blocking, sensitive-file protection, and the `.htaccess` limitation on Nginx installs.
+- **Release Packaging Parity**:
+  - **Deploy License/Metadata Inclusion**: Deploy ZIPs now include the root `LICENSE.md`, `metadata.json`, and `docs/LICENSE.md`, keeping the packaged README license link and release metadata available without shipping `package.json`.
+- **Roadmap Cleanup**:
+  - **v1.25.x Release Slicing**: Roadmap now splits the next line into `v1.25.1` open-source onboarding, `v1.25.2` simple public API cache, `v1.25.3` i18n seed work, and `v1.25.4` public-theme discovery polish after checking for source features that already exist.
+- **Smoke Coverage**:
+  - **Profile Loading Contract**: Integration smoke now guards that bundled profile activity tabs reserve space and render skeletons while loading.
+  - **Dashboard Count Contract**: Integration smoke now guards dashboard loading placeholders for article/page totals, staff counts, and the Active Users count-only path.
+  - **Public Search Count Contract**: Integration smoke now guards the approximate-count copy so public discovery cannot label count-skipped totals as exact.
+  - **AI Robots Contract**: Integration smoke now guards the new AI search allowances, AI training crawler blocks, and `Content-Signal` default.
+- **Release Version Alignment**:
+  - Bumped the HourGlass line to `v1.24.11`.
+
 ### [v1.24.10] - 2026-06-02
 
 > HourGlass final hotfix for stale public comment avatars and `.htaccess` release packaging proof before the v1.25 line starts.
@@ -9,7 +41,7 @@
   - **Deploy Routing Dotfile Inclusion**: `create_release.cjs` now explicitly packages `public/.htaccess` as the Deploy ZIP root `.htaccess`, avoiding dotfile omission when folder-based ZIP creation skips hidden files.
   - **Uploads Shield Inclusion**: Deploy and Source packages now explicitly include the uploads shield `.htaccess` when present, so script-execution blocking and directory-listing protection survive packaging.
   - **Source Routing Dotfile Inclusion**: Source packages now explicitly include both source-root `.htaccess` and `public/.htaccess` routing templates.
-  - **Canonical Changelog Packaging**: Release packages now ship the canonical `CHANGELOG.md` only, removing the temporary mixed-case alias before the Open Source handoff.
+  - **Canonical Changelog Packaging**: Release packages now ship the canonical `CHANGELOG.md` only, removing the temporary `Changelog.md` alias before the Open Source handoff.
   - **Smoke Coverage**: Added release smoke guards for account-comment live avatar fallback and explicit `.htaccess` package inclusion markers.
 - **SSR SEO Schema URL Repair**:
   - **Article/Page JSON-LD URL Parity**: Server-rendered VonSEO schema now sets JSON-LD `url` to the same canonical content URL used by `og:url` and `<link rel="canonical">`, so view-source output for posts and pages no longer leaves Article/WebPage schema at the site root.
@@ -34,6 +66,11 @@
     RouteProgressBar, ThemeProvider, TechPress, Editor video aspect handling, and
     Corporate Pro profile article images without changing editor storage, routing,
     or public theme contracts.
+- **Search API Robustness**:
+  - **Boolean Payload Guard**: Post and page search endpoints now normalize FULLTEXT
+    terms and escape LIKE wildcards before binding, so punctuation-heavy boolean
+    search payloads cannot trip MySQL boolean-mode parsing while normal title and
+    content matching remains intact.
 - **Release Version Alignment**:
   - Bumped the HourGlass line to `v1.24.10`.
 
@@ -75,9 +112,9 @@
   - **Responsive/Legacy Debt Closeout**: The remaining proof-backed responsive and legacy-debt slots closed with the shared thumbnail/ad containment repairs plus smoke coverage, without a bundled theme redesign or broad extraction.
 - **Regression & Release Guard**:
   - **Preflight Smoke Coverage**: Added smoke coverage for explicit editor image size/alignment state, image/video bubble active state, image width roundtrip markers, bounded search UI/API paths, skeleton timer removal, and GitHub release asset redirects.
-  - **Release Closeout Guard**: Smoke coverage now keeps `v1.24.9` closed as the HourGlass preflight and late micro-polish lane, while `v1.24.10` remains the security hotfix reserve.
+  - **Roadmap Closeout Guard**: Smoke coverage now keeps `v1.24.9` closed as the HourGlass preflight and late micro-polish lane, while `v1.24.10` remains the security hotfix reserve.
   - **Package Audit Dry Run**: Source and Deploy ZIPs were re-inspected for expected `v1.24.9` package contents and accidental local-only config leakage.
-  - **Changelog Casing Package Truth**: Release packaging now reads the canonical `CHANGELOG.md` source and keeps changelog handling case-safe for docs, Source packages, and Deploy packages.
+  - **Changelog Casing Package Truth**: Release packaging now reads the canonical `CHANGELOG.md` source and publishes both `CHANGELOG.md` and `Changelog.md` ZIP entries so docs, Source packages, and Deploy packages stay case-safe.
   - **Upgrade Path Caveat**: README and Upgrade Guide now make the `v1.24.8 -> v1.24.9`
     manual Deploy ZIP jump explicit because the OTA redirect/digest recovery fixes ship inside
     `v1.24.9`; once a site is on `v1.24.9` or newer, the admin OTA updater remains the
@@ -122,8 +159,8 @@
   - **Profile Activity 200+ Smoke Coverage**: Added smoke coverage requiring bundled profile surfaces to use server-backed profile activity totals instead of capped global `posts` / `comments` arrays, with stale-response guards for fast profile-to-profile navigation.
   - **Appointed Admin Secret Smoke Coverage**: Added smoke coverage requiring server-side settings masking, sensitive-save guarding, and primary-admin Database Manager gating.
   - **Appointed Admin Closeout Smoke Coverage**: Added smoke coverage requiring masked AI key prompting, User Manager appointed-admin parity with Admin ID 1 protection, dashboard user total truth, primary-admin-only destructive tool/media/WP/system/backup/import/settings-audit/updater/IndexNow surfaces, public profile owner-edit/avatar/role sync after numeric ID/role removal, public SSR visibility/schema parity, centralized public payload/comment/email-hash shaping, avatar URL safety, throttled session visibility checks, TechPress external asset removal, and single-instance TipTap query-string hyperlink/link-color parity.
-  - **v1.24.9 Release Sequencing**: Reordered the next HourGlass polish lane so low-risk helper-copy/profile-email/theme micro-fixes land before broader regression, version-label, claim-verification, and package-audit sweeps.
-  - **Release Version Alignment**: Bumped the HourGlass line to `v1.24.8` so the profile/RBAC maintenance fix ships as its own patch before broader v1.24.8 polish continues.
+  - **v1.24.9 Roadmap Sequencing**: Reordered the next HourGlass polish lane so low-risk helper-copy/profile-email/theme micro-fixes land before broader regression, version-label, claim-verification, and package-audit sweeps.
+  - **Release Version Alignment**: Bumped the HourGlass line to `v1.24.8` so the profile/RBAC maintenance fix ships as its own patch before broader v1.24.8 roadmap polish continues.
 
 ### [v1.24.7] - 2026-05-21
 
@@ -146,10 +183,10 @@
   - **Gift Widget Campaign Controls**: Gift Widget now supports saved target URL, tooltip, optional label, button color, position, and target behavior instead of staying locked to the original bottom-left demo button.
   - **System Asset Upload Compatibility**: Logo, favicon, and social image uploads now skip WebP derivative generation entirely when uploaded from General Settings, preventing Media Library thumbnails from preferring a broken `.webp` sidecar while preserving the original system asset URL.
 - **Developer Documentation Refresh**:
-  - **Theme Development Guide**: Refreshed the public theme guide for theme architecture philosophy, core production deploy expectations, visual WYSIWYG output, shared SDK usage, theme registration, SEO ownership, performance, security, and verification.
-  - **Plugin Development Notes**: Refreshed public extension guidance around system plugin registration, activation state, settings ownership, custom HTML sanitization, PHP security principles, article hooks, visual output quality, and release checks.
+  - **Theme Development Guide**: Added `docs/THEME_DEVELOPMENT.md` as the current v1.24.7 guide for theme architecture philosophy, core production deploy expectations, visual WYSIWYG output, shared SDK usage, theme registration, SEO ownership, performance, security, and verification.
+  - **Plugin Development Guide**: Added `docs/PLUGIN_DEVELOPMENT.md` as the current v1.24.7 guide for system plugin registration, activation state, settings ownership, custom HTML sanitization, PHP security principles, article hooks, visual output quality, and release checks.
   - **Root Theme Guide Retirement**: Removed the outdated root `THEME_GUIDE.md` and redirected developer references to the packaged Theme Development and Plugin Development guides so v1.25 preparation no longer points new contributors at the old v1.23 theme baseline.
-  - **Release Closeout Cleanup**: Cleaned stale future-backlog wording so public release text no longer describes the already-shipped v1.24 TipTap migration as future Editor V2 work.
+  - **Roadmap Closeout Cleanup**: Cleaned stale future-backlog wording so the roadmap no longer describes the already-shipped v1.24 TipTap migration as future Editor V2 work.
 - **Regression & Release Guard**:
   - **Extension Upgrade Smoke Coverage**: Added smoke coverage for the shared plugin runtime helper, VonSEO theme gating, VonAnalytics runtime gating, social image fallback, duplicate `og:image` protection, and Promo/Gift campaign-grade settings.
   - **SEO/Robots Smoke Coverage**: Added smoke coverage that locks General Settings as the only site-level meta description source, rejects default `Crawl-delay` output from the robots defaults, blocks legacy Extension Manager fallback seeds from returning, and verifies admin-saved `robotsTxt` reaches `robots.php`.
@@ -160,7 +197,7 @@
   - **System Asset Upload Smoke Coverage**: Added smoke coverage requiring General Settings system uploads to disable both responsive variants and WebP derivative output.
   - **OTA Redirect Hardening**: The updater now validates every GitHub download redirect hop instead of letting cURL follow redirects automatically before the existing SHA256 package verification.
   - **Safe Dependency Lock Refresh**: Refreshed in-range npm dependencies for the v1.24.7 package lock while holding major-version jumps for the dedicated v1.25 migration lane.
-  - **Source Changelog Casing Parity**: Source packages now keep changelog casing resolvable for case-sensitive external tooling.
+  - **Source Changelog Casing Parity**: Source packages now include both `Changelog.md` and `CHANGELOG.md` entries so case-sensitive external tooling can resolve either canonical changelog casing.
   - **Release Quality Gate Cleanup**: `npm test` now runs the real smoke gate, PHP lint now targets public PHP files recursively when `php` or `PHP_BIN` is available, and stale TypeScript suppressions were removed from typed runtime paths. This cleanup improves the gate wiring, but PHP syntax-clean status still requires verification in an environment with a PHP binary.
   - **Release Version Alignment**: Bumped the HourGlass line to `v1.24.7` so the built-in extension behavior changes ship as a new patch release instead of mutating the already-packaged `v1.24.6` artifacts.
 
@@ -206,7 +243,7 @@
   - **Profile Route Smoke Coverage**: Added smoke coverage for route-level profile pending skeletons, positive profile cache handoff, request-id stale response rejection, abortable profile fetches, username-match validation, and real 404 fallback for unresolved public profiles.
   - **TechPress Profile Tab Smoke Coverage**: Added smoke coverage so the active TechPress profile Articles tab cannot regress to white text or underline on a light background.
   - **TechPress Profile Username Smoke Coverage**: Added smoke coverage so the TechPress public profile username and status copy cannot regress to gradient-clipped or low-contrast mobile text.
-  - **Release Scope Merge**: Folded the former `v1.24.6` Post Editor extraction reserve into the same `v1.24.5` maintenance-extraction lane so HourGlass does not carry two separate editor-refactor patch slots for the same functional area.
+  - **Roadmap Scope Merge**: Folded the former `v1.24.6` Post Editor extraction reserve into the same `v1.24.5` maintenance-extraction lane so HourGlass does not carry two separate editor-refactor patch slots for the same functional area.
 
 ### [v1.24.4] - 2026-05-17
 
@@ -226,8 +263,8 @@
   - **Public Discovery Interaction Smoke Coverage**: The smoke gate now locks immediate old-post route fallback, route-level single-post pending protection before real 404s, stale single-post request rejection, debounced/abortable public search fetches, repeated-search non-empty transitions, comments-off hydration, and the no-Corporate-Pro preload contract.
   - **Sidebar Chunk Cycle Smoke Coverage**: Added smoke coverage that rejects `VpSidebarWidget` importing shared helpers back through the theme barrel, so future builds catch the circular chunk path before release packaging.
   - **Root License Version Guard**: Re-aligned the root license notice with `v1.24.4` and added it to the docs version smoke gate so Source packages cannot ship a stale canonical license version marker.
-  - **Planning Closeout Alignment**: Updated public release wording so `v1.24.4` is marked closed after the full release audit and package refresh, with larger image-authoring ideas deferred instead of appearing as active patch blockers.
-  - **Ads Scope Clarification**: Clarified that the next Ads Manager lane first hardens the existing Header / In-Feed / Popup slots for responsive safety, while larger background, page-skin, gutter, and other theme-aware placement zones remain a separate future expansion.
+  - **Roadmap Closeout Alignment**: Updated `ROADMAP.md` so `v1.24.4` is marked closed after the full release audit and package refresh, with larger image-authoring ideas deferred instead of appearing as active patch blockers.
+  - **Ads Roadmap Clarification**: Clarified that the next Ads Manager lane first hardens the existing Header / In-Feed / Popup slots for responsive safety, while larger background, page-skin, gutter, and other theme-aware placement zones remain a separate future expansion.
   - **Editor Video Bubble Smoke Coverage**: Added smoke coverage that rejects broad wrapper-based video targeting and requires post-change repositioning markers for the video bubble.
   - **Database Import Runtime Smoke Coverage**: Added smoke coverage that rejects unbounded `set_time_limit(0)` database imports.
 
@@ -251,10 +288,10 @@
   - **Public Discovery 200+ Smoke Coverage**: Tightened the smoke gate so the shared public posts query hook, Default parent wiring, search-enabled themes, category/load-more themes, category-label contract, and fallback search semantics cannot silently fall back to preload-only filtering capped at the first 200 posts.
   - **TechPress/Digest Hero Framing Smoke Coverage**: Added a smoke guard that rejects the old desktop `lg:aspect-auto` and min-height hero overrides so both sibling news themes keep the intended `aspect-video` frame.
   - **Category Count Metadata Alignment**: `get_posts.php` now binds the same trimmed category label for both the paginated result query and `meta.total`, preventing padded direct category requests from returning correct rows with mismatched counts.
-  - **GPL License Packaging Alignment**: Re-aligned the packaged README license link with the public license file and added the current release marker to the packaged GPL license summary so release smoke checks match the GitHub-ready license copy.
-  - **Release Changelog Casing Hygiene**: Release packaging and docs now use the canonical `CHANGELOG.md` filename casing so Deploy/Source packages and case-sensitive documentation links stay aligned.
-  - **Release Scope Wording Cleanup**: Clarified `v1.24.3` as the active HourGlass closeout buffer instead of implying unfinished editor/theme follow-ups were already closed.
-  - **HourGlass Plan Archive Cleanup**: Removed the stale HourGlass working-plan file so future release work follows one current planning source.
+  - **GPL License Packaging Alignment**: Re-aligned the packaged README license link with `docs/LICENSE.md` and added the current release marker to the packaged GPL license summary so release smoke checks match the GitHub-ready license copy.
+  - **Release Changelog Casing Hygiene**: Release packaging and docs now use the real `Changelog.md` filename casing so Deploy/Source packages and case-sensitive documentation links stay aligned.
+  - **Roadmap Scope Wording Cleanup**: Clarified `v1.24.3` as the active HourGlass closeout buffer instead of implying unfinished editor/theme follow-ups were already closed.
+  - **HourGlass Plan Archive Cleanup**: Removed the stale HourGlass working-plan file and moved the active planning guard to `ROADMAP.md` so future release work follows one current planning source.
 
 ### [v1.24.2] - 2026-05-08
 
@@ -287,7 +324,7 @@
   - **Public Index Noscript Safety**: The single-post `<noscript>` visibility fallback now renders escaped, block-aware, entity-normalized text-only post content instead of echoing raw saved HTML or concatenating image captions into article paragraphs.
   - **Live Table/Header Parity Follow-up**: Public post rendering now keeps TipTap tables on real table layout instead of forcing `display: block`, paints table header cells directly for tables saved without a `<thead>`, and keeps mobile `h4`/`h5`/`h6` sizing in a clear descending hierarchy.
   - **README Release Snapshot Alignment**: Updated the README release snapshot and shipped-work summary from the closed `v1.23.10` Rentaka baseline to the current `v1.24.2` HourGlass release line.
-  - **Release Patch Slot Cleanup**: Clarified `v1.24.3` as a proof-backed HourGlass closeout buffer and added an explicit reserved `v1.24.4` skip slot so empty patch headings are not mistaken for hidden feature scope.
+  - **Roadmap Patch Slot Cleanup**: Clarified `v1.24.3` as a proof-backed HourGlass closeout buffer and added an explicit reserved `v1.24.4` skip slot so empty patch headings are not mistaken for hidden feature scope.
   - **Integration Test Coverage**: Added fresh regression guards for search logic, profile 404 behavior, Portfolio profile resolver parity, disabled-comments notice rendering, image figure/alignment restore parity, image alignment node-attribute updates, TipTap paste typography cleanup, sticky editor toolbar offset, slug separator normalization, PDO static-analysis narrowing, table styling, stable manual search UX, public-index `<noscript>` normalization, live header-cell styling, mobile heading hierarchy, and public quote/code block parity.
 
 ### [v1.24.1] - 2026-05-06
@@ -333,7 +370,7 @@
   - Added root `CONTRIBUTING.md` with VonCMS-specific source-of-truth order, core contracts, do-not-break rules, verification expectations, and pull request checklist for the future open-source milestone.
   - The guide explicitly protects the HTML editor storage contract, bundled-theme parity, `public/security.php`, `server/test-integration.cjs`, and `create_release.cjs`.
 - **HourGlass Plan Cleanup**:
-  - Reorganized HourGlass planning so shipped `v1.24.1` stabilization work is separated from `v1.24.2+` editor/Post Editor slimming and Quick Edit scroll-restore follow-up work.
+  - Reorganized HourGlass planning in `ROADMAP.md` so shipped `v1.24.1` stabilization work is separated from `v1.24.2+` editor/Post Editor slimming and Quick Edit scroll-restore follow-up work.
 - **Regression Coverage**:
   - Added smoke guards for editor URL persistence, reload recovery, external content sync, sticky toolbar behavior, media spacing rhythm, and the no-jump focus contract.
   - Added smoke guards for scroll-tracked editor tooltips, public discussion toggle rendering, and SEO score input fallback behavior.
@@ -351,10 +388,10 @@
   - Added a smoke guard so successful saves must refresh the local Post Editor timestamp baseline before the next publish/save attempt.
   - Added a smoke guard so existing-post full-content restore must refresh the autosave item/timestamp baseline before the next autosave or update attempt.
   - Added a smoke guard so admin/editor single-post reads skip public view tracking and public view tracking cannot mutate `updated_at` or poison the editor conflict baseline.
-  - Added smoke guards for the shared three-item tablet navigation cutoff, all six bundled theme header integrations, the root contributor guide, and the HourGlass planning cleanup.
+  - Added smoke guards for the shared three-item tablet navigation cutoff, all six bundled theme header integrations, the root contributor guide, and the HourGlass roadmap/working-plan cleanup.
 - **Release Scope**:
   - Version, README, primary docs, package manifests, and release artifacts are aligned on `v1.24.1`.
-  - Remaining editor/Post Editor file-slimming work stays in the next HourGlass follow-up, not as a blocker for this stabilization patch.
+  - Remaining editor/Post Editor file-slimming work stays in the roadmap as the next HourGlass follow-up, not as a blocker for this stabilization patch.
 
 ### [v1.24.0] - 2026-05-03
 
@@ -388,7 +425,7 @@
 - **v1.23.9**: PHP 8.5 compatibility and static-analysis cleanup across importer, backup/import, public helpers, installer, repair, and security metadata surfaces.
 - **v1.23.8**: CI/CD scanner-noise cleanup, sanitized HTML render guardrails, packaged README license-link alignment, and benchmark-copy cleanup.
 - **v1.23.7**: WordPress importer remote-fetch hardening, redirect/DNS/IP validation, read-time alignment, and settings mirror hardening.
-- **v1.23.6**: Database Manager restore/backup clarity, import restore fixes, public theme performance polish, settings and repair alignment, and release-scope pull-forward work.
+- **v1.23.6**: Database Manager restore/backup clarity, import restore fixes, public theme performance polish, settings and repair alignment, and roadmap pull-forward work.
 - **v1.23.5 to v1.23.0 Rentaka line**: Security audit hardening, autosave/save feedback polish, promo bar color controls, build chunk optimization, release promotion, Kirana-to-Rentaka consolidation, and Content Manager alignment.
 - **v1.22.x Kirana line**: Hybrid decoupled CMS stabilization, RSS and avatar fixes, manual excerpt/meta preservation, discussion/search/admin flow improvements, routing/path robustness, and broad publishing workflow polish.
 - **v1.21.x Breeze line**: Managed `.htaccess` strategy, responsive image rollout, scheduler/security hardening, editor stability, packaging realignment, and performance/UI refinement.
