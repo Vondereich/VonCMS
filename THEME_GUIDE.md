@@ -1,8 +1,8 @@
-# VonCMS Theme Development Guide v1.24.10
+# VonCMS Theme Development Guide v1.24.11
 
-This guide is the theme-specific source of truth for VonCMS v1.24.10. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to build public themes without breaking the publishing runtime.
+This guide is the theme-specific source of truth for VonCMS v1.24.11. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to build public themes without breaking the publishing runtime.
 
-This guide covers the public theme contract for the current release line.
+For plugin work, use [Plugin Development](PLUGIN_DEVELOPMENT.md).
 
 ## Architecture Philosophy
 
@@ -71,7 +71,7 @@ All mutating backend requests in VonCMS must use authenticated sessions, CSRF va
 
 Public theme props are already shaped by the PHP response helpers before they reach React. Do not rebuild public privacy rules inside a theme.
 
-The v1.24.10 public contract is:
+The v1.24.11 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -121,8 +121,8 @@ When docs and code disagree, use this order:
 
 1. Runtime code in `src/`, `public/`, and `server/test-integration.cjs`.
 2. `CHANGELOG.md`.
-3. Product docs in this repository.
-4. Owner-approved release notes and public documentation.
+3. Product docs in `docs/`.
+4. Planning docs such as `ROADMAP.md`.
 
 Theme owner files:
 
