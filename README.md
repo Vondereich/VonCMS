@@ -1,16 +1,16 @@
-# VonCMS v1.24.10 Final "HourGlass"
+# VonCMS v1.24.11 Late Night Update "HourGlass"
 
 <div align="center">
 
 ![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
 
-[![Version](https://img.shields.io/badge/Version-1.24.10-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
+[![Version](https://img.shields.io/badge/Version-1.24.11-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
 [![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
 [![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
 [![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
 [![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](LICENSE.md)
+[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](docs/LICENSE.md)
 
 **Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
 
@@ -76,7 +76,7 @@ Download the full deployable system from:
 VonCMS ships as a **pre-built Deploy ZIP** for shared hosting. Production sites do **not** need Node.js, Vite, npm, or a separate frontend host.
 
 > [!CAUTION]
-> **Update note**: OTA updates are available again in the `v1.24.10` series after the updater download and SHA256 verification flow was fixed. If your site is on an older version and you want to upgrade to `v1.24.10`, use the manual update flow: delete the old `assets` folder, upload the new Deploy ZIP files, then follow the [Upgrade Guide](UPGRADE.md).
+> **Update note**: OTA updates are available for the current `v1.24.x` series after the updater download and SHA256 verification flow was fixed in the `v1.24.10` baseline. If your site is on an older version and you want to upgrade to `v1.24.11`, use the manual update flow: delete the old `assets` folder, upload the new Deploy ZIP files, then follow the [Upgrade Guide](docs/UPGRADE.md).
 
 ---
 
@@ -141,13 +141,22 @@ Most CMS projects hand you an empty shell and say "figure it out with plugins." 
 
 ---
 
-## Developer Guide
+## Developer Extension Guides
 
-Developer documentation now uses the public packaged guide:
+Theme and plugin development now use separate packaged guides:
 
-- [Theme Guide](THEME_GUIDE.md) covers public theme architecture, WYSIWYG rendering, theme registration, shared SDK usage, SEO ownership, performance, and verification.
+- [Theme Development](docs/THEME_DEVELOPMENT.md) covers public theme architecture, WYSIWYG rendering, theme registration, shared SDK usage, SEO ownership, performance, and verification.
+- [Plugin Development](docs/PLUGIN_DEVELOPMENT.md) covers system plugin registration, activation state, settings ownership, custom HTML sanitization, PHP security principles, article hooks, and release checks.
 
 ---
+
+## What Shipped in v1.24.11
+
+- **Profile Loading Stability**: TechPress, Digest, Corporate Pro, and the default public profile now reserve activity-tab height and render skeleton placeholders while profile articles/comments are still loading, preventing footer float-up on slow connections.
+- **Dashboard Count Loading Truth**: dashboard Articles, Pages, Comments, and Active Users cards now show loading placeholders until count-only totals resolve instead of flashing capped or fallback preload counts.
+- **Public Search Copy**: Default and Digest public search headers now avoid exact `results found` wording while discovery is using count-skipping load-more mode.
+- **Smoke Coverage**: integration smoke now guards profile loading skeletons, footer-safe profile activity height, dashboard count placeholders, public search approximate-count copy, and the Active Users count-only path.
+- **Previous Final Hotfix**: see `v1.24.10` for stale account-linked comment avatar repair and release packaging proof.
 
 ## What Shipped in v1.24.10
 
@@ -220,9 +229,9 @@ Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and D
 
 ### Updating Existing Sites
 
-If your site is on an older version, update manually to `v1.24.10` with the current Deploy ZIP first. In cPanel/File Manager or FTP, delete the old `assets/` folder before uploading the new files so old hashed JS/CSS files cannot stay behind.
+If your site is on an older version, update manually to `v1.24.11` with the current Deploy ZIP first. In cPanel/File Manager or FTP, delete the old `assets/` folder before uploading the new files so old hashed JS/CSS files cannot stay behind.
 
-After the site is already on `v1.24.10`, use the admin dashboard OTA updater for future patches. Go to `Settings -> System`, run the update, and then verify the homepage, one post, and the admin dashboard.
+After the site is already on `v1.24.10` or newer, use the admin dashboard OTA updater for future patches. Go to `Settings -> System`, run the update, and then verify the homepage, one post, and the admin dashboard.
 
 Manual ZIP replacement is only the fallback when the admin panel is unavailable, the install is too old for OTA, or the server blocks the updater.
 
@@ -232,7 +241,7 @@ Manual ZIP replacement is only the fallback when the admin panel is unavailable,
 
 <div align="center">
 
-**v1.24.10 "HourGlass" - Current Working Release Line**
+**v1.24.11 "HourGlass" - Current Working Release Line**
 
 Built by Vondereich
 
