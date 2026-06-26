@@ -2,6 +2,7 @@ import React from 'react';
 import { PluginDefinition, PluginLocation, CustomPluginDefinition } from '../../../../types';
 import { sanitizeHtml } from '../../../../utils/security';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
+import { normalizeSiteUrl } from '../../../../utils/siteUtils';
 
 // Import individual plugins from their subfolders
 import { PromoBarPlugin } from './built-in/promo-bar/index';
@@ -31,6 +32,27 @@ export const AVAILABLE_PLUGINS: PluginDefinition[] = [
   AISummaryPlugin,
   RelatedPostsPlugin,
 ];
+
+const sanitizeCustomPluginHtml = (htmlContent: string): string => {
+  const sanitized = sanitizeHtml(htmlContent, {
+    ADD_ATTR: ['style', 'class', 'id', 'target', 'width', 'height', 'href', 'alt'],
+    ADD_TAGS: ['style', 'span', 'a', 'img', 'div'],
+    ALLOW_DATA_ATTR: true,
+    FORCE_BODY: true,
+  });
+
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return sanitized;
+  }
+
+  const doc = new DOMParser().parseFromString(sanitized, 'text/html');
+  doc.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href');
+    anchor.setAttribute('href', normalizeSiteUrl(href || ''));
+  });
+
+  return doc.body.innerHTML;
+};
 
 export const PluginSlot: React.FC<{
   location: PluginLocation;
@@ -67,14 +89,7 @@ export const PluginSlot: React.FC<{
           {plugin.cssContent && <style>{plugin.cssContent}</style>}
           <div
             dangerouslySetInnerHTML={{
-              __html: sanitizeHtml(plugin.htmlContent, {
-                ADD_ATTR: ['style', 'class', 'id', 'target', 'width', 'height', 'href', 'alt'],
-                ADD_TAGS: ['style', 'span', 'a', 'img', 'div'],
-                ALLOW_DATA_ATTR: true,
-                FORCE_BODY: true,
-              })
-                .replace(/\s(on\w+)\s*=/gi, ' ')
-                .replace(/href\s*=\s*["']?javascript:/gi, 'href="#'),
+              __html: sanitizeCustomPluginHtml(plugin.htmlContent),
             }}
           />
         </div>

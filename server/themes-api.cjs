@@ -17,14 +17,17 @@ const https = require('https');
 const querystring = require('querystring');
 
 // --- SECURITY UTILS ---
+const HTML_ESCAPE_MAP = Object.freeze({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+});
+
 function sanitizeString(str) {
   if (typeof str !== 'string') return str;
-  // Basic XSS prevention: strip script tags and event handlers
-  return str.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, '').replace(/<[^>]+>/g, (tag) => {
-    // Allow basic formatting tags if needed, but for settings we usually want plain text or safe HTML
-    // For now, we strip dangerous attributes like on*
-    return tag.replace(/on\w+="[^"]*"/g, '').replace(/javascript:/g, '');
-  });
+  return str.replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
 }
 
 function sanitizeRecursive(obj) {
@@ -332,7 +335,8 @@ app.post(
           .status(400)
           .json({ success: false, message: 'No file uploaded (field name "theme")' });
 
-      const { originalname, path: uploadedPath, size } = req.file;
+      const { originalname, size } = req.file;
+      const uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);
       const safeOriginalName = sanitizeThemeFileName(originalname);
       const name = req.body.name || path.parse(safeOriginalName).name;
       const version = req.body.version || '0.0.0';
@@ -405,13 +409,13 @@ app.post(
 );
 
 // List themes
-app.get('/api/themes', (req, res) => {
+app.get('/api/themes', adminLimiter, verifyDevToken, (req, res) => {
   const list = readData();
   res.json(list);
 });
 
 // Get all content
-app.get('/api/content', (req, res) => {
+app.get('/api/content', adminLimiter, verifyDevToken, (req, res) => {
   try {
     const contentFile = path.join(PROJECT_ROOT, 'data', 'content.json');
     if (!fs.existsSync(contentFile)) return res.json({ posts: [], pages: [] });
@@ -423,7 +427,7 @@ app.get('/api/content', (req, res) => {
 });
 
 // Simple content lookup endpoint for dev: lookup post/page by slug or id
-app.get('/api/post', (req, res) => {
+app.get('/api/post', adminLimiter, verifyDevToken, (req, res) => {
   try {
     const contentFile = path.join(PROJECT_ROOT, 'data', 'content.json');
     if (!fs.existsSync(contentFile)) return res.status(404).json({ error: 'content not found' });
@@ -570,7 +574,7 @@ app.post('/api/save_content', adminLimiter, verifyDevToken, async (req, res) => 
 });
 
 // Get comments
-app.get('/api/get_comments', (req, res) => {
+app.get('/api/get_comments', adminLimiter, verifyDevToken, (req, res) => {
   try {
     const commentsFile = path.join(PROJECT_ROOT, 'data', 'comments.json');
     if (fs.existsSync(commentsFile)) {
@@ -613,20 +617,25 @@ app.post('/api/save_comments', adminLimiter, async (req, res) => {
 });
 
 // Get site settings
-app.get(['/api/get_settings', '/api/get_settings.php'], (req, res) => {
-  try {
-    const SETTINGS_FILE = path.join(PROJECT_ROOT, 'data', 'site_settings.json');
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const raw = fs.readFileSync(SETTINGS_FILE, 'utf8');
-      const settings = JSON.parse(raw || '{}');
-      return res.json(settings);
+app.get(
+  ['/api/get_settings', '/api/get_settings.php'],
+  adminLimiter,
+  verifyDevToken,
+  (req, res) => {
+    try {
+      const SETTINGS_FILE = path.join(PROJECT_ROOT, 'data', 'site_settings.json');
+      if (fs.existsSync(SETTINGS_FILE)) {
+        const raw = fs.readFileSync(SETTINGS_FILE, 'utf8');
+        const settings = JSON.parse(raw || '{}');
+        return res.json(settings);
+      }
+      return res.json({}); // Return empty object if no settings file
+    } catch (err) {
+      console.error('get_settings error', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
     }
-    return res.json({}); // Return empty object if no settings file
-  } catch (err) {
-    console.error('get_settings error', err);
-    return res.status(500).json({ success: false, message: 'Server error' });
   }
-});
+);
 
 // Persist site settings (token-protected)
 app.post(
@@ -718,7 +727,7 @@ app.post(
 );
 
 // Verify reCAPTCHA token server-side
-app.post('/api/verify-recaptcha', async (req, res) => {
+app.post('/api/verify-recaptcha', adminLimiter, async (req, res) => {
   try {
     const { token, action } = req.body || {};
     if (!token) return res.status(400).json({ success: false, message: 'Missing token' });
@@ -848,7 +857,7 @@ app.post('/api/login.php', (req, res) => {
   });
 });
 
-app.post('/api/update_profile', async (req, res) => {
+app.post('/api/update_profile', adminLimiter, verifyDevToken, async (req, res) => {
   try {
     const { id, bio, avatar } = req.body;
     // In this mock dev env, we only support updating the main 'admin' user (id 1)
@@ -905,7 +914,7 @@ app.post('/api/install.php', (req, res) => {
 });
 
 // --- USER MANAGEMENT ENDPOINTS (Dev/Node) ---
-app.get('/api/get_users', (req, res) => {
+app.get('/api/get_users', adminLimiter, verifyDevToken, (req, res) => {
   try {
     const usersFile = path.join(PROJECT_ROOT, 'data', 'users.json');
     if (fs.existsSync(usersFile)) {

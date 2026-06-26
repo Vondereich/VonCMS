@@ -40,9 +40,13 @@ module.exports = function initAiRoutes(app) {
     return true;
   }
 
-  app.post('/api/ai/generate', async (req, res) => {
+  function aiRouteGuard(req, res, next) {
+    if (!checkAuthAndRate(req, res)) return;
+    next();
+  }
+
+  app.post('/api/ai/generate', aiRouteGuard, async (req, res) => {
     try {
-      if (!checkAuthAndRate(req, res)) return;
       const { topic, context } = req.body || {};
       if (!ai)
         return res.status(503).json({ success: false, message: 'AI backend not configured' });
@@ -56,9 +60,8 @@ module.exports = function initAiRoutes(app) {
     }
   });
 
-  app.post('/api/ai/check', async (req, res) => {
+  app.post('/api/ai/check', aiRouteGuard, async (req, res) => {
     try {
-      if (!checkAuthAndRate(req, res)) return;
       const { text } = req.body || {};
       if (!ai)
         return res.status(503).json({ success: false, message: 'AI backend not configured' });

@@ -62,6 +62,7 @@ assertIncludes(
   [
     'function safeResolveInside(baseDir, ...segments)',
     'function assertSafeZipEntries(zip, destDir)',
+    'const uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);',
     'sanitizeThemeFileName(file.originalname)',
     "'/api/themes/upload'",
     'verifyDevToken',
@@ -71,6 +72,44 @@ assertIncludes(
   ],
   'Theme API Dev Path Guard: upload and enable paths stay inside managed theme directories.',
   'Theme API Dev Path Guard: local theme API can still use unchecked upload or theme paths.'
+);
+
+assertIncludes(
+  'Theme API Dev Route Abuse Guard',
+  themesApiServerContent,
+  [
+    "app.get('/api/themes', adminLimiter, verifyDevToken",
+    "app.get('/api/content', adminLimiter, verifyDevToken",
+    "app.get('/api/post', adminLimiter, verifyDevToken",
+    "app.get('/api/get_comments', adminLimiter, verifyDevToken",
+    "['/api/get_settings', '/api/get_settings.php']",
+    "app.post('/api/verify-recaptcha', adminLimiter",
+    "app.post('/api/update_profile', adminLimiter, verifyDevToken",
+    "app.get('/api/get_users', adminLimiter, verifyDevToken",
+  ],
+  'Theme API Dev Route Abuse Guard: local Node read/mock routes are rate-limited and admin-only where appropriate.',
+  'Theme API Dev Route Abuse Guard: local Node read/mock routes can still be hammered or called without the dev admin token.'
+);
+
+assertExcludes(
+  'Theme API Dev Sanitizer Regex Guard',
+  themesApiServerContent,
+  ['replace(/<script', 'replace(/javascript:'],
+  'Theme API Dev Sanitizer Regex Guard: local Node sanitizer avoids partial HTML/protocol regex filtering.',
+  'Theme API Dev Sanitizer Regex Guard: local Node sanitizer still uses partial HTML/protocol regex filtering.'
+);
+
+const aiServerContent = read('server/ai.cjs');
+assertIncludes(
+  'AI Dev Route Rate Guard',
+  aiServerContent,
+  [
+    'function aiRouteGuard(req, res, next)',
+    "app.post('/api/ai/generate', aiRouteGuard, async (req, res)",
+    "app.post('/api/ai/check', aiRouteGuard, async (req, res)",
+  ],
+  'AI Dev Route Rate Guard: Node AI routes expose an explicit middleware guard for auth and rate limiting.',
+  'AI Dev Route Rate Guard: Node AI routes can be flagged as missing explicit rate-limit middleware.'
 );
 
 assertIncludes(
@@ -93,6 +132,20 @@ if (legacyJavascriptSchemeChecks.length === 0) {
 } else {
   fail(
     `Theme URL CodeQL Guard: literal javascript: scheme checks remain in ${legacyJavascriptSchemeChecks
+      .map((file) => path.relative(root, file))
+      .join(', ')}`
+  );
+}
+
+const rawJavascriptHrefRewriteMarker = 'href\\s*=\\s*["\']?java' + 'script:';
+const rawJavascriptHrefRewrites = walkFiles(resolveFromRoot('src'), (file) =>
+  /\.(ts|tsx)$/.test(file)
+).filter((file) => read(path.relative(root, file)).includes(rawJavascriptHrefRewriteMarker));
+if (rawJavascriptHrefRewrites.length === 0) {
+  pass('Theme URL CodeQL Guard: raw javascript href rewrites do not remain in source call sites.');
+} else {
+  fail(
+    `Theme URL CodeQL Guard: raw javascript href rewrites remain in ${rawJavascriptHrefRewrites
       .map((file) => path.relative(root, file))
       .join(', ')}`
   );
