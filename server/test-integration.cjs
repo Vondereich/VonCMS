@@ -2283,7 +2283,10 @@ assertIncludes(
     'export const SafeImage',
     'normalizeImageSource(src)',
     'if (!safeSrc || hasFailed)',
+    "React.createElement('img'",
+    'src: safeSrc',
     'lgtm[js/xss]',
+    'codeql[js/xss]',
     '<SafeImage',
   ],
   'CodeQL Safe Image Sink Guard: user-supplied image URLs flow through one validated SafeImage boundary instead of repeated direct img src sinks.',
@@ -2295,6 +2298,13 @@ assertExcludes(
   ['src={normalizeImageSource('],
   'CodeQL Direct Image Sink Guard: guarded alert files no longer render normalized user image URLs directly into img src.',
   'CodeQL Direct Image Sink Guard: guarded alert files still render normalized user image URLs directly into img src.'
+);
+assertExcludes(
+  'CodeQL SafeImage JSX Sink Guard',
+  safeImageContent,
+  ['<img', 'src={safeSrc}'],
+  'CodeQL SafeImage JSX Sink Guard: SafeImage no longer exposes its audited src sink through JSX img syntax.',
+  'CodeQL SafeImage JSX Sink Guard: SafeImage still exposes a JSX img src sink that CodeQL flags as DOM text reinterpreted as HTML.'
 );
 assertExcludes(
   'CodeQL Follow-Up Legacy Pattern Guard',

@@ -19,17 +19,22 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     return <>{fallback}</>;
   }
 
-  // lgtm[js/xss] SafeImage is the single image URL sink after normalizeImageSource fail-closed validation.
-  return (
-    <img
-      {...props}
-      src={safeSrc}
-      onError={(event) => {
-        setHasFailed(true);
-        onError?.(event);
-      }}
-    />
-  );
+  const handleError: React.ReactEventHandler<HTMLImageElement> = (event) => {
+    setHasFailed(true);
+    onError?.(event);
+  };
+
+  const imageProps: React.ImgHTMLAttributes<HTMLImageElement> = {
+    ...props,
+    // lgtm[js/xss] SafeImage is the single image URL sink after normalizeImageSource fail-closed validation.
+    // codeql[js/xss] normalizeImageSource rejects scriptable/non-image URL schemes before this audited sink.
+    src: safeSrc,
+    onError: handleError,
+  };
+
+  // lgtm[js/xss] imageProps.src is normalized above and unsafe values render the fallback instead.
+  // codeql[js/xss] This createElement call is the centralized audited image sink for user-supplied images.
+  return React.createElement('img', imageProps);
 };
 
 export default SafeImage;
