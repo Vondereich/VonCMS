@@ -2282,6 +2282,8 @@ assertIncludes(
   [
     'export const SafeImage',
     'normalizeImageSource(src)',
+    'useEffect(() =>',
+    '}, [safeSrc])',
     'if (!safeSrc || hasFailed)',
     "React.createElement('img'",
     'src: safeSrc',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { normalizeImageSource } from '../utils/siteUtils';
 
 type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
@@ -14,6 +14,10 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 }) => {
   const [hasFailed, setHasFailed] = useState(false);
   const safeSrc = normalizeImageSource(src);
+
+  useEffect(() => {
+    setHasFailed(false);
+  }, [safeSrc]);
 
   if (!safeSrc || hasFailed) {
     return <>{fallback}</>;
