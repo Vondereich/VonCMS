@@ -1,3 +1,5 @@
+![VonCMS Banner](https://i.ibb.co/Fq6vpWFk/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
+
 # VonCMS
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
