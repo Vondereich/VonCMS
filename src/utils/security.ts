@@ -57,13 +57,48 @@ const EDITOR_DROP_TAGS = new Set([
 
 const EDITOR_REMOVE_CHROME_TAGS = new Set(['header', 'footer', 'nav', 'aside']);
 const EDITOR_UNWRAP_TAGS = new Set(['article', 'section', 'main']);
-const EDITOR_ALLOWED_IFRAME_HOSTS = [
-  /youtube\.com\/embed\//i,
-  /youtube-nocookie\.com\/embed\//i,
-  /facebook\.com\/plugins\/video\.php/i,
-  /tiktok\.com\/player\/v1\//i,
-  /instagram\.com\/reel\/[^/]+\/embed/i,
-];
+const normalizeHost = (host: string): string => host.toLowerCase().replace(/^www\./, '');
+const matchesHost = (host: string, domain: string): boolean =>
+  host === domain || host.endsWith(`.${domain}`);
+
+const parseHttpUrl = (value: string): URL | null => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const isRecognizedVideoEmbedUrl = (src: string): boolean => {
+  const parsed = parseHttpUrl(src);
+  if (!parsed) return false;
+
+  const host = normalizeHost(parsed.hostname);
+  const path = parsed.pathname;
+
+  if (matchesHost(host, 'youtube.com') || matchesHost(host, 'youtube-nocookie.com')) {
+    return path.startsWith('/embed/');
+  }
+
+  if (host === 'player.vimeo.com') {
+    return path.startsWith('/video/');
+  }
+
+  if (matchesHost(host, 'facebook.com')) {
+    return path === '/plugins/video.php';
+  }
+
+  if (matchesHost(host, 'tiktok.com')) {
+    return path.startsWith('/player/v1/');
+  }
+
+  if (matchesHost(host, 'instagram.com')) {
+    return path.startsWith('/reel/') && path.endsWith('/embed');
+  }
+
+  return false;
+};
 const EDITOR_ALLOWED_PASTE_TAGS = [
   'a',
   'b',
@@ -129,7 +164,26 @@ const unwrapElement = (element: Element) => {
 
 const isAllowedIframeSrc = (src: string): boolean => {
   if (!src) return false;
-  return EDITOR_ALLOWED_IFRAME_HOSTS.some((pattern) => pattern.test(src));
+  return isRecognizedVideoEmbedUrl(src);
+};
+
+const createEditorDocument = (content: string): Document => {
+  const doc = document.implementation.createHTMLDocument('');
+  const fragment = DOMPurify.sanitize(content, {
+    ADD_TAGS: ['iframe'],
+    ADD_ATTR: [
+      ...EDITOR_ALLOWED_PASTE_ATTRS,
+      'data-id',
+      'data-von-video-aspect',
+      'data-von-image-size',
+      'data-von-image-align',
+    ],
+    ALLOW_DATA_ATTR: false,
+    RETURN_DOM_FRAGMENT: true,
+  }) as unknown as DocumentFragment;
+
+  doc.body.appendChild(fragment);
+  return doc;
 };
 
 const shouldConvertDivToParagraph = (element: HTMLElement): boolean => {
@@ -227,8 +281,7 @@ const looksLikeNonContentBlock = (element: HTMLElement): boolean => {
 const normalizeEditorMarkup = (content: string, mode: 'paste' | 'save' = 'save'): string => {
   if (!content) return '';
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, 'text/html');
+  const doc = createEditorDocument(content);
 
   Array.from(doc.body.childNodes).forEach((node) => {
     if (node.nodeType === Node.COMMENT_NODE) {
@@ -500,6 +553,33 @@ export const sanitizePastedHtml = (content: string): string => {
       'textarea',
     ],
   });
+};
+
+export const htmlToPlainText = (content?: string | null): string => {
+  if (!content) return '';
+
+  return (DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }) as string)
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+export const hasEmbeddedVideoMarkup = (content?: string | null): boolean => {
+  if (!content) return false;
+
+  const fragment = DOMPurify.sanitize(content, {
+    ALLOWED_TAGS: ['iframe', 'video', 'source'],
+    ALLOWED_ATTR: ['src'],
+    RETURN_DOM_FRAGMENT: true,
+  }) as unknown as DocumentFragment;
+
+  if (fragment.querySelector('video')) {
+    return true;
+  }
+
+  return Array.from(fragment.querySelectorAll('iframe[src]')).some((iframe) =>
+    isRecognizedVideoEmbedUrl(iframe.getAttribute('src') || '')
+  );
 };
 /**
  * Apply lazy loading to img and iframe tags in HTML content.

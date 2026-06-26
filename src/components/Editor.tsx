@@ -844,13 +844,37 @@ const Editor: React.FC<EditorProps> = ({
     return mode === 'portrait' || mode === 'landscape' ? mode : 'auto';
   };
 
+  const parseVideoUrl = (value: string): URL | null => {
+    try {
+      const parsed = new URL(value.trim());
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const normalizeVideoHost = (value: string): string => value.toLowerCase().replace(/^www\./, '');
+  const isVideoHost = (host: string, domain: string): boolean =>
+    host === domain || host.endsWith(`.${domain}`);
+
   const inferVideoAspectMode = (iframe: HTMLIFrameElement): Exclude<VideoAspectMode, 'auto'> => {
     const src = iframe.getAttribute('src') || '';
+    const parsed = parseVideoUrl(src);
+    const host = parsed ? normalizeVideoHost(parsed.hostname) : '';
+    const path = parsed?.pathname || '';
+    if (parsed?.searchParams.get('von_vertical') === 'shorts') {
+      return 'portrait';
+    }
+    if (isVideoHost(host, 'tiktok.com') && path.startsWith('/player/')) {
+      return 'portrait';
+    }
+    if (isVideoHost(host, 'instagram.com') && path.startsWith('/reel/')) {
+      return 'portrait';
+    }
     if (
-      src.includes('tiktok.com/player') ||
-      src.includes('instagram.com/reel') ||
-      src.includes('von_vertical=shorts') ||
-      (src.includes('facebook.com/plugins/video.php') && src.includes('width=380'))
+      isVideoHost(host, 'facebook.com') &&
+      path === '/plugins/video.php' &&
+      parsed?.searchParams.get('width') === '380'
     ) {
       return 'portrait';
     }
@@ -1013,14 +1037,76 @@ const Editor: React.FC<EditorProps> = ({
 
   const insertVideo = () => openModal('video');
 
+  const getVideoPathParts = (url: URL): string[] => url.pathname.split('/').filter(Boolean);
+
   const extractTikTokVideoId = (input: string) => {
-    const match = input.match(/tiktok\.com\/(?:@[^/]+\/video\/|player\/v1\/)(\d+)/i);
-    return match?.[1] || null;
+    const parsed = parseVideoUrl(input);
+    if (!parsed || !isVideoHost(normalizeVideoHost(parsed.hostname), 'tiktok.com')) return null;
+
+    const parts = getVideoPathParts(parsed);
+    if (parts[0] === 'player' && parts[1] === 'v1' && /^\d+$/.test(parts[2] || '')) {
+      return parts[2];
+    }
+
+    const videoIndex = parts.indexOf('video');
+    const candidate = videoIndex >= 0 ? parts[videoIndex + 1] : '';
+    return /^\d+$/.test(candidate || '') ? candidate : null;
   };
 
   const extractInstagramReelId = (input: string) => {
-    const match = input.match(/instagram\.com\/(?:reel|reels)\/([a-zA-Z0-9_-]+)/i);
-    return match?.[1] || null;
+    const parsed = parseVideoUrl(input);
+    if (!parsed || !isVideoHost(normalizeVideoHost(parsed.hostname), 'instagram.com')) return null;
+
+    const parts = getVideoPathParts(parsed);
+    return (parts[0] === 'reel' || parts[0] === 'reels') && /^[a-zA-Z0-9_-]+$/.test(parts[1] || '')
+      ? parts[1]
+      : null;
+  };
+
+  const extractYouTubeVideo = (input: string): { id: string; isShorts: boolean } | null => {
+    const parsed = parseVideoUrl(input);
+    if (!parsed) return null;
+
+    const host = normalizeVideoHost(parsed.hostname);
+    const parts = getVideoPathParts(parsed);
+    const isValidId = (value?: string | null) =>
+      Boolean(value && /^[a-zA-Z0-9_-]{11}$/.test(value));
+
+    if (host === 'youtu.be' && isValidId(parts[0])) {
+      return { id: parts[0], isShorts: false };
+    }
+
+    if (!isVideoHost(host, 'youtube.com') && !isVideoHost(host, 'youtube-nocookie.com')) {
+      return null;
+    }
+
+    if (parts[0] === 'shorts' && isValidId(parts[1])) {
+      return { id: parts[1], isShorts: true };
+    }
+
+    const embeddedId =
+      (parts[0] === 'embed' || parts[0] === 'v' || parts[0] === 'e') && isValidId(parts[1])
+        ? parts[1]
+        : null;
+    if (embeddedId) {
+      return { id: embeddedId, isShorts: false };
+    }
+
+    const watchId = parsed.searchParams.get('v');
+    return isValidId(watchId) ? { id: watchId as string, isShorts: false } : null;
+  };
+
+  const isFacebookVideoUrl = (input: string): boolean => {
+    const parsed = parseVideoUrl(input);
+    if (!parsed) return false;
+    const host = normalizeVideoHost(parsed.hostname);
+    return isVideoHost(host, 'facebook.com') || host === 'fb.watch';
+  };
+
+  const isFacebookReelUrl = (input: string): boolean => {
+    const parsed = parseVideoUrl(input);
+    if (!parsed || !isVideoHost(normalizeVideoHost(parsed.hostname), 'facebook.com')) return false;
+    return parsed.pathname.startsWith('/reel/') || parsed.pathname.startsWith('/reels/');
   };
 
   const processVideoInput = (input: string) => {
@@ -1033,32 +1119,25 @@ const Editor: React.FC<EditorProps> = ({
     if (input.trim().startsWith('<')) {
       embedHtml = input;
     } else {
-      const isYouTubeShortsUrl = input.includes('youtube.com/shorts');
-      const ytShortsMatch = isYouTubeShortsUrl
-        ? input.match(/youtube\.com\/shorts\/([^"&?\/\s]{11})/i)
-        : null;
-      const ytMatch = input.match(
-        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
-      );
-      if (ytShortsMatch || ytMatch) {
-        const videoId = (ytShortsMatch || ytMatch)?.[1];
-        const src = `https://www.youtube.com/embed/${videoId}${ytShortsMatch ? '?playsinline=1&von_vertical=shorts' : ''}`;
-        embedHtml = ytShortsMatch
+      const youtubeVideo = extractYouTubeVideo(input);
+      if (youtubeVideo) {
+        const src = `https://www.youtube.com/embed/${youtubeVideo.id}${youtubeVideo.isShorts ? '?playsinline=1&von_vertical=shorts' : ''}`;
+        embedHtml = youtubeVideo.isShorts
           ? `<iframe width="100%" height="676" src="${src}" frameborder="0" allow="${DEFAULT_VIDEO_ALLOW}" allowfullscreen data-von-video-aspect="portrait" style="${portraitVideoStyle}" title="YouTube Shorts embed"></iframe>`
           : `<iframe width="100%" height="400" src="${src}" frameborder="0" allow="${DEFAULT_VIDEO_ALLOW}" allowfullscreen style="${landscapeVideoStyle}" title="YouTube video embed"></iframe>`;
-      } else if (input.includes('tiktok.com')) {
+      } else if (extractTikTokVideoId(input)) {
         const videoId = extractTikTokVideoId(input);
         if (videoId) {
           embedHtml = `<iframe width="100%" height="676" src="https://www.tiktok.com/player/v1/${videoId}" frameborder="0" scrolling="no" allowfullscreen title="TikTok video embed" data-von-video-aspect="portrait" style="${portraitVideoStyle}"></iframe>`;
         }
-      } else if (input.includes('instagram.com')) {
+      } else if (extractInstagramReelId(input)) {
         const reelId = extractInstagramReelId(input);
         if (reelId) {
           embedHtml = `<iframe width="100%" height="676" src="https://www.instagram.com/reel/${reelId}/embed" frameborder="0" scrolling="no" allowfullscreen title="Instagram Reel embed" data-von-video-aspect="portrait" style="${portraitVideoStyle}"></iframe>`;
         }
-      } else if (input.includes('facebook.com') || input.includes('fb.watch')) {
+      } else if (isFacebookVideoUrl(input)) {
         const encodedUrl = encodeURIComponent(input);
-        const isFacebookReel = /facebook\.com\/(?:reel|reels)\//i.test(input);
+        const isFacebookReel = isFacebookReelUrl(input);
         embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=${isFacebookReel ? '380' : '560'}" width="100%" height="${isFacebookReel ? '676' : '400'}" style="${isFacebookReel ? portraitVideoStyle : landscapeVideoStyle}" scrolling="no" frameborder="0" allowfullscreen="true" ${isFacebookReel ? 'data-von-video-aspect="portrait"' : ''} allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true" title="Facebook video embed"></iframe>`;
       }
     }

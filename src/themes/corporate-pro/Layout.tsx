@@ -54,6 +54,7 @@ import {
   VonPopupAd,
   decodeEntities,
   getResponsiveImageAttributes,
+  hasEmbeddedVideoMarkup,
 } from '../shared';
 
 import { API } from '../../config/site.config';
@@ -1229,10 +1230,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                     {/* Smart Featured Image */}
                     {(() => {
                       if (!selectedPost.image) return null;
-                      const hasVideo =
-                        selectedPost.content?.includes('youtube.com/embed') ||
-                        selectedPost.content?.includes('player.vimeo.com') ||
-                        /<iframe|tiktok\.com/i.test(selectedPost.content || '');
+                      const hasVideo = hasEmbeddedVideoMarkup(selectedPost.content);
                       if (hasVideo) return null;
                       const imageFilename =
                         selectedPost.image.split('/').pop()?.split('?')[0] || '';

@@ -104,11 +104,12 @@ assertIncludes(
   'AI Dev Route Rate Guard',
   aiServerContent,
   [
-    'function aiRouteGuard(req, res, next)',
-    "app.post('/api/ai/generate', aiRouteGuard, async (req, res)",
-    "app.post('/api/ai/check', aiRouteGuard, async (req, res)",
+    "const rateLimit = require('express-rate-limit');",
+    'const aiRateLimit = rateLimit({',
+    "app.post('/api/ai/generate', aiRateLimit, aiAuthGuard, async (req, res)",
+    "app.post('/api/ai/check', aiRateLimit, aiAuthGuard, async (req, res)",
   ],
-  'AI Dev Route Rate Guard: Node AI routes expose an explicit middleware guard for auth and rate limiting.',
+  'AI Dev Route Rate Guard: Node AI routes expose scanner-visible rate-limit middleware plus auth guard.',
   'AI Dev Route Rate Guard: Node AI routes can be flagged as missing explicit rate-limit middleware.'
 );
 
@@ -468,7 +469,8 @@ if (fs.existsSync(sourceZipPath)) {
 }
 
 if (
-  createReleaseContent.includes("const escapedVersion = version.replace(/\\./g, '\\\\.');") &&
+  createReleaseContent.includes('function escapeRegExpLiteral(value)') &&
+  createReleaseContent.includes('const escapedVersion = escapeRegExpLiteral(version);') &&
   createReleaseContent.includes('const releaseArtifactPattern = new RegExp(') &&
   createReleaseContent.includes('`^VonCMS_v${escapedVersion}_(Deploy|Source)\\\\.zip') &&
   createReleaseContent.includes('releaseArtifactPattern.test(f)') &&
@@ -2228,6 +2230,56 @@ if (
 }
 
 const editorSecurityContent = read('src/utils/security.ts');
+const codeqlFrontendFollowupContent = [
+  editorContent,
+  postEditorContent,
+  postEditorSaveHelpersContent,
+  contactManagerContent,
+  read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+  read('src/themes/default/Layout.tsx'),
+  read('src/themes/prism/Layout.tsx'),
+  read('src/themes/digest/Layout.tsx'),
+  read('src/themes/portfolio/Layout.tsx'),
+  read('src/themes/corporate-pro/Layout.tsx'),
+  read('src/themes/techpress/Layout.tsx'),
+  read('src/plugins/von-core/features/users/UserProfile.tsx'),
+  read('src/themes/techpress/Profile.tsx'),
+  read('src/themes/prism/components/PrismProfile.tsx'),
+  read('src/plugins/von-core/features/settings/components/themes/CorporateProSettings.tsx'),
+  read('src/utils/siteUtils.ts'),
+  editorSecurityContent,
+].join('\n');
+assertIncludes(
+  'CodeQL Follow-Up Frontend Guard',
+  codeqlFrontendFollowupContent,
+  [
+    'hasEmbeddedVideoMarkup',
+    'htmlToPlainText',
+    'normalizeImageSource',
+    'createEditorDocument',
+    'isLegacyVonCmsEmail',
+  ],
+  'CodeQL Follow-Up Frontend Guard: video detection, text extraction, image src, editor HTML parsing, and legacy email warnings use shared helpers.',
+  'CodeQL Follow-Up Frontend Guard: one or more helper boundaries for CodeQL follow-up fixes are missing.'
+);
+assertExcludes(
+  'CodeQL Follow-Up Legacy Pattern Guard',
+  codeqlFrontendFollowupContent + '\n' + createReleaseContent,
+  [
+    "input.includes('tiktok.com')",
+    "input.includes('instagram.com')",
+    "input.includes('facebook.com')",
+    "input.includes('fb.watch')",
+    "input.includes('youtube.com/shorts')",
+    "content?.includes('youtube.com/embed')",
+    "content?.includes('player.vimeo.com')",
+    ".mail.to.includes('voncms.com')",
+    ".mail.from.includes('voncms.com')",
+    "version.replace(/\\./g, '\\\\.')",
+  ],
+  'CodeQL Follow-Up Legacy Pattern Guard: legacy substring checks and partial regex escaping are absent from guarded source files.',
+  'CodeQL Follow-Up Legacy Pattern Guard: legacy substring checks or partial regex escaping are still present.'
+);
 const pasteStyleAllowlistMatch = editorSecurityContent.match(
   /const EDITOR_ALLOWED_PASTE_STYLE_PROPS = new Set\(\[([\s\S]*?)\]\);/
 );
@@ -2962,10 +3014,11 @@ assertIncludes(
     wpImportContent,
   [
     'extractInstagramReelId',
-    'youtube.com/shorts',
+    'extractYouTubeVideo',
+    "parts[0] === 'shorts'",
     'von_vertical=shorts',
     'aspect-ratio: 9 / 16',
-    'instagram.com/reel',
+    "path.startsWith('/reel/')",
     "iframe[src*='tiktok.com/player']",
     "iframe[src*='facebook.com/plugins/video.php']",
   ],

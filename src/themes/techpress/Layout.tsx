@@ -24,6 +24,7 @@ import {
   useRelatedPosts,
   decodeEntities,
   sanitizeHtml,
+  hasEmbeddedVideoMarkup,
   ProseDarkModeStyles,
   AdBlock,
   VonPopupAd,
@@ -37,7 +38,7 @@ import {
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { normalizeImageSource, normalizeSiteUrl } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 
 // TechPress Avatar Component with Gravatar Support
@@ -51,7 +52,7 @@ const TechPressAvatar: React.FC<{
   return (
     <div className={`${size} rounded-full overflow-hidden ${className} flex-shrink-0`}>
       {url ? (
-        <img src={url} alt={name} className="w-full h-full object-cover" />
+        <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
       ) : (
         <Gravatar
           email={email || name}
@@ -1083,9 +1084,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     (imageFilename && selectedPost.content?.includes(imageFilename));
                   // Fix: Hide featured image if content likely has a video (iframe or video tag)
                   // This prevents double visuals (thumbnail + video player)
-                  const contentHasVideo =
-                    selectedPost.content?.includes('<iframe') ||
-                    selectedPost.content?.includes('<video');
+                  const contentHasVideo = hasEmbeddedVideoMarkup(selectedPost.content);
 
                   if (contentHasImage || contentHasVideo) return null;
                   return (

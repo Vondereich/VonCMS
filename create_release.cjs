@@ -24,6 +24,10 @@ function log(message) {
   console.log(message);
 }
 
+function escapeRegExpLiteral(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function walkSync(dir, baseDir = basePath) {
   const files = [];
   for (const item of fs.readdirSync(dir)) {
@@ -98,7 +102,7 @@ try {
   process.exit(1);
 }
 
-const escapedVersion = version.replace(/\./g, '\\.');
+const escapedVersion = escapeRegExpLiteral(version);
 const releaseArtifactPattern = new RegExp(
   `^VonCMS_v${escapedVersion}_(Deploy|Source)\\.zip(\\.sha256)?$`
 );

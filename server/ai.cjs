@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const { GoogleGenAI } = require('@google/genai');
+const rateLimit = require('express-rate-limit');
 
 module.exports = function initAiRoutes(app) {
   const apiKey = process.env.API_KEY || '';
@@ -9,10 +10,15 @@ module.exports = function initAiRoutes(app) {
 
   const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-  // Simple in-memory rate limiter per key (token or IP)
-  const rateMap = new Map();
+  const aiRateLimit = rateLimit({
+    windowMs: RATE_WINDOW,
+    limit: RATE_LIMIT,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { success: false, message: 'Rate limit exceeded' },
+  });
 
-  function checkAuthAndRate(req, res) {
+  function checkAiAuth(req, res) {
     // Accept token from `x-ai-token` header or Authorization: Bearer <token>
     const headerToken =
       req.headers['x-ai-token'] ||
@@ -24,28 +30,15 @@ module.exports = function initAiRoutes(app) {
       return false;
     }
 
-    const key = token || req.ip || req.connection.remoteAddress || 'anon';
-    const now = Date.now();
-    const entry = rateMap.get(key) || { count: 0, reset: now + RATE_WINDOW };
-    if (now > entry.reset) {
-      entry.count = 0;
-      entry.reset = now + RATE_WINDOW;
-    }
-    entry.count += 1;
-    rateMap.set(key, entry);
-    if (entry.count > RATE_LIMIT) {
-      res.status(429).json({ success: false, message: 'Rate limit exceeded' });
-      return false;
-    }
     return true;
   }
 
-  function aiRouteGuard(req, res, next) {
-    if (!checkAuthAndRate(req, res)) return;
+  function aiAuthGuard(req, res, next) {
+    if (!checkAiAuth(req, res)) return;
     next();
   }
 
-  app.post('/api/ai/generate', aiRouteGuard, async (req, res) => {
+  app.post('/api/ai/generate', aiRateLimit, aiAuthGuard, async (req, res) => {
     try {
       const { topic, context } = req.body || {};
       if (!ai)
@@ -60,7 +53,7 @@ module.exports = function initAiRoutes(app) {
     }
   });
 
-  app.post('/api/ai/check', aiRouteGuard, async (req, res) => {
+  app.post('/api/ai/check', aiRateLimit, aiAuthGuard, async (req, res) => {
     try {
       const { text } = req.body || {};
       if (!ai)

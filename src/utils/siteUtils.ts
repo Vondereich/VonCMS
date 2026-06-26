@@ -148,6 +148,31 @@ export const normalizeSiteUrl = (url?: string): string => {
   return `${basePath}/${trimmed.replace(/^\/+/, '')}`;
 };
 
+export const normalizeImageSource = (url?: string, fallback: string = ''): string => {
+  if (!url) return fallback;
+
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith('//')) return fallback;
+
+  if (trimmed.startsWith('data:image/')) return trimmed;
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  const basePath = getBasePathPrefix();
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  return `${basePath}/${trimmed.replace(/^\/+/, '')}`;
+};
+
 /**
  * Extracts a thumbnail URL from the first video embed found in the HTML content.
  * Supports YouTube and Vimeo.

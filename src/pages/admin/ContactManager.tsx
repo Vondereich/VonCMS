@@ -20,6 +20,12 @@ import { getAuthHeader } from '../../config/auth.config';
 import { vonFetch } from '../../utils/api';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+const LEGACY_VONCMS_EMAIL_DOMAIN = ['von', 'cms'].join('') + '.com';
+
+const isLegacyVonCmsEmail = (value: string = ''): boolean => {
+  const emailDomain = value.trim().toLowerCase().split('@').pop()?.trim();
+  return emailDomain === LEGACY_VONCMS_EMAIL_DOMAIN;
+};
 
 const DEFAULT_TEMPLATE = `<label> Your Name (required)
     [text* your-name] </label>
@@ -433,7 +439,7 @@ const ContactManager = () => {
                       Use Site Email
                     </button>
                   </div>
-                  {currentForm.mail.to.includes('voncms.com') && (
+                  {isLegacyVonCmsEmail(currentForm.mail.to) && (
                     <p className="text-xs text-orange-500 mt-1">
                       <Settings size={12} className="inline mr-1" />
                       Warning: Legacy email detected. Replace with <code>[_site_email]</code> for
@@ -472,7 +478,7 @@ const ContactManager = () => {
                       Use Site Email
                     </button>
                   </div>
-                  {currentForm.mail.from.includes('voncms.com') && (
+                  {isLegacyVonCmsEmail(currentForm.mail.from) && (
                     <p className="text-xs text-orange-500 mt-1">
                       <Settings size={12} className="inline mr-1" />
                       Warning: Legacy email detected. Replace with <code>[_site_email]</code> for

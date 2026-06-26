@@ -29,6 +29,7 @@ import {
   useProfileActivity,
   VonPopupAd,
   getResponsiveImageAttributes,
+  hasEmbeddedVideoMarkup,
 } from '../shared';
 
 import { API } from '../../config/site.config';
@@ -1131,10 +1132,7 @@ const SingleProject = ({
         if (!project.image) return null;
 
         // Check for video embeds
-        const hasVideo =
-          project.content?.includes('youtube.com/embed') ||
-          project.content?.includes('player.vimeo.com') ||
-          /<iframe|tiktok\.com/i.test(project.content || '');
+        const hasVideo = hasEmbeddedVideoMarkup(project.content);
 
         if (hasVideo) return null;
 

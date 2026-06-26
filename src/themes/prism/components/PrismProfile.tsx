@@ -6,7 +6,7 @@ import { ArrowLeft, Terminal, Cpu, LayoutDashboard } from 'lucide-react';
 import { API } from '../../../config/site.config';
 import { vonFetch } from '../../../utils/api';
 import { LoadMoreButton } from '../../../components/LoadMoreButton';
-import { getResponsiveImageAttributes } from '../../../utils/siteUtils';
+import { getResponsiveImageAttributes, normalizeImageSource } from '../../../utils/siteUtils';
 import { useProfileActivity } from '../../../hooks/useProfileActivity';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../../utils/profileUtils';
 
@@ -345,7 +345,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                 <div className="absolute inset-0 rounded-full bg-[var(--color-primary)] blur-md opacity-40 animate-pulse"></div>
                 {avatarSrc ? (
                   <img
-                    src={avatarSrc}
+                    src={normalizeImageSource(avatarSrc)}
                     alt={displayUser.display_name || targetUser.username}
                     className="w-full h-full rounded-full object-cover bg-black relative z-10"
                   />

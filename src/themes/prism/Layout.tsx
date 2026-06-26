@@ -19,7 +19,7 @@ import {
   Rss,
 } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, normalizeImageSource } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import {
   getOverflowNavigationItems,
@@ -46,6 +46,7 @@ import {
   useRelatedPosts,
   decodeEntities,
   sanitizeHtml,
+  hasEmbeddedVideoMarkup,
   ProseDarkModeStyles,
   AdBlock,
   VonPopupAd,
@@ -83,7 +84,7 @@ const CyberAvatar: React.FC<{ url?: string; name: string; email?: string; size?:
       <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] rounded-lg rotate-45 opacity-20 group-hover:rotate-90 transition-transform duration-500"></div>
       <div className="absolute inset-0.5 bg-[#050510] rounded-lg overflow-hidden flex items-center justify-center border border-white/10">
         {url ? (
-          <img src={url} alt={name} className="w-full h-full object-cover" />
+          <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
         ) : (
           <Gravatar email={email || name} size={100} className="w-full h-full object-cover" />
         )}
@@ -855,12 +856,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   {(() => {
                     if (!selectedPost.image) return null;
                     // Check if content contains video embeds at the start
-                    if (
-                      selectedPost.content?.includes('youtube.com/embed') ||
-                      selectedPost.content?.includes('player.vimeo.com') ||
-                      /<iframe|tiktok\.com/i.test(selectedPost.content || '')
-                    )
-                      return null;
+                    if (hasEmbeddedVideoMarkup(selectedPost.content)) return null;
                     // Extract filename from featured image for more reliable duplicate detection
                     const imageFilename = selectedPost.image.split('/').pop()?.split('?')[0] || '';
                     // Check if the exact URL or filename exists in content

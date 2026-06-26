@@ -14,7 +14,7 @@ import {
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
 import { LoadMoreButton } from '../../components/LoadMoreButton';
-import { getResponsiveImageAttributes } from '../../utils/siteUtils';
+import { getResponsiveImageAttributes, normalizeImageSource } from '../../utils/siteUtils';
 import { useProfileActivity } from '../../hooks/useProfileActivity';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../utils/profileUtils';
 
@@ -47,7 +47,7 @@ const TechAvatar: React.FC<{
         style={{ borderColor: borderColor || '#262626' }}
       >
         {url ? (
-          <img src={url} alt={name} className="w-full h-full object-cover" />
+          <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
         ) : (
           <Gravatar
             email={email || name}

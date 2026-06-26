@@ -23,8 +23,9 @@ import {
   User,
 } from 'lucide-react';
 import { sanitizeHTML, trimTrailingHtml } from '../utils/colorSanitizer';
-import { sanitizeEditorHtml } from '../utils/security';
+import { htmlToPlainText, sanitizeEditorHtml } from '../utils/security';
 import { analyzeSEO, SEOAnalysisResult, extractKeywords } from '../utils/seoAnalyzer';
+import { normalizeImageSource } from '../utils/siteUtils';
 import AiWritingPanel from './editor/AiWritingPanel';
 import { useAiWriting } from '../hooks/useAiWriting';
 import {
@@ -326,7 +327,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
     // Validate: Require title and content for publish/schedule (not draft)
     if (status !== 'draft') {
-      const plainText = itemForSave.content?.replace(/<[^>]*>/g, '').trim() || '';
+      const plainText = htmlToPlainText(itemForSave.content);
       if (!itemForSave.title?.trim()) {
         if (!isAutoSave) notify.error('Please enter a title before publishing.');
         return;
@@ -1031,7 +1032,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 {(item as Post).image && (
                   <div className="mt-2 relative group">
                     <img
-                      src={(item as Post).image}
+                      src={normalizeImageSource((item as Post).image)}
                       alt="Featured"
                       className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
                       onError={(e) => {
@@ -1193,7 +1194,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   onClick={() => {
                     if (!item.content && !item.title) return;
                     // Improved keyword extraction from utility (Prioritizes Title)
-                    const plainText = item.content?.replace(/<[^>]*>/g, ' ') || '';
+                    const plainText = htmlToPlainText(item.content);
                     const sorted = extractKeywords(plainText, item.title || '').join(', ');
                     setItem((prev) => (prev ? { ...prev, keywords: sorted } : null));
                   }}

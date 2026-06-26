@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../../types';
 import { Palette, X, Save, Type, FileText, CheckCircle, Mail, Image } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { normalizeImageSource } from '../../../../../../utils/siteUtils';
 
 interface CorporateProSettingsProps {
   settings: SiteSettings;
@@ -510,7 +511,11 @@ const ImagePickerField = ({
       />
       <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-100 dark:bg-[#1a1b26] overflow-hidden flex-shrink-0">
         {value ? (
-          <img src={value} className="w-full h-full object-cover" alt="Preview" />
+          <img
+            src={normalizeImageSource(value)}
+            className="w-full h-full object-cover"
+            alt="Preview"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-slate-300">
             <Image size={24} />

@@ -22,7 +22,7 @@ import {
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, normalizeImageSource } from '../../utils/siteUtils';
 
 // Theme SDK
 import {
@@ -44,6 +44,7 @@ import {
   useRelatedPosts,
   decodeEntities,
   sanitizeHtml,
+  hasEmbeddedVideoMarkup,
   AdBlock,
   VonPopupAd,
   getResponsiveImageAttributes,
@@ -306,7 +307,7 @@ const DigestAvatar: React.FC<{
     className={`${size} rounded-full overflow-hidden ${className} flex-shrink-0 ring-2 ring-white/10`}
   >
     {url ? (
-      <img src={url} alt={name} className="w-full h-full object-cover" />
+      <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
     ) : (
       <Gravatar
         email={email || name}
@@ -1646,12 +1647,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 {(() => {
                   if (!selectedPost.image) return null;
                   // Check if content contains video embeds (iframe, youtube, vimeo, tiktok)
-                  if (
-                    selectedPost.content?.includes('youtube.com/embed') ||
-                    selectedPost.content?.includes('player.vimeo.com') ||
-                    /\<iframe|tiktok\.com/i.test(selectedPost.content || '')
-                  )
-                    return null;
+                  if (hasEmbeddedVideoMarkup(selectedPost.content)) return null;
 
                   // Extract filename from featured image for more reliable duplicate detection
                   const imageFilename = selectedPost.image.split('/').pop()?.split('?')[0] || '';

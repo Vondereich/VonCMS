@@ -46,9 +46,10 @@ import {
   AdBlock,
   VonPopupAd,
   sanitizeHtml,
+  hasEmbeddedVideoMarkup,
   getResponsiveImageAttributes,
 } from '../shared';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { normalizeImageSource, normalizeSiteUrl } from '../../utils/siteUtils';
 
 // Utility to render User Avatar
 const UserAvatar: React.FC<{
@@ -65,7 +66,7 @@ const UserAvatar: React.FC<{
       className={`${size} rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 flex-shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
     >
       {url ? (
-        <img src={url} alt={name} className="w-full h-full object-cover" />
+        <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
       ) : (
         <Gravatar
           email={email || name}
@@ -1399,11 +1400,7 @@ const SinglePostView: React.FC<{
         {(() => {
           if (!post.image) return null;
           // Check if content contains video embeds at the start
-          if (
-            post.content?.includes('youtube.com/embed') ||
-            post.content?.includes('player.vimeo.com')
-          )
-            return null;
+          if (hasEmbeddedVideoMarkup(post.content)) return null;
 
           // Extract filename to check for matches (e.g. "image.jpg")
           const imageFilename = post.image.split('/').pop()?.split('?')[0] || '';

@@ -16,7 +16,7 @@ export { default as VonPopupAd } from './components/VonPopupAd';
 
 // 2. SEO & Security
 export { default as VonSEO } from '../../plugins/von-core/features/seo/VonSEO';
-export { sanitizeHtml } from '../../utils/security';
+export { hasEmbeddedVideoMarkup, sanitizeHtml } from '../../utils/security';
 export { decodeEntities } from '../../utils/textUtils';
 export { formatDate, getResponsiveImageAttributes } from '../../utils/siteUtils';
 

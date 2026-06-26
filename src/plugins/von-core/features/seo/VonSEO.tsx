@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Post, Page, SiteSettings, User } from '../../../../types';
 import { getPermalink } from '../../../../utils/siteUtils';
 import { BASE_PATH } from '../../../../config/site.config';
+import { htmlToPlainText } from '../../../../utils/security';
 
 const ensureMeta = (nameOrProp: string, attr: 'name' | 'property', content: string) => {
   if (!content) return;
@@ -92,9 +93,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
       title = `${selectedPage.title} — ${siteTitle}`;
       description =
         selectedPage.excerpt ||
-        (selectedPage.content
-          ? selectedPage.content.replace(/<[^>]+>/g, '').slice(0, 160)
-          : description);
+        (selectedPage.content ? htmlToPlainText(selectedPage.content).slice(0, 160) : description);
       type = 'website';
       canonicalPath = `${basePrefix}/${selectedPage.slug}`;
     } else if (currentView === 'profile' && selectedProfile) {

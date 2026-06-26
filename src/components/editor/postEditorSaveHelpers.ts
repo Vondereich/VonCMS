@@ -1,4 +1,5 @@
 import type { Page, Post } from '../../types';
+import { htmlToPlainText } from '../../utils/security';
 
 export const AUTOSAVE_INTERVAL_MS = 60000;
 export const SAVE_CONFLICT_MESSAGE =
@@ -17,11 +18,7 @@ export const formatAutoSaveCountdown = (seconds: number) => {
 
 export const isEffectivelyEmpty = (html: string | undefined) => {
   if (!html) return true;
-  const clean = html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, '')
-    .trim();
-  return clean === '';
+  return htmlToPlainText(html) === '';
 };
 
 export const normalizeScheduledInputValue = (value?: string) => {
