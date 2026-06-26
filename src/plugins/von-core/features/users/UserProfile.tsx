@@ -15,7 +15,8 @@ import { vonFetch } from '../../../../utils/api';
 import { sanitizeHtml } from '../../../../utils/security';
 import { LoadMoreButton } from '../../../../components/LoadMoreButton';
 import { useProfileActivity } from '../../../../hooks/useProfileActivity';
-import { getResponsiveImageAttributes, normalizeImageSource } from '../../../../utils/siteUtils';
+import { getResponsiveImageAttributes } from '../../../../utils/siteUtils';
+import { SafeImage } from '../../../../components/SafeImage';
 import {
   getProfileDisplayRole,
   isOwnUserProfile,
@@ -45,16 +46,19 @@ const ProfileAvatar: React.FC<{ url?: string; name: string; email?: string; size
     <div
       className={`${size} rounded-full overflow-hidden border-4 border-white dark:border-neutral-900 bg-neutral-100 flex-shrink-0 shadow-lg`}
     >
-      {url ? (
-        <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
-      ) : (
-        <Gravatar
-          email={email || name}
-          size={200}
-          className="w-full h-full object-cover"
-          default="identicon"
-        />
-      )}
+      <SafeImage
+        src={url}
+        alt={name}
+        className="w-full h-full object-cover"
+        fallback={
+          <Gravatar
+            email={email || name}
+            size={200}
+            className="w-full h-full object-cover"
+            default="identicon"
+          />
+        }
+      />
     </div>
   );
 };

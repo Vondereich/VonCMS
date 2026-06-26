@@ -33,12 +33,13 @@ import {
 
 import TechPressProfile from './Profile';
 import TechPressFooter from './TechPressFooter';
+import { SafeImage } from '../../components/SafeImage';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
-import { normalizeImageSource, normalizeSiteUrl } from '../../utils/siteUtils';
+import { normalizeSiteUrl } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 
 // TechPress Avatar Component with Gravatar Support
@@ -51,16 +52,19 @@ const TechPressAvatar: React.FC<{
 }> = ({ url, name, email, size = 'w-8 h-8', className = '' }) => {
   return (
     <div className={`${size} rounded-full overflow-hidden ${className} flex-shrink-0`}>
-      {url ? (
-        <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
-      ) : (
-        <Gravatar
-          email={email || name}
-          size={100}
-          className="w-full h-full object-cover"
-          default="identicon"
-        />
-      )}
+      <SafeImage
+        src={url}
+        alt={name}
+        className="w-full h-full object-cover"
+        fallback={
+          <Gravatar
+            email={email || name}
+            size={100}
+            className="w-full h-full object-cover"
+            default="identicon"
+          />
+        }
+      />
     </div>
   );
 };

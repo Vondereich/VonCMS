@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../../types';
 import { Palette, X, Save, Type, FileText, CheckCircle, Mail, Image } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { normalizeImageSource } from '../../../../../../utils/siteUtils';
+import { SafeImage } from '../../../../../../components/SafeImage';
 
 interface CorporateProSettingsProps {
   settings: SiteSettings;
@@ -510,17 +510,16 @@ const ImagePickerField = ({
         className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
       />
       <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-100 dark:bg-[#1a1b26] overflow-hidden flex-shrink-0">
-        {value ? (
-          <img
-            src={normalizeImageSource(value)}
-            className="w-full h-full object-cover"
-            alt="Preview"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-300">
-            <Image size={24} />
-          </div>
-        )}
+        <SafeImage
+          src={value}
+          className="w-full h-full object-cover"
+          alt="Preview"
+          fallback={
+            <div className="w-full h-full flex items-center justify-center text-slate-300">
+              <Image size={24} />
+            </div>
+          }
+        />
       </div>
     </div>
   </div>

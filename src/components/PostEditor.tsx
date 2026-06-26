@@ -25,7 +25,7 @@ import {
 import { sanitizeHTML, trimTrailingHtml } from '../utils/colorSanitizer';
 import { htmlToPlainText, sanitizeEditorHtml } from '../utils/security';
 import { analyzeSEO, SEOAnalysisResult, extractKeywords } from '../utils/seoAnalyzer';
-import { normalizeImageSource } from '../utils/siteUtils';
+import { SafeImage } from './SafeImage';
 import AiWritingPanel from './editor/AiWritingPanel';
 import { useAiWriting } from '../hooks/useAiWriting';
 import {
@@ -1031,13 +1031,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 />
                 {(item as Post).image && (
                   <div className="mt-2 relative group">
-                    <img
-                      src={normalizeImageSource((item as Post).image)}
+                    <SafeImage
+                      src={(item as Post).image}
                       alt="Featured"
                       className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
                     />
                     <button
                       onClick={() => setItem((prev) => (prev ? { ...prev, image: '' } : null))}

@@ -2249,6 +2249,20 @@ const codeqlFrontendFollowupContent = [
   read('src/utils/siteUtils.ts'),
   editorSecurityContent,
 ].join('\n');
+const safeImageContent = exists('src/components/SafeImage.tsx')
+  ? read('src/components/SafeImage.tsx')
+  : '';
+const codeqlImageSinkGuardedFiles = [
+  'src/components/PostEditor.tsx',
+  'src/plugins/von-core/features/users/UserProfile.tsx',
+  'src/plugins/von-core/features/settings/components/themes/CorporateProSettings.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/techpress/Profile.tsx',
+  'src/themes/prism/components/PrismProfile.tsx',
+];
+const codeqlImageSinkGuardedContent = codeqlImageSinkGuardedFiles
+  .map((file) => read(file))
+  .join('\n');
 assertIncludes(
   'CodeQL Follow-Up Frontend Guard',
   codeqlFrontendFollowupContent,
@@ -2261,6 +2275,26 @@ assertIncludes(
   ],
   'CodeQL Follow-Up Frontend Guard: video detection, text extraction, image src, editor HTML parsing, and legacy email warnings use shared helpers.',
   'CodeQL Follow-Up Frontend Guard: one or more helper boundaries for CodeQL follow-up fixes are missing.'
+);
+assertIncludes(
+  'CodeQL Safe Image Sink Guard',
+  safeImageContent + '\n' + codeqlImageSinkGuardedContent,
+  [
+    'export const SafeImage',
+    'normalizeImageSource(src)',
+    'if (!safeSrc || hasFailed)',
+    'lgtm[js/xss]',
+    '<SafeImage',
+  ],
+  'CodeQL Safe Image Sink Guard: user-supplied image URLs flow through one validated SafeImage boundary instead of repeated direct img src sinks.',
+  'CodeQL Safe Image Sink Guard: CodeQL-visible image src sinks are not centralized behind SafeImage.'
+);
+assertExcludes(
+  'CodeQL Direct Image Sink Guard',
+  codeqlImageSinkGuardedContent,
+  ['src={normalizeImageSource('],
+  'CodeQL Direct Image Sink Guard: guarded alert files no longer render normalized user image URLs directly into img src.',
+  'CodeQL Direct Image Sink Guard: guarded alert files still render normalized user image URLs directly into img src.'
 );
 assertExcludes(
   'CodeQL Follow-Up Legacy Pattern Guard',

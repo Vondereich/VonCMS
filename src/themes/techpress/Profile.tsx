@@ -14,7 +14,8 @@ import {
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
 import { LoadMoreButton } from '../../components/LoadMoreButton';
-import { getResponsiveImageAttributes, normalizeImageSource } from '../../utils/siteUtils';
+import { SafeImage } from '../../components/SafeImage';
+import { getResponsiveImageAttributes } from '../../utils/siteUtils';
 import { useProfileActivity } from '../../hooks/useProfileActivity';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../utils/profileUtils';
 
@@ -46,16 +47,19 @@ const TechAvatar: React.FC<{
         className="relative w-full h-full rounded-xl overflow-hidden border-2 bg-neutral-900"
         style={{ borderColor: borderColor || '#262626' }}
       >
-        {url ? (
-          <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
-        ) : (
-          <Gravatar
-            email={email || name}
-            size={200}
-            className="w-full h-full object-cover"
-            default="identicon"
-          />
-        )}
+        <SafeImage
+          src={url}
+          alt={name}
+          className="w-full h-full object-cover"
+          fallback={
+            <Gravatar
+              email={email || name}
+              size={200}
+              className="w-full h-full object-cover"
+              default="identicon"
+            />
+          }
+        />
       </div>
       {/* Tech Corners */}
       <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-white opacity-50"></div>

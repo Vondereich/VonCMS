@@ -19,7 +19,8 @@ import {
   Rss,
 } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
-import { getBasePathPrefix, normalizeImageSource } from '../../utils/siteUtils';
+import { SafeImage } from '../../components/SafeImage';
+import { getBasePathPrefix } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import {
   getOverflowNavigationItems,
@@ -83,11 +84,14 @@ const CyberAvatar: React.FC<{ url?: string; name: string; email?: string; size?:
     <div className={`${size} relative group`}>
       <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] rounded-lg rotate-45 opacity-20 group-hover:rotate-90 transition-transform duration-500"></div>
       <div className="absolute inset-0.5 bg-[#050510] rounded-lg overflow-hidden flex items-center justify-center border border-white/10">
-        {url ? (
-          <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
-        ) : (
-          <Gravatar email={email || name} size={100} className="w-full h-full object-cover" />
-        )}
+        <SafeImage
+          src={url}
+          alt={name}
+          className="w-full h-full object-cover"
+          fallback={
+            <Gravatar email={email || name} size={100} className="w-full h-full object-cover" />
+          }
+        />
       </div>
     </div>
   );

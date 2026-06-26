@@ -6,7 +6,8 @@ import { ArrowLeft, Terminal, Cpu, LayoutDashboard } from 'lucide-react';
 import { API } from '../../../config/site.config';
 import { vonFetch } from '../../../utils/api';
 import { LoadMoreButton } from '../../../components/LoadMoreButton';
-import { getResponsiveImageAttributes, normalizeImageSource } from '../../../utils/siteUtils';
+import { SafeImage } from '../../../components/SafeImage';
+import { getResponsiveImageAttributes } from '../../../utils/siteUtils';
 import { useProfileActivity } from '../../../hooks/useProfileActivity';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../../utils/profileUtils';
 
@@ -343,20 +344,19 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] mb-4 relative">
                 <div className="absolute inset-0 rounded-full bg-[var(--color-primary)] blur-md opacity-40 animate-pulse"></div>
-                {avatarSrc ? (
-                  <img
-                    src={normalizeImageSource(avatarSrc)}
-                    alt={displayUser.display_name || targetUser.username}
-                    className="w-full h-full rounded-full object-cover bg-black relative z-10"
-                  />
-                ) : (
-                  <Gravatar
-                    email={displayUser.email || displayUser.username}
-                    size={200}
-                    className="w-full h-full rounded-full object-cover bg-black relative z-10"
-                    default="identicon"
-                  />
-                )}
+                <SafeImage
+                  src={avatarSrc}
+                  alt={displayUser.display_name || targetUser.username}
+                  className="w-full h-full rounded-full object-cover bg-black relative z-10"
+                  fallback={
+                    <Gravatar
+                      email={displayUser.email || displayUser.username}
+                      size={200}
+                      className="w-full h-full rounded-full object-cover bg-black relative z-10"
+                      default="identicon"
+                    />
+                  }
+                />
               </div>
 
               <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">

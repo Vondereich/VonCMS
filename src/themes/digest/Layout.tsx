@@ -22,7 +22,8 @@ import {
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
-import { getBasePathPrefix, normalizeImageSource } from '../../utils/siteUtils';
+import { SafeImage } from '../../components/SafeImage';
+import { getBasePathPrefix } from '../../utils/siteUtils';
 
 // Theme SDK
 import {
@@ -306,16 +307,19 @@ const DigestAvatar: React.FC<{
   <div
     className={`${size} rounded-full overflow-hidden ${className} flex-shrink-0 ring-2 ring-white/10`}
   >
-    {url ? (
-      <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
-    ) : (
-      <Gravatar
-        email={email || name}
-        size={100}
-        className="w-full h-full object-cover"
-        default="identicon"
-      />
-    )}
+    <SafeImage
+      src={url}
+      alt={name}
+      className="w-full h-full object-cover"
+      fallback={
+        <Gravatar
+          email={email || name}
+          size={100}
+          className="w-full h-full object-cover"
+          default="identicon"
+        />
+      }
+    />
   </div>
 );
 

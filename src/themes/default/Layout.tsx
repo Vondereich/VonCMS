@@ -18,6 +18,7 @@ import {
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
+import { SafeImage } from '../../components/SafeImage';
 import { getBasePathPrefix } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 
@@ -49,7 +50,7 @@ import {
   hasEmbeddedVideoMarkup,
   getResponsiveImageAttributes,
 } from '../shared';
-import { normalizeImageSource, normalizeSiteUrl } from '../../utils/siteUtils';
+import { normalizeSiteUrl } from '../../utils/siteUtils';
 
 // Utility to render User Avatar
 const UserAvatar: React.FC<{
@@ -65,16 +66,19 @@ const UserAvatar: React.FC<{
       onClick={onClick}
       className={`${size} rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 flex-shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
     >
-      {url ? (
-        <img src={normalizeImageSource(url)} alt={name} className="w-full h-full object-cover" />
-      ) : (
-        <Gravatar
-          email={email || name}
-          size={100}
-          className="w-full h-full object-cover"
-          default="identicon"
-        />
-      )}
+      <SafeImage
+        src={url}
+        alt={name}
+        className="w-full h-full object-cover"
+        fallback={
+          <Gravatar
+            email={email || name}
+            size={100}
+            className="w-full h-full object-cover"
+            default="identicon"
+          />
+        }
+      />
     </div>
   );
 };
