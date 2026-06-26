@@ -1,0 +1,11 @@
+Inter Font Notice
+
+The bundled Inter variable WOFF2 font files in this directory are provided with
+VonCMS so the default installation can render without a Google Fonts runtime
+request.
+
+Inter is licensed under the SIL Open Font License, Version 1.1.
+License reference: https://openfontlicense.org/
+WOFF2 package source: @fontsource-variable/inter.
+
+Keep this notice with the bundled font files in Deploy and Source packages.

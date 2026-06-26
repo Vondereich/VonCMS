@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/Vondereich/VonCMS/security/advisories/new
+    about: Use private disclosure for authentication bypass, secret leakage, arbitrary file access, upload bypass, SQL injection, remote code execution, destructive data loss, or similarly high-impact issues.

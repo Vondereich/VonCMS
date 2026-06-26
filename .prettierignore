@@ -1,0 +1,6 @@
+node_modules
+dist
+public/assets
+*.min.js
+*.min.css
+public/index.php

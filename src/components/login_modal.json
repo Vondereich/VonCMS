@@ -1,0 +1,22 @@
+{
+  "premium": true,
+  "title": "Member Login",
+  "subtitle": "Please sign in to continue",
+  "buttonLogin": "Sign In",
+  "buttonRegister": "Register",
+  "background": "rgba(0,0,0,0.55)",
+  "backdropBlur": "6px",
+  "themeColor": "#0ea5ff",
+  "modalStyle": {
+    "bg": "rgba(255,255,255,0.96)",
+    "radius": "10px",
+    "padding": "20px",
+    "width": "380px"
+  },
+  "showClose": true,
+  "showBadge": false,
+  "badgeText": "",
+  "animation": {
+    "open": "scale-95/opacity-0 -> scale-100/opacity-100"
+  }
+}

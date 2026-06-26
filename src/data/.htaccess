@@ -1,0 +1,27 @@
+<IfModule !mod_authz_core.c>
+  Deny from all
+</IfModule>
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>
+
+# Prevent direct access to JSON files (extra layer)
+<FilesMatch "\.(json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# If you need to expose certain files, place an allow rule or move them outside webroot.

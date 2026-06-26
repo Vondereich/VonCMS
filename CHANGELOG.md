@@ -1,3 +1,88 @@
+### [v1.25.1] - 2026-06-25
+
+> OpenGate follow-up for first public-source impression, sidebar reading context, release package truth, and GitHub contribution readiness.
+
+- **Open Source First Impression Follow-Up**:
+  - **Quickstart Guide**: Added `docs/QUICKSTART.md` as a short first-run path for Deploy ZIP hosting, Laragon/local checks, first admin login, first post publish, and source checkout commands.
+  - **Install Docs Triage**: README, INSTALL, VPS, and UPGRADE guidance now keep shared-hosting Apache/LiteSpeed, Nginx-only VPS parity, manual update, and `v1.25.0` OTA `.htaccess` repair notes separated so the install paths do not contradict each other.
+  - **Public Claim Verification**: Open-source-facing docs were re-aligned to the current release label and package names while preserving historical `v1.25.0` OTA warnings where they still apply.
+  - **Package Hygiene Audit**: Release smoke continues to guard Deploy and Source ZIP contents for canonical README, license, metadata, docs, `.htaccess` files, and exclusions for local config, backups, logs, maps, `node_modules`, and private planning files.
+  - **Open Source Issue Templates**: Added GitHub bug report, release-audit, issue-template config, and pull request templates, including private-report guidance for dangerous security findings.
+- **Public Theme Polish**:
+  - **Sidebar Current Post Highlight**: Shared public sidebar trending widgets now receive the active post id and mark the matching item with `aria-current="page"` plus a subtle highlight in Default, TechPress, and Digest single-post views.
+  - **Public Author Display Name**: User profiles now support an optional display name/pen name for public bylines and profile headers while keeping the username as the stable login and `/profile/{username}` route key.
+  - **Author Route Compatibility**: Public post, page, RSS, SSR schema, and client SEO payloads now keep `author_data.username` separate from the displayed byline so changing a pen name does not break author profile links.
+  - **Multi-Word Category Breadcrumbs**: Category permalink surfaces now normalize multi-word category slugs consistently across SSR canonical URLs, homepage hydration, sitemap, RSS, and `llms.txt`, while SSR and React SEO breadcrumbs expose `Home > Category > Post` for clearer search-engine category signals.
+- **Admin UI Polish**:
+  - **Solid Admin Palette**: Admin dark mode now uses the `#16161e` shell with `#1a1b26` admin panels and `#101018` deep editor/terminal surfaces across the core admin UI, while updater UI accents now use solid orange instead of decorative gradients.
+  - **Pending Email Approval**: Admin 1/root can now identify users with pending email verification in User Manager and approve the verification state from the user edit flow.
+  - **Navigation Menu Reordering**: General Settings menu items can now be drag-reordered before saving, using the existing navigation settings array without adding a new storage path.
+  - **Contact And Login Palette Cleanup**: Contact Form Manager and the public login/recovery form now use the solid slate admin palette instead of the older blue accent treatment.
+  - **Final Palette And Menu Hygiene**: Contact Form Manager and login surfaces now use the same solid `#16161e`/`#1a1b26`/`#101018` admin palette, and General Settings quick-add menu checkboxes no longer reuse duplicate HTML ids.
+- **Public Developer Docs**:
+  - **Source ZIP Workflow Clarity**: README and CONTRIBUTING now point public source readers to shipped docs and maintainer instructions instead of requiring private `.agent` workflow files that are intentionally excluded from Source ZIP packages.
+  - **Source Smoke Public Docs Guard**: Integration smoke now checks retired theme/plugin references against public README, contributor, theme, plugin, and quickstart docs instead of private `.agent` workflow files, so public Source ZIPs can run the gate without agent-local folders.
+  - **README Open-Source Landing Page**: README now removes the external preview image table and uses a text-first open-source structure covering project status, hosting install, source development, architecture, theme/plugin extension points, release checks, and documentation links.
+  - **Security Policy Disclosure Path**: `docs/SECURITY.md` now starts with private vulnerability reporting instructions, the maintainer contact email, and clearer wording that the guide is not a penetration-test certificate.
+- **Dependency Review**:
+  - **NPM Outdated Audit And Safe Refresh**: `npm outdated` was reviewed on 2026-06-25, the semver-safe wanted updates were applied for `@openrouter/sdk`, `@vitejs/plugin-react`, `autoprefixer`, `recharts`, and `vite`, and `@types/node` was moved to `26.0.1` after a compile/build audit. Tailwind v4 remains parked for a dedicated migration.
+  - **OpenRouter SDK Patch Refresh**: Refreshed `@openrouter/sdk` from `0.13.14` to `0.13.16`, matching the current wanted/latest patch line while leaving the Tailwind v4 major migration parked.
+- **Security Hardening**:
+  - **SSR JSON-LD Script Safety**: Public schema JSON-LD now uses hex escaping for tag, quote, apostrophe, and ampersand characters so post/page metadata cannot close the schema script tag.
+  - **Root Account Edit Boundary**: Appointed admins can no longer modify any Root account through direct user-save API calls; only admin 1/root can edit Root users.
+  - **Guest Comment CSRF Guard**: Guest comment creation now requires the same same-site CSRF token used by normal public POST flows, while keeping anonymous rate limiting in place.
+  - **WordPress Import File And Fetch Guard**: WordPress XML scan files now use random temp names, deny direct web access in the temp folder, clean up after final import batches, and pin cURL DNS resolution for remote media rehosting.
+- **Release Version Alignment**:
+  - Bumped the OpenGate line to `v1.25.1`.
+
+### [v1.25.0] - 2026-06-18
+
+> OpenGate starts the v1.25 line with release-readiness fixes for direct entry routing, slow post/page loading, AI key expiry, Gemini completion handling, external font loading, and open-source onboarding documentation.
+
+- **Runtime Entry Safety**:
+  - **Direct `index.html` Guard**: Root, public, installer, and `.htaccess` repair templates now route direct `/index.html` requests through `index.php`, where the PHP entry redirects them back to the homepage with `301` instead of serving the static Vite shell or falling through as a missing slug.
+  - **Generated Template Coverage**: Integration smoke now locks the runtime and generated `.htaccess` templates so installer/repair output cannot recreate the static-shell bypass.
+  - **Sensitive File Rewrite Hardening**: Runtime and generated `.htaccess` templates now block sensitive extensions and config filenames before generic crawler handling, so spoofed social-crawler user agents cannot bypass `.sql`, `.json`, `.log`, `.bak`, `.zip`, `.lock`, `von_config.php`, `composer.lock`, or `package.json` protection.
+- **Loading Stability**:
+  - **Single-Post Full Payload Skeleton**: Single-post routes now keep the route skeleton visible while the full `get_post.php` payload is loading instead of rendering preload-card data first.
+  - **Single-Page Pending Skeleton**: Ambiguous slug routes now check `get_pages.php` alongside `get_post.php` and keep the route skeleton visible until the current page lookup settles, preventing slow page fetches from falling through early.
+  - **TechPress Breaking Bar Search Guard**: TechPress breaking news now stays tied to the latest published posts and hides during active search, preventing old search results from appearing in the top marquee.
+  - **Skeleton Dark Palette**: Dark-mode pre-React skeleton blocks now use the same slate/blue surface family and shimmer tone as the runtime UI instead of flat near-black blocks with a light shimmer.
+  - **TechPress Empty Category State**: TechPress now shows a clear no-results state for invalid or empty category/search discovery URLs, with a direct return path to all stories instead of an empty layout.
+- **AI Settings And Generation**:
+  - **Expired Gemini Key Auto-Clear**: Expired saved Gemini keys are cleared from Settings state and backend storage after the 30-day boundary, the Settings field stays empty, and admins see the fresh-key notice instead of a stale prompt-only key.
+  - **Staff AI Key Session Memory**: Admin 2, Moderator, and Writer prompt-entered Gemini keys are reused in editor memory for the current runtime session without being saved to Settings, database, `localStorage`, or `sessionStorage`.
+  - **Partial Gemini Response Guard**: AI generation and AI check now reject non-`STOP` Gemini finish reasons even when partial text is returned, and the generation token budget was raised to reduce avoidable cutoffs.
+  - **SEO Health Empty Keyword Copy**: Empty keyword checks now name the missing title, meta, and content placements instead of repeating the same generic focus-keyword warning three times.
+- **External Font Loading**:
+  - **Self-Hosted Inter Default**: Static and PHP runtime entry HTML no longer load Google Fonts CSS or preconnects, while fresh installs/themes keep the original `Inter, sans-serif` look through local Inter font files shipped with the package.
+  - **Compact Variable WOFF2 Inter Bundle**: The local Inter package now ships latin and latin-ext variable WOFF2 subsets through `@fontsource-variable/inter`, replacing per-weight static files while preserving bundled theme typography.
+  - **Single Font CSS Owner**: Runtime entries load `skeleton.css` before `fonts/inter/inter.css`, while `inter.css` owns the `@font-face` declarations so the bundled font flow stays predictable as custom fonts are added later.
+  - **Bundled Font Notice**: The packaged Inter font directory now includes an explicit font license notice so Deploy and Source ZIPs do not ship anonymous font binaries.
+  - **Bundled Theme Font Choices**: Default Theme settings now offer only bundled Inter or system-safe font stacks, and bundled theme registry defaults no longer reference unshipped Google-font families.
+- **Open Source Onboarding Docs**:
+  - **README Developer Setup**: README now documents source install, Node/npm checks, audit/build/test commands, IDE/editor usage, CLI agent workflow, and links to theme/plugin/API docs for developers who fork or customize the CMS instead of only deploying ZIP packages.
+  - **README Visual Preview**: README now includes four external preview thumbnails for the post editor, TechPress theme, installer wizard, and quick editor without adding heavy image files to the repository or release packages.
+  - **Contributor Source Workflow**: CONTRIBUTING now covers the normal open-source editing flow, including Node.js setup, npm install/audit/outdated checks, Laragon/PHP linting, theme/plugin/extension ownership, installer boundaries, and release packaging commands.
+  - **Open Source Private Planning Boundary**: `.gitignore`, release packaging, contributor docs, and release smoke keep private planning files such as `MASTERPLAN_2.0.md` and `ROADMAP.md` out of the public reader path and generated Source ZIP.
+  - **GitHub Issue And Security Reporting Guidance**: Contributor and handoff docs now separate normal GitHub Issues/Pull Requests from dangerous security reports, which should be sent privately to the maintainer first for audit and coordinated disclosure.
+  - **Integration Smoke Gate Positioning**: README and contributor docs now frame `npm run test:integration` as a maintainer/PR/release regression gate instead of normal first-time source reading.
+  - **VPS Nginx `index.html` Parity**: VPS docs now include an explicit Nginx `index.html` route to `index.php`, matching the Apache/LiteSpeed hydration guard and preventing direct static shell delivery on Nginx-only installs.
+  - **OTA `.htaccess` Upgrade Warning**: README, upgrade docs, and the OTA update modal now tell admins to run System Tools > Repair `.htaccess` once after an OTA update to v1.25.0, because OTA protects the live `.htaccess` file while this release changes the managed routing and sensitive-file block.
+  - **GPL License Text**: Root `LICENSE.md` now carries the full GPL-3.0-only license text, while `docs/LICENSE.md` remains the short packaged license guide that points readers to the canonical root license.
+- **Publishing And Admin Listing Polish**:
+  - **Public Draft Visibility Guard**: Public discovery requests now force the published-only API contract even during an authenticated admin session, preventing autosaved drafts from appearing on public theme views.
+  - **Content Manager Date Clarity**: Post and page managers now label creation dates as `Created`, and post manager keeps publish timing in a separate post-only `Publish At` column.
+  - **Scheduled Publish Ordering**: Scheduled posts now retain their scheduled publish timestamp for latest-post ordering after publication while keeping the original creation date visible for admin history.
+  - **Content Manager Publish Timing Visibility**: Instead of showing `-` for published posts, the `Publish At` column now displays scheduled timing when present and falls back to the available created timestamp for published posts, while keeping `-` only for drafts.
+- **Release Packaging**:
+  - **Deploy And Source ZIP Output**: `create_release.cjs` now keeps the normal two-package release flow: Deploy ZIP for hosting and Source ZIP for open-source code review, with no checksum sidecar artifacts.
+  - **Package Size Copy Alignment**: Feature docs now describe the package surface without the old sub-1MB claim, matching the larger self-hosted-font package reality.
+  - **Benchmark And Checklist Cleanup**: Removed the obsolete local benchmark snapshot and release checklist artifacts from the source tree, README, feature docs, and release smoke contract.
+  - **Dependency Refresh**: Updated the low-risk npm dependency set, including TipTap `3.27.1`, Lucide, React Router, DOMPurify, Multer, Prettier, TypeScript, the Recharts `react-is` peer, and the Tailwind Typography patch release, while leaving the Tailwind v4 major migration parked for a later focused phase.
+- **Release Version Alignment**:
+  - Bumped the OpenGate line to `v1.25.0`.
+
 ### [v1.24.11] - 2026-06-11
 
 > Emergency HourGlass stabilization for slow-network profile loading and admin dashboard count truth before the v1.25 line starts.

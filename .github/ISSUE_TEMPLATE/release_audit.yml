@@ -1,0 +1,38 @@
+name: Release audit
+description: Report a release package, documentation, or upgrade verification issue.
+title: '[Release audit]: '
+labels: ['release', 'audit']
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Release version
+      placeholder: 'v1.25.1'
+    validations:
+      required: true
+  - type: checkboxes
+    id: package
+    attributes:
+      label: Package checked
+      options:
+        - label: Deploy ZIP
+        - label: Source ZIP
+        - label: Repository checkout
+  - type: textarea
+    id: issue
+    attributes:
+      label: What looks wrong?
+      placeholder: 'Example: Deploy ZIP is missing docs/QUICKSTART.md, README names the wrong ZIP, installer version text is inconsistent.'
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification performed
+      placeholder: 'Commands run, files inspected, hosting stack used, or manual smoke steps.'
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        If this audit discovers a dangerous security issue, do not add exploit details here. Contact the maintainer privately first.

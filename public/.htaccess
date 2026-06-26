@@ -1,0 +1,124 @@
+# BEGIN VonCMS
+# The directives (lines) between "# BEGIN VonCMS" and "# END VonCMS" are
+# dynamically generated, and should only be modified via VonCMS integrity tools.
+# Any changes to the directives between these markers will be overwritten.
+
+# Force PHP priority over static HTML when both exist in root
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # =====================================================
+  # PRIORITY 1 - VVIP LANE FOR SOCIAL CRAWLERS
+  # =====================================================
+
+  # Detect social bots (Mark them, don't stop processing)
+  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|meta-externalagent|Twitterbot|Pinterest|LinkedInBot|WhatsApp|TelegramBot|Slackbot) [NC]
+  RewriteRule ^ - [E=SOCIAL_BOT:1]
+
+  # CRITICAL: Allow Facebook to fetch IMAGES immediately (Skip everything else)
+  # Addresses: No cookie, No referer, Query string cache busting
+  RewriteCond %{HTTP_USER_AGENT} ^(facebookexternalhit|Facebot|meta-externalagent) [NC]
+  RewriteCond %{REQUEST_URI} \.(jpg|jpeg|png|webp|gif|ico|svg)$ [NC]
+  RewriteRule ^ - [L]
+
+  # =====================================================
+  # NORMAL FLOW BELOW
+  # =====================================================
+
+  # FORCE HTTPS (skip on localhost for local dev)
+  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # WWW CANONICALIZATION (Choose ONE option below)
+  # Option A: Force non-www (DEFAULT — strip www)
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+  # Auto-detect base path (no manual RewriteBase needed!)
+  RewriteCond %{REQUEST_URI}::$1 ^(/.+)/(.*)::\2$
+  RewriteRule ^(.*) - [E=BASE:%1]
+  
+  # SECURITY BLOCK
+  RewriteRule \.(sql|md|json|log|bak|env|zip|lock)$ - [F,L]
+
+  RewriteRule ^von_config\.php$ - [F,L]
+
+  RewriteRule ^composer\.lock$ - [F,L]
+
+  RewriteRule ^package\.json$ - [F,L]
+  
+    # Route direct index.html requests through PHP hydration
+    RewriteRule ^index\.html$ index.php [L,QSA]
+
+    # Serve real files
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+  
+  # Serve existing directories directly  
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  
+  # Keep PHP endpoints accessible
+  RewriteRule ^(api\.php|index\.php)$ $1 [L]
+  
+  # Handle API requests
+  RewriteRule ^api/(.*)$ api/$1 [L]
+  
+  # Dynamic robots.txt
+  RewriteRule ^robots\.txt$ robots.php [L]
+
+  # Dynamic llms.txt (AI/LLM-friendly site summary)
+  RewriteRule ^llms\.txt$ llms.php [L]
+
+  # Dynamic sitemap.xml
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
+  # RSS feed (clean URL)
+  RewriteRule ^rss$ rss.php [L]
+  RewriteRule ^rss\.xml$ rss.php [L]
+  RewriteRule ^feed$ rss.php [L]
+  RewriteRule ^feed\.xml$ rss.php [L]
+
+  # Fallback to index.php for SPA routing
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+  Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+  Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header unset Server
+  Header unset X-Powered-By
+</IfModule>
+
+# Security - block hidden files
+<FilesMatch "^\.+">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_mime.c>
+  AddType application/javascript .js
+  AddType text/css .css
+  AddType image/webp .webp
+  AddType font/woff2 .woff2
+</IfModule>
+
+# Prevent directory listing globally
+Options -Indexes
+
+# ENABLE GZIP COMPRESSION
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE application/xml image/svg+xml
+</IfModule>
+# END VonCMS
+

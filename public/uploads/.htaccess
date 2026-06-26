@@ -1,0 +1,8 @@
+# VonCMS Uploads Security
+# Block all script execution in this directory
+
+<FilesMatch "\.(php|php5|phtml|pl|py|jsp|asp|htm|html|shtml|sh|cgi)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes

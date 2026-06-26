@@ -1,250 +1,342 @@
-# VonCMS v1.24.11 Late Night Update "HourGlass"
+# VonCMS
 
-<div align="center">
+VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-![VonCMS Banner](https://i.ibb.co/rG3XY737/fa17357f-0820-4069-b688-6baa3b0dd50e.png)
+VonCMS v1.25.1 "OpenGate" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
-[![Version](https://img.shields.io/badge/Version-1.24.11-96FF00?style=for-the-badge&logo=github)](https://github.com/Vondereich/VonCMS)
-[![Downloads](https://img.shields.io/github/downloads/Vondereich/VonCMS/total?style=for-the-badge&logo=github&color=blue)](https://github.com/Vondereich/VonCMS/releases)
-[![Stars](https://img.shields.io/github/stars/Vondereich/VonCMS?style=for-the-badge&logo=github&color=magenta)](https://github.com/Vondereich/VonCMS/stargazers)
-[![Sponsor](https://img.shields.io/badge/Sponsor-Vondereich-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Vondereich)
-[![PHP](https://img.shields.io/badge/PHP-8.2--8.5-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![License](https://img.shields.io/badge/License-GPL--3.0--only-gold?style=for-the-badge)](docs/LICENSE.md)
+[Website](https://vondereich.github.io/getvoncms/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
-**Pragmatic publishing infrastructure for real websites. No plugin chaos. No hosting headaches.**
+## Project Status
 
-Ultra-fast. Self-hosted. Zero plugin headaches. VonCMS pairs React 19 with PHP to deliver a CMS that's **56x lighter than WordPress** — and actually enjoyable to use.
+VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
-[Website](https://vondereich.github.io/getvoncms/) | [Live Demo](https://skripglobal.com/) | [Download](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
+The v1.25.x line is focused on open-source onboarding, shared-hosting deployment, stable public routing, source packaging, and developer documentation. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
 
-</div>
+> [!IMPORTANT]
+> **Updating an existing site to v1.25.0 through OTA?**
+> After the OTA update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
+> The OTA updater intentionally protects your live `.htaccess`, so this step is needed to apply the v1.25.0 managed routing and sensitive-file protection changes while preserving hosting rules outside the VonCMS block.
 
----
+## Why VonCMS?
 
-## 🌟 Community & Open Source Transition
+Traditional CMS platforms are easy to host but often become slow, plugin-heavy, and hard to maintain. Modern headless stacks are powerful but usually add paid hosting assumptions, build pipelines, and too many moving parts for ordinary publishing sites.
 
-A huge **thank you** to everyone who has tried VonCMS and supported us with a GitHub ⭐! Your interest and feedback are what drive this project forward.
+VonCMS keeps the runtime simple:
 
-VonCMS is on a mission to modernize the PHP publishing landscape. The project is preparing for the **v1.25.x open-source milestone** under the **GPL-3.0-only license**. This transition is an invitation for the community to help shape the next era of lightweight publishing.
+- PHP and MySQL for shared-hosting deployment.
+- React 19 for the admin dashboard, editor, media tools, settings, comments, and extensions.
+- Server-rendered public metadata for SEO, social cards, sitemaps, feeds, and crawlers.
+- Built-in publishing tools so common site features do not require a pile of third-party plugins.
+- Source-level customization for developers, designers, agencies, and AI-assisted coding workflows.
 
-**Help us grow:** Spread the word, share the repository with fellow publishers, and help us build a lighter, faster future for the web. Together, we can make VonCMS the go-to alternative for high-performance publishing.
+## What Is Included
 
-For shipped release truth, see [CHANGELOG](CHANGELOG.md).
+**Content**: posts, pages, drafts, scheduled publishing, rich TipTap editor, media manager, categories, excerpts, metadata, keywords, responsive images, and quick edit.
 
----
+**Admin**: dashboard, settings, users, role boundaries, comments moderation, contact forms, newsletter tools, database utilities, audit logs, and repair tools.
 
-[![VonCMS Admin Walkthrough](https://img.youtube.com/vi/glbqEG37aiM/maxresdefault.jpg)](https://www.youtube.com/watch?v=glbqEG37aiM)
+**Public site**: bundled themes, navigation menus, profiles, category views, search, comments, feeds, sitemap, robots output, `llms.txt`, JSON-LD, canonical URLs, Open Graph, and Twitter cards.
 
----
+**Extensions**: built-in SEO, analytics, gift widget, related posts, promo bar, and AI summary plugins with activation controls.
 
-## At A Glance
+**Developer surface**: theme registry, plugin registration, PHP APIs, smoke tests, release packaging, source documentation, and GPL-3.0-only licensing.
 
-| If you need...                           | VonCMS gives you...                                                   |
-| ---------------------------------------- | --------------------------------------------------------------------- |
-| A modern admin experience                | React 19 SPA dashboard, editor, media, comments, themes, analytics    |
-| Shared-hosting deployment                | PHP/MySQL backend, Apache/LiteSpeed support, no Node.js runtime       |
-| Search-friendly public pages             | Server-rendered SEO output, meta tags, JSON-LD, canonical URLs        |
-| Publisher workflows without plugin chaos | Roles, drafts, scheduled posts, audit logs, newsletter, comments      |
-| A cleaner path to open source            | Closed v1.23.x "Rentaka" baseline before the v1.24.x "HourGlass" line |
+## Requirements
 
----
+| Layer              | Requirement                          |
+| ------------------ | ------------------------------------ |
+| PHP                | 8.2 or newer                         |
+| Database           | MySQL 5.7 or newer                   |
+| Web server         | Apache or LiteSpeed with `.htaccess` |
+| Local PHP checks   | Laragon, XAMPP, WAMP, or PHP on PATH |
+| Source development | Node.js LTS and npm                  |
 
-## ⚡ Performance Baseline
+Production hosting does not need Node.js, Vite, npm, or a separate frontend server. Source development does.
 
-VonCMS is built for speed, not just in the editor, but for the final reader and the system owner.
+For source work, install Node.js LTS from <https://nodejs.org/>. The installer includes `npm`. After installing, open a terminal and confirm:
 
-| Metric              | Benchmark / Score                                                   |
-| ------------------- | ------------------------------------------------------------------- |
-| **Lighthouse SEO**  | 🟢 **100/100**                                                      |
-| **Lighthouse PERF** | 🟢 **100/100**                                                      |
-| **TTFB Snapshot**   | See [Benchmark v7](BENCHMARK.md) for the current no-CDN TTFB report |
-| **Setup Time**      | 🚀 **< 2 Minutes** (Extractor + Installer wizard)                   |
-| **Complexity**      | 📦 **~200 Core Files** (No `node_modules` in production)            |
-| **Plugins Needed**  | 🛡️ **0** (Everything is built-in)                                   |
+```bash
+node --version
+npm --version
+```
 
----
+On Windows, Laragon is the easiest PHP/MySQL stack for local checks. XAMPP, WAMP, native PHP, Docker, or a remote dev server also work as long as PHP and MySQL meet the requirements.
 
-## Package Notice
+## Choose Your Path
 
-This repository contains **documentation and source code references only**.
+| Goal                                         | Start here                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Install VonCMS on shared hosting             | Download `VonCMS_v1.25.1_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases) |
+| Study the code or build custom features      | Fork or clone the repository                                                                        |
+| Build a custom theme                         | Read [Theme Development](docs/THEME_DEVELOPMENT.md)                                                 |
+| Build a plugin or extension                  | Read [Plugin Development](docs/PLUGIN_DEVELOPMENT.md)                                               |
+| Work on APIs, installer, routing, or updater | Read [API](docs/API.md), [Security](docs/SECURITY.md), and [Routing](docs/ROUTING.md)               |
+| Upgrade an existing website                  | Read [Upgrade](docs/UPGRADE.md)                                                                     |
 
-Download the full deployable system from:
+## Install A Website From Deploy ZIP
 
-[https://github.com/Vondereich/VonCMS/releases](https://github.com/Vondereich/VonCMS/releases)
+Use this path for normal site owners and shared-hosting installs.
 
-VonCMS ships as a **pre-built Deploy ZIP** for shared hosting. Production sites do **not** need Node.js, Vite, npm, or a separate frontend host.
+1. Download `VonCMS_v1.25.1_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases).
+2. Extract it into your hosting web root.
+3. Create a MySQL database and database user.
+4. Open `https://yourdomain.com/install`.
+5. Complete the installer wizard.
+6. Sign in at `/admin`.
+7. Publish or import content, choose a theme, and configure settings.
 
-> [!CAUTION]
-> **Update note**: OTA updates are available for the current `v1.24.x` series after the updater download and SHA256 verification flow was fixed in the `v1.24.10` baseline. If your site is on an older version and you want to upgrade to `v1.24.11`, use the manual update flow: delete the old `assets` folder, upload the new Deploy ZIP files, then follow the [Upgrade Guide](docs/UPGRADE.md).
+See [Installation](docs/INSTALL.md), [Upgrade](docs/UPGRADE.md), and [VPS Deployment](docs/VPS.md) for hosting notes.
 
----
+## Use The Open-Source Repository
 
-## The Product Story
+Use this path for developers, designers, agencies, advanced users, and AI-assisted workflows.
 
-### 1. The Problem
+### 1. Fork Or Download
 
-Traditional CMS platforms are easy to deploy, but often feel heavy, dated, and difficult to tune. Modern headless stacks are powerful, but they usually add deployment complexity, paid hosting assumptions, and more moving parts than many publishers want.
+Fork the repository on GitHub, then clone your fork:
 
-### 2. The Answer
+```bash
+git clone https://github.com/YOUR-USERNAME/VonCMS.git
+cd VonCMS
+```
 
-VonCMS keeps the deployment model simple while upgrading the publishing experience:
+You can also download the Source ZIP from Releases and extract it locally. A Git fork is better when you plan to contribute changes back.
 
-- **React 19 admin** for fast editing and dashboard workflows.
-- **PHP/MySQL runtime** for familiar shared-hosting installation.
-- **SEO-aware public rendering** so crawlers see the real article content, metadata, schema, and canonical links.
-- **Built-in publishing tools** instead of depending on a pile of external plugins.
+### 2. Open The Project In An IDE
 
-### 3. The Result
+Open the project folder directly in any editor you prefer:
 
-You get a CMS that feels modern to manage, stays realistic to host, and is shaped around actual publishing work: writing, importing, scheduling, searching, moderating, and shipping content.
+- Cursor
+- Visual Studio Code
+- Antigravity-style AI IDEs
+- PhpStorm or another PHP IDE
+- Claude CLI, Codex CLI, or another terminal-based coding agent
+- Plain terminal plus your editor of choice
 
----
+The workflow is flexible. VonCMS does not require one official IDE. Keep the terminal at the repository root so commands resolve `package.json`, `vite.config.ts`, `public/`, `src/`, and `docs/` correctly.
 
-## 💎 The VonCMS Philosophy
+### 3. Install Dependencies
 
-**"Everything you need. Nothing you don't."**
+```bash
+npm install
+```
 
-Most CMS projects hand you an empty shell and say "figure it out with plugins." VonCMS arrives with the lights on, the furniture in place, and the kitchen already stocked.
+Use `npm audit` to review security advisories:
 
-- **Built for Publishers, Not Just Developers**: The dashboard is designed for the person who publishes content daily, not the engineer who configured the server.
-- **Zero Plugin Chaos**: Features that would be 10+ separate plugins in WordPress (SEO, Analytics, Forms, Newsletter, Security, Media Optimization) are built directly into the core.
-- **Short Request Path**: React talks to PHP. PHP talks to MySQL. No heavy middleware stack, no plugin overhead—just pure performance.
+```bash
+npm audit
+```
 
----
+Use `npm outdated` as a planning list, not as an automatic upgrade command:
 
-## **VonCMS Philosophy**
+```bash
+npm outdated
+```
 
-> **"Everything you need. Nothing you don't."**
+### 4. Run Checks While Editing
 
-Most CMS projects hand you an empty shell and say "figure it out with plugins." VonCMS arrives with the lights on, the furniture in place, and the kitchen already stocked.
+```bash
+npm run typecheck
+npm run build
+```
 
-- **Built for Publishers, Not Just Developers**: The dashboard is designed for the person who publishes content daily, not the engineer who configured the server.
-- **Zero Plugin Chaos**: Features that would be 10+ separate plugins in WordPress (SEO, Analytics, Forms, Newsletter, Security, Media Optimization) are built directly into the core.
-- **Short Request Path**: React talks to PHP. PHP talks to MySQL. No heavy middleware stack, no plugin overhead—just pure performance.
+For PHP linting with Laragon on Windows:
 
----
+```powershell
+$env:PHP_BIN='C:\laragon\bin\php\php-8.4.22-Win32-vs17-x64\php.exe'
+npm run lint:php
+```
 
-## Release Snapshot
+If your Laragon PHP version path is different, adjust `PHP_BIN` to the actual `php.exe`.
 
-| Area                   | Current HourGlass status                          | Why it matters                                                           |
-| ---------------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| API surface            | 73 HTTP API request handlers                      | Dedicated endpoints with role and CSRF boundaries                        |
-| HourGlass editor       | TipTap and save-helper extraction boundaries      | Media rules and save helpers stay isolated while behavior remains stable |
-| Search + content admin | Smooth manual admin search + truthful dashboard   | Admin lists stay deliberate, fast, and no longer freeze at 200           |
-| Public discovery       | Server-backed discovery + complete loading parity | Older posts stay discoverable without empty flashes on slow fetches      |
-| Public interaction     | Immediate old-post route fallback                 | Older public search results open directly instead of waiting to resolve  |
-| Public profiles        | Pending-route guard + theme handoff cache         | Profile routes avoid brief not-found/home flashes while lookup settles   |
-| Built-in extensions    | Shared runtime gating + campaign plugin polish    | SEO/analytics toggles now match public runtime behavior across themes    |
-| Public rendering       | Comments-off first-paint parity                   | Disabled discussions no longer leak comment CTA copy on initial paint    |
-| Hosting baseline       | Shared-hosting first + bounded DB import runtime  | Deploy ZIP stays practical without leaving imports unbounded forever     |
+`npm run test:integration` is the large maintainer smoke gate used before pull requests and releases. Normal theme, docs, and first-time source exploration do not require reading or editing that file.
 
----
+### 5. Run A Local Dev Build
 
-## Developer Extension Guides
+The Vite dev server is useful while editing React themes, admin screens, plugins, and components:
 
-Theme and plugin development now use separate packaged guides:
+```bash
+npm run dev
+```
 
-- [Theme Development](docs/THEME_DEVELOPMENT.md) covers public theme architecture, WYSIWYG rendering, theme registration, shared SDK usage, SEO ownership, performance, and verification.
-- [Plugin Development](docs/PLUGIN_DEVELOPMENT.md) covers system plugin registration, activation state, settings ownership, custom HTML sanitization, PHP security principles, article hooks, and release checks.
+If you need PHP APIs, point the dev proxy at your local PHP host with `VITE_PROXY_TARGET`, or test the production build through Apache/LiteSpeed after:
 
----
+```bash
+npm run build
+```
 
-## What Shipped in v1.24.11
+## How It Works
 
-- **Profile Loading Stability**: TechPress, Digest, Corporate Pro, and the default public profile now reserve activity-tab height and render skeleton placeholders while profile articles/comments are still loading, preventing footer float-up on slow connections.
-- **Dashboard Count Loading Truth**: dashboard Articles, Pages, Comments, and Active Users cards now show loading placeholders until count-only totals resolve instead of flashing capped or fallback preload counts.
-- **Public Search Copy**: Default and Digest public search headers now avoid exact `results found` wording while discovery is using count-skipping load-more mode.
-- **Smoke Coverage**: integration smoke now guards profile loading skeletons, footer-safe profile activity height, dashboard count placeholders, public search approximate-count copy, and the Active Users count-only path.
-- **Previous Final Hotfix**: see `v1.24.10` for stale account-linked comment avatar repair and release packaging proof.
+VonCMS is built as a compiled React application plus a PHP API/runtime.
 
-## What Shipped in v1.24.10
+```text
+Browser
+  -> public/index.php
+  -> built React assets
+  -> public/api/*.php
+  -> MySQL
+```
 
-- **Final Hotfix**: fixed stale account-linked comment avatars and refreshed release documentation for the current public baseline.
-- **Main HourGlass Closeout Work**: see the `v1.24.9` notes below for the larger editor, search, OTA, loading, profile, media, and polish updates.
+The public entry point handles routing, crawler metadata, installation checks, maintenance mode, canonical URLs, redirects, and hydration data. The React app owns the interactive dashboard and public theme rendering after boot. PHP APIs handle authentication, settings, posts, pages, media, comments, newsletters, analytics, imports, backups, and repair tools.
 
-## What Shipped in v1.24.9
+## Repository Structure
 
-- **Durable TipTap Image State**: image size/alignment choices now persist through save, sanitize, reload, editor preview rehydration, and public rendering, with bubble buttons reflecting the selected image/video alignment.
-- **Bounded Search**: public theme search and admin Content Manager search clamp long queries to 120 characters, show visible guidance, debounce server fetches cleanly, and clamp oversized post/page API search terms before SQL binding.
-- **OTA Update Recovery**: the updater accepts GitHub release-asset redirect hosts while validating redirect hops and forwarding caller-supplied SHA256 digests through both dashboard and direct updater entry points.
-- **Readiness-Based Skeleton Loading**: the bundled skeleton no longer fades on a fixed timer; React readiness owns the transition so fast pages move immediately and slower boots avoid a blank shell.
-- **Ads Manager Helper Copy Cleanup**: Ads Manager helper panels now use concise, behavior-neutral guidance for header, in-feed, and popup slots without changing placement, sizing, frequency, or injection behavior.
-- **Late HourGlass Micro-Polish**: public profile email masking, admin profile read-only boundaries, Media CDN upload URL normalization, TechPress long-logo header alignment, thumbnail crop defaults, and shared ad/widget containment are covered by smoke guards.
-- **Release Truth Sweep**: README, changelog, metadata, and smoke guards now keep `v1.24.9` closed as the HourGlass preflight and late micro-polish lane.
+```text
+src/
+  App.tsx                              Public/admin routing shell
+  hooks/                               Shared React data hooks
+  components/                          Editor, layout, renderer, UI components
+  plugins/von-core/features/           Core admin features and built-in plugins
+  themes/                              Bundled public themes
 
-## Current HourGlass Baseline
+public/
+  index.php                            PHP public entry and hydration bridge
+  api/                                 PHP API endpoints
+  install.sql                          Fresh install schema/settings seed
+  .htaccess                            Public routing and hardening rules
+  fonts/                               Local web fonts used by bundled themes
 
-HourGlass keeps the TipTap editor migration, public discovery scaling, extension runtime gating, profile stability, and shared-hosting safety work from the earlier `v1.24.x` patches. For full patch-by-patch history, see [CHANGELOG](CHANGELOG.md).
+docs/                                  Developer and operator documentation
+server/test-integration.cjs            Integration smoke gate
+create_release.cjs                     Deploy and Source ZIP packaging
+remove-bom.cjs                         UTF-8 BOM cleanup utility
+```
 
----
+## Bundled Themes
 
-## Search Benchmark Snapshot
+VonCMS ships with Default, TechPress, Digest, Portfolio, Prism, and Corporate Pro themes. Theme registration lives in `src/plugins/von-core/features/themes/themeRegistry.ts`, while theme implementations live in `src/themes/`.
 
-Dataset: `30,035 posts`.
+Fresh installs use `Inter, sans-serif` by default. VonCMS does not load Google Fonts at runtime; Inter is shipped locally as variable WOFF2 files under `public/fonts/inter/` and wired through the bundled CSS. The bundled Inter files include a font license notice at `public/fonts/inter/LICENSE.txt`. If a custom theme needs another branded font, add the licensed font files to that theme and reference them from the theme CSS. For a practical font workflow, read [Custom Fonts](docs/CUSTOM_FONTS.md).
 
-| Search path        | Average result |
-| ------------------ | -------------- |
-| FULLTEXT search    | `133.98ms`     |
-| Legacy LIKE search | `220.69ms`     |
+## Theme Development
 
-**Result**: 1.6x faster than legacy `LIKE` search on this dataset.
+Start with [Theme Development](docs/THEME_DEVELOPMENT.md). Themes are for presentation and public UX. They should use the shared theme props, preserve SEO ownership, render post and page content through the shared renderer, and avoid duplicating runtime APIs when the core already provides them.
 
-This is a scoped local benchmark snapshot, not a universal hosting guarantee. Real production speed still depends on database size, hosting tier, cache/CDN setup, traffic pattern, and active theme behavior.
+Common files:
 
----
+- `src/themes/<theme>/Layout.tsx`
+- `src/themes/types.ts`
+- `src/plugins/von-core/features/themes/themeRegistry.ts`
+- `src/plugins/von-core/features/extensions/components/DefaultThemeSettings.tsx`
 
-## Core Features
+## Plugin And Extension Development
 
-| Publishing          | Operations                 | Growth                    |
-| ------------------- | -------------------------- | ------------------------- |
-| Posts and pages     | Installer and repair tools | SEO metadata and schema   |
-| Rich editor         | OTA update flow            | RSS, sitemap, IndexNow    |
-| Media manager       | Backup and import tooling  | Newsletter tools          |
-| Comments moderation | Role-based access          | Analytics integration     |
-| Scheduled posts     | Audit logs                 | Theme system with presets |
+Start with [Plugin Development](docs/PLUGIN_DEVELOPMENT.md). Plugins and extensions are for optional behavior: SEO helpers, analytics, widgets, article blocks, campaign bars, integrations, and admin tools. Built-in plugin code lives under `src/plugins/von-core/features/plugins/built-in/`. Keep plugin settings explicit, sanitize public HTML, and verify activation state in both admin UI and public theme runtime.
 
-Bundled themes include TechPress, Digest, Portfolio, Prism, Corporate Pro, and Default, with dark-mode support across the active theme line.
+Useful docs:
 
----
+- [API](docs/API.md)
+- [Security](docs/SECURITY.md)
+- [Routing](docs/ROUTING.md)
+- [Upgrade](docs/UPGRADE.md)
 
-## Quick Start
+## Installer, Routing, And Updates
 
-### Requirements
+The installer uses `public/install.sql` and the PHP installer endpoints under `public/api/`. The public runtime uses `public/index.php` and `.htaccess` for install checks, maintenance mode, crawler metadata, canonical URL handling, and SPA hydration.
 
-| Requirement | Baseline                             |
-| ----------- | ------------------------------------ |
-| PHP         | 8.2+                                 |
-| Database    | MySQL 5.7+                           |
-| Server      | Apache or LiteSpeed with `.htaccess` |
-| Local dev   | XAMPP, WAMP, or Laragon              |
+If you work on install, routing, updater, or `.htaccess` behavior, read:
 
-### Fresh Installation
+- [Installation](docs/INSTALL.md)
+- [Routing](docs/ROUTING.md)
+- [Upgrade](docs/UPGRADE.md)
+- [Security](docs/SECURITY.md)
 
-1. Download the latest **VonCMS Deploy** ZIP from [Releases](https://github.com/Vondereich/VonCMS/releases).
-2. Extract it into your web root.
-3. Open `yoursite.com/install`.
-4. Complete the installer wizard.
-5. Sign in at `/admin`.
+## Dependency Upgrades
 
-### Updating Existing Sites
+Use `npm outdated` as a review list, not as an automatic upgrade command. Upgrade packages in small batches and rerun the verification set after each batch.
 
-If your site is on an older version, update manually to `v1.24.11` with the current Deploy ZIP first. In cPanel/File Manager or FTP, delete the old `assets/` folder before uploading the new files so old hashed JS/CSS files cannot stay behind.
+Recommended order:
 
-After the site is already on `v1.24.10` or newer, use the admin dashboard OTA updater for future patches. Go to `Settings -> System`, run the update, and then verify the homepage, one post, and the admin dashboard.
+1. Type-only packages.
+2. Low-risk utilities.
+3. UI/runtime libraries.
+4. Build tools such as Vite, TypeScript, Tailwind, and React plugin packages.
 
-Manual ZIP replacement is only the fallback when the admin panel is unavailable, the install is too old for OTA, or the server blocks the updater.
+After each batch:
 
----
+```bash
+npm run typecheck
+npm run build
+```
 
----
+For maintainer-level dependency bumps, pull requests, or release preparation, also run `npm run test:integration`. Run PHP lint too when PHP or API files are touched.
 
-<div align="center">
+## Release Checks
 
-**v1.24.11 "HourGlass" - Current Working Release Line**
+Before creating release ZIPs:
 
-Built by Vondereich
+```bash
+npm run typecheck
+npx prettier --check .
+node remove-bom.cjs
+npm run build
+npm run test:integration
+npm run lint:php
+node create_release.cjs
+```
 
-[Live Demo](https://skripglobal.com/) | [kurama87@gmail.com](mailto:kurama87@gmail.com)
+`create_release.cjs` creates:
 
-</div>
+- `VonCMS_v1.25.1_Deploy.zip`
+- `VonCMS_v1.25.1_Source.zip`
+
+No checksum sidecar files are generated by the release script.
+
+## Documentation Map
+
+- [Installation](docs/INSTALL.md)
+- [Upgrade](docs/UPGRADE.md)
+- [VPS Deployment](docs/VPS.md)
+- [API](docs/API.md)
+- [Routing](docs/ROUTING.md)
+- [Security](docs/SECURITY.md)
+- [Theme Development](docs/THEME_DEVELOPMENT.md)
+- [Plugin Development](docs/PLUGIN_DEVELOPMENT.md)
+- [Custom Fonts](docs/CUSTOM_FONTS.md)
+- [Release Notes](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+
+## Contributing
+
+Before changing code, inspect the existing implementation and read the focused docs for the area you are touching. Keep changes scoped, preserve backwards compatibility unless the issue requires otherwise, and run the relevant checks before opening a pull request.
+
+For public contribution rules, issue guidance, pull request expectations, and security reporting notes, read [CONTRIBUTING.md](CONTRIBUTING.md).
+
+If you find a serious security issue, do not open a public issue with exploit details. Contact the maintainer privately first so the issue can be verified and patched responsibly.
+
+## Updating Existing Sites
+
+> [!IMPORTANT]
+> **v1.25.0 changes the VonCMS-managed `.htaccess` block.**
+> If you update from `v1.24.x` to `v1.25.0` through OTA, the old update modal cannot show this new warning yet.
+> After the update, open **System Tools** and run **Repair `.htaccess`** once.
+
+For sites older than the fixed updater baseline, use the manual Deploy ZIP replacement first:
+
+1. Back up files and database.
+2. Delete the old `assets/` folder.
+3. Upload the new Deploy ZIP files.
+4. Visit the site and admin dashboard.
+5. Verify one homepage, one post, one page, and `/admin`.
+
+After a site is already on the fixed updater baseline, the dashboard updater can be used for later patches when the host allows outbound release downloads.
+
+## Release History
+
+Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
+
+v1.25.1 "OpenGate" includes:
+
+- Direct `/index.html` routing guard through PHP hydration.
+- Single post and page pending skeleton protection on slow routes.
+- Expired Gemini key auto-clear in settings state and backend storage.
+- Gemini non-`STOP` finish reason rejection for partial output.
+- Self-hosted Inter defaults with no Google Fonts runtime dependency.
+- Open-source developer onboarding docs.
+- Current-post highlighting in shared public sidebar trending widgets.
+- First-run quickstart and open-source issue templates.
+- Deploy and Source ZIP release packaging.
+
+## License
+
+VonCMS is released under the GPL-3.0-only license. See [LICENSE.md](LICENSE.md).

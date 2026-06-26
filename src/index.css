@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-body: #e2e8f0;
+  /* slate-200 */
+  --bg-card: #ffffff;
+  --bg-nav: #0f172a;
+  /* slate-900 */
+  --text-nav: #ffffff;
+  --text-primary: #334155;
+  /* slate-700 */
+  --text-secondary: #64748b;
+  /* slate-500 */
+  --border-color: #cbd5e1;
+  /* slate-300 */
+  --card-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+.dark {
+  --bg-body: #000000;
+  --bg-card: #0a0a0a;
+  /* neutral-950 */
+  /* --bg-nav removed: now controlled by inline style from settings */
+  --text-nav: #ffffff;
+  --text-primary: #e5e7eb;
+  /* neutral-200 */
+  --text-secondary: #9ca3af;
+  /* neutral-400 */
+  --border-color: #2a2a2a;
+  /* neutral-800 */
+  --card-shadow: none;
+}
+
+/* NProgress Customization (Mesra Mata) */
+#nprogress .bar {
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%) !important;
+  height: 3px !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5) !important;
+}
+
+#nprogress .peg {
+  box-shadow:
+    0 0 10px #3b82f6,
+    0 0 5px #3b82f6 !important;
+}
+
+/* Ad Layout Normalization: Anti-Compression Slot */
+.ad-slot-wrapper {
+  width: 100%;
+  display: block;
+  overflow: visible;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.ad-slot-flex {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 90px;
+  overflow: visible;
+}

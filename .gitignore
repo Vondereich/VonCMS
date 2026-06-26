@@ -1,0 +1,78 @@
+# Node
+node_modules/
+npm-debug.log*
+.env
+
+# Build
+/dist/
+
+# Local release artifacts
+release-*.zip
+VonCMS_v*.zip
+GITHUB_README_DEPLOY.md
+
+# Temp and backups created by server
+/data/backups/
+/data/*.tmp.*
+data/site_settings.json.tmp.*
+
+# Editor / OS
+.vscode/
+Thumbs.db
+desktop.ini
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Local env variants
+.env.local
+.env.*.local
+
+# Server logs
+server-*.log
+
+# Backup files
+*.bak
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local env
+.env
+
+# Root backups folder
+backups/
+public/von_config.php
+public/data/backups/
+logs/
+
+# Internal Planning (Private)
+.agent/
+.agents/
+.codex/
+.cursorrules
+ROADMAP.md
+MASTERPLAN_2.0.md
+HOURGLASS_PLAN.md
+VISION_2.0_3.0.md
+THEME_ROADMAP.md
+*.todo
+*.notes

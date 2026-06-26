@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VonCMS - Content Management System</title>
+
+    <link rel="stylesheet" href="/skeleton.css" />
+    <link rel="stylesheet" href="/fonts/inter/inter.css" />
+
+    <!-- Theme Guard: Instant Dark Mode detection to prevent FOUC -->
+    <script>
+      (function () {
+        const darkMode = localStorage.getItem('von_dark_mode') === 'true';
+        if (darkMode) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <style>
+      /* Critical CSS to prevent FOUC before Tailwind loads */
+      body {
+        background-color: #f8fafc;
+        color: #1e293b;
+      }
+      html.dark body {
+        background-color: #020617;
+        color: #f1f5f9;
+      }
+    </style>
+  </head>
+
+  <body
+    class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200"
+  >
+    <div id="root">
+      <!-- Skeleton Loader (FOUC Prevention) -->
+      <div class="skeleton-loader">
+        <div class="sk-nav"></div>
+        <div class="sk-hero"></div>
+        <div class="sk-grid">
+          <div class="sk-card"></div>
+          <div class="sk-card"></div>
+          <div class="sk-card"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>
