@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Post } from '../../types';
 import { Edit2, Save, X, Camera, Menu, Moon, Sun, Rss } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, normalizeSiteUrl } from '../../utils/siteUtils';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -33,7 +33,6 @@ import {
 
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
 
@@ -214,7 +213,7 @@ const SocialLinks = ({ settings, colors }: { settings: PortfolioSettings; colors
       {links.map((link, index) => (
         <a
           key={index}
-          href={link.url.startsWith('javascript:') ? '#' : link.url}
+          href={normalizeSiteUrl(link.url)}
           target="_blank"
           rel="noopener noreferrer"
           title={link.label}

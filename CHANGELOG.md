@@ -32,6 +32,7 @@
   - **Root Account Edit Boundary**: Appointed admins can no longer modify any Root account through direct user-save API calls; only admin 1/root can edit Root users.
   - **Guest Comment CSRF Guard**: Guest comment creation now requires the same same-site CSRF token used by normal public POST flows, while keeping anonymous rate limiting in place.
   - **WordPress Import File And Fetch Guard**: WordPress XML scan files now use random temp names, deny direct web access in the temp folder, clean up after final import batches, and pin cURL DNS resolution for remote media rehosting.
+  - **CodeQL Source Hygiene Pass**: Removed the inactive legacy `server/themes-api.js` duplicate, tightened dev theme API upload/enable path handling, and routed theme/plugin external links through the shared URL normalizer so unsupported schemes fail closed.
 - **Release Version Alignment**:
   - Bumped the OpenGate line to `v1.25.1`.
 

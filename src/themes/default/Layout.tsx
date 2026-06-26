@@ -934,7 +934,7 @@ const DefaultLayout: React.FC<
                     settings.theme.default.footerLinks.map((link, idx) => (
                       <li key={idx}>
                         <a
-                          href={link.url.startsWith('javascript:') ? '#' : link.url}
+                          href={normalizeSiteUrl(link.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:opacity-100 transition-opacity flex items-center gap-2"

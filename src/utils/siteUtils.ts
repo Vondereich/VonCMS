@@ -116,8 +116,17 @@ export const normalizeSiteUrl = (url?: string): string => {
   const trimmed = url.trim();
   if (!trimmed) return '#';
 
-  if (trimmed.toLowerCase().startsWith('javascript:')) return '#';
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) || trimmed.startsWith('//')) return trimmed;
+  if (trimmed.startsWith('//')) return '#';
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol) ? trimmed : '#';
+    } catch {
+      return '#';
+    }
+  }
+
   if (trimmed.startsWith('#') || trimmed.startsWith('.')) return trimmed;
 
   const basePath = getBasePathPrefix();

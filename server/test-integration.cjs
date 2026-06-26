@@ -49,6 +49,55 @@ function assertExcludes(label, content, needles, successMessage, failureMessage)
   }
 }
 
+if (!exists('server/themes-api.js')) {
+  pass('CodeQL Source Hygiene: inactive legacy server/themes-api.js duplicate is absent.');
+} else {
+  fail('CodeQL Source Hygiene: inactive legacy server/themes-api.js duplicate still exists.');
+}
+
+const themesApiServerContent = read('server/themes-api.cjs');
+assertIncludes(
+  'Theme API Dev Path Guard',
+  themesApiServerContent,
+  [
+    'function safeResolveInside(baseDir, ...segments)',
+    'function assertSafeZipEntries(zip, destDir)',
+    'sanitizeThemeFileName(file.originalname)',
+    "'/api/themes/upload'",
+    'verifyDevToken',
+    "upload.single('theme')",
+    'const src = safeResolveInside(THEMES_DIR, safeId);',
+    'const dst = safeResolveInside(PUBLIC_THEMES, safeId);',
+  ],
+  'Theme API Dev Path Guard: upload and enable paths stay inside managed theme directories.',
+  'Theme API Dev Path Guard: local theme API can still use unchecked upload or theme paths.'
+);
+
+assertIncludes(
+  'Shared URL Scheme Guard',
+  read('src/utils/siteUtils.ts'),
+  [
+    "if (trimmed.startsWith('//')) return '#';",
+    "['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol)",
+  ],
+  'Shared URL Scheme Guard: unsupported absolute URL schemes fail closed.',
+  'Shared URL Scheme Guard: unsupported absolute URL schemes can still pass through.'
+);
+
+const legacyJavascriptSchemeMarker = "startsWith('java" + "script:')";
+const legacyJavascriptSchemeChecks = walkFiles(resolveFromRoot('src'), (file) =>
+  /\.(ts|tsx)$/.test(file)
+).filter((file) => read(path.relative(root, file)).includes(legacyJavascriptSchemeMarker));
+if (legacyJavascriptSchemeChecks.length === 0) {
+  pass('Theme URL CodeQL Guard: public TS/TSX code uses the shared URL normalizer.');
+} else {
+  fail(
+    `Theme URL CodeQL Guard: literal javascript: scheme checks remain in ${legacyJavascriptSchemeChecks
+      .map((file) => path.relative(root, file))
+      .join(', ')}`
+  );
+}
+
 function loadTsModuleForSmoke(file) {
   const source = read(file);
   const compiled = ts.transpileModule(source, {

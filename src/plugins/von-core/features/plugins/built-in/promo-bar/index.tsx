@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PluginDefinition, PluginLocation } from '../../../../../../types';
 import { Megaphone, X } from 'lucide-react';
+import { normalizeSiteUrl } from '../../../../../../utils/siteUtils';
 
 // Storage key for dismissed state
 const DISMISSED_KEY = 'voncms_promo_bar_dismissed';
@@ -97,7 +98,7 @@ const PromoBarComponent: React.FC<{
         <Megaphone size={16} className="animate-pulse" />
         <span>{text}</span>
         <a
-          href={linkUrl.startsWith('javascript:') ? '#' : linkUrl}
+          href={normalizeSiteUrl(linkUrl)}
           target={targetBlank ? '_blank' : undefined}
           rel={targetBlank ? 'noopener noreferrer' : undefined}
           className="underline hover:opacity-80 ml-2"

@@ -89,6 +89,62 @@ const THEMES_DIR = path.join(PROJECT_ROOT, 'themes');
 const DATA_FILE = path.join(PROJECT_ROOT, 'data', 'themes.json');
 const PUBLIC_THEMES = path.join(PROJECT_ROOT, 'public', 'themes');
 
+function isPathInside(baseDir, targetPath) {
+  const base = path.resolve(baseDir);
+  const target = path.resolve(targetPath);
+  return target === base || target.startsWith(base + path.sep);
+}
+
+function safeResolveInside(baseDir, ...segments) {
+  const target = path.resolve(baseDir, ...segments);
+  if (!isPathInside(baseDir, target)) {
+    throw new Error('Unsafe path rejected');
+  }
+  return target;
+}
+
+function sanitizeThemeFileName(fileName) {
+  const baseName = path.basename(String(fileName || 'theme'));
+  return baseName.replace(/[^a-z0-9_.-]/gi, '_') || 'theme';
+}
+
+function normalizeThemeId(value) {
+  return (
+    String(value || 'theme')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 64) || 'theme'
+  );
+}
+
+function assertSafeZipEntries(zip, destDir) {
+  const unsafeEntry = zip.getEntries().find((entry) => {
+    const entryName = String(entry.entryName || '');
+    if (!entryName || path.isAbsolute(entryName) || entryName.includes('\0')) return true;
+    const target = path.resolve(destDir, entryName);
+    return !isPathInside(destDir, target);
+  });
+
+  if (unsafeEntry) {
+    throw new Error(`Unsafe zip entry rejected: ${unsafeEntry.entryName}`);
+  }
+}
+
+function findFirstRegularFile(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const resolved = safeResolveInside(dir, entry.name);
+    if (entry.isFile()) return resolved;
+    if (entry.isDirectory()) {
+      const nested = findFirstRegularFile(resolved);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
 fse.ensureDirSync(THEMES_DIR);
 fse.ensureDirSync(path.dirname(DATA_FILE));
 fse.ensureFileSync(DATA_FILE);
@@ -237,7 +293,7 @@ const verifyDevToken = (req, res, next) => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, THEMES_DIR),
   filename: (req, file, cb) => {
-    cb(null, Date.now() + '_' + file.originalname.replace(/[^a-z0-9_.-]/gi, '_'));
+    cb(null, Date.now() + '_' + sanitizeThemeFileName(file.originalname));
   },
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
@@ -264,81 +320,89 @@ function computeChecksum(filePath) {
 }
 
 // Upload endpoint
-app.post('/api/themes/upload', adminLimiter, upload.single('theme'), async (req, res) => {
-  try {
-    if (!req.file)
-      return res
-        .status(400)
-        .json({ success: false, message: 'No file uploaded (field name "theme")' });
-
-    const { originalname, path: uploadedPath, size } = req.file;
-    const name = req.body.name || path.parse(originalname).name;
-    const version = req.body.version || '0.0.0';
-    const uploadedBy = req.body.uploadedBy || 'admin';
-
-    const ext = path.extname(originalname).replace('.', '').toLowerCase();
-    const allowed = ['zip', 'css', 'js'];
-    if (!allowed.includes(ext)) {
-      // remove uploaded file
-      await fse.remove(uploadedPath);
-      return res
-        .status(400)
-        .json({ success: false, message: 'Unsupported file type. Allowed: zip, css, js' });
-    }
-
-    const idBase = name.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
-    const id = `${idBase}_${Date.now()}`;
-    const destDir = path.join(THEMES_DIR, id);
-    await fse.ensureDir(destDir);
-
-    const destPath = path.join(destDir, originalname);
-    await fse.move(uploadedPath, destPath, { overwrite: true });
-
-    // If zip, extract
-    if (ext === 'zip') {
-      try {
-        const zip = new AdmZip(destPath);
-        zip.extractAllTo(destDir, true);
-        await fse.remove(destPath); // remove zip after extract
-      } catch (err) {
+app.post(
+  '/api/themes/upload',
+  adminLimiter,
+  verifyDevToken,
+  upload.single('theme'),
+  async (req, res) => {
+    try {
+      if (!req.file)
         return res
-          .status(500)
-          .json({ success: false, message: 'Failed to extract zip archive', error: err.message });
+          .status(400)
+          .json({ success: false, message: 'No file uploaded (field name "theme")' });
+
+      const { originalname, path: uploadedPath, size } = req.file;
+      const safeOriginalName = sanitizeThemeFileName(originalname);
+      const name = req.body.name || path.parse(safeOriginalName).name;
+      const version = req.body.version || '0.0.0';
+      const uploadedBy = req.body.uploadedBy || 'admin';
+
+      const ext = path.extname(safeOriginalName).replace('.', '').toLowerCase();
+      const allowed = ['zip', 'css', 'js'];
+      if (!allowed.includes(ext)) {
+        // remove uploaded file
+        await fse.remove(uploadedPath);
+        return res
+          .status(400)
+          .json({ success: false, message: 'Unsupported file type. Allowed: zip, css, js' });
       }
+
+      const idBase = normalizeThemeId(name);
+      const id = `${idBase}_${Date.now()}`;
+      const destDir = safeResolveInside(THEMES_DIR, id);
+      await fse.ensureDir(destDir);
+
+      const destPath = safeResolveInside(destDir, safeOriginalName);
+      await fse.move(uploadedPath, destPath, { overwrite: true });
+
+      // If zip, extract
+      if (ext === 'zip') {
+        try {
+          const zip = new AdmZip(destPath);
+          assertSafeZipEntries(zip, destDir);
+          zip.extractAllTo(destDir, true);
+          await fse.remove(destPath); // remove zip after extract
+        } catch (err) {
+          return res
+            .status(500)
+            .json({ success: false, message: 'Failed to extract zip archive', error: err.message });
+        }
+      }
+
+      const checksumTarget = findFirstRegularFile(destDir) || destPath;
+      const checksum = computeChecksum(checksumTarget);
+
+      const meta = {
+        id,
+        name,
+        version,
+        uploadedBy,
+        uploadedAt: new Date().toISOString(),
+        enabled: false,
+        checksum,
+        size,
+        folder: `themes/${id}`,
+      };
+
+      const list = readData();
+      list.push(meta);
+      writeData(list);
+
+      logAdminAction({
+        action: 'theme_upload',
+        id: id,
+        uploadedBy,
+        ip: req.ip || req.connection.remoteAddress,
+      });
+
+      return res.json({ success: true, message: 'Theme uploaded', theme: meta });
+    } catch (err) {
+      console.error('upload error', err);
+      return res.status(500).json({ success: false, message: 'Server error', error: err.message });
     }
-
-    const firstFile = fse.readdirSync(destDir)[0] || destPath;
-    const checksum = computeChecksum(path.join(destDir, firstFile));
-
-    const meta = {
-      id,
-      name,
-      version,
-      uploadedBy,
-      uploadedAt: new Date().toISOString(),
-      enabled: false,
-      checksum,
-      size,
-      folder: `themes/${id}`,
-    };
-
-    const list = readData();
-    list.push(meta);
-    writeData(list);
-
-    logAdminAction({
-      action: 'theme_upload',
-      id: id,
-      uploadedBy,
-      ip: req.ip || req.connection.remoteAddress,
-    });
-
-    return res.json({ success: true, message: 'Theme uploaded', theme: meta });
-  } catch (err) {
-    console.error('upload error', err);
-    return res.status(500).json({ success: false, message: 'Server error', error: err.message });
   }
-});
+);
 
 // List themes
 app.get('/api/themes', (req, res) => {
@@ -726,22 +790,30 @@ app.post('/api/verify-recaptcha', async (req, res) => {
 });
 
 // Enable/disable theme
-app.post('/api/themes/enable', async (req, res) => {
+app.post('/api/themes/enable', adminLimiter, verifyDevToken, async (req, res) => {
   try {
     const { id, enable } = req.body || {};
     if (!id) return res.status(400).json({ success: false, message: 'Missing theme id' });
 
+    const safeId = normalizeThemeId(id);
+    if (safeId !== String(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid theme id' });
+    }
+
     const list = readData();
-    const idx = list.findIndex((t) => t.id === id);
+    const idx = list.findIndex((t) => t.id === safeId);
     if (idx === -1) return res.status(404).json({ success: false, message: 'Theme not found' });
 
     list[idx].enabled = !!enable;
 
     // copy or remove public copy
-    const src = path.join(PROJECT_ROOT, list[idx].folder);
-    const dst = path.join(PUBLIC_THEMES, id);
+    const src = safeResolveInside(THEMES_DIR, safeId);
+    const dst = safeResolveInside(PUBLIC_THEMES, safeId);
 
     if (list[idx].enabled) {
+      if (!(await fse.pathExists(src))) {
+        return res.status(404).json({ success: false, message: 'Theme folder not found' });
+      }
       await fse.ensureDir(dst);
       await fse.copy(src, dst, { overwrite: true });
     } else {
@@ -751,7 +823,7 @@ app.post('/api/themes/enable', async (req, res) => {
     }
 
     writeData(list);
-    res.json({ success: true, message: 'Theme updated', id, enabled: list[idx].enabled });
+    res.json({ success: true, message: 'Theme updated', id: safeId, enabled: list[idx].enabled });
   } catch (err) {
     console.error('enable error', err);
     res.status(500).json({ success: false, message: 'Server error', error: err.message });

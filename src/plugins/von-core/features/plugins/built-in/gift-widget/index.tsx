@@ -1,5 +1,6 @@
 import { PluginDefinition, PluginLocation } from '../../../../../../types';
 import { Gift } from 'lucide-react';
+import { normalizeSiteUrl } from '../../../../../../utils/siteUtils';
 
 const positionClasses: Record<string, string> = {
   'bottom-left': 'bottom-6 left-6',
@@ -29,11 +30,12 @@ export const FloatingGiftPlugin: PluginDefinition = {
         className={`fixed ${positionClasses[position]} z-50 animate-bounce cursor-pointer group`}
         title={tooltipText}
         onClick={() => {
-          if (targetUrl.startsWith('javascript:')) return;
+          const safeTargetUrl = normalizeSiteUrl(targetUrl);
+          if (safeTargetUrl === '#') return;
           if (targetBlank) {
-            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+            window.open(safeTargetUrl, '_blank', 'noopener,noreferrer');
           } else {
-            window.location.href = targetUrl;
+            window.location.href = safeTargetUrl;
           }
         }}
       >

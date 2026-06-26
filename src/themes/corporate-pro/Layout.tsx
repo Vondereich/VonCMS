@@ -579,7 +579,6 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
   const safeLink = (url: string | undefined) => {
     if (!url) return '#';
     const trimmed = url.trim();
-    if (trimmed.toLowerCase().startsWith('javascript:')) return '#';
     if (trimmed === 'home' || trimmed.startsWith('page:') || trimmed.startsWith('post:'))
       return '#';
     return normalizeSiteUrl(trimmed);

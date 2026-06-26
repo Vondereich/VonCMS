@@ -2,7 +2,7 @@ import React from 'react';
 import { Rss } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import VonNewsletter from '../../components/VonNewsletter';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, normalizeSiteUrl } from '../../utils/siteUtils';
 
 interface TechPressFooterProps {
   settings: SiteSettings;
@@ -64,7 +64,7 @@ const TechPressFooter: React.FC<TechPressFooterProps> = ({ settings, colors }) =
                 settings.theme.techpress.footerLinks.map((link, idx) => (
                   <li key={idx}>
                     <a
-                      href={link.url.startsWith('javascript:') ? '#' : link.url}
+                      href={normalizeSiteUrl(link.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm hover:underline transition-colors"
