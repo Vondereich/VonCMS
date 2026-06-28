@@ -3,6 +3,7 @@ import { SidebarWidget, SiteSettings, Post } from '../../../../../types';
 import AdBlock from '../../../../../themes/shared/components/AdBlock';
 import { sanitizeHtml } from '../../../../../utils/security';
 import { getPermalink } from '../../../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides (e.g., Digest theme)
 interface ThemeColors {
@@ -69,22 +70,13 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                 currentPostId !== undefined && String(post.id) === String(currentPostId);
 
               return (
-                <li
-                  key={post.id}
-                  className="group cursor-pointer relative"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (onPostClick) {
-                      onPostClick(post.id);
-                    } else {
-                      const path = getPermalink(post, settings, true);
-                      window.location.href = path;
-                    }
-                  }}
-                >
+                <li key={post.id} className="group cursor-pointer relative">
                   <a
                     href={getPermalink(post, settings, true)}
-                    onClick={(e) => e.preventDefault()}
+                    onClick={(event) => {
+                      if (!onPostClick) return;
+                      handleCrawlableLinkClick(event, () => onPostClick(post.id));
+                    }}
                     aria-current={isCurrentPost ? 'page' : undefined}
                     className={`flex gap-4 items-start rounded-md px-3 py-2 -mx-3 transition-colors ${
                       isCurrentPost ? '' : 'hover:bg-slate-100/70 dark:hover:bg-slate-800/60'

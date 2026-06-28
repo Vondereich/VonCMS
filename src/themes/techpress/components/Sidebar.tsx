@@ -2,6 +2,7 @@ import React from 'react';
 import { SidebarWidget, SiteSettings, Post } from '../../../types';
 import { AdBlock, sanitizeHtml } from '../../shared';
 import { getPermalink } from '../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides
 interface ThemeColors {
@@ -62,20 +63,13 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                 key={post.id}
                 className="group cursor-pointer border-b last:border-0 pb-4 last:pb-0"
                 style={{ borderColor: themeColors?.border || 'rgba(0,0,0,0.05)' }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (onPostClick) {
-                    onPostClick(post.id);
-                  } else {
-                    const path = getPermalink(post, settings);
-                    // getPermalink now includes basePath, so it's safe for subfolders
-                    window.location.assign(path);
-                  }
-                }}
               >
                 <a
                   href={getPermalink(post, settings)}
-                  onClick={(e) => e.preventDefault()}
+                  onClick={(event) => {
+                    if (!onPostClick) return;
+                    handleCrawlableLinkClick(event, () => onPostClick(post.id));
+                  }}
                   className="flex gap-4"
                 >
                   <span className="text-2xl font-black opacity-10 group-hover:opacity-30 transition-opacity">

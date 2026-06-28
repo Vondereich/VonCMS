@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.25.1 "OpenGate"**
+> **VonCMS v1.25.2 "OpenGate"**
 
 ---
 
@@ -70,7 +70,7 @@ Laragon is lightweight but requires a small manual step:
 
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package. For v1.25.1, the file is `VonCMS_v1.25.1_Deploy.zip`.
+1. Download the latest VonCMS Deploy package. For v1.25.2, the file is `VonCMS_v1.25.2_Deploy.zip`.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -153,4 +153,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.25.1 "OpenGate"_
+_VonCMS v1.25.2 "OpenGate"_

@@ -1,3 +1,17 @@
+### [v1.25.2] - 2026-06-28
+
+> OpenGate follow-up in progress for lightweight public JSON cache preparation and small UI consistency polish.
+
+- **Loading UI Polish**:
+  - **React Skeleton Palette Alignment**: Route and Suspense fallback skeletons now use the same dark-mode surface, border, and shimmer palette as the pre-React bundled `skeleton.css` loader, preventing a visible palette shift between initial shell loading and React route loading.
+- **Public Theme Crawlability**:
+  - **Canonical Post Card Links**: Bundled public themes and the Related Posts plugin now expose canonical `href` links for post cards while preserving the existing React single-page navigation behavior for normal clicks.
+  - **Sidebar Trending Link Behavior**: Shared, TechPress, and Digest sidebar trending widgets now route clicks through the real post anchor instead of a parent-only click trap, preserving canonical href hover/open-new-tab behavior.
+  - **Subfolder Href Base Path Guard**: Relative post-card hrefs now keep the active subfolder base path even when `domainUrl` already includes that same folder, preventing links like `/category/post` on local `/zangetsu` installs.
+  - **Sitemap Image Base Path Guard**: Image sitemap entries now strip an already-present subfolder prefix from stored upload URLs before joining with the configured domain URL, preventing `/subfolder/subfolder/uploads/...` image URLs.
+- **Release Version Alignment**:
+  - Bumped the OpenGate line to `v1.25.2`.
+
 ### [v1.25.1] - 2026-06-25
 
 > OpenGate follow-up for first public-source impression, sidebar reading context, release package truth, and GitHub contribution readiness.

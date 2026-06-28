@@ -35,9 +35,10 @@ const SkeletonLoader: React.FC = () => {
                     background: #e5e7eb;
                     border-radius: 1rem;
                 }
-                /* Dark Mode Support based on system/parent */
+                /* Keep React fallbacks aligned with public/skeleton.css */
                 .dark .sk-nav, .dark .sk-hero, .dark .sk-card {
-                    background: #1a1a1a;
+                    background: #111827;
+                    border: 1px solid rgba(148, 163, 184, 0.08);
                 }
                 
                 /* Shimmer Animation */
@@ -53,11 +54,20 @@ const SkeletonLoader: React.FC = () => {
                     background-image: linear-gradient(
                         90deg,
                         rgba(255, 255, 255, 0) 0,
-                        rgba(255, 255, 255, 0.4) 20%,
-                        rgba(255, 255, 255, 0.7) 60%,
+                        rgba(255, 255, 255, 0.2) 20%,
+                        rgba(255, 255, 255, 0.5) 60%,
                         rgba(255, 255, 255, 0)
                     );
                     animation: shimmer 2s infinite;
+                }
+                .dark .sk-nav::after, .dark .sk-hero::after, .dark .sk-card::after {
+                    background-image: linear-gradient(
+                        90deg,
+                        rgba(15, 23, 42, 0) 0,
+                        rgba(59, 130, 246, 0.1) 20%,
+                        rgba(148, 163, 184, 0.16) 60%,
+                        rgba(15, 23, 42, 0)
+                    );
                 }
                 @keyframes shimmer {
                     100% { transform: translateX(100%); }

@@ -1,12 +1,13 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.25.1",
+  "version": "1.25.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "lint:php": "node server/lint-php.cjs",
+    "release:full": "node release-sequence.cjs",
     "prebuild": "node -e \"const fs=require('fs'); ['dist', 'public/assets'].forEach(d => { if(fs.existsSync(d)) fs.rmSync(d, {recursive:true, force:true}); });\"",
     "build": "vite build",
     "postbuild": "node -e \"const fs=require('fs-extra'); fs.copySync('public', 'dist', {overwrite: true, filter: (src) => !src.includes('assets') && !src.includes('index.html') && !src.includes('migrations') && !src.includes('install.sql')}); if(fs.existsSync('docs')) fs.copySync('docs', 'dist/docs'); if(fs.existsSync('dist/von_config.php')) fs.renameSync('dist/von_config.php', 'dist/von_config.sample.php');\"",

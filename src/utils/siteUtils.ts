@@ -94,7 +94,7 @@ export const getPermalink = (
 
   // Path Agnosticism: Add basePath unless explicitly skipped (e.g., for navigation)
   // Or if domain already includes the basePath (avoid duplication)
-  const isOverlap = domain && basePath && domain.endsWith(basePath);
+  const isOverlap = absolute && domain && basePath && domain.endsWith(basePath);
   const finalPath = noBase || isOverlap ? path : `${basePath}${path}`;
 
   if (absolute) {

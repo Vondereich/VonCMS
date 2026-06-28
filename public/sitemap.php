@@ -99,6 +99,42 @@ try {
   }
   $baseUrl = rtrim($baseUrl, '/');
 
+  if (!function_exists('voncms_sitemap_absolute_url')) {
+    /**
+     * @param mixed $url
+     * @param string $baseUrl
+     * @return string
+     */
+    function voncms_sitemap_absolute_url($url, $baseUrl)
+    {
+      $url = trim((string) $url);
+      if ($url === '') {
+        return '';
+      }
+
+      if (preg_match('/^https?:\/\//i', $url)) {
+        return $url;
+      }
+
+      if (strpos($url, '//') === 0) {
+        return '';
+      }
+
+      $relativeUrl = ltrim($url, '/');
+      $basePath = trim((string) (parse_url($baseUrl, PHP_URL_PATH) ?: ''), '/');
+      if ($basePath !== '') {
+        $basePrefix = $basePath . '/';
+        if ($relativeUrl === $basePath) {
+          $relativeUrl = '';
+        } elseif (strpos($relativeUrl, $basePrefix) === 0) {
+          $relativeUrl = substr($relativeUrl, strlen($basePrefix));
+        }
+      }
+
+      return rtrim($baseUrl, '/') . ($relativeUrl === '' ? '' : '/' . $relativeUrl);
+    }
+  }
+
   // Determine request type
   $type = isset($_GET['type']) ? $_GET['type'] : 'index';
   $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
@@ -256,10 +292,7 @@ try {
       echo '<loc>' . htmlspecialchars($baseUrl . $path) . '</loc>';
       echo '<lastmod>' . $date . '</lastmod>';
       if (!empty($post['image_url'])) {
-        $imgUrl = $post['image_url'];
-        if (strpos($imgUrl, 'http') !== 0) {
-          $imgUrl = $baseUrl . '/' . ltrim($imgUrl, '/');
-        }
+        $imgUrl = voncms_sitemap_absolute_url($post['image_url'], $baseUrl);
         echo '<image:image>';
         echo '<image:loc>' . htmlspecialchars($imgUrl) . '</image:loc>';
         echo '</image:image>';

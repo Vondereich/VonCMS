@@ -4,7 +4,8 @@ import toast from 'react-hot-toast';
 import { Post } from '../../types';
 import { Edit2, Save, X, Camera, Menu, Moon, Sun, Rss } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
-import { getBasePathPrefix, normalizeSiteUrl } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPermalink, normalizeSiteUrl } from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -444,7 +445,7 @@ const HeroMinimal = ({ settings, name, tagline, colors }: any) => (
 );
 
 // ===== PROJECT CARD =====
-const ProjectCard = ({ project, colors, settings, index, onClick }: any) => {
+const ProjectCard = ({ project, colors, settings, siteSettings, index, onClick }: any) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -525,7 +526,16 @@ const ProjectCard = ({ project, colors, settings, index, onClick }: any) => {
           className="text-lg font-semibold mb-2 transition-colors duration-300"
           style={{ color: isHovered ? colors.accent : colors.text }}
         >
-          {decodeEntities(project.title)}
+          <a
+            href={getPermalink(project, siteSettings)}
+            onClick={(event) =>
+              handleCrawlableLinkClick(event, () => {
+                onClick(project.id);
+              })
+            }
+          >
+            {decodeEntities(project.title)}
+          </a>
         </h3>
         {project.excerpt && (
           <p className="text-sm line-clamp-2" style={{ color: colors.textSecondary }}>
@@ -541,6 +551,7 @@ const ProjectCard = ({ project, colors, settings, index, onClick }: any) => {
 const ProjectsSection = ({
   projects,
   settings,
+  siteSettings,
   colors,
   onProjectClick,
   selectedCategory,
@@ -651,6 +662,7 @@ const ProjectsSection = ({
                   project={project}
                   colors={colors}
                   settings={settings}
+                  siteSettings={siteSettings}
                   index={index}
                   onClick={onProjectClick}
                 />
@@ -1732,6 +1744,7 @@ const PortfolioProfile = ({
                       project={project}
                       colors={colors}
                       settings={settings}
+                      siteSettings={settings}
                       index={index}
                       onClick={onPostClick}
                     />
@@ -2116,6 +2129,7 @@ const PortfolioLayout = ({
                 key={resetKey}
                 projects={projects}
                 settings={portfolioSettings}
+                siteSettings={siteSettings}
                 colors={colors}
                 onProjectClick={onPostClick}
                 selectedCategory={selectedCategory}

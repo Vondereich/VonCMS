@@ -28,7 +28,8 @@ import {
   CheckCircle,
   Clock,
 } from 'lucide-react';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -1448,7 +1449,16 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                                     </button>
                                   </div>
                                   <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 transition-colors line-clamp-2 text-slate-900 dark:text-white">
-                                    {decodeEntities(post.title)}
+                                    <a
+                                      href={getPermalink(post, settings)}
+                                      onClick={(event) =>
+                                        handleCrawlableLinkClick(event, () => {
+                                          onPostClick(post.id);
+                                        })
+                                      }
+                                    >
+                                      {decodeEntities(post.title)}
+                                    </a>
                                   </h3>
                                   <p className="text-slate-600 dark:text-neutral-400 mb-4 line-clamp-3 text-sm">
                                     {post.excerpt}

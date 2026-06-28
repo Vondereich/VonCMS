@@ -39,7 +39,8 @@ import {
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { getPermalink, normalizeSiteUrl } from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 
 // TechPress Avatar Component with Gravatar Support
@@ -196,6 +197,7 @@ function BreakingNewsBanner({
 function HeroArticle({
   article,
   colors,
+  settings,
   onClick,
   onCategoryClick,
   authorEmail,
@@ -203,6 +205,7 @@ function HeroArticle({
 }: {
   article: Post;
   colors: any;
+  settings: SiteSettings;
   onClick: (id: string) => void;
   onCategoryClick?: (category: string) => void;
   authorEmail?: string;
@@ -217,7 +220,16 @@ function HeroArticle({
     >
       <div className="flex flex-col lg:flex-row">
         {/* Image Side - Standardized 16:9 Aspect Ratio for Premium Look */}
-        <div className="lg:w-3/5 aspect-video overflow-hidden relative">
+        <a
+          href={getPermalink(article, settings)}
+          onClick={(event) =>
+            handleCrawlableLinkClick(event, () => {
+              onClick(article.id);
+            })
+          }
+          className="lg:w-3/5 aspect-video overflow-hidden relative block"
+          aria-label={decodeEntities(article.title)}
+        >
           {article.image ? (
             <img
               {...getResponsiveImageAttributes(article, 'hero')}
@@ -230,7 +242,7 @@ function HeroArticle({
           )}
           {/* Gradient overlay for mobile */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent lg:hidden" />
-        </div>
+        </a>
 
         {/* Content Side - Fixed 2/5 width */}
         <div className="lg:w-2/5 p-6 lg:p-8 flex flex-col justify-center relative">
@@ -263,7 +275,16 @@ function HeroArticle({
             className="text-lg sm:text-2xl lg:text-4xl font-black mb-4 leading-tight tracking-tight group-hover:opacity-80 transition-opacity"
             style={{ color: colors.text }}
           >
-            {decodeEntities(article.title)}
+            <a
+              href={getPermalink(article, settings)}
+              onClick={(event) =>
+                handleCrawlableLinkClick(event, () => {
+                  onClick(article.id);
+                })
+              }
+            >
+              {decodeEntities(article.title)}
+            </a>
           </h1>
 
           <p
@@ -304,6 +325,7 @@ function NewsCard({
   article,
   colors,
   layout = 'horizontal',
+  settings,
   onClick,
   onCategoryClick,
   authorEmail,
@@ -313,6 +335,7 @@ function NewsCard({
   article: Post;
   colors: any;
   layout?: 'horizontal' | 'vertical' | 'minimal';
+  settings: SiteSettings;
   onClick: (id: string) => void;
   onCategoryClick?: (category: string) => void;
   authorEmail?: string;
@@ -325,9 +348,15 @@ function NewsCard({
         className="overflow-hidden rounded-lg group transition-all duration-200 border hover:shadow-lg flex flex-col h-full"
         style={{ background: colors.background, borderColor: colors.border }}
       >
-        <div
-          onClick={() => onClick(article.id)}
+        <a
+          href={getPermalink(article, settings)}
+          onClick={(event) =>
+            handleCrawlableLinkClick(event, () => {
+              onClick(article.id);
+            })
+          }
           className="aspect-video transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer"
+          aria-label={decodeEntities(article.title)}
         >
           {article.image && (
             <img
@@ -345,7 +374,7 @@ function NewsCard({
               {rankLabel}
             </span>
           )}
-        </div>
+        </a>
 
         <div className="p-5 flex-1 flex flex-col">
           <div className="flex gap-2 mb-3">
@@ -361,11 +390,19 @@ function NewsCard({
             </span>
           </div>
           <h3
-            onClick={() => onClick(article.id)}
             className="text-xl font-bold mb-3 leading-tight group-hover:opacity-70 transition line-clamp-3 cursor-pointer min-h-[4.5rem]"
             style={{ color: colors.text }}
           >
-            {decodeEntities(article.title)}
+            <a
+              href={getPermalink(article, settings)}
+              onClick={(event) =>
+                handleCrawlableLinkClick(event, () => {
+                  onClick(article.id);
+                })
+              }
+            >
+              {decodeEntities(article.title)}
+            </a>
           </h3>
 
           <p
@@ -398,9 +435,15 @@ function NewsCard({
       className="flex flex-col sm:flex-row gap-5 p-4 rounded-lg group transition-all duration-200 border hover:shadow-md"
       style={{ background: colors.background, borderColor: colors.border }}
     >
-      <div
-        onClick={() => onClick(article.id)}
+      <a
+        href={getPermalink(article, settings)}
+        onClick={(event) =>
+          handleCrawlableLinkClick(event, () => {
+            onClick(article.id);
+          })
+        }
         className="w-full sm:w-64 aspect-video rounded-lg flex-shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer"
+        aria-label={decodeEntities(article.title)}
       >
         {article.image && (
           <img
@@ -410,7 +453,7 @@ function NewsCard({
             className="absolute inset-0 w-full h-full object-cover"
           />
         )}
-      </div>
+      </a>
 
       <div className="flex-1">
         <div className="flex gap-2 mb-2">
@@ -426,11 +469,19 @@ function NewsCard({
           </span>
         </div>
         <h3
-          onClick={() => onClick(article.id)}
           className="text-lg font-bold mb-2 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"
           style={{ color: colors.text }}
         >
-          {decodeEntities(article.title)}
+          <a
+            href={getPermalink(article, settings)}
+            onClick={(event) =>
+              handleCrawlableLinkClick(event, () => {
+                onClick(article.id);
+              })
+            }
+          >
+            {decodeEntities(article.title)}
+          </a>
         </h3>
         <div className="flex items-center gap-3 text-sm" style={{ color: colors.textSecondary }}>
           <TechPressAvatar
@@ -1505,6 +1556,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               <HeroArticle
                 article={heroArticle}
                 colors={colors}
+                settings={settings}
                 onClick={onPostClick}
                 onCategoryClick={onCategoryClick}
                 authorEmail={allUsers.find((u) => u.username === heroArticle?.author)?.email}
@@ -1532,6 +1584,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     key={article.id}
                     article={article}
                     colors={colors}
+                    settings={settings}
                     layout="vertical"
                     rankLabel={String(index + 1).padStart(2, '0')}
                     onClick={onPostClick}
@@ -1565,6 +1618,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       <NewsCard
                         article={article}
                         colors={colors}
+                        settings={settings}
                         layout="horizontal"
                         onClick={onPostClick}
                         onCategoryClick={onCategoryClick}

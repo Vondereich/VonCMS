@@ -2,6 +2,7 @@ import React from 'react';
 import { SidebarWidget, SiteSettings, Post } from '../../../types';
 import { AdBlock, sanitizeHtml } from '../../shared';
 import { getPermalink } from '../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides
 interface ThemeColors {
@@ -60,20 +61,15 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
           </h4>
           <ul className="space-y-6">
             {trendingPosts.map((post, index) => (
-              <li
-                key={post.id}
-                className="group cursor-pointer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (onPostClick) {
-                    onPostClick(post.id);
-                  } else {
-                    const path = getPermalink(post, settings);
-                    window.location.href = path;
-                  }
-                }}
-              >
-                <div className="flex gap-4 items-start">
+              <li key={post.id} className="group cursor-pointer">
+                <a
+                  href={getPermalink(post, settings)}
+                  onClick={(event) => {
+                    if (!onPostClick) return;
+                    handleCrawlableLinkClick(event, () => onPostClick(post.id));
+                  }}
+                  className="flex gap-4 items-start"
+                >
                   <span
                     className="text-3xl font-black text-zinc-900/10 dark:text-white/10 group-hover:text-[var(--primary)] group-hover:opacity-100 transition-all duration-300"
                     style={{ '--primary': settings.theme.primaryColor } as any}
@@ -81,9 +77,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                     {(index + 1).toString().padStart(2, '0')}
                   </span>
                   <div>
-                    <a
-                      href={getPermalink(post, settings)}
-                      onClick={(e) => e.preventDefault()}
+                    <p
                       className="text-sm font-bold text-zinc-800 dark:text-zinc-200 group-hover:text-cyan-500 transition-colors leading-snug line-clamp-2"
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.title) }}
                     />
@@ -95,7 +89,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                       <span>{post.readTime || '5 min read'}</span>
                     </div>
                   </div>
-                </div>
+                </a>
               </li>
             ))}
           </ul>

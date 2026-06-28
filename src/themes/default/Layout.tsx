@@ -19,8 +19,9 @@ import {
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 
 // Theme SDK
 import {
@@ -1158,7 +1159,16 @@ const HomeView: React.FC<{
                     style={{ borderRadius: settings.theme.borderRadius }}
                     onClick={() => onViewPost(post.id)}
                   >
-                    <div className="h-64 bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative">
+                    <a
+                      href={getPermalink(post, settings)}
+                      onClick={(e) =>
+                        handleCrawlableLinkClick(e, () => {
+                          onViewPost(post.id);
+                        })
+                      }
+                      className="h-64 bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative block"
+                      aria-label={decodeEntities(post.title)}
+                    >
                       {post.image && (
                         <img
                           {...getResponsiveImageAttributes(post, 'card')}
@@ -1168,7 +1178,7 @@ const HomeView: React.FC<{
                         />
                       )}
                       <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
-                    </div>
+                    </a>
                     <div className="p-8 flex flex-col flex-grow">
                       <div className="flex items-center justify-between mb-4">
                         <span
@@ -1185,7 +1195,17 @@ const HomeView: React.FC<{
                         </span>
                       </div>
                       <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4 leading-tight group-hover:text-primary-600 transition-colors">
-                        {decodeEntities(post.title)}
+                        <a
+                          href={getPermalink(post, settings)}
+                          onClick={(e) =>
+                            handleCrawlableLinkClick(e, () => {
+                              onViewPost(post.id);
+                            })
+                          }
+                          className="hover:text-primary-600"
+                        >
+                          {decodeEntities(post.title)}
+                        </a>
                       </h3>
                       <p className="text-neutral-500 dark:text-neutral-400 text-base leading-relaxed mb-6 line-clamp-3 font-light">
                         {decodeEntities(post.excerpt)}

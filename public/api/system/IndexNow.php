@@ -268,7 +268,7 @@ class IndexNow
       CURLOPT_CONNECTTIMEOUT => 2,
       CURLOPT_FOLLOWLOCATION => false,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_USERAGENT => 'VonCMS/1.25.1 IndexNow',
+      CURLOPT_USERAGENT => 'VonCMS/1.25.2 IndexNow',
     ]);
 
     $response = curl_exec($ch);
@@ -341,7 +341,7 @@ class IndexNow
       CURLOPT_TIMEOUT => self::TIMEOUT_SECONDS,
       CURLOPT_CONNECTTIMEOUT => 2,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_USERAGENT => 'VonCMS/1.25.1 IndexNow',
+      CURLOPT_USERAGENT => 'VonCMS/1.25.2 IndexNow',
     ]);
 
     $response = curl_exec($ch);

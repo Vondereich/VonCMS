@@ -1,6 +1,6 @@
 # VonCMS Features
 
-> VonCMS v1.25.1 feature baseline for the OpenGate line.
+> VonCMS v1.25.2 feature baseline for the OpenGate line.
 
 ## Everything you need. Nothing you don't.
 
@@ -197,7 +197,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.1` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.2` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -207,5 +207,5 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 - **80 PHP API files** — current API surface under `public/api/`, with 94 public PHP files covered by the lint gate across the public runtime.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** — current local `v1.25.1` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** — current local `v1.25.2` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.

@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import {
   getOverflowNavigationItems,
@@ -724,7 +725,16 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                               <span>{post.readTime || '5 min read'}</span>
                             </div>
                             <h2 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-[var(--color-primary)] transition-colors">
-                              {decodeEntities(post.title)}
+                              <a
+                                href={getPermalink(post, settings)}
+                                onClick={(event) =>
+                                  handleCrawlableLinkClick(event, () => {
+                                    onPostClick(post.id);
+                                  })
+                                }
+                              >
+                                {decodeEntities(post.title)}
+                              </a>
                             </h2>
                             <p className="text-slate-400 text-sm line-clamp-3 mb-6">
                               {decodeEntities(post.excerpt)}

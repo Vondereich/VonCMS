@@ -23,7 +23,8 @@ import {
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 
 // Theme SDK
 import {
@@ -410,11 +411,12 @@ min-w-0 max-w-[10rem] sm:max-w-[12rem] shrink-0 px-4 py-2 rounded-full text-sm f
 const DigestHero: React.FC<{
   article: Post;
   colors: ReturnType<typeof getColors>;
+  settings: SiteSettings;
   onClick: (id: string) => void;
   onCategoryClick?: (category: string) => void;
   authorEmail?: string;
   authorAvatar?: string;
-}> = ({ article, colors, onClick, onCategoryClick, authorEmail, authorAvatar }) => {
+}> = ({ article, colors, settings, onClick, onCategoryClick, authorEmail, authorAvatar }) => {
   if (!article) return null;
 
   return (
@@ -425,7 +427,16 @@ const DigestHero: React.FC<{
     >
       <div className="flex flex-col lg:flex-row">
         {/* Image Side */}
-        <div className="lg:w-3/5 aspect-video overflow-hidden relative">
+        <a
+          href={getPermalink(article, settings)}
+          onClick={(event) =>
+            handleCrawlableLinkClick(event, () => {
+              onClick(article.id);
+            })
+          }
+          className="lg:w-3/5 aspect-video overflow-hidden relative block"
+          aria-label={decodeEntities(article.title)}
+        >
           {article.image ? (
             <img
               {...getResponsiveImageAttributes(article, 'hero')}
@@ -438,7 +449,7 @@ const DigestHero: React.FC<{
           )}
           {/* Gradient overlay for mobile */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent lg:hidden" />
-        </div>
+        </a>
 
         {/* Content Side */}
         <div className="lg:w-2/5 p-6 lg:p-8 flex flex-col justify-center relative">
@@ -461,7 +472,16 @@ const DigestHero: React.FC<{
             className="text-lg sm:text-2xl lg:text-4xl font-black mb-4 leading-tight tracking-tight line-clamp-3 group-hover:opacity-80 transition-opacity"
             style={{ color: colors.text }}
           >
-            {decodeEntities(article.title)}
+            <a
+              href={getPermalink(article, settings)}
+              onClick={(event) =>
+                handleCrawlableLinkClick(event, () => {
+                  onClick(article.id);
+                })
+              }
+            >
+              {decodeEntities(article.title)}
+            </a>
           </h1>
 
           <p
@@ -509,11 +529,12 @@ const DigestHero: React.FC<{
 const DigestCard: React.FC<{
   article: Post;
   colors: ReturnType<typeof getColors>;
+  settings: SiteSettings;
   onClick: (id: string) => void;
   onCategoryClick?: (category: string) => void;
   authorEmail?: string;
   authorAvatar?: string;
-}> = ({ article, colors, onClick, onCategoryClick, authorEmail, authorAvatar }) => (
+}> = ({ article, colors, settings, onClick, onCategoryClick, authorEmail, authorAvatar }) => (
   <div
     className="digest-card group cursor-pointer rounded-xl overflow-hidden border"
     onClick={() => onClick(article.id)}
@@ -552,7 +573,16 @@ const DigestCard: React.FC<{
         className="font-bold text-lg mb-2 line-clamp-2 leading-snug group-hover:opacity-70 transition-opacity"
         style={{ color: colors.text }}
       >
-        {decodeEntities(article.title)}
+        <a
+          href={getPermalink(article, settings)}
+          onClick={(event) =>
+            handleCrawlableLinkClick(event, () => {
+              onClick(article.id);
+            })
+          }
+        >
+          {decodeEntities(article.title)}
+        </a>
       </h3>
 
       <div className="flex items-center gap-2 text-xs" style={{ color: colors.textMuted }}>
@@ -640,6 +670,7 @@ const DigestProfile: React.FC<{
   posts: Post[];
   comments: any[];
   colors: ReturnType<typeof getColors>;
+  settings: SiteSettings;
   onViewPost: (id: string) => void;
   onBack: () => void;
   onNavigateAdmin?: () => void;
@@ -651,6 +682,7 @@ const DigestProfile: React.FC<{
   posts: _posts,
   comments: _comments,
   colors,
+  settings,
   onViewPost,
   targetUser: displayUserProp,
   onUpdateUser,
@@ -1104,6 +1136,7 @@ const DigestProfile: React.FC<{
                     key={post.id}
                     article={post}
                     colors={colors}
+                    settings={settings}
                     onClick={onViewPost}
                     authorEmail={targetUser.email}
                     authorAvatar={targetUser.avatar}
@@ -1883,6 +1916,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             posts={posts}
             comments={comments}
             colors={colors}
+            settings={settings}
             onViewPost={onPostClick}
             onBack={handleReturnHome}
             onNavigateAdmin={onNavigateAdmin}
@@ -2019,6 +2053,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           <DigestHero
             article={heroArticle}
             colors={colors}
+            settings={settings}
             onClick={onPostClick}
             onCategoryClick={onCategoryClick}
             authorEmail={
@@ -2051,6 +2086,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 <DigestCard
                   article={post}
                   colors={colors}
+                  settings={settings}
                   onClick={onPostClick}
                   onCategoryClick={onCategoryClick}
                   authorEmail={

@@ -1,6 +1,6 @@
-# VonCMS Theme Development Guide v1.25.1
+# VonCMS Theme Development Guide v1.25.2
 
-This guide is the theme-specific source of truth for VonCMS v1.25.1. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to build public themes without breaking the publishing runtime.
+This guide is the theme-specific source of truth for VonCMS v1.25.2. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to build public themes without breaking the publishing runtime.
 
 For plugin work, use [Plugin Development](PLUGIN_DEVELOPMENT.md).
 
@@ -71,7 +71,7 @@ All mutating backend requests in VonCMS must use authenticated sessions, CSRF va
 
 Public theme props are already shaped by the PHP response helpers before they reach React. Do not rebuild public privacy rules inside a theme.
 
-The v1.25.1 public contract is:
+The v1.25.2 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`

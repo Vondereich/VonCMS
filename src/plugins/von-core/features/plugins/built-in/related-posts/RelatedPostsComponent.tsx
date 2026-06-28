@@ -1,8 +1,9 @@
 import React from 'react';
-import { Post } from '../../../../../../types';
+import { Post, SiteSettings } from '../../../../../../types';
 import { RelatedPostsConfig } from './types';
 import { findRelatedPosts } from './matcher';
-import { getResponsiveImageAttributes } from '../../../../../../utils/siteUtils';
+import { getPermalink, getResponsiveImageAttributes } from '../../../../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides
 interface ThemeColors {
@@ -16,6 +17,7 @@ interface ThemeColors {
 
 interface RelatedPostsComponentProps {
   config: RelatedPostsConfig;
+  settings?: SiteSettings;
   currentPost: Post;
   allPosts: Post[];
   onPostClick?: (post: Post) => void;
@@ -24,11 +26,19 @@ interface RelatedPostsComponentProps {
 
 export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
   config,
+  settings,
   currentPost,
   allPosts,
   onPostClick,
   themeColors,
 }) => {
+  const permalinkSettings =
+    settings ||
+    ((typeof window !== 'undefined'
+      ? (window as any).__site_settings
+      : null) as SiteSettings | null) ||
+    ({ permalinkStructure: 'slug' } as SiteSettings);
+
   // Find related posts
   const relatedPosts = findRelatedPosts(currentPost, allPosts, config);
 
@@ -52,9 +62,15 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
       {config.layout === 'grid' && (
         <div className={gridColumnClass}>
           {relatedPosts.map((post) => (
-            <article
+            <a
               key={post.id}
-              onClick={() => onPostClick?.(post)}
+              href={getPermalink(post, permalinkSettings)}
+              onClick={(event) => {
+                if (!onPostClick) return;
+                handleCrawlableLinkClick(event, () => {
+                  onPostClick(post);
+                });
+              }}
               className="group cursor-pointer rounded-xl overflow-hidden border hover:shadow-xl transition-all"
               style={
                 {
@@ -94,7 +110,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   </p>
                 )}
               </div>
-            </article>
+            </a>
           ))}
         </div>
       )}
@@ -103,9 +119,15 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
       {config.layout === 'list' && (
         <div className="space-y-4">
           {relatedPosts.map((post) => (
-            <article
+            <a
               key={post.id}
-              onClick={() => onPostClick?.(post)}
+              href={getPermalink(post, permalinkSettings)}
+              onClick={(event) => {
+                if (!onPostClick) return;
+                handleCrawlableLinkClick(event, () => {
+                  onPostClick(post);
+                });
+              }}
               className="group cursor-pointer flex gap-4 p-4 rounded-lg border hover:shadow-lg transition-all"
               style={
                 {
@@ -140,7 +162,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   </p>
                 )}
               </div>
-            </article>
+            </a>
           ))}
         </div>
       )}
@@ -149,9 +171,15 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
       {config.layout === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {relatedPosts.map((post) => (
-            <article
+            <a
               key={post.id}
-              onClick={() => onPostClick?.(post)}
+              href={getPermalink(post, permalinkSettings)}
+              onClick={(event) => {
+                if (!onPostClick) return;
+                handleCrawlableLinkClick(event, () => {
+                  onPostClick(post);
+                });
+              }}
               className="group cursor-pointer flex gap-4 p-5 rounded-xl border hover:shadow-xl transition-all"
               style={
                 {
@@ -188,7 +216,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   </p>
                 )}
               </div>
-            </article>
+            </a>
           ))}
         </div>
       )}

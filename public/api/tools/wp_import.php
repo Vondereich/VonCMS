@@ -551,7 +551,7 @@ function fetch_import_image_hop_with_curl($url, $tempPath)
   $options = [
     CURLOPT_CONNECTTIMEOUT => 10,
     CURLOPT_TIMEOUT => 30,
-    CURLOPT_USERAGENT => 'VonCMS WP Importer/1.25.1',
+    CURLOPT_USERAGENT => 'VonCMS WP Importer/1.25.2',
     CURLOPT_FAILONERROR => false,
     CURLOPT_HEADER => false,
     CURLOPT_FOLLOWLOCATION => false,
@@ -645,7 +645,7 @@ function fetch_import_image_hop_with_stream($url, $tempPath)
       'method' => 'GET',
       'timeout' => 30,
       'follow_location' => 0,
-      'user_agent' => 'VonCMS WP Importer/1.25.1',
+      'user_agent' => 'VonCMS WP Importer/1.25.2',
       'ignore_errors' => true,
     ],
     'ssl' => [

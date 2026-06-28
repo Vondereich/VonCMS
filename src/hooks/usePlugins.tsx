@@ -72,6 +72,7 @@ export function useRelatedPosts(
   return (
     <RelatedPostsComponent
       config={config}
+      settings={settings}
       currentPost={currentPost}
       allPosts={allPosts}
       onPostClick={onPostClick}

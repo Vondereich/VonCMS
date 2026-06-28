@@ -469,16 +469,18 @@ if (fs.existsSync(sourceZipPath)) {
 }
 
 if (
-  createReleaseContent.includes('function escapeRegExpLiteral(value)') &&
-  createReleaseContent.includes('const escapedVersion = escapeRegExpLiteral(version);') &&
   createReleaseContent.includes('const releaseArtifactPattern = new RegExp(') &&
-  createReleaseContent.includes('`^VonCMS_v${escapedVersion}_(Deploy|Source)\\\\.zip') &&
+  createReleaseContent.includes('`^VonCMS_v\\\\d+\\\\.\\\\d+\\\\.\\\\d+_(Deploy|Source)\\\\.zip') &&
   createReleaseContent.includes('releaseArtifactPattern.test(f)') &&
   !createReleaseContent.includes("f.endsWith('.zip') || f.endsWith('.zip.sha256')")
 ) {
-  pass('Release Cleanup Safety: older-version backup/reference ZIPs are preserved.');
+  pass(
+    'Release Cleanup Safety: old versioned release ZIPs are removed without touching generic backup ZIPs.'
+  );
 } else {
-  fail('Release Cleanup Safety: create_release.cjs must only clean current-version release ZIPs.');
+  fail(
+    'Release Cleanup Safety: create_release.cjs must remove old versioned release ZIPs without deleting generic backup ZIPs.'
+  );
 }
 
 const rootIndexHtmlContent = read('index.html');
@@ -4127,6 +4129,68 @@ if (
   fail('Related Posts Tablet Grid: grid layout must use three columns at tablet width.');
 }
 
+const crawlablePostLinkFiles = [
+  'src/themes/default/Layout.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/techpress/Layout.tsx',
+  'src/themes/corporate-pro/Layout.tsx',
+  'src/themes/portfolio/Layout.tsx',
+  'src/themes/prism/Layout.tsx',
+  'src/plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent.tsx',
+];
+const crawlablePostLinkIssues = crawlablePostLinkFiles.flatMap((file) => {
+  const content = read(file);
+  const missing = [];
+
+  if (!content.includes('getPermalink')) {
+    missing.push('getPermalink helper');
+  }
+
+  if (!content.includes('href={getPermalink(')) {
+    missing.push('crawlable post href');
+  }
+
+  return missing.length ? [`${file}: ${missing.join(', ')}`] : [];
+});
+
+if (crawlablePostLinkIssues.length === 0) {
+  pass(
+    'Crawlable Public Post Links: bundled themes and Related Posts expose canonical hrefs while keeping SPA click handlers.'
+  );
+} else {
+  fail(`Crawlable Public Post Links: ${crawlablePostLinkIssues.join('; ')}`);
+}
+
+const crawlableSidebarLinkFiles = [
+  'src/plugins/von-core/features/public/components/Sidebar.tsx',
+  'src/themes/techpress/components/Sidebar.tsx',
+  'src/themes/digest/components/Sidebar.tsx',
+];
+const crawlableSidebarLinkIssues = crawlableSidebarLinkFiles.flatMap((file) => {
+  const content = read(file);
+  const missing = [];
+
+  if (!content.includes('href={getPermalink(post, settings')) {
+    missing.push('canonical href');
+  }
+
+  if (!content.includes('handleCrawlableLinkClick(event')) {
+    missing.push('native-aware click handler');
+  }
+
+  if (content.includes('onClick={(e) => e.preventDefault()}')) {
+    missing.push('bare preventDefault anchor');
+  }
+
+  return missing.length ? [`${file}: ${missing.join(', ')}`] : [];
+});
+
+if (crawlableSidebarLinkIssues.length === 0) {
+  pass('Crawlable Sidebar Links: trending widgets keep real hrefs and native link behavior.');
+} else {
+  fail(`Crawlable Sidebar Links: ${crawlableSidebarLinkIssues.join('; ')}`);
+}
+
 if (exists('ROADMAP.md')) {
   const roadmapContent = read('ROADMAP.md');
   assertIncludes(
@@ -4260,7 +4324,7 @@ assertIncludes(
     'Path A: Install A Website',
     'Path B: Run Locally With Laragon',
     'Path C: Work From Source',
-    'VonCMS_v1.25.1_Deploy.zip',
+    'VonCMS_v1.25.2_Deploy.zip',
     'npm install',
     'npm run test:integration',
   ],
@@ -4803,6 +4867,26 @@ if (
 } else {
   fail(
     'Initial Skeleton Hold: skeleton CSS can still fade on a fixed timer and expose a blank app shell before React is ready.'
+  );
+}
+
+const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
+  ? read('src/components/SkeletonLoader.tsx')
+  : '';
+if (
+  reactSkeletonContent.includes('background: #111827;') &&
+  reactSkeletonContent.includes('border: 1px solid rgba(148, 163, 184, 0.08);') &&
+  reactSkeletonContent.includes('rgba(59, 130, 246, 0.1) 20%') &&
+  reactSkeletonContent.includes('rgba(148, 163, 184, 0.16) 60%') &&
+  !reactSkeletonContent.includes('background: #1a1a1a;') &&
+  !reactSkeletonContent.includes('rgba(255, 255, 255, 0.7)')
+) {
+  pass(
+    'React Skeleton Palette Contract: Suspense/route skeletons stay visually aligned with the initial bundled skeleton CSS.'
+  );
+} else {
+  fail(
+    'React Skeleton Palette Contract: React fallback skeletons drift from the initial bundled skeleton CSS palette.'
   );
 }
 
@@ -5578,6 +5662,27 @@ assertIncludes(
   ],
   'Post Breadcrumb Category Contract: SSR and React SEO breadcrumbs expose Home > Category > Post for multi-word categories.',
   'Post Breadcrumb Category Contract: Google can still infer two-word category breadcrumbs from URL segments instead of structured data.'
+);
+
+assertIncludes(
+  'Sitemap Image Base Path Contract',
+  categorySeoSitemapContent,
+  [
+    'function voncms_sitemap_absolute_url($url, $baseUrl)',
+    'parse_url($baseUrl, PHP_URL_PATH)',
+    'strpos($relativeUrl, $basePrefix) === 0',
+    "$imgUrl = voncms_sitemap_absolute_url($post['image_url'], $baseUrl);",
+  ],
+  'Sitemap Image Base Path Contract: image sitemap URLs strip an already-present subfolder prefix before joining with the configured domain URL.',
+  'Sitemap Image Base Path Contract: image sitemap URLs can still double-prefix subfolder uploads paths.'
+);
+
+assertIncludes(
+  'Permalink Subfolder Relative Href Contract',
+  exists('src/utils/siteUtils.ts') ? read('src/utils/siteUtils.ts') : '',
+  ['const isOverlap = absolute && domain && basePath && domain.endsWith(basePath);'],
+  'Permalink Subfolder Relative Href Contract: relative post hrefs keep the subfolder base path even when domainUrl already contains it.',
+  'Permalink Subfolder Relative Href Contract: relative post hrefs can still drop the subfolder base path when domainUrl overlaps it.'
 );
 
 assertIncludes(
