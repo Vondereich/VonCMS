@@ -1,4 +1,4 @@
-![VonCMS Banner]([https://i.ibb.co/Fq6vpWFk/fa17357f-0820-4069-b688-6baa3b0dd50e.png](https://i.ibb.co/VY0Hk2GQ/bannernew.png))
+![VonCMS Banner](https://i.ibb.co/VY0Hk2GQ/bannernew.png)
 
 # VonCMS
 
