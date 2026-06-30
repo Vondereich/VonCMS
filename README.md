@@ -6,7 +6,7 @@ VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for pu
 
 VonCMS v1.25.2 "OpenGate" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
-[Website](https://getvoncms.com/)) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
+[Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
 ## Project Status
 
