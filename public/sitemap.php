@@ -39,18 +39,6 @@ if (!function_exists('voncms_category_slug')) {
 }
 ob_end_clean();
 
-// Force 200 OK for crawlers (addresses "Bad Response Code")
-if (
-  preg_match(
-    '/(facebookexternalhit|Facebot|meta-external|meta-webindexer|Twitterbot|WhatsApp|TelegramBot)/i',
-    $_SERVER['HTTP_USER_AGENT'] ?? '',
-  )
-) {
-  if (!headers_sent()) {
-    http_response_code(200);
-  }
-}
-
 // Constants
 define('MAX_URLS_PER_SITEMAP', 1000); // Optimized for performance (Standard: 50k)
 
@@ -226,8 +214,6 @@ try {
     if ($page === 1) {
       echo '<url>';
       echo '<loc>' . htmlspecialchars($baseUrl) . '/</loc>';
-      echo '<changefreq>daily</changefreq>';
-      echo '<priority>1.0</priority>';
       echo '</url>';
     }
 
@@ -297,8 +283,6 @@ try {
         echo '<image:loc>' . htmlspecialchars($imgUrl) . '</image:loc>';
         echo '</image:image>';
       }
-      echo '<changefreq>weekly</changefreq>';
-      echo '<priority>0.8</priority>';
       echo '</url>';
     }
 
@@ -330,8 +314,6 @@ try {
       echo '<url>';
       echo '<loc>' . htmlspecialchars($baseUrl . $path) . '</loc>';
       echo '<lastmod>' . $date . '</lastmod>';
-      echo '<changefreq>monthly</changefreq>';
-      echo '<priority>0.6</priority>';
       echo '</url>';
     }
 

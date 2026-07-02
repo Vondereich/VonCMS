@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.25.2
+# VonCMS Security Policy v1.25.3
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 

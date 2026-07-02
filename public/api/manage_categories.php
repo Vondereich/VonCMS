@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/settings_audit_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('GET, POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -220,6 +221,7 @@ try {
     $storedCategories[] = $category;
     saveStoredCategories($pdo, $storedCategories, $userId);
     $pdo->commit();
+    voncms_public_cache_clear();
 
     echo json_encode([
       'success' => true,
@@ -262,6 +264,7 @@ try {
     }
     saveStoredCategories($pdo, $updatedSettings, $userId);
     $pdo->commit();
+    voncms_public_cache_clear();
 
     echo json_encode([
       'success' => true,
@@ -305,6 +308,7 @@ try {
     $updatedSettings[] = $replacement;
     saveStoredCategories($pdo, $updatedSettings, $userId);
     $pdo->commit();
+    voncms_public_cache_clear();
 
     echo json_encode([
       'success' => true,

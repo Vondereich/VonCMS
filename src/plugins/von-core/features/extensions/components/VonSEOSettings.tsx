@@ -29,55 +29,46 @@ interface VonSEOSettingsProps {
 
 export const VonSEOSettings: React.FC<VonSEOSettingsProps> = ({ settings, onUpdate, onClose }) => {
   // Fallback default (in case API fails)
-  const FALLBACK_ROBOTS = `# Social Media Crawlers (ALLOW ALL)
+  const FALLBACK_ROBOTS = `# VonCMS Robots Policy v1.25.3
+
+# Social Preview Crawlers
 User-agent: facebookexternalhit
-Allow: ${BASE_PATH}
-
 User-agent: Facebot
-Allow: ${BASE_PATH}
-
 User-agent: meta-externalagent
-Allow: ${BASE_PATH}
-
 User-agent: meta-webindexer
-Allow: ${BASE_PATH}
-
 User-agent: meta-externalads
-Allow: ${BASE_PATH}
-
 User-agent: meta-externalfetcher
-Allow: ${BASE_PATH}
-
 User-agent: Twitterbot
-Allow: ${BASE_PATH}
-
+User-agent: Pinterest
 User-agent: WhatsApp
-Allow: ${BASE_PATH}
-
 User-agent: LinkedInBot
-Allow: ${BASE_PATH}
-
 User-agent: TelegramBot
+User-agent: Slackbot
 Allow: ${BASE_PATH}
+Disallow: ${BASE_PATH}admin/
+Disallow: ${BASE_PATH}api/
+Disallow: ${BASE_PATH}install/
+Disallow: ${BASE_PATH}von_config.php
+Disallow: ${BASE_PATH}data/
+Disallow: ${BASE_PATH}logs/
 
 # AI Search / User-Directed Assistants
 User-agent: OAI-SearchBot
-Allow: ${BASE_PATH}
-
 User-agent: ChatGPT-User
-Allow: ${BASE_PATH}
-
 User-agent: Claude-SearchBot
-Allow: ${BASE_PATH}
-
 User-agent: Claude-User
-Allow: ${BASE_PATH}
-
 User-agent: PerplexityBot
 Allow: ${BASE_PATH}
+Disallow: ${BASE_PATH}admin/
+Disallow: ${BASE_PATH}api/
+Disallow: ${BASE_PATH}install/
+Disallow: ${BASE_PATH}von_config.php
+Disallow: ${BASE_PATH}data/
+Disallow: ${BASE_PATH}logs/
 
-# General Crawlers (PRO RULES)
+# General Crawlers
 User-agent: *
+# Content-Signal is a vendor extension; standard crawlers may ignore it.
 Content-Signal: search=yes,ai-train=no
 Allow: ${BASE_PATH}
 Disallow: ${BASE_PATH}admin/
@@ -89,20 +80,10 @@ Disallow: ${BASE_PATH}logs/
 
 # AI Training / Bulk Dataset Crawlers
 User-agent: GPTBot
-Disallow: /
-
 User-agent: Google-Extended
-Disallow: /
-
 User-agent: ClaudeBot
-Disallow: /
-
 User-agent: CCBot
-Disallow: /
-
 User-agent: Applebot-Extended
-Disallow: /
-
 User-agent: Bytespider
 Disallow: /`;
 
@@ -111,10 +92,19 @@ Disallow: /`;
 
   const normalizeRobotsRules = (robots: string, trim = true) => {
     const normalized = robots
+      .replace(/^\s*Sitemap\s*:\s*.*$/gim, '')
       .replace(/^\s*Crawl-delay\s*:\s*\d+\s*$/gim, '')
       .replace(/\n{3,}/g, '\n\n');
     return trim ? normalized.trim() : normalized;
   };
+
+  const isLegacyVonCmsRobotsPolicy = (robots: string) =>
+    !robots.includes('VonCMS Robots Policy v1.25.3') &&
+    robots.includes('# Social Media Crawlers') &&
+    robots.includes('User-agent: OAI-SearchBot') &&
+    robots.includes('Content-Signal: search=yes,ai-train=no') &&
+    robots.includes('User-agent: GPTBot') &&
+    robots.includes('von_config.php');
 
   React.useEffect(() => {
     const fetchDefaultRobots = async () => {
@@ -135,10 +125,12 @@ Disallow: /`;
 
   const initialSEO = {
     siteTitle: settings.seo?.siteTitle || settings.siteName,
-    defaultKeywords: settings.seo?.defaultKeywords || '',
-    canonicalHost: settings.seo?.canonicalHost || '',
     sitemapEnabled: settings.seo?.sitemapEnabled ?? true,
-    robotsTxt: normalizeRobotsRules(settings.seo?.robotsTxt || defaultRobots),
+    robotsTxt: normalizeRobotsRules(
+      settings.seo?.robotsTxt && !isLegacyVonCmsRobotsPolicy(settings.seo.robotsTxt)
+        ? settings.seo.robotsTxt
+        : defaultRobots
+    ),
   };
 
   const basePathPrefix = getBasePathPrefix();
@@ -220,6 +212,8 @@ Disallow: /`;
     try {
       const nextSeo = { ...(settings.seo || {}), ...tempSEO };
       delete nextSeo.defaultMetaDescription;
+      delete nextSeo.canonicalHost;
+      delete nextSeo.defaultKeywords;
       nextSeo.robotsTxt = normalizeRobotsRules(nextSeo.robotsTxt || defaultRobots);
 
       await onUpdate({
@@ -337,26 +331,6 @@ Disallow: /`;
                   &gt; General so search and social defaults stay in one place.
                 </p>
               </div>
-
-              {/* Keywords */}
-              <div className="space-y-2">
-                <span className="block text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Default Keywords
-                </span>
-                <input
-                  aria-label="Default Keywords"
-                  id="vonseosettings-296"
-                  name="vonseosettings296"
-                  type="text"
-                  value={tempSEO.defaultKeywords}
-                  onChange={(e) => setTempSEO({ ...tempSEO, defaultKeywords: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="technology, blog, news (comma-separated)"
-                />
-                <p className="text-xs text-slate-500">
-                  Comma-separated keywords for search engines
-                </p>
-              </div>
             </div>
           )}
 
@@ -395,7 +369,6 @@ Disallow: /`;
                     <li>✓ twitter:title</li>
                     <li>✓ twitter:description</li>
                     <li>✓ twitter:image</li>
-                    <li>✓ twitter:creator</li>
                   </ul>
                 </div>
               </div>
@@ -404,23 +377,24 @@ Disallow: /`;
 
           {activeTab === 'advanced' && (
             <div className="space-y-6">
-              {/* Canonical Host */}
+              {/* Canonical URL source */}
               <div className="space-y-2">
                 <span className="block text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Canonical Host URL
+                  Canonical Domain URL
                 </span>
                 <input
                   id="vonseosettings-359"
                   name="vonseosettings359"
-                  aria-label="Canonical Host URL"
+                  aria-label="Canonical Domain URL"
                   type="url"
-                  value={tempSEO.canonicalHost}
-                  onChange={(e) => setTempSEO({ ...tempSEO, canonicalHost: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="https://yourdomain.com"
+                  value={settings.domainUrl || settings.siteUrl || ''}
+                  readOnly
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-none transition-all"
+                  placeholder="Set the Domain URL in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
-                  Your site's primary domain (leave empty to use current domain)
+                  Canonical URLs use the Domain URL from General Settings so SSR, React, sitemap,
+                  RSS, llms.txt, and IndexNow stay aligned.
                 </p>
               </div>
 
@@ -512,12 +486,22 @@ Disallow: /`;
                     </button>
                   )}
                 </div>
+                {basePathPrefix && (
+                  <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-lg p-3 flex items-start gap-2">
+                    <AlertCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={14} />
+                    <p className="text-xs text-amber-800 dark:text-amber-400">
+                      This is a subfolder install. Search crawlers only recognize the host-root
+                      /robots.txt, so configure the parent domain to serve this policy or reference
+                      {` ${basePathPrefix}/sitemap.xml`}.
+                    </p>
+                  </div>
+                )}
                 {tempSEO.robotsTxt.trim() === 'User-agent: *\nDisallow:' && (
                   <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-lg p-3 mt-2 flex items-start gap-2">
                     <AlertCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={14} />
                     <p className="text-xs text-amber-800 dark:text-amber-400">
-                      Legacy robots.txt detected. We recommend updating to **Pro Rules** for better
-                      security against scrapers and crawlers.
+                      Legacy robots.txt detected. Reset to the recommended crawl policy to keep
+                      crawler groups and protected paths aligned.
                     </p>
                   </div>
                 )}

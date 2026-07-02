@@ -357,7 +357,9 @@ export interface CustomPluginDefinition {
 export interface SeoConfig {
   siteTitle?: string;
   defaultMetaDescription?: string;
+  /** @deprecated Meta keywords are ignored by modern search engines. */
   defaultKeywords?: string;
+  /** @deprecated Canonical URLs use SiteSettings.domainUrl. */
   canonicalHost?: string;
   sitemapEnabled?: boolean;
   robotsTxt?: string;
@@ -391,13 +393,7 @@ export interface SiteSettings {
   domainUrl?: string;
   timeZone?: string;
   permalinkStructure?:
-    | 'plain'
-    | 'slug'
-    | 'date'
-    | 'day_name'
-    | 'month_name'
-    | 'post_name'
-    | 'category';
+    'plain' | 'slug' | 'date' | 'day_name' | 'month_name' | 'post_name' | 'category';
   adminProfile?: {
     name: string;
     email: string;

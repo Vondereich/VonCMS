@@ -1,6 +1,6 @@
-# VonCMS Plugin Development Guide v1.25.2
+# VonCMS Plugin Development Guide v1.25.3
 
-This guide is the plugin-specific source of truth for VonCMS v1.25.2. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to create plugins without weakening the runtime, visual output, or security baseline.
+This guide is the plugin-specific source of truth for VonCMS v1.25.3. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to create plugins without weakening the runtime, visual output, or security baseline.
 
 For theme work, use [Theme Development](THEME_DEVELOPMENT.md).
 
@@ -79,7 +79,7 @@ If a plugin touches PHP, treat it as a security-sensitive feature, not UI polish
 
 ## RBAC and Private Data Boundaries
 
-VonCMS v1.25.2 separates normal appointed Admin access from primary-admin ownership. Plugins must respect that split.
+VonCMS v1.25.3 separates normal appointed Admin access from primary-admin ownership. Plugins must respect that split.
 
 Current rules:
 
@@ -94,7 +94,7 @@ For comments, appointed Admin/Moderator/Writer payloads may expose only `hasEmai
 
 Use the centralized PHP response helpers instead of hand-shaping public payloads in plugin endpoints.
 
-Plugin endpoints that expose public content should follow the same v1.25.2 rules as core:
+Plugin endpoints that expose public content should follow the same v1.25.3 rules as core:
 
 - post/page/bootstrap payloads: no public `author_id`
 - public comments: no `dbId`, `userId`, `status`, or `emailHash`
@@ -286,11 +286,24 @@ src/plugins/von-core/features/plugins/built-in/[plugin]/SettingsModal.tsx
 
 Then wire the modal from `ExtensionsManager.tsx`.
 
-Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.25.2 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
+Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.25.3 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
 
 Secret-bearing configuration does not belong in public plugin config. Store it in a protected settings group or dedicated backend path, let `get_settings.php` mask it for non-primary admins, and make save paths ignore protected secret keys from non-primary admins.
 
 Media CDN settings are delivery hints, not an upload/offload integration. Plugins should consume the media URL returned by upload/list APIs and should not add their own CDN prefix unless they own a future CDN/offload integration.
+
+## Crawlable Plugin Links
+
+Plugins that render public navigation to posts, pages, profiles, categories, feeds, or other public routes should output real anchors, not button-only click handlers.
+
+For article widgets, related-post blocks, sidebar widgets, and campaign content that points to a public route:
+
+- use the same permalink helper contract as themes, such as `getPermalink(post, settings)` for posts
+- render an `<a href="...">`
+- use `handleCrawlableLinkClick` when the plugin needs SPA-style in-app navigation on plain left-clicks
+- preserve browser-native behavior for copy link, open in new tab, middle click, and modifier-click
+
+Use buttons for plugin actions, dismissals, toggles, modals, and admin controls. Do not use `javascript:` URLs or inline event attributes.
 
 ## Rendering Locations
 
@@ -390,6 +403,7 @@ Record warnings honestly. The current known warning is PHP lint skip when no PHP
 - Saving plugin status outside `pluginConfig.pluginStatus`.
 - Rendering article-only plugins without post context.
 - Shipping visually broken plugin output because the data path works.
+- Rendering public post/category/profile navigation as button-only click handlers.
 - Mutating editor content silently.
 - Bypassing `sanitizeHtml` for custom HTML.
 - Duplicating VonSEO robots or site-description ownership.

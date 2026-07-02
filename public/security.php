@@ -129,14 +129,23 @@ if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
   }
 }
 
+if (!function_exists('voncms_is_social_preview_crawler')) {
+  function voncms_is_social_preview_crawler(string $userAgent): bool
+  {
+    return (bool) preg_match(
+      '/(facebookexternalhit|Facebot|meta-external|meta-webindexer|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Slackbot)/i',
+      $userAgent,
+    );
+  }
+}
+
 // 1. Initialise Session with Secure Parameters
 // Must be called BEFORE session_start()
 if (session_status() === PHP_SESSION_NONE) {
   $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-  $isBot = preg_match(
-    '/(facebookexternalhit|Facebot|meta-external|meta-webindexer|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Slackbot|Googlebot|Bingbot|DuckDuckBot|Mediapartners-Google|AdsBot-Google)/i',
-    $ua,
-  );
+  $isBot =
+    voncms_is_social_preview_crawler($ua) ||
+    preg_match('/(Googlebot|Bingbot|DuckDuckBot|Mediapartners-Google|AdsBot-Google)/i', $ua);
 
   $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
   $requestMethod = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -144,21 +153,20 @@ if (session_status() === PHP_SESSION_NONE) {
     strpos($scriptName, '/api/') !== false || preg_match('#/(api|api\.php)$#i', $scriptName);
   $isCrawlerPageRequest = !$isApiScript && in_array($requestMethod, ['GET', 'HEAD'], true);
 
-  // PERFORMANCE & SECURITY: VVIP Bypass for search/social bots
+  // Keep crawler-facing page renders lightweight without changing API security.
   if ($isBot && $isCrawlerPageRequest) {
-    // CRITICAL: Force 200 & bypass ALL logic for bots
+    // Public GET/HEAD page shells must remain indexable for known crawler user agents.
     if (!headers_sent()) {
       http_response_code(200);
       header('X-Robots-Tag: index, follow');
     }
 
-    // Define constant to skip all security checks
-    if (!defined('SOCIAL_BOT_BYPASS')) {
-      define('SOCIAL_BOT_BYPASS', true);
+    // Mark this request so session-backed helpers can avoid unnecessary page-render work.
+    if (!defined('CRAWLER_PAGE_RENDER')) {
+      define('CRAWLER_PAGE_RENDER', true);
     }
 
-    // DO NOT start session or run any security for bots
-    // Let index.php render the page immediately
+    // Let index.php render the public page without starting a visitor session.
   } else {
     $isProduction = !in_array(
       preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')),
@@ -201,6 +209,23 @@ if (isset($_SESSION['user'])) {
 function sendApiHeaders($methods = 'GET, OPTIONS')
 {
   if (!headers_sent()) {
+    $requestedMethods = trim((string) $methods);
+    if ($requestedMethods === '') {
+      $requestedMethods = 'GET, OPTIONS';
+    }
+
+    $defaultMethods = 'GET, OPTIONS';
+    $previousMethods = $GLOBALS['voncms_api_allowed_methods'] ?? null;
+    if (
+      !is_string($previousMethods) ||
+      trim($previousMethods) === '' ||
+      $previousMethods === $defaultMethods ||
+      $requestedMethods !== $defaultMethods
+    ) {
+      $GLOBALS['voncms_api_allowed_methods'] = $requestedMethods;
+    }
+    $effectiveMethods = (string) $GLOBALS['voncms_api_allowed_methods'];
+
     header('Content-Type: application/json');
 
     // SECURITY: Mirror only trusted web origins for credentialed requests.
@@ -244,7 +269,7 @@ function sendApiHeaders($methods = 'GET, OPTIONS')
       header('Access-Control-Allow-Origin: *');
     }
 
-    header("Access-Control-Allow-Methods: $methods");
+    header("Access-Control-Allow-Methods: $effectiveMethods");
     header(
       'Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Admin-Token, x-gemini-key',
     );
@@ -278,8 +303,8 @@ class CSRFProtection
    */
   public static function generateToken()
   {
-    if (defined('SOCIAL_BOT_BYPASS') && SOCIAL_BOT_BYPASS === true) {
-      return 'bot-bypass-logic';
+    if (defined('CRAWLER_PAGE_RENDER') && CRAWLER_PAGE_RENDER === true) {
+      return 'crawler-page-render';
     }
     if (!isset($_SESSION[self::$tokenName])) {
       $_SESSION[self::$tokenName] = bin2hex(random_bytes(32));
@@ -292,8 +317,8 @@ class CSRFProtection
    */
   public static function getToken()
   {
-    if (defined('SOCIAL_BOT_BYPASS') && SOCIAL_BOT_BYPASS === true) {
-      return 'bot-bypass-logic';
+    if (defined('CRAWLER_PAGE_RENDER') && CRAWLER_PAGE_RENDER === true) {
+      return 'crawler-page-render';
     }
     return $_SESSION[self::$tokenName] ?? self::generateToken();
   }
@@ -329,11 +354,11 @@ class CSRFProtection
   public static function requireToken()
   {
     if (
-      defined('SOCIAL_BOT_BYPASS') &&
-      SOCIAL_BOT_BYPASS === true &&
+      defined('CRAWLER_PAGE_RENDER') &&
+      CRAWLER_PAGE_RENDER === true &&
       ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
     ) {
-      return; // Skip for bots
+      return; // No state-changing CSRF validation is needed for a public crawler GET.
     }
     if (!self::validateToken()) {
       sendApiHeaders();
@@ -546,7 +571,7 @@ class SessionManager
 class RateLimiter
 {
   /** @var string $storageDir */
-  private static $storageDir = __DIR__ . '/../data/rate_limits/';
+  private static $storageDir = __DIR__ . '/data/rate_limits/';
   /** @var int $maxAttempts */
   private static $maxAttempts = 5;
   /** @var int $lockoutTime */
@@ -664,11 +689,11 @@ class RateLimiter
   public static function requireNotLimited($identifier = null)
   {
     if (
-      defined('SOCIAL_BOT_BYPASS') &&
-      SOCIAL_BOT_BYPASS === true &&
+      defined('CRAWLER_PAGE_RENDER') &&
+      CRAWLER_PAGE_RENDER === true &&
       ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
     ) {
-      return; // Skip for bots
+      return; // Avoid visitor rate-limit storage for a public crawler GET.
     }
     if (self::isLimited($identifier)) {
       sendApiHeaders();

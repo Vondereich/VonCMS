@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -367,6 +368,7 @@ try {
 
   // Commit Transaction
   $db->commit();
+  voncms_public_cache_clear();
 
   // INDEXNOW INTEGRATION: Notify search engines instantly
   // OTA SAFETY: Wrapped in try-catch to prevent blocking if IndexNow class is missing
@@ -377,7 +379,7 @@ try {
         require_once $indexNowFile;
         $indexNow = new IndexNow($db);
         if ($indexNow->isEnabled()) {
-          $postUrl = $indexNow->buildPostUrl($input['slug']);
+          $postUrl = $indexNow->buildPostUrlForPost((int) $finalId);
           // Non-blocking: We don't wait for response or care if it fails
           // The main post save is already committed
           $indexNow->ping($postUrl);

@@ -40,22 +40,13 @@ if (!function_exists('voncms_category_slug')) {
 }
 ob_end_clean();
 
-// Force 200 OK for crawlers
-if (
-  preg_match(
-    '/(facebookexternalhit|Facebot|meta-external|meta-webindexer|Twitterbot|WhatsApp|TelegramBot)/i',
-    $_SERVER['HTTP_USER_AGENT'] ?? '',
-  )
-) {
-  if (!headers_sent()) {
-    http_response_code(200);
-  }
-}
-
 // Set plain text header
 if (!headers_sent()) {
   header('Content-Type: text/plain; charset=utf-8');
 }
+
+$llmsOutputBufferLevel = ob_get_level();
+ob_start();
 
 if (!function_exists('llmsMarkdownText')) {
   /**
@@ -187,9 +178,10 @@ try {
       echo "## Categories\n\n";
       $hasCategories = true;
     }
-    $catName = llmsMarkdownText($cat['category'] ?? '', 120);
-    $catCount = (int) ($cat['total'] ?? 0);
-    echo "- $catName ($catCount)\n";
+    $categoryName = llmsMarkdownText($cat['category'] ?? '', 120);
+    $categoryCount = (int) ($cat['total'] ?? 0);
+    $categoryUrl = $baseUrl . '/?category=' . rawurlencode((string) ($cat['category'] ?? ''));
+    echo "- [$categoryName]($categoryUrl) ($categoryCount)\n";
   }
   if ($hasCategories) {
     echo "\n";
@@ -199,7 +191,7 @@ try {
   // OUTPUT: POSTS
   // =====================
   $postStmt = $pdo->prepare(
-    "SELECT id, title, slug, excerpt, keywords, created_at, category FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY created_at DESC LIMIT 50",
+    "SELECT id, title, slug, excerpt, created_at, category FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY COALESCE(scheduled_at, created_at) DESC LIMIT 50",
   );
   $postStmt->bindValue(':currentTime', $currentTime);
   $postStmt->execute();
@@ -250,7 +242,6 @@ try {
     $url = $baseUrl . $path;
     $title = llmsMarkdownText($post['title'] ?? 'Untitled', 180);
     $excerpt = llmsMarkdownText($post['excerpt'] ?? '', 200);
-    $keywords = llmsMarkdownText($post['keywords'] ?? '', 200);
 
     // Format date if available
     $dateStr = '';
@@ -267,10 +258,6 @@ try {
       echo "- [$title]($url): $excerpt$dateStr\n";
     } else {
       echo "- [$title]($url)$dateStr\n";
-    }
-
-    if ($keywords) {
-      echo "  Keywords: $keywords\n";
     }
   }
   if ($hasPosts) {
@@ -310,8 +297,13 @@ try {
   // =====================
   echo "## RSS Feed\n\n";
   echo "Subscribe to updates via RSS: [$baseUrl/rss.xml]($baseUrl/rss.xml)\n";
+  ob_end_flush();
 } catch (Exception $e) {
-  // Graceful fallback
+  while (ob_get_level() > $llmsOutputBufferLevel) {
+    ob_end_clean();
+  }
+  http_response_code(503);
+  header('Retry-After: 300');
   echo "# VonCMS\n\n";
   echo "> Site information temporarily unavailable.\n";
 }

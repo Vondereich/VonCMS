@@ -1,4 +1,4 @@
-# VonCMS Quickstart v1.25.2 "OpenGate"
+# VonCMS Quickstart v1.25.3 "OpenGate"
 
 This is the short first-run path. Use the full [README](../README.md) when you want source development detail, and use [Installation](INSTALL.md) or [VPS](VPS.md) when you need hosting-specific notes.
 
@@ -6,7 +6,7 @@ This is the short first-run path. Use the full [README](../README.md) when you w
 
 Use this path when you only want to run VonCMS on hosting.
 
-1. Download `VonCMS_v1.25.2_Deploy.zip` from the release page.
+1. Download `VonCMS_v1.25.3_Deploy.zip` from the release page.
 2. Extract the ZIP into your hosting web root, such as `public_html`.
 3. Create a MySQL database and database user.
 4. Open your site URL in the browser.
@@ -22,7 +22,7 @@ Use this path when you want to test the Deploy ZIP on Windows before uploading.
 
 1. Install Laragon.
 2. Start Apache and MySQL.
-3. Extract `VonCMS_v1.25.2_Deploy.zip` into `C:\laragon\www\voncms`.
+3. Extract `VonCMS_v1.25.3_Deploy.zip` into `C:\laragon\www\voncms`.
 4. Create a database in phpMyAdmin, HeidiSQL, or another database manager.
 5. Open `http://localhost/voncms`.
 6. Complete the installer wizard.

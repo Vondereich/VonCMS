@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Hammer, CheckCircle, AlertCircle, Loader2, Activity } from 'lucide-react';
+import { Shield, Hammer, CheckCircle, AlertCircle, Loader2, Activity, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
@@ -31,8 +31,8 @@ export const SystemTools: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
           <div>
             <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4">
@@ -106,6 +106,31 @@ export const SystemTools: React.FC = () => {
               <Activity size={18} />
             )}
             Start Schema Repair
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
+          <div>
+            <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
+              <Trash2 size={24} />
+            </div>
+            <h3 className="text-lg font-bold dark:text-white mb-2">Clear Public Cache</h3>
+            <p className="text-slate-500 text-sm mb-4">
+              Clears cached guest JSON for public posts and settings. Admin, drafts, previews, and
+              write routes are never cached by this tool.
+            </p>
+          </div>
+          <button
+            onClick={() => runTool(API.clearPublicCache, 'Clear Public Cache')}
+            disabled={!!loading}
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+          >
+            {loading === 'Clear Public Cache' ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <Trash2 size={18} />
+            )}
+            Clear Public Cache
           </button>
         </div>
       </div>

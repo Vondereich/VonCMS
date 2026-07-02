@@ -8,18 +8,6 @@ require_once __DIR__ . '/von_config.php';
 require_once __DIR__ . '/security.php';
 ob_end_clean();
 
-// Force 200 OK for crawlers (addresses "Bad Response Code")
-if (
-  preg_match(
-    '/(facebookexternalhit|Facebot|meta-external|meta-webindexer|Twitterbot|WhatsApp|TelegramBot)/i',
-    $_SERVER['HTTP_USER_AGENT'] ?? '',
-  )
-) {
-  if (!headers_sent()) {
-    http_response_code(200);
-  }
-}
-
 // ============================================
 // URL Detection (Agnostic Birthplace)
 // ============================================
@@ -57,47 +45,49 @@ if ($basePath === '//') {
   $basePath = '/';
 }
 
-// SINGLE SOURCE OF TRUTH: Default robots.txt
+// SINGLE SOURCE OF TRUTH: Default robots.txt.
+// This is a crawl policy, not an access-control boundary; server guards protect these paths.
 $DEFAULT_ROBOTS = <<<EOT
-# Social Media Crawlers
+# VonCMS Robots Policy v1.25.3
+
+# Social Preview Crawlers
 User-agent: facebookexternalhit
-Allow: /
 User-agent: Facebot
-Allow: /
 User-agent: meta-externalagent
-Allow: /
 User-agent: meta-webindexer
-Allow: /
 User-agent: meta-externalads
-Allow: /
 User-agent: meta-externalfetcher
-Allow: /
 User-agent: Twitterbot
-Allow: /
 User-agent: Pinterest
-Allow: /
 User-agent: LinkedInBot
-Allow: /
 User-agent: WhatsApp
-Allow: /
 User-agent: TelegramBot
-Allow: /
 User-agent: Slackbot
-Allow: /
+Allow: {$basePath}
+Disallow: {$basePath}admin/
+Disallow: {$basePath}api/
+Disallow: {$basePath}install/
+Disallow: {$basePath}von_config.php
+Disallow: {$basePath}data/
+Disallow: {$basePath}logs/
 
 # AI Search / User-Directed Assistants
 User-agent: OAI-SearchBot
-Allow: /
 User-agent: ChatGPT-User
-Allow: /
 User-agent: Claude-SearchBot
-Allow: /
 User-agent: Claude-User
-Allow: /
 User-agent: PerplexityBot
-Allow: /
+Allow: {$basePath}
+Disallow: {$basePath}admin/
+Disallow: {$basePath}api/
+Disallow: {$basePath}install/
+Disallow: {$basePath}von_config.php
+Disallow: {$basePath}data/
+Disallow: {$basePath}logs/
 
+# General Crawlers
 User-agent: *
+# Content-Signal is a vendor extension; standard crawlers may ignore it.
 Content-Signal: search=yes,ai-train=no
 Allow: {$basePath}
 Disallow: {$basePath}admin/
@@ -109,18 +99,20 @@ Disallow: {$basePath}logs/
 
 # AI Training / Bulk Dataset Crawlers
 User-agent: GPTBot
-Disallow: /
 User-agent: Google-Extended
-Disallow: /
 User-agent: ClaudeBot
-Disallow: /
 User-agent: CCBot
-Disallow: /
 User-agent: Applebot-Extended
-Disallow: /
 User-agent: Bytespider
 Disallow: /
 EOT;
+
+function stripRobotsSitemapDirectives(string $content): string
+{
+  $content = preg_replace('/^\s*Sitemap\s*:\s*.*$/mi', '', $content);
+  $content = preg_replace("/\n{3,}/", "\n\n", (string) $content);
+  return trim((string) $content);
+}
 
 function normalizeRobotsContent(string $content): string
 {
@@ -129,14 +121,72 @@ function normalizeRobotsContent(string $content): string
   return trim((string) $content);
 }
 
+function isLegacyVonCmsRobotsPolicy(string $content): bool
+{
+  if (strpos($content, 'VonCMS Robots Policy v1.25.3') !== false) {
+    return false;
+  }
+
+  foreach (
+    [
+      '# Social Media Crawlers',
+      'User-agent: OAI-SearchBot',
+      'Content-Signal: search=yes,ai-train=no',
+      'User-agent: GPTBot',
+      'von_config.php',
+    ]
+    as $marker
+  ) {
+    if (strpos($content, $marker) === false) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 $DEFAULT_ROBOTS = normalizeRobotsContent($DEFAULT_ROBOTS);
+$siteConfig = [];
+$savedRobotsContent = '';
+
+if (isset($pdo)) {
+  try {
+    $stmt = $pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'site_config' LIMIT 1",
+    );
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $decodedConfig =
+      $row && !empty($row['setting_value']) ? json_decode($row['setting_value'], true) : null;
+    if (is_array($decodedConfig)) {
+      $siteConfig = $decodedConfig;
+      $savedRobotsContent = (string) ($siteConfig['robotsTxt'] ?? '');
+    }
+
+    $stmt = $pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'robots_txt' LIMIT 1",
+    );
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row && !empty($row['setting_value'])) {
+      $savedRobotsContent = (string) $row['setting_value'];
+    }
+  } catch (Exception $e) {
+    // Fail gracefully to generated defaults.
+  }
+}
+
+$sitemapEnabled =
+  !array_key_exists('sitemapEnabled', $siteConfig) ||
+  filter_var($siteConfig['sitemapEnabled'], FILTER_VALIDATE_BOOLEAN);
 
 if (isset($_GET['default']) && $_GET['default'] === 'json') {
   header('Content-Type: application/json; charset=UTF-8');
   echo json_encode([
     'success' => true,
     'robots' => $DEFAULT_ROBOTS,
-    'sitemap' => "$siteUrl/sitemap.xml",
+    'sitemapEnabled' => $sitemapEnabled,
+    'sitemap' => $sitemapEnabled ? "$siteUrl/sitemap.xml" : null,
   ]);
   exit();
 }
@@ -144,35 +194,26 @@ if (isset($_GET['default']) && $_GET['default'] === 'json') {
 // Serve robots.txt
 header('Content-Type: text/plain; charset=UTF-8');
 
-// Try to load site-specific robots.txt from database
 $robotsContent = $DEFAULT_ROBOTS;
-if (isset($pdo)) {
-  try {
-    $stmt = $pdo->prepare(
-      "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'robots_txt' LIMIT 1",
-    );
-    $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && !empty($row['setting_value'])) {
-      $robotsContent = normalizeRobotsContent($row['setting_value']);
-    } else {
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'site_config' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      $siteConfig =
-        $row && !empty($row['setting_value']) ? json_decode($row['setting_value'], true) : null;
-      if (is_array($siteConfig) && !empty($siteConfig['robotsTxt'])) {
-        $robotsContent = normalizeRobotsContent($siteConfig['robotsTxt']);
-      }
-    }
-  } catch (Exception $e) {
-    // Fail gracefully to default
+if ($savedRobotsContent !== '') {
+  $normalizedSavedRobots = normalizeRobotsContent($savedRobotsContent);
+  if (!isLegacyVonCmsRobotsPolicy($normalizedSavedRobots)) {
+    $robotsContent = $normalizedSavedRobots;
   }
 }
+$robotsContent = stripRobotsSitemapDirectives($robotsContent);
 
 echo $robotsContent;
 
-// Append sitemap URL
-echo "\n\nSitemap: $siteUrl/sitemap.xml\n";
+if ($sitemapEnabled) {
+  $sitemapUrl = "$siteUrl/sitemap.xml";
+  $hasCanonicalSitemap = preg_match(
+    '/^\s*Sitemap:\s*' . preg_quote($sitemapUrl, '/') . '\s*$/mi',
+    $robotsContent,
+  );
+  if (!$hasCanonicalSitemap) {
+    echo "\n\nSitemap: $sitemapUrl";
+  }
+}
+
+echo "\n";

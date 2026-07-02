@@ -69,6 +69,7 @@ export const API = {
   checkDbStatus: `${BASE_PATH}api/system/check_db_status.php`, // Harmonized to System Check
   fixIntegrity: `${BASE_PATH}api/system/fix_integrity.php`, // Read-only integrity check
   repairHtaccess: `${BASE_PATH}api/system/repair_htaccess.php`,
+  clearPublicCache: `${BASE_PATH}api/system/clear_public_cache.php`,
   install: `${BASE_PATH}api/install.php`,
   submitContact: `${BASE_PATH}api/submit_contact.php`,
 

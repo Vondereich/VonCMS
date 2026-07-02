@@ -1,4 +1,4 @@
-# Introduction to VonCMS v1.25.2 "OpenGate"
+# Introduction to VonCMS v1.25.3 "OpenGate"
 
 ## Publishing should not feel like plugin maintenance.
 
@@ -43,7 +43,7 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-## This is v1.25.2 "OpenGate"
+## This is v1.25.3 "OpenGate"
 
 _"OpenGate" - the open-source handoff line, focused on making VonCMS easier to inspect, fork, customize, install, and verify._
 

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 // Enforce Security
@@ -204,6 +205,7 @@ try {
     $savedUpdatedAt = (string) ($savedUpdatedAtStmt->fetchColumn() ?: $savedUpdatedAt);
 
     $pdo->commit();
+    voncms_public_cache_clear();
 
     if (ob_get_length()) {
       ob_clean();
@@ -265,6 +267,7 @@ try {
     $savedUpdatedAt = (string) ($savedUpdatedAtStmt->fetchColumn() ?: $savedUpdatedAt);
 
     $pdo->commit();
+    voncms_public_cache_clear();
 
     if (ob_get_length()) {
       ob_clean();

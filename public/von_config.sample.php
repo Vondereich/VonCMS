@@ -15,7 +15,7 @@ if (php_sapi_name() !== 'cli') {
     ini_set('log_errors', '1');
 
     // Ensure logs directory exists (Auto-Fix)
-    $logDir = __DIR__ . '/../logs';
+    $logDir = __DIR__ . '/logs';
     if (!file_exists($logDir)) {
       @mkdir($logDir, 0755, true);
     }
@@ -36,7 +36,7 @@ if (php_sapi_name() !== 'cli') {
       ini_set('display_errors', '1');
     }
     ini_set('log_errors', '1');
-    ini_set('error_log', __DIR__ . '/../logs/php_error_dev.log');
+    ini_set('error_log', __DIR__ . '/logs/php_error_dev.log');
   }
 }
 

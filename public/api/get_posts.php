@@ -22,6 +22,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../scheduler_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 
 if (!function_exists('voncms_normalize_fulltext_search')) {
   function voncms_normalize_fulltext_search(string $value): string
@@ -136,6 +137,33 @@ try {
   }
 
   $canSkipTotal = !$isAdmin && !$includeTotal && $authorQuery === null;
+  $canUsePublicPostsCache =
+    !$isAdmin &&
+    $forcePublic &&
+    !$includeTotal &&
+    $authorQuery === null &&
+    $statusFilter === null &&
+    ($search === '' || strlen($search) >= 2);
+  $publicPostsCacheKey = voncms_public_cache_key('posts-list', [
+    'page' => $page,
+    'limit' => $limit,
+    'category' => $normalizedCategory,
+    'search' => $search,
+    'includeTotal' => false,
+    'public' => true,
+  ]);
+
+  if ($canUsePublicPostsCache) {
+    $cachedPublicPosts = voncms_public_cache_get($publicPostsCacheKey, 60);
+    if (is_string($cachedPublicPosts)) {
+      if (ob_get_length()) {
+        ob_clean();
+      }
+      echo $cachedPublicPosts;
+      exit();
+    }
+  }
+
   $queryLimit = $canSkipTotal ? $limit + 1 : $limit;
   $total = 0;
 
@@ -274,7 +302,7 @@ try {
     return ResponseHelper::shapeContentPayload($post, $isAdmin);
   }, $rows);
 
-  echo json_encode([
+  $responseJson = json_encode([
     'posts' => $result,
     'meta' => [
       'page' => $page,
@@ -285,6 +313,16 @@ try {
       'totalIsExact' => !$canSkipTotal,
     ],
   ]);
+
+  if (!is_string($responseJson)) {
+    ResponseHelper::sendError('Failed to encode posts response', 500);
+  }
+
+  if ($canUsePublicPostsCache) {
+    voncms_public_cache_set($publicPostsCacheKey, $responseJson);
+  }
+
+  echo $responseJson;
 } catch (Throwable $e) {
   ResponseHelper::sendError($e);
 }

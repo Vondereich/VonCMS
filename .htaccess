@@ -51,12 +51,23 @@ DirectoryIndex index.php index.html
 
   RewriteRule ^package\.json$ - [F,L]
 
+  RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\.php$ - [F,L,NC]
+
+  RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
+
+  RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]
+
     # Route direct index.html requests through PHP hydration
     RewriteRule ^index\.html$ index.php [L,QSA]
 
     # Serve real files
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
+
+  # Keep missing upload paths out of the SPA/post fallback
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^uploads/ - [R=404,L,NC]
 
   # Serve existing directories directly
   RewriteCond %{REQUEST_FILENAME} -d

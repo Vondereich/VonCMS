@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, DELETE, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -65,6 +66,8 @@ try {
   $stmt->execute(['id' => $pageId]);
 
   if ($stmt->rowCount() > 0) {
+    voncms_public_cache_clear();
+
     try {
       voncms_record_content_audit(
         $pdo,

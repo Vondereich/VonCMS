@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, DELETE, OPTIONS');
 
 // Handle preflight
@@ -62,6 +63,8 @@ try {
   $rowsAffected = $stmt->rowCount();
 
   if ($rowsAffected > 0) {
+    voncms_public_cache_clear();
+
     try {
       voncms_record_content_audit(
         $pdo,

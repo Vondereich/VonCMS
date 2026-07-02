@@ -62,6 +62,7 @@ server-*.log
 backups/
 public/von_config.php
 public/data/backups/
+public/data/public-cache/
 logs/
 
 # Internal Planning (Private)

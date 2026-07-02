@@ -27,13 +27,13 @@ class IndexNow
 
   private ?PDO $pdo;
   private string $host;
-  private string $keyFilePath;
+  private string $publicBaseUrl;
 
   public function __construct(?PDO $pdo = null)
   {
     $this->pdo = $pdo;
-    $this->host = $this->detectHost();
-    $this->keyFilePath = $this->getKeyFilePath();
+    $this->publicBaseUrl = $this->detectPublicBaseUrl();
+    $this->host = (string) (parse_url($this->publicBaseUrl, PHP_URL_HOST) ?: $this->detectHost());
   }
 
   /**
@@ -49,6 +49,41 @@ class IndexNow
     return $host;
   }
 
+  private function detectPublicBaseUrl(): string
+  {
+    if ($this->pdo) {
+      try {
+        $stmt = $this->pdo->prepare(
+          "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'domain_url' LIMIT 1",
+        );
+        $stmt->execute();
+        $configuredUrl = trim((string) ($stmt->fetchColumn() ?: ''));
+        if (
+          filter_var($configuredUrl, FILTER_VALIDATE_URL) &&
+          in_array(
+            strtolower((string) parse_url($configuredUrl, PHP_URL_SCHEME)),
+            ['http', 'https'],
+            true,
+          )
+        ) {
+          return rtrim($configuredUrl, '/');
+        }
+      } catch (Exception $e) {
+        // Fall back to the current request path.
+      }
+    }
+
+    $scheme = is_https() ? 'https' : 'http';
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
+    $basePath = dirname($scriptName);
+    if (strpos($basePath, '/api') !== false) {
+      $basePath = preg_replace('#/api(/.*)?$#i', '', $basePath);
+    }
+    $basePath = in_array($basePath, ['/', '\\', '.'], true) ? '' : rtrim((string) $basePath, '/');
+
+    return $scheme . '://' . $this->detectHost() . $basePath;
+  }
+
   /**
    * Get the expected key file path in the web root
    */
@@ -57,6 +92,11 @@ class IndexNow
     // Navigate from /public/api/system/ to /public/
     $publicRoot = dirname(__DIR__, 2);
     return $publicRoot . '/' . $this->getKey() . '.txt';
+  }
+
+  private function getKeyLocationUrl(string $key): string
+  {
+    return $this->publicBaseUrl . '/' . rawurlencode($key) . '.txt';
   }
 
   /**
@@ -257,6 +297,7 @@ class IndexNow
       http_build_query([
         'url' => $url,
         'key' => $key,
+        'keyLocation' => $this->getKeyLocationUrl($key),
       ]);
 
     // Use cURL with strict timeout
@@ -268,7 +309,7 @@ class IndexNow
       CURLOPT_CONNECTTIMEOUT => 2,
       CURLOPT_FOLLOWLOCATION => false,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_USERAGENT => 'VonCMS/1.25.2 IndexNow',
+      CURLOPT_USERAGENT => 'VonCMS/1.25.3 IndexNow',
     ]);
 
     $response = curl_exec($ch);
@@ -328,6 +369,7 @@ class IndexNow
     $payload = [
       'host' => $this->host,
       'key' => $key,
+      'keyLocation' => $this->getKeyLocationUrl($key),
       'urlList' => array_values($validUrls),
     ];
 
@@ -341,7 +383,7 @@ class IndexNow
       CURLOPT_TIMEOUT => self::TIMEOUT_SECONDS,
       CURLOPT_CONNECTTIMEOUT => 2,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_USERAGENT => 'VonCMS/1.25.2 IndexNow',
+      CURLOPT_USERAGENT => 'VonCMS/1.25.3 IndexNow',
     ]);
 
     $response = curl_exec($ch);
@@ -372,22 +414,70 @@ class IndexNow
    */
   public function buildPostUrl(string $slug): string
   {
-    $scheme = is_https() ? 'https' : 'http';
+    return $this->publicBaseUrl . '/' . ltrim($slug, '/');
+  }
 
-    // SMART BASE PATH DETECTION
-    // Matches logic in redirect_engine.php and index.php
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
-    $basePath = dirname($scriptName);
-    $basePath = str_replace('\\', '/', $basePath);
-
-    // If we're inside /api, the real base is one level up (or more if nested)
-    if (strpos($basePath, '/api') !== false) {
-      $basePath = preg_replace('#/api(/.*)?$#i', '', $basePath);
+  public function buildPostUrlForPost(int $postId): string
+  {
+    if (!$this->pdo) {
+      throw new RuntimeException('Database not configured');
     }
 
-    $basePath =
-      $basePath === '/' || $basePath === '\\' || $basePath === '.' ? '' : rtrim($basePath, '/');
+    $stmt = $this->pdo->prepare(
+      'SELECT id, slug, category, created_at FROM posts WHERE id = ? LIMIT 1',
+    );
+    $stmt->execute([$postId]);
+    $post = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$post) {
+      throw new RuntimeException('Post not found');
+    }
 
-    return $scheme . '://' . $this->host . $basePath . '/' . ltrim($slug, '/');
+    $permalinkStyle = 'slug';
+    $stmt = $this->pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'permalink_structure' LIMIT 1",
+    );
+    $stmt->execute();
+    $savedPermalinkStyle = trim((string) ($stmt->fetchColumn() ?: ''));
+    if ($savedPermalinkStyle !== '') {
+      $permalinkStyle = $savedPermalinkStyle;
+    }
+
+    $slug = trim((string) ($post['slug'] ?? '')) ?: (string) $post['id'];
+    $path = '/' . $slug;
+    $createdAt = !empty($post['created_at']) ? new DateTime((string) $post['created_at']) : null;
+
+    switch ($permalinkStyle) {
+      case 'date':
+      case 'day_name':
+        if ($createdAt) {
+          $path = '/' . $createdAt->format('Y/m/d') . '/' . $slug;
+        }
+        break;
+      case 'month_name':
+        if ($createdAt) {
+          $path = '/' . $createdAt->format('Y/m') . '/' . $slug;
+        }
+        break;
+      case 'category':
+        $category = html_entity_decode(
+          trim((string) ($post['category'] ?? 'uncategorized')),
+          ENT_QUOTES | ENT_HTML5,
+          'UTF-8',
+        );
+        $category = function_exists('mb_strtolower')
+          ? mb_strtolower($category, 'UTF-8')
+          : strtolower($category);
+        $category = preg_replace('/[^\p{L}\p{N}\s_-]+/u', '', $category);
+        $category = str_replace('_', ' ', (string) $category);
+        $category = preg_replace('/\s+/u', '-', (string) $category);
+        $category = trim((string) preg_replace('/-+/', '-', (string) $category), '-');
+        $path = '/' . ($category !== '' ? $category : 'uncategorized') . '/' . $slug;
+        break;
+      case 'plain':
+        $path = '/post/' . $post['id'];
+        break;
+    }
+
+    return $this->publicBaseUrl . $path;
   }
 }

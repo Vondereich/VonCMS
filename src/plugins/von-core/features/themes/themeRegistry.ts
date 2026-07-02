@@ -1,4 +1,10 @@
 import { ThemeConfig } from '../../../../types';
+import defaultManifest from '../../../../themes/default/theme.json';
+import prismManifest from '../../../../themes/prism/theme.json';
+import techpressManifest from '../../../../themes/techpress/theme.json';
+import portfolioManifest from '../../../../themes/portfolio/theme.json';
+import digestManifest from '../../../../themes/digest/theme.json';
+import corporateProManifest from '../../../../themes/corporate-pro/theme.json';
 
 export interface ThemeDefinition {
   id: string;
@@ -6,6 +12,9 @@ export interface ThemeDefinition {
   description: string;
   version: string;
   author: string;
+  performance: {
+    homepageHero?: 'first-post-image';
+  };
   config: ThemeConfig; // Re-use existing type for compatibility
   extendedConfig: {
     colors: {
@@ -39,6 +48,13 @@ export interface ThemeDefinition {
   };
 }
 
+const readThemePerformance = (manifest: {
+  performance?: { homepageHero?: unknown };
+}): ThemeDefinition['performance'] =>
+  manifest.performance?.homepageHero === 'first-post-image'
+    ? { homepageHero: 'first-post-image' }
+    : {};
+
 // --- THEME: DEFAULT ---
 export const THEME_DEFAULT: ThemeDefinition = {
   id: 'theme-default',
@@ -46,6 +62,7 @@ export const THEME_DEFAULT: ThemeDefinition = {
   description: 'The standard clean and modern theme.',
   version: '1.25',
   author: 'VonCMS Team',
+  performance: readThemePerformance(defaultManifest),
   config: {
     name: 'VonCMS Default',
     primaryColor: '#0ea5ff',
@@ -92,6 +109,7 @@ export const THEME_PRISM: ThemeDefinition = {
   description: 'Futuristic, vibrant, techy, colorful accents.',
   version: '1.25',
   author: 'VonCMS Team',
+  performance: readThemePerformance(prismManifest),
   config: {
     name: 'Von Prism',
     primaryColor: '#4F97FF',
@@ -137,6 +155,7 @@ export const THEME_TECHPRESS: ThemeDefinition = {
   description: 'Professional tech news portal with breaking news ticker.',
   version: '1.25',
   author: 'VonCMS Team',
+  performance: readThemePerformance(techpressManifest),
   config: {
     name: 'Von TechPress',
     primaryColor: '#0066cc',
@@ -183,6 +202,7 @@ export const THEME_PORTFOLIO: ThemeDefinition = {
   description: 'Stunning single-page portfolio showcase for creatives.',
   version: '1.25',
   author: 'VonCMS Team',
+  performance: readThemePerformance(portfolioManifest),
   config: {
     name: 'Von Portfolio',
     primaryColor: '#8B5CF6',
@@ -229,6 +249,7 @@ export const THEME_DIGEST: ThemeDefinition = {
   description: 'Modern magazine theme with category filtering and hero section.',
   version: '1.25',
   author: 'VonCMS Team',
+  performance: readThemePerformance(digestManifest),
   config: {
     name: 'Von Digest',
     primaryColor: '#00D1D1',
@@ -275,6 +296,7 @@ export const THEME_CORPORATE_PRO: ThemeDefinition = {
   description: 'Professional business theme with hero, services, and CTA sections.',
   version: '1.25',
   author: 'VonCMS Team',
+  performance: readThemePerformance(corporateProManifest),
   config: {
     name: 'Corporate Pro',
     primaryColor: '#2563eb',

@@ -1,6 +1,6 @@
-# VonCMS Theme Development Guide v1.25.2
+# VonCMS Theme Development Guide v1.25.3
 
-This guide is the theme-specific source of truth for VonCMS v1.25.2. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to build public themes without breaking the publishing runtime.
+This guide is the theme-specific source of truth for VonCMS v1.25.3. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to build public themes without breaking the publishing runtime.
 
 For plugin work, use [Plugin Development](PLUGIN_DEVELOPMENT.md).
 
@@ -71,7 +71,7 @@ All mutating backend requests in VonCMS must use authenticated sessions, CSRF va
 
 Public theme props are already shaped by the PHP response helpers before they reach React. Do not rebuild public privacy rules inside a theme.
 
-The v1.25.2 public contract is:
+The v1.25.3 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -202,11 +202,26 @@ Supported responsive image modes are `card`, `hero`, and `content`.
 
 Profile views must use `useProfileActivity` for author article totals, article pagination, comment totals, and comment pagination. Do not derive profile activity from the theme's local `posts` or `comments` props, because those props can be capped for public discovery and may not contain the user's complete contribution history.
 
+## Crawlable Theme Links
+
+Public links to posts, pages, profiles, categories, feeds, or any crawlable public URL should be real anchors, not button-only `onClick` handlers.
+
+For post cards, sidebar items, timeline entries, and related-post surfaces:
+
+- build the URL with `getPermalink(post, settings)`
+- render an `<a href="...">`
+- use `handleCrawlableLinkClick` to keep normal SPA navigation for plain left-clicks
+- let browser-native behavior work for copy link, open in new tab, middle click, and modifier-click
+
+Use a `<button>` only for UI actions that are not public navigation, such as filters, modals, dropdowns, load-more actions, editor commands, and admin controls.
+
 ## Minimal Theme Skeleton
 
 ```tsx
 import React from 'react';
 import { ThemeLayoutProps } from '../types';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
+import { getPermalink } from '../../utils/siteUtils';
 import {
   VonSEO,
   ContentRenderer,
@@ -246,7 +261,7 @@ const SinglePostView: React.FC<{
 };
 
 const MyThemeLayout: React.FC<ThemeLayoutProps> = (props) => {
-  const { posts, currentView, selectedPost, onPostClick } = props;
+  const { posts, settings, currentView, selectedPost, onPostClick } = props;
 
   if (currentView === 'single-post' && selectedPost) {
     return <SinglePostView props={props} post={selectedPost} />;
@@ -255,9 +270,17 @@ const MyThemeLayout: React.FC<ThemeLayoutProps> = (props) => {
   return (
     <main>
       {posts.map((post) => (
-        <button key={post.id} onClick={() => onPostClick(post.id)}>
+        <a
+          key={post.id}
+          href={getPermalink(post, settings)}
+          onClick={(event) =>
+            handleCrawlableLinkClick(event, () => {
+              onPostClick(post.id);
+            })
+          }
+        >
           {decodeEntities(post.title)}
-        </button>
+        </a>
       ))}
     </main>
   );
@@ -269,12 +292,32 @@ export default MyThemeLayout;
 ## Registering a Theme
 
 1. Create `src/themes/my-theme/Layout.tsx`.
-2. Add a `ThemeDefinition` in `src/plugins/von-core/features/themes/themeRegistry.ts`.
-3. Add the layout id to `themeLayouts` in `PublicSite.tsx`.
-4. Add a theme settings modal only if the theme needs one.
-5. Add smoke coverage when the theme introduces a new contract.
+2. Add `src/themes/my-theme/theme.json` with the same stable theme id.
+3. Add a `ThemeDefinition` in `src/plugins/von-core/features/themes/themeRegistry.ts` and import its manifest.
+4. Add the layout id to `themeLayouts` in `PublicSite.tsx`.
+5. Add a theme settings modal only if the theme needs one.
+6. Add smoke coverage when the theme introduces a new contract.
 
 The theme id in the registry must match the id in `PublicSite.tsx`.
+
+### Homepage Hero Performance Metadata
+
+Themes whose homepage hero renders the first post image should set
+`homepageHero: 'first-post-image'` in their `theme.json` performance metadata:
+
+```json
+{
+  "id": "theme-my-theme",
+  "performance": {
+    "homepageHero": "first-post-image"
+  }
+}
+```
+
+The build copies each `theme.json` into the matching Deploy theme folder. PHP SSR reads only the active
+theme manifest, while React imports the same file into its theme definition. Omit `homepageHero` for
+themes without that exact hero contract; preloading a normal card image can waste bandwidth and compete
+with the real LCP resource.
 
 ## SEO and Robots Ownership
 
@@ -323,6 +366,7 @@ Manual checks:
 - Rendering `VonSEO` while the VonSEO plugin is disabled.
 - Duplicating `ContentRenderer`, comments, sidebar, newsletter, or ad behavior.
 - Building a theme-local search system instead of using shared discovery.
+- Rendering post navigation as button-only `onClick` handlers instead of crawlable anchors.
 - Counting profile articles/comments from capped local `posts` or `comments` props instead of `useProfileActivity`.
 - Reading `author_id`, `userId`, `dbId`, `emailHash`, profile role, or joined date from public payloads.
 - Adding a CDN prefix in the theme instead of trusting the media URL returned by the backend.

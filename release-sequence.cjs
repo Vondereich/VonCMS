@@ -5,6 +5,8 @@ const steps = [
   ['Prettier write', 'npx', ['prettier', '--write', '.']],
   ['BOM scan', 'node', ['remove-bom.cjs']],
   ['Vite build', 'npm', ['run', 'build']],
+  ['Integration smoke', 'npm', ['run', 'test:integration']],
+  ['PHP lint', 'npm', ['run', 'lint:php']],
   ['Create release ZIPs', 'node', ['create_release.cjs']],
 ];
 

@@ -4,6 +4,8 @@
  * Centralized scheduled-post publishing helpers.
  */
 
+require_once __DIR__ . '/api/public_cache_helper.php';
+
 function voncms_publish_scheduled_posts(PDO $pdo): int
 {
   $now = date('Y-m-d H:i:s');
@@ -11,8 +13,12 @@ function voncms_publish_scheduled_posts(PDO $pdo): int
     "UPDATE posts SET status = 'published', updated_at = scheduled_at WHERE status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?",
   );
   $stmt->execute([$now]);
+  $publishedCount = (int) $stmt->rowCount();
+  if ($publishedCount > 0) {
+    voncms_public_cache_clear();
+  }
 
-  return (int) $stmt->rowCount();
+  return $publishedCount;
 }
 
 /**

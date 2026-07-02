@@ -4,7 +4,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { SiteSettings, Page } from '../types';
-import { API } from '../config/site.config';
+import { API, BASE_PATH } from '../config/site.config';
 import { getAuthHeader } from '../config/auth.config';
 import { vonFetch } from '../utils/api';
 import toast from 'react-hot-toast';
@@ -109,7 +109,7 @@ export function useSettings() {
             console.warn('System not installed. Redirecting to installer...');
             const currentPath = window.location.pathname;
             if (!currentPath.endsWith('/install')) {
-              window.location.href = window.location.pathname.replace(/\/$/, '') + '/install';
+              window.location.href = `${BASE_PATH}install`;
               return;
             }
           }

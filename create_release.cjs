@@ -51,7 +51,9 @@ function walkSync(dir, baseDir = basePath) {
       normalizedRelativePath === 'docs/superpowers' ||
       normalizedRelativePath.startsWith('docs/superpowers/') ||
       normalizedRelativePath.startsWith('public/data/backups/') ||
+      normalizedRelativePath.startsWith('public/data/public-cache/') ||
       normalizedRelativePath.startsWith('data/backups/') ||
+      normalizedRelativePath.startsWith('data/public-cache/') ||
       lowerItem.endsWith('.zip') ||
       lowerItem.endsWith('.sha256') ||
       lowerItem.endsWith('.log') ||
@@ -79,13 +81,15 @@ try {
   execSync('npm run build', { stdio: 'inherit' });
   log('Build successful.\n');
 
-  ['migrations', 'install.sql', 'von_config.php', 'docs/superpowers'].forEach((item) => {
-    const itemPath = path.join(basePath, 'dist', item);
-    if (fs.existsSync(itemPath)) {
-      fs.rmSync(itemPath, { recursive: true, force: true });
-      log(`Removed dist/${item} (configured to exclude from Deploy).`);
+  ['migrations', 'install.sql', 'von_config.php', 'docs/superpowers', 'data/public-cache'].forEach(
+    (item) => {
+      const itemPath = path.join(basePath, 'dist', item);
+      if (fs.existsSync(itemPath)) {
+        fs.rmSync(itemPath, { recursive: true, force: true });
+        log(`Removed dist/${item} (configured to exclude from Deploy).`);
+      }
     }
-  });
+  );
 
   const skeletonPath = path.join(basePath, 'dist', 'skeleton.css');
   if (fs.existsSync(skeletonPath)) {

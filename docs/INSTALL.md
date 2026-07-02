@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.25.2 "OpenGate"**
+> **VonCMS v1.25.3 "OpenGate"**
 
 ---
 
@@ -68,9 +68,17 @@ Laragon is lightweight but requires a small manual step:
 
 ## Quick Install
 
+### Subfolder crawler files
+
+Search crawlers only treat the host-root `/robots.txt` as authoritative. If VonCMS is installed
+under a path such as `example.com/blog`, configure the parent virtual host or root application so
+`https://example.com/robots.txt` serves the VonCMS policy or references
+`https://example.com/blog/sitemap.xml`. The bundled `/blog/robots.txt` route remains useful for
+inspection, but it cannot replace host-root robots configuration.
+
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package. For v1.25.2, the file is `VonCMS_v1.25.2_Deploy.zip`.
+1. Download the latest VonCMS Deploy package. For v1.25.3, the file is `VonCMS_v1.25.3_Deploy.zip`.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -153,4 +161,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.25.2 "OpenGate"_
+_VonCMS v1.25.3 "OpenGate"_

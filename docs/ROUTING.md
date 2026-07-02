@@ -61,6 +61,11 @@ It decides:
 In simple terms:
 `.htaccess` is the first traffic director.
 
+For subfolder installs, crawler standards only recognize the host-root `/robots.txt`. An install
+at `/blog` can serve its sitemap and llms.txt under `/blog`, but the parent server must expose the
+VonCMS crawl policy at `/robots.txt` or maintain a root policy that references
+`/blog/sitemap.xml`.
+
 ## 2. `public/index.php`
 
 This is the backend router for page requests.

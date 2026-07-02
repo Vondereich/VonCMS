@@ -1,6 +1,6 @@
 # VonCMS Features
 
-> VonCMS v1.25.2 feature baseline for the OpenGate line.
+> VonCMS v1.25.3 feature baseline for the OpenGate line.
 
 ## Everything you need. Nothing you don't.
 
@@ -40,14 +40,14 @@ The admin dashboard is where you'll spend most of your time. It should feel good
 You shouldn't need an SEO degree to make your site visible. VonCMS handles the technical SEO automatically so you can focus on writing good content.
 
 - **Dynamic sitemap.xml** — updates automatically when you publish.
-- **Dynamic robots.txt** — secure by default, blocks sensitive paths.
-- **Dynamic llms.txt** — AI crawlers can read your content structure.
+- **Dynamic robots.txt** — generated crawl-policy defaults discourage indexing of internal paths; server access controls remain authoritative.
+- **Dynamic llms.txt** — publishes a concise Markdown content index for compatible AI/LLM clients.
 - **Canonical URL handling** — no duplicate content penalties.
 - **SEO-aware permalinks** — slug-based, date-based, category-based — your choice.
 - **Redirect manager** — 301 redirects with loop detection. No broken links.
 - **Open Graph & social meta** — your links look good when shared on Facebook, Twitter, WhatsApp.
 - **JSON-LD schema output** — structured data for Google rich results.
-- **IndexNow support** — ping search engines instantly when you publish. No waiting for crawlers.
+- **IndexNow support** — submits the canonical post URL when content is published; indexing remains controlled by each participating search engine.
 - **RSS feed** — full content, images, author metadata. `?limit`, `?category`, `?offset` support.
 
 **Why this matters:** In WordPress, this is Yoast + RankMath + Redirection + IndexNow plugin + RSS customizer. Five plugins. Five update cycles. Five things that can break. In VonCMS, it's just how the system works.
@@ -197,7 +197,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.2` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.3` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -207,5 +207,5 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 - **80 PHP API files** — current API surface under `public/api/`, with 94 public PHP files covered by the lint gate across the public runtime.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** — current local `v1.25.2` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** — current local `v1.25.3` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.

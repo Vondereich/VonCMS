@@ -1,3 +1,50 @@
+### [v1.25.3] - 2026-06-29
+
+> OpenGate follow-up for a lightweight guest-only public JSON cache on repeat anonymous posts/settings reads.
+
+- **Lightweight Public JSON Cache**:
+  - **Public Posts List Cache**: Anonymous `public=1` and `includeTotal=false` discovery reads now use a short server-side JSON cache for homepage, category, search, and load-more style post lists while admin, authenticated, profile exact-total, status, draft, preview, and scheduled-private paths stay uncached.
+  - **Public Settings Snapshot**: Guest-shaped `get_settings.php` responses now cache only after public/sensitive-field scrubbing, while admin and primary-admin settings responses remain live database reads.
+  - **Fail-Open Runtime Storage**: Cache files live under the protected `data/public-cache` runtime path (`public/data/public-cache` in source layout), use safe hashed query keys, short TTL checks, JSON validation, and atomic temp-file writes, and fall back to live database reads when the folder is missing, stale, corrupt, locked, or not writable.
+  - **Bounded Write Closeout**: Successful cache writes now prune after the atomic rename so the 250-file cap applies to the final directory state, while temporary-name generation stays inside the fail-open exception boundary.
+  - **Clear-All Purge Hooks**: Successful post/page/settings/category writes and scheduled publishes now clear the public cache so public readers do not keep stale list/settings JSON after content or public configuration changes.
+  - **Manual Clear Action**: System Tools now exposes a primary-admin-only Clear Public Cache action backed by a POST + CSRF endpoint restricted to known public cache files.
+  - **System Tools Layout Polish**: Tools cards now use a roomier responsive grid so the new cache action does not compress the maintenance buttons on normal desktop widths.
+  - **Release Hygiene**: Generated public cache runtime files are ignored locally and excluded from Source and Deploy release packages.
+- **Public Theme Polish**:
+  - **Mobile Lightbox Swipe**: The shared public post-content lightbox now supports guarded left/right swipe navigation on mobile, covering bundled themes that use the global gallery overlay while preserving desktop click and keyboard controls.
+  - **Homepage Hero Image Discovery**: Hero homepages now emit a guarded image preload for the first story, including responsive `imagesrcset` candidates when generated variants are available, `imagesizes`, and high fetch priority. Direct category/search discovery URLs skip the global homepage preload so they do not fetch an unrelated hero image. Each theme owns a server-readable `theme.json` capability manifest that is shared with React and copied into Deploy builds, so future hero themes opt in without theme IDs or capability rows in `public/index.php` and settings storage.
+- **Subfolder Deployment Hardening**:
+  - **Verification Email Fallback URL**: Verification links derived from the current request now preserve root and subfolder installs without inserting a duplicate slash before the API path when General Settings Domain URL is unavailable.
+  - **Installer Redirect Base Path**: Uninstalled-site redirects now use the server-injected deployment base path directly, keeping `/install` navigation correct from root domains, subdomains, and subfolder routes.
+- **Modern Crawler And SEO Alignment**:
+  - **Canonical Domain Single Source**: Hydrated VonSEO canonical, Open Graph, schema, author, breadcrumb, and image URLs now use the General Settings Domain URL without duplicating subfolder paths; the retired independent canonical-host setting is removed on save.
+  - **Homepage Canonical Consistency**: Server-rendered homepage canonical, Open Graph URL, and CollectionPage schema now use the same slash-terminated directory URL selected by Apache redirects, sitemap, and hydrated VonSEO output on root and subfolder installs.
+  - **SPA Metadata Cleanup**: Client metadata now removes stale empty tags between SPA routes, adds `og:image:alt`, and stops emitting ignored meta keywords, an unverified author name as `twitter:creator`, or the retired sitelinks search action.
+  - **Versioned Robots Policy**: Generated robots defaults now carry a v1.25.3 policy marker, apply protected-path crawl rules to specific social and AI-search groups instead of relying on wildcard inheritance, retain vendor Content Signals as an optional hint, and automatically replace recognizable legacy VonCMS defaults without overwriting custom policies.
+  - **Sitemap State And Signals**: `robots.txt` advertises the canonical sitemap only while XML sitemap generation is enabled and avoids duplicate declarations, while sitemap output drops ignored `changefreq` and `priority` hints and retains authoritative URL, image, and `lastmod` data.
+  - **Authoritative Sitemap Toggle**: Saved custom `Sitemap:` directives are removed in the SEO editor, settings API, and robots response before the single canonical declaration is conditionally emitted, preventing disabled or stale sitemap URLs from surviving in storage or `robots.txt`.
+  - **Linked llms.txt Resources**: Category sections now expose Markdown links, latest posts follow effective scheduled publish time, internal keyword metadata is omitted, and generation failures return retryable HTTP 503 responses instead of false-success output.
+  - **Subfolder IndexNow Ownership**: IndexNow submissions now include the deployed verification-key location and the saved post's canonical permalink structure, including category/date/plain paths and subfolder installs.
+  - **IndexNow Typed Post Boundary**: Canonical post submission now accepts an explicit integer post id and casts the saved id at the caller boundary, keeping PHP runtime behavior and static analysis aligned.
+  - **Temporary Maintenance Semantics**: Public maintenance responses remain HTTP 503 with `Retry-After`, while client SEO no longer attaches persistent `noindex` metadata for temporary outages.
+  - **Crawler Detection Single Source**: Social-preview User-Agent detection now lives in the shared security bootstrap, removing copied regex and redundant status handling from robots, sitemap, and llms endpoints while preserving their explicit error statuses.
+  - **Subfolder Robots Guidance**: Install and routing docs now explain that crawler standards require host-root `/robots.txt`, even when VonCMS itself is deployed under a subfolder.
+- **API Runtime Polish**:
+  - **Install-Local Runtime Storage**: Rate-limit state and generated PHP error logs now stay inside the current VonCMS installation instead of resolving one directory above root or subfolder deployments.
+  - **Public Index Bootstrap Cleanup**: Server-rendered settings, permalink, theme, discussion, ads, SEO, and social-image inputs now come from one request snapshot instead of repeated settings queries, while unused PHP Analytics and OG type/square state has been removed without changing the React-owned analytics flow or public metadata contract.
+  - **Site Name Whitespace Normalization**: General Settings now trims accidental leading and trailing whitespace from site names before saving, while server-rendered metadata also normalizes legacy stored values.
+  - **Crawler Page Mode Naming**: Renamed the internal public crawler page-render marker and corrected misleading "bypass all security" comments so the code reflects its actual non-API GET/HEAD session-avoidance scope without changing request behavior.
+  - **CORS Method Preservation**: Shared API header handling now preserves endpoint-specific allowed methods after POST endpoints enter auth or error helpers, preventing fallback error responses from downgrading their `Access-Control-Allow-Methods` header to the default GET contract.
+  - **API Helper Direct Access Guard**: Runtime, installer, and `.htaccess` repair templates now deny direct web access to helper-only API PHP files and return a clean `404` for the invalid `api/public-cache/` pseudo path, while normal public and authenticated API endpoints keep their existing PHP-level access checks.
+  - **Missing Upload Path Guard**: Runtime, installer, and `.htaccess` repair templates now return `404` for non-existent `uploads/` paths before the SPA fallback, while existing uploaded media files and protected upload directories keep their normal handling.
+- **Dependency Review**:
+  - **Safe Patch Refresh**: Updated the current semver-safe wanted set for `@openrouter/sdk`, `@types/node`, `adm-zip`, `fs-extra`, `lucide-react`, `postcss`, `prettier`, `react-router-dom`, Recharts, and Vite; Tailwind v4 remains parked for a dedicated migration.
+- **Release Gate Alignment**:
+  - **Full Sequence Coverage**: `release:full` now runs integration smoke and recursive PHP lint before packaging, while PHP lint dynamically discovers installed Laragon PHP versions instead of relying on fixed legacy paths.
+- **Release Version Alignment**:
+  - Bumped the OpenGate line to `v1.25.3`.
+
 ### [v1.25.2] - 2026-06-28
 
 > OpenGate follow-up in progress for lightweight public JSON cache preparation and small UI consistency polish.

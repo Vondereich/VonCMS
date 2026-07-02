@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('GET, POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -33,6 +34,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'POST
 // Session already started in security.php
 $isAdmin = SessionManager::isAdmin();
 $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
+$publicSettingsCacheKey = voncms_public_cache_key('settings-public', ['scope' => 'guest']);
+
+if (!$isAdmin) {
+  $cachedPublicSettings = voncms_public_cache_get($publicSettingsCacheKey, 60);
+  if (is_string($cachedPublicSettings)) {
+    echo $cachedPublicSettings;
+    exit();
+  }
+}
 
 /** @var PDOStatement|null $stmt */
 $stmt = null;
@@ -355,7 +365,16 @@ try {
     $settings['_canManageSecrets'] = false;
   }
 
-  echo json_encode($settings);
+  $settingsJson = json_encode($settings);
+  if (!is_string($settingsJson)) {
+    ResponseHelper::sendError('Failed to encode settings response', 500);
+  }
+
+  if (!$isAdmin && $publicSettingsCacheKey !== null) {
+    voncms_public_cache_set($publicSettingsCacheKey, $settingsJson);
+  }
+
+  echo $settingsJson;
 } catch (Throwable $e) {
   ResponseHelper::sendError($e);
 }

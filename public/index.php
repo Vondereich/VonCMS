@@ -368,18 +368,28 @@ header('X-Powered-By: VonCMS', true);
 // Default SEO values (white-label friendly)
 $seoTitle = 'My Website';
 $seoDescription = 'Built with CMS Core';
-$seoKeywords = '';
 $seoImage = '';
 $seoOgType = 'website';
 $homepagePosts = [];
 $htmlLang = 'en'; // Global fallback for site language
+$runtimeSettings = [];
+$permalinkStructureValue = 'slug';
+$activeThemeId = '';
+$themeCustomization = null;
+$discussionEnabledValue = true;
+$siteName = $seoTitle;
+$logoUrl = '';
+$faviconUrl = '';
+$faviconVersion = '';
+$adsenseVerification = '';
+$seo = [];
 
 // Initialize domain URL with safe default (fallback)
 // This ensures $domainUrl is available even if DB connection fails (fresh install)
 $protocol = is_https() ? 'https://' : 'http://';
 $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
 $domainUrl = rtrim($protocol . $host . $basePath, '/');
-$seoUrl = $domainUrl; // Default for homepage
+$seoUrl = $domainUrl . '/'; // Homepage is the canonical directory URL.
 
 if (!function_exists('voncms_category_slug')) {
   /**
@@ -544,41 +554,54 @@ try {
     $publicContentCurrentTime = date('Y-m-d H:i:s');
 
     if (isset($pdo)) {
-      // Get site language array immediately
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'site_language' LIMIT 1",
+      $runtimeSettingsStmt = $pdo->prepare(
+        "SELECT setting_group, setting_key, setting_value FROM settings
+         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure'))
+            OR (setting_group = 'ads' AND setting_key = 'ads_config')
+            OR (setting_group = 'seo' AND setting_key = 'site_config')
+            OR (setting_group = 'theme' AND setting_key IN ('active_theme_id', 'customization'))",
       );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $rawLang = strip_tags($row['setting_value']);
+      $runtimeSettingsStmt->execute();
+      foreach ($runtimeSettingsStmt->fetchAll(PDO::FETCH_ASSOC) as $settingRow) {
+        $runtimeSettings[$settingRow['setting_group']][$settingRow['setting_key']] =
+          $settingRow['setting_value'];
+      }
+
+      $permalinkStructureValue =
+        $runtimeSettings['general']['permalink_structure'] ?? 'slug';
+      $activeThemeId = $runtimeSettings['theme']['active_theme_id'] ?? '';
+      $themeCustomizationRaw = $runtimeSettings['theme']['customization'] ?? '';
+      if ($themeCustomizationRaw !== '') {
+        $decodedThemeCustomization = json_decode($themeCustomizationRaw, true);
+        if (is_array($decodedThemeCustomization)) {
+          $themeCustomization = $decodedThemeCustomization;
+        }
+      }
+      if (array_key_exists('discussion_enabled', $runtimeSettings['general'] ?? [])) {
+        $discussionEnabledValue = filter_var(
+          $runtimeSettings['general']['discussion_enabled'],
+          FILTER_VALIDATE_BOOLEAN,
+        );
+      }
+
+      $siteLanguageValue = $runtimeSettings['general']['site_language'] ?? '';
+      if ($siteLanguageValue !== '') {
+        $rawLang = strip_tags($siteLanguageValue);
         $langs = array_map('trim', explode(',', $rawLang));
         if (!empty($langs[0])) {
           $htmlLang = strtolower($langs[0]); // Ensure strict lowercase ISO code (e.g., 'ms' from 'ms, en')
         }
       }
 
-      // Get site name from settings
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_key = 'site_name' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $siteName = html_entity_decode($row['setting_value'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      $siteNameValue = trim((string) ($runtimeSettings['general']['site_name'] ?? ''));
+      if ($siteNameValue !== '') {
+        $siteName = html_entity_decode($siteNameValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $seoTitle = $siteName;
-      } else {
-        $siteName = $seoTitle;
       }
 
-      // Get site description
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_key = 'site_description' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $val = $row['setting_value'];
+      $siteDescriptionValue = $runtimeSettings['general']['site_description'] ?? '';
+      if ($siteDescriptionValue !== '') {
+        $val = $siteDescriptionValue;
         // Smart Extract: If user pasted full tag, get only the content attribute
         if (preg_match('/content=["\']([^"\']+)["\']/', $val, $m)) {
           $val = $m[1];
@@ -592,38 +615,15 @@ try {
         $seoDescription = mb_substr($cleanSiteDesc, 0, 160);
       }
 
-      // Get Domain URL (Global) for OG Tags & Canonical
-      // $domainUrl is already initialized with default, we overwrite only if DB has value
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'domain_url' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $domainUrl = rtrim($row['setting_value'], '/');
+      $configuredDomainUrl = $runtimeSettings['general']['domain_url'] ?? '';
+      if ($configuredDomainUrl !== '') {
+        $domainUrl = rtrim($configuredDomainUrl, '/');
       }
 
-      // Get Logo URL
-      $logoUrl = '';
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'logo_url' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $logoUrl = $row['setting_value'];
-      }
+      $logoUrl = $runtimeSettings['general']['logo_url'] ?? '';
 
-      // Get Favicon URL
-      $faviconUrl = '';
-      $faviconVersion = '';
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'favicon_url' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $faviconUrl = $row['setting_value'];
+      $faviconUrl = $runtimeSettings['general']['favicon_url'] ?? '';
+      if ($faviconUrl !== '') {
         // Cache-busting: Use file mtime if local, else hash of URL
         $localPath = __DIR__ . '/' . ltrim(parse_url($faviconUrl, PHP_URL_PATH) ?? '', '/');
         if (file_exists($localPath)) {
@@ -639,48 +639,19 @@ try {
         $safeHost = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
         $domainUrl = rtrim($protocol . $safeHost . $basePath, '/');
       }
+      $seoUrl = $domainUrl . '/';
 
-      // Get AdSense verification for meta tag injection
-      $adsenseVerification = '';
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_key = 'ads_config' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $adsSettings = json_decode($row['setting_value'], true);
+      $adsConfigValue = $runtimeSettings['ads']['ads_config'] ?? '';
+      if ($adsConfigValue !== '') {
+        $adsSettings = json_decode($adsConfigValue, true);
         if ($adsSettings && !empty($adsSettings['adsenseVerification'])) {
           $adsenseVerification = $adsSettings['adsenseVerification'];
         }
       }
 
-      // Get Analytics Settings (Google Analytics)
-      $googleAnalyticsId = '';
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_key = 'config' AND setting_group = 'analytics' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $analyticsSettings = json_decode($row['setting_value'], true);
-        $isTrackingEnabled = isset($analyticsSettings['enableTracking']) ? $analyticsSettings['enableTracking'] : true;
-        if (
-          !empty($analyticsSettings['googleAnalyticsId']) &&
-          $isTrackingEnabled
-        ) {
-          $googleAnalyticsId = $analyticsSettings['googleAnalyticsId'];
-        }
-      }
-
-      // Get SEO Settings (Google Search Console, etc)
-      $seo = [];
-      $stmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_key = 'site_config' AND setting_group = 'seo' LIMIT 1",
-      );
-      $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
-        $seo = json_decode($row['setting_value'], true) ?: [];
+      $seoConfigValue = $runtimeSettings['seo']['site_config'] ?? '';
+      if ($seoConfigValue !== '') {
+        $seo = json_decode($seoConfigValue, true) ?: [];
       }
 
       // Prepare Schema.org Data (VonSEO)
@@ -688,7 +659,7 @@ try {
         '@context' => 'https://schema.org',
         '@type' => 'WebSite',
         'name' => $seoTitle,
-        'url' => $domainUrl,
+        'url' => $seoUrl,
         'description' => $seoDescription,
       ];
 
@@ -731,12 +702,11 @@ try {
           // Collapse any legacy /post|/blog route to the configured canonical permalink,
           // but avoid redirecting when the request is already on the canonical path.
           if (!empty($post['slug'])) {
-            $plStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='permalink_structure' LIMIT 1");
-            $plStmt->execute();
-            $plRow = $plStmt->fetch(PDO::FETCH_ASSOC);
-            $pStyle = ($plRow && !empty($plRow['setting_value'])) ? $plRow['setting_value'] : 'slug';
-
-            $targetPath = buildCanonicalContentPath($post, $pStyle, 'post');
+            $targetPath = buildCanonicalContentPath(
+              $post,
+              $permalinkStructureValue,
+              'post',
+            );
             $normalizedRequestPath = '/' . ltrim($path, '/');
             if ($normalizedRequestPath !== $targetPath) {
               $queryString =
@@ -769,7 +739,6 @@ try {
             $seoDescription = mb_substr($cleanDesc, 0, 160);
           }
 
-          $seoKeywords = $post['keywords'] ?? '';
           $seoImage = $post['image_url'] ?? '';
           $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
 
@@ -803,12 +772,11 @@ try {
 
           // Construct Full URL for og:url & Canonical
           // FIX: Use calculated permalink instead of mirroring the request path
-          $plStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='permalink_structure' LIMIT 1");
-          $plStmt->execute();
-          $plRow = $plStmt->fetch(PDO::FETCH_ASSOC);
-          $pStyle = ($plRow && !empty($plRow['setting_value'])) ? $plRow['setting_value'] : 'slug';
-
-          $canonicalPath = buildCanonicalContentPath($post, $pStyle, 'post');
+          $canonicalPath = buildCanonicalContentPath(
+            $post,
+            $permalinkStructureValue,
+            'post',
+          );
           $seoUrl = $domainUrl . $canonicalPath;
           $schemaData['url'] = $seoUrl;
 
@@ -921,14 +889,10 @@ try {
             $seoDescription = mb_substr($cleanDesc, 0, 160);
           }
 
-          $seoKeywords = $post['keywords'] ?? '';
           $seoImage = $post['image_url'] ?? '';
 
           // Previous Logo Fallback Removed via cleanup -
           // We now enforce og-default.jpg later for consistent 1200x630 sizing
-
-          $schemaData['datePublished'] = !empty($post['created_at']) ? date('c', strtotime($post['created_at'])) : date('c');
-          $schemaData['dateModified'] = !empty($post['updated_at']) ? date('c', strtotime($post['updated_at'])) : $schemaData['datePublished'];
 
           // --------------------------------------------
           // Construct Absolute URLs for Open Graph (Plain Slug)
@@ -940,11 +904,11 @@ try {
               : '';
 
           if ($resolvedContentType === 'post') {
-            $plStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='permalink_structure' LIMIT 1");
-            $plStmt->execute();
-            $plRow = $plStmt->fetch(PDO::FETCH_ASSOC);
-            $pStyle = ($plRow && !empty($plRow['setting_value'])) ? $plRow['setting_value'] : 'slug';
-            $canonicalPath = buildCanonicalContentPath($post, $pStyle, 'post');
+            $canonicalPath = buildCanonicalContentPath(
+              $post,
+              $permalinkStructureValue,
+              'post',
+            );
             $normalizedRequestPath = '/' . ltrim($path, '/');
 
             // Canonical Permalink Redirect: keep fallback slug matching, but always collapse to the official permalink.
@@ -998,11 +962,6 @@ try {
       // ============================================
       if (empty($path)) {
         try {
-          $plStmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='permalink_structure' LIMIT 1");
-          $plStmt->execute();
-          $plRow = $plStmt->fetch(PDO::FETCH_ASSOC);
-          $permalinkStyle = ($plRow && !empty($plRow['setting_value'])) ? $plRow['setting_value'] : 'slug';
-
           $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 5");
           $hpStmt->execute([$publicContentCurrentTime]);
           $homepagePosts = $hpStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1025,7 +984,7 @@ try {
             unset($hp['content']); // Remove from payload to save memory and frontend size
             $hpSlug = $hp['slug'] ?: $hp['id'];
             $hp['url'] = ''; // Wait for switch statement
-            switch ($permalinkStyle) {
+            switch ($permalinkStructureValue) {
               case 'date':
               case 'day_name':
                 $hpD = new DateTime($hp['created_at']);
@@ -1070,90 +1029,15 @@ try {
 $assetsDir = __DIR__ . '/assets/';
 
 // FINAL FALLBACK & SPECS FOR OG:IMAGE
-$ogInfo = [
-  'width' => '',
-  'height' => '',
-  'type' => '',
-];
-
 if (empty($seoImage)) {
-  // 1. Check CMS Setting (Social Share Image)
-  // SAFETY: Only query if $pdo is available (skip on fresh install)
-  if (isset($pdo) && $pdo) {
-    try {
-      $stmt = $pdo->prepare(
-        "SELECT setting_key, setting_value FROM settings WHERE setting_group = 'general' AND (setting_key = 'og_image_url' OR setting_key = 'og_image_square_url')",
-      );
-      $stmt->execute();
-      $ogSettings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-      $ogRow = ['setting_value' => $ogSettings['og_image_url'] ?? ''];
-      $ogSquare = $ogSettings['og_image_square_url'] ?? '';
-
-      if ($ogRow && !empty($ogRow['setting_value'])) {
-        $seoImage = $ogRow['setting_value'];
-
-        // Smart Extract: If user pasted full tag, get only the content URL
-        if (preg_match('/content=["\']([^"\']+)["\']/', $seoImage, $m)) {
-          $seoImage = $m[1];
-        }
-
-        // Enforce Absolute URL for Facebook/Social Bots
-        if (!empty($seoImage) && strpos($seoImage, 'http') !== 0) {
-          $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
-        }
-
-        // Auto-detect type
-        $ext = strtolower(pathinfo($seoImage, PATHINFO_EXTENSION));
-        if ($ext === 'png') {
-          $ogInfo['type'] = 'image/png';
-        } elseif (in_array($ext, ['jpg', 'jpeg'])) {
-          $ogInfo['type'] = 'image/jpeg';
-        } elseif ($ext === 'webp') {
-          $ogInfo['type'] = 'image/webp';
-        }
-      }
-
-      // Handle Square Image Absolute URL
-      $ogSquareType = '';
-      if (!empty($ogSquare)) {
-        // Smart Extract: If user pasted full tag
-        if (preg_match('/content=["\']([^"\']+)["\']/', $ogSquare, $m)) {
-          $ogSquare = $m[1];
-        }
-
-        if (strpos($ogSquare, 'http') !== 0) {
-          $ogSquare = voncms_absolute_public_url($ogSquare, $domainUrl);
-        }
-        // Auto-detect type for Square (Robustness upgrade)
-        $extSq = strtolower(pathinfo($ogSquare, PATHINFO_EXTENSION));
-        if ($extSq === 'png') {
-          $ogSquareType = 'image/png';
-        } elseif (in_array($extSq, ['jpg', 'jpeg'])) {
-          $ogSquareType = 'image/jpeg';
-        } elseif ($extSq === 'webp') {
-          $ogSquareType = 'image/webp';
-        }
-      }
-
-      if (empty($seoImage)) {
-        throw new Exception('No custom OG image found');
-      }
-    } catch (Exception $e) {
-      // Fallback on error or missing data
-      $seoImage = $domainUrl . '/og-default.png';
-      $ogInfo['width'] = '1408';
-      $ogInfo['height'] = '768';
-      $ogInfo['type'] = 'image/png';
-      $ogSquare = '';
-    }
-  } else {
-    // No database connection (fresh install) - use default image
+  $seoImage = trim((string) ($runtimeSettings['general']['og_image_url'] ?? ''));
+  if (preg_match('/content=["\']([^"\']+)["\']/', $seoImage, $matches)) {
+    $seoImage = $matches[1];
+  }
+  if ($seoImage === '') {
     $seoImage = $domainUrl . '/og-default.png';
-    $ogInfo['width'] = '1408';
-    $ogInfo['height'] = '768';
-    $ogInfo['type'] = 'image/png';
-    $ogSquare = '';
+  } else {
+    $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
   }
 }
 $jsFile = '';
@@ -1204,15 +1088,12 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <?php if (isset($post) && (!empty($post['author_name']) || !empty($post['author']))): ?>
     <meta name="author" content="<?php echo htmlspecialchars($post['author_name'] ?? $post['author'], ENT_COMPAT, 'UTF-8', false); ?>">
   <?php endif; ?>
-  <?php if (!empty($seoKeywords)): ?>
-    <meta name="keywords" content="<?php echo htmlspecialchars($seoKeywords, ENT_COMPAT, 'UTF-8', false); ?>">
-  <?php endif; ?>
 
   <!-- Open Graph / Social Media -->
   <meta property="og:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta property="og:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php
-  $socialImage = $seoImage ?: ($ogSquare ?: '');
+  $socialImage = $seoImage;
   if (empty($socialImage) || strpos($socialImage, 'og-default') !== false) {
     $twitterCard = 'summary';
   } else {
@@ -1352,55 +1233,77 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   </script>
   <?php
   // 1.20.0 FIX: Settings Hydration to prevent default fallbacks in bot crawls
-  $activeThemeId = '';
-  $themeCustomization = null;
-  $discussionEnabledValue = true;
-  if (isset($pdo) && $pdo) {
-    try {
-      // Get Active Theme
-      $stmtTheme = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group = 'theme' AND setting_key = 'active_theme_id' LIMIT 1");
-      $stmtTheme->execute();
-      $themeRow = $stmtTheme->fetch(PDO::FETCH_ASSOC);
-      $activeThemeId = $themeRow ? $themeRow['setting_value'] : '';
+  $homepageHeroStrategy = '';
 
-      // Get Theme Customization (Colors, Fonts)
-      $stmtCustom = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group = 'theme' AND setting_key = 'customization' LIMIT 1");
-      $stmtCustom->execute();
-      $customRow = $stmtCustom->fetch(PDO::FETCH_ASSOC);
-      if ($customRow && !empty($customRow['setting_value'])) {
-        $themeCustomization = json_decode($customRow['setting_value'], true);
+  $themeManifestPaths = [__DIR__ . '/themes/' . $activeThemeId . '/theme.json'];
+  $sourceThemeManifestPaths = glob(dirname(__DIR__) . '/src/themes/*/theme.json');
+  if (is_array($sourceThemeManifestPaths)) {
+    $themeManifestPaths = array_merge($themeManifestPaths, $sourceThemeManifestPaths);
+  }
+
+  if (preg_match('/^[a-z0-9][a-z0-9-]*$/i', $activeThemeId)) {
+    foreach ($themeManifestPaths as $themeManifestPath) {
+      if (!is_file($themeManifestPath) || filesize($themeManifestPath) > 16384) {
+        continue;
       }
 
-      $stmtDiscussion = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'discussion_enabled' LIMIT 1");
-      $stmtDiscussion->execute();
-      $discussionRow = $stmtDiscussion->fetch(PDO::FETCH_ASSOC);
-      if ($discussionRow && array_key_exists('setting_value', $discussionRow)) {
-        $discussionEnabledValue = filter_var($discussionRow['setting_value'], FILTER_VALIDATE_BOOLEAN);
+      $themeManifestJson = file_get_contents($themeManifestPath);
+      $themeManifest = is_string($themeManifestJson)
+        ? json_decode($themeManifestJson, true)
+        : null;
+      if (!is_array($themeManifest) || ($themeManifest['id'] ?? '') !== $activeThemeId) {
+        continue;
       }
-    } catch (Throwable $e) {
-      // Ignore
+
+      $manifestHeroStrategy = $themeManifest['performance']['homepageHero'] ?? '';
+      $homepageHeroStrategy = $manifestHeroStrategy === 'first-post-image'
+        ? 'first-post-image'
+        : '';
+      break;
     }
+  }
 
-    // Permalink Structure for initial settings injection
-    $permalinkStructureValue = 'slug';
-    try {
-      $permalinkStructureQuery = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='permalink_structure' LIMIT 1");
-      $permalinkStructureQuery->execute();
-      $permalinkStructureRow = $permalinkStructureQuery->fetch(PDO::FETCH_ASSOC);
-      $permalinkStructureValue = ($permalinkStructureRow && !empty($permalinkStructureRow['setting_value'])) ? $permalinkStructureRow['setting_value'] : 'slug';
-    } catch (Throwable $e) { /* Ignore */ }
-  } else {
-    $permalinkStructureValue = 'slug';
+  $homepageDiscoveryCategory = $_GET['category'] ?? '';
+  $homepageDiscoverySearch = $_GET['search'] ?? '';
+  $hasHomepageDiscoveryQuery =
+    (is_string($homepageDiscoveryCategory) && trim($homepageDiscoveryCategory) !== '') ||
+    (is_string($homepageDiscoverySearch) && trim($homepageDiscoverySearch) !== '');
+
+  $heroPreloadHref = '';
+  $heroPreloadSrcSet = '';
+  if (
+    empty($path) &&
+    !$hasHomepageDiscoveryQuery &&
+    $homepageHeroStrategy === 'first-post-image' &&
+    !empty($homepagePosts[0]['image'])
+  ) {
+    $heroPreloadHref = voncms_absolute_public_url($homepagePosts[0]['image'], $domainUrl);
+    $rawHeroSrcSet = trim((string) ($homepagePosts[0]['imageSrcSet'] ?? ''));
+    if ($rawHeroSrcSet !== '') {
+      $absoluteCandidates = [];
+      foreach (explode(',', $rawHeroSrcSet) as $candidate) {
+        if (preg_match('/^\s*(.+?)\s+(\d+w)\s*$/', $candidate, $matches)) {
+          $candidateUrl = voncms_absolute_public_url($matches[1], $domainUrl);
+          if ($candidateUrl !== '') {
+            $absoluteCandidates[] = $candidateUrl . ' ' . $matches[2];
+          }
+        }
+      }
+      $heroPreloadSrcSet = implode(', ', $absoluteCandidates);
+    }
   }
   ?>
+  <?php if ($heroPreloadHref !== ''): ?>
+    <link rel="preload" as="image" href="<?php echo htmlspecialchars($heroPreloadHref, ENT_QUOTES, 'UTF-8'); ?>"<?php if ($heroPreloadSrcSet !== ''): ?> imagesrcset="<?php echo htmlspecialchars($heroPreloadSrcSet, ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> imagesizes="100vw" fetchpriority="high">
+  <?php endif; ?>
   <script>
     window.__INITIAL_SETTINGS__ = <?php echo json_encode([
                                     'siteName'             => $siteName ?? 'My Website',
                                     'siteDescription'      => $seoDescription ?? '',
                                     'domainUrl'            => $domainUrl ?? '',
-                                    'siteUrl'              => $domainUrl ?? '',
-                                    'activeThemeId'        => $activeThemeId ?: '',
-                                    'faviconUrl'           => $faviconUrl ?? '',
+                                     'siteUrl'              => $domainUrl ?? '',
+                                     'activeThemeId'        => $activeThemeId ?: '',
+                                     'faviconUrl'           => $faviconUrl ?? '',
                                     'logoUrl'              => $logoUrl ?? '',
                                     'theme'                => $themeCustomization ?? (object)[],
                                     'permalinkStructure'   => $permalinkStructureValue,

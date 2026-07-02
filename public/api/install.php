@@ -438,7 +438,7 @@ if (php_sapi_name() !== 'cli') {
         ini_set('log_errors', '1');
         
         // Ensure logs directory exists (Auto-Fix)
-        \$logDir = __DIR__ . '/../logs';
+        \$logDir = __DIR__ . '/logs';
         if (!file_exists(\$logDir)) {
             @mkdir(\$logDir, 0755, true);
         }
@@ -459,7 +459,7 @@ if (php_sapi_name() !== 'cli') {
              ini_set('display_errors', '1');
         }
         ini_set('log_errors', '1');
-        ini_set('error_log', __DIR__ . '/../logs/php_error_dev.log');
+        ini_set('error_log', __DIR__ . '/logs/php_error_dev.log');
     }
 }
 
@@ -623,12 +623,23 @@ if (file_put_contents($configFile, $configContent)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
+    RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\.php$ - [F,L,NC]
+
+    RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
+
+    RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]
+
     # Route direct index.html requests through PHP hydration
     RewriteRule ^index\.html$ index.php [L,QSA]
 
     # Serve real files
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
+
+    # Keep missing upload paths out of the SPA/post fallback
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^uploads/ - [R=404,L,NC]
 
     # Serve existing directories directly
     RewriteCond %{REQUEST_FILENAME} -d

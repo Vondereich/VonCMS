@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const SWIPE_THRESHOLD_PX = 50;
+const SWIPE_VERTICAL_TOLERANCE_PX = 80;
 
 export const GlobalLightbox: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState<string>('');
   const [gallery, setGallery] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Listen for image clicks in post content
   useEffect(() => {
@@ -67,6 +71,38 @@ export const GlobalLightbox: React.FC = () => {
     setCurrentImage(gallery[(currentIndex - 1 + gallery.length) % gallery.length]);
   }, [gallery, currentIndex]);
 
+  const handleTouchStart = (event: React.TouchEvent) => {
+    if (gallery.length <= 1) return;
+
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (!start || gallery.length <= 1) return;
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (
+      Math.abs(deltaX) < SWIPE_THRESHOLD_PX ||
+      Math.abs(deltaY) > SWIPE_VERTICAL_TOLERANCE_PX ||
+      Math.abs(deltaX) < Math.abs(deltaY) * 1.2
+    ) {
+      return;
+    }
+
+    deltaX < 0 ? next() : prev();
+  };
+
   // Sync currentImage with index when it changes
   useEffect(() => {
     if (gallery.length > 0) {
@@ -77,7 +113,11 @@ export const GlobalLightbox: React.FC = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center animate-fade-in">
+    <div
+      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center animate-fade-in"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Controls */}
       <button
         onClick={close}

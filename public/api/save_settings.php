@@ -7,6 +7,7 @@
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/settings_audit_helper.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -243,6 +244,10 @@ try {
     if (isset($settings[$jsonKey])) {
       $value = $settings[$jsonKey];
 
+      if ($jsonKey === 'siteName' && is_string($value)) {
+        $value = trim($value);
+      }
+
       if ($jsonKey === 'postsPerPage') {
         $value = max(6, min(50, (int) $value));
       }
@@ -418,6 +423,7 @@ try {
       '',
       (string) $settings['seo']['robotsTxt'],
     );
+    $robotsTxt = preg_replace('/^\s*Sitemap\s*:\s*.*$/mi', '', (string) $robotsTxt);
     $robotsTxt = trim((string) preg_replace("/\n{3,}/", "\n\n", (string) $robotsTxt));
     $auditBefore = voncms_get_setting_audit_snapshot($pdo, 'seo', 'robots_txt');
 
@@ -524,6 +530,7 @@ try {
 
   $mirrorWarning = null;
   $pdo->commit();
+  voncms_public_cache_clear();
 
   // Legacy JSON mirror for compatibility-only fallback readers.
   $settingsFile = __DIR__ . '/../data/site_settings.json';

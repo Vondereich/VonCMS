@@ -24,6 +24,17 @@ function findPhpBinary() {
     candidates.push('C:\\xampp\\php\\php.exe');
     candidates.push('C:\\laragon\\bin\\php\\php-8.2.0-Win32-vs16-x64\\php.exe');
     candidates.push('C:\\laragon\\bin\\php\\php-8.3.0-Win32-vs16-x64\\php.exe');
+
+    const laragonPhpRoot = 'C:\\laragon\\bin\\php';
+    if (fs.existsSync(laragonPhpRoot)) {
+      const installedLaragonVersions = fs
+        .readdirSync(laragonPhpRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join(laragonPhpRoot, entry.name, 'php.exe'))
+        .sort()
+        .reverse();
+      candidates.push(...installedLaragonVersions);
+    }
   } else {
     const whichPhp = spawnSync('which', ['php'], { encoding: 'utf8' });
     if (whichPhp.status === 0) {

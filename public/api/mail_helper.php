@@ -443,8 +443,8 @@ function sendVerificationEmail($pdo, $to, $username, $token)
     $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $basePath = preg_replace('#/api(/.*)?$#i', '', (string) $scriptName);
-    $basePath = rtrim($basePath, '/') . '/';
-    $basePath = $basePath === '/' || $basePath === '\\' ? '' : $basePath;
+    $basePath = '/' . trim($basePath, '/');
+    $basePath = $basePath === '/' ? '' : $basePath;
     $verifyUrl = "$protocol://$host$basePath/api/verify_email.php?token=$token";
   }
 

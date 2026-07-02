@@ -124,6 +124,19 @@ assertIncludes(
   'Shared URL Scheme Guard: unsupported absolute URL schemes can still pass through.'
 );
 
+assertIncludes(
+  'API Header Method Preservation Guard',
+  read('public/security.php'),
+  [
+    '$requestedMethods = trim((string) $methods);',
+    "$GLOBALS['voncms_api_allowed_methods']",
+    '$effectiveMethods =',
+    'header("Access-Control-Allow-Methods: $effectiveMethods");',
+  ],
+  'API Header Method Preservation Guard: auth/error helpers preserve endpoint-specific CORS methods after POST endpoints set them.',
+  'API Header Method Preservation Guard: auth/error helpers can still downgrade POST endpoint CORS methods to the default GET header.'
+);
+
 const legacyJavascriptSchemeMarker = "startsWith('java" + "script:')";
 const legacyJavascriptSchemeChecks = walkFiles(resolveFromRoot('src'), (file) =>
   /\.(ts|tsx)$/.test(file)
@@ -313,12 +326,14 @@ const criticalFiles = [
   'public/media_variants.php',
   'public/api/login.php',
   'public/api/get_settings.php',
+  'public/api/public_cache_helper.php',
   'public/api/save_settings.php',
   'public/api/get_posts.php',
   'public/api/get_post.php',
   'public/api/upload_file.php',
   'public/api/media_tools.php',
   'public/api/system/repair_htaccess.php',
+  'public/api/system/clear_public_cache.php',
   'src/utils/siteUtils.ts',
   'server/test-integration.cjs',
   'package.json',
@@ -367,6 +382,26 @@ if (
   pass('PHP Lint Script Coverage: npm lint discovers public PHP files recursively.');
 } else {
   fail('PHP Lint Script Coverage: npm lint can still miss nested public PHP files.');
+}
+
+const releaseSequenceContent = read('release-sequence.cjs');
+const releaseIntegrationPosition = releaseSequenceContent.indexOf("['Integration smoke', 'npm'");
+const releasePhpLintPosition = releaseSequenceContent.indexOf("['PHP lint', 'npm'");
+const releasePackagePosition = releaseSequenceContent.indexOf("['Create release ZIPs', 'node'");
+if (
+  releaseIntegrationPosition !== -1 &&
+  releasePhpLintPosition > releaseIntegrationPosition &&
+  releasePackagePosition > releasePhpLintPosition &&
+  phpLintScriptContent.includes("const laragonPhpRoot = 'C:\\\\laragon\\\\bin\\\\php';") &&
+  phpLintScriptContent.includes('.readdirSync(laragonPhpRoot, { withFileTypes: true })')
+) {
+  pass(
+    'Full Release Gate Contract: release sequence runs integration and discoverable PHP lint before packaging.'
+  );
+} else {
+  fail(
+    'Full Release Gate Contract: release sequence can package before integration/PHP lint or miss installed Laragon PHP versions.'
+  );
 }
 
 const createReleaseContent = read('create_release.cjs');
@@ -483,6 +518,16 @@ if (
   );
 }
 
+assertIncludes(
+  'Release Public Cache Runtime Exclusion',
+  createReleaseContent,
+  [
+    "normalizedRelativePath.startsWith('public/data/public-cache/')",
+    "normalizedRelativePath.startsWith('data/public-cache/')",
+  ],
+  'Release Public Cache Runtime Exclusion: generated public cache files stay out of Deploy and Source packages.',
+  'Release Public Cache Runtime Exclusion: packager can still include generated public cache runtime files.'
+);
 const rootIndexHtmlContent = read('index.html');
 const publicIndexHtmlContent = read('public/index.php');
 const distIndexHtmlContent = exists('dist/index.html') ? read('dist/index.html') : '';
@@ -1737,13 +1782,33 @@ assertIncludes(
   'Security Logic',
   securityContent,
   [
-    'SOCIAL_BOT_BYPASS',
+    'CRAWLER_PAGE_RENDER',
     'VON_CANONICAL_CHECKED',
     'voncms_apply_site_timezone',
     'return voncms_apply_site_timezone($pdo);',
   ],
   'Security Logic: Golden Audit markers detected in public/security.php',
   'Security Logic: Missing Golden Audit markers in public/security.php.'
+);
+
+const crawlerStatusEndpointContent = [
+  read('public/robots.php'),
+  read('public/sitemap.php'),
+  read('public/llms.php'),
+].join('\n');
+assertIncludes(
+  'Crawler User-Agent Single Source Contract',
+  securityContent + crawlerStatusEndpointContent,
+  ['function voncms_is_social_preview_crawler', 'voncms_is_social_preview_crawler($ua)'],
+  'Crawler User-Agent Single Source Contract: social-preview detection is centralized in the security bootstrap used by crawler endpoints.',
+  'Crawler User-Agent Single Source Contract: social-preview detection remains duplicated or disconnected from the security bootstrap.'
+);
+assertExcludes(
+  'Crawler Endpoint Regex Duplication Guard',
+  crawlerStatusEndpointContent,
+  ['facebookexternalhit|Facebot|meta-external|meta-webindexer|Twitterbot|WhatsApp|TelegramBot'],
+  'Crawler Endpoint Regex Duplication Guard: robots, sitemap, and llms use the shared crawler helper.',
+  'Crawler Endpoint Regex Duplication Guard: crawler endpoint files still carry copied User-Agent regex lists.'
 );
 
 assertManagedBlock('.htaccess');
@@ -1800,6 +1865,25 @@ assertIncludes(
 );
 
 const installContent = read('public/api/install.php');
+const configSampleContent = read('public/von_config.sample.php');
+const runtimeStoragePathsAreInstallLocal =
+  securityContent.includes("__DIR__ . '/data/rate_limits/'") &&
+  !securityContent.includes("__DIR__ . '/../data/rate_limits/'") &&
+  configSampleContent.includes("__DIR__ . '/logs'") &&
+  configSampleContent.includes("__DIR__ . '/logs/php_error_dev.log'") &&
+  !configSampleContent.includes("__DIR__ . '/../logs") &&
+  installContent.includes("__DIR__ . '/logs'") &&
+  installContent.includes("__DIR__ . '/logs/php_error_dev.log'") &&
+  !installContent.includes("__DIR__ . '/../logs");
+if (runtimeStoragePathsAreInstallLocal) {
+  pass(
+    'Install-Local Runtime Storage: rate-limit and PHP error-log files stay inside the current root or subfolder deployment.'
+  );
+} else {
+  fail(
+    'Install-Local Runtime Storage: a root-level runtime helper can still write rate-limit or PHP error-log files above the current installation.'
+  );
+}
 if (
   repairHtaccessContent.includes('RewriteRule ^index\\.html$ {$prefix}index.php [L,QSA]') &&
   installContent.includes('RewriteRule ^index\\.html$ index.php [L,QSA]')
@@ -1849,6 +1933,42 @@ if (missingSensitiveBlocks.length === 0 && socialBotSensitiveBypasses.length ===
 } else {
   fail(
     `Sensitive File Rewrite Guard: sensitive file blocking is missing or still wrapped in a social-bot bypass. Missing: ${missingSensitiveBlocks.join(', ') || 'none'}; Social-bot bypass: ${socialBotSensitiveBypasses.join(', ') || 'none'}.`
+  );
+}
+
+const apiHelperDenyMarkers = [
+  'RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
+];
+const missingApiHelperDenyRules = htaccessSecuritySources
+  .filter(([, content]) => !apiHelperDenyMarkers.every((marker) => content.includes(marker)))
+  .map(([file]) => file);
+if (missingApiHelperDenyRules.length === 0) {
+  pass(
+    'API Helper Direct Access Guard: helper-only API PHP files and invalid public-cache pseudo paths are denied before file/API rewrites.'
+  );
+} else {
+  fail(
+    `API Helper Direct Access Guard: .htaccess sources can still expose helper-only PHP files or route invalid public-cache pseudo paths. Missing: ${missingApiHelperDenyRules.join(', ')}.`
+  );
+}
+
+const uploadFallbackGuardMarkers = [
+  'RewriteCond %{REQUEST_FILENAME} !-f',
+  'RewriteCond %{REQUEST_FILENAME} !-d',
+  'RewriteRule ^uploads/ - [R=404,L,NC]',
+];
+const missingUploadFallbackGuards = htaccessSecuritySources
+  .filter(([, content]) => !uploadFallbackGuardMarkers.every((marker) => content.includes(marker)))
+  .map(([file]) => file);
+if (missingUploadFallbackGuards.length === 0) {
+  pass(
+    'Missing Upload Path Guard: non-existent uploads paths return 404 before the SPA fallback while existing media files and directories keep normal handling.'
+  );
+} else {
+  fail(
+    `Missing Upload Path Guard: missing upload folders/files can still fall through to the SPA/post router. Missing: ${missingUploadFallbackGuards.join(', ')}.`
   );
 }
 
@@ -1956,6 +2076,75 @@ if (
   fail('System Tools: tool split between integrity check and .htaccess repair is missing.');
 }
 
+const clearPublicCacheEndpointContent = exists('public/api/system/clear_public_cache.php')
+  ? read('public/api/system/clear_public_cache.php')
+  : '';
+const publicCacheHelperContent = exists('public/api/public_cache_helper.php')
+  ? read('public/api/public_cache_helper.php')
+  : '';
+
+assertIncludes(
+  'Lightweight Public Cache Helper Contract',
+  publicCacheHelperContent,
+  [
+    'function voncms_public_cache_get',
+    'function voncms_public_cache_set',
+    'function voncms_public_cache_prune',
+    'function voncms_public_cache_clear',
+    "dirname(__DIR__) . '/data/public-cache'",
+    'LOCK_EX',
+    'rename($tempFile, $cacheFile)',
+    'voncms_public_cache_prune(60, 250);',
+    '@unlink($cacheFile);',
+    '$maxFiles',
+    'return null;',
+  ],
+  'Lightweight Public Cache Helper Contract: public JSON cache helper is fail-open, protected-path backed, bounded, stale-pruned, and atomic-write based.',
+  'Lightweight Public Cache Helper Contract: helper is missing fail-open, protected-path, bounded-growth, stale-prune, or atomic-write markers.'
+);
+
+const cacheTryPosition = publicCacheHelperContent.indexOf(
+  'try {',
+  publicCacheHelperContent.indexOf('function voncms_public_cache_set')
+);
+const cacheTempPosition = publicCacheHelperContent.indexOf(
+  '$tempFile = $cacheFile .',
+  publicCacheHelperContent.indexOf('function voncms_public_cache_set')
+);
+const cacheRenamePosition = publicCacheHelperContent.indexOf('rename($tempFile, $cacheFile)');
+const cachePostWritePrunePosition = publicCacheHelperContent.indexOf(
+  'voncms_public_cache_prune(60, 250);',
+  cacheRenamePosition
+);
+if (
+  cacheTryPosition !== -1 &&
+  cacheTempPosition > cacheTryPosition &&
+  cachePostWritePrunePosition > cacheRenamePosition
+) {
+  pass(
+    'Public Cache Write Failure Boundary: temp-name generation is caught and successful writes enforce the final file cap.'
+  );
+} else {
+  fail(
+    'Public Cache Write Failure Boundary: temp-name generation can escape fail-open handling or writes can exceed the final file cap.'
+  );
+}
+
+assertIncludes(
+  'Manual Public Cache Clear Boundary',
+  clearPublicCacheEndpointContent + '\n' + siteConfigContent + '\n' + systemToolsContent,
+  [
+    "sendApiHeaders('POST, OPTIONS')",
+    'SessionManager::requirePrimaryAdmin();',
+    'CSRFProtection::requireToken();',
+    'voncms_public_cache_clear()',
+    'clearPublicCache',
+    'Clear Public Cache',
+    'API.clearPublicCache',
+  ],
+  'Manual Public Cache Clear Boundary: primary admin System Tools action clears public cache with POST and CSRF.',
+  'Manual Public Cache Clear Boundary: clear public cache endpoint or System Tools wiring is incomplete.'
+);
 const legacySystemContent = read('public/von_system.php');
 if (
   legacySystemContent.includes("require_once __DIR__ . '/api/get_settings.php';") &&
@@ -2118,6 +2307,22 @@ if (
 
 const saveSettingsContent = read('public/api/save_settings.php');
 const getSettingsContent = read('public/api/get_settings.php');
+assertIncludes(
+  'Public Settings Cache Boundary',
+  getSettingsContent,
+  [
+    "require_once __DIR__ . '/public_cache_helper.php';",
+    '$publicSettingsCacheKey = voncms_public_cache_key',
+    'voncms_public_cache_get($publicSettingsCacheKey',
+    'voncms_public_cache_set($publicSettingsCacheKey',
+    '$isAdmin = SessionManager::isAdmin();',
+    '$isPrimaryAdmin = SessionManager::isPrimaryAdmin();',
+    "unset($settings['adminProfile']);",
+    "header('Cache-Control: no-cache, no-store, must-revalidate');",
+  ],
+  'Public Settings Cache Boundary: only guest-shaped settings can use the public JSON cache after secret scrubbing.',
+  'Public Settings Cache Boundary: guest settings cache is missing eligibility, scrub, or conservative header markers.'
+);
 assertIncludes(
   'AI Key Privacy and Rotation Contract',
   saveSettingsContent +
@@ -2626,7 +2831,9 @@ assertIncludes(
   [
     "let image = settings.ogImageUrl || settings.logoUrl || '';",
     'const ogImage = image || settings.ogImageSquareUrl ||',
-    "if (ogImage) ensureMeta('og:image', 'property', toAbsolute(ogImage));",
+    'const absoluteOgImage = toAbsolute(ogImage);',
+    "ensureMeta('og:image', 'property', absoluteOgImage);",
+    "ensureMeta('og:image:alt', 'property', absoluteOgImage ? title : '');",
   ],
   'VonSEO Social Image Contract: large OG fallback is used and square image no longer overwrites the primary image.',
   'VonSEO Social Image Contract: social image fallback can still ignore large OG image or overwrite og:image.'
@@ -2730,6 +2937,158 @@ assertIncludes(
   ],
   'Robots Settings Persistence Contract: SEO robotsTxt is hydrated, saved to the crawler-facing row, and served from the saved site config fallback.',
   'Robots Settings Persistence Contract: SEO robotsTxt can still save in admin without reaching crawler-facing robots.php.'
+);
+
+const modernSeoRuntimeContent = read('src/plugins/von-core/features/seo/VonSEO.tsx');
+const modernSeoSettingsContent = read(
+  'src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx'
+);
+const modernSeoRobotsContent = read('public/robots.php');
+const modernSeoSitemapContent = read('public/sitemap.php');
+const modernSeoLlmsContent = read('public/llms.php');
+const modernSeoIndexNowContent = read('public/api/system/IndexNow.php');
+const modernSeoSavePostContent = read('public/api/save_post.php');
+const modernSeoPublicIndexContent = read('public/index.php');
+
+assertIncludes(
+  'VonSEO Canonical Single Source Contract',
+  modernSeoRuntimeContent + modernSeoSettingsContent,
+  [
+    'const canonicalBase =',
+    'getPermalink(selectedPost, settings, true)',
+    'delete nextSeo.canonicalHost',
+    'Canonical URLs use the Domain URL from General Settings',
+  ],
+  'VonSEO Canonical Single Source Contract: hydrated canonicals use the configured public domain without duplicating subfolder paths.',
+  'VonSEO Canonical Single Source Contract: hydrated canonicals can still drift from General Settings or duplicate a subfolder path.'
+);
+
+assertExcludes(
+  'VonSEO Retired Metadata Guard',
+  modernSeoRuntimeContent + modernSeoSettingsContent + modernSeoPublicIndexContent,
+  [
+    'settings.seo?.canonicalHost || window.location.origin',
+    "ensureMeta('keywords'",
+    'twitter:creator',
+    "'@type': 'SearchAction'",
+    '<meta name="keywords"',
+  ],
+  'VonSEO Retired Metadata Guard: stale canonical overrides, meta keywords, invalid creator tags, and retired search-action schema are absent.',
+  'VonSEO Retired Metadata Guard: obsolete or misleading SEO metadata is still emitted.'
+);
+
+assertIncludes(
+  'Robots Generated Policy Contract',
+  modernSeoRobotsContent + modernSeoSettingsContent,
+  [
+    'VonCMS Robots Policy v1.25.3',
+    'isLegacyVonCmsRobotsPolicy',
+    'sitemapEnabled',
+    'crawl policy, not an access-control boundary',
+  ],
+  'Robots Generated Policy Contract: the versioned generated policy migrates legacy defaults and respects sitemap state.',
+  'Robots Generated Policy Contract: generated robots policy lacks versioning, legacy migration, or sitemap-state handling.'
+);
+
+assertIncludes(
+  'Robots Sitemap State Contract',
+  modernSeoRobotsContent + modernSeoSettingsContent,
+  [
+    'function stripRobotsSitemapDirectives',
+    '$robotsContent = stripRobotsSitemapDirectives($robotsContent);',
+    ".replace(/^\\s*Sitemap\\s*:\\s*.*$/gim, '')",
+  ],
+  'Robots Sitemap State Contract: saved directives are stripped and only the enabled canonical sitemap can be emitted.',
+  'Robots Sitemap State Contract: saved Sitemap directives can survive while XML sitemap output is disabled.'
+);
+
+assertIncludes(
+  'Robots Save Normalization Contract',
+  saveSettingsContent,
+  ["'/^\\s*Sitemap\\s*:\\s*.*$/mi'", "$settings['seo']['robotsTxt']"],
+  'Robots Save Normalization Contract: direct settings saves remove stored Sitemap directives at the API boundary.',
+  'Robots Save Normalization Contract: direct settings saves can retain stale Sitemap directives in storage.'
+);
+
+assertExcludes(
+  'Modern Sitemap Signal Contract',
+  modernSeoSitemapContent,
+  ['<changefreq>', '<priority>'],
+  'Modern Sitemap Signal Contract: sitemap emits supported URL and lastmod signals without ignored priority/frequency hints.',
+  'Modern Sitemap Signal Contract: sitemap still emits ignored changefreq or priority hints.'
+);
+
+assertIncludes(
+  'LLMS Linked Resource Contract',
+  modernSeoLlmsContent,
+  [
+    '## Categories',
+    'echo "- [$categoryName]($categoryUrl) ($categoryCount)\\n";',
+    'ORDER BY COALESCE(scheduled_at, created_at) DESC',
+    "header('Retry-After: 300')",
+  ],
+  'LLMS Linked Resource Contract: categories are linked resources, posts use effective publish order, and failures return a retryable service response.',
+  'LLMS Linked Resource Contract: llms.txt still contains plain category labels, stale ordering, or a false-success failure response.'
+);
+
+assertExcludes(
+  'LLMS Keyword Noise Guard',
+  modernSeoLlmsContent,
+  ['excerpt, keywords, created_at', 'Keywords: $keywords'],
+  'LLMS Keyword Noise Guard: llms.txt omits internal keyword metadata.',
+  'LLMS Keyword Noise Guard: llms.txt still exposes internal keyword metadata.'
+);
+
+assertIncludes(
+  'IndexNow Canonical Submission Contract',
+  modernSeoIndexNowContent + modernSeoSavePostContent,
+  [
+    "'keyLocation' => $this->getKeyLocationUrl($key)",
+    'public function buildPostUrlForPost(int $postId): string',
+    '$indexNow->buildPostUrlForPost((int) $finalId)',
+    'VonCMS/1.25.3 IndexNow',
+  ],
+  'IndexNow Canonical Submission Contract: subfolder key location and canonical post permalinks are submitted.',
+  'IndexNow Canonical Submission Contract: submissions can still use the wrong key location or a non-canonical slug URL.'
+);
+
+assertIncludes(
+  'Maintenance Service Availability Contract',
+  modernSeoPublicIndexContent,
+  [
+    "$maintenanceFlag = __DIR__ . '/data/maintenance.flag';",
+    'http_response_code(503);',
+    "header('Retry-After: 3600');",
+  ],
+  'Maintenance Service Availability Contract: temporary maintenance returns 503 with retry guidance while admin access remains available.',
+  'Maintenance Service Availability Contract: temporary maintenance can still look like an indexable successful page.'
+);
+
+assertExcludes(
+  'Maintenance Noindex Removal Guard',
+  modernSeoRuntimeContent,
+  ['settings.maintenanceMode', "ensureMeta('robots', 'name', 'noindex, nofollow')"],
+  'Maintenance Noindex Removal Guard: temporary outages rely on HTTP 503 instead of persistent noindex metadata.',
+  'Maintenance Noindex Removal Guard: client SEO can still attach noindex during temporary maintenance.'
+);
+
+assertIncludes(
+  'Crawler Route Template Parity Contract',
+  read('.htaccess') +
+    read('public/.htaccess') +
+    read('public/api/install.php') +
+    read('public/api/system/repair_htaccess.php'),
+  ['robots\\.txt', 'sitemap\\.xml', 'llms\\.txt'],
+  'Crawler Route Template Parity Contract: live, packaged, installer, and repair routing retain all crawler endpoints.',
+  'Crawler Route Template Parity Contract: a generated rewrite source can drop robots, sitemap, or llms routing.'
+);
+
+assertIncludes(
+  'Subfolder Robots Documentation Contract',
+  read('docs/INSTALL.md') + read('docs/ROUTING.md'),
+  ['host-root `/robots.txt`'],
+  'Subfolder Robots Documentation Contract: subfolder installs document the host-root robots requirement.',
+  'Subfolder Robots Documentation Contract: subfolder users are not warned that crawlers only recognize host-root robots.txt.'
 );
 
 assertIncludes(
@@ -3891,6 +4250,27 @@ if (
   fail('SEO Canonical: fallback slug routing still mirrors non-canonical request paths.');
 }
 
+const configuredDomainPosition = indexContent.indexOf(
+  "$domainUrl = rtrim($configuredDomainUrl, '/');"
+);
+const homepageCanonicalPosition = indexContent.indexOf(
+  "$seoUrl = $domainUrl . '/';",
+  configuredDomainPosition
+);
+if (
+  configuredDomainPosition !== -1 &&
+  homepageCanonicalPosition > configuredDomainPosition &&
+  indexContent.includes("'url' => $seoUrl,")
+) {
+  pass(
+    'Homepage Canonical Contract: SSR canonical and homepage schema use the slash-terminated directory URL selected by redirects and sitemap.'
+  );
+} else {
+  fail(
+    'Homepage Canonical Contract: SSR homepage canonical or schema can drift from the slash-terminated redirect and sitemap URL.'
+  );
+}
+
 const redirectEngineContent = exists('public/redirect_engine.php')
   ? read('public/redirect_engine.php')
   : '';
@@ -3964,7 +4344,7 @@ if (
   vonSeoContent.includes(
     'dateModified: normalizeSchemaDate(selectedPost.updatedAt || selectedPost.createdAt),'
   ) &&
-  vonSeoContent.includes("publisher: { '@id': `${window.location.origin}/#organization` },") &&
+  vonSeoContent.includes("publisher: { '@id': `${canonicalBase}/#organization` },") &&
   vonSeoContent.includes(
     "author: { '@type': 'Person', name: selectedPost.author, url: authorProfileUrl },"
   )
@@ -4191,6 +4571,23 @@ if (crawlableSidebarLinkIssues.length === 0) {
   fail(`Crawlable Sidebar Links: ${crawlableSidebarLinkIssues.join('; ')}`);
 }
 
+assertIncludes(
+  'Public Lightbox Mobile Swipe Contract',
+  read('src/components/GlobalLightbox.tsx'),
+  [
+    'SWIPE_THRESHOLD_PX',
+    'SWIPE_VERTICAL_TOLERANCE_PX',
+    'const touchStartRef = useRef',
+    'const handleTouchStart = (event: React.TouchEvent',
+    'const handleTouchEnd = (event: React.TouchEvent',
+    'onTouchStart={handleTouchStart}',
+    'onTouchEnd={handleTouchEnd}',
+    'deltaX < 0 ? next() : prev();',
+  ],
+  'Public Lightbox Mobile Swipe Contract: post-content gallery lightbox supports guarded left/right swipe navigation on mobile.',
+  'Public Lightbox Mobile Swipe Contract: global post-content lightbox can still open without touch swipe navigation.'
+);
+
 if (exists('ROADMAP.md')) {
   const roadmapContent = read('ROADMAP.md');
   assertIncludes(
@@ -4324,7 +4721,7 @@ assertIncludes(
     'Path A: Install A Website',
     'Path B: Run Locally With Laragon',
     'Path C: Work From Source',
-    'VonCMS_v1.25.2_Deploy.zip',
+    `VonCMS_v${pkg.version}_Deploy.zip`,
     'npm install',
     'npm run test:integration',
   ],
@@ -4540,6 +4937,25 @@ if (exists(publicPostsQueryHookPath)) {
     'Public Posts COUNT Skip Contract: public discovery still requires COUNT or exact-total callers are not clearly protected.'
   );
 
+  assertIncludes(
+    'Public Posts JSON Cache Boundary',
+    getPostsContent,
+    [
+      "require_once __DIR__ . '/public_cache_helper.php';",
+      '$publicPostsCacheKey = voncms_public_cache_key',
+      'voncms_public_cache_get($publicPostsCacheKey',
+      'voncms_public_cache_set($publicPostsCacheKey',
+      "filter_var($_GET['public'] ?? false,",
+      '$canUsePublicPostsCache =',
+      '!$isAdmin',
+      '$forcePublic',
+      '!$includeTotal',
+      '$authorQuery === null',
+      '$statusFilter === null',
+    ],
+    'Public Posts JSON Cache Boundary: cache is limited to guest public includeTotal=false discovery without profile/status/admin reads.',
+    'Public Posts JSON Cache Boundary: posts cache eligibility is missing required guest-only/includeTotal/profile/status guards.'
+  );
   const defaultPublicLayoutContent = read('src/themes/default/Layout.tsx');
   const digestPublicLayoutContent = read('src/themes/digest/Layout.tsx');
   assertIncludes(
@@ -5763,6 +6179,29 @@ if (listReadTimeUsesPlainText && singleReadTimeUsesPlainText) {
   );
 }
 
+const cachePurgeHookContent = [
+  'public/api/save_post.php',
+  'public/api/delete_post.php',
+  'public/api/save_page.php',
+  'public/api/delete_page.php',
+  'public/api/save_settings.php',
+  'public/api/manage_categories.php',
+  'public/scheduler_helper.php',
+]
+  .map((file) => read(file))
+  .join('\n');
+
+assertIncludes(
+  'Public Cache Clear-All Purge Hooks',
+  cachePurgeHookContent,
+  [
+    "require_once __DIR__ . '/public_cache_helper.php';",
+    "require_once __DIR__ . '/api/public_cache_helper.php';",
+    'voncms_public_cache_clear();',
+  ],
+  'Public Cache Clear-All Purge Hooks: writes and scheduled publishes clear the lightweight public JSON cache.',
+  'Public Cache Clear-All Purge Hooks: write or scheduler cache purge markers are incomplete.'
+);
 const schedulerHelperContent = read('public/scheduler_helper.php');
 const publicIndexContent = read('public/index.php');
 assertIncludes(
@@ -5889,7 +6328,8 @@ assertIncludes(
     '$seoImage = voncms_absolute_public_url($seoImage, $domainUrl);',
     "$schemaData['description'] = $seoDescription;",
     "$schemaData['image'] = [$seoImage];",
-    '$ogSquare = voncms_absolute_public_url($ogSquare, $domainUrl);',
+    "$runtimeSettings['general']['og_image_url'] ?? ''",
+    "$seoImage = $domainUrl . '/og-default.png';",
     "voncms_absolute_public_url($hp['image_url'], $domainUrl)",
   ],
   'Public SSR Schema Image Contract: JSON-LD descriptions and image URLs are normalized before schema assignment.',
@@ -6061,6 +6501,196 @@ assertIncludes(
   ['voncms_build_responsive_image_data', "'imageSrcSet'      => $initialResponsiveImage['srcSet']"],
   'Hydration Responsive Contract: PHP hydration includes imageSrcSet.',
   'Hydration Responsive Contract: PHP hydration is missing imageSrcSet wiring.'
+);
+
+const mailHelperContent = read('public/api/mail_helper.php');
+assertIncludes(
+  'Verification Email Base Path Contract',
+  mailHelperContent,
+  [
+    "$basePath = '/' . trim($basePath, '/');",
+    '$verifyUrl = "$protocol://$host$basePath/api/verify_email.php?token=$token";',
+  ],
+  'Verification Email Base Path Contract: fallback verification links preserve subfolder installs without duplicate slashes.',
+  'Verification Email Base Path Contract: fallback verification links can duplicate or drop the deployment subfolder.'
+);
+
+assertIncludes(
+  'Installer Redirect Base Path Contract',
+  useSettingsContent,
+  ['window.location.href = `${BASE_PATH}install`;'],
+  'Installer Redirect Base Path Contract: uninstalled sites redirect through the injected deployment base path.',
+  'Installer Redirect Base Path Contract: installer redirects can drift from the deployment base path.'
+);
+
+const themeManifestPaths = [
+  'src/themes/default/theme.json',
+  'src/themes/prism/theme.json',
+  'src/themes/techpress/theme.json',
+  'src/themes/portfolio/theme.json',
+  'src/themes/digest/theme.json',
+  'src/themes/corporate-pro/theme.json',
+];
+const missingThemeManifests = themeManifestPaths.filter((file) => !exists(file));
+const themeManifestContents = themeManifestPaths
+  .filter((file) => exists(file))
+  .map((file) => read(file))
+  .join('\n');
+const themeManifestDefinitions = themeManifestPaths
+  .filter((file) => exists(file))
+  .map((file) => JSON.parse(read(file)));
+const themeManifestIds = themeManifestDefinitions.map((manifest) => manifest.id);
+const themeRegistryCapabilityContent = read(
+  'src/plugins/von-core/features/themes/themeRegistry.ts'
+);
+const copyThemeManifestsContent = exists('server/copy-theme-manifests.cjs')
+  ? read('server/copy-theme-manifests.cjs')
+  : '';
+
+if (
+  missingThemeManifests.length === 0 &&
+  new Set(themeManifestIds).size === themeManifestPaths.length &&
+  themeManifestIds.every((id) => /^theme-[a-z0-9][a-z0-9-]*$/.test(id)) &&
+  (themeManifestContents.match(/"homepageHero": "first-post-image"/g) || []).length === 3
+) {
+  pass(
+    'Theme Hero Manifest Contract: every bundled theme owns a manifest and exactly three opt into first-post hero preload.'
+  );
+} else {
+  fail(
+    `Theme Hero Manifest Contract: missing manifests or incorrect hero capability count. Missing: ${missingThemeManifests.join(', ') || 'none'}.`
+  );
+}
+
+assertIncludes(
+  'Theme Hero Capability Build Contract',
+  themeRegistryCapabilityContent +
+    '\n' +
+    copyThemeManifestsContent +
+    '\n' +
+    JSON.stringify(pkg.scripts) +
+    '\n' +
+    read('docs/THEME_DEVELOPMENT.md'),
+  [
+    "import techpressManifest from '../../../../themes/techpress/theme.json';",
+    'performance: readThemePerformance(techpressManifest),',
+    "const sourceThemesDir = path.join(projectRoot, 'src', 'themes');",
+    "const destinationThemesDir = path.join(projectRoot, 'dist', 'themes');",
+    'const manifest = fs.readJsonSync(sourceManifest);',
+    "path.join(destinationThemesDir, manifest.id, 'theme.json')",
+    'node server/copy-theme-manifests.cjs',
+    '`theme.json`',
+    "`homepageHero: 'first-post-image'`",
+  ],
+  'Theme Hero Capability Build Contract: React and PHP receive the same per-theme manifest contract in source and Deploy builds.',
+  'Theme Hero Capability Build Contract: manifest imports, build copying, or developer documentation is incomplete.'
+);
+
+assertIncludes(
+  'Homepage Hero Preload Contract',
+  indexContent,
+  [
+    '$homepageHeroStrategy',
+    '$themeManifestPaths',
+    "glob(dirname(__DIR__) . '/src/themes/*/theme.json')",
+    "'/theme.json'",
+    'json_decode($themeManifestJson, true)',
+    "$homepageHeroStrategy === 'first-post-image'",
+    'empty($path)',
+    "$homepagePosts[0]['image']",
+    'voncms_absolute_public_url',
+    'rel="preload"',
+    'as="image"',
+    'imagesrcset=',
+    'imagesizes="100vw"',
+  ],
+  'Homepage Hero Preload Contract: hero themes preload the first homepage image and advertise responsive candidates when available.',
+  'Homepage Hero Preload Contract: SSR head is missing the guarded responsive hero-image preload.'
+);
+
+assertIncludes(
+  'Homepage Hero Discovery Query Guard',
+  indexContent,
+  [
+    "$_GET['category'] ?? ''",
+    "$_GET['search'] ?? ''",
+    '$hasHomepageDiscoveryQuery',
+    '!$hasHomepageDiscoveryQuery',
+  ],
+  'Homepage Hero Discovery Query Guard: direct category/search URLs do not preload the unrelated global homepage hero.',
+  'Homepage Hero Discovery Query Guard: direct category/search URLs can still preload the unrelated global homepage hero.'
+);
+
+assertIncludes(
+  'Public Index Settings Snapshot Contract',
+  indexContent,
+  [
+    '$runtimeSettings = [];',
+    'SELECT setting_group, setting_key, setting_value FROM settings',
+    "$runtimeSettings[$settingRow['setting_group']][$settingRow['setting_key']]",
+    "$runtimeSettings['general']['permalink_structure'] ?? 'slug';",
+  ],
+  'Public Index Settings Snapshot Contract: SSR settings and permalink data come from one request snapshot.',
+  'Public Index Settings Snapshot Contract: SSR settings remain split across repeated queries.'
+);
+
+assertIncludes(
+  'Site Name Save Whitespace Guard',
+  saveSettingsContent,
+  ["if ($jsonKey === 'siteName' && is_string($value)) {", '$value = trim($value);'],
+  'Site Name Save Whitespace Guard: future site-name saves discard accidental leading and trailing whitespace.',
+  'Site Name Save Whitespace Guard: site-name saves can still persist accidental leading or trailing whitespace.'
+);
+
+assertIncludes(
+  'Site Name SSR Whitespace Guard',
+  indexContent,
+  ["$siteNameValue = trim((string) ($runtimeSettings['general']['site_name'] ?? ''));"],
+  'Site Name SSR Whitespace Guard: legacy stored site names render without leading or trailing whitespace.',
+  'Site Name SSR Whitespace Guard: legacy stored site names can still leak whitespace into public metadata.'
+);
+
+assertExcludes(
+  'Public Index Dead State Cleanup Guard',
+  indexContent,
+  [
+    '$googleAnalyticsId',
+    '$isTrackingEnabled',
+    '$ogInfo',
+    '$ogSquareType',
+    '$permalinkStructureQuery',
+    '$plStmt',
+  ],
+  'Public Index Dead State Cleanup Guard: unused analytics/OG state and repeated permalink queries are absent.',
+  'Public Index Dead State Cleanup Guard: unused analytics/OG state or repeated permalink queries remain.'
+);
+
+assertExcludes(
+  'Homepage Hero Theme ID Coupling Guard',
+  indexContent,
+  [
+    '$heroPreloadThemeIds',
+    '$legacyHomepageHeroThemeIds',
+    'theme-techpress',
+    'theme-digest',
+    'theme-portfolio',
+  ],
+  'Homepage Hero Theme ID Coupling Guard: preload decisions come only from the active theme manifest.',
+  'Homepage Hero Theme ID Coupling Guard: public/index.php still contains bundled theme IDs or a preload whitelist.'
+);
+
+assertExcludes(
+  'Homepage Hero Database Coupling Guard',
+  indexContent +
+    '\n' +
+    saveSettingsContent +
+    '\n' +
+    getSettingsContent +
+    '\n' +
+    read('src/plugins/von-core/features/themes/ThemeContext.tsx'),
+  ['theme_homepage_hero', "homepageHero: selectedTheme.performance.homepageHero || ''"],
+  'Homepage Hero Database Coupling Guard: theme manifests remain the single capability source without settings-row synchronization.',
+  'Homepage Hero Database Coupling Guard: hero capability still depends on duplicated database state.'
 );
 
 assertIncludes(
@@ -6415,6 +7045,8 @@ if (!phpBinary) {
     'public/rss.php',
     'public/api/backup_db.php',
     'public/api/get_settings.php',
+    'public/api/public_cache_helper.php',
+    'public/api/system/clear_public_cache.php',
     'public/api/get_storage.php',
     'public/api/media_tools.php',
     'public/api/submit_contact.php',
