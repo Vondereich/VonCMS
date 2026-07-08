@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
+import ThemeLogo from '../shared/components/ThemeLogo';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -628,12 +629,12 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
         {/* Logo */}
         <button onClick={onBackToHome} className="flex items-center gap-2 group">
           {settings.logoUrl ? (
-            <img
+            <ThemeLogo
               src={settings.logoUrl}
               alt={settings.siteName}
-              className={`${
-                settings.useLogoAsTitle ? 'h-10 md:h-12' : 'h-8 md:h-10'
-              } w-auto object-contain transition-all duration-300`}
+              useLogoAsTitle={settings.useLogoAsTitle}
+              invertLogoInDarkMode={settings.invertLogoInDarkMode}
+              className="transition-all duration-300"
             />
           ) : (
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:bg-blue-700 transition-colors">

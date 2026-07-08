@@ -72,6 +72,7 @@ try {
             'site_logo',
             'site_icon',
             'logo_url',
+            'invert_logo_in_dark_mode',
             'favicon_url',
             'active_theme_id',
             'permalink_structure',

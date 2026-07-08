@@ -403,6 +403,7 @@ export interface SiteSettings {
   discussionEnabled?: boolean;
   logoUrl?: string;
   useLogoAsTitle?: boolean; // New: Replace text with logo
+  invertLogoInDarkMode?: boolean;
   faviconUrl?: string;
   ogImageUrl?: string; // Social Share Image (Large)
   ogImageSquareUrl?: string; // Social Share Image (Square/WhatsApp)

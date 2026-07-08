@@ -358,6 +358,7 @@ try {
     ['general', 'maintenance_mode', 'false', 'boolean'],
     ['general', 'email_smtp', '', 'string'],
     ['general', 'logo_url', '', 'string'],
+    ['general', 'invert_logo_in_dark_mode', 'false', 'boolean'],
     ['general', 'favicon_url', '', 'string'],
     ['general', 'discussion_enabled', 'true', 'boolean'],
     ['general', 'permalink_structure', 'slug', 'string'],

@@ -34,6 +34,7 @@ import {
 import TechPressProfile from './Profile';
 import TechPressFooter from './TechPressFooter';
 import { SafeImage } from '../../components/SafeImage';
+import ThemeLogo from '../shared/components/ThemeLogo';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -658,10 +659,12 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               onClick={handleReturnHome}
             >
               {settings.logoUrl ? (
-                <img
+                <ThemeLogo
                   src={settings.logoUrl}
                   alt={settings.siteName}
-                  className={`${settings.useLogoAsTitle ? 'h-12 md:h-16 max-w-[180px] md:max-w-[240px]' : 'h-10 md:h-12 max-w-[96px] md:max-w-[120px]'} w-auto object-contain flex-shrink-0 transition-all`}
+                  useLogoAsTitle={settings.useLogoAsTitle}
+                  invertLogoInDarkMode={settings.invertLogoInDarkMode}
+                  className="transition-all"
                 />
               ) : (
                 <VonLogo

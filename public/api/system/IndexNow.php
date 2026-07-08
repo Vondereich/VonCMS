@@ -24,6 +24,7 @@ class IndexNow
 
   private const KEY_LENGTH = 32; // 32 hex characters = 128 bits of entropy
   private const TIMEOUT_SECONDS = 3; // Max wait time for API response (performance critical)
+  private const USER_AGENT = 'VonCMS IndexNow';
 
   private ?PDO $pdo;
   private string $host;
@@ -309,7 +310,7 @@ class IndexNow
       CURLOPT_CONNECTTIMEOUT => 2,
       CURLOPT_FOLLOWLOCATION => false,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_USERAGENT => 'VonCMS/1.25.3 IndexNow',
+      CURLOPT_USERAGENT => self::USER_AGENT,
     ]);
 
     $response = curl_exec($ch);
@@ -383,7 +384,7 @@ class IndexNow
       CURLOPT_TIMEOUT => self::TIMEOUT_SECONDS,
       CURLOPT_CONNECTTIMEOUT => 2,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_USERAGENT => 'VonCMS/1.25.3 IndexNow',
+      CURLOPT_USERAGENT => self::USER_AGENT,
     ]);
 
     $response = curl_exec($ch);

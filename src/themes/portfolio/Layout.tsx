@@ -6,6 +6,7 @@ import { Edit2, Save, X, Camera, Menu, Moon, Sun, Rss } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
 import { getBasePathPrefix, getPermalink, normalizeSiteUrl } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
+import ThemeLogo from '../shared/components/ThemeLogo';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -804,10 +805,11 @@ const PortfolioNav = ({
           title={siteName || 'Portfolio'}
         >
           {settings?.logoUrl && (
-            <img
+            <ThemeLogo
               src={settings.logoUrl}
               alt={siteName}
-              className={`${settings.useLogoAsTitle ? 'h-10' : 'h-8'} w-auto object-contain`}
+              useLogoAsTitle={settings.useLogoAsTitle}
+              invertLogoInDarkMode={settings?.invertLogoInDarkMode}
             />
           )}
           {(!settings?.logoUrl || !settings?.useLogoAsTitle) && (

@@ -60,6 +60,7 @@ const INITIAL_SETTINGS: SiteSettings = {
   },
   discussionEnabled: _s?.discussionEnabled ?? true,
   logoUrl: _s?.logoUrl || '',
+  invertLogoInDarkMode: _s?.invertLogoInDarkMode ?? false,
   faviconUrl: _s?.faviconUrl || '',
   footerLinks: [],
   footerCopyright: '',

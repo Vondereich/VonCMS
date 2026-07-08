@@ -23,6 +23,7 @@ import { SafeImage } from '../../components/SafeImage';
 import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
+import ThemeLogo from '../shared/components/ThemeLogo';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -295,10 +296,12 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               onClick={handleReturnHome}
             >
               {settings.logoUrl ? (
-                <img
+                <ThemeLogo
                   src={settings.logoUrl}
                   alt={settings.siteName}
-                  className={`${settings.useLogoAsTitle ? 'h-14 md:h-16' : 'h-10'} w-auto object-contain transition-all`}
+                  useLogoAsTitle={settings.useLogoAsTitle}
+                  invertLogoInDarkMode={settings.invertLogoInDarkMode}
+                  className="transition-all"
                 />
               ) : (
                 <VonLogo

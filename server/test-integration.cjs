@@ -1606,14 +1606,12 @@ const currentOpenGateLabel = `v${pkg.version} "OpenGate"`;
 const docsVersionChecks = [
   ['README.md', currentOpenGateLabel],
   ['docs/INSTALL.md', currentOpenGateLabel],
-  ['docs/INTRODUCTION.md', currentOpenGateLabel],
   ['docs/MANUAL.md', currentReleaseLabel],
   ['docs/SECURITY.md', currentReleaseLabel],
   ['docs/UPGRADE.md', currentReleaseLabel],
-  ['docs/COMPARISON.md', currentOpenGateLabel],
   ['docs/FEATURES.md', `VonCMS ${currentReleaseLabel} feature baseline for the OpenGate line.`],
-  ['docs/THEME_DEVELOPMENT.md', `VonCMS Theme Development Guide ${currentReleaseLabel}`],
-  ['docs/PLUGIN_DEVELOPMENT.md', `VonCMS Plugin Development Guide ${currentReleaseLabel}`],
+  ['docs/FEATURES.md', currentOpenGateLabel],
+  ['docs/EXTENSION_DEVELOPMENT.md', `VonCMS Extension Development Guide ${currentReleaseLabel}`],
   ['docs/ROUTING.md', 'VonCMS Routing Flow v1.25.x'],
   ['docs/API.md', `Version: \`${pkg.version}\``],
   ['LICENSE.md', `Version: \`${pkg.version}\``],
@@ -1652,18 +1650,12 @@ if (
   );
 }
 
-const themeDevelopmentContent = read('docs/THEME_DEVELOPMENT.md');
-const pluginDevelopmentContent = read('docs/PLUGIN_DEVELOPMENT.md');
+const extensionDevelopmentContent = read('docs/EXTENSION_DEVELOPMENT.md');
 assertIncludes(
-  'Theme and Plugin Development Docs',
-  themeDevelopmentContent +
-    pluginDevelopmentContent +
-    readmeContent +
-    read('docs/FEATURES.md') +
-    read('docs/MANUAL.md'),
+  'Extension Development Docs',
+  extensionDevelopmentContent + readmeContent + read('docs/FEATURES.md') + read('docs/MANUAL.md'),
   [
-    `VonCMS Theme Development Guide v${pkg.version}`,
-    `VonCMS Plugin Development Guide v${pkg.version}`,
+    `VonCMS Extension Development Guide v${pkg.version}`,
     'Architecture Philosophy',
     'Why No Headless-Only Mode',
     'Golden Rules',
@@ -1678,14 +1670,14 @@ assertIncludes(
     'Theme Development',
     'Plugin Development',
   ],
-  'Theme and Plugin Development Docs: split packaged docs cover architecture, security, visual WYSIWYG, runtime ownership, and docs links.',
-  'Theme and Plugin Development Docs: split development guides are missing required architecture/security/runtime markers or docs links.'
+  'Extension Development Docs: consolidated packaged docs preserve theme/plugin architecture, security, visual WYSIWYG, runtime ownership, and docs links.',
+  'Extension Development Docs: consolidated development guide is missing required theme/plugin architecture/security/runtime markers or docs links.'
 );
 
 const customFontsDocsContent = read('docs/CUSTOM_FONTS.md');
 assertIncludes(
   'Custom Font Development Docs',
-  readmeContent + themeDevelopmentContent + customFontsDocsContent,
+  readmeContent + extensionDevelopmentContent + customFontsDocsContent,
   [
     'Custom Fonts',
     'local Inter variable WOFF2',
@@ -1701,13 +1693,47 @@ assertIncludes(
 
 if (!exists('docs/PLUGIN_THEME_TUTORIAL.md')) {
   pass(
-    'Combined Plugin/Theme Tutorial Retirement: old combined tutorial has been split into dedicated docs.'
+    'Combined Plugin/Theme Tutorial Retirement: old combined tutorial is retired in favor of the Extension Development guide.'
   );
 } else {
   fail(
     'Combined Plugin/Theme Tutorial Retirement: old docs/PLUGIN_THEME_TUTORIAL.md still exists.'
   );
 }
+
+const retiredConsolidatedDocs = [
+  'docs/INTRODUCTION.md',
+  'docs/COMPARISON.md',
+  'docs/SERVER_TUNING.md',
+  'docs/THEME_DEVELOPMENT.md',
+  'docs/PLUGIN_DEVELOPMENT.md',
+].filter(exists);
+if (retiredConsolidatedDocs.length === 0) {
+  pass(
+    'Public Docs Consolidation: retired split docs now live inside Features, VPS, and Extension Development.'
+  );
+} else {
+  fail(
+    `Public Docs Consolidation: retired split docs still exist (${retiredConsolidatedDocs.join(', ')}).`
+  );
+}
+
+assertIncludes(
+  'Public Docs Consolidation Markers',
+  read('docs/FEATURES.md') + read('docs/VPS.md') + extensionDevelopmentContent,
+  [
+    'Introduction to VonCMS',
+    'CMS Comparison Guide 2026',
+    'Server Tuning',
+    'Safe Cache Targets',
+    'Theme Development',
+    'Minimal Theme Skeleton',
+    'Plugin Development',
+    'System Plugin Shape',
+  ],
+  'Public Docs Consolidation Markers: consolidated docs preserve introduction, comparison, tuning, theme, and plugin tutorial content.',
+  'Public Docs Consolidation Markers: consolidated docs are missing preserved tutorial or positioning content.'
+);
 
 if (!exists('THEME_GUIDE.md')) {
   pass('Root Theme Guide Retirement: outdated root THEME_GUIDE.md has been removed.');
@@ -1717,18 +1743,12 @@ if (!exists('THEME_GUIDE.md')) {
 
 assertExcludes(
   'Root Theme Guide Reference Guard',
-  [
-    'README.md',
-    'CONTRIBUTING.md',
-    'docs/THEME_DEVELOPMENT.md',
-    'docs/PLUGIN_DEVELOPMENT.md',
-    'docs/QUICKSTART.md',
-  ]
+  ['README.md', 'CONTRIBUTING.md', 'docs/EXTENSION_DEVELOPMENT.md']
     .filter(exists)
     .map(read)
     .join('\n'),
   ['THEME_GUIDE.md', 'PLUGIN_THEME_TUTORIAL.md'],
-  'Root Theme Guide Reference Guard: developer workflow references point at split theme/plugin docs.',
+  'Root Theme Guide Reference Guard: developer workflow references point at the consolidated extension docs.',
   'Root Theme Guide Reference Guard: developer workflow still points at retired theme/plugin docs.'
 );
 
@@ -3046,7 +3066,8 @@ assertIncludes(
     "'keyLocation' => $this->getKeyLocationUrl($key)",
     'public function buildPostUrlForPost(int $postId): string',
     '$indexNow->buildPostUrlForPost((int) $finalId)',
-    'VonCMS/1.25.3 IndexNow',
+    "private const USER_AGENT = 'VonCMS IndexNow';",
+    'CURLOPT_USERAGENT => self::USER_AGENT',
   ],
   'IndexNow Canonical Submission Contract: subfolder key location and canonical post permalinks are submitted.',
   'IndexNow Canonical Submission Contract: submissions can still use the wrong key location or a non-canonical slug URL.'
@@ -3165,7 +3186,8 @@ if (
 
 if (
   techPressLayoutContent.includes('className="min-w-0 flex-1"') &&
-  techPressLayoutContent.includes('max-w-[96px] md:max-w-[120px]') &&
+  techPressLayoutContent.includes("import ThemeLogo from '../shared/components/ThemeLogo';") &&
+  techPressLayoutContent.includes('<ThemeLogo') &&
   techPressLayoutContent.includes('title={settings.siteDescription}') &&
   !techPressLayoutContent.includes('ml-[52px] md:ml-[60px]')
 ) {
@@ -3584,6 +3606,7 @@ assertIncludes(
   [
     'Header ad code',
     'Use responsive display or leaderboard code',
+    'VonCMS contains the slot',
     'In-feed ad code',
     'Runs after the selected post interval',
     'Popup ad code',
@@ -4684,7 +4707,11 @@ if (exists('ROADMAP.md')) {
 }
 
 const contributingContent = exists('CONTRIBUTING.md') ? read('CONTRIBUTING.md') : '';
-const quickstartContent = exists('docs/QUICKSTART.md') ? read('docs/QUICKSTART.md') : '';
+const firstRunDocsContent = [
+  exists('README.md') ? read('README.md') : '',
+  exists('docs/INSTALL.md') ? read('docs/INSTALL.md') : '',
+  exists('docs/VPS.md') ? read('docs/VPS.md') : '',
+].join('\n');
 const bugReportTemplateContent = exists('.github/ISSUE_TEMPLATE/bug_report.yml')
   ? read('.github/ISSUE_TEMPLATE/bug_report.yml')
   : '';
@@ -4714,19 +4741,19 @@ assertIncludes(
   'Open Source Contributor Guardrails: root CONTRIBUTING.md is missing required VonCMS guardrail markers.'
 );
 assertIncludes(
-  'Open Source Quickstart Guide',
-  quickstartContent,
+  'Open Source First-Run Guide',
+  firstRunDocsContent,
   [
-    'VonCMS Quickstart',
-    'Path A: Install A Website',
-    'Path B: Run Locally With Laragon',
-    'Path C: Work From Source',
+    'Install A Website From Deploy ZIP',
+    'Use The Open-Source Repository',
+    'Local Testing',
+    'VPS Deployment Guide',
     `VonCMS_v${pkg.version}_Deploy.zip`,
     'npm install',
     'npm run test:integration',
   ],
-  'Open Source Quickstart Guide: first-run install, local, and source paths are documented.',
-  'Open Source Quickstart Guide: docs/QUICKSTART.md is missing first-run install, local, or source workflow markers.'
+  'Open Source First-Run Guide: README, install, local, VPS, and source paths are documented.',
+  'Open Source First-Run Guide: README/INSTALL/VPS docs are missing first-run install, local, or source workflow markers.'
 );
 assertIncludes(
   'Open Source GitHub Templates',
@@ -4867,12 +4894,89 @@ assertIncludes(
   [
     "maxWidth: '100%'",
     "overflow: 'hidden'",
+    "minWidth: '0'",
     '[&_iframe]:max-w-full',
     '[&_img]:max-w-full',
     '[&_ins]:max-w-full',
   ],
   'Widget Ad Containment Contract: shared ad/widget markup stays bounded inside theme containers.',
   'Widget Ad Containment Contract: shared ad/widget markup can still overflow theme containers.'
+);
+assertIncludes(
+  'Ads Manager Responsive Iframe Contract',
+  sharedAdBlockContent,
+  [
+    "iframe.style.maxWidth = '100%';",
+    "iframe.style.minWidth = '0';",
+    'html, body {',
+    'box-sizing: border-box;',
+    'Math.max(',
+    'requestAnimationFrame(updateHeight);',
+    'window.setTimeout(updateHeight, 100);',
+  ],
+  'Ads Manager Responsive Iframe Contract: script/iframe ads stay bounded and recalculate delayed heights.',
+  'Ads Manager Responsive Iframe Contract: isolated ad iframe lacks mobile containment or delayed height sync.'
+);
+assertIncludes(
+  'Ads Manager Visual Style Allowlist Contract',
+  editorSecurityContent + '\n' + sharedAdBlockContent,
+  [
+    'export const AD_ALLOWED_STYLE_PROPS',
+    "'background'",
+    "'box-shadow'",
+    "'justify-content'",
+    "'align-items'",
+    "'box-sizing'",
+    "'min-height'",
+    'styleAllowlist',
+    'styleAllowlist: AD_ALLOWED_STYLE_PROPS',
+    'url\\s*\\(',
+  ],
+  'Ads Manager Visual Style Allowlist Contract: ad snippets can keep bounded visual styles without relaxing editor/content sanitizing.',
+  'Ads Manager Visual Style Allowlist Contract: ad snippets still lose common visual styles or share the global sanitizer allowlist.'
+);
+const adStyleAllowlistMatch = editorSecurityContent.match(
+  /export const AD_ALLOWED_STYLE_PROPS = new Set\(\[([\s\S]*?)\]\);/
+);
+const adStyleAllowlist = adStyleAllowlistMatch ? adStyleAllowlistMatch[1] : '';
+assertExcludes(
+  'Ads Manager No Takeover Style Contract',
+  adStyleAllowlist,
+  ["'position'", "'z-index'", "'top'", "'right'", "'bottom'", "'left'"],
+  'Ads Manager No Takeover Style Contract: ad visual styles stay bounded and do not allow overlay positioning.',
+  'Ads Manager No Takeover Style Contract: ad visual styles still allow overlay positioning or takeover-style offsets.'
+);
+const adAddTagsMatch = sharedAdBlockContent.match(/ADD_TAGS:\s*\[([\s\S]*?)\]/);
+const adAddTags = adAddTagsMatch ? adAddTagsMatch[1] : '';
+assertExcludes(
+  'Ads Manager Style Tag Containment Contract',
+  adAddTags,
+  ["'style'"],
+  'Ads Manager Style Tag Containment Contract: ad snippets cannot inject page-wide style tags into direct rendering.',
+  'Ads Manager Style Tag Containment Contract: ad snippets can still preserve <style> tags and bypass the inline style allowlist.'
+);
+
+const popupAdContent = read('src/themes/shared/components/VonPopupAd.tsx');
+assertIncludes(
+  'Popup Ad Mobile Safety Contract',
+  popupAdContent,
+  [
+    'overflow-y-auto',
+    'max-h-[calc(100dvh-2rem)]',
+    'overscroll-contain',
+    'right-2 top-2 sm:-top-4 sm:-right-4',
+  ],
+  'Popup Ad Mobile Safety Contract: popup ads stay inside the viewport with scroll-safe mobile close behavior.',
+  'Popup Ad Mobile Safety Contract: popup ads can still overflow mobile viewport or place the close button off-screen.'
+);
+
+const indexCssContent = read('src/index.css');
+assertIncludes(
+  'Global Ad Slot Overflow Guard',
+  indexCssContent,
+  ['min-width: 0;', 'max-width: 100%;', 'overflow: hidden;'],
+  'Global Ad Slot Overflow Guard: theme ad slot helpers cannot expand the page horizontally.',
+  'Global Ad Slot Overflow Guard: theme ad slot helpers still allow visible overflow or missing width bounds.'
 );
 
 const getPostsContent = read('public/api/get_posts.php');
@@ -6570,7 +6674,7 @@ assertIncludes(
     '\n' +
     JSON.stringify(pkg.scripts) +
     '\n' +
-    read('docs/THEME_DEVELOPMENT.md'),
+    read('docs/EXTENSION_DEVELOPMENT.md'),
   [
     "import techpressManifest from '../../../../themes/techpress/theme.json';",
     'performance: readThemePerformance(techpressManifest),',
@@ -6634,6 +6738,20 @@ assertIncludes(
   'Public Index Settings Snapshot Contract: SSR settings remain split across repeated queries.'
 );
 
+if (
+  indexContent.includes('$siteDescription = $seoDescription;') &&
+  indexContent.includes("'siteDescription'      => $siteDescription ?? ''") &&
+  !indexContent.includes("'siteDescription'      => $seoDescription ?? ''")
+) {
+  pass(
+    'Public Index Site Description Hydration Contract: hydrated settings keep the General Settings site description separate from per-route SEO descriptions.'
+  );
+} else {
+  fail(
+    'Public Index Site Description Hydration Contract: single-post SSR can still hydrate settings.siteDescription with the post meta description.'
+  );
+}
+
 assertIncludes(
   'Site Name Save Whitespace Guard',
   saveSettingsContent,
@@ -6649,6 +6767,21 @@ assertIncludes(
   'Site Name SSR Whitespace Guard: legacy stored site names render without leading or trailing whitespace.',
   'Site Name SSR Whitespace Guard: legacy stored site names can still leak whitespace into public metadata.'
 );
+
+if (
+  indexContent.includes(
+    "$twitterCard = !empty($socialImage) ? 'summary_large_image' : 'summary';"
+  ) &&
+  !indexContent.includes("strpos($socialImage, 'og-default')")
+) {
+  pass(
+    'Public SSR Twitter Large Card Contract: any resolved social image emits summary_large_image without filename-based og-default downgrades.'
+  );
+} else {
+  fail(
+    'Public SSR Twitter Large Card Contract: social images named like og-default can still be downgraded to summary cards.'
+  );
+}
 
 assertExcludes(
   'Public Index Dead State Cleanup Guard',
@@ -6901,6 +7034,87 @@ const themeNavigationFiles = [
   'src/themes/portfolio/Layout.tsx',
   'src/themes/prism/Layout.tsx',
 ];
+const themeLogoHelperContent = exists('src/themes/shared/components/ThemeLogo.tsx')
+  ? read('src/themes/shared/components/ThemeLogo.tsx')
+  : '';
+const themeLogoIssues = themeNavigationFiles.flatMap((file) => {
+  const content = read(file);
+  const missing = [];
+
+  if (!content.includes("from '../shared/components/ThemeLogo'")) {
+    missing.push('shared ThemeLogo import');
+  }
+
+  if (!content.includes('<ThemeLogo')) {
+    missing.push('ThemeLogo usage');
+  }
+
+  if (
+    /settings\.useLogoAsTitle \? 'h-|className="h-\d+ w-auto|className="\$\{settings\.useLogoAsTitle/.test(
+      content
+    )
+  ) {
+    missing.push('legacy hardcoded logo sizing');
+  }
+
+  return missing.length ? [`${file}: ${missing.join(', ')}`] : [];
+});
+if (
+  themeLogoHelperContent.includes('LOGO_SLOT_CLASS') &&
+  themeLogoHelperContent.includes('w-[112px] h-[38px] sm:w-[140px] sm:h-[45px]') &&
+  themeLogoHelperContent.includes('LOGO_TITLE_SLOT_CLASS') &&
+  themeLogoHelperContent.includes('w-[150px] h-[48px] sm:w-[180px] sm:h-[56px]') &&
+  themeLogoHelperContent.includes('max-w-full max-h-full w-auto h-auto object-contain') &&
+  themeLogoIssues.length === 0
+) {
+  pass(
+    'Theme Logo Slot Contract: bundled themes use one shared object-contain logo slot, with smaller mobile sizing and the existing desktop caps.'
+  );
+} else {
+  fail(
+    `Theme Logo Slot Contract: missing helper markers or theme wiring: ${
+      themeLogoIssues.length
+        ? themeLogoIssues.join('; ')
+        : 'src/themes/shared/components/ThemeLogo.tsx'
+    }`
+  );
+}
+const logoGeneralSettingsContent = read(
+  'src/plugins/von-core/features/settings/components/GeneralSettings.tsx'
+);
+const logoSiteTypesContent = read('src/types.ts');
+const darkLogoIssues = themeNavigationFiles.flatMap((file) => {
+  const content = read(file);
+  return /invertLogoInDarkMode=\{settings\??\.invertLogoInDarkMode\}/.test(content)
+    ? []
+    : [`${file}: missing invertLogoInDarkMode ThemeLogo prop`];
+});
+if (
+  logoSiteTypesContent.includes('invertLogoInDarkMode?: boolean') &&
+  useSettingsContent.includes('invertLogoInDarkMode: _s?.invertLogoInDarkMode ?? false') &&
+  logoGeneralSettingsContent.includes("onChange('invertLogoInDarkMode', e.target.checked)") &&
+  logoGeneralSettingsContent.includes('Invert logo in dark mode') &&
+  saveSettingsContent.includes(
+    "['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean']"
+  ) &&
+  getSettingsContent.includes("'invert_logo_in_dark_mode'") &&
+  publicInstallSqlContent.includes("('general', 'invert_logo_in_dark_mode', 'false', 'boolean'") &&
+  installContent.includes("['general', 'invert_logo_in_dark_mode', 'false', 'boolean']") &&
+  indexContent.includes("'invertLogoInDarkMode'") &&
+  themeLogoHelperContent.includes('invertLogoInDarkMode?: boolean') &&
+  themeLogoHelperContent.includes('dark:brightness-0 dark:invert') &&
+  darkLogoIssues.length === 0
+) {
+  pass(
+    'Theme Logo Dark Mode Invert Contract: optional admin toggle inverts uploaded logos only in dark mode and is wired through public settings and bundled themes.'
+  );
+} else {
+  fail(
+    `Theme Logo Dark Mode Invert Contract: missing settings, persistence, hydration, helper, or theme wiring${
+      darkLogoIssues.length ? `: ${darkLogoIssues.join('; ')}` : '.'
+    }`
+  );
+}
 const themeNavigationHelperContent = exists('src/utils/navigation.ts')
   ? read('src/utils/navigation.ts')
   : '';

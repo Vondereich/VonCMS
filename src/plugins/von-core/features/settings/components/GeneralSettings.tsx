@@ -256,6 +256,29 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   )}
                 </div>
               </div>
+              <div
+                className={`mt-3 flex items-start gap-2 ${!settings.logoUrl ? 'opacity-50' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  id="invertLogoInDarkMode"
+                  checked={settings.invertLogoInDarkMode || false}
+                  onChange={(e) => onChange('invertLogoInDarkMode', e.target.checked)}
+                  disabled={!settings.logoUrl}
+                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
+                />
+                <div>
+                  <label
+                    htmlFor="invertLogoInDarkMode"
+                    className={`text-xs font-bold text-slate-700 dark:text-slate-300 ${settings.logoUrl ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  >
+                    Invert logo in dark mode
+                  </label>
+                  <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                    Best for black or monochrome PNG logos. Leave off for full-color logos.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

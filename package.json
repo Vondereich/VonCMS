@@ -1,7 +1,7 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.25.3",
+  "version": "1.25.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,16 +19,16 @@
     "test:smoke": "node server/test-integration.cjs"
   },
   "dependencies": {
-    "@openrouter/sdk": "^0.13.22",
-    "@tiptap/core": "^3.27.1",
-    "@tiptap/extension-image": "^3.27.1",
-    "@tiptap/extension-link": "^3.27.1",
-    "@tiptap/extension-table": "^3.27.1",
-    "@tiptap/extension-text-align": "^3.27.1",
-    "@tiptap/extension-text-style": "^3.27.1",
-    "@tiptap/pm": "^3.27.1",
-    "@tiptap/react": "^3.27.1",
-    "@tiptap/starter-kit": "^3.27.1",
+    "@openrouter/sdk": "^0.13.32",
+    "@tiptap/core": "^3.27.3",
+    "@tiptap/extension-image": "^3.27.3",
+    "@tiptap/extension-link": "^3.27.3",
+    "@tiptap/extension-table": "^3.27.3",
+    "@tiptap/extension-text-align": "^3.27.3",
+    "@tiptap/extension-text-style": "^3.27.3",
+    "@tiptap/pm": "^3.27.3",
+    "@tiptap/react": "^3.27.3",
+    "@tiptap/starter-kit": "^3.27.3",
     "@types/nprogress": "^0.2.3",
     "adm-zip": "^0.5.18",
     "cors": "^2.8.6",
@@ -47,13 +47,13 @@
     "react-is": "^19.2.7",
     "react-router-dom": "^7.18.1",
     "react-share": "^5.2.2",
-    "recharts": "^3.9.1"
+    "recharts": "^3.9.2"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@prettier/plugin-php": "^0.25.0",
     "@tailwindcss/typography": "^0.5.20",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/react-gravatar": "^2.6.14",

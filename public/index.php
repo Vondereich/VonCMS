@@ -378,6 +378,7 @@ $activeThemeId = '';
 $themeCustomization = null;
 $discussionEnabledValue = true;
 $siteName = $seoTitle;
+$siteDescription = $seoDescription;
 $logoUrl = '';
 $faviconUrl = '';
 $faviconVersion = '';
@@ -556,7 +557,7 @@ try {
     if (isset($pdo)) {
       $runtimeSettingsStmt = $pdo->prepare(
         "SELECT setting_group, setting_key, setting_value FROM settings
-         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure'))
+         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure'))
             OR (setting_group = 'ads' AND setting_key = 'ads_config')
             OR (setting_group = 'seo' AND setting_key = 'site_config')
             OR (setting_group = 'theme' AND setting_key IN ('active_theme_id', 'customization'))",
@@ -613,6 +614,7 @@ try {
         $cleanSiteDesc = str_replace('"', "'", $cleanSiteDesc);
         // Standard SEO limit: 160 chars
         $seoDescription = mb_substr($cleanSiteDesc, 0, 160);
+        $siteDescription = $seoDescription;
       }
 
       $configuredDomainUrl = $runtimeSettings['general']['domain_url'] ?? '';
@@ -621,6 +623,10 @@ try {
       }
 
       $logoUrl = $runtimeSettings['general']['logo_url'] ?? '';
+      $invertLogoInDarkMode = filter_var(
+        $runtimeSettings['general']['invert_logo_in_dark_mode'] ?? false,
+        FILTER_VALIDATE_BOOLEAN,
+      );
 
       $faviconUrl = $runtimeSettings['general']['favicon_url'] ?? '';
       if ($faviconUrl !== '') {
@@ -1094,11 +1100,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <meta property="og:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php
   $socialImage = $seoImage;
-  if (empty($socialImage) || strpos($socialImage, 'og-default') !== false) {
-    $twitterCard = 'summary';
-  } else {
-    $twitterCard = 'summary_large_image';
-  }
+  $twitterCard = !empty($socialImage) ? 'summary_large_image' : 'summary';
   ?>
   <meta property="og:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta property="og:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
@@ -1299,13 +1301,14 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <script>
     window.__INITIAL_SETTINGS__ = <?php echo json_encode([
                                     'siteName'             => $siteName ?? 'My Website',
-                                    'siteDescription'      => $seoDescription ?? '',
+                                    'siteDescription'      => $siteDescription ?? '',
                                     'domainUrl'            => $domainUrl ?? '',
                                      'siteUrl'              => $domainUrl ?? '',
                                      'activeThemeId'        => $activeThemeId ?: '',
                                      'faviconUrl'           => $faviconUrl ?? '',
                                     'logoUrl'              => $logoUrl ?? '',
-                                    'theme'                => $themeCustomization ?? (object)[],
+                                    'invertLogoInDarkMode' => $invertLogoInDarkMode ?? false,
+                                     'theme'                => $themeCustomization ?? (object)[],
                                     'permalinkStructure'   => $permalinkStructureValue,
                                     'discussionEnabled'      => $discussionEnabledValue,
                                   ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
@@ -1479,7 +1482,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
     <noscript>
       <header>
         <?php if (!empty($logoUrl)): ?>
-          <img src="<?php echo htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?>" style="max-height: 60px;">
+          <img src="<?php echo htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 140px; max-height: 45px; width: auto; height: auto; object-fit: contain;">
         <?php endif; ?>
         <h1><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
         <p><?php echo htmlspecialchars($seoDescription, ENT_QUOTES, 'UTF-8'); ?></p>

@@ -25,6 +25,7 @@ import {
 import { SafeImage } from '../../components/SafeImage';
 import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
+import ThemeLogo from '../shared/components/ThemeLogo';
 
 // Theme SDK
 import {
@@ -628,10 +629,11 @@ const DigestFooter: React.FC<{ settings: SiteSettings; colors: ReturnType<typeof
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {settings.logoUrl ? (
-              <img
+              <ThemeLogo
                 src={settings.logoUrl}
                 alt={settings.siteName}
-                className={`${settings.useLogoAsTitle ? 'h-10' : 'h-8'} w-auto`}
+                useLogoAsTitle={settings.useLogoAsTitle}
+                invertLogoInDarkMode={settings.invertLogoInDarkMode}
               />
             ) : (
               <VonLogo variant="default" className="!w-8 !h-8 !mr-0" />
@@ -1361,7 +1363,12 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           {/* Logo & Site Info */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={handleReturnHome}>
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt={settings.siteName} className="h-10 w-auto" />
+              <ThemeLogo
+                src={settings.logoUrl}
+                alt={settings.siteName}
+                useLogoAsTitle={settings.useLogoAsTitle}
+                invertLogoInDarkMode={settings.invertLogoInDarkMode}
+              />
             ) : (
               <VonLogo variant="default" className="!w-10 !h-10 !mr-0" />
             )}

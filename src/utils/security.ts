@@ -33,6 +33,32 @@ const ALLOWED_STYLE_PROPS = new Set([
   'letter-spacing',
 ]);
 
+export const AD_ALLOWED_STYLE_PROPS = new Set([
+  ...ALLOWED_STYLE_PROPS,
+  'align-items',
+  'background',
+  'border',
+  'border-bottom',
+  'border-color',
+  'border-top',
+  'box-shadow',
+  'box-sizing',
+  'flex',
+  'flex-basis',
+  'flex-direction',
+  'flex-grow',
+  'flex-shrink',
+  'flex-wrap',
+  'gap',
+  'justify-content',
+  'max-height',
+  'min-height',
+  'opacity',
+  'text-decoration',
+  'text-transform',
+  'white-space',
+]);
+
 const EDITOR_ALLOWED_PASTE_STYLE_PROPS = new Set([
   'text-align',
   'font-weight',
@@ -402,6 +428,7 @@ const filterStyleProps = (styleValue: string, allowedProps: Set<string>): string
     .map((s) => s.trim())
     .filter((s) => {
       if (!s) return false;
+      if (/\burl\s*\(/i.test(s) || /\bexpression\s*\(/i.test(s)) return false;
       const prop = s.split(':')[0]?.trim().toLowerCase();
       if (!prop || prop.startsWith('mso-')) return false;
       return prop && allowedProps.has(prop);
@@ -409,28 +436,28 @@ const filterStyleProps = (styleValue: string, allowedProps: Set<string>): string
     .join('; ');
 };
 
-const filterStyles = (styleValue: string): string =>
-  filterStyleProps(styleValue, ALLOWED_STYLE_PROPS);
-
 const filterPasteStyles = (styleValue: string): string =>
   filterStyleProps(styleValue, EDITOR_ALLOWED_PASTE_STYLE_PROPS);
 
 /**
  * Sanitizes HTML content to prevent XSS attacks.
  * Uses DOMPurify to strip dangerous tags and attributes.
- * Inline styles are filtered to allow only safe layout properties
- * (alignment, margins, sizing) while blocking colors and fonts
- * to maintain dark mode and theme consistency.
+ * Inline styles are filtered to allow only the selected safe property set.
  *
  * @param content The raw HTML content string
  * @param options Optional DOMPurify configuration
  * @returns Sanitized HTML string
  */
-export const sanitizeHtml = (content: string, options?: DOMPurifyConfig): string => {
+interface SanitizeHtmlOptions extends DOMPurifyConfig {
+  styleAllowlist?: Set<string>;
+}
+
+export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): string => {
   if (!content) return '';
-  const hasStrictAllowlist = Boolean(options?.ALLOWED_TAGS || options?.ALLOWED_ATTR);
+  const { styleAllowlist, ...purifyOptions } = options || {};
+  const hasStrictAllowlist = Boolean(purifyOptions.ALLOWED_TAGS || purifyOptions.ALLOWED_ATTR);
   const config: DOMPurifyConfig = hasStrictAllowlist
-    ? { ...options }
+    ? { ...purifyOptions }
     : {
         ADD_TAGS: ['iframe'],
         ADD_ATTR: [
@@ -442,13 +469,14 @@ export const sanitizeHtml = (content: string, options?: DOMPurifyConfig): string
           'target',
           'style',
         ],
-        ...options,
+        ...purifyOptions,
       };
+  const activeStyleAllowlist = styleAllowlist || ALLOWED_STYLE_PROPS;
 
   // Hook: filter inline styles to whitelist-only safe properties
   DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
     if (data.attrName === 'style') {
-      const filtered = filterStyles(data.attrValue);
+      const filtered = filterStyleProps(data.attrValue, activeStyleAllowlist);
       if (filtered) {
         data.attrValue = filtered;
       } else {
@@ -469,13 +497,13 @@ export const sanitizeHtml = (content: string, options?: DOMPurifyConfig): string
     }
   });
 
-  const result = DOMPurify.sanitize(content, config) as unknown as string;
-
-  // Clean up hooks to prevent accumulation across calls
-  DOMPurify.removeHook('uponSanitizeAttribute');
-  DOMPurify.removeHook('afterSanitizeAttributes');
-
-  return result;
+  try {
+    return DOMPurify.sanitize(content, config) as unknown as string;
+  } finally {
+    // Clean up hooks to prevent accumulation across calls
+    DOMPurify.removeHook('uponSanitizeAttribute');
+    DOMPurify.removeHook('afterSanitizeAttributes');
+  }
 };
 
 export const sanitizeEditorHtml = (content: string): string => {

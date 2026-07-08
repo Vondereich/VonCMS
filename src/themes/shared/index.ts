@@ -13,6 +13,7 @@ export { LoadMoreButton } from '../../components/LoadMoreButton';
 export { VonLogo } from '../../components/VonLogo';
 export { default as AdBlock } from './components/AdBlock';
 export { default as VonPopupAd } from './components/VonPopupAd';
+export { default as ThemeLogo } from './components/ThemeLogo';
 
 // 2. SEO & Security
 export { default as VonSEO } from '../../plugins/von-core/features/seo/VonSEO';

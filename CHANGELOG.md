@@ -1,3 +1,32 @@
+### [v1.25.4] - 2026-07-07
+
+> OpenGate Ads Manager polish for responsive third-party ad snippets inside the existing Header, In-Feed, and Popup slots.
+
+- **Ads Manager Responsive Safety**:
+  - **Responsive Iframe Containment**: Shared ad rendering now bounds script and iframe-based snippets inside the active theme slot with stronger iframe width, min-width, box-sizing, and delayed height recalculation guards.
+  - **Ad Visual Style Preservation**: Ads Manager now uses an ad-specific safe style allowlist so bounded inline ad backgrounds, borders, shadows, flex layouts, and spacing survive sanitizing without relaxing the normal editor/content sanitizer.
+  - **Direct Markup Containment**: Static ad markup such as images, iframes, `ins`, links, and nested blocks now keeps fixed-width provider output inside the current theme container instead of allowing horizontal layout expansion.
+  - **Popup Mobile Safety**: Popup ads now stay inside the mobile viewport with max-height, scroll-safe overflow, and an in-bounds close button while preserving the existing delayed popup behavior.
+  - **Global Slot Overflow Guard**: Shared `.ad-slot-wrapper` and `.ad-slot-flex` helpers now clamp width and overflow so bundled theme placements cannot expand the page horizontally.
+  - **Helper Copy Boundary**: Ads Manager guidance now clarifies that VonCMS contains the slot while the external ad network controls delivery and reporting.
+- **Regression Guard**:
+  - **Ads Containment Smoke Coverage**: Integration smoke now locks the responsive iframe contract, ad visual style allowlist, style-tag stripping boundary, popup viewport guard, global slot overflow guard, and Ads Manager boundary copy.
+  - **Theme Logo Slot Coverage**: Bundled public themes now share a single object-contain logo slot, standardizing normal uploaded logos to a smaller 112x38 mobile render box and 140x45 desktop box, with logo-as-title mode using 150x48 on mobile and 180x56 on desktop without resizing the original uploaded file.
+  - **Theme Logo Dark Mode Invert**: General Settings now exposes a default-off dark-mode invert toggle for uploaded PNG or monochrome logos, wired through public settings, installer seeds, first-paint hydration, and bundled themes.
+  - **Public SEO Hydration Guard**: Server-rendered initial settings now keep the General Settings site description separate from per-route SEO descriptions, so single-post hydration no longer reuses post meta text as the site tagline.
+  - **Large Social Card Alignment**: PHP SSR now emits `twitter:card=summary_large_image` for any resolved social image instead of downgrading valid uploaded assets whose filename contains `og-default`.
+- **Dependency Review**:
+  - **Safe Patch Refresh**: Updated the current semver-safe wanted set for `@openrouter/sdk`, TipTap, `@types/node`, and Recharts; Tailwind v4 and TypeScript v7 remain parked for dedicated migrations.
+- **Documentation**:
+  - **VPS Security Baseline**: VPS deployment guidance now calls out SSH, aaPanel, firewall, update, backup, and web-root hygiene responsibilities before the software stack setup, clarifying what VonCMS protects in-app versus what the server owner must harden.
+  - **VPS Server Tuning Consolidation**: Server/CDN tuning guidance for static assets, fonts, uploads, image variants, Cloudflare, LiteSpeed, and cache boundaries now lives inside the VPS guide instead of a separate short tuning document.
+  - **Docs Surface Cleanup**: Retired the redundant `docs/QUICKSTART.md` path and moved first-run guidance ownership back to the README, Installation, and VPS docs.
+  - **Public Docs Consolidation**: Merged the Introduction and CMS Comparison material into Features, and merged the Theme and Plugin development guides into one Extension Development guide while preserving the theme skeleton, plugin shape, runtime ownership, SEO, security, WYSIWYG, and release-check details.
+  - **Theme Logo Developer Guidance**: Extension Development now documents `ThemeLogo`, shared logo sizing, and the `invertLogoInDarkMode` setting so custom theme edits inherit the same uploaded-logo behavior as bundled themes.
+- **Release Version Alignment**:
+  - **IndexNow User-Agent Cleanup**: IndexNow single and batch submissions now use a shared versionless `VonCMS IndexNow` User-Agent so future patch releases do not carry stale runtime version labels.
+  - Bumped the OpenGate line to `v1.25.4`.
+
 ### [v1.25.3] - 2026-06-29
 
 > OpenGate follow-up for a lightweight guest-only public JSON cache on repeat anonymous posts/settings reads.

@@ -22,7 +22,7 @@ body:
     id: issue
     attributes:
       label: What looks wrong?
-      placeholder: 'Example: Deploy ZIP is missing docs/QUICKSTART.md, README names the wrong ZIP, installer version text is inconsistent.'
+      placeholder: 'Example: Deploy ZIP is missing docs/INSTALL.md, README names the wrong ZIP, installer version text is inconsistent.'
     validations:
       required: true
   - type: textarea

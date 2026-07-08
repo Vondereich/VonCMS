@@ -1,27 +1,12 @@
 # Installation Guide
 
-> **VonCMS v1.25.3 "OpenGate"**
+> **VonCMS v1.25.4 "OpenGate"**
 
 ---
 
-Need the shortest first-run checklist? Start with [Quickstart](QUICKSTART.md). This guide explains the hosting path in more detail.
+Need the shortest first-run checklist? Start with the root [README](../README.md). This guide explains the hosting path in more detail.
 
-## What is VonCMS?
-
-VonCMS is a modern content management system built with React and PHP. It combines the feel of a Single-Page Application (SPA) with the deployment model of a traditional PHP CMS.
-
-### Why VonCMS?
-
-| Feature               | Benefit                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| **Fast Frontend**     | React + Vite keep the public UI and dashboard responsive     |
-| **Easy Install**      | Wizard-based setup with no manual code edits required        |
-| **Bundled Themes**    | Six built-in themes included                                 |
-| **Ad Ready**          | Built-in ad zones, including AdSense-friendly placements     |
-| **Mobile Friendly**   | Responsive on phones, tablets, and desktop                   |
-| **Security Baseline** | Session protection, CSRF checks, and XSS guardrails included |
-
----
+For product positioning and feature coverage, read [Features](FEATURES.md).
 
 ## Requirements
 
@@ -78,7 +63,7 @@ inspection, but it cannot replace host-root robots configuration.
 
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package. For v1.25.3, the file is `VonCMS_v1.25.3_Deploy.zip`.
+1. Download the latest VonCMS Deploy package. For v1.25.4, the file is `VonCMS_v1.25.4_Deploy.zip`.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -114,25 +99,7 @@ inspection, but it cannot replace host-root robots configuration.
 
 ## Updating VonCMS
 
-Current VonCMS releases support OTA updates from the admin dashboard.
-
-### One-Click OTA Update (Recommended)
-
-1. Login to your Admin Dashboard.
-2. Go to **Settings > System**.
-3. Click **"Check for Updates"**.
-4. If available, click **"Update Now"**.
-
-### Manual Update (Fallback)
-
-If the auto-updater fails or your server creates permission errors, follow these steps:
-
-1. **Backup**: Download your `uploads/` folder and your live `von_config.php`.
-2. **Clean**: Delete the `assets/` folder in your hosting to prevent stale asset conflicts.
-3. **Use the latest VonCMS Deploy package** and overwrite the existing deployment files.
-4. **Verify `.htaccess` carefully** if your hosting folder already contains cPanel-generated handlers, custom redirects, or any host-managed rewrite rules. Restore your backup or the generated `.bak` copy if extraction changed something you needed to keep.
-5. **Keep your real config**: do not replace your live `von_config.php` with a sample file.
-6. **Verify**: Hard refresh your browser (`Ctrl+Shift+R`).
+This guide is for fresh installs. For OTA updates, manual Deploy ZIP replacement, `.htaccess` repair, and rollback steps, read [Upgrade](UPGRADE.md).
 
 ---
 
@@ -161,4 +128,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.25.3 "OpenGate"_
+_VonCMS v1.25.4 "OpenGate"_

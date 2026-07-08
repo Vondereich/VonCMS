@@ -186,6 +186,7 @@ try {
     ['emailSmtp', 'general', 'email_smtp', 'string'],
     ['logoUrl', 'general', 'logo_url', 'string'],
     ['useLogoAsTitle', 'general', 'use_logo_as_title', 'boolean'], // New: Replace text with logo
+    ['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean'],
     ['faviconUrl', 'general', 'favicon_url', 'string'],
     ['ogImageUrl', 'general', 'og_image_url', 'string'], // Social Share Image
     ['ogImageSquareUrl', 'general', 'og_image_square_url', 'string'], // Social Share Square (WhatsApp)

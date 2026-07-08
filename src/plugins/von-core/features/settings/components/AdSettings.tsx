@@ -92,6 +92,14 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                     Paste the provider snippet exactly as supplied.
                   </div>
                 </li>
+                <li className="flex gap-3 items-start">
+                  <div>
+                    <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">
+                      Boundary
+                    </strong>
+                    VonCMS contains the slot; your ad network controls delivery and reporting.
+                  </div>
+                </li>
               </ul>
             </div>
           </div>

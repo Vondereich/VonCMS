@@ -1,6 +1,148 @@
 # VonCMS Features
 
-> VonCMS v1.25.3 feature baseline for the OpenGate line.
+> VonCMS v1.25.4 feature baseline for the OpenGate line.
+
+## Introduction to VonCMS v1.25.4 "OpenGate"
+
+### Publishing should not feel like plugin maintenance.
+
+Most people start a site because they have something to publish, not because they want to spend their week juggling plugins, updates, rebuilds, and hosting workarounds.
+
+VonCMS came from that frustration. The goal was simple: keep the editing experience modern, keep deployment practical, and reduce the amount of glue work needed to run a content site.
+
+Many CMS choices still force a tradeoff:
+
+- **WordPress** - flexible, but often dependent on a long plugin stack for the basics.
+- **Headless CMS** - fast and modern, but usually means a separate frontend deploy and a more complex hosting setup.
+- **Static site generators** - great for some sites, but awkward for teams that publish and update content every day.
+
+**VonCMS is built to avoid that tradeoff.**
+
+### What you actually get
+
+| You're tired of...                         | VonCMS gives you...                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Installing plugins for every basic feature | SEO, analytics, newsletter, comments, and media tools built in from the start.     |
+| Waiting for pages to reload                | React 19 SPA navigation that stays fast after first load.                          |
+| Needing a VPS for modern tech              | A PHP backend that still fits shared hosting and straightforward server setups.    |
+| Your site breaking after an update         | OTA updates from the dashboard and a simpler stack to maintain.                    |
+| Choosing between pretty and functional     | Six bundled themes with responsive layouts and dark mode support.                  |
+| Google can't find your content             | Built-in sitemap, robots.txt, JSON-LD schema, IndexNow, and canonical URL support. |
+
+### Who is this for?
+
+- **You run a news site or content portal** - you need authors, editors, scheduled posts, editorial tracking, and quick publishing.
+- **You are a blogger or creator** - you want a cleaner editor, bundled themes, and built-in SEO without extra setup.
+- **You build client sites** - you want to deliver something modern without maintaining a large plugin stack on every install.
+- **You work with a team** - roles, audit logs, draft workflows, and moderation need to be part of the CMS, not bolted on later.
+- **You want fewer moving parts** - less time maintaining software, more time publishing.
+
+### What makes VonCMS different
+
+It's not trying to be everything. It's trying to be **the right thing** for people who publish content and want the technology to get out of the way.
+
+- **One codebase.** Not a frontend repo + backend repo + deployment pipeline. One download. One install. You're live.
+- **One hosting target.** Shared hosting. cPanel. The same $3/month plan you already have. No Docker. No Node.js. No DevOps degree required.
+- **One system that includes the basics.** SEO? Built in. Analytics? Built in. Newsletter? Built in. Comments? Built in. You don't assemble your CMS from 15 different plugins hoping they don't fight each other.
+- **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
+- **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
+
+### This is v1.25.4 "OpenGate"
+
+_"OpenGate" - the open-source handoff line, focused on making VonCMS easier to inspect, fork, customize, install, and verify._
+
+**OpenGate** builds on the closed HourGlass editor baseline with clearer developer onboarding, safer direct-entry routing, self-hosted default fonts, slow-route loading guards, and AI key/completion handling polish.
+
+It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
+
+_A more inspectable source boundary for the same publisher-first direction._
+
+---
+
+## CMS Comparison Guide 2026
+
+### Let's be honest about what you're actually choosing.
+
+You're not picking a CMS. You're picking your daily workflow for the next few years.
+
+Every choice here has trade-offs. The question is: **which trade-offs match your reality?**
+
+### The honest breakdown
+
+| What matters to you    | VonCMS                                             | WordPress                                          | Ghost                                                  | Headless CMS                                    |
+| ---------------------- | -------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
+| **Hosting cost**       | Shared hosting, $3/month works                     | Shared hosting, $3/month works                     | Usually needs managed hosting                          | Separate frontend + backend means double stack  |
+| **How the site feels** | SPA navigation is instant after first load         | Page reloads every click unless heavily customized | Clean and fast, but still page-driven                  | Whatever your frontend team builds              |
+| **Plugin dependency**  | Low: SEO, analytics, newsletter, comments built in | High: most real sites need 15-30 plugins           | Moderate: some things built in, many need integrations | Custom development instead of plugins           |
+| **Setup effort**       | Download, upload, install wizard                   | Download, install, then start adding plugins       | Easy on managed hosting, harder when self-hosted       | High: developers and deployment pipeline needed |
+| **Who manages it?**    | You, the publisher                                 | You plus your plugin ecosystem                     | You, the writer                                        | Your dev team                                   |
+| **Best for**           | Modern publishing on normal hosting                | Maximum plugin ecosystem                           | Clean blogging experience                              | Teams with custom requirements                  |
+
+### The real conversation nobody has
+
+**"But WordPress has 60,000 plugins!"**
+
+Yes. And many are abandoned, outdated, or security risks. The average WordPress site runs a long plugin stack. Each one is a dependency you did not write, cannot fully audit, and must update hoping nothing breaks.
+
+The question is not "how many plugins exist?" It is "how many plugins can you afford to maintain?" VonCMS ships with the essentials built in, so you are not assembling a working CMS from 15 different strangers' code.
+
+**"But headless is the future!"**
+
+It is if you have a frontend team, a backend team, and a DevOps person. If you are a solo publisher or a small team, headless often means managing three repositories, two hosting bills, and a deployment pipeline just to change a blog post.
+
+There is also the bigger question: **where does your data actually live?** With most headless platforms, your content sits on their servers, behind their API, under their terms. If they change pricing, shut down, or have an outage, your site can go dark.
+
+VonCMS gives you the React frontend experience without the headless deployment headache and without handing your content over to a third-party platform. One codebase. One server. Your data.
+
+**"But Ghost is simpler!"**
+
+For pure blogging, yes. Ghost is elegant. But the moment you need custom themes beyond their defaults, third-party integrations, or self-hosting on cheap shared hosting, the walls close in. Ghost's extension model is narrow compared to what VonCMS includes out of the box.
+
+### When to pick each platform
+
+Pick VonCMS when:
+
+- You want a React-based frontend that feels like an app.
+- You want to host on normal PHP hosting: shared hosting, cPanel, or a small VPS.
+- You want SEO, analytics, newsletter, comments, media management, and themes working on day one.
+- You are tired of managing 20+ plugins and hoping they do not break each other.
+- You run a news site, blog, content portal, or agency client site.
+- You want fewer moving parts than a headless stack.
+
+Pick WordPress when you need the largest plugin ecosystem, rely on niche third-party integrations that already exist as WordPress plugins, are comfortable maintaining plugin conflicts and security patches, or are building an ecommerce-first site where WooCommerce is the priority.
+
+Pick Ghost when your site is primarily a publication or newsletter, you want the smallest focused writing experience, you accept a narrower extension surface, and you are willing to pay for managed hosting or run Node.js hosting yourself.
+
+Pick a headless CMS when you already have frontend developers building custom applications, need the same content API across many channels, and accept the cost of a more complex deployment and hosting story.
+
+### The maintenance cost nobody talks about
+
+The real difference between CMS platforms is not the download price. It is what you pay over time in time, money, and frustration.
+
+| Platform      | Long-term operating shape                                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **WordPress** | Cheap install, then plugin costs, security overhead, maintenance contracts, speed work, and more plugins to fix plugin problems. |
+| **Headless**  | Developer time, separate hosting layers, deployment pipeline, ongoing maintenance, and scaling complexity.                       |
+| **Ghost**     | Easy start, managed hosting premium pricing, limited customization, and possible outgrowth.                                      |
+| **VonCMS**    | Install, publish, OTA updates, minimal maintenance, and focus on content.                                                        |
+
+VonCMS tries to keep the operating model simple: one publish stack, one hosting target, one codebase. Not because it is the easiest to build, but because it is easier to live with.
+
+### Current product state
+
+| Detail         | Value                                     |
+| -------------- | ----------------------------------------- |
+| Stable release | `v1.25.4 "OpenGate"`                      |
+| Minimum PHP    | `8.2+`                                    |
+| Architecture   | React 19 frontend + PHP API backend       |
+| Hosting        | Shared hosting, cPanel, VPS - your choice |
+| Full changelog | [CHANGELOG.md](../CHANGELOG.md)           |
+
+### Bottom line
+
+VonCMS is for people who want a clean publishing workflow, a modern frontend feel, and hosting requirements that stay realistic. It is built for users, not developers: every design decision prioritizes the person creating content, not the person writing code.
+
+---
 
 ## Everything you need. Nothing you don't.
 
@@ -140,7 +282,7 @@ Every theme ships with dark mode, responsive design, and modern styling out of t
 
 **Why this matters:** Most CMS platforms give you one theme and call it a day. VonCMS gives you six — each designed for a different type of site. Pick the one that matches your vision and start publishing.
 
-Developer note: extension work is documented in [Theme Development](THEME_DEVELOPMENT.md) and [Plugin Development](PLUGIN_DEVELOPMENT.md).
+Developer note: extension work is documented in [Extension Development](EXTENSION_DEVELOPMENT.md).
 
 ---
 
@@ -197,7 +339,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.3` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.4` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -207,5 +349,5 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 - **80 PHP API files** — current API surface under `public/api/`, with 94 public PHP files covered by the lint gate across the public runtime.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** — current local `v1.25.3` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** — current local `v1.25.4` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.

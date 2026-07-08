@@ -71,6 +71,45 @@ After installation finishes, aaPanel will show:
 
 Save these details before you close the terminal.
 
+## VPS Security Baseline
+
+Before you put VonCMS online, treat the VPS as your responsibility. VonCMS can
+protect its own PHP routes, uploads, CSRF, sessions, and admin boundaries, but it
+cannot secure an exposed SSH service, aaPanel login, firewall, or operating
+system for you.
+
+Minimum production checklist:
+
+- Change the aaPanel password immediately.
+- Keep the aaPanel URL private. Do not post screenshots that expose the panel
+  address, username, or port.
+- Use a strong root password, or preferably SSH keys.
+- If you use SSH keys, disable root password login after you confirm key login
+  works.
+- Keep only required ports open: SSH, HTTP, HTTPS, and the panel port if you
+  still need remote panel access.
+- Restrict the aaPanel port to your own IP address when your firewall or
+  provider panel supports it.
+- Keep Ubuntu, Nginx, MySQL, PHP, and aaPanel updated.
+- Back up both the database and `uploads/` outside the VPS.
+- Do not leave test PHP files, database dumps, ZIP backups, or old installers in
+  the web root.
+
+If you manage the firewall with `ufw`, a conservative baseline is:
+
+```bash
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow from YOUR_PUBLIC_IP to any port AAPANEL_PORT proto tcp
+ufw enable
+ufw status
+```
+
+Replace `YOUR_PUBLIC_IP` and `AAPANEL_PORT` first. If your home IP changes often,
+use your VPS provider firewall or aaPanel firewall carefully so you do not lock
+yourself out. Do not enable a firewall blindly on a production VPS.
+
 ## Step 4: Install the Software Stack
 
 Log in to aaPanel and install an LNMP stack.
@@ -239,15 +278,100 @@ Check:
 - PHP error log in aaPanel
 - database credentials in `von_config.php`
 
-## Recommended Hardening
+## After Install
 
-After the site is live:
+After the site is live, re-check the VPS Security Baseline above, confirm
+database and `uploads/` backups are running, and remove any temporary files from
+the web root.
 
-- change the default aaPanel password
-- disable root password login if you use SSH keys
-- keep Ubuntu, Nginx, MySQL, and PHP updated
-- back up both `uploads/` and the database regularly
-- avoid leaving test files in the web root
+Optional static cache, CDN, compression, and LiteSpeed tuning belongs at the
+server/CDN layer. It is not required for a normal VonCMS install.
+
+## Server Tuning
+
+VonCMS already has a lightweight guest JSON cache for public post lists and
+public settings. If you want more performance on a VPS, dedicated server, CDN,
+or LiteSpeed host, tune static delivery first instead of adding full-page cache
+logic to the CMS core.
+
+### Safe Cache Targets
+
+Safe targets to cache at the server/CDN layer:
+
+- `assets/` build files, because Vite filenames are hashed when they change.
+- `fonts/` files, because bundled web fonts are static release assets.
+- `uploads/` media, because uploaded file names are generated and normally do
+  not change in place.
+- image variants generated for public media.
+
+Do **not** aggressively cache these by default:
+
+- `/admin` and all authenticated admin routes
+- `/api/` endpoints
+- `index.php` and normal HTML responses
+- `robots.txt`, `sitemap.xml`, `rss.xml`, and `llms.txt`
+- `von_config.php`, backup files, SQL files, logs, ZIP files, or helper PHP
+  files
+
+### Nginx Static Cache Example
+
+Add this inside the same `server {}` block after the protection rules:
+
+```nginx
+location ~* ^/(assets|fonts)/.+\.(css|js|woff2?|ttf|otf|eot|svg)$ {
+    expires 30d;
+    add_header Cache-Control "public, max-age=2592000, immutable";
+    try_files $uri =404;
+}
+
+location ~* ^/uploads/.+\.(jpg|jpeg|png|gif|webp|avif|svg)$ {
+    expires 7d;
+    add_header Cache-Control "public, max-age=604800";
+    try_files $uri =404;
+}
+
+location ~* ^/(api|admin)(/|$) {
+    add_header Cache-Control "no-store";
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
+Use the uploads cache window conservatively. If your workflow replaces media at
+the same URL, keep it short. If your workflow always creates new upload file
+names, you can raise it later.
+
+### Cloudflare Or CDN Cache
+
+Use CDN caching for static files first:
+
+- cache `assets/*`
+- cache `fonts/*`
+- cache `uploads/*`
+- bypass `api/*`
+- bypass `admin/*`
+- do not enable "Cache Everything" for the whole site unless you fully test
+  login, comments, previews, scheduled posts, and SEO metadata
+
+Cloudflare can also serve Brotli (`br`) compression at the edge even when the
+VonCMS `.htaccess` baseline only enables gzip. That is normal. Compression and
+static caching are server/CDN responsibilities; VonCMS only ships the safe
+portable baseline.
+
+### LiteSpeed Cache Notes
+
+On LiteSpeed hosting, start with static file/browser cache and compression.
+Avoid turning on full-page cache globally until you have tested:
+
+- admin login stays private
+- `/api/` responses are not cached
+- post updates purge or refresh correctly
+- category/search pages do not show stale results for too long
+- comments, ads, popups, and scheduled posts still behave correctly
+
+The WordPress LiteSpeed Cache plugin is more complex because it controls
+WordPress hooks, purge events, fragments, and page-cache behavior. VonCMS does
+not need that complexity by default; server-side static cache plus the built-in
+guest JSON cache is the safer baseline.
 
 ## Scaling Guidance
 

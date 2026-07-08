@@ -95,6 +95,7 @@ INSERT INTO settings (setting_group, setting_key, setting_value, setting_type, i
 ('general', 'maintenance_mode', 'false', 'boolean', TRUE, 'Maintenance mode', 1),
 ('general', 'email_smtp', '', 'string', FALSE, 'SMTP config', 1),
 ('general', 'logo_url', '', 'string', TRUE, 'Logo URL', 1),
+('general', 'invert_logo_in_dark_mode', 'false', 'boolean', TRUE, 'Invert logo in dark mode', 1),
 ('general', 'favicon_url', '', 'string', TRUE, 'Favicon URL', 1),
 ('general', 'discussion_enabled', 'true', 'boolean', TRUE, 'Enable comments', 1),
 ('general', 'permalink_structure', 'slug', 'string', TRUE, 'Permalink structure', 1),

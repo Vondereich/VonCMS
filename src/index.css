@@ -49,10 +49,13 @@
 /* Ad Layout Normalization: Anti-Compression Slot */
 .ad-slot-wrapper {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: block;
-  overflow: visible;
+  overflow: hidden;
   flex-shrink: 0;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .ad-slot-flex {
@@ -60,6 +63,8 @@
   justify-content: center;
   align-items: center;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 90px;
-  overflow: visible;
+  overflow: hidden;
 }

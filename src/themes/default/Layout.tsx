@@ -22,6 +22,7 @@ import { SafeImage } from '../../components/SafeImage';
 import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
+import ThemeLogo from '../shared/components/ThemeLogo';
 
 // Theme SDK
 import {
@@ -327,10 +328,12 @@ const DefaultLayout: React.FC<
                 onClick={goHome}
               >
                 {settings.logoUrl ? (
-                  <img
+                  <ThemeLogo
                     src={settings.logoUrl}
                     alt={settings.siteName}
-                    className={`${settings.useLogoAsTitle ? 'h-16' : 'h-12'} w-auto object-contain transition-all`}
+                    useLogoAsTitle={settings.useLogoAsTitle}
+                    invertLogoInDarkMode={settings.invertLogoInDarkMode}
+                    className="transition-all"
                   />
                 ) : (
                   <VonLogo variant="default" />
@@ -898,10 +901,10 @@ const DefaultLayout: React.FC<
               <div className="col-span-1 md:col-span-2">
                 <div className="flex items-center mb-6">
                   {settings.logoUrl ? (
-                    <img
+                    <ThemeLogo
                       src={settings.logoUrl}
                       alt={settings.siteName}
-                      className="h-10 w-auto object-contain"
+                      invertLogoInDarkMode={settings.invertLogoInDarkMode}
                     />
                   ) : (
                     <VonLogo variant="default" />

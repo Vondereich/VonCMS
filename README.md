@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-VonCMS v1.25.3 "OpenGate" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+VonCMS v1.25.4 "OpenGate" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -68,10 +68,9 @@ On Windows, Laragon is the easiest PHP/MySQL stack for local checks. XAMPP, WAMP
 
 | Goal                                         | Start here                                                                                          |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Install VonCMS on shared hosting             | Download `VonCMS_v1.25.3_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases) |
+| Install VonCMS on shared hosting             | Download `VonCMS_v1.25.4_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases) |
 | Study the code or build custom features      | Fork or clone the repository                                                                        |
-| Build a custom theme                         | Read [Theme Development](docs/THEME_DEVELOPMENT.md)                                                 |
-| Build a plugin or extension                  | Read [Plugin Development](docs/PLUGIN_DEVELOPMENT.md)                                               |
+| Build a custom theme, plugin, or extension   | Read [Extension Development](docs/EXTENSION_DEVELOPMENT.md)                                         |
 | Work on APIs, installer, routing, or updater | Read [API](docs/API.md), [Security](docs/SECURITY.md), and [Routing](docs/ROUTING.md)               |
 | Upgrade an existing website                  | Read [Upgrade](docs/UPGRADE.md)                                                                     |
 
@@ -79,7 +78,7 @@ On Windows, Laragon is the easiest PHP/MySQL stack for local checks. XAMPP, WAMP
 
 Use this path for normal site owners and shared-hosting installs.
 
-1. Download `VonCMS_v1.25.3_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases).
+1. Download `VonCMS_v1.25.4_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases).
 2. Extract it into your hosting web root.
 3. Create a MySQL database and database user.
 4. Open `https://yourdomain.com/install`.
@@ -93,20 +92,15 @@ See [Installation](docs/INSTALL.md), [Upgrade](docs/UPGRADE.md), and [VPS Deploy
 
 Use this path for developers, designers, agencies, advanced users, and AI-assisted workflows.
 
-### 1. Fork Or Download
-
-Fork the repository on GitHub, then clone your fork:
+Fork the repository on GitHub, clone it, and install dependencies:
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/VonCMS.git
 cd VonCMS
+npm install
 ```
 
-You can also download the Source ZIP from Releases and extract it locally. A Git fork is better when you plan to contribute changes back.
-
-### 2. Open The Project In An IDE
-
-Open the project folder directly in any editor you prefer:
+You can also download the Source ZIP from Releases and extract it locally. A Git fork is better when you plan to contribute changes back. Open the project folder directly in any editor you prefer:
 
 - Cursor
 - Visual Studio Code
@@ -117,43 +111,19 @@ Open the project folder directly in any editor you prefer:
 
 The workflow is flexible. VonCMS does not require one official IDE. Keep the terminal at the repository root so commands resolve `package.json`, `vite.config.ts`, `public/`, `src/`, and `docs/` correctly.
 
-### 3. Install Dependencies
-
-```bash
-npm install
-```
-
-Use `npm audit` to review security advisories:
-
-```bash
-npm audit
-```
-
-Use `npm outdated` as a planning list, not as an automatic upgrade command:
-
-```bash
-npm outdated
-```
-
-### 4. Run Checks While Editing
+Common source checks:
 
 ```bash
 npm run typecheck
 npm run build
 ```
 
-For PHP linting with Laragon on Windows:
+For PHP linting with Laragon on Windows, set `PHP_BIN` to your local `php.exe` first:
 
 ```powershell
 $env:PHP_BIN='C:\laragon\bin\php\php-8.4.22-Win32-vs17-x64\php.exe'
 npm run lint:php
 ```
-
-If your Laragon PHP version path is different, adjust `PHP_BIN` to the actual `php.exe`.
-
-`npm run test:integration` is the large maintainer smoke gate used before pull requests and releases. Normal theme, docs, and first-time source exploration do not require reading or editing that file.
-
-### 5. Run A Local Dev Build
 
 The Vite dev server is useful while editing React themes, admin screens, plugins, and components:
 
@@ -166,6 +136,8 @@ If you need PHP APIs, point the dev proxy at your local PHP host with `VITE_PROX
 ```bash
 npm run build
 ```
+
+For contributor expectations, formatting, audits, release gates, and pull request rules, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How It Works
 
@@ -212,7 +184,7 @@ Fresh installs use `Inter, sans-serif` by default. VonCMS does not load Google F
 
 ## Theme Development
 
-Start with [Theme Development](docs/THEME_DEVELOPMENT.md). Themes are for presentation and public UX. They should use the shared theme props, preserve SEO ownership, render post and page content through the shared renderer, and avoid duplicating runtime APIs when the core already provides them.
+Start with [Extension Development](docs/EXTENSION_DEVELOPMENT.md). Themes are for presentation and public UX. They should use the shared theme props, preserve SEO ownership, render post and page content through the shared renderer, and avoid duplicating runtime APIs when the core already provides them.
 
 Common files:
 
@@ -223,7 +195,7 @@ Common files:
 
 ## Plugin And Extension Development
 
-Start with [Plugin Development](docs/PLUGIN_DEVELOPMENT.md). Plugins and extensions are for optional behavior: SEO helpers, analytics, widgets, article blocks, campaign bars, integrations, and admin tools. Built-in plugin code lives under `src/plugins/von-core/features/plugins/built-in/`. Keep plugin settings explicit, sanitize public HTML, and verify activation state in both admin UI and public theme runtime.
+Start with [Extension Development](docs/EXTENSION_DEVELOPMENT.md). Plugins and extensions are for optional behavior: SEO helpers, analytics, widgets, article blocks, campaign bars, integrations, and admin tools. Built-in plugin code lives under `src/plugins/von-core/features/plugins/built-in/`. Keep plugin settings explicit, sanitize public HTML, and verify activation state in both admin UI and public theme runtime.
 
 Useful docs:
 
@@ -245,23 +217,7 @@ If you work on install, routing, updater, or `.htaccess` behavior, read:
 
 ## Dependency Upgrades
 
-Use `npm outdated` as a review list, not as an automatic upgrade command. Upgrade packages in small batches and rerun the verification set after each batch.
-
-Recommended order:
-
-1. Type-only packages.
-2. Low-risk utilities.
-3. UI/runtime libraries.
-4. Build tools such as Vite, TypeScript, Tailwind, and React plugin packages.
-
-After each batch:
-
-```bash
-npm run typecheck
-npm run build
-```
-
-For maintainer-level dependency bumps, pull requests, or release preparation, also run `npm run test:integration`. Run PHP lint too when PHP or API files are touched.
+Use `npm outdated` as a review list, not as an automatic upgrade command. Upgrade packages in small batches and rerun the relevant verification after each batch. For the full command set and pull request standard, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Release Checks
 
@@ -279,21 +235,23 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.25.3_Deploy.zip`
-- `VonCMS_v1.25.3_Source.zip`
+- `VonCMS_v1.25.4_Deploy.zip`
+- `VonCMS_v1.25.4_Source.zip`
 
 No checksum sidecar files are generated by the release script.
+
+Run this full sequence for release preparation, not for ordinary first-time source reading.
 
 ## Documentation Map
 
 - [Installation](docs/INSTALL.md)
+- [Features](docs/FEATURES.md)
 - [Upgrade](docs/UPGRADE.md)
 - [VPS Deployment](docs/VPS.md)
 - [API](docs/API.md)
 - [Routing](docs/ROUTING.md)
 - [Security](docs/SECURITY.md)
-- [Theme Development](docs/THEME_DEVELOPMENT.md)
-- [Plugin Development](docs/PLUGIN_DEVELOPMENT.md)
+- [Extension Development](docs/EXTENSION_DEVELOPMENT.md)
 - [Custom Fonts](docs/CUSTOM_FONTS.md)
 - [Release Notes](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
@@ -327,16 +285,17 @@ After a site is already on the fixed updater baseline, the dashboard updater can
 
 Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
 
-v1.25.3 "OpenGate" includes:
+v1.25.4 "OpenGate" includes:
 
-- Direct `/index.html` routing guard through PHP hydration.
-- Single post and page pending skeleton protection on slow routes.
-- Expired Gemini key auto-clear in settings state and backend storage.
-- Gemini non-`STOP` finish reason rejection for partial output.
-- Self-hosted Inter defaults with no Google Fonts runtime dependency.
-- Open-source developer onboarding docs.
-- Current-post highlighting in shared public sidebar trending widgets.
-- First-run quickstart and open-source issue templates.
+- Responsive containment for existing Header, In-Feed, and Popup ad slots.
+- Safer script/iframe ad rendering with bounded iframe width and delayed height recalculation.
+- Ad-specific visual style preservation for bounded backgrounds, borders, shadows, flex layouts, and spacing.
+- Style-tag stripping so page-wide ad CSS blocks cannot bypass the inline ad style allowlist.
+- Static ad markup guards so fixed-width images, iframes, and `ins` output cannot expand mobile layouts.
+- Popup ad viewport protection with scroll-safe mobile overflow and in-bounds close control.
+- Ads Manager helper copy clarifying that VonCMS contains the slot while external networks control delivery and reporting.
+- Smoke coverage for the Ads Manager responsive safety and style-containment contract.
+- First-run install guidance in this README and open-source issue templates.
 - Deploy and Source ZIP release packaging.
 
 ## License
