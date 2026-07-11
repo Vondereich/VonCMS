@@ -16,7 +16,7 @@ interface PublicSiteProps {
   allUsers: User[];
   settings: SiteSettings;
   onAddComment: (postId: string, content: string) => void;
-  onLikeComment: (commentId: string) => void;
+  onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
   onNavigateAdmin: () => void;
   onLogin: () => void;

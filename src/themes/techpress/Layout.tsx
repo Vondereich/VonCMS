@@ -135,18 +135,18 @@ const getColors = (isDark: boolean, primaryColor: string) => {
 
 // ===== COMPONENTS =====
 
-function BreakingNewsBanner({
+function LatestTickerBanner({
   colors,
-  breakingNews,
+  latestTickerItems,
   onClick,
   enableMarquee = true,
 }: {
   colors: any;
-  breakingNews: Post[];
+  latestTickerItems: Post[];
   onClick: (id: string) => void;
   enableMarquee?: boolean;
 }) {
-  if (!breakingNews || breakingNews.length === 0) return null;
+  if (!latestTickerItems || latestTickerItems.length === 0) return null;
   return (
     <div
       className="py-2.5 px-5"
@@ -160,13 +160,13 @@ function BreakingNewsBanner({
           className="bg-black text-white px-4 py-3 font-black text-xs uppercase italic tracking-tighter flex-shrink-0 z-10"
           style={{ background: colors.primary }}
         >
-          BREAKING
+          LATEST
         </span>
         <div className="flex-1 overflow-hidden">
           <div
             className={`flex gap-10 ${enableMarquee ? 'animate-marquee hover:[animation-play-state:paused]' : 'overflow-x-auto no-scrollbar'}`}
           >
-            {breakingNews.map((news: Post) => (
+            {latestTickerItems.map((news: Post) => (
               <span
                 key={news.id}
                 onClick={() => onClick(news.id)}
@@ -178,7 +178,7 @@ function BreakingNewsBanner({
             ))}
             {/* Duplicate for infinite marquee effect - only if enabled */}
             {enableMarquee &&
-              breakingNews.map((news: Post) => (
+              latestTickerItems.map((news: Post) => (
                 <span
                   key={`${news.id}-clone`}
                   onClick={() => onClick(news.id)}
@@ -273,7 +273,7 @@ function HeroArticle({
           </div>
 
           <h1
-            className="text-lg sm:text-2xl lg:text-4xl font-black mb-4 leading-tight tracking-tight group-hover:opacity-80 transition-opacity"
+            className="text-lg sm:text-2xl lg:text-4xl font-black mb-4 leading-tight tracking-tight line-clamp-3 group-hover:opacity-80 transition-opacity"
             style={{ color: colors.text }}
           >
             <a
@@ -391,7 +391,7 @@ function NewsCard({
             </span>
           </div>
           <h3
-            className="text-xl font-bold mb-3 leading-tight group-hover:opacity-70 transition line-clamp-3 cursor-pointer min-h-[4.5rem]"
+            className="text-xl font-bold mb-3 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"
             style={{ color: colors.text }}
           >
             <a
@@ -617,14 +617,14 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
   // 1. Hero: Latest Featured or just latest
   const heroArticle = displayedPosts[0];
-  // 2. Breaking: Top N items based on config
-  const breakingNews = config.enableBreaking
+  // 2. Latest ticker: first published items, controlled by the legacy ticker setting keys.
+  const latestTickerItems = config.enableBreaking
     ? publishedPosts.slice(0, config.breakingNewsCount || 3)
     : [];
   const storyPosts = heroArticle ? paginatedPosts.slice(1) : paginatedPosts;
-  // 3. Trending: Items after hero (first 4) -> Full Width Row
-  const trendingNews = storyPosts.slice(0, 4);
-  // 4. Latest: Remaining items after hero and trending
+  // 3. Latest highlights: Items after hero (first 4) -> Full Width Row
+  const latestHighlightPosts = storyPosts.slice(0, 4);
+  // 4. Latest updates: Remaining items after hero and highlights
   const latestNews = storyPosts.slice(4);
 
   const handleNavClick = (nav: NavItem) => {
@@ -1426,9 +1426,9 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         />
       )}
       {config.enableBreaking && !selectedCategory && !activeSearchQuery && (
-        <BreakingNewsBanner
+        <LatestTickerBanner
           colors={colors}
-          breakingNews={breakingNews}
+          latestTickerItems={latestTickerItems}
           onClick={onPostClick}
           enableMarquee={config.enableMarquee}
         />
@@ -1570,19 +1570,19 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               />
             </div>
 
-            {/* Top Stories - latest posts after hero, presented as a ranked editorial row. */}
+            {/* Latest Highlights - latest posts after hero, presented without analytics-ranking claims. */}
             <div className="mb-12">
               <div
                 className="flex items-center justify-between mb-6 pb-3 border-b"
                 style={{ borderColor: colors.border }}
               >
                 <h2 className="text-xl font-bold" style={{ color: colors.text }}>
-                  Top Stories
+                  Latest Highlights
                 </h2>
               </div>
               {/* Changed grid-cols-3 to grid-cols-4 for better tablet/desktop balance */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {trendingNews.map((article: Post, index: number) => (
+                {latestHighlightPosts.map((article: Post, index: number) => (
                   <NewsCard
                     key={article.id}
                     article={article}
@@ -1609,7 +1609,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             </div>
 
             <div className="flex flex-col lg:flex-row gap-8">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="mb-6 pb-3 border-b" style={{ borderColor: colors.border }}>
                   <h2 className="text-xl font-bold" style={{ color: colors.text }}>
                     Latest Updates
@@ -1642,7 +1642,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                         settings.ads.adsEnabled &&
                         settings.ads.inFeedAd && (
                           <div
-                            className="w-full py-8 my-4 border-y ad-slot-flex"
+                            className="w-full max-w-full overflow-hidden py-8 my-4 border-y ad-slot-flex"
                             style={{ borderColor: colors.border, background: 'transparent' }}
                           >
                             <AdBlock content={settings.ads.inFeedAd} slotId="infeed" />

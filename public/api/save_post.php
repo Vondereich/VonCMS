@@ -12,6 +12,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
@@ -22,6 +26,7 @@ voncms_apply_site_timezone($pdo ?? null);
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
+$currentUser = $_SESSION['user'] ?? null;
 $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
 $canManagePosts = in_array($currentRole, ['admin', 'root', 'moderator', 'writer'], true);
 
@@ -56,6 +61,10 @@ $rawSlug = $input['slug'] ?? '';
 $rawExcerpt = $input['excerpt'] ?? '';
 $rawMeta = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
 $rawKeywords = $input['keywords'] ?? '';
+
+if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
+  ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
+}
 
 // SECURITY: Prevent Stored XSS
 // 1. Admins get "God Mode" (full tags), non-admins get safe tags only
@@ -137,6 +146,27 @@ try {
   // Check if this is an update (has numeric ID) or insert (no ID or temp ID)
   $postId = $input['id'] ?? null;
   $isUpdate = $postId && is_numeric($postId);
+
+  if ($isUpdate) {
+    $checkOwner = $db->prepare('SELECT id, author_id, status, slug FROM posts WHERE id = ?');
+    $checkOwner->execute([$postId]);
+    $ownerPost = $checkOwner->fetch(PDO::FETCH_ASSOC);
+
+    if (!$ownerPost) {
+      $db->rollBack();
+      ResponseHelper::sendError('Post not found', 404);
+    }
+
+    $isPostOwner = (string) ($ownerPost['author_id'] ?? '') === (string) ($currentUser['id'] ?? '');
+    $isAdminOrModerator = SessionManager::isAdmin() || $currentRole === 'moderator';
+
+    if (!$isPostOwner && !$isAdminOrModerator) {
+      $db->rollBack();
+      ResponseHelper::sendError('Not authorized to edit this post', 403);
+    }
+
+    $existingPost = $ownerPost;
+  }
 
   // Get category (default to Uncategorized if not provided)
   $category = $input['category'] ?? 'Uncategorized';
@@ -228,14 +258,6 @@ try {
     }
   }
   if ($isUpdate) {
-    $checkOwner = $db->prepare('SELECT author_id, author, status, slug FROM posts WHERE id = ?');
-    $checkOwner->execute([$postId]);
-    $existingPost = $checkOwner->fetch(PDO::FETCH_ASSOC);
-
-    if (!$existingPost) {
-      ResponseHelper::sendError('Post not found', 404);
-    }
-
     // SMART SLUG PROTECTION: Auto-create redirect on slug change (Gold Standard)
     if (
       $existingPost['status'] === 'published' &&

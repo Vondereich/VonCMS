@@ -78,7 +78,10 @@ log(`Creating VonCMS v${version} release packages...\n`);
 
 log('Building project (npm run build)...');
 try {
-  execSync('npm run build', { stdio: 'inherit' });
+  const buildEnv = { ...process.env };
+  delete buildEnv.DEBUG;
+
+  execSync('npm run build', { stdio: 'inherit', env: buildEnv });
   log('Build successful.\n');
 
   ['migrations', 'install.sql', 'von_config.php', 'docs/superpowers', 'data/public-cache'].forEach(

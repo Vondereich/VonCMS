@@ -31,17 +31,6 @@ export function useUsers() {
     // Optimistic Update
     setUsers((prev) => [...prev, newUser]);
 
-    const saveNode = async (url: string) => {
-      return vonFetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
-        },
-        body: JSON.stringify(newUser),
-      });
-    };
-
     let saved = false;
     try {
       const res = await vonFetch(API.saveUser, {
@@ -49,29 +38,18 @@ export function useUsers() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         if (data.id) {
           // Update the temporary ID with real ID from server
           setUsers((prev) => prev.map((u) => (u.id === newUser.id ? { ...u, id: data.id } : u)));
         }
         saved = true;
       } else {
-        throw new Error('PHP failed');
+        console.error('Failed to save user:', data.message || data.error || res.statusText);
       }
     } catch (e) {
-      try {
-        const res = await saveNode(API.saveUser.replace('.php', ''));
-        if (res.ok) {
-          const data = await res.json();
-          if (data.id) {
-            setUsers((prev) => prev.map((u) => (u.id === newUser.id ? { ...u, id: data.id } : u)));
-          }
-          saved = true;
-        }
-      } catch (err) {
-        console.error('Failed to save user', err);
-      }
+      console.error('Failed to save user', e);
     }
 
     if (!saved) {
@@ -108,13 +86,14 @@ export function useUsers() {
       let deleted = false;
       try {
         const res = await del(API.deleteUser);
-        if (res.ok) deleted = true;
-        else throw new Error('PHP failed');
+        if (res.ok) {
+          deleted = true;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          console.error('Failed to delete user:', data.message || data.error || res.statusText);
+        }
       } catch (e) {
-        try {
-          const res = await del(API.deleteUser.replace('.php', ''));
-          if (res.ok) deleted = true;
-        } catch (err) {}
+        console.error('Failed to delete user', e);
       }
 
       if (!deleted) {

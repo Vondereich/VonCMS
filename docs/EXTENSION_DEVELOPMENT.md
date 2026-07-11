@@ -1,4 +1,4 @@
-# VonCMS Extension Development Guide v1.25.4
+# VonCMS Extension Development Guide v1.25.5
 
 This guide is the public source of truth for VonCMS theme and plugin development in the OpenGate line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 
@@ -85,7 +85,7 @@ Themes normally should not create mutating API calls at all. If a theme or plugi
 
 ## RBAC and Private Data Boundaries
 
-VonCMS v1.25.4 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
+VonCMS v1.25.5 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
 
 Current rules:
 
@@ -100,7 +100,7 @@ For comments, appointed Admin/Moderator/Writer payloads may expose only `hasEmai
 
 Public theme props and public plugin payloads are already shaped by PHP response helpers before they reach React. Do not rebuild public privacy rules inside an extension.
 
-The v1.25.4 public contract is:
+The v1.25.5 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -527,7 +527,7 @@ src/plugins/von-core/features/plugins/built-in/[plugin]/SettingsModal.tsx
 
 Then wire the modal from `ExtensionsManager.tsx`.
 
-Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.25.4 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
+Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.25.5 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
 
 Secret-bearing configuration does not belong in public plugin config. Store it in a protected settings group or dedicated backend path, let `get_settings.php` mask it for non-primary admins, and make save paths ignore protected secret keys from non-primary admins.
 

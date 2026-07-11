@@ -1,6 +1,7 @@
 <?php
 // Suppress PHP error output that breaks JSON
 require_once __DIR__ . '/../../security.php';
+require_once __DIR__ . '/../public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -1820,6 +1821,9 @@ try {
   $hasMore = $processed >= $limit;
   if (!$hasMore) {
     @unlink($filePath);
+  }
+  if ($imported > 0) {
+    voncms_public_cache_clear();
   }
 
   echo json_encode([

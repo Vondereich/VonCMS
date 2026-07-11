@@ -406,6 +406,20 @@ if (
 
 const createReleaseContent = read('create_release.cjs');
 if (
+  createReleaseContent.includes('const buildEnv = { ...process.env };') &&
+  createReleaseContent.includes('delete buildEnv.DEBUG;') &&
+  createReleaseContent.includes("execSync('npm run build', { stdio: 'inherit', env: buildEnv });")
+) {
+  pass(
+    'Clean Release Build Log Guard: release packaging strips inherited DEBUG flags before running the production build.'
+  );
+} else {
+  fail(
+    'Clean Release Build Log Guard: release packaging can inherit DEBUG flags and print noisy Rolldown/Vite diagnostics.'
+  );
+}
+
+if (
   createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'README.md'));") &&
   createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'LICENSE.md'));") &&
   createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'metadata.json'));") &&
@@ -719,6 +733,24 @@ const securityDashboardContent = read(
 );
 const securityLogsContent = read('public/api/security/get_security_logs.php');
 const appShellContent = read('src/App.tsx');
+if (
+  appShellContent.includes('await loadSettings();') &&
+  !appShellContent.includes('Promise.all([loadSettings(), loadContent(), loadComments()])') &&
+  appShellContent.includes('setIsInitialLoading(false);') &&
+  appShellContent.includes('void loadComments();') &&
+  appShellContent.includes('if (user) {') &&
+  appShellContent.includes('loadContent();') &&
+  appShellContent.includes('loadComments();') &&
+  appShellContent.includes('loadSettings();')
+) {
+  pass(
+    'Public Boot Data Budget: anonymous first render waits on settings only, then refreshes public comments without restoring admin-scale content preload.'
+  );
+} else {
+  fail(
+    'Public Boot Data Budget: app boot can still block public first render on admin-scale content, or guest comments can remain empty until login.'
+  );
+}
 const adSettingsContent = read('src/plugins/von-core/features/settings/components/AdSettings.tsx');
 const publicProfileHookContent = read('src/hooks/usePublicProfile.ts');
 const editorContent = read('src/components/Editor.tsx');
@@ -1599,6 +1631,23 @@ if (!topReleaseEntry.trim()) {
   pass(`Changelog: release entry for v${pkg.version} exists and contains bullet notes.`);
 } else {
   fail(`Changelog: release entry for v${pkg.version} exists but has no bullet notes.`);
+}
+
+if (pkg.version === '1.25.5') {
+  assertIncludes(
+    'Changelog Safe Dependency Refresh Wording',
+    topReleaseEntry,
+    ['Safe Dependency Refresh', 'semver-safe', 'Tailwind and TypeScript major-line upgrades'],
+    'Changelog Safe Dependency Refresh Wording: v1.25.5 dependency notes avoid patch-only wording for semver-minor refreshes.',
+    'Changelog Safe Dependency Refresh Wording: v1.25.5 dependency notes still overclaim patch-only package movement.'
+  );
+  assertExcludes(
+    'Changelog Patch-Only Dependency Wording Drift',
+    topReleaseEntry,
+    ['Dependency Patch Refresh', 'current patch-line'],
+    'Changelog Patch-Only Dependency Wording Drift: v1.25.5 dependency notes avoid patch-only wording.',
+    'Changelog Patch-Only Dependency Wording Drift: v1.25.5 dependency notes still use patch-only wording.'
+  );
 }
 
 const currentReleaseLabel = `v${pkg.version}`;
@@ -2638,6 +2687,19 @@ assertIncludes(
 const savePostApiContent = read('public/api/save_post.php');
 const savePageApiContent = read('public/api/save_page.php');
 assertIncludes(
+  'Post/Page Title Length Limit Contract',
+  postEditorContent + '\n' + savePostApiContent + '\n' + savePageApiContent,
+  [
+    'const TITLE_MAX_LENGTH = 255;',
+    'maxLength={TITLE_MAX_LENGTH}',
+    'Title is limited to ${TITLE_MAX_LENGTH} characters.',
+    'mb_strlen($rawTitle) > 255',
+    'Title is too long. Maximum 255 characters allowed.',
+  ],
+  'Post/Page Title Length Limit Contract: shared editor and save APIs enforce the 255-character database title ceiling.',
+  'Post/Page Title Length Limit Contract: titles can exceed the 255-character storage ceiling without a clear editor/backend warning.'
+);
+assertIncludes(
   'Post Slug Separator Normalization',
   useContentContent + '\n' + savePostApiContent,
   [".replace(/-+/g, '-')", "$input['slug'] = preg_replace('/-+/', '-', (string) $input['slug']);"],
@@ -2689,7 +2751,7 @@ assertIncludes(
 
 const getPostApiContent = read('public/api/get_post.php');
 if (
-  /if\s*\(!\$isAdmin\)\s*\{\s*\/\/ View tracking must not change[\s\S]*?UPDATE posts SET views = views \+ 1, updated_at = updated_at WHERE id = \?[\s\S]*?\}/.test(
+  /if\s*\(!\$canReadProtectedPost\)\s*\{\s*\/\/ View tracking must not change[\s\S]*?UPDATE posts SET views = views \+ 1, updated_at = updated_at WHERE id = \?[\s\S]*?\}/.test(
     getPostApiContent
   )
 ) {
@@ -3152,17 +3214,17 @@ if (
   techPressLayoutContent.includes(
     'const storyPosts = heroArticle ? paginatedPosts.slice(1) : paginatedPosts;'
   ) &&
-  techPressLayoutContent.includes('const trendingNews = storyPosts.slice(0, 4);') &&
+  techPressLayoutContent.includes('const latestHighlightPosts = storyPosts.slice(0, 4);') &&
   techPressLayoutContent.includes('const latestNews = storyPosts.slice(4);') &&
   techPressLayoutContent.includes('heroArticle?.author_data?.avatar') &&
-  !techPressLayoutContent.includes('const trendingNews = paginatedPosts.slice(0, 4);')
+  !techPressLayoutContent.includes('const latestHighlightPosts = paginatedPosts.slice(0, 4);')
 ) {
   pass(
-    'TechPress Featured Exclusion: hero article is excluded from Trending Stories and empty search results do not crash the hero avatar path.'
+    'TechPress Featured Exclusion: hero article is excluded from Latest Highlights and empty search results do not crash the hero avatar path.'
   );
 } else {
   fail(
-    'TechPress Featured Exclusion: Trending Stories must not repeat the hero article, and empty search results must not crash the hero avatar path.'
+    'TechPress Featured Exclusion: Latest Highlights must not repeat the hero article, and empty search results must not crash the hero avatar path.'
   );
 }
 
@@ -3949,19 +4011,99 @@ const saveCommentsContent = read('public/api/save_comments.php');
 const useCommentsContent = read('src/hooks/useComments.ts');
 const publicCommentsContent = read('src/plugins/von-core/features/public/components/Comments.tsx');
 if (
-  saveCommentsContent.includes('Invalid like delta') &&
-  saveCommentsContent.includes('GREATEST(0, likes + ?)') &&
+  saveCommentsContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  saveCommentsContent.includes('UNIQUE KEY unique_comment_like') &&
+  read('public/install.sql').includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  read('public/api/install.php').includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  read('public/api/repair_db.php').includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  read('public/api/repair_db.php').includes('DELETE cl FROM comment_likes') &&
+  read('public/api/repair_db.php').includes('ADD CONSTRAINT fk_comment_likes_comment') &&
+  read('public/api/repair_db.php').includes('ADD CONSTRAINT fk_comment_likes_user') &&
+  read('public/install.sql').includes(
+    'FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE'
+  ) &&
+  read('public/install.sql').includes(
+    'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'
+  ) &&
+  saveCommentsContent.includes('INSERT IGNORE INTO comment_likes') &&
+  saveCommentsContent.includes('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?') &&
   saveCommentsContent.includes('CSRFProtection::requireToken();') &&
   saveCommentsContent.includes('RateLimiter::requireNotLimited();') &&
   useCommentsContent.includes('const delta = wasJustLiked ? -1 : 1;') &&
-  useCommentsContent.includes("await saveCommentToDb('like', { commentId: commentIdNum, delta });")
+  useCommentsContent.includes('setComments(originalComments);') &&
+  useCommentsContent.includes(
+    "await saveCommentToDb('like', { commentId: commentIdNum, delta });"
+  ) &&
+  useCommentsContent.includes('return false;') &&
+  publicCommentsContent.includes('const rollbackLikedState = () =>') &&
+  publicCommentsContent.includes('rollbackLikedState();') &&
+  publicCommentsContent.includes('const likeSaved = await onLikeComment(commentId);')
 ) {
   pass(
-    'Comments Like Persistence: frontend toggle delta and backend database update guards are aligned.'
+    'Comments Like Persistence: comment likes are installed up front, authenticated, deduplicated server-side, and optimistic UI rolls back on save failure.'
   );
 } else {
-  fail('Comments Like Persistence: like/unlike persistence markers are missing or out of sync.');
+  fail(
+    'Comments Like Persistence: comment likes can still drift, rely on runtime DDL, or be replayed without server-side user/comment dedupe.'
+  );
 }
+if (
+  saveCommentsContent.includes('$pdo->beginTransaction();') &&
+  saveCommentsContent.includes('$pdo->commit();') &&
+  saveCommentsContent.includes('$pdo->rollBack();') &&
+  saveCommentsContent.includes('UPDATE comments SET likes = likes + 1 WHERE id = ?') &&
+  saveCommentsContent.includes('UPDATE comments SET likes = GREATEST(0, likes - 1) WHERE id = ?')
+) {
+  pass(
+    'Comment Like Atomic Counter Guard: like relation and denormalized counter update together.'
+  );
+} else {
+  fail(
+    'Comment Like Atomic Counter Guard: like/unlike relation and denormalized counter can drift without transaction coverage.'
+  );
+}
+const deleteUserContent = read('public/api/delete_user.php');
+if (
+  deleteUserContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  deleteUserContent.includes('SELECT DISTINCT comment_id FROM comment_likes WHERE user_id = :id') &&
+  deleteUserContent.includes('DELETE FROM comment_likes WHERE user_id = :id') &&
+  deleteUserContent.includes('UPDATE comments c') &&
+  deleteUserContent.includes('COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id') &&
+  deleteUserContent.includes('WHERE c.id IN (')
+) {
+  pass(
+    'User Delete Comment Like Counter Guard: deleting a user removes their like rows and reconciles affected displayed counters.'
+  );
+} else {
+  fail(
+    'User Delete Comment Like Counter Guard: deleting a user can leave displayed comment like counters stale.'
+  );
+}
+
+assertIncludes(
+  'Public Comments Full Hydration Contract',
+  useCommentsContent,
+  [
+    '`${API.getComments}?flat=true&limit=100&page=${page}`',
+    'while (hasMore)',
+    'buildCommentTree(allComments)',
+    'parentId',
+  ],
+  'Public Comments Full Hydration Contract: global public comments load all pages as flat rows and rebuild the tree client-side.',
+  'Public Comments Full Hydration Contract: public comments can still be capped to one page or orphan replies across pages.'
+);
+
+assertIncludes(
+  'Comment Reply Parent Post Boundary',
+  saveCommentsContent,
+  [
+    'SELECT post_id FROM comments WHERE id = ?',
+    "(string) ($parentComment['post_id'] ?? '') !== (string) $postId",
+    'Parent comment does not belong to this post',
+  ],
+  'Comment Reply Parent Post Boundary: replies must target an existing parent on the same post.',
+  'Comment Reply Parent Post Boundary: replies can still be attached to parents from other posts.'
+);
 
 const getCommentsContent = read('public/api/get_comments.php');
 assertIncludes(
@@ -4026,6 +4168,18 @@ assertIncludes(
   ],
   'Root User Edit Boundary: non-primary admins are blocked from editing or deleting Root users.',
   'Root User Edit Boundary: direct user-save/delete APIs can still cross the Root account boundary.'
+);
+
+assertExcludes(
+  'User Manager Canonical PHP Write Contract',
+  read('src/hooks/useUsers.ts'),
+  [
+    "API.saveUser.replace('.php', '')",
+    "API.deleteUser.replace('.php', '')",
+    "throw new Error('PHP failed')",
+  ],
+  'User Manager Canonical PHP Write Contract: user mutations do not fall back to non-canonical Node JSON storage after PHP rejects a request.',
+  'User Manager Canonical PHP Write Contract: user mutations can still report success through the Node JSON fallback after canonical PHP rejection.'
 );
 
 const dashboardUserTotalContent = read('src/plugins/von-core/features/dashboard/Dashboard.tsx');
@@ -4484,6 +4638,154 @@ assertIncludes(
   'TechPress: light-mode secondary text contrast markers are missing.'
 );
 
+const techPressThemeSettingsContent = read(
+  'src/plugins/von-core/features/extensions/components/TechPressSettings.tsx'
+);
+assertIncludes(
+  'TechPress Honest Latest Copy',
+  techPressLayout + '\n' + techPressThemeSettingsContent,
+  [
+    'LATEST',
+    'Latest Ticker',
+    'Latest Ticker Items Count',
+    'latest published articles',
+    'Latest Highlights',
+    'Latest Updates',
+  ],
+  'TechPress Honest Latest Copy: latest-slice sections avoid real-time or analytics ranking wording.',
+  'TechPress Honest Latest Copy: TechPress still has unclear labels for latest-slice sections.'
+);
+assertExcludes(
+  'TechPress Real-Time Copy Drift Guard',
+  techPressLayout + '\n' + techPressThemeSettingsContent,
+  ['BREAKING', 'Breaking News', 'Top Stories'],
+  'TechPress Real-Time Copy Drift Guard: latest-slice UI no longer implies breaking/news-rank semantics.',
+  'TechPress Real-Time Copy Drift Guard: TechPress still contains real-time/ranking labels for latest-slice content.'
+);
+
+const sidebarDefaultCopyContent = [
+  'src/hooks/useSettings.ts',
+  'public/install.sql',
+  'public/api/install.php',
+  'src/themes/default/Layout.tsx',
+  'src/themes/digest/Layout.tsx',
+]
+  .map((file) => read(file))
+  .join('\n');
+assertIncludes(
+  'Sidebar Default Copy Honesty',
+  sidebarDefaultCopyContent,
+  ['Latest Stories'],
+  'Sidebar Default Copy Honesty: default/fallback sidebar copy describes latest content without real-time claims.',
+  'Sidebar Default Copy Honesty: default/fallback sidebar copy is missing the latest-content label.'
+);
+assertExcludes(
+  'Sidebar Trending Copy Drift Guard',
+  sidebarDefaultCopyContent,
+  ['Trending Now'],
+  'Sidebar Trending Copy Drift Guard: default/fallback sidebar labels avoid unsupported real-time wording.',
+  'Sidebar Trending Copy Drift Guard: default/fallback sidebar labels still imply real-time trending.'
+);
+
+const sharedSidebarContent = read('src/plugins/von-core/features/public/components/Sidebar.tsx');
+const normalizedSharedSidebarContent = sharedSidebarContent.replace(/\s+/g, ' ');
+assertIncludes(
+  'Sidebar Freshness Timeline Contract',
+  normalizedSharedSidebarContent,
+  [
+    'formatSidebarFreshness',
+    'const sourceDate =',
+    "post.scheduledAt || post.scheduled_at || post.createdAt || post.created_at || '';",
+    'Math.floor(ageMs / minuteMs)',
+    'Math.floor(ageMs / hourMs)',
+    "'Yesterday'",
+    'daysOld <= 2',
+    'toLocaleDateString',
+  ],
+  'Sidebar Freshness Timeline Contract: sidebar latest widgets show bounded recency and fall back to dates for older posts.',
+  'Sidebar Freshness Timeline Contract: sidebar latest widgets are missing bounded recency/date fallback markers.'
+);
+assertIncludes(
+  'Sidebar Freshness Invalid Date Guard',
+  sharedSidebarContent,
+  ['if (!dateValue) return null;', 'if (!Number.isFinite(timestamp)) return null;'],
+  'Sidebar Freshness Invalid Date Guard: missing or invalid timestamps are hidden instead of faked.',
+  'Sidebar Freshness Invalid Date Guard: sidebar timestamps can still fake invalid or missing dates.'
+);
+assertIncludes(
+  'Sidebar Effective Publish Freshness Contract',
+  read('src/types.ts') + '\n' + normalizedSharedSidebarContent,
+  ['scheduledAt?: string;', 'scheduled_at?: string;', 'post.scheduledAt || post.scheduled_at'],
+  'Sidebar Effective Publish Freshness Contract: latest widgets prefer scheduled/publish timestamps before created dates.',
+  'Sidebar Effective Publish Freshness Contract: latest widgets can still show stale created-date freshness for scheduled/published posts.'
+);
+assertIncludes(
+  'Public Sidebar Staff Scope Guard',
+  normalizedSharedSidebarContent,
+  [
+    'useEffect',
+    'useState',
+    "params.set('public', '1');",
+    "params.set('includeTotal', 'false');",
+    'const sidebarPosts = fetchedPosts.length > 0 ? fetchedPosts : posts;',
+  ],
+  'Public Sidebar Staff Scope Guard: sidebar latest widgets hydrate public posts instead of trusting writer-owned staff preloads.',
+  'Public Sidebar Staff Scope Guard: sidebar latest widgets can still collapse to writer-owned staff preloads while logged in.'
+);
+assertIncludes(
+  'TechPress Latest Source Naming Audit',
+  techPressLayout,
+  ['latestTickerItems', 'latestHighlightPosts'],
+  'TechPress Latest Source Naming Audit: source names match latest-post behavior instead of ranking/realtime semantics.',
+  'TechPress Latest Source Naming Audit: latest-slice source names still imply breaking/trending behavior.'
+);
+assertIncludes(
+  'TechPress Featured Title Clamp',
+  techPressLayout,
+  [
+    'className="text-xl font-bold mb-3 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"',
+  ],
+  'TechPress Featured Title Clamp: featured/latest highlight cards keep long titles to the Digest-style two-line baseline.',
+  'TechPress Featured Title Clamp: featured/latest highlight cards can still grow to three lines or reserve excessive title height.'
+);
+assertExcludes(
+  'TechPress Featured Title Height Drift Guard',
+  techPressLayout,
+  ['line-clamp-3 cursor-pointer min-h-[4.5rem]'],
+  'TechPress Featured Title Height Drift Guard: forced tall title reservation was removed from TechPress featured cards.',
+  'TechPress Featured Title Height Drift Guard: TechPress still reserves excessive title height on featured cards.'
+);
+assertIncludes(
+  'TechPress Hero Title Clamp',
+  techPressLayout,
+  [
+    'className="text-lg sm:text-2xl lg:text-4xl font-black mb-4 leading-tight tracking-tight line-clamp-3 group-hover:opacity-80 transition-opacity"',
+  ],
+  'TechPress Hero Title Clamp: main hero title follows the Digest-style three-line cap for very long headlines.',
+  'TechPress Hero Title Clamp: main hero title can still expand indefinitely on long headlines.'
+);
+const defaultThemeLayout = read('src/themes/default/Layout.tsx');
+const prismThemeLayout = read('src/themes/prism/Layout.tsx');
+const portfolioThemeLayout = read('src/themes/portfolio/Layout.tsx');
+assertIncludes(
+  'Bundled Card Title Clamp',
+  defaultThemeLayout + '\n' + prismThemeLayout + '\n' + portfolioThemeLayout,
+  [
+    'className="text-2xl font-bold text-neutral-900 dark:text-white mb-4 leading-tight line-clamp-2 group-hover:text-primary-600 transition-colors"',
+    'className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors"',
+    'className="text-lg font-semibold mb-2 line-clamp-2 transition-colors duration-300"',
+  ],
+  'Bundled Card Title Clamp: Default, Prism, and Portfolio card/list titles stay bounded to two lines.',
+  'Bundled Card Title Clamp: one or more bundled card/list titles can still expand indefinitely.'
+);
+assertExcludes(
+  'TechPress Legacy Source Naming Drift Guard',
+  techPressLayout,
+  ['const breakingNews', 'const trendingNews', 'Breaking: Top N', 'Trending: Items after hero'],
+  'TechPress Legacy Source Naming Drift Guard: legacy breaking/trending source names are gone from latest slices.',
+  'TechPress Legacy Source Naming Drift Guard: latest slices still use legacy breaking/trending source names.'
+);
+
 const techPressProfile = read('src/themes/techpress/Profile.tsx');
 assertIncludes(
   'TechPress Profile Tab Contrast',
@@ -4518,6 +4820,41 @@ if (
 
 const relatedPostsComponentContent = read(
   'src/plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent.tsx'
+);
+const relatedPostsSettingsContent = read(
+  'src/plugins/von-core/features/plugins/built-in/related-posts/SettingsModal.tsx'
+);
+const relatedPostsMatcherContent = read(
+  'src/plugins/von-core/features/plugins/built-in/related-posts/matcher.ts'
+);
+assertIncludes(
+  'Related Posts Defaults And Controls Audit',
+  relatedPostsPluginContent +
+    '\n' +
+    relatedPostsSettingsContent +
+    '\n' +
+    relatedPostsComponentContent +
+    '\n' +
+    relatedPostsMatcherContent,
+  [
+    "titleText: 'Related Posts'",
+    'placeholder="Related Posts"',
+    'Show Featured Image',
+    'Show Excerpt',
+    'Show Date',
+    'if (relatedPosts.length === 0) return null;',
+    "const candidates = allPosts.filter((p) => p.id !== currentPost.id && p.status === 'published')",
+    'return sorted.slice(0, config.count);',
+  ],
+  'Related Posts Defaults And Controls Audit: defaults, toggles, empty state, and published-only matching stay aligned.',
+  'Related Posts Defaults And Controls Audit: defaults or core related-post controls have drifted.'
+);
+assertExcludes(
+  'Related Posts Locale Default Drift Guard',
+  relatedPostsPluginContent,
+  ['Berita Berkaitan'],
+  'Related Posts Locale Default Drift Guard: render fallback title matches the settings default.',
+  'Related Posts Locale Default Drift Guard: render fallback title still uses a different default language.'
 );
 if (
   relatedPostsComponentContent.includes(
@@ -4918,6 +5255,18 @@ assertIncludes(
   'Ads Manager Responsive Iframe Contract: isolated ad iframe lacks mobile containment or delayed height sync.'
 );
 assertIncludes(
+  'TechPress In-Feed Ad Container Cap',
+  techPressLayoutContent,
+  [
+    '<div className="flex-1 min-w-0">',
+    'className="w-full max-w-full overflow-hidden py-8 my-4 border-y ad-slot-flex"',
+    '<AdBlock content={settings.ads.inFeedAd} slotId="infeed" />',
+    '<aside className="w-full lg:w-[350px] flex-shrink-0 space-y-6">',
+  ],
+  'TechPress In-Feed Ad Container Cap: in-feed ads stay capped by the Latest Updates column without pushing the sidebar.',
+  'TechPress In-Feed Ad Container Cap: Latest Updates or in-feed ads can still force the sidebar wider/off-layout.'
+);
+assertIncludes(
   'Ads Manager Visual Style Allowlist Contract',
   editorSecurityContent + '\n' + sharedAdBlockContent,
   [
@@ -5054,11 +5403,12 @@ if (exists(publicPostsQueryHookPath)) {
       '!$isAdmin',
       '$forcePublic',
       '!$includeTotal',
+      '!$countOnly',
       '$authorQuery === null',
       '$statusFilter === null',
     ],
-    'Public Posts JSON Cache Boundary: cache is limited to guest public includeTotal=false discovery without profile/status/admin reads.',
-    'Public Posts JSON Cache Boundary: posts cache eligibility is missing required guest-only/includeTotal/profile/status guards.'
+    'Public Posts JSON Cache Boundary: cache is limited to public-shaped includeTotal=false list discovery without count-only/profile/status/admin reads.',
+    'Public Posts JSON Cache Boundary: posts cache eligibility is missing required public-shaped/includeTotal/countOnly/profile/status guards.'
   );
   const defaultPublicLayoutContent = read('src/themes/default/Layout.tsx');
   const digestPublicLayoutContent = read('src/themes/digest/Layout.tsx');
@@ -5162,6 +5512,23 @@ if (
     'Public Draft Visibility Guard: admin-session public discovery can still fetch draft/autosaved posts into public themes.'
   );
 }
+
+assertIncludes(
+  'Staff Content Read Boundary',
+  getPostsContent + '\n' + read('public/api/get_post.php') + '\n' + getPagesContent,
+  [
+    '$canReadProtectedPosts = SessionManager::isStaff() && !$forcePublic;',
+    "$currentRole === 'writer'",
+    'p.author_id = :currentUserId',
+    '$canReadProtectedPost = SessionManager::isStaff();',
+    '$canReadProtectedPages = in_array($currentRole, [',
+    "'admin'",
+    "'root'",
+    "'moderator'",
+  ],
+  'Staff Content Read Boundary: moderator/writer reads can recover authorized draft or scheduled content without exposing protected content through public queries.',
+  'Staff Content Read Boundary: moderator/writer reads can still fall back to public-only filtering for authorized content.'
+);
 
 const publicSearchThemeContent = [
   read('src/themes/default/Layout.tsx'),
@@ -5944,6 +6311,22 @@ assertIncludes(
   'Avatar URL Safety Boundary: unsafe avatar schemes or broken public avatar images can still leak into rendering.'
 );
 
+const updateProfileContent = read('public/api/update_profile.php');
+assertIncludes(
+  'Profile Update Primary Admin Boundary',
+  updateProfileContent,
+  [
+    "if ($_SERVER['REQUEST_METHOD'] !== 'POST') {",
+    '$isOwnProfile =',
+    '$isPrimaryAdminActor = SessionManager::isPrimaryAdmin();',
+    'SELECT id, role FROM users WHERE id = ?',
+    "$targetUserRole === 'root'",
+    "ResponseHelper::sendError('Only admin 1 can update this account', 403);",
+  ],
+  'Profile Update Primary Admin Boundary: profile updates reject unsupported methods and prevent appointed admins from modifying admin 1/root profiles while preserving own-profile edits.',
+  'Profile Update Primary Admin Boundary: appointed admins can still mutate admin 1/root profiles or update_profile.php lacks an explicit POST guard.'
+);
+
 const techPressProfileContent = read('src/themes/techpress/Profile.tsx');
 assertExcludes(
   'Public Profile Joined Date Privacy Boundary',
@@ -6265,21 +6648,22 @@ assertIncludes(
   'Single Post Responsive Contract: single-post payload is missing imageSrcSet wiring.'
 );
 
-const listReadTimeUsesPlainText =
-  getPostsContent.includes('p.content,') &&
-  getPostsContent.includes("strlen(strip_tags($row['content']))") &&
-  !getPostsContent.includes('CHAR_LENGTH(p.content) as content_length');
+const listReadTimeUsesBoundedContent =
+  !/\n\s*p\.content,\s*\n/.test(getPostsContent) &&
+  getPostsContent.includes('CHAR_LENGTH(p.content) AS content_chars') &&
+  getPostsContent.includes("$chars = (int) ($row['content_chars'] ?? 0);") &&
+  !getPostsContent.includes("strlen(strip_tags($row['content']))");
 const singleReadTimeUsesPlainText = getPostContent.includes(
   "strlen(strip_tags($normalized['content']))"
 );
 
-if (listReadTimeUsesPlainText && singleReadTimeUsesPlainText) {
+if (listReadTimeUsesBoundedContent && singleReadTimeUsesPlainText) {
   pass(
-    'Read Time Contract: list and single-post APIs both calculate readTime from stripped plain text, so featured cards and article views stay aligned.'
+    'Read Time Contract: list API avoids transferring full article bodies while single-post API keeps precise stripped-text readTime.'
   );
 } else {
   fail(
-    'Read Time Contract: get_posts.php and get_post.php are not aligned on stripped-text readTime calculation.'
+    'Read Time Contract: get_posts.php can still select full article bodies for list readTime calculation.'
   );
 }
 
@@ -6290,6 +6674,12 @@ const cachePurgeHookContent = [
   'public/api/delete_page.php',
   'public/api/save_settings.php',
   'public/api/manage_categories.php',
+  'public/api/rollback_setting.php',
+  'public/api/import_db.php',
+  'public/api/tools/wp_import.php',
+  'public/api/update_profile.php',
+  'public/api/save_user.php',
+  'public/api/delete_user.php',
   'public/scheduler_helper.php',
 ]
   .map((file) => read(file))
@@ -6300,11 +6690,12 @@ assertIncludes(
   cachePurgeHookContent,
   [
     "require_once __DIR__ . '/public_cache_helper.php';",
+    "require_once __DIR__ . '/../public_cache_helper.php';",
     "require_once __DIR__ . '/api/public_cache_helper.php';",
     'voncms_public_cache_clear();',
   ],
-  'Public Cache Clear-All Purge Hooks: writes and scheduled publishes clear the lightweight public JSON cache.',
-  'Public Cache Clear-All Purge Hooks: write or scheduler cache purge markers are incomplete.'
+  'Public Cache Clear-All Purge Hooks: writes, imports, profile/user mutations, and scheduled publishes clear the lightweight public JSON cache.',
+  'Public Cache Clear-All Purge Hooks: write/import/profile/user/scheduler cache purge markers are incomplete.'
 );
 const schedulerHelperContent = read('public/scheduler_helper.php');
 const publicIndexContent = read('public/index.php');
@@ -6453,6 +6844,7 @@ if (
 }
 const savePostContent = read('public/api/save_post.php');
 const savePageContent = read('public/api/save_page.php');
+const deletePostContent = read('public/api/delete_post.php');
 assertIncludes(
   'Scheduler Runtime Wiring',
   cronPublishContent + publicIndexContent,
@@ -6500,6 +6892,95 @@ if (postSeoFieldPreservationOk && pageSeoFieldPreservationOk) {
 } else {
   fail(
     'Manual SEO Text Preservation: post/page save APIs are missing raw excerpt preservation or metaDescription alias alignment after sanitize.'
+  );
+}
+
+assertIncludes(
+  'Post Object Authorization Guard',
+  savePostContent + '\n' + deletePostContent,
+  [
+    "$currentUser = $_SESSION['user'] ?? null;",
+    '$isPostOwner =',
+    "(string) ($ownerPost['author_id'] ?? '') === (string) ($currentUser['id'] ?? '');",
+    "$isAdminOrModerator = SessionManager::isAdmin() || $currentRole === 'moderator';",
+    "ResponseHelper::sendError('Not authorized to edit this post', 403);",
+    'SELECT id, author_id, title, status, slug FROM posts WHERE id = ?',
+    "$isPostOwner = (string) ($post['author_id'] ?? '') === (string) ($currentUser['id'] ?? '');",
+    "ResponseHelper::sendError('Not authorized to delete this post', 403);",
+  ],
+  'Post Object Authorization Guard: writers can only update/delete their own posts while admin/root/moderator retain cross-author moderation.',
+  'Post Object Authorization Guard: post update/delete can still skip owner or elevated-role checks.'
+);
+
+const v1255ChangelogContent = read('CHANGELOG.md');
+if (
+  !v1255ChangelogContent.includes('Bounded Public Comment Hydration') &&
+  !v1255ChangelogContent.includes('under the old first-page cap') &&
+  v1255ChangelogContent.includes('Public Comment Hydration Note')
+) {
+  pass(
+    'Public Comment Hydration Wording: changelog avoids presenting full-site sequential hydration as a bounded performance win.'
+  );
+} else {
+  fail(
+    'Public Comment Hydration Wording: changelog can still overclaim full-site sequential comment hydration as bounded performance work.'
+  );
+}
+
+const mutatingMethodGuardFiles = [
+  ['public/api/save_post.php', ["if ($_SERVER['REQUEST_METHOD'] !== 'POST') {"]],
+  ['public/api/save_page.php', ["if ($_SERVER['REQUEST_METHOD'] !== 'POST') {"]],
+  [
+    'public/api/delete_post.php',
+    ["if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {"],
+  ],
+  [
+    'public/api/delete_page.php',
+    ["if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {"],
+  ],
+  ['public/api/save_user.php', ["if ($_SERVER['REQUEST_METHOD'] !== 'POST') {"]],
+  ['public/api/update_profile.php', ["if ($_SERVER['REQUEST_METHOD'] !== 'POST') {"]],
+  [
+    'public/api/delete_user.php',
+    ["if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {"],
+  ],
+];
+const mutatingMethodGuardMissing = mutatingMethodGuardFiles.flatMap(([file, needles]) => {
+  const content = read(file);
+  return needles.every((needle) => content.includes(needle)) ? [] : [file];
+});
+if (mutatingMethodGuardMissing.length === 0) {
+  pass(
+    'Mutating API Method Guard Contract: core write/delete endpoints reject unsupported HTTP methods after OPTIONS.'
+  );
+} else {
+  fail(
+    `Mutating API Method Guard Contract: missing explicit method guards in ${mutatingMethodGuardMissing.join(', ')}.`
+  );
+}
+
+const postOwnerGuardIndex = savePostContent.indexOf(
+  'SELECT id, author_id, status, slug FROM posts WHERE id = ?'
+);
+const postRowLockIndex = savePostContent.indexOf(
+  'SELECT status, slug, updated_at FROM posts WHERE id = ? FOR UPDATE'
+);
+const postConflictIndex = savePostContent.indexOf(
+  'Content changed in another tab. Reload before saving again.'
+);
+if (
+  postOwnerGuardIndex !== -1 &&
+  postRowLockIndex !== -1 &&
+  postConflictIndex !== -1 &&
+  postOwnerGuardIndex < postRowLockIndex &&
+  postOwnerGuardIndex < postConflictIndex
+) {
+  pass(
+    'Post Object Authorization Ordering: update requests verify owner/elevated access before row locks, conflict checks, slug checks, or SEO safety logic.'
+  );
+} else {
+  fail(
+    'Post Object Authorization Ordering: update requests can still inspect or lock a target post before rejecting a non-owner writer.'
   );
 }
 
@@ -6905,20 +7386,27 @@ if (
 }
 assertIncludes(
   'Dashboard Content Totals Truth',
-  dashboardContent,
+  dashboardContent + '\n' + read('public/api/get_posts.php'),
   [
     'const [contentTotals, setContentTotals] = useState({',
     'const [contentTotalsLoading, setContentTotalsLoading] = useState({',
     'articles: true,',
     'pages: true,',
-    'vonFetch(`${API.getPosts}?limit=1`)',
+    "postCountParams.set('countOnly', 'true');",
+    "postCountParams.set('scope', 'all');",
+    'vonFetch(`${API.getPosts}?${postCountParams.toString()}`)',
     'vonFetch(`${API.getPages}?limit=1`)',
+    "$countOnly = filter_var($_GET['countOnly'] ?? false, FILTER_VALIDATE_BOOLEAN);",
+    "$countScope = strtolower((string) ($_GET['scope'] ?? ''));",
+    '$countStatusClause =',
+    "$canReadProtectedPosts && $countScope === 'all'",
+    "' WHERE 1=1' : $statusClause;",
     'data?.meta?.total',
     "value={contentTotalsLoading.articles ? '...' : contentTotals.articles.toString()}",
     "value={contentTotalsLoading.pages ? '...' : contentTotals.pages.toString()}",
   ],
-  'Dashboard Content Totals Truth: welcome stats show loading placeholders until real post/page totals resolve.',
-  'Dashboard Content Totals Truth: dashboard can still flash capped preload totals before real meta totals resolve.'
+  'Dashboard Content Totals Truth: welcome stats use count-only global post totals instead of writer-owned list payloads.',
+  'Dashboard Content Totals Truth: dashboard can still show writer-owned or capped preload totals for staff content stats.'
 );
 assertIncludes(
   'Dashboard Staff Count Loading Truth',
@@ -7077,6 +7565,48 @@ if (
         ? themeLogoIssues.join('; ')
         : 'src/themes/shared/components/ThemeLogo.tsx'
     }`
+  );
+}
+
+const defaultThemeFooterContent = read('src/themes/default/Layout.tsx').match(
+  /<footer[\s\S]*?<\/footer>/
+)?.[0];
+const digestFooterContent = read('src/themes/digest/Layout.tsx').match(
+  /const DigestFooter:[\s\S]*?^};/m
+)?.[0];
+const techPressFooterContent = read('src/themes/techpress/TechPressFooter.tsx').match(
+  /<footer[\s\S]*?<\/footer>/
+)?.[0];
+const corporateProFooterContent = read('src/themes/corporate-pro/Layout.tsx').match(
+  /const Footer = \(\) => \{[\s\S]*?^\s+\};/m
+)?.[0];
+if (
+  defaultThemeFooterContent &&
+  !defaultThemeFooterContent.includes('<ThemeLogo') &&
+  !defaultThemeFooterContent.includes('<VonLogo') &&
+  defaultThemeFooterContent.includes('settings.siteDescription') &&
+  defaultThemeFooterContent.includes('settings.siteTagline') &&
+  digestFooterContent &&
+  !digestFooterContent.includes('<ThemeLogo') &&
+  !digestFooterContent.includes('<VonLogo') &&
+  digestFooterContent.includes('settings.siteDescription') &&
+  digestFooterContent.includes('settings.siteTagline') &&
+  techPressFooterContent &&
+  !techPressFooterContent.includes('<ThemeLogo') &&
+  !techPressFooterContent.includes('<VonLogo') &&
+  techPressFooterContent.includes('settings.siteDescription') &&
+  techPressFooterContent.includes('settings.siteTagline') &&
+  corporateProFooterContent &&
+  !corporateProFooterContent.includes('w-8 h-8 bg-blue-600') &&
+  !corporateProFooterContent.includes('settings.siteName.charAt(0)') &&
+  !corporateProFooterContent.includes('Defining standards in corporate web solutions')
+) {
+  pass(
+    'Footer Brand Minimalism Contract: bundled footers avoid duplicate logo/icon fallback while preserving setting-driven footer text.'
+  );
+} else {
+  fail(
+    'Footer Brand Minimalism Contract: bundled footer logo/icon fallback scope or setting-driven footer text regressed.'
   );
 }
 const logoGeneralSettingsContent = read(

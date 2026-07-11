@@ -20,7 +20,7 @@ export const RelatedPostsPlugin: PluginDefinition = {
       showExcerpt: true,
       showImage: true,
       showDate: true,
-      titleText: 'Berita Berkaitan',
+      titleText: 'Related Posts',
     };
     if (!relatedConfig.enabled) return null;
 

@@ -150,7 +150,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                     className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Enable Breaking News
+                    Enable Latest Ticker
                   </span>
                 </label>
                 <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26]">
@@ -188,15 +188,15 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                 </label>
               </div>
 
-              {/* Breaking News Count */}
+              {/* Latest Ticker Count */}
               {tempConfig.enableBreaking && (
                 <div className="space-y-2">
                   <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Breaking News Items Count
+                    Latest Ticker Items Count
                   </span>
                   <div className="flex items-center gap-4">
                     <input
-                      aria-label="Breaking News Items Count"
+                      aria-label="Latest Ticker Items Count"
                       id="techpresssettings-186"
                       name="techpresssettings186"
                       type="range"
@@ -214,7 +214,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                     <input
                       id="techpresssettings-199"
                       name="techpresssettings199"
-                      aria-label="Breaking news count"
+                      aria-label="Latest ticker count"
                       type="number"
                       min="1"
                       max="10"
@@ -229,7 +229,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                     />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Number of articles to show in the breaking news ticker (1-10)
+                    Number of latest published articles to show in the latest ticker (1-10)
                   </p>
                 </div>
               )}

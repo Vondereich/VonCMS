@@ -727,7 +727,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                               <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
                               <span>{post.readTime || '5 min read'}</span>
                             </div>
-                            <h2 className="text-xl font-bold text-white mb-3 leading-tight group-hover:text-[var(--color-primary)] transition-colors">
+                            <h2 className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors">
                               <a
                                 href={getPermalink(post, settings)}
                                 onClick={(event) =>

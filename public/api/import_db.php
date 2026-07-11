@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -535,6 +536,7 @@ try {
   if ($pdo->inTransaction()) {
     $pdo->commit();
   }
+  voncms_public_cache_clear();
 
   echo json_encode([
     'success' => true,

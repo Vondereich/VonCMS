@@ -157,7 +157,7 @@ const TrendingTicker: React.FC<{
           className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded flex-shrink-0 animate-pulse shadow-sm"
           style={{ background: colors.safeAccent, color: colors.accentContrast }}
         >
-          Trending Now
+          Latest Stories
         </span>
         <div className="flex-1 overflow-hidden">
           <div
@@ -627,21 +627,19 @@ const DigestFooter: React.FC<{ settings: SiteSettings; colors: ReturnType<typeof
           )}
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {settings.logoUrl ? (
-              <ThemeLogo
-                src={settings.logoUrl}
-                alt={settings.siteName}
-                useLogoAsTitle={settings.useLogoAsTitle}
-                invertLogoInDarkMode={settings.invertLogoInDarkMode}
-              />
-            ) : (
-              <VonLogo variant="default" className="!w-8 !h-8 !mr-0" />
+          <div className="max-w-xl text-center md:text-left">
+            <span className="font-bold" style={{ color: colors.text }}>
+              {settings.siteName}
+            </span>
+            {settings.siteDescription && (
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: colors.textMuted }}>
+                {settings.siteDescription}
+              </p>
             )}
-            {!settings.useLogoAsTitle && (
-              <span className="font-bold" style={{ color: colors.text }}>
-                {settings.siteName}
-              </span>
+            {settings.siteTagline && (
+              <p className="mt-1 text-xs italic" style={{ color: colors.textMuted }}>
+                {settings.siteTagline}
+              </p>
             )}
           </div>
 

@@ -106,7 +106,7 @@ INSERT INTO settings (setting_group, setting_key, setting_value, setting_type, i
 ('media', 'storage', '{"location":"local","folderStructure":"year_month","cdnUrl":""}', 'json', FALSE, 'Storage config', 1),
 ('media', 'performance', '{"lazyLoadImages":true,"lazyLoadIframes":true}', 'json', TRUE, 'Performance', 1),
 ('navigation', 'menu_items', '[{"id":"nav1","label":"Home","url":"home","type":"internal"}]', 'json', TRUE, 'Menu items', 1),
-('sidebar', 'layout', '[{"id":"w1","type":"trending","title":"Trending Now","isVisible":true}]', 'json', TRUE, 'Sidebar widgets', 1),
+('sidebar', 'layout', '[{"id":"w1","type":"trending","title":"Latest Stories","isVisible":true}]', 'json', TRUE, 'Sidebar widgets', 1),
 ('content', 'categories', '["Uncategorized","News","Updates"]', 'json', TRUE, 'Categories', 1),
 ('plugins', 'active_plugins', '[]', 'json', TRUE, 'Active plugins', 1),
 ('plugins', 'custom_plugins', '[]', 'json', TRUE, 'Custom plugins', 1),
@@ -203,6 +203,18 @@ CREATE TABLE IF NOT EXISTS comments (
     INDEX idx_post_id (post_id),
     INDEX idx_status (status),
     INDEX idx_created_at (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS comment_likes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    comment_id INT NOT NULL,
+    user_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_comment_like (comment_id, user_id),
+    INDEX idx_comment_likes_comment (comment_id),
+    INDEX idx_comment_likes_user (user_id),
+    FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Newsletter Subscribers Table

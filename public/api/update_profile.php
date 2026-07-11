@@ -11,10 +11,15 @@ $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
 }
 
 // Load database connection
@@ -35,7 +40,8 @@ if (!$input || !isset($input['id'])) {
 
 // Authorization: Only allow updating self OR if current user is admin
 $currentUser = $_SESSION['user'];
-if ($currentUser['id'] != $input['id'] && !SessionManager::isAdmin()) {
+$isOwnProfile = (string) ($currentUser['id'] ?? '') === (string) $input['id'];
+if (!$isOwnProfile && !SessionManager::isAdmin()) {
   ResponseHelper::sendError('Unauthorized to update this profile', 403);
 }
 
@@ -55,6 +61,27 @@ try {
 
 try {
   $userId = $input['id'];
+  $isPrimaryAdminActor = SessionManager::isPrimaryAdmin();
+
+  $targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
+  $targetStmt->execute([$userId]);
+  $targetUser = $targetStmt->fetch(PDO::FETCH_ASSOC);
+
+  if (!$targetUser) {
+    ResponseHelper::sendError('User not found', 404);
+  }
+
+  $targetUserId = (string) ($targetUser['id'] ?? '');
+  $targetUserRole = strtolower((string) ($targetUser['role'] ?? ''));
+
+  if (
+    !$isOwnProfile &&
+    !$isPrimaryAdminActor &&
+    ($targetUserId === '1' || $targetUserRole === 'root')
+  ) {
+    ResponseHelper::sendError('Only admin 1 can update this account', 403);
+  }
+
   $displayName = trim((string) ($input['display_name'] ?? ''));
   if (function_exists('sanitize_input')) {
     $displayName = sanitize_input($displayName);
@@ -107,6 +134,8 @@ try {
   $result = $stmt->execute([$displayName !== '' ? $displayName : null, $bio, $avatar, $userId]);
 
   if ($result) {
+    voncms_public_cache_clear();
+
     // Update session if updating own profile
     if ($currentUser['id'] == $userId) {
       $_SESSION['user']['bio'] = $bio;

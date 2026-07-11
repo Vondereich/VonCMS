@@ -73,7 +73,7 @@ interface ThemeLayoutProps {
   allUsers: User[];
   settings: SiteSettings;
   onAddComment: (postId: string, content: string) => void;
-  onLikeComment: (commentId: string) => void;
+  onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
   onNavigateAdmin: () => void;
   onLogin: () => void;
@@ -1079,18 +1079,16 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
 
           <div className="grid md:grid-cols-4 gap-12 mb-16">
             <div className="col-span-1 md:col-span-1">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">
-                  {settings.siteName.charAt(0)}
-                </div>
+              <div className="mb-6">
                 <span className="text-xl font-bold text-slate-900 dark:text-white">
                   {settings.siteName}
                 </span>
               </div>
-              <p className="text-slate-500 dark:text-neutral-400 mb-6">
-                {settings.theme?.corporatePro?.footerAbout ||
-                  'Defining standards in corporate web solutions. Built for performance and reliability.'}
-              </p>
+              {settings.theme?.corporatePro?.footerAbout && (
+                <p className="text-slate-500 dark:text-neutral-400 mb-6">
+                  {settings.theme.corporatePro.footerAbout}
+                </p>
+              )}
             </div>
             <div>
               <h4 className="font-bold text-slate-900 dark:text-white mb-6">Quick Links</h4>

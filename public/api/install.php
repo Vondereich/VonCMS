@@ -175,6 +175,18 @@ try {
         INDEX idx_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+  $pdo->exec("CREATE TABLE IF NOT EXISTS comment_likes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        comment_id INT NOT NULL,
+        user_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_comment_like (comment_id, user_id),
+        INDEX idx_comment_likes_comment (comment_id),
+        INDEX idx_comment_likes_user (user_id),
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
   // Settings Table
   $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -392,7 +404,7 @@ try {
     [
       'sidebar',
       'layout',
-      '[{"id":"w1","type":"trending","title":"Trending Now","isVisible":true}]',
+      '[{"id":"w1","type":"trending","title":"Latest Stories","isVisible":true}]',
       'json',
     ],
     ['content', 'categories', '["Uncategorized","News","Updates"]', 'json'],

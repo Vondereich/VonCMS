@@ -138,6 +138,18 @@ try {
         FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+  $pdo->exec("CREATE TABLE IF NOT EXISTS comment_likes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        comment_id INT NOT NULL,
+        user_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_comment_like (comment_id, user_id),
+        INDEX idx_comment_likes_comment (comment_id),
+        INDEX idx_comment_likes_user (user_id),
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
   // CONTACT FORMS
   $pdo->exec("CREATE TABLE IF NOT EXISTS contact_forms (
         id VARCHAR(50) PRIMARY KEY,
@@ -478,6 +490,39 @@ try {
   if (!in_array('user_avatar', $commentCols)) {
     $pdo->exec('ALTER TABLE comments ADD COLUMN user_avatar VARCHAR(255) DEFAULT NULL');
     $fixes[] = 'Fixed comments table (Added user_avatar).';
+  }
+
+  try {
+    $pdo->exec(
+      'DELETE cl FROM comment_likes cl LEFT JOIN comments c ON cl.comment_id = c.id LEFT JOIN users u ON cl.user_id = u.id WHERE c.id IS NULL OR u.id IS NULL',
+    );
+    $likeCreateStmt = $pdo->query('SHOW CREATE TABLE comment_likes');
+    $likeCreateRow = $likeCreateStmt ? $likeCreateStmt->fetch(PDO::FETCH_ASSOC) : null;
+    $likeCreateSql = is_array($likeCreateRow)
+      ? (string) ($likeCreateRow['Create Table'] ?? '')
+      : '';
+
+    if (
+      stripos($likeCreateSql, 'fk_comment_likes_comment') === false &&
+      stripos($likeCreateSql, 'FOREIGN KEY (`comment_id`)') === false
+    ) {
+      $pdo->exec(
+        'ALTER TABLE comment_likes ADD CONSTRAINT fk_comment_likes_comment FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE',
+      );
+      $fixes[] = 'Comment likes: Added comment cascade foreign key.';
+    }
+
+    if (
+      stripos($likeCreateSql, 'fk_comment_likes_user') === false &&
+      stripos($likeCreateSql, 'FOREIGN KEY (`user_id`)') === false
+    ) {
+      $pdo->exec(
+        'ALTER TABLE comment_likes ADD CONSTRAINT fk_comment_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE',
+      );
+      $fixes[] = 'Comment likes: Added user cascade foreign key.';
+    }
+  } catch (Exception $e) {
+    /* Ignore until comment_likes exists on very old installs */
   }
 
   // Fix Newsletter Subscribers Columns

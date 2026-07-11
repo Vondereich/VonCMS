@@ -141,7 +141,7 @@ const TrendingTicker: React.FC<{
           className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded flex-shrink-0 animate-pulse shadow-sm"
           style={{ background: accentColor, color: contrastText }}
         >
-          Trending Now
+          Latest Stories
         </span>
         <div className="flex-1 overflow-hidden">
           <div
@@ -900,17 +900,8 @@ const DefaultLayout: React.FC<
               {/* Column 1: Brand (Spans 2 columns like TechPress) */}
               <div className="col-span-1 md:col-span-2">
                 <div className="flex items-center mb-6">
-                  {settings.logoUrl ? (
-                    <ThemeLogo
-                      src={settings.logoUrl}
-                      alt={settings.siteName}
-                      invertLogoInDarkMode={settings.invertLogoInDarkMode}
-                    />
-                  ) : (
-                    <VonLogo variant="default" />
-                  )}
                   <span
-                    className="font-bold text-2xl tracking-tight ml-2"
+                    className="font-bold text-2xl tracking-tight"
                     style={{ color: 'var(--text-nav)' }}
                   >
                     {settings.siteName}
@@ -1197,7 +1188,7 @@ const HomeView: React.FC<{
                           {post.readTime || '5 min read'}
                         </span>
                       </div>
-                      <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4 leading-tight group-hover:text-primary-600 transition-colors">
+                      <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4 leading-tight line-clamp-2 group-hover:text-primary-600 transition-colors">
                         <a
                           href={getPermalink(post, settings)}
                           onClick={(e) =>
@@ -1307,7 +1298,7 @@ const SinglePostView: React.FC<{
   user: User | null;
   comments: Comment[];
   onAddComment: (postId: string, content: string) => void;
-  onLikeComment: (commentId: string) => void;
+  onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
   onLogin: () => void;
   settings: SiteSettings;

@@ -561,16 +561,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('von:session-expired', handleSessionExpiry);
   }, [showAuthModal]);
 
-  // Load public data on mount
+  // Load only the public settings needed to unlock the first render. Public
+  // comments refresh after that gate; admin-scale content stays login-only.
   useEffect(() => {
     const initData = async () => {
       try {
-        // Fetch essential data in parallel
-        await Promise.all([loadSettings(), loadContent(), loadComments()]);
+        await loadSettings();
       } catch (e) {
         console.error('Initial data load failed', e);
       } finally {
         setIsInitialLoading(false);
+        void loadComments();
       }
     };
 

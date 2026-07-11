@@ -8,6 +8,32 @@ import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import toast from 'react-hot-toast';
 
+const getCommentNumericId = (comment: Pick<Comment, 'id' | 'dbId'>): string =>
+  String(comment.dbId || comment.id || '').replace(/[^0-9]/g, '');
+
+const buildCommentTree = (flatComments: Comment[]): Comment[] => {
+  const byNumericId = new Map<string, Comment>();
+  const roots: Comment[] = [];
+
+  flatComments.forEach((comment) => {
+    const numericId = getCommentNumericId(comment);
+    byNumericId.set(numericId, { ...comment, replies: [] });
+  });
+
+  byNumericId.forEach((comment) => {
+    const parentKey = String(comment.parentId || '').replace(/[^0-9]/g, '');
+    const parent = parentKey ? byNumericId.get(parentKey) : null;
+
+    if (parent && String(parent.postId) === String(comment.postId)) {
+      parent.replies = [...(parent.replies || []), comment];
+    } else {
+      roots.push(comment);
+    }
+  });
+
+  return roots;
+};
+
 export function useComments(initialComments: Comment[] = []) {
   const [comments, setComments] = useState<Comment[]>(initialComments);
 
@@ -150,38 +176,49 @@ export function useComments(initialComments: Comment[] = []) {
   );
 
   // Like comment
-  const handleLikeComment = useCallback(async (commentId: string) => {
-    let likedComments: Set<string>;
-    try {
-      const stored = localStorage.getItem('voncms_liked_comments');
-      likedComments = stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch {
-      likedComments = new Set();
-    }
+  const handleLikeComment = useCallback(
+    async (commentId: string) => {
+      const originalComments = comments;
+      let likedComments: Set<string>;
+      try {
+        const stored = localStorage.getItem('voncms_liked_comments');
+        likedComments = stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch {
+        likedComments = new Set();
+      }
 
-    const wasJustLiked = likedComments.has(commentId);
-    const delta = wasJustLiked ? -1 : 1;
+      const wasJustLiked = likedComments.has(commentId);
+      const delta = wasJustLiked ? -1 : 1;
 
-    setComments((prev) =>
-      prev.map((c) => {
-        if (c.id === commentId) {
-          return { ...c, likes: Math.max(0, c.likes + delta) };
-        }
-        if (c.replies) {
-          return {
-            ...c,
-            replies: c.replies.map((r) =>
-              r.id === commentId ? { ...r, likes: Math.max(0, r.likes + delta) } : r
-            ),
-          };
-        }
-        return c;
-      })
-    );
+      setComments((prev) =>
+        prev.map((c) => {
+          if (c.id === commentId) {
+            return { ...c, likes: Math.max(0, c.likes + delta) };
+          }
+          if (c.replies) {
+            return {
+              ...c,
+              replies: c.replies.map((r) =>
+                r.id === commentId ? { ...r, likes: Math.max(0, r.likes + delta) } : r
+              ),
+            };
+          }
+          return c;
+        })
+      );
 
-    const commentIdNum = commentId.replace(/[^0-9]/g, '');
-    await saveCommentToDb('like', { commentId: commentIdNum, delta });
-  }, []);
+      const commentIdNum = commentId.replace(/[^0-9]/g, '');
+      const result = await saveCommentToDb('like', { commentId: commentIdNum, delta });
+      if (!result.success) {
+        setComments(originalComments);
+        toast.error(result.error || result.message || 'Failed to update like');
+        return false;
+      }
+
+      return true;
+    },
+    [comments]
+  );
 
   // Update comment status
   const handleUpdateCommentStatus = useCallback(
@@ -255,15 +292,28 @@ export function useComments(initialComments: Comment[] = []) {
 
   // Load comments from API
   const loadComments = useCallback(async () => {
+    const allComments: Comment[] = [];
+    let page = 1;
+    let hasMore = true;
+
     try {
-      const res = await vonFetch(API.getComments);
-      if (res.ok) {
+      while (hasMore) {
+        const res = await vonFetch(`${API.getComments}?flat=true&limit=100&page=${page}`);
+        if (!res.ok) break;
+
         const data = await res.json();
         if (data.comments && Array.isArray(data.comments)) {
-          setComments(data.comments);
+          allComments.push(...data.comments);
         } else if (Array.isArray(data)) {
-          setComments(data);
+          allComments.push(...data);
         }
+
+        hasMore = Boolean(data?.meta?.hasMore);
+        page += 1;
+      }
+
+      if (allComments.length > 0 || page > 1) {
+        setComments(buildCommentTree(allComments));
       }
     } catch (e) {
       console.warn('Failed to load comments:', e);

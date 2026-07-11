@@ -125,6 +125,19 @@ try {
     // Flexible parentId handling (strips 'c-' or 'r-' prefixes)
     $parentIdRaw = isset($input['parentId']) ? $input['parentId'] : null;
     $parentId = $parentIdRaw ? intval(preg_replace('/[^0-9]/', '', $parentIdRaw)) : null;
+    if ($parentId) {
+      $parentStmt = $pdo->prepare('SELECT post_id FROM comments WHERE id = ?');
+      $parentStmt->execute([$parentId]);
+      $parentComment = $parentStmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$parentComment) {
+        ResponseHelper::sendError('Parent comment not found', 404);
+      }
+
+      if ((string) ($parentComment['post_id'] ?? '') !== (string) $postId) {
+        ResponseHelper::sendError('Parent comment does not belong to this post', 400);
+      }
+    }
 
     $content = isset($input['content'])
       ? htmlspecialchars($input['content'], ENT_QUOTES, 'UTF-8')
@@ -235,6 +248,12 @@ try {
 
   // Handle like/unlike
   if ($action === 'like') {
+    $currentUser = $_SESSION['user'] ?? null;
+    $currentUserId = isset($currentUser['id']) ? (int) $currentUser['id'] : 0;
+    if ($currentUserId <= 0) {
+      ResponseHelper::sendError('Authentication required to like comments', 401);
+    }
+
     $commentId = isset($input['commentId'])
       ? intval(preg_replace('/[^0-9]/', '', $input['commentId']))
       : 0;
@@ -243,8 +262,47 @@ try {
       ResponseHelper::sendError('Invalid like delta', 400);
     }
 
-    $stmt = $pdo->prepare('UPDATE comments SET likes = GREATEST(0, likes + ?) WHERE id = ?');
-    $stmt->execute([$delta, $commentId]);
+    $commentExists = $pdo->prepare('SELECT id FROM comments WHERE id = ?');
+    $commentExists->execute([$commentId]);
+    if (!$commentExists->fetch(PDO::FETCH_ASSOC)) {
+      ResponseHelper::sendError('Comment not found', 404);
+    }
+
+    $pdo->exec(
+      'CREATE TABLE IF NOT EXISTS comment_likes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        comment_id INT NOT NULL,
+        user_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_comment_like (comment_id, user_id),
+        INDEX idx_comment_likes_comment (comment_id),
+        INDEX idx_comment_likes_user (user_id),
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+    );
+
+    $pdo->beginTransaction();
+
+    if ($delta === 1) {
+      $likeStmt = $pdo->prepare(
+        'INSERT IGNORE INTO comment_likes (comment_id, user_id) VALUES (?, ?)',
+      );
+      $likeStmt->execute([$commentId, $currentUserId]);
+      if ($likeStmt->rowCount() > 0) {
+        $stmt = $pdo->prepare('UPDATE comments SET likes = likes + 1 WHERE id = ?');
+        $stmt->execute([$commentId]);
+      }
+    } else {
+      $likeStmt = $pdo->prepare('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?');
+      $likeStmt->execute([$commentId, $currentUserId]);
+      if ($likeStmt->rowCount() > 0) {
+        $stmt = $pdo->prepare('UPDATE comments SET likes = GREATEST(0, likes - 1) WHERE id = ?');
+        $stmt->execute([$commentId]);
+      }
+    }
+
+    $pdo->commit();
 
     echo json_encode(['success' => true, 'message' => 'Like updated', 'source' => 'database']);
     exit();
@@ -376,5 +434,8 @@ try {
   // Handle other actions? No.
   ResponseHelper::sendError('Unknown action or invalid input', 400);
 } catch (Exception $e) {
+  if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
   ResponseHelper::sendError($e);
 }

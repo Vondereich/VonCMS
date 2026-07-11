@@ -55,7 +55,7 @@ interface CommentsProps {
   comments: Comment[];
   user: User | null;
   onAddComment: (content: string) => void;
-  onLikeComment: (commentId: string) => void;
+  onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
   onLogin: () => void;
   settings: SiteSettings;
@@ -141,13 +141,24 @@ export const VpComments: React.FC<CommentsProps> = ({
     }
   };
 
-  const handleLikeToggle = (commentId: string) => {
+  const handleLikeToggle = async (commentId: string) => {
     if (!user) {
       toast.error('Please login to like comments');
       return;
     }
 
     const isLiked = likedComments.has(commentId);
+    const rollbackLikedState = () => {
+      setLikedComments((prev) => {
+        const newSet = new Set(prev);
+        if (isLiked) {
+          newSet.add(commentId);
+        } else {
+          newSet.delete(commentId);
+        }
+        return newSet;
+      });
+    };
 
     if (isLiked) {
       setLikedComments((prev) => {
@@ -159,7 +170,15 @@ export const VpComments: React.FC<CommentsProps> = ({
       setLikedComments((prev) => new Set(prev).add(commentId));
     }
 
-    onLikeComment(commentId);
+    try {
+      const likeSaved = await onLikeComment(commentId);
+      if (likeSaved === false) {
+        rollbackLikedState();
+      }
+    } catch {
+      rollbackLikedState();
+      toast.error('Failed to update like');
+    }
   };
 
   if (!discussionEnabled) {

@@ -67,10 +67,13 @@ try {
 
   $forcePublic = filter_var($_GET['public'] ?? false, FILTER_VALIDATE_BOOLEAN);
   $isAdmin = SessionManager::isAdmin() && !$forcePublic;
+  $canReadProtectedPosts = SessionManager::isStaff() && !$forcePublic;
+  $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentTimestamp = date('Y-m-d H:i:s');
 
   // Keep dashboard behavior practical: when admin opens post manager, due scheduled posts are advanced.
-  if ($isAdmin) {
+  if ($canReadProtectedPosts) {
     voncms_run_scheduler_if_due($db, dirname(__DIR__) . '/data/scheduler.lock');
   }
 
@@ -102,15 +105,22 @@ try {
   }
   $statusFilter = $_GET['status'] ?? null;
   $includeTotal = ($_GET['includeTotal'] ?? 'true') !== 'false';
+  $countOnly = filter_var($_GET['countOnly'] ?? false, FILTER_VALIDATE_BOOLEAN);
+  $countScope = strtolower((string) ($_GET['scope'] ?? ''));
 
   // Initialize search variables to avoid "undefined variable" warnings
   $searchTerm = null;
   $searchLike = null;
 
   // Build Query
-  $statusClause = $isAdmin
-    ? ' WHERE 1=1'
-    : " WHERE (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)";
+  if ($canReadProtectedPosts && $currentRole === 'writer') {
+    $statusClause = ' WHERE p.author_id = :currentUserId';
+  } elseif ($canReadProtectedPosts) {
+    $statusClause = ' WHERE 1=1';
+  } else {
+    $statusClause =
+      " WHERE (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)";
+  }
 
   if ($normalizedCategory !== '') {
     $statusClause .= ' AND p.category = :category';
@@ -136,11 +146,14 @@ try {
     $statusClause .= ' AND (u.username = :authorName OR p.author = :authorName)';
   }
 
+  $countStatusClause =
+    $canReadProtectedPosts && $countScope === 'all' ? ' WHERE 1=1' : $statusClause;
   $canSkipTotal = !$isAdmin && !$includeTotal && $authorQuery === null;
   $canUsePublicPostsCache =
     !$isAdmin &&
     $forcePublic &&
     !$includeTotal &&
+    !$countOnly &&
     $authorQuery === null &&
     $statusFilter === null &&
     ($search === '' || strlen($search) >= 2);
@@ -167,10 +180,14 @@ try {
   $queryLimit = $canSkipTotal ? $limit + 1 : $limit;
   $total = 0;
 
-  if (!$canSkipTotal) {
+  if ($countOnly || !$canSkipTotal) {
     // Count total for admin, profile activity, and callers that need numbered pagination.
-    $countSql = "SELECT COUNT(*) FROM posts p LEFT JOIN users u ON p.author_id = u.id $statusClause";
+    $countSql =
+      'SELECT COUNT(*) FROM posts p LEFT JOIN users u ON p.author_id = u.id ' . $countStatusClause;
     $totalStmt = $db->prepare($countSql);
+    if (strpos($countSql, ':currentUserId') !== false) {
+      $totalStmt->bindValue(':currentUserId', $currentUserId);
+    }
     if (strpos($countSql, ':currentTime') !== false) {
       $totalStmt->bindValue(':currentTime', $currentTimestamp);
     }
@@ -193,13 +210,29 @@ try {
     $total = (int) $totalStmt->fetchColumn();
   }
 
-  // Fetch content only to normalize read-time from visible text; the raw HTML
-  // still stays out of the list JSON mapping.
+  if ($countOnly) {
+    echo json_encode([
+      'success' => true,
+      'posts' => [],
+      'meta' => [
+        'page' => $page,
+        'limit' => $limit,
+        'total' => $total,
+        'totalPages' => 0,
+        'hasMore' => false,
+        'totalIsExact' => true,
+      ],
+      'source' => 'database',
+    ]);
+    exit();
+  }
+
+  // Keep list payloads bounded: full content is intentionally left to get_post.php.
   $sql = "SELECT
     p.id,
     p.title,
     p.slug,
-    p.content,
+    CHAR_LENGTH(p.content) AS content_chars,
     COALESCE(NULLIF(p.excerpt, ''), SUBSTRING(p.content, 1, 200)) as excerpt,
     p.status,
     p.image_url,
@@ -223,6 +256,9 @@ try {
   $stmt = $db->prepare($sql);
   $stmt->bindValue(':limit', $queryLimit, PDO::PARAM_INT);
   $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+  if (strpos($sql, ':currentUserId') !== false) {
+    $stmt->bindValue(':currentUserId', $currentUserId);
+  }
   if (strpos($sql, ':currentTime') !== false) {
     $stmt->bindValue(':currentTime', $currentTimestamp);
   }
@@ -263,7 +299,7 @@ try {
     $scheduledAt = $row['scheduled_at'] ?? null;
 
     // Accurate Reading Time calculation
-    $chars = isset($row['content']) ? strlen(strip_tags($row['content'])) : 0;
+    $chars = (int) ($row['content_chars'] ?? 0);
     $readTimeMins = max(1, ceil($chars / 1000));
     $readTime = $readTimeMins . ' min read';
 

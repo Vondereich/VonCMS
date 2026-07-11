@@ -1,3 +1,40 @@
+### [v1.25.5] - 2026-07-10
+
+> OpenGate security hardening, public-discovery copy polish, and lean performance cleanup.
+
+- **Security Fixes**:
+  - **Post Object Authorization Guard**: Writer-level users can now update or delete only posts they own, while admin, root, and moderator roles retain cross-author moderation. Update requests now verify ownership before row locks, conflict checks, slug checks, or SEO safety logic, with integration smoke coverage for that boundary.
+  - **Staff Protected Content Read Boundary**: Moderator reads and writer-owned reads now recover authorized draft/scheduled posts without leaking protected content through forced-public discovery requests; moderator page reads also honor the same protected content boundary.
+  - **Discussion Integrity Hardening**: Comment replies must now target a parent comment from the same post, comment likes are installed up front, deduped per authenticated user server-side, update relation rows and displayed counters atomically, reconcile displayed counters when liked users are deleted, cascade with deleted comments, and failed like writes roll back both optimistic count and liked-state UI.
+  - **Canonical User Write Path**: User Manager create/delete flows now fail closed on the canonical PHP endpoints instead of falling through to legacy Node-style routes after a PHP error.
+  - **Profile Update Primary Admin Boundary**: Profile updates now explicitly reject unsupported HTTP methods and prevent appointed admins from modifying admin 1/root profile data, while preserving own-profile edits and primary-admin authority.
+  - **Mutating API Method Guards**: Core post/page/user write-delete endpoints and the profile-update endpoint now explicitly reject unsupported HTTP methods after CORS preflight handling.
+  - **Post/Page Title Length Guard**: Shared post/page editor titles now expose the 255-character storage ceiling with an inline counter, while save APIs reject over-limit titles with a clear validation error instead of relying on database truncation/failure behavior.
+- **Public Theme Discovery Polish**:
+  - **TechPress Section Copy Alignment**: TechPress hero, latest ticker, latest highlights, latest updates, and sidebar labels now describe the actual latest-post data source instead of implying unsupported real-time or analytics-ranked signals. Internal source names were also aligned to latest/ticker/highlight wording while preserving existing settings keys for backward compatibility.
+  - **TechPress In-Feed Ad Container Cap**: In-feed ads inside Latest Updates now stay capped by the available content column width, preventing fixed-width ad snippets from pushing the sidebar out of its intended layout.
+  - **TechPress Hero And Featured Title Clamp**: TechPress main hero title now follows the Digest-style three-line cap, while featured/latest highlight cards keep the tighter two-line title baseline instead of reserving a taller title area.
+  - **Bundled Card Title Clamp**: Default, Prism, and Portfolio card/list titles now also stay capped at two lines so unusually long post titles cannot stretch public card grids.
+  - **Related Posts Audit And Copy Polish**: Built-in Related Posts defaults, title fallback, date/image/excerpt controls, empty-state handling, and published-only matching now have focused integration smoke coverage before any larger related-post feature work.
+  - **Sidebar Default Copy Honesty**: New/default sidebar widget labels now use latest-content wording while preserving existing user-saved widget titles, with bounded freshness labels based on the effective publish/scheduled timestamp before falling back to normal dates when a portal has not published recently.
+  - **Public Sidebar Staff Scope Guard**: Public sidebar latest widgets now hydrate their own public latest-post list so writer/admin sessions do not collapse the sidebar to the staff user's owned post preload.
+  - **Footer Brand Minimalism**: Default, Digest, TechPress, and Corporate Pro footers now avoid duplicate uploaded-logo or decorative icon fallbacks in the footer brand line while preserving setting-driven footer copy.
+- **Performance**:
+  - **Public Boot Data Budget**: Anonymous first render now waits on the public settings refresh only, then refreshes public comments without restoring the old admin-scale posts/pages preload, while authenticated admin content and discussion preloads remain preserved after login.
+  - **Post List Payload Budget**: Public/admin post lists no longer select full article bodies only to estimate reading time; full content remains reserved for the single-post endpoint.
+  - **Dashboard Count-Only Totals**: Staff dashboard article totals now use a count-only global posts request instead of a writer-owned list request, preserving overall CMS statistics without exposing cross-author post rows.
+  - **Public Cache Contract Tightening**: Count-only public requests now bypass the posts-list cache, and rollback/import/profile/user mutation paths clear public cache after successful writes so public-shaped cached payloads stay aligned with the current CMS state.
+- **Maintenance**:
+  - **Safe Dependency Refresh**: Updated the current semver-safe `@openrouter/sdk`, `adm-zip`, `lucide-react`, `prettier`, and `vite` package set while intentionally leaving the Tailwind and TypeScript major-line upgrades out of this release.
+  - **Clean Release Build Logs**: Release packaging now strips inherited debug flags before running the production build so local shell diagnostics do not leak noisy Vite/Rolldown plugin timing output into clean release runs.
+- **Regression Guard**:
+  - **Discovery Copy Smoke Coverage**: Integration smoke now locks TechPress latest-copy markers, sidebar freshness fallback behavior, unsupported breaking/trending/top-story drift in audited defaults, footer brand minimalism, and Related Posts settings aligned with render fallbacks.
+  - **Public Comment Hydration Note**: Integration smoke documents the current full-feed public comment hydration behavior as a correctness guard, not a route-scoped performance optimization.
+  - **Audit Patch Smoke Coverage**: Integration smoke now guards staff draft/scheduled read access, full public comment hydration, reply parent post matching, canonical PHP user writes, bounded post-list read-time payloads, mutating API method guards, primary/root profile update protection, and early post ownership rejection.
+  - **Writer Scope Regression Coverage**: Integration smoke now locks public-sidebar hydration, dashboard count-only staff totals, TechPress featured-card title height, and bundled card-list title clamps so writer/admin sessions keep public presentation and CMS statistics consistent.
+  - **Title Limit Smoke Coverage**: Integration smoke now guards the shared post/page title max-length UI and backend 255-character validation contract.
+  - **Clean Release Smoke Coverage**: Integration smoke now guards release packaging against inherited debug environment flags during production builds.
+
 ### [v1.25.4] - 2026-07-07
 
 > OpenGate Ads Manager polish for responsive third-party ad snippets inside the existing Header, In-Feed, and Popup slots.
@@ -29,14 +66,14 @@
 
 ### [v1.25.3] - 2026-06-29
 
-> OpenGate follow-up for a lightweight guest-only public JSON cache on repeat anonymous posts/settings reads.
+> OpenGate follow-up for a lightweight public-shaped JSON cache on repeat public posts/settings reads.
 
 - **Lightweight Public JSON Cache**:
-  - **Public Posts List Cache**: Anonymous `public=1` and `includeTotal=false` discovery reads now use a short server-side JSON cache for homepage, category, search, and load-more style post lists while admin, authenticated, profile exact-total, status, draft, preview, and scheduled-private paths stay uncached.
+  - **Public Posts List Cache**: Public-shaped `public=1` and `includeTotal=false` discovery reads now use a short server-side JSON cache for homepage, category, search, and load-more style post lists while admin, exact-total, count-only, profile, status, draft, preview, and scheduled-private paths stay uncached.
   - **Public Settings Snapshot**: Guest-shaped `get_settings.php` responses now cache only after public/sensitive-field scrubbing, while admin and primary-admin settings responses remain live database reads.
   - **Fail-Open Runtime Storage**: Cache files live under the protected `data/public-cache` runtime path (`public/data/public-cache` in source layout), use safe hashed query keys, short TTL checks, JSON validation, and atomic temp-file writes, and fall back to live database reads when the folder is missing, stale, corrupt, locked, or not writable.
   - **Bounded Write Closeout**: Successful cache writes now prune after the atomic rename so the 250-file cap applies to the final directory state, while temporary-name generation stays inside the fail-open exception boundary.
-  - **Clear-All Purge Hooks**: Successful post/page/settings/category writes and scheduled publishes now clear the public cache so public readers do not keep stale list/settings JSON after content or public configuration changes.
+  - **Clear-All Purge Hooks**: Successful post/page/settings/category writes, settings rollback, database/WordPress imports, profile/user changes, and scheduled publishes now clear the public cache so public readers do not keep stale list/settings JSON after content, author, or public configuration changes.
   - **Manual Clear Action**: System Tools now exposes a primary-admin-only Clear Public Cache action backed by a POST + CSRF endpoint restricted to known public cache files.
   - **System Tools Layout Polish**: Tools cards now use a roomier responsive grid so the new cache action does not compress the maintenance buttons on normal desktop widths.
   - **Release Hygiene**: Generated public cache runtime files are ignored locally and excluded from Source and Deploy release packages.

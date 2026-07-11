@@ -11,6 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }

@@ -51,6 +51,8 @@ interface PostEditorProps {
   settings?: any; // Added settings prop
 }
 
+const TITLE_MAX_LENGTH = 255;
+
 const PostEditor: React.FC<PostEditorProps> = ({
   initialItem,
   isPage,
@@ -77,6 +79,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const [isAuditLogsLoading, setIsAuditLogsLoading] = useState(false);
   const [isAuditHistoryOpen, setIsAuditHistoryOpen] = useState(false);
   const featuredImageInputRef = React.useRef<HTMLInputElement>(null);
+  const titleLength = item?.title?.length || 0;
+  const titleLimitHelpText = `Title is limited to ${TITLE_MAX_LENGTH} characters.`;
 
   const availableCategories: string[] = [];
   for (const rawCategory of [
@@ -730,11 +734,21 @@ const PostEditor: React.FC<PostEditorProps> = ({
               name="title"
               aria-label={isPage ? 'Page title' : 'Post title'}
               type="text"
+              maxLength={TITLE_MAX_LENGTH}
               placeholder="Enter title here..."
               className="w-full text-3xl font-bold bg-transparent border-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-slate-300 dark:placeholder-slate-600 text-slate-900 dark:text-white rounded-lg px-2 py-1 -mx-2 -my-1 transition-all duration-200"
               value={item.title || ''}
               onChange={handleTitleChange}
             />
+            <p
+              className={`mt-2 text-xs ${
+                titleLength >= TITLE_MAX_LENGTH
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {titleLength}/{TITLE_MAX_LENGTH} characters. {titleLimitHelpText}
+            </p>
           </div>
           <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-md border border-slate-200 dark:border-[#2a2b36] flex flex-col">
             <Editor

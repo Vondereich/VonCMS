@@ -13,6 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
@@ -21,6 +25,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
+$currentUser = $_SESSION['user'] ?? null;
 $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
 $canManagePosts = in_array($currentRole, ['admin', 'root', 'moderator', 'writer'], true);
 
@@ -48,12 +53,19 @@ try {
     ResponseHelper::sendError('Database not configured', 503);
   }
 
-  $stmt = $pdo->prepare('SELECT id, title, status, slug FROM posts WHERE id = ?');
+  $stmt = $pdo->prepare('SELECT id, author_id, title, status, slug FROM posts WHERE id = ?');
   $stmt->execute([$postId]);
   $post = $stmt->fetch(PDO::FETCH_ASSOC);
 
   if (!$post) {
     ResponseHelper::sendError('Post not found', 404);
+  }
+
+  $isPostOwner = (string) ($post['author_id'] ?? '') === (string) ($currentUser['id'] ?? '');
+  $isAdminOrModerator = SessionManager::isAdmin() || $currentRole === 'moderator';
+
+  if (!$isPostOwner && !$isAdminOrModerator) {
+    ResponseHelper::sendError('Not authorized to delete this post', 403);
   }
 
   // Delete the post

@@ -50,16 +50,25 @@ try {
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
   $isAdmin = SessionManager::isAdmin();
+  $canReadProtectedPost = SessionManager::isStaff();
+  $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentTimestamp = date('Y-m-d H:i:s');
 
   // Keep dashboard behavior practical: when admin opens edit view, due scheduled posts are advanced.
-  if ($isAdmin) {
+  if ($canReadProtectedPost) {
     voncms_run_scheduler_if_due($pdo, dirname(__DIR__) . '/data/scheduler.lock');
   }
 
-  $statusClause = $isAdmin
-    ? ''
-    : " AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?)";
+  $publicStatusClause =
+    "(p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?)";
+  if ($canReadProtectedPost && $currentRole === 'writer') {
+    $statusClause = " AND (($publicStatusClause) OR p.author_id = ?)";
+  } elseif ($canReadProtectedPost) {
+    $statusClause = '';
+  } else {
+    $statusClause = " AND $publicStatusClause";
+  }
 
   if ($id) {
     $sql =
@@ -74,8 +83,11 @@ try {
             WHERE p.id = ?" . $statusClause;
     $stmt = $pdo->prepare($sql);
     $params = [$id];
-    if (!$isAdmin) {
+    if (!$canReadProtectedPost || $currentRole === 'writer') {
       $params[] = $currentTimestamp;
+    }
+    if ($canReadProtectedPost && $currentRole === 'writer') {
+      $params[] = $currentUserId;
     }
     $stmt->execute($params);
   } else {
@@ -91,8 +103,11 @@ try {
             WHERE p.slug = ?" . $statusClause;
     $stmt = $pdo->prepare($sql);
     $params = [$slug];
-    if (!$isAdmin) {
+    if (!$canReadProtectedPost || $currentRole === 'writer') {
       $params[] = $currentTimestamp;
+    }
+    if ($canReadProtectedPost && $currentRole === 'writer') {
+      $params[] = $currentUserId;
     }
     $stmt->execute($params);
   }
@@ -103,7 +118,7 @@ try {
     ResponseHelper::sendError('Post not found', 404);
   }
 
-  if (!$isAdmin) {
+  if (!$canReadProtectedPost) {
     // View tracking must not change the content freshness timestamp used by editor conflict checks.
     $pdo
       ->prepare('UPDATE posts SET views = views + 1, updated_at = updated_at WHERE id = ?')

@@ -18,8 +18,10 @@ export interface User {
 
 export interface Comment {
   id: string;
+  dbId?: number | string;
   postId: string;
   userId?: string | null;
+  parentId?: number | string | null;
   username: string;
   userAvatar?: string;
   content: string;

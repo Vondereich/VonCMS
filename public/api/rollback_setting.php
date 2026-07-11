@@ -7,6 +7,7 @@
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/public_cache_helper.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('POST, OPTIONS');
@@ -99,6 +100,7 @@ try {
   }
 
   $pdo->commit();
+  voncms_public_cache_clear();
 
   echo json_encode([
     'success' => true,

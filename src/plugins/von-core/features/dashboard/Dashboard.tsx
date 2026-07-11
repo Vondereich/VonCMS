@@ -221,8 +221,13 @@ const VpDashboard: React.FC<DashboardProps> = ({
       pages: true,
     });
 
+    const postCountParams = new URLSearchParams();
+    postCountParams.set('limit', '1');
+    postCountParams.set('countOnly', 'true');
+    postCountParams.set('scope', 'all');
+
     Promise.all([
-      vonFetch(`${API.getPosts}?limit=1`)
+      vonFetch(`${API.getPosts}?${postCountParams.toString()}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) =>
           Number.isFinite(Number(data?.meta?.total))

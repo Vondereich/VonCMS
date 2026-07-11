@@ -42,7 +42,7 @@ const INITIAL_SETTINGS: SiteSettings = {
     storage: { location: 'local', folderStructure: 'year_month', cdnUrl: '' },
     performance: { lazyLoadImages: true, lazyLoadIframes: true },
   },
-  sidebarLayout: [{ id: 'w1', type: 'trending', title: 'Trending Now', isVisible: true }],
+  sidebarLayout: [{ id: 'w1', type: 'trending', title: 'Latest Stories', isVisible: true }],
   navigation: [{ id: 'nav1', label: 'Home', url: 'home', type: 'internal' }],
   categories: ['Uncategorized', 'News', 'Updates'],
   activePlugins: [],

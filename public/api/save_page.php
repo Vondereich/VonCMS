@@ -9,6 +9,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
@@ -56,6 +60,10 @@ $rawSlug = $input['slug'] ?? '';
 $rawExcerpt = $input['excerpt'] ?? '';
 $rawMeta = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
 $rawKeywords = $input['keywords'] ?? '';
+
+if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
+  ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
+}
 
 // SECURITY: Match post-save hardening for page content too
 if (!SessionManager::isAdmin()) {
