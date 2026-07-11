@@ -24,10 +24,14 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../scheduler_helper.php';
 
-$id = $_GET['id'] ?? null;
-$slug = $_GET['slug'] ?? null;
+$id = isset($_GET['id']) ? trim((string) $_GET['id']) : null;
+$slug = isset($_GET['slug']) ? trim((string) $_GET['slug']) : null;
 
-if (!$id && !$slug) {
+if ($id !== null && $id !== '' && !preg_match('/^\d+$/', $id)) {
+  ResponseHelper::sendError('Post ID must be numeric; use slug parameter for slugs', 400);
+}
+
+if (($id === null || $id === '') && ($slug === null || $slug === '')) {
   ResponseHelper::sendError('ID or slug required', 400);
 }
 
@@ -70,7 +74,7 @@ try {
     $statusClause = " AND $publicStatusClause";
   }
 
-  if ($id) {
+  if ($id !== null && $id !== '') {
     $sql =
       "SELECT p.*, 
             p.created_at AS createdAt, p.updated_at AS updatedAt, p.scheduled_at AS scheduledAt,
@@ -82,7 +86,7 @@ try {
             LEFT JOIN users u ON p.author_id = u.id
             WHERE p.id = ?" . $statusClause;
     $stmt = $pdo->prepare($sql);
-    $params = [$id];
+    $params = [(int) $id];
     if (!$canReadProtectedPost || $currentRole === 'writer') {
       $params[] = $currentTimestamp;
     }

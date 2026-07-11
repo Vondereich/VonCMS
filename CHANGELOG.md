@@ -9,6 +9,7 @@
   - **Canonical User Write Path**: User Manager create/delete flows now fail closed on the canonical PHP endpoints instead of falling through to legacy Node-style routes after a PHP error.
   - **Profile Update Primary Admin Boundary**: Profile updates now explicitly reject unsupported HTTP methods and prevent appointed admins from modifying admin 1/root profile data, while preserving own-profile edits and primary-admin authority.
   - **Mutating API Method Guards**: Core post/page/user write-delete endpoints and the profile-update endpoint now explicitly reject unsupported HTTP methods after CORS preflight handling.
+  - **Single Post ID Parameter Guard**: Single-post reads now require the `id` parameter to be numeric and direct slug strings to the `slug` parameter, preventing numeric-prefixed slugs from being coerced into unrelated post IDs by the database.
   - **Post/Page Title Length Guard**: Shared post/page editor titles now expose the 255-character storage ceiling with an inline counter, while save APIs reject over-limit titles with a clear validation error instead of relying on database truncation/failure behavior.
 - **Public Theme Discovery Polish**:
   - **TechPress Section Copy Alignment**: TechPress hero, latest ticker, latest highlights, latest updates, and sidebar labels now describe the actual latest-post data source instead of implying unsupported real-time or analytics-ranked signals. Internal source names were also aligned to latest/ticker/highlight wording while preserving existing settings keys for backward compatibility.
@@ -33,6 +34,7 @@
   - **Audit Patch Smoke Coverage**: Integration smoke now guards staff draft/scheduled read access, full public comment hydration, reply parent post matching, canonical PHP user writes, bounded post-list read-time payloads, mutating API method guards, primary/root profile update protection, and early post ownership rejection.
   - **Writer Scope Regression Coverage**: Integration smoke now locks public-sidebar hydration, dashboard count-only staff totals, TechPress featured-card title height, and bundled card-list title clamps so writer/admin sessions keep public presentation and CMS statistics consistent.
   - **Title Limit Smoke Coverage**: Integration smoke now guards the shared post/page title max-length UI and backend 255-character validation contract.
+  - **Single Post Parameter Smoke Coverage**: Integration smoke now guards the single-post numeric ID boundary so numeric-prefixed slug strings cannot regress into the ID lookup path.
   - **Clean Release Smoke Coverage**: Integration smoke now guards release packaging against inherited debug environment flags during production builds.
 
 ### [v1.25.4] - 2026-07-07

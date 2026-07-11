@@ -5566,6 +5566,19 @@ assertIncludes(
 const appContent = read('src/App.tsx');
 const singlePageHookContent = read('src/hooks/useSinglePage.ts');
 const singlePostHookContent = read('src/hooks/useSinglePost.ts');
+assertIncludes(
+  'Single Post ID Parameter Type Guard',
+  read('public/api/get_post.php'),
+  [
+    "isset($_GET['id']) ? trim((string) $_GET['id']) : null",
+    "preg_match('/^\\d+$/', $id)",
+    "ResponseHelper::sendError('Post ID must be numeric; use slug parameter for slugs', 400);",
+    "if ($id !== null && $id !== '') {",
+    '$params = [(int) $id];',
+  ],
+  'Single Post ID Parameter Type Guard: get_post.php rejects non-numeric id values so numeric-prefixed slugs cannot be coerced to unrelated post IDs.',
+  'Single Post ID Parameter Type Guard: get_post.php can still accept numeric-prefixed slug strings through id= and let SQL coerce them to a different post.'
+);
 if (
   publicPostsQueryContent.includes('const publicPostCache = new Map<string, Post>();') &&
   publicPostsQueryContent.includes(
