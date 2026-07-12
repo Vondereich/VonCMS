@@ -167,12 +167,7 @@ export function useRelatedPosts(
       return;
     }
 
-    if (hasCompleteLocalCandidateSet) {
-      setFallbackCandidateState((current) =>
-        current.postId || current.posts.length ? { postId: '', posts: [] } : current
-      );
-      return;
-    }
+    if (hasCompleteLocalCandidateSet) return;
 
     const abortController = new AbortController();
     const fallbackPostId = String(currentPost.id || '');
@@ -203,11 +198,12 @@ export function useRelatedPosts(
   ]);
 
   const currentPostId = String(currentPost?.id || '');
-  const candidatePosts = hasCompleteLocalCandidateSet
-    ? allPosts
-    : fallbackCandidateState.postId === currentPostId
+  const candidatePosts =
+    fallbackCandidateState.postId === currentPostId
       ? fallbackCandidateState.posts
-      : [];
+      : hasCompleteLocalCandidateSet
+        ? allPosts
+        : [];
 
   if (!isActive || !currentPost || !config.enabled || candidatePosts.length === 0) return null;
 

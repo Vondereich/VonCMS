@@ -4862,6 +4862,18 @@ assertIncludes(
   'Related Posts Guest Hard-Load Candidate Fetch: related posts fetch a bounded public candidate list when guest direct-link loads have no global posts preload or only partial latest/featured candidates, fallback candidates are keyed per post, and partial saved configs still use a safe count fallback.',
   'Related Posts Guest Hard-Load Candidate Fetch: related posts still trust a small local latest/featured posts array, can render stale fallback candidates across SPA post navigation, or can send malformed limits when saved configs omit count.'
 );
+assertIncludes(
+  'Related Posts Candidate Source Stability',
+  usePluginsContent,
+  [
+    'const candidatePosts =',
+    'fallbackCandidateState.postId === currentPostId',
+    '? fallbackCandidateState.posts',
+    ': hasCompleteLocalCandidateSet',
+  ],
+  'Related Posts Candidate Source Stability: fetched fallback candidates remain the active source for the current post after later authenticated content hydration, preventing visible related-post reshuffles during profile or theme state changes.',
+  'Related Posts Candidate Source Stability: current-post fallback candidates can still be replaced by later global content hydration.'
+);
 if (
   relatedPostsComponentContent.includes(
     'const gridColumnClass = [4, 8].includes(relatedPosts.length)'
