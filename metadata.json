@@ -1,6 +1,6 @@
 {
   "name": "VonCMS",
   "description": "Content Management System with admin dashboard, user management, and discussion system.",
-  "version": "1.25.5",
+  "version": "1.25.6",
   "requestFramePermissions": ["camera", "microphone"]
 }

@@ -1,10 +1,91 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Post, SiteSettings } from '../types';
 import { AISummaryComponent } from '../plugins/von-core/features/plugins/built-in/ai-summary/AISummaryComponent';
 import { AISummaryConfig } from '../plugins/von-core/features/plugins/built-in/ai-summary/types';
 import { RelatedPostsComponent } from '../plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent';
 import { RelatedPostsConfig } from '../plugins/von-core/features/plugins/built-in/related-posts/types';
 import { isSystemPluginActive } from '../utils/pluginRuntime';
+import { API } from '../config/site.config';
+import { vonFetch } from '../utils/api';
+
+const RELATED_POSTS_FALLBACK_LIMIT = 24;
+const RELATED_POST_COUNTS = [3, 4, 6, 8] as const;
+
+const defaultRelatedPostsConfig: RelatedPostsConfig = {
+  enabled: true,
+  count: 6,
+  orderBy: 'relevance',
+  layout: 'grid',
+  showExcerpt: true,
+  showImage: true,
+  showDate: true,
+  titleText: 'Berita Berkaitan',
+};
+
+const getSafeRelatedCount = (count: unknown): RelatedPostsConfig['count'] => {
+  const numericCount = Number(count);
+  return (RELATED_POST_COUNTS as readonly number[]).includes(numericCount)
+    ? (numericCount as RelatedPostsConfig['count'])
+    : defaultRelatedPostsConfig.count;
+};
+
+const normalizeRelatedPostCandidate = (post: any): Post => ({
+  ...post,
+  id: String(post.id || ''),
+  title: post.title || '',
+  excerpt: post.excerpt || '',
+  content: post.content || '',
+  image: post.image || post.image_url || '',
+  imageSrcSet: post.imageSrcSet || post.image_srcset || '',
+  status: post.status || 'published',
+  category: post.category || 'Uncategorized',
+  updatedAt: post.updatedAt || post.updated_at || '',
+  updated_at: post.updated_at || post.updatedAt || '',
+  createdAt: post.createdAt || post.created_at || '',
+  created_at: post.created_at || post.createdAt || '',
+  scheduledAt: post.scheduledAt || post.scheduled_at || '',
+  scheduled_at: post.scheduled_at || post.scheduledAt || '',
+  author: post.author || post.author_data?.username || '',
+  author_data: post.author_data || { username: post.author || '', avatar: '' },
+});
+
+const fetchRelatedPostCandidates = async (
+  currentPost: Post,
+  config: RelatedPostsConfig,
+  signal: AbortSignal
+): Promise<Post[]> => {
+  const safeRelatedCount = getSafeRelatedCount(config.count);
+  const limit = Math.min(RELATED_POSTS_FALLBACK_LIMIT, Math.max(safeRelatedCount * 4, 12));
+
+  const fetchBatch = async (category?: string): Promise<Post[]> => {
+    const params = new URLSearchParams();
+    params.set('public', '1');
+    params.set('includeTotal', 'false');
+    params.set('limit', String(limit));
+    if (category) params.set('category', category);
+
+    const response = await vonFetch(`${API.getPosts}?${params.toString()}`, { signal });
+    if (!response.ok) throw new Error('Failed to fetch related post candidates');
+
+    const data = await response.json();
+    const rawPosts = Array.isArray(data) ? data : data.posts || [];
+    return rawPosts.map(normalizeRelatedPostCandidate);
+  };
+
+  const batches = currentPost.category
+    ? await Promise.all([fetchBatch(currentPost.category), fetchBatch()])
+    : [await fetchBatch()];
+  const merged = new Map<string, Post>();
+  const currentPostId = String(currentPost.id || '');
+
+  batches.flat().forEach((post) => {
+    if (post.id && post.id !== currentPostId) {
+      merged.set(post.id, post);
+    }
+  });
+
+  return Array.from(merged.values());
+};
 
 /**
  * Hook to render AI Summary component if plugin is active
@@ -51,30 +132,87 @@ export function useRelatedPosts(
   onPostClick?: (post: Post) => void,
   themeColors?: any
 ): React.ReactNode | null {
-  // Check if plugin is active
-  if (!isSystemPluginActive(settings, 'vp_related_posts')) return null;
-  if (!currentPost || !Array.isArray(allPosts) || allPosts.length === 0) return null;
-
-  // Get config
-  const config: RelatedPostsConfig = settings.pluginConfig?.['vp_related_posts'] || {
-    enabled: true,
-    count: 6,
-    orderBy: 'relevance',
-    layout: 'grid',
-    showExcerpt: true,
-    showImage: true,
-    showDate: true,
-    titleText: 'Berita Berkaitan',
+  const isActive = isSystemPluginActive(settings, 'vp_related_posts');
+  const savedConfig = settings.pluginConfig?.['vp_related_posts'] as
+    Partial<RelatedPostsConfig> | undefined;
+  const safeRelatedCount = getSafeRelatedCount(savedConfig?.count);
+  const config: RelatedPostsConfig = {
+    ...defaultRelatedPostsConfig,
+    ...savedConfig,
+    count: safeRelatedCount,
   };
+  const desiredRelatedCount = safeRelatedCount;
+  const localPublishedCandidateCount =
+    Array.isArray(allPosts) && currentPost
+      ? allPosts.filter(
+          (post) =>
+            String(post.id || '') !== String(currentPost.id || '') && post.status === 'published'
+        ).length
+      : 0;
+  const hasEnoughLocalCandidates = localPublishedCandidateCount >= desiredRelatedCount;
+  const [fallbackCandidateState, setFallbackCandidateState] = useState<{
+    postId: string;
+    posts: Post[];
+  }>({ postId: '', posts: [] });
 
-  if (!config.enabled) return null;
+  useEffect(() => {
+    if (!isActive || !config.enabled || !currentPost || currentPost.status !== 'published') {
+      setFallbackCandidateState((current) =>
+        current.postId || current.posts.length ? { postId: '', posts: [] } : current
+      );
+      return;
+    }
+
+    if (hasEnoughLocalCandidates) {
+      setFallbackCandidateState((current) =>
+        current.postId || current.posts.length ? { postId: '', posts: [] } : current
+      );
+      return;
+    }
+
+    const abortController = new AbortController();
+    const fallbackPostId = String(currentPost.id || '');
+
+    fetchRelatedPostCandidates(currentPost, config, abortController.signal)
+      .then((posts) => {
+        if (!abortController.signal.aborted) {
+          setFallbackCandidateState({ postId: fallbackPostId, posts });
+        }
+      })
+      .catch((error) => {
+        if (abortController.signal.aborted) return;
+        console.warn('Related posts fallback fetch failed:', error);
+        setFallbackCandidateState((current) =>
+          current.postId === fallbackPostId ? { postId: '', posts: [] } : current
+        );
+      });
+
+    return () => abortController.abort();
+  }, [
+    isActive,
+    config.enabled,
+    safeRelatedCount,
+    currentPost?.id,
+    currentPost?.category,
+    currentPost?.status,
+    hasEnoughLocalCandidates,
+  ]);
+
+  const currentPostId = String(currentPost?.id || '');
+  const candidatePosts = hasEnoughLocalCandidates
+    ? allPosts
+    : fallbackCandidateState.postId === currentPostId
+      ? fallbackCandidateState.posts
+      : [];
+
+  if (!isActive || !currentPost || !config.enabled || candidatePosts.length === 0) return null;
 
   return (
     <RelatedPostsComponent
       config={config}
       settings={settings}
       currentPost={currentPost}
-      allPosts={allPosts}
+      allPosts={candidatePosts}
       onPostClick={onPostClick}
       themeColors={themeColors}
     />

@@ -1633,23 +1633,6 @@ if (!topReleaseEntry.trim()) {
   fail(`Changelog: release entry for v${pkg.version} exists but has no bullet notes.`);
 }
 
-if (pkg.version === '1.25.5') {
-  assertIncludes(
-    'Changelog Safe Dependency Refresh Wording',
-    topReleaseEntry,
-    ['Safe Dependency Refresh', 'semver-safe', 'Tailwind and TypeScript major-line upgrades'],
-    'Changelog Safe Dependency Refresh Wording: v1.25.5 dependency notes avoid patch-only wording for semver-minor refreshes.',
-    'Changelog Safe Dependency Refresh Wording: v1.25.5 dependency notes still overclaim patch-only package movement.'
-  );
-  assertExcludes(
-    'Changelog Patch-Only Dependency Wording Drift',
-    topReleaseEntry,
-    ['Dependency Patch Refresh', 'current patch-line'],
-    'Changelog Patch-Only Dependency Wording Drift: v1.25.5 dependency notes avoid patch-only wording.',
-    'Changelog Patch-Only Dependency Wording Drift: v1.25.5 dependency notes still use patch-only wording.'
-  );
-}
-
 const currentReleaseLabel = `v${pkg.version}`;
 const currentOpenGateLabel = `v${pkg.version} "OpenGate"`;
 const docsVersionChecks = [
@@ -2841,7 +2824,8 @@ assertIncludes(
     "(settings.activePlugins?.includes(plugin.id) ? 'active' : plugin.status)",
     'return isSystemPluginActive({ activePlugins: safeActivePlugins, pluginConfig }, p.id);',
     "if (!isSystemPluginActive(settings, 'vp_ai_summary')) return null;",
-    "if (!isSystemPluginActive(settings, 'vp_related_posts')) return null;",
+    "const isActive = isSystemPluginActive(settings, 'vp_related_posts');",
+    'if (!isActive || !currentPost || !config.enabled || candidatePosts.length === 0) return null;',
     "return status ? status === 'active' : true;",
   ],
   'Extensions Runtime Status Contract: admin cards and public plugin rendering share active/inactive/not-installed state.',
@@ -2855,7 +2839,8 @@ assertIncludes(
     "if (_location !== 'post_after') return null;",
     'if (!summaryConfig.enabled) return null;',
     'if (!relatedConfig.enabled) return null;',
-    'if (!currentPost || !Array.isArray(allPosts) || allPosts.length === 0) return null;',
+    "const isActive = isSystemPluginActive(settings, 'vp_related_posts');",
+    'if (!isActive || !currentPost || !config.enabled || candidatePosts.length === 0) return null;',
   ],
   'Article Plugin Render Guard: article-only plugins respect disabled state, post_after placement, and missing-post safety.',
   'Article Plugin Render Guard: article-only plugins can render in global slots or crash without a current post.'
@@ -4856,6 +4841,25 @@ assertExcludes(
   'Related Posts Locale Default Drift Guard: render fallback title matches the settings default.',
   'Related Posts Locale Default Drift Guard: render fallback title still uses a different default language.'
 );
+assertIncludes(
+  'Related Posts Guest Hard-Load Candidate Fetch',
+  usePluginsContent,
+  [
+    'RELATED_POSTS_FALLBACK_LIMIT',
+    "params.set('public', '1');",
+    "params.set('includeTotal', 'false');",
+    'fetchRelatedPostCandidates',
+    'safeRelatedCount',
+    'Math.max(safeRelatedCount * 4, 12)',
+    'localPublishedCandidateCount',
+    'hasEnoughLocalCandidates',
+    'fallbackCandidateState',
+    'postId: fallbackPostId',
+    'fallbackCandidateState.postId === currentPostId',
+  ],
+  'Related Posts Guest Hard-Load Candidate Fetch: related posts fetch a bounded public candidate list when guest direct-link loads have no global posts preload or only partial local candidates, fallback candidates are keyed per post, and partial saved configs still use a safe count fallback.',
+  'Related Posts Guest Hard-Load Candidate Fetch: related posts still trust any non-empty local posts array, can render stale fallback candidates across SPA post navigation, or can send malformed limits when saved configs omit count.'
+);
 if (
   relatedPostsComponentContent.includes(
     'const gridColumnClass = [4, 8].includes(relatedPosts.length)'
@@ -5739,6 +5743,36 @@ if (
 } else {
   fail(
     'Sidebar Current Post Highlight: active post id is not wired through shared sidebar widgets for default, TechPress, and Digest.'
+  );
+}
+
+const defaultSinglePostLayoutContent = read('src/themes/default/Layout.tsx');
+const techPressSinglePostLayoutContent = read('src/themes/techpress/Layout.tsx');
+const digestSinglePostLayoutContent = read('src/themes/digest/Layout.tsx');
+const singlePostStickySidebarMarkers = [
+  [
+    'Default',
+    defaultSinglePostLayoutContent.includes('flex-shrink-0 space-y-8 lg:sticky lg:top-32 h-fit'),
+  ],
+  [
+    'TechPress',
+    techPressSinglePostLayoutContent.includes('flex-shrink-0 space-y-8 lg:sticky lg:top-32 h-fit'),
+  ],
+  [
+    'Digest',
+    digestSinglePostLayoutContent.includes('flex-shrink-0 space-y-6 lg:sticky lg:top-24 h-fit'),
+  ],
+].filter(([, hasStickySidebar]) => hasStickySidebar);
+
+if (singlePostStickySidebarMarkers.length === 0) {
+  pass(
+    'Single-Post Sidebar Normal Scroll: Default, TechPress, and Digest sidebars scroll with article content instead of staying pinned on desktop.'
+  );
+} else {
+  fail(
+    `Single-Post Sidebar Normal Scroll: sticky single-post sidebar remains in ${singlePostStickySidebarMarkers
+      .map(([themeName]) => themeName)
+      .join(', ')}.`
   );
 }
 

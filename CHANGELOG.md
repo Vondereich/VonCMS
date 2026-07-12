@@ -1,3 +1,17 @@
+### [v1.25.6] - 2026-07-12
+
+> Related Posts direct-link recovery after the lean public boot cleanup.
+
+- **Bug Fixes**:
+  - **Related Posts Guest Hard-Load Recovery**: Related Posts now fetches a bounded public/published candidate list when a guest direct-link, new-tab, refresh, or SPA single-post navigation has no global posts preload or only a partial local candidate set. Fallback candidates are keyed per post so old related results cannot carry into the next article, preserving admin and SPA navigation behavior without restoring the old anonymous posts preload.
+  - **Related Posts Partial Config Guard**: Saved Related Posts settings now merge with safe defaults and sanitize the display count before building fallback candidate fetch limits, so partial or malformed plugin config cannot collapse guest direct-link results.
+- **Regression Guard**:
+  - **Related Posts Candidate Fetch Smoke Coverage**: Integration smoke now guards the bounded public candidate fetch path so article-only Related Posts cannot disappear again on guest hard-load single-post routes.
+- **Documentation**:
+  - **README Release Snapshot Cleanup**: The README release snapshot now reflects the current Related Posts recovery patch and recent OpenGate hardening/polish work instead of carrying older generic onboarding/package bullets.
+- **Public Theme Polish**:
+  - **Single-Post Sidebar Normal Scroll**: Default, Digest, and TechPress single-post sidebars now scroll normally with article content on desktop instead of staying pinned until the article column ends.
+
 ### [v1.25.5] - 2026-07-10
 
 > OpenGate security hardening, public-discovery copy polish, and lean performance cleanup.

@@ -1255,7 +1255,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             </main>
 
             {/* Sidebar */}
-            <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-8 lg:sticky lg:top-32 h-fit">
+            <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-8">
               {/* Newsletter Widget */}
               {settings.newsletter?.enabled &&
                 (settings.newsletter?.position === 'sidebar' ||

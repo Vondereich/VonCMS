@@ -1505,7 +1505,7 @@ const SinglePostView: React.FC<{
         />
       </article>
 
-      <aside className="w-full lg:w-[400px] flex-shrink-0 space-y-8 lg:sticky lg:top-32 h-fit">
+      <aside className="w-full lg:w-[400px] flex-shrink-0 space-y-8">
         {/* Newsletter Widget (Sidebar) */}
         {settings.newsletter?.enabled &&
           (settings.newsletter?.position === 'sidebar' ||

@@ -1794,7 +1794,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* Sidebar */}
             {digestSettings.showSidebar && (
-              <aside className="w-full lg:w-[380px] flex-shrink-0 space-y-6 lg:sticky lg:top-24 h-fit">
+              <aside className="w-full lg:w-[380px] flex-shrink-0 space-y-6">
                 {/* Newsletter Widget (Sidebar) */}
                 {settings.newsletter?.enabled &&
                   (settings.newsletter?.position === 'sidebar' ||
