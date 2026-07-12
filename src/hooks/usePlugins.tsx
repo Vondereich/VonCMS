@@ -29,6 +29,11 @@ const getSafeRelatedCount = (count: unknown): RelatedPostsConfig['count'] => {
     : defaultRelatedPostsConfig.count;
 };
 
+const getRelatedCandidateLimit = (count: unknown): number => {
+  const safeRelatedCount = getSafeRelatedCount(count);
+  return Math.min(RELATED_POSTS_FALLBACK_LIMIT, Math.max(safeRelatedCount * 4, 12));
+};
+
 const normalizeRelatedPostCandidate = (post: any): Post => ({
   ...post,
   id: String(post.id || ''),
@@ -54,8 +59,7 @@ const fetchRelatedPostCandidates = async (
   config: RelatedPostsConfig,
   signal: AbortSignal
 ): Promise<Post[]> => {
-  const safeRelatedCount = getSafeRelatedCount(config.count);
-  const limit = Math.min(RELATED_POSTS_FALLBACK_LIMIT, Math.max(safeRelatedCount * 4, 12));
+  const limit = getRelatedCandidateLimit(config.count);
 
   const fetchBatch = async (category?: string): Promise<Post[]> => {
     const params = new URLSearchParams();
@@ -141,7 +145,7 @@ export function useRelatedPosts(
     ...savedConfig,
     count: safeRelatedCount,
   };
-  const desiredRelatedCount = safeRelatedCount;
+  const candidateFetchLimit = getRelatedCandidateLimit(safeRelatedCount);
   const localPublishedCandidateCount =
     Array.isArray(allPosts) && currentPost
       ? allPosts.filter(
@@ -149,7 +153,7 @@ export function useRelatedPosts(
             String(post.id || '') !== String(currentPost.id || '') && post.status === 'published'
         ).length
       : 0;
-  const hasEnoughLocalCandidates = localPublishedCandidateCount >= desiredRelatedCount;
+  const hasCompleteLocalCandidateSet = localPublishedCandidateCount >= candidateFetchLimit;
   const [fallbackCandidateState, setFallbackCandidateState] = useState<{
     postId: string;
     posts: Post[];
@@ -163,7 +167,7 @@ export function useRelatedPosts(
       return;
     }
 
-    if (hasEnoughLocalCandidates) {
+    if (hasCompleteLocalCandidateSet) {
       setFallbackCandidateState((current) =>
         current.postId || current.posts.length ? { postId: '', posts: [] } : current
       );
@@ -195,11 +199,11 @@ export function useRelatedPosts(
     currentPost?.id,
     currentPost?.category,
     currentPost?.status,
-    hasEnoughLocalCandidates,
+    hasCompleteLocalCandidateSet,
   ]);
 
   const currentPostId = String(currentPost?.id || '');
-  const candidatePosts = hasEnoughLocalCandidates
+  const candidatePosts = hasCompleteLocalCandidateSet
     ? allPosts
     : fallbackCandidateState.postId === currentPostId
       ? fallbackCandidateState.posts

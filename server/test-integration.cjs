@@ -4850,15 +4850,17 @@ assertIncludes(
     "params.set('includeTotal', 'false');",
     'fetchRelatedPostCandidates',
     'safeRelatedCount',
-    'Math.max(safeRelatedCount * 4, 12)',
+    'getRelatedCandidateLimit',
+    'candidateFetchLimit',
+    'localPublishedCandidateCount >= candidateFetchLimit',
     'localPublishedCandidateCount',
-    'hasEnoughLocalCandidates',
+    'hasCompleteLocalCandidateSet',
     'fallbackCandidateState',
     'postId: fallbackPostId',
     'fallbackCandidateState.postId === currentPostId',
   ],
-  'Related Posts Guest Hard-Load Candidate Fetch: related posts fetch a bounded public candidate list when guest direct-link loads have no global posts preload or only partial local candidates, fallback candidates are keyed per post, and partial saved configs still use a safe count fallback.',
-  'Related Posts Guest Hard-Load Candidate Fetch: related posts still trust any non-empty local posts array, can render stale fallback candidates across SPA post navigation, or can send malformed limits when saved configs omit count.'
+  'Related Posts Guest Hard-Load Candidate Fetch: related posts fetch a bounded public candidate list when guest direct-link loads have no global posts preload or only partial latest/featured candidates, fallback candidates are keyed per post, and partial saved configs still use a safe count fallback.',
+  'Related Posts Guest Hard-Load Candidate Fetch: related posts still trust a small local latest/featured posts array, can render stale fallback candidates across SPA post navigation, or can send malformed limits when saved configs omit count.'
 );
 if (
   relatedPostsComponentContent.includes(
