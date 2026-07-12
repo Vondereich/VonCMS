@@ -4834,6 +4834,45 @@ assertIncludes(
   'Related Posts Defaults And Controls Audit: defaults, toggles, empty state, and published-only matching stay aligned.',
   'Related Posts Defaults And Controls Audit: defaults or core related-post controls have drifted.'
 );
+assertIncludes(
+  'Related Posts Sort And Layout Coverage',
+  relatedPostsSettingsContent +
+    '\n' +
+    relatedPostsComponentContent +
+    '\n' +
+    relatedPostsMatcherContent,
+  [
+    '<option value="relevance">Relevance (Category + Tags)</option>',
+    '<option value="date">Most Recent</option>',
+    '<option value="views">Most Viewed</option>',
+    '<option value="random">Random</option>',
+    "config.layout === 'grid'",
+    "config.layout === 'list'",
+    "config.layout === 'cards'",
+    "case 'relevance':",
+    "case 'date':",
+    "case 'views':",
+    "case 'random':",
+  ],
+  'Related Posts Sort And Layout Coverage: all four sort modes and all three layouts remain wired.',
+  'Related Posts Sort And Layout Coverage: a sort mode or layout branch has drifted.'
+);
+assertIncludes(
+  'Related Posts Random Render Stability',
+  relatedPostsComponentContent,
+  [
+    "import React, { useMemo } from 'react';",
+    'const relatedPostsSignature = allPosts',
+    'const relatedPosts = useMemo(',
+    'findRelatedPosts(currentPost, allPosts, config)',
+    'config.orderBy',
+    'config.count',
+    'currentPost.id',
+    'relatedPostsSignature',
+  ],
+  'Related Posts Random Render Stability: random sorting is memoized by post, candidate set, and sort/count config so theme or profile UI state renders do not reshuffle related posts.',
+  'Related Posts Random Render Stability: random sorting can still rerun on unrelated theme/profile renders.'
+);
 assertExcludes(
   'Related Posts Locale Default Drift Guard',
   relatedPostsPluginContent,

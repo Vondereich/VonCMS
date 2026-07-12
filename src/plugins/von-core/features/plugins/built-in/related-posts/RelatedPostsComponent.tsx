@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Post, SiteSettings } from '../../../../../../types';
 import { RelatedPostsConfig } from './types';
 import { findRelatedPosts } from './matcher';
@@ -39,8 +39,33 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
       : null) as SiteSettings | null) ||
     ({ permalinkStructure: 'slug' } as SiteSettings);
 
+  const relatedPostsSignature = allPosts
+    .map((post) => {
+      const postWithViews = post as Post & { views?: number };
+      return [
+        post.id,
+        post.status,
+        post.category,
+        post.keywords,
+        post.createdAt || post.created_at,
+        post.updatedAt || post.updated_at,
+        postWithViews.views || 0,
+      ].join(':');
+    })
+    .join('|');
+
   // Find related posts
-  const relatedPosts = findRelatedPosts(currentPost, allPosts, config);
+  const relatedPosts = useMemo(
+    () => findRelatedPosts(currentPost, allPosts, config),
+    [
+      currentPost.id,
+      currentPost.category,
+      currentPost.keywords,
+      config.orderBy,
+      config.count,
+      relatedPostsSignature,
+    ]
+  );
 
   // Don't render if no related posts
   if (relatedPosts.length === 0) return null;
