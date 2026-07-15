@@ -8,10 +8,21 @@
   - **Subfolder Category SSR Path Guard**: Homepage-path detection now treats both empty paths and `/` as the homepage, so subfolder installs such as `/blog/?category=...` receive the same category SSR metadata instead of falling back to homepage metadata.
   - **Empty Category Crawl Boundary**: Empty or unknown category discovery URLs keep the user-facing filter route but emit `noindex, follow` to avoid thin soft-404-style indexing signals.
   - **Hydrated Category Robots Parity**: VonSEO now preserves empty-category `noindex, follow` after React hydration, keeps category title/description wording aligned with SSR output, and uses a bounded public count-only category check when runtime navigation needs to distinguish populated and empty category filters.
+  - **Public 404 Metadata Boundary**: Missing public routes now keep the real HTTP 404 response while also emitting 404-specific title/description metadata, current missing-route canonical, and `noindex, follow` robots instead of inheriting homepage indexable metadata.
+  - **Nested Auth/Setup 404 Boundary**: Invalid nested auth/setup-style URLs such as `/login/...`, `/register/...`, `/reset-password/...`, and `/install/...` now resolve as real public 404/noindex responses before the HTML head is emitted, while exact `/login`, exact `/install`, and `/admin/*` remain valid React shell routes.
+  - **Profile Hydration Title Parity**: Hydrated VonSEO profile titles now use the resolved public profile in TechPress and Corporate Pro instead of guest-only `allUsers` lookups, and React title formatting now matches SSR `Name | Site` output to avoid browser-tab title flicker after hydration.
+- **Security Hardening**:
+  - **Remember Me Cookie SameSite Policy**: Extended login sessions now set the remember-me `PHPSESSID` cookie with explicit `SameSite=Lax`, matching the main session cookie policy instead of relying on browser defaults.
+  - **Session Cookie Base Path Scope**: Core PHP session cookies now scope to the detected root/subfolder install path instead of always using host-root `/`, so installs such as `/blog` or `/zangetsu` do not share `PHPSESSID` across unrelated sibling apps.
 - **Regression Guard**:
   - **Site Name Schema Smoke Coverage**: Integration smoke now guards the homepage `WebSite` + `CollectionPage` graph split.
   - **Category SSR SEO Smoke Coverage**: Integration smoke now guards category query metadata, canonical, robots, and category `CollectionPage` markers.
   - **Hydrated Category Robots Smoke Coverage**: Integration smoke now guards VonSEO against overwriting empty-category noindex metadata after hydration.
+  - **Public 404 SEO Smoke Coverage**: Integration smoke now guards missing public routes so HTTP 404 responses cannot silently inherit indexable homepage metadata, while resolved public profiles stay outside the generic 404 fallback.
+  - **Nested Auth/Setup 404 Smoke Coverage**: Integration smoke now guards the PHP SPA-route whitelist so invalid nested auth/setup URLs cannot fall back to homepage metadata.
+  - **Profile Hydration SEO Smoke Coverage**: Integration smoke now guards TechPress/Corporate Pro profile SEO handoff and hydrated title separator parity with SSR output.
+  - **Remember Me Cookie Smoke Coverage**: Integration smoke now guards the explicit `SameSite=Lax` policy on extended login-session cookies.
+  - **Session Cookie Base Path Smoke Coverage**: Integration smoke now guards root/subfolder-aware `PHPSESSID` path detection for PHP page and API requests.
 - **Release Version Alignment**:
   - **v1.25.8 Metadata Bump**: Package metadata and public docs now identify the current OpenGate line as `v1.25.8`.
 - **Dependency Maintenance**:

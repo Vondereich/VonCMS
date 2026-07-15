@@ -1013,10 +1013,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
   // Single Post View
   // Derive targetProfile for VonSEO (same logic as used for profile view)
-  const targetProfileForSEO = selectedProfile
-    ? allUsers.find((u) => u.username === selectedProfile) ||
-      (user && user.username === selectedProfile ? user : null)
-    : null;
+  const targetProfileForSEO = selectedProfile ? targetProfile : null;
   const shouldRenderVonSEO = isSystemPluginActive(settings, 'vp_von_seo');
 
   if (currentView === 'single-post' && selectedPost) {

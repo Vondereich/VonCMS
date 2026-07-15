@@ -1334,7 +1334,13 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           if (currentView === 'profile' && targetProfile) {
             return (
               <>
-                {shouldRenderVonSEO && <VonSEO settings={settings} currentView={currentView} />}
+                {shouldRenderVonSEO && (
+                  <VonSEO
+                    settings={settings}
+                    currentView={currentView}
+                    selectedProfile={targetProfile}
+                  />
+                )}
                 <ProseDarkModeStyles />
                 <Header />
                 <CorporateProfile

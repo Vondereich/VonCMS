@@ -127,7 +127,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     let canonical = canonicalUrl();
 
     if (currentView === 'single-post' && selectedPost) {
-      title = `${selectedPost.title} — ${siteTitle}`;
+      title = `${selectedPost.title} | ${siteTitle}`;
       description = selectedPost.metaDescription || selectedPost.excerpt || description;
       image = selectedPost.image || settings.ogImageUrl || image;
       type = 'article';
@@ -137,7 +137,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
         canonical = canonicalUrl(getPermalink(selectedPost, settings, false, true));
       }
     } else if (currentView === 'page' && selectedPage) {
-      title = `${selectedPage.title} — ${siteTitle}`;
+      title = `${selectedPage.title} | ${siteTitle}`;
       description =
         selectedPage.excerpt ||
         (selectedPage.content ? htmlToPlainText(selectedPage.content).slice(0, 160) : description);
@@ -145,7 +145,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
       canonical = canonicalUrl(selectedPage.slug);
     } else if (currentView === 'profile' && selectedProfile) {
       const profileDisplayName = selectedProfile.display_name || selectedProfile.username;
-      title = `${profileDisplayName} — ${siteTitle}`;
+      title = `${profileDisplayName} | ${siteTitle}`;
       description =
         selectedProfile.bio || `Profile of ${profileDisplayName} on ${settings.siteName}`;
       image = selectedProfile.avatar || image;

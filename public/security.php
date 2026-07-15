@@ -139,6 +139,28 @@ if (!function_exists('voncms_is_social_preview_crawler')) {
   }
 }
 
+if (!function_exists('voncms_detect_session_cookie_path')) {
+  function voncms_detect_session_cookie_path(): string
+  {
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $cookiePath = '';
+
+    if ($scriptName !== '') {
+      if (preg_match('#/api(/|$)#i', $scriptName)) {
+        $cookiePath = preg_replace('#/api(/.*)?$#i', '', $scriptName);
+      } else {
+        $cookiePath = preg_replace('#/[^/]*\.php$#i', '', $scriptName);
+      }
+    }
+
+    $cookiePath = str_replace('\\', '/', (string) $cookiePath);
+    $cookiePath = preg_replace('#/public$#i', '', $cookiePath);
+    $cookiePath = '/' . trim((string) $cookiePath, '/');
+
+    return $cookiePath === '/' ? '/' : $cookiePath;
+  }
+}
+
 // 1. Initialise Session with Secure Parameters
 // Must be called BEFORE session_start()
 if (session_status() === PHP_SESSION_NONE) {
@@ -174,7 +196,7 @@ if (session_status() === PHP_SESSION_NONE) {
     );
     session_set_cookie_params([
       'lifetime' => 0, // Session cookie (expires on browser close)
-      'path' => '/',
+      'path' => voncms_detect_session_cookie_path(),
       'domain' => '',
       'secure' => is_https(), // Only Secure if HTTPS is active (Proxy-Aware)
       'httponly' => true, // XSS protection

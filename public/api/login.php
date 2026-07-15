@@ -123,15 +123,14 @@ try {
     $rememberMe = $input['remember_me'] ?? false;
     if ($rememberMe) {
       $params = session_get_cookie_params();
-      setcookie(
-        session_name(),
-        session_id(),
-        time() + 86400 * 30,
-        $params['path'],
-        $params['domain'],
-        $params['secure'],
-        $params['httponly'],
-      );
+      setcookie(session_name(), session_id(), [
+        'expires' => time() + 86400 * 30,
+        'path' => $params['path'],
+        'domain' => $params['domain'],
+        'secure' => $params['secure'],
+        'httponly' => $params['httponly'],
+        'samesite' => 'Lax',
+      ]);
     }
 
     echo json_encode([

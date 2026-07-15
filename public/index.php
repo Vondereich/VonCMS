@@ -483,6 +483,64 @@ if (!function_exists('buildCanonicalContentPath')) {
   }
 }
 
+if (!function_exists('voncms_apply_404_seo_metadata')) {
+  /**
+   * @param mixed $seoTitle
+   * @param mixed $seoDescription
+   * @param mixed $seoUrl
+   * @param mixed $seoRobots
+   * @param mixed $schemaData
+   * @param mixed $siteName
+   * @param string $domainUrl
+   * @param string $requestPath
+   * @return void
+   */
+  function voncms_apply_404_seo_metadata(&$seoTitle, &$seoDescription, &$seoUrl, &$seoRobots, &$schemaData, $siteName, $domainUrl, $requestPath)
+  {
+    $siteName = trim((string) $siteName);
+    if ($siteName === '') {
+      $siteName = 'Website';
+    }
+
+    $seoTitle = 'Page Not Found - ' . $siteName;
+    $seoDescription = 'The requested page could not be found on ' . $siteName . '.';
+    $seoRobots = 'noindex, follow';
+    $schemaData = null;
+
+    $safePath = trim((string) $requestPath);
+    $safePath = preg_replace('/[\r\n\t]+/', '', $safePath);
+    $safePath = ltrim((string) $safePath, '/');
+    $seoUrl = rtrim((string) $domainUrl, '/') . ($safePath !== '' ? '/' . $safePath : '/');
+  }
+}
+
+if (!function_exists('voncms_is_spa_shell_route')) {
+  /**
+   * Keep PHP fallback aligned with React routes that can render without a
+   * resolved public post/page/profile payload.
+   *
+   * @param mixed $path
+   * @return bool
+   */
+  function voncms_is_spa_shell_route($path): bool
+  {
+    $normalizedPath = strtolower(trim((string) $path, '/'));
+    if ($normalizedPath === '') {
+      return true;
+    }
+
+    if (in_array($normalizedPath, ['login', 'install'], true)) {
+      return true;
+    }
+
+    if (preg_match('#^admin(/|$)#i', $normalizedPath)) {
+      return true;
+    }
+
+    return false;
+  }
+}
+
 if (!function_exists('voncms_extract_plaintext_for_noscript')) {
   /**
    * @param mixed $content
@@ -869,6 +927,7 @@ try {
         } else {
           // SOFT 404 FIX: If URL looks like a post but not found, send 404
           http_response_code(404);
+          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
         }
       }
 
@@ -921,6 +980,7 @@ try {
           ];
         } else {
           http_response_code(404);
+          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
         }
       }
 
@@ -1037,7 +1097,19 @@ try {
         } else {
           // SOFT 404 FIX: If URL looks like a slug but not found in Posts or Pages
           http_response_code(404);
+          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
         }
+      }
+
+      $isPreheadNotFoundRoute =
+        !empty($path) &&
+        empty($post) &&
+        empty($profileUser) &&
+        !voncms_is_spa_shell_route($path);
+
+      if ($isPreheadNotFoundRoute) {
+        http_response_code(404);
+        voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
       }
 
       // ============================================
@@ -1478,15 +1550,19 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         'page'        => null,
       ];
     }
-  } elseif (!empty($path) && empty($post)) {
+  } elseif (!empty($path) && empty($post) && empty($profileUser)) {
     // SPA ROUTE SAFETY CHECK:
-    // Don't mark as 404 if it's a known React route (login, admin, profile, etc.)
-    // This prevents "Killer 404" where /login renders the NotFound page.
-    $isSpaRoute = preg_match('/^(admin|login|profile|register|reset-password|search|tags|category|page)/', $path);
+    // Don't mark as 404 if it's a known React shell route. Auth/setup routes are exact.
+    // This prevents "Killer 404" where /login renders the NotFound page while
+    // keeping /login/not-a-real-route, /register/*, and /install/* as real 404s.
+    $isSpaRoute = voncms_is_spa_shell_route($path);
 
       if (!$isSpaRoute) {
         // URL exists but post not found AND not an App route -> It's a real 404
         http_response_code(404); // SOFT 404 FIX: Force HTTP header
+        if (empty($isPreheadNotFoundRoute)) {
+          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
+        }
         $initialState = [
           'status'      => 'not_found',
           'contentType' => null,

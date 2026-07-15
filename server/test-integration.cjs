@@ -1838,6 +1838,19 @@ assertIncludes(
   'Security Logic: Missing Golden Audit markers in public/security.php.'
 );
 
+assertIncludes(
+  'Session Cookie Base Path Contract',
+  securityContent,
+  [
+    'function voncms_detect_session_cookie_path()',
+    "preg_replace('#/api(/.*)?$#i', '', $scriptName)",
+    "preg_replace('#/public$#i', '', $cookiePath)",
+    "'path' => voncms_detect_session_cookie_path()",
+  ],
+  'Session Cookie Base Path Contract: PHPSESSID path follows the root/subfolder install path instead of always using host root.',
+  'Session Cookie Base Path Contract: PHPSESSID can still be scoped to host root on subfolder installs.'
+);
+
 const crawlerStatusEndpointContent = [
   read('public/robots.php'),
   read('public/sitemap.php'),
@@ -2094,6 +2107,14 @@ assertIncludes(
   ],
   'Login Hardening: rate limit, session rotation, and generic failure responses are present.',
   'Login Hardening: login endpoint is missing brute-force or generic-failure protections.'
+);
+
+assertIncludes(
+  'Remember Me Cookie SameSite Contract',
+  loginContent,
+  ["'expires' => time() + 86400 * 30", "'samesite' => 'Lax'"],
+  'Remember Me Cookie SameSite Contract: extended login sessions explicitly keep SameSite=Lax.',
+  'Remember Me Cookie SameSite Contract: remember-me cookie can still omit an explicit SameSite policy.'
 );
 
 const authLoginContent = read('src/plugins/von-core/features/auth/Login.tsx');
@@ -4645,6 +4666,43 @@ assertIncludes(
   'VonSEO Hydrated Category Robots Contract: VonSEO can still override empty category noindex or drift category metadata after hydration.'
 );
 
+assertIncludes(
+  'Public 404 SEO Metadata Contract',
+  indexContent,
+  [
+    'function voncms_is_spa_shell_route($path)',
+    "in_array($normalizedPath, ['login', 'install'], true)",
+    "preg_match('#^admin(/|$)#i', $normalizedPath)",
+    '$isPreheadNotFoundRoute',
+    'empty($profileUser)',
+    '!voncms_is_spa_shell_route($path)',
+    'function voncms_apply_404_seo_metadata(&$seoTitle, &$seoDescription, &$seoUrl, &$seoRobots, &$schemaData, $siteName, $domainUrl, $requestPath)',
+    "$seoTitle = 'Page Not Found - ' . $siteName;",
+    "$seoRobots = 'noindex, follow';",
+    '$schemaData = null;',
+    'voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);',
+  ],
+  'Public 404 SEO Metadata Contract: missing public routes return HTTP 404 with noindex metadata instead of homepage index/follow hints.',
+  'Public 404 SEO Metadata Contract: missing public routes can still inherit homepage metadata despite returning HTTP 404.'
+);
+
+assertExcludes(
+  'Public 404 Stale Shell Route Guard',
+  indexContent,
+  ["preg_match('#^(search|tags|category|page)(/|$)#i', $normalizedPath)"],
+  'Public 404 Stale Shell Route Guard: unused path-style discovery prefixes no longer bypass the generic 404 boundary.',
+  'Public 404 Stale Shell Route Guard: an unused path-style discovery prefix can still produce an indexable soft 404.'
+);
+
+const resolvedProfile404GuardCount = (indexContent.match(/empty\(\$profileUser\)/g) || []).length;
+if (resolvedProfile404GuardCount >= 2) {
+  pass('Public Profile 404 Boundary: resolved profile routes bypass both generic 404 fallbacks.');
+} else {
+  fail(
+    'Public Profile 404 Boundary: a resolved profile can still be overwritten by a generic 404 fallback.'
+  );
+}
+
 const redirectEngineContent = exists('public/redirect_engine.php')
   ? read('public/redirect_engine.php')
   : '';
@@ -4767,6 +4825,24 @@ assertIncludes(
   ],
   'Public Profile SSR SEO Contract: profile view-source metadata uses canonical profile URLs and public-safe ProfilePage/Person schema.',
   'Public Profile SSR SEO Contract: profile SSR metadata is missing canonical public-safe profile schema markers.'
+);
+
+assertIncludes(
+  'Public Profile Hydrated SEO Contract',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx') +
+    '\n' +
+    read('src/themes/techpress/Layout.tsx') +
+    '\n' +
+    read('src/themes/corporate-pro/Layout.tsx'),
+  [
+    'title = `${selectedPost.title} | ${siteTitle}`;',
+    'title = `${selectedPage.title} | ${siteTitle}`;',
+    'title = `${profileDisplayName} | ${siteTitle}`;',
+    'const targetProfileForSEO = selectedProfile ? targetProfile : null;',
+    'selectedProfile={targetProfile}',
+  ],
+  'Public Profile Hydrated SEO Contract: profile hydration keeps resolved public-profile metadata and the same title separator as SSR.',
+  'Public Profile Hydrated SEO Contract: hydrated profile titles can still fall back to the site title or drift from SSR title formatting.'
 );
 assertIncludes(
   'Public Author Display Name Contract',
