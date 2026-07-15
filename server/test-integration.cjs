@@ -7585,6 +7585,7 @@ assertIncludes(
     "'/theme.json'",
     'json_decode($themeManifestJson, true)',
     "$homepageHeroStrategy === 'first-post-image'",
+    '$path = $currentPath;',
     'voncms_is_homepage_path($path)',
     "$homepagePosts[0]['image']",
     'voncms_absolute_public_url',

@@ -60,6 +60,7 @@ if ($basePath !== '/' && stripos($currentPath, $basePath) === 0) {
   $currentPath = substr($currentPath, strlen($basePath));
 }
 $currentPath = trim($currentPath, '/');
+$path = $currentPath;
 
 if (strtolower($currentPath) === 'index.html') {
   header('Location: ' . $basePath, true, 301);

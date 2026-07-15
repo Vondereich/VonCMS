@@ -11,6 +11,7 @@
   - **Public 404 Metadata Boundary**: Missing public routes now keep the real HTTP 404 response while also emitting 404-specific title/description metadata, current missing-route canonical, and `noindex, follow` robots instead of inheriting homepage indexable metadata.
   - **Nested Auth/Setup 404 Boundary**: Invalid nested auth/setup-style URLs such as `/login/...`, `/register/...`, `/reset-password/...`, and `/install/...` now resolve as real public 404/noindex responses before the HTML head is emitted, while exact `/login`, exact `/install`, and `/admin/*` remain valid React shell routes.
   - **Profile Hydration Title Parity**: Hydrated VonSEO profile titles now use the resolved public profile in TechPress and Corporate Pro instead of guest-only `allUsers` lookups, and React title formatting now matches SSR `Name | Site` output to avoid browser-tab title flicker after hydration.
+  - **Fresh Install Path Initialization**: Fresh installer pages now initialize the shared request path before SSR head rendering, preventing homepage hero preload checks from emitting an undefined `$path` warning above the install wizard.
 - **Security Hardening**:
   - **Remember Me Cookie SameSite Policy**: Extended login sessions now set the remember-me `PHPSESSID` cookie with explicit `SameSite=Lax`, matching the main session cookie policy instead of relying on browser defaults.
   - **Session Cookie Base Path Scope**: Core PHP session cookies now scope to the detected root/subfolder install path instead of always using host-root `/`, so installs such as `/blog` or `/zangetsu` do not share `PHPSESSID` across unrelated sibling apps.
@@ -21,6 +22,7 @@
   - **Public 404 SEO Smoke Coverage**: Integration smoke now guards missing public routes so HTTP 404 responses cannot silently inherit indexable homepage metadata, while resolved public profiles stay outside the generic 404 fallback.
   - **Nested Auth/Setup 404 Smoke Coverage**: Integration smoke now guards the PHP SPA-route whitelist so invalid nested auth/setup URLs cannot fall back to homepage metadata.
   - **Profile Hydration SEO Smoke Coverage**: Integration smoke now guards TechPress/Corporate Pro profile SEO handoff and hydrated title separator parity with SSR output.
+  - **Fresh Install Path Smoke Coverage**: Integration smoke now guards the early public index path fallback used before database-backed SSR settings are available.
   - **Remember Me Cookie Smoke Coverage**: Integration smoke now guards the explicit `SameSite=Lax` policy on extended login-session cookies.
   - **Session Cookie Base Path Smoke Coverage**: Integration smoke now guards root/subfolder-aware `PHPSESSID` path detection for PHP page and API requests.
 - **Release Version Alignment**:
