@@ -189,7 +189,6 @@ export interface ThemeConfig {
 
   digest?: {
     accentColor?: string;
-    showCategoryPills?: boolean;
     showHero?: boolean;
     gridColumns?: 2 | 3 | 4;
     heroStyle?: 'split' | 'overlay' | 'minimal';
@@ -249,7 +248,7 @@ export interface ThemeConfig {
   };
 }
 
-export type WidgetType = 'trending' | 'custom' | 'newsletter';
+export type WidgetType = 'trending' | 'profile' | 'custom';
 
 export interface SidebarWidget {
   id: string;

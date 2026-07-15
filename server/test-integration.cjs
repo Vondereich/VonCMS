@@ -384,23 +384,18 @@ if (
   fail('PHP Lint Script Coverage: npm lint can still miss nested public PHP files.');
 }
 
-const releaseSequenceContent = read('release-sequence.cjs');
-const releaseIntegrationPosition = releaseSequenceContent.indexOf("['Integration smoke', 'npm'");
-const releasePhpLintPosition = releaseSequenceContent.indexOf("['PHP lint', 'npm'");
-const releasePackagePosition = releaseSequenceContent.indexOf("['Create release ZIPs', 'node'");
 if (
-  releaseIntegrationPosition !== -1 &&
-  releasePhpLintPosition > releaseIntegrationPosition &&
-  releasePackagePosition > releasePhpLintPosition &&
+  !exists('release-sequence.cjs') &&
+  !Object.prototype.hasOwnProperty.call(pkg.scripts, 'release:full') &&
   phpLintScriptContent.includes("const laragonPhpRoot = 'C:\\\\laragon\\\\bin\\\\php';") &&
   phpLintScriptContent.includes('.readdirSync(laragonPhpRoot, { withFileTypes: true })')
 ) {
   pass(
-    'Full Release Gate Contract: release sequence runs integration and discoverable PHP lint before packaging.'
+    'Full Release Gate Contract: manual release gates remain canonical and stale release-sequence helpers are absent.'
   );
 } else {
   fail(
-    'Full Release Gate Contract: release sequence can package before integration/PHP lint or miss installed Laragon PHP versions.'
+    'Full Release Gate Contract: stale release-sequence helpers can still bypass the manual release gate or miss installed Laragon PHP versions.'
   );
 }
 
@@ -2216,6 +2211,174 @@ if (
 }
 
 const adminLayoutContent = read('src/components/layouts/AdminLayout.tsx');
+const widgetAdminAppContent = read('src/App.tsx');
+const widgetAdminDefaultThemeSettingsContent = read(
+  'src/plugins/von-core/features/extensions/components/DefaultThemeSettings.tsx'
+);
+const widgetAdminDigestSettingsContent = read(
+  'src/plugins/von-core/features/extensions/components/DigestSettings.tsx'
+);
+const widgetAdminTechPressSettingsContent = read(
+  'src/plugins/von-core/features/extensions/components/TechPressSettings.tsx'
+);
+
+assertIncludes(
+  'Admin Widgets Route Contract',
+  (adminLayoutContent + widgetAdminAppContent).replace(/\r\n/g, '\n'),
+  [
+    'PanelsTopLeft',
+    "label: 'Widgets',\n      path: '/admin/widgets',\n      color: '#60a5fa', // Blue 400\n      allowedRoles: ['Admin'],\n      requiresPrimaryAdmin: true,",
+    'path="widgets"\n                            element={\n                              <ProtectedRoute user={user} allowedRoles={[\'Admin\']}>\n                                {isPrimaryAdmin ? (\n                                  <WidgetsManager',
+    '<Navigate to="/admin" replace />',
+  ],
+  'Admin Widgets Route Contract: global sidebar widget management is exposed as a primary-admin-only top-level route.',
+  'Admin Widgets Route Contract: Widgets nav or primary-admin route guard is missing.'
+);
+
+assertIncludes(
+  'Admin Widgets Backend Primary Admin Boundary',
+  read('public/api/save_settings.php').replace(/\r\n/g, '\n'),
+  [
+    "'adminProfile',\n    'sidebarLayout',",
+    'voncms_guard_restricted_settings_for_non_primary_admin',
+  ],
+  'Admin Widgets Backend Primary Admin Boundary: appointed admins cannot overwrite shared sidebar widgets.',
+  'Admin Widgets Backend Primary Admin Boundary: sidebarLayout is not protected from appointed admin settings saves.'
+);
+
+assertIncludes(
+  'Sidebar Widget Manager Ownership',
+  exists('src/plugins/von-core/features/widgets/WidgetsManager.tsx')
+    ? read('src/plugins/von-core/features/widgets/WidgetsManager.tsx') +
+        read('src/plugins/von-core/features/public/components/Sidebar.tsx')
+    : '',
+  [
+    'import { SiteSettings, SidebarWidget, WidgetType }',
+    'const SUPPORTED_WIDGET_TYPES',
+    "type: 'trending'",
+    "type: 'custom'",
+    'settings.sidebarLayout || []',
+    'onUpdateSettings({',
+    'sidebarLayout: widgets',
+    'sanitizeWidgetForSave',
+    'Math.max(1, Math.min(20',
+    'handleWidgetDragStart',
+    'handleWidgetDragOver',
+    'draggable',
+    'Default, Digest, and',
+    'TechPress. Themes without a sidebar ignore these blocks.',
+    'mx-auto grid max-w-[1064px] grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)]',
+    'items-start',
+    'Add Widget',
+    'Profile Card',
+    "type: 'profile'",
+    "case 'profile'",
+    'settings.adminProfile',
+    'Profile widget uses the existing General Settings profile data.',
+    'font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left',
+    'Drag rows to reorder',
+    'Sidebar widget area',
+    'expandedWidgetId',
+    'selectedWidgetType',
+    'onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean> | void',
+    'const saved = await onUpdateSettings',
+    'if (saved === false)',
+    'aria-expanded={isExpanded}',
+    'Drag handle',
+    'Custom widget guide',
+    "case 'custom':",
+    'font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left',
+    'ad snippets, iframe embeds, external badges/counters',
+    'existing sandboxed public widget frame',
+    'Internal VonCMS stats, post counts, or database-powered counters',
+    'Newsletter sidebar placement',
+  ],
+  'Sidebar Widget Manager Ownership: shared manager owns global sidebarLayout editing and bounded widget saves.',
+  'Sidebar Widget Manager Ownership: shared manager is missing global sidebarLayout ownership or save guards.'
+);
+
+if (
+  /case 'profile':(?:(?!case 'custom':)[\s\S])*?className="font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left"/.test(
+    read('src/plugins/von-core/features/public/components/Sidebar.tsx')
+  )
+) {
+  pass('Sidebar Profile Title Alignment: profile card titles align with custom widget titles.');
+} else {
+  fail(
+    'Sidebar Profile Title Alignment: profile card titles still use centered heading alignment.'
+  );
+}
+
+assertIncludes(
+  'Sidebar Profile Avatar Fallback Contract',
+  read('src/plugins/von-core/features/public/components/Sidebar.tsx'),
+  [
+    "import Gravatar from 'react-gravatar';",
+    "src={profile.avatar || ''}",
+    'profile.email ? (',
+    '<Gravatar',
+    'email={profile.email}',
+    'default="identicon"',
+  ],
+  'Sidebar Profile Avatar Fallback Contract: profile widgets use avatar URL, then public-email Gravatar, then initials.',
+  'Sidebar Profile Avatar Fallback Contract: profile widgets do not fall back through Gravatar from the public email.'
+);
+
+assertIncludes(
+  'Admin Profile Avatar URL Field',
+  read('src/plugins/von-core/features/settings/components/ProfileSettings.tsx'),
+  [
+    'Avatar URL',
+    "value={profile.avatar || ''}",
+    "handleProfileChange('avatar'",
+    'Leave empty to use Gravatar from Public Email.',
+  ],
+  'Admin Profile Avatar URL Field: General Settings exposes an optional public avatar URL with Gravatar fallback guidance.',
+  'Admin Profile Avatar URL Field: General Settings cannot set an optional public profile avatar URL.'
+);
+
+assertIncludes(
+  'Admin Profile Avatar URL Scrub',
+  read('public/api/save_settings.php'),
+  [
+    'voncms_scrub_admin_profile_avatar',
+    "$settings['adminProfile']['avatar'] = ResponseHelper::scrubAvatarUrl(",
+  ],
+  'Admin Profile Avatar URL Scrub: saved public profile avatar URLs reuse the shared avatar URL sanitizer.',
+  'Admin Profile Avatar URL Scrub: adminProfile.avatar can be saved without the shared avatar URL sanitizer.'
+);
+
+assertIncludes(
+  'Settings Save Failure Rollback Contract',
+  read('src/hooks/useSettings.ts'),
+  [
+    'let previousSettings: SiteSettings | null = settingsRef.current;',
+    'restorePreviousSettings',
+    'settingsRef.current = previousSettings;',
+    'setSettings(previousSettings)',
+  ],
+  'Settings Save Failure Rollback Contract: failed settings saves roll back optimistic state before callers report failure.',
+  'Settings Save Failure Rollback Contract: failed settings saves can leave optimistic settings in memory after returning false.'
+);
+
+assertExcludes(
+  'Theme Settings Widget Duplication Guard',
+  widgetAdminDefaultThemeSettingsContent +
+    widgetAdminDigestSettingsContent +
+    widgetAdminTechPressSettingsContent,
+  [
+    'Add Custom Widget',
+    'Sidebar Widgets',
+    'Sidebar Management',
+    'Active Widgets',
+    'sidebarLayout: widgets',
+    'sidebarLayout: tempSidebar',
+    'tempSettings.sidebarLayout.map',
+  ],
+  'Theme Settings Widget Duplication Guard: theme settings no longer own duplicate sidebar widget editors.',
+  'Theme Settings Widget Duplication Guard: duplicate sidebar widget editors remain inside theme settings.'
+);
+
 if (
   adminLayoutContent.includes('API.repairHtaccess') &&
   adminLayoutContent.includes('Repair .htaccess Now') &&
@@ -2369,7 +2532,8 @@ assertIncludes(
     'voncms_public_cache_set($publicSettingsCacheKey',
     '$isAdmin = SessionManager::isAdmin();',
     '$isPrimaryAdmin = SessionManager::isPrimaryAdmin();',
-    "unset($settings['adminProfile']);",
+    'voncms_project_public_admin_profile',
+    "'admin_profile',",
     "header('Cache-Control: no-cache, no-store, must-revalidate');",
   ],
   'Public Settings Cache Boundary: only guest-shaped settings can use the public JSON cache after secret scrubbing.',
@@ -3175,23 +3339,19 @@ assertIncludes(
   'Built-In Plugin Product Polish Contract: low-touch built-in plugins still have only early placeholder settings.'
 );
 
-const defaultThemeSettingsContent = read(
-  'src/plugins/von-core/features/extensions/components/DefaultThemeSettings.tsx'
-);
-const techPressSettingsContent = read(
-  'src/plugins/von-core/features/extensions/components/TechPressSettings.tsx'
-);
-const digestSettingsContent = read(
-  'src/plugins/von-core/features/extensions/components/DigestSettings.tsx'
+const widgetsManagerContentForCount = read(
+  'src/plugins/von-core/features/widgets/WidgetsManager.tsx'
 );
 if (
-  defaultThemeSettingsContent.includes('<option value={10}>10</option>') &&
-  techPressSettingsContent.includes('<option value={10}>10</option>') &&
-  digestSettingsContent.includes('<option value={10}>10</option>')
+  widgetsManagerContentForCount.includes('<option value={10}>10</option>') &&
+  widgetsManagerContentForCount.includes('Math.max(1, Math.min(20') &&
+  widgetsManagerContentForCount.includes('Trending widget item count')
 ) {
-  pass('Sidebar Trending Count: Default, TechPress, and Digest settings expose 10 items.');
+  pass('Sidebar Trending Count: global Widgets manager exposes bounded 10-item sidebar counts.');
 } else {
-  fail('Sidebar Trending Count: all sidebar settings must expose a 10-item trending option.');
+  fail(
+    'Sidebar Trending Count: global Widgets manager must expose bounded 10-item sidebar counts.'
+  );
 }
 
 const techPressLayoutContent = read('src/themes/techpress/Layout.tsx');
@@ -4433,6 +4593,58 @@ if (
   );
 }
 
+assertIncludes(
+  'Homepage Site Name Schema Contract',
+  indexContent,
+  [
+    'function voncms_is_homepage_path($path)',
+    '$homepageCollectionPage = [',
+    "'@graph' => [",
+    '$schemaData,',
+    '$homepageCollectionPage',
+    'if (voncms_is_homepage_path($path) && !$hasHomepageDiscoveryQuery && !empty($homepagePosts))',
+  ],
+  'Homepage Site Name Schema Contract: SSR homepage keeps WebSite schema for Google site-name signals while adding homepage ItemList as a separate graph node.',
+  'Homepage Site Name Schema Contract: SSR homepage can still replace WebSite schema with CollectionPage and weaken Google site-name signals.'
+);
+
+assertIncludes(
+  'Category SSR SEO Landing Contract',
+  indexContent,
+  [
+    "$selectedCategoryParam = trim((string) ($_GET['category'] ?? ''));",
+    "$isCategoryLanding = $selectedCategoryParam !== '';",
+    'if ($isCategoryLanding && voncms_is_homepage_path($path))',
+    '$categoryPostCount',
+    "$seoTitle = $selectedCategoryName . ' - ' . $siteName;",
+    "$seoUrl = $domainUrl . '/?category=' . rawurlencode($selectedCategoryName);",
+    "$seoRobots = $categoryPostCount > 0 ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, follow';",
+    "'@type' => 'CollectionPage'",
+    "'name' => \$selectedCategoryName . ' - ' . \$siteName",
+  ],
+  'Category SSR SEO Landing Contract: category discovery URLs get server-rendered title, canonical, robots, and CollectionPage metadata instead of homepage duplicate signals.',
+  'Category SSR SEO Landing Contract: category discovery URLs can still render homepage SEO/canonical and trigger soft-404 style crawler signals.'
+);
+
+assertIncludes(
+  'VonSEO Hydrated Category Robots Contract',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+  [
+    'categoryPostCount?: number | null;',
+    "countOnly: 'true',",
+    "public: 'true',",
+    'const categoryHasPosts =',
+    "typeof categoryPostCount === 'number'",
+    "typeof fetchedCategoryPostCount === 'number'",
+    'let hydratedRobots =',
+    'hydratedRobots = categoryHasPosts',
+    "ensureMeta('robots', 'name', hydratedRobots);",
+    'Browse ${selectedCategory} articles and updates on ${settings.siteName}.',
+  ],
+  'VonSEO Hydrated Category Robots Contract: hydrated category metadata preserves empty-category noindex and category-specific descriptions instead of overriding SSR.',
+  'VonSEO Hydrated Category Robots Contract: VonSEO can still override empty category noindex or drift category metadata after hydration.'
+);
+
 const redirectEngineContent = exists('public/redirect_engine.php')
   ? read('public/redirect_engine.php')
   : '';
@@ -4764,6 +4976,13 @@ assertIncludes(
   'Bundled Card Title Clamp: one or more bundled card/list titles can still expand indefinitely.'
 );
 assertExcludes(
+  'Prism Card Public Metadata Boundary',
+  prismThemeLayout,
+  ['ID: {post.id.substring(0, 8)}', '<Hash size={12} />'],
+  'Prism Card Public Metadata Boundary: public cards show reader-facing read time without exposing internal post ids.',
+  'Prism Card Public Metadata Boundary: public cards can still expose internal post ids.'
+);
+assertExcludes(
   'TechPress Legacy Source Naming Drift Guard',
   techPressLayout,
   ['const breakingNews', 'const trendingNews', 'Breaking: Top N', 'Trending: Items after hero'],
@@ -4812,6 +5031,7 @@ const relatedPostsSettingsContent = read(
 const relatedPostsMatcherContent = read(
   'src/plugins/von-core/features/plugins/built-in/related-posts/matcher.ts'
 );
+const relatedPostsListApiContent = read('public/api/get_posts.php');
 assertIncludes(
   'Related Posts Defaults And Controls Audit',
   relatedPostsPluginContent +
@@ -4856,6 +5076,13 @@ assertIncludes(
   ],
   'Related Posts Sort And Layout Coverage: all four sort modes and all three layouts remain wired.',
   'Related Posts Sort And Layout Coverage: a sort mode or layout branch has drifted.'
+);
+assertIncludes(
+  'Related Posts Most Viewed Public Payload',
+  relatedPostsListApiContent,
+  ['p.views,', "'views' => (int) ($row['views'] ?? 0),"],
+  'Related Posts Most Viewed Public Payload: bounded public fallback candidates expose the existing post view counter so Most Viewed sorting is meaningful.',
+  'Related Posts Most Viewed Public Payload: public fallback candidates still omit post views, so Most Viewed sorting treats every candidate as zero.'
 );
 assertIncludes(
   'Related Posts Random Render Stability',
@@ -4958,11 +5185,7 @@ if (crawlablePostLinkIssues.length === 0) {
   fail(`Crawlable Public Post Links: ${crawlablePostLinkIssues.join('; ')}`);
 }
 
-const crawlableSidebarLinkFiles = [
-  'src/plugins/von-core/features/public/components/Sidebar.tsx',
-  'src/themes/techpress/components/Sidebar.tsx',
-  'src/themes/digest/components/Sidebar.tsx',
-];
+const crawlableSidebarLinkFiles = ['src/plugins/von-core/features/public/components/Sidebar.tsx'];
 const crawlableSidebarLinkIssues = crawlableSidebarLinkFiles.flatMap((file) => {
   const content = read(file);
   const missing = [];
@@ -6158,14 +6381,19 @@ assertIncludes(
     '\n' +
     read('src/plugins/von-core/features/settings/components/ProfileSettings.tsx'),
   [
-    'Guest callers do not need the settings adminProfile payload.',
+    'function voncms_project_public_admin_profile',
+    "$publicAdminProfile = voncms_project_public_admin_profile($settings['adminProfile'] ?? null);",
+    'if ($adminProfilePublicEmail !== null) {',
+    "$publicAdminProfile['email'] = $adminProfilePublicEmail;",
+    "$settings['adminProfile'] = $publicAdminProfile;",
     "unset($settings['adminProfile']);",
+    "ResponseHelper::scrubAvatarUrl((string) ($profile['avatar'] ?? ''))",
     'readOnly={!canManageSecrets}',
     'readOnly?: boolean;',
     'disabled={readOnly}',
   ],
-  'Admin Profile Read-Only Boundary: guests cannot read settings adminProfile, appointed admins can only view it read-only, and non-primary saves cannot overwrite it.',
-  'Admin Profile Read-Only Boundary: guests or appointed admins can still read/write adminProfile through settings surfaces.'
+  'Admin Profile Read-Only Boundary: guests receive only the public-safe adminProfile projection, appointed admins can only view it read-only, and non-primary saves cannot overwrite it.',
+  'Admin Profile Read-Only Boundary: guests can read the full adminProfile payload or appointed admins can still write adminProfile through settings surfaces.'
 );
 
 const appointedAdminCloseoutContent =
@@ -7281,7 +7509,7 @@ assertIncludes(
     "'/theme.json'",
     'json_decode($themeManifestJson, true)',
     "$homepageHeroStrategy === 'first-post-image'",
-    'empty($path)',
+    'voncms_is_homepage_path($path)',
     "$homepagePosts[0]['image']",
     'voncms_absolute_public_url',
     'rel="preload"',
@@ -7830,11 +8058,29 @@ assertIncludes(
     'lg:w-3/5 aspect-video overflow-hidden relative',
     'max-w-[10rem] sm:max-w-[12rem]',
     'title={label}',
-    'title={cat}',
-    '<span className="block truncate">{cat}</span>',
   ],
   'Digest Hero Discipline: featured hero and category labels are kept within the tighter baseline.',
   'Digest Hero Discipline: hero/category truncation markers are incomplete.'
+);
+assertIncludes(
+  'Digest Card Thumbnail Ratio',
+  digestLayoutContent,
+  ['aspect-[16/10] overflow-hidden relative'],
+  'Digest Card Thumbnail Ratio: article cards use a tighter 16:10 thumbnail frame.',
+  'Digest Card Thumbnail Ratio: article cards still use the taller 4:3 thumbnail frame.'
+);
+assertExcludes(
+  'Digest Category Strip Cleanup',
+  digestLayoutContent + widgetAdminDigestSettingsContent + logoSiteTypesContent,
+  [
+    'const CategoryPills:',
+    '{digestSettings.showCategoryPills && categories.length > 0 && (',
+    '<CategoryPills',
+    'showCategoryPills',
+    'Category Pills',
+  ],
+  'Digest Category Strip Cleanup: homepage avoids the all-category pill strip and no longer exposes a dead admin toggle.',
+  'Digest Category Strip Cleanup: the top all-category pill strip or dead admin setting can still render.'
 );
 
 if (!exists('package-release.cjs')) {

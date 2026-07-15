@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../types';
-import { GripVertical, Eye, EyeOff, Trash2, Save, Plus, Type, X, Pencil } from 'lucide-react';
+import { Trash2, Save, Plus, Type, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface DefaultThemeSettingsProps {
@@ -28,9 +28,6 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
     },
   });
 
-  const [newWidgetTitle, setNewWidgetTitle] = useState('');
-  const [newWidgetContent, setNewWidgetContent] = useState('');
-
   const handleChange = (key: string, value: any) => {
     setTempSettings((prev) => ({ ...prev, theme: { ...prev.theme, [key]: value } }));
   };
@@ -49,61 +46,6 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
         },
       },
     }));
-  };
-
-  // Layout Logic
-  const toggleWidgetVisibility = (id: string) =>
-    setTempSettings({
-      ...tempSettings,
-      sidebarLayout: tempSettings.sidebarLayout.map((w) =>
-        w.id === id ? { ...w, isVisible: !w.isVisible } : w
-      ),
-    });
-  const deleteWidget = (id: string) => {
-    if (confirm('Delete?'))
-      setTempSettings({
-        ...tempSettings,
-        sidebarLayout: tempSettings.sidebarLayout.filter((w) => w.id !== id),
-      });
-  };
-  const addCustomWidget = () => {
-    if (!newWidgetTitle) return;
-    setTempSettings({
-      ...tempSettings,
-      sidebarLayout: [
-        ...tempSettings.sidebarLayout,
-        {
-          id: `custom-${Date.now()}`,
-          type: 'custom',
-          title: newWidgetTitle,
-          content: newWidgetContent || '',
-          isVisible: true,
-        },
-      ],
-    });
-    setNewWidgetTitle('');
-    setNewWidgetContent('');
-  };
-
-  // Drag and Drop Logic
-  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
-  const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
-
-  const handleDragStart = (index: number) => {
-    setDraggedItemIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedItemIndex === null || draggedItemIndex === index) return;
-
-    const newLayout = [...tempSettings.sidebarLayout];
-    const draggedItem = newLayout[draggedItemIndex];
-    newLayout.splice(draggedItemIndex, 1);
-    newLayout.splice(index, 0, draggedItem);
-
-    setTempSettings({ ...tempSettings, sidebarLayout: newLayout });
-    setDraggedItemIndex(index);
   };
 
   const handleSave = () => {
@@ -319,145 +261,6 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
                 />
               </label>
-            </div>
-          </section>
-
-          {/* Sidebar Layout Section */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-[#2a2b36]">
-              Sidebar Layout
-            </h3>
-            <div className="space-y-3 bg-slate-50 dark:bg-[#1a1b26]/50 p-4 rounded-xl border border-slate-200 dark:border-[#2a2b36]">
-              {tempSettings.sidebarLayout.map((widget, index) => (
-                <div
-                  key={widget.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  className={`flex flex-col gap-2 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] p-3 rounded-lg cursor-move hover:border-primary-400 transition-all ${draggedItemIndex === index ? 'opacity-50 scale-95' : ''}`}
-                >
-                  <div className="flex items-center gap-4 w-full">
-                    <div className="text-slate-400 cursor-grab active:cursor-grabbing">
-                      <GripVertical size={20} />
-                    </div>
-                    <div className="flex-grow">
-                      <div className="text-slate-800 dark:text-white">{widget.title}</div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs text-slate-500 uppercase">{widget.type}</div>
-                        {widget.type === 'trending' && (
-                          <div className="flex items-center gap-1 ml-2 bg-slate-100 dark:bg-[#1a1b26] px-1.5 py-0.5 rounded border border-slate-200 dark:border-[#2a2b36]">
-                            <span className="text-[10px] font-bold text-slate-400">COUNT:</span>
-                            <select
-                              aria-label="COUNT:"
-                              id="defaultthemesettings-333"
-                              name="defaultthemesettings333"
-                              value={widget.itemCount || 5}
-                              onChange={(e) => {
-                                const newLayout = tempSettings.sidebarLayout.map((w) =>
-                                  w.id === widget.id
-                                    ? { ...w, itemCount: parseInt(e.target.value) }
-                                    : w
-                                );
-                                setTempSettings({ ...tempSettings, sidebarLayout: newLayout });
-                              }}
-                              className="bg-transparent border-none text-[10px] font-bold text-primary-600 focus:ring-0 p-0 cursor-pointer"
-                            >
-                              <option value={3}>3</option>
-                              <option value={5}>5</option>
-                              <option value={7}>7</option>
-                              <option value={10}>10</option>
-                            </select>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {widget.type === 'custom' && (
-                        <button
-                          onClick={() =>
-                            setEditingWidgetId(editingWidgetId === widget.id ? null : widget.id)
-                          }
-                          className={`p-2 rounded transition-colors ${
-                            editingWidgetId === widget.id
-                              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                              : 'hover:bg-slate-100 dark:hover:bg-[#1a1b26] text-slate-400'
-                          }`}
-                          title="Edit Content"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => toggleWidgetVisibility(widget.id)}
-                        className={`p-2 rounded hover:bg-slate-100 dark:hover:bg-[#1a1b26] ${widget.isVisible ? 'text-green-600' : 'text-slate-400'}`}
-                      >
-                        {widget.isVisible ? <Eye size={18} /> : <EyeOff size={18} />}
-                      </button>
-                      <button
-                        onClick={() => deleteWidget(widget.id)}
-                        className="p-2 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Edit Mode Area */}
-                  {editingWidgetId === widget.id && widget.type === 'custom' && (
-                    <div className="pl-9 pr-2 pb-2 animate-fade-in w-full">
-                      <span className="block text-xs font-medium text-slate-500 mb-1">
-                        HTML Content
-                      </span>
-                      <textarea
-                        id="defaultthemesettings-391"
-                        name="defaultthemesettings391"
-                        aria-label="HTML Content"
-                        value={widget.content || ''}
-                        onChange={(e) => {
-                          const newLayout = tempSettings.sidebarLayout.map((w) =>
-                            w.id === widget.id ? { ...w, content: e.target.value } : w
-                          );
-                          setTempSettings({ ...tempSettings, sidebarLayout: newLayout });
-                        }}
-                        className="w-full h-24 p-2 text-xs font-mono border border-slate-200 dark:border-[#2a2b36] rounded bg-slate-50 dark:bg-[#101018] text-slate-600 dark:text-slate-300 resize-y focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                        placeholder="Enter custom HTML or text content..."
-                        onMouseDown={(e) => e.stopPropagation()} // Prevent drag start when clicking textarea
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
-              <h4 className="font-bold mb-2 text-sm dark:text-white">Add Custom Widget</h4>
-              <div className="space-y-2">
-                <input
-                  aria-label="Custom widget title"
-                  id="defaultthemesettings-412"
-                  name="defaultthemesettings412"
-                  type="text"
-                  value={newWidgetTitle}
-                  onChange={(e) => setNewWidgetTitle(e.target.value)}
-                  placeholder="Widget Title"
-                  className="w-full p-2 border rounded dark:bg-[#16161e] dark:border-[#333544] dark:text-white text-sm"
-                />
-                <textarea
-                  id="defaultthemesettings-419"
-                  name="defaultthemesettings419"
-                  aria-label="Text Content"
-                  value={newWidgetContent}
-                  onChange={(e) => setNewWidgetContent(e.target.value)}
-                  placeholder="HTML Content"
-                  className="w-full p-2 border rounded dark:bg-[#16161e] dark:border-[#333544] dark:text-white text-sm h-20"
-                />
-                <button
-                  onClick={addCustomWidget}
-                  className="px-4 py-2 bg-[#101018] dark:bg-white text-white dark:text-slate-900 rounded text-sm font-medium hover:opacity-90 transition-opacity"
-                >
-                  Add Widget
-                </button>
-              </div>
             </div>
           </section>
 

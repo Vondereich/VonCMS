@@ -68,6 +68,7 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'emailSmtp',
     'indexnowKey',
     'adminProfile',
+    'sidebarLayout',
   ];
 
   foreach ($restrictedTopLevelKeys as $key) {
@@ -155,9 +156,21 @@ function voncms_preserve_admin_profile_email_placeholder(PDO $pdo, array &$setti
   }
 }
 
+function voncms_scrub_admin_profile_avatar(array &$settings): void
+{
+  if (!isset($settings['adminProfile']) || !is_array($settings['adminProfile'])) {
+    return;
+  }
+
+  $settings['adminProfile']['avatar'] = ResponseHelper::scrubAvatarUrl(
+    (string) ($settings['adminProfile']['avatar'] ?? ''),
+  );
+}
+
 try {
   $pdo->beginTransaction();
   voncms_preserve_admin_profile_email_placeholder($pdo, $settings);
+  voncms_scrub_admin_profile_avatar($settings);
 
   // Prepare UPSERT statement (INSERT or UPDATE if exists)
   // This ensures settings are created if they don't exist

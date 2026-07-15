@@ -237,6 +237,7 @@ try {
     p.status,
     p.image_url,
     p.category,
+    p.views,
     p.author_id,
     p.author,
     p.created_at,
@@ -317,6 +318,7 @@ try {
       'readTime' => $readTime,
       'status' => $row['status'] ?? 'published',
       'category' => $row['category'] ?? 'Uncategorized',
+      'views' => (int) ($row['views'] ?? 0),
       'image' => ResponseHelper::scrubUrl($imagePath),
       'imageSrcSet' => $responsiveImage['srcSet'],
 

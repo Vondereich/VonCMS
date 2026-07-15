@@ -12,7 +12,6 @@ import {
   Terminal,
   Menu,
   Cpu,
-  Hash,
   FileQuestion,
   Loader2,
   ArrowLeft,
@@ -723,8 +722,6 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
                           <div className="p-6 relative z-10">
                             <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mb-3">
-                              <Hash size={12} /> <span>ID: {post.id.substring(0, 8)}</span>
-                              <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
                               <span>{post.readTime || '5 min read'}</span>
                             </div>
                             <h2 className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors">

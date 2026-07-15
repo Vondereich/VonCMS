@@ -203,7 +203,6 @@ const TrendingTicker: React.FC<{
 // ===== DIGEST SETTINGS TYPE =====
 interface DigestSettings {
   accentColor: string;
-  showCategoryPills: boolean;
   showHero: boolean;
   gridColumns: 2 | 3 | 4;
   heroStyle: 'split' | 'overlay' | 'minimal';
@@ -214,7 +213,6 @@ interface DigestSettings {
 
 const defaultDigestSettings: DigestSettings = {
   accentColor: '#00D1D1',
-  showCategoryPills: true,
   showHero: true,
   gridColumns: 4,
   heroStyle: 'split',
@@ -356,58 +354,6 @@ transition-all hover:scale-105 hover:shadow-lg whitespace-nowrap digest-category
     </span>
   );
 };
-// ===== CATEGORY PILLS =====
-const CategoryPills: React.FC<{
-  categories: string[];
-  selectedCategory: string | null;
-  onSelect: (category: string | null) => void;
-  colors: ReturnType<typeof getColors>;
-}> = ({ categories, selectedCategory, onSelect, colors }) => (
-  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-    <button
-      onClick={() => onSelect(null)}
-      className={`
-min-w-0 shrink-0 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all
-                ${
-                  !selectedCategory
-                    ? 'shadow-lg'
-                    : 'bg-transparent border border-current opacity-70 hover:opacity-100'
-                }
-`}
-      style={{
-        backgroundColor: !selectedCategory ? colors.safeAccent : 'transparent',
-        color: !selectedCategory ? colors.accentContrast : colors.text,
-        borderColor: !selectedCategory ? colors.safeAccent : colors.border,
-      }}
-    >
-      All
-    </button>
-    {categories.map((cat) => (
-      <button
-        key={cat}
-        title={cat}
-        onClick={() => onSelect(cat)}
-        className={`
-min-w-0 max-w-[10rem] sm:max-w-[12rem] shrink-0 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all
-                    ${
-                      selectedCategory === cat
-                        ? 'digest-category-pill shadow-lg'
-                        : 'bg-transparent border opacity-70 hover:opacity-100'
-                    }
-`}
-        style={{
-          backgroundColor: selectedCategory === cat ? colors.safeAccent : 'transparent',
-          color: selectedCategory === cat ? colors.accentContrast : colors.text,
-          borderColor: selectedCategory === cat ? colors.safeAccent : colors.border,
-          ['--pill-color' as any]: `${colors.accent}66`,
-        }}
-      >
-        <span className="block truncate">{cat}</span>
-      </button>
-    ))}
-  </div>
-);
-
 // ===== HERO SECTION =====
 const DigestHero: React.FC<{
   article: Post;
@@ -542,7 +488,7 @@ const DigestCard: React.FC<{
     style={{ background: colors.surface, borderColor: colors.border }}
   >
     {/* Image */}
-    <div className="aspect-[4/3] overflow-hidden relative">
+    <div className="aspect-[16/10] overflow-hidden relative">
       {article.image ? (
         <img
           {...getResponsiveImageAttributes(article, 'card')}
@@ -1284,12 +1230,6 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   // Published posts
   const publishedPosts = useMemo(() => posts.filter((p) => p.status === 'published'), [posts]);
 
-  // Get unique categories
-  const categories = useMemo(() => {
-    const cats = new Set(publishedPosts.map((p) => p.category).filter(Boolean));
-    return Array.from(cats);
-  }, [publishedPosts]);
-
   // Filter by category
   const categoryFilteredPosts = useMemo(
     () =>
@@ -2012,18 +1952,6 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       )}
 
       <main className="flex-1 max-w-7xl mx-auto px-5 py-8 w-full">
-        {/* Category Pills */}
-        {digestSettings.showCategoryPills && categories.length > 0 && (
-          <div className="mb-8">
-            <CategoryPills
-              categories={categories}
-              selectedCategory={selectedCategory || null}
-              onSelect={(cat) => onCategoryClick?.(cat || '')}
-              colors={colors}
-            />
-          </div>
-        )}
-
         {/* Search / Category Header */}
         {hasActiveSearch ? (
           <div className="mb-8 pb-6 border-b" style={{ borderColor: colors.border }}>

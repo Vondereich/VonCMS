@@ -131,6 +131,15 @@ export function useSettings() {
 
   // Update settings
   const handleUpdateSettings = useCallback(async (newSettings: SiteSettings): Promise<boolean> => {
+    let previousSettings: SiteSettings | null = settingsRef.current;
+    const restorePreviousSettings = () => {
+      if (previousSettings) {
+        settingsRef.current = previousSettings;
+        setSettings(previousSettings);
+      }
+    };
+
+    settingsRef.current = newSettings;
     setSettings(newSettings);
 
     try {
@@ -151,17 +160,20 @@ export function useSettings() {
           // Soft Error Handling: Dispatch event to open Login Modal
           window.dispatchEvent(new Event('von:session-expired'));
           console.warn('Session expired or invalid CSRF token during settings save.');
+          restorePreviousSettings();
           return false; // Stop here, don't show scary error
         }
 
         console.error('Failed to save settings:', res.status, data);
         toast.error('Failed to save settings: ' + (data.message || 'Database error'));
+        restorePreviousSettings();
         return false;
       } else {
         const data = await res.json();
         if (!data.success) {
           console.error('Settings save failed:', data.message);
           toast.error('Settings save failed: ' + (data.message || 'Unknown error'));
+          restorePreviousSettings();
           return false;
         }
       }
@@ -169,6 +181,7 @@ export function useSettings() {
     } catch (e) {
       console.error('Settings save error:', e);
       toast.error('Failed to save settings. Changes may be lost on refresh.');
+      restorePreviousSettings();
       return false;
     }
   }, []);

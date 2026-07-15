@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { SiteSettings, SidebarWidget } from '../../../../../types';
-import { Palette, X, Save, Plus, Trash2, Eye, EyeOff, GripVertical, Pencil } from 'lucide-react';
+import { SiteSettings } from '../../../../../types';
+import { Palette, X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface DigestSettingsProps {
@@ -12,23 +12,12 @@ interface DigestSettingsProps {
 export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpdate, onClose }) => {
   const [tempSettings, setTempSettings] = useState({
     accentColor: settings.theme?.digest?.accentColor || '#00D1D1',
-    showCategoryPills: settings.theme?.digest?.showCategoryPills !== false,
     showHero: settings.theme?.digest?.showHero !== false,
     gridColumns: settings.theme?.digest?.gridColumns || 4,
     showSidebar: settings.theme?.digest?.showSidebar !== false,
     showTrending: settings.theme?.digest?.showTrending !== false,
     enableMarquee: settings.theme?.digest?.enableMarquee !== false,
   });
-
-  // Widget management state
-  const [widgets, setWidgets] = useState<SidebarWidget[]>(settings.sidebarLayout || []);
-  const [newWidgetTitle, setNewWidgetTitle] = useState('');
-  const [newWidgetContent, setNewWidgetContent] = useState('');
-  const [showAddWidget, setShowAddWidget] = useState(false);
-
-  // Drag & Drop + Edit State
-  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
-  const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
 
   const handleSave = () => {
     onUpdate({
@@ -37,33 +26,9 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
         ...settings.theme,
         digest: tempSettings,
       },
-      sidebarLayout: widgets,
     });
     toast.success('Digest settings saved!');
     onClose();
-  };
-
-  const addWidget = () => {
-    if (!newWidgetTitle.trim()) return;
-    const newWidget: SidebarWidget = {
-      id: `widget-${Date.now()}`,
-      type: 'custom',
-      title: newWidgetTitle,
-      content: newWidgetContent,
-      isVisible: true,
-    };
-    setWidgets([...widgets, newWidget]);
-    setNewWidgetTitle('');
-    setNewWidgetContent('');
-    setShowAddWidget(false);
-  };
-
-  const deleteWidget = (id: string) => {
-    setWidgets(widgets.filter((w) => w.id !== id));
-  };
-
-  const toggleWidgetVisibility = (id: string) => {
-    setWidgets(widgets.map((w) => (w.id === id ? { ...w, isVisible: !w.isVisible } : w)));
   };
 
   return (
@@ -126,7 +91,6 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
             {[
               { key: 'showHero', label: 'Show Hero', desc: 'Featured article banner' },
               { key: 'showSidebar', label: 'Show Sidebar', desc: 'Widgets on single post' },
-              { key: 'showCategoryPills', label: 'Category Pills', desc: 'Filter buttons' },
               { key: 'showTrending', label: 'Show Trending', desc: 'Top scrolling news bar' },
               {
                 key: 'enableMarquee',
@@ -188,187 +152,15 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
             </div>
           </div>
 
-          {/* === SIDEBAR WIDGETS === */}
           {tempSettings.showSidebar && (
-            <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Sidebar Widgets
-                </h3>
-                <button
-                  onClick={() => setShowAddWidget(!showAddWidget)}
-                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-cyan-500 text-white hover:bg-cyan-600"
-                >
-                  <Plus size={14} /> Add Widget
-                </button>
-              </div>
-
-              {/* Add Widget Form */}
-              {showAddWidget && (
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#16161e] space-y-3">
-                  <input
-                    aria-label="Widget Title (e.g. AdSense, Sponsor)"
-                    id="widget-title-e-g-adsense-sponsor"
-                    name="widgetTitleEGAdsenseSponsor"
-                    type="text"
-                    placeholder="Widget Title (e.g. AdSense, Sponsor)"
-                    value={newWidgetTitle}
-                    onChange={(e) => setNewWidgetTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm"
-                  />
-                  <textarea
-                    id="html-content-paste-adsense-code-here"
-                    name="htmlContentPasteAdsenseCodeHere"
-                    aria-label="HTML Content (paste AdSense code here)"
-                    placeholder="HTML Content (paste AdSense code here)"
-                    value={newWidgetContent}
-                    onChange={(e) => setNewWidgetContent(e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm font-mono"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setShowAddWidget(false)}
-                      className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addWidget}
-                      className="px-4 py-1.5 text-sm bg-cyan-500 text-white rounded-lg hover:bg-cyan-600"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Widget List */}
-              <div className="space-y-2">
-                {widgets.length === 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
-                    No widgets. Click "Add Widget" to add AdSense or custom HTML.
-                  </p>
-                ) : (
-                  widgets.map((widget, index) => (
-                    <div
-                      key={widget.id}
-                      draggable
-                      onDragStart={() => setDraggedItemIndex(index)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        if (draggedItemIndex === null || draggedItemIndex === index) return;
-                        const newWidgets = [...widgets];
-                        const draggedItem = newWidgets[draggedItemIndex];
-                        newWidgets.splice(draggedItemIndex, 1);
-                        newWidgets.splice(index, 0, draggedItem);
-                        setWidgets(newWidgets);
-                        setDraggedItemIndex(index);
-                      }}
-                      className={`flex flex-col gap-2 p-3 rounded-lg border transition-all ${
-                        widget.isVisible
-                          ? 'bg-white dark:bg-[#1a1b26] border-slate-200 dark:border-[#2a2b36]'
-                          : 'bg-slate-100 dark:bg-[#16161e] border-slate-200 dark:border-white/10 opacity-60'
-                      } ${draggedItemIndex === index ? 'opacity-50 scale-95' : ''}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="cursor-move text-slate-400 hover:text-slate-600 active:cursor-grabbing">
-                          <GripVertical size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 dark:text-white truncate">
-                            {widget.title}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                            {widget.type}
-                          </p>
-                          {widget.type === 'trending' && (
-                            <div className="flex items-center gap-1 mt-1 bg-slate-50 dark:bg-[#16161e] px-2 py-0.5 rounded border border-slate-200 dark:border-[#2a2b36] w-fit">
-                              <span className="text-[10px] font-bold text-slate-400">COUNT:</span>
-                              <select
-                                aria-label="COUNT:"
-                                id="digestsettings-276"
-                                name="digestsettings276"
-                                value={widget.itemCount || 5}
-                                onChange={(e) => {
-                                  setWidgets(
-                                    widgets.map((w) =>
-                                      w.id === widget.id
-                                        ? { ...w, itemCount: parseInt(e.target.value) }
-                                        : w
-                                    )
-                                  );
-                                }}
-                                className="bg-transparent border-none text-[10px] font-bold text-cyan-500 focus:ring-0 p-0 cursor-pointer"
-                              >
-                                <option value={3}>3</option>
-                                <option value={5}>5</option>
-                                <option value={7}>7</option>
-                                <option value={10}>10</option>
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {widget.type === 'custom' && (
-                            <button
-                              onClick={() =>
-                                setEditingWidgetId(editingWidgetId === widget.id ? null : widget.id)
-                              }
-                              className={`p-1.5 rounded transition-colors ${
-                                editingWidgetId === widget.id
-                                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                                  : 'hover:bg-slate-100 dark:hover:bg-[#242633] text-slate-500'
-                              }`}
-                              title="Edit Content"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => toggleWidgetVisibility(widget.id)}
-                            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-[#242633] text-slate-500"
-                            title={widget.isVisible ? 'Hide' : 'Show'}
-                          >
-                            {widget.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-                          </button>
-                          <button
-                            onClick={() => deleteWidget(widget.id)}
-                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Edit Mode for Custom Widgets */}
-                      {editingWidgetId === widget.id && widget.type === 'custom' && (
-                        <div className="mt-2 pl-8 animate-fade-in">
-                          <span className="block text-xs font-medium text-slate-500 mb-1">
-                            HTML Content
-                          </span>
-                          <textarea
-                            id="digestsettings-336"
-                            name="digestsettings336"
-                            aria-label="HTML Content"
-                            value={widget.content || ''}
-                            onChange={(e) => {
-                              setWidgets(
-                                widgets.map((w) =>
-                                  w.id === widget.id ? { ...w, content: e.target.value } : w
-                                )
-                              );
-                            }}
-                            className="w-full h-24 px-3 py-2 text-xs font-mono border border-slate-200 dark:border-[#2a2b36] rounded bg-slate-50 dark:bg-[#16161e] text-slate-600 dark:text-slate-300 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            placeholder="Custom HTML..."
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+            <div className="p-4 rounded-xl bg-cyan-50 dark:bg-cyan-900/10 border border-cyan-100 dark:border-cyan-900/30">
+              <h3 className="text-sm font-semibold text-cyan-900 dark:text-cyan-100 uppercase tracking-wider">
+                Global Sidebar Blocks
+              </h3>
+              <p className="text-xs text-cyan-800/80 dark:text-cyan-200/80 mt-1">
+                Shared sidebar blocks are managed from Admin &gt; Widgets. This theme setting only
+                controls whether Digest renders the sidebar area.
+              </p>
             </div>
           )}
         </div>

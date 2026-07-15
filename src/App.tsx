@@ -52,6 +52,7 @@ const ContactManager = lazy(() => import('./pages/admin/ContactManager'));
 const NewsletterManager = lazy(
   () => import('./plugins/von-core/features/newsletter/NewsletterManager')
 );
+const WidgetsManager = lazy(() => import('./plugins/von-core/features/widgets/WidgetsManager'));
 const PostEditor = lazy(() => import('./components/PostEditor'));
 const AdminLayout = lazy(() => import('./components/layouts/AdminLayout'));
 const MediaManager = lazy(() =>
@@ -875,6 +876,21 @@ const App: React.FC = () => {
                                   onUpdateUser={handleUpdateUserInList}
                                   currentUser={user}
                                 />
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="widgets"
+                            element={
+                              <ProtectedRoute user={user} allowedRoles={['Admin']}>
+                                {isPrimaryAdmin ? (
+                                  <WidgetsManager
+                                    settings={settings}
+                                    onUpdateSettings={handleUpdateSettings}
+                                  />
+                                ) : (
+                                  <Navigate to="/admin" replace />
+                                )}
                               </ProtectedRoute>
                             }
                           />

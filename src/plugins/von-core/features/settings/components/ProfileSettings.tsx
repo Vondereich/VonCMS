@@ -12,7 +12,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   onChange,
   readOnly = false,
 }) => {
-  const profile = settings.adminProfile || { name: '', email: '', bio: '' };
+  const profile = settings.adminProfile || { name: '', email: '', bio: '', avatar: '' };
   const fieldClass = `w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white ${
     readOnly ? 'cursor-not-allowed opacity-75' : ''
   }`;
@@ -63,6 +63,25 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
             className={fieldClass}
             placeholder="contact@example.com"
           />
+        </div>
+        <div>
+          <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+            Avatar URL
+          </span>
+          <input
+            id="profilesettings-avatar-url"
+            name="profilesettingsAvatarUrl"
+            aria-label="Avatar URL"
+            type="url"
+            value={profile.avatar || ''}
+            disabled={readOnly}
+            onChange={(e) => handleProfileChange('avatar', e.target.value)}
+            className={fieldClass}
+            placeholder="https://example.com/avatar.jpg"
+          />
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Leave empty to use Gravatar from Public Email.
+          </p>
         </div>
         <div>
           <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">

@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Post, Page, SiteSettings, User } from '../../../../types';
 import { getPermalink } from '../../../../utils/siteUtils';
-import { BASE_PATH } from '../../../../config/site.config';
+import { API, BASE_PATH } from '../../../../config/site.config';
 import { htmlToPlainText } from '../../../../utils/security';
 
 const ensureMeta = (nameOrProp: string, attr: 'name' | 'property', content: string) => {
@@ -58,6 +58,7 @@ interface VonSEOProps {
   selectedPage?: Page | null;
   selectedProfile?: User | null;
   selectedCategory?: string | null;
+  categoryPostCount?: number | null;
 }
 
 const VonSEO: React.FC<VonSEOProps> = ({
@@ -67,15 +68,53 @@ const VonSEO: React.FC<VonSEOProps> = ({
   selectedPage,
   selectedProfile,
   selectedCategory,
+  categoryPostCount,
 }) => {
+  const [fetchedCategoryPostCount, setFetchedCategoryPostCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (currentView !== 'category' || !selectedCategory || typeof categoryPostCount === 'number') {
+      setFetchedCategoryPostCount(null);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const params = new URLSearchParams({
+      category: selectedCategory,
+      countOnly: 'true',
+      public: 'true',
+    });
+
+    fetch(`${API.getPosts}?${params.toString()}`, {
+      signal: abortController.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (abortController.signal.aborted) return;
+        const total = Number(data?.meta?.total);
+        setFetchedCategoryPostCount(Number.isFinite(total) ? total : null);
+      })
+      .catch((error) => {
+        if ((error as Error)?.name !== 'AbortError') {
+          setFetchedCategoryPostCount(null);
+        }
+      });
+
+    return () => abortController.abort();
+  }, [currentView, selectedCategory, categoryPostCount]);
+
   useEffect(() => {
     const siteTitle = settings.seo?.siteTitle || settings.siteName;
+    const existingRobots =
+      document.head.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
 
     // --- 1. Construct Metadata ---
     let title = siteTitle;
     let description = settings.siteDescription || '';
     let image = settings.ogImageUrl || settings.logoUrl || '';
     let type = 'website';
+    let hydratedRobots =
+      'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
     const basePrefix =
       BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
@@ -113,9 +152,20 @@ const VonSEO: React.FC<VonSEOProps> = ({
       type = 'profile';
       canonical = canonicalUrl(`profile/${encodeURIComponent(selectedProfile.username)}`);
     } else if (currentView === 'category' && selectedCategory) {
-      title = `${selectedCategory} — ${siteTitle}`;
-      description = `Latest posts in ${selectedCategory} on ${settings.siteName}`;
+      const categoryHasPosts =
+        typeof categoryPostCount === 'number'
+          ? categoryPostCount > 0
+          : typeof fetchedCategoryPostCount === 'number'
+            ? fetchedCategoryPostCount > 0
+            : !existingRobots.trim().toLowerCase().startsWith('noindex');
+      title = `${selectedCategory} - ${siteTitle}`;
+      description = categoryHasPosts
+        ? `Latest ${selectedCategory} articles, news, and updates on ${settings.siteName}.`
+        : `Browse ${selectedCategory} articles and updates on ${settings.siteName}.`;
       canonical = `${canonicalBase}/?category=${encodeURIComponent(selectedCategory)}`;
+      hydratedRobots = categoryHasPosts
+        ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1'
+        : 'noindex, follow';
     }
 
     // --- 2. Apply Document Title ---
@@ -279,8 +329,17 @@ const VonSEO: React.FC<VonSEOProps> = ({
     setJsonLd(jsonLd);
 
     // Temporary maintenance is signalled server-side with HTTP 503, not persistent noindex metadata.
-    ensureMeta('robots', 'name', 'index, follow');
-  }, [settings, currentView, selectedPost, selectedPage, selectedProfile, selectedCategory]);
+    ensureMeta('robots', 'name', hydratedRobots);
+  }, [
+    settings,
+    currentView,
+    selectedPost,
+    selectedPage,
+    selectedProfile,
+    selectedCategory,
+    categoryPostCount,
+    fetchedCategoryPostCount,
+  ]);
 
   return null;
 };

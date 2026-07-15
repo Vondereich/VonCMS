@@ -370,6 +370,7 @@ $seoTitle = 'My Website';
 $seoDescription = 'Built with CMS Core';
 $seoImage = '';
 $seoOgType = 'website';
+$seoRobots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 $homepagePosts = [];
 $htmlLang = 'en'; // Global fallback for site language
 $runtimeSettings = [];
@@ -384,6 +385,15 @@ $faviconUrl = '';
 $faviconVersion = '';
 $adsenseVerification = '';
 $seo = [];
+$selectedCategoryParam = trim((string) ($_GET['category'] ?? ''));
+$isCategoryLanding = $selectedCategoryParam !== '';
+$selectedCategoryName = '';
+$categoryPostCount = 0;
+$homepageDiscoveryCategory = $_GET['category'] ?? '';
+$homepageDiscoverySearch = $_GET['search'] ?? '';
+$hasHomepageDiscoveryQuery =
+  (is_string($homepageDiscoveryCategory) && trim($homepageDiscoveryCategory) !== '') ||
+  (is_string($homepageDiscoverySearch) && trim($homepageDiscoverySearch) !== '');
 
 // Initialize domain URL with safe default (fallback)
 // This ensures $domainUrl is available even if DB connection fails (fresh install)
@@ -414,6 +424,17 @@ if (!function_exists('voncms_category_slug')) {
     $categorySlug = trim((string) $categorySlug, '-');
 
     return $categorySlug !== '' ? $categorySlug : 'uncategorized';
+  }
+}
+
+if (!function_exists('voncms_is_homepage_path')) {
+  /**
+   * @param mixed $path
+   * @return bool
+   */
+  function voncms_is_homepage_path($path)
+  {
+    return $path === '' || $path === '/';
   }
 }
 
@@ -668,6 +689,62 @@ try {
         'url' => $seoUrl,
         'description' => $seoDescription,
       ];
+
+      if ($isCategoryLanding && voncms_is_homepage_path($path)) {
+        $selectedCategoryName = html_entity_decode(
+          strip_tags($selectedCategoryParam),
+          ENT_QUOTES | ENT_HTML5,
+          'UTF-8',
+        );
+        $selectedCategoryName = trim((string) preg_replace('/\s+/u', ' ', $selectedCategoryName));
+        $selectedCategoryName = mb_substr($selectedCategoryName, 0, 100);
+        if ($selectedCategoryName === '') {
+          $selectedCategoryName = 'Uncategorized';
+        }
+
+        try {
+          $categoryCountStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) AND category = :category",
+          );
+          $categoryCountStmt->bindValue(':currentTime', $publicContentCurrentTime);
+          $categoryCountStmt->bindValue(':category', $selectedCategoryName);
+          $categoryCountStmt->execute();
+          $categoryPostCount = (int) $categoryCountStmt->fetchColumn();
+        } catch (Throwable $categorySeoError) {
+          $categoryPostCount = 0;
+        }
+
+        $seoTitle = $selectedCategoryName . ' - ' . $siteName;
+        $seoDescription =
+          $categoryPostCount > 0
+            ? mb_substr(
+              'Latest ' .
+                $selectedCategoryName .
+                ' articles, news, and updates on ' .
+                $siteName .
+                '.',
+              0,
+              160,
+            )
+            : mb_substr(
+              'Browse ' .
+                $selectedCategoryName .
+                ' articles and updates on ' .
+                $siteName .
+                '.',
+              0,
+              160,
+            );
+        $seoUrl = $domainUrl . '/?category=' . rawurlencode($selectedCategoryName);
+        $seoRobots = $categoryPostCount > 0 ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, follow';
+        $schemaData = [
+          '@context' => 'https://schema.org',
+          '@type' => 'CollectionPage',
+          'name' => $selectedCategoryName . ' - ' . $siteName,
+          'url' => $seoUrl,
+          'description' => $seoDescription,
+        ];
+      }
 
       $hasDisplayNameColumn = false;
       try {
@@ -1078,7 +1155,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>" />
   <?php
   $faviconHref = !empty($faviconUrl) ? $faviconUrl : $basePath . 'favicon.ico';
   if (!empty($faviconVersion)) {
@@ -1157,8 +1234,13 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
     <script type="application/ld+json">
       <?php
       // Homepage Enhancement: Add ItemList of latest posts
-      if (empty($path) && !empty($homepagePosts)) {
-        $schemaData['@type'] = 'CollectionPage';
+      if (voncms_is_homepage_path($path) && !$hasHomepageDiscoveryQuery && !empty($homepagePosts)) {
+        $homepageCollectionPage = [
+          '@type' => 'CollectionPage',
+          'name' => $siteName,
+          'url' => $domainUrl . '/',
+          'description' => $siteDescription,
+        ];
         $seoItemList = [];
         foreach ($homepagePosts as $idx => $hp) {
           $cleanName = html_entity_decode($hp['title'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -1175,9 +1257,16 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
             ]
           ];
         }
-        $schemaData['mainEntity'] = [
+        $homepageCollectionPage['mainEntity'] = [
           '@type' => 'ItemList',
           'itemListElement' => $seoItemList
+        ];
+        $schemaData = [
+          '@context' => 'https://schema.org',
+          '@graph' => [
+            $schemaData,
+            $homepageCollectionPage
+          ]
         ];
       }
 
@@ -1274,7 +1363,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   $heroPreloadHref = '';
   $heroPreloadSrcSet = '';
   if (
-    empty($path) &&
+    voncms_is_homepage_path($path) &&
     !$hasHomepageDiscoveryQuery &&
     $homepageHeroStrategy === 'first-post-image' &&
     !empty($homepagePosts[0]['image'])

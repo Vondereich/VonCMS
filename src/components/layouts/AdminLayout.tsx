@@ -25,6 +25,7 @@ import {
   Layers,
   Shield,
   FileStack,
+  PanelsTopLeft,
 } from 'lucide-react';
 import { VonLogo } from '../VonLogo';
 import { SiteSettings, User } from '../../types';
@@ -127,6 +128,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       path: '/admin/users',
       color: '#22d3ee', // Cyan 400
       allowedRoles: ['Admin'],
+    },
+    {
+      icon: <PanelsTopLeft size={20} />,
+      label: 'Widgets',
+      path: '/admin/widgets',
+      color: '#60a5fa', // Blue 400
+      allowedRoles: ['Admin'],
+      requiresPrimaryAdmin: true,
     },
     {
       icon: <Package size={20} />,

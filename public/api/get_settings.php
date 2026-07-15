@@ -44,6 +44,31 @@ if (!$isAdmin) {
   }
 }
 
+function voncms_project_public_admin_profile($profile): ?array
+{
+  if (!is_array($profile)) {
+    return null;
+  }
+
+  $publicProfile = [
+    'name' => trim((string) ($profile['name'] ?? '')),
+    'email' => trim((string) ($profile['email'] ?? '')),
+    'bio' => trim((string) ($profile['bio'] ?? '')),
+    'avatar' => ResponseHelper::scrubAvatarUrl((string) ($profile['avatar'] ?? '')),
+  ];
+
+  if (
+    $publicProfile['name'] === '' &&
+    $publicProfile['email'] === '' &&
+    $publicProfile['bio'] === '' &&
+    $publicProfile['avatar'] === ''
+  ) {
+    return null;
+  }
+
+  return $publicProfile;
+}
+
 /** @var PDOStatement|null $stmt */
 $stmt = null;
 
@@ -80,6 +105,7 @@ try {
             'domain_url',
             'discussion_enabled',
             'indexnow_enabled',
+            'admin_profile',
           ];
           $placeholders = implode(',', array_fill(0, count($safeKeys), '?'));
           $stmt = $pdo->prepare(
@@ -354,8 +380,15 @@ try {
   if (!$isPrimaryAdmin) {
     SecurityHelper::maskSensitiveData($settings);
     if (!$isAdmin) {
-      // Guest callers do not need the settings adminProfile payload.
-      unset($settings['adminProfile']);
+      $publicAdminProfile = voncms_project_public_admin_profile($settings['adminProfile'] ?? null);
+      if ($publicAdminProfile !== null) {
+        if ($adminProfilePublicEmail !== null) {
+          $publicAdminProfile['email'] = $adminProfilePublicEmail;
+        }
+        $settings['adminProfile'] = $publicAdminProfile;
+      } else {
+        unset($settings['adminProfile']);
+      }
     } elseif (
       $adminProfilePublicEmail !== null &&
       isset($settings['adminProfile']) &&

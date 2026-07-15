@@ -1,3 +1,48 @@
+### [v1.25.8] - 2026-07-15
+
+> SEO crawler polish for site-name and category discovery pages.
+
+- **SEO Fixes**:
+  - **Homepage Site Name Schema**: Homepage JSON-LD now keeps the `WebSite` schema node for Google site-name signals and adds the latest-post `CollectionPage`/`ItemList` as a separate graph node instead of replacing the site identity schema.
+  - **Category Discovery SSR Metadata**: `?category=...` discovery URLs now receive server-rendered title, description, canonical, robots, and `CollectionPage` metadata so populated category filters no longer look like homepage duplicates to crawlers.
+  - **Subfolder Category SSR Path Guard**: Homepage-path detection now treats both empty paths and `/` as the homepage, so subfolder installs such as `/blog/?category=...` receive the same category SSR metadata instead of falling back to homepage metadata.
+  - **Empty Category Crawl Boundary**: Empty or unknown category discovery URLs keep the user-facing filter route but emit `noindex, follow` to avoid thin soft-404-style indexing signals.
+  - **Hydrated Category Robots Parity**: VonSEO now preserves empty-category `noindex, follow` after React hydration, keeps category title/description wording aligned with SSR output, and uses a bounded public count-only category check when runtime navigation needs to distinguish populated and empty category filters.
+- **Regression Guard**:
+  - **Site Name Schema Smoke Coverage**: Integration smoke now guards the homepage `WebSite` + `CollectionPage` graph split.
+  - **Category SSR SEO Smoke Coverage**: Integration smoke now guards category query metadata, canonical, robots, and category `CollectionPage` markers.
+  - **Hydrated Category Robots Smoke Coverage**: Integration smoke now guards VonSEO against overwriting empty-category noindex metadata after hydration.
+- **Release Version Alignment**:
+  - **v1.25.8 Metadata Bump**: Package metadata and public docs now identify the current OpenGate line as `v1.25.8`.
+- **Dependency Maintenance**:
+  - **Patch-Level Package Refresh**: Updated `@openrouter/sdk`, the TipTap editor package set, `autoprefixer`, and `postcss` to current compatible patch releases while intentionally leaving Tailwind 4 and TypeScript 7 parked.
+
+### [v1.25.7] - 2026-07-13
+
+> Related Posts `Most Viewed` data correctness patch.
+
+- **Bug Fixes**:
+  - **Related Posts Most Viewed Public Payload**: Public post list payloads now include the existing `posts.views` counter, so bounded guest fallback candidates can sort meaningfully in Related Posts `Most Viewed` mode without adding a new views table or restoring the old anonymous full-post preload.
+  - **Widgets Save Failure Feedback**: Widgets now wait for the settings save result before showing success, and failed settings saves roll back optimistic in-memory settings so a rejected save cannot look persisted until refresh.
+- **Public Theme Polish**:
+  - **Prism Card Metadata Cleanup**: Prism public post cards now show reader-facing read time only and no longer expose internal post ID fragments.
+  - **Digest Card And Category Cleanup**: Digest article cards now use a tighter 16:10 thumbnail frame, and the noisy all-category pill strip plus its dead admin toggle were removed while preserving per-article category labels.
+- **Admin UX**:
+  - **Top-Level Widgets Manager**: Added a primary-admin-only `Widgets` section between Users and Extensions so shared sidebar blocks are managed from one global screen instead of being duplicated inside Default, Digest, and TechPress theme settings. Trending/latest blocks, profile cards, custom HTML/text blocks, drag-and-drop ordering with arrow fallback, visibility, bounded item counts, and newsletter sidebar placement all save through the existing settings path. The screen now states that only sidebar-capable themes use these blocks, while themes without a sidebar ignore them.
+  - **Compact Widget Area UI**: The Widgets manager now uses a centered General Settings-style two-column layout with compact sidebar and newsletter areas instead of stretching controls across the full admin width. Existing sidebar blocks stay collapsed by default and only reveal title/count/content controls when expanded for editing.
+  - **Sidebar Widget Title Alignment**: Profile card and custom HTML/text sidebar widget headings now use the same left-aligned title baseline while keeping profile/custom body content centered where appropriate.
+  - **Profile Widget Avatar Fallback**: General Settings now exposes an optional profile avatar URL for Profile Card widgets. Guest settings receive only the public-safe profile projection (`name`, restored public `email`, `bio`, and sanitized `avatar`) so protected placeholders cannot leak into the public sidebar, while Profile Cards render with the sanitized avatar URL when present, Gravatar/identicon from the public profile email when no avatar URL is set, or the existing initial-letter avatar when no email is available.
+  - **Custom Widget Guidance**: Custom sidebar blocks now explain supported use cases such as ad snippets, iframe embeds, external badges/counters, and static HTML/text, while clarifying that script/iframe snippets stay sanitized and sandboxed and internal VonCMS stats should use a native widget or plugin.
+- **Security Fixes**:
+  - **Widgets Primary Admin Boundary**: Appointed admins can no longer open the shared Widgets manager or overwrite `sidebarLayout` through the settings save endpoint; root/admin 1 remains the owner for custom sidebar HTML and script-capable widget snippets.
+- **Regression Guard**:
+  - **Most Viewed Payload Smoke Coverage**: Integration smoke now guards the public list SELECT and shaped payload so `Most Viewed` cannot silently fall back to treating every related candidate as zero views.
+  - **Admin Widgets Smoke Coverage**: Integration smoke now guards the Widgets admin route/nav, shared `sidebarLayout` manager ownership, bounded widget saves, newsletter placement ownership, profile/custom title alignment, profile avatar URL/Gravatar fallback, and removal of duplicate theme-level widget editors.
+- **Release Version Alignment**:
+  - **v1.25.7 Metadata Bump**: Package metadata and public docs now identify the current OpenGate line as `v1.25.7`.
+- **Release Gate Cleanup**:
+  - **Manual Gate Canonicalization**: Removed the stale `release-sequence.cjs` helper and `release:full` script so release work follows the explicit manual gate order before `create_release.cjs` packaging.
+
 ### [v1.25.6] - 2026-07-12
 
 > Related Posts direct-link recovery after the lean public boot cleanup.

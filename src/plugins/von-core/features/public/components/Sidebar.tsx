@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import Gravatar from 'react-gravatar';
 import { SidebarWidget, SiteSettings, Post } from '../../../../../types';
 import { API } from '../../../../../config/site.config';
 import { vonFetch } from '../../../../../utils/api';
+import SafeImage from '../../../../../components/SafeImage';
 import AdBlock from '../../../../../themes/shared/components/AdBlock';
 import { sanitizeHtml } from '../../../../../utils/security';
 import { getPermalink } from '../../../../../utils/siteUtils';
@@ -213,11 +215,67 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
         </div>
       );
 
+    case 'profile':
+      const profile = settings.adminProfile;
+      if (!profile || (!profile.name && !profile.bio && !profile.email && !profile.avatar)) {
+        return null;
+      }
+
+      return (
+        <div className={boxClass} style={boxStyle}>
+          <h4
+            className="font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left"
+            style={{ borderColor: themeColors?.border || 'rgba(0,0,0,0.1)' }}
+          >
+            {widget.title}
+          </h4>
+          <div className="text-center space-y-4">
+            <div className="mx-auto h-20 w-20 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+              <SafeImage
+                src={profile.avatar || ''}
+                alt={profile.name || 'Profile'}
+                className="h-full w-full object-cover"
+                fallback={
+                  profile.email ? (
+                    <Gravatar
+                      email={profile.email}
+                      size={80}
+                      default="identicon"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-black text-slate-400 dark:text-slate-500">
+                      {(profile.name || 'A').charAt(0).toUpperCase()}
+                    </span>
+                  )
+                }
+              />
+            </div>
+            <div>
+              <p className="font-black text-slate-900 dark:text-white">{profile.name || 'Admin'}</p>
+              {profile.bio && (
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  {profile.bio}
+                </p>
+              )}
+              {profile.email && (
+                <a
+                  href={`mailto:${profile.email}`}
+                  className="mt-3 inline-block text-xs font-bold text-[var(--color-primary)] hover:underline"
+                >
+                  {profile.email}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+
     case 'custom':
       return (
         <div className={boxClass} style={boxStyle}>
           <h4
-            className="font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-center"
+            className="font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left"
             style={{ borderColor: themeColors?.border || 'rgba(0,0,0,0.1)' }}
           >
             {widget.title}
