@@ -1,26 +1,17 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import {
-  Database,
-  Play,
-  Shield,
-  Download,
-  Upload,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Server,
-  Search,
-} from 'lucide-react';
+import { Database, Play, Shield, Download, Upload, RefreshCw, Server, Search } from 'lucide-react';
 import { SqlResult } from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
+
+const quoteSqlIdentifier = (identifier: string) => `\`${identifier.replace(/`/g, '``')}\``;
 
 const DatabaseManager: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [databases, setDatabases] = useState<string[]>([]);
   const [selectedDb, setSelectedDb] = useState('Checking...'); // Dynamic Load
-  const [isConnected] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
 
   // Query State
   const [query, setQuery] = useState('SELECT * FROM users LIMIT 10;');
@@ -32,6 +23,8 @@ const DatabaseManager: React.FC = () => {
   React.useEffect(() => {
     const fetchTables = async () => {
       try {
+        setIsConnected(false);
+
         // Get Current DB Name
         const dbRes = await vonFetch(API.dbQuery, {
           method: 'POST',
@@ -39,9 +32,10 @@ const DatabaseManager: React.FC = () => {
           body: JSON.stringify({ query: 'SELECT DATABASE() as name' }),
         });
         const dbData = await dbRes.json();
-        if (dbData.success && dbData.data && dbData.data.length > 0) {
-          setSelectedDb(dbData.data[0][0]);
+        if (!dbData.success || !dbData.data || dbData.data.length === 0) {
+          throw new Error(dbData.message || 'Could not read the active database name.');
         }
+        setSelectedDb(dbData.data[0][0]);
 
         // Get Tables
         const response = await vonFetch(API.dbQuery, {
@@ -50,13 +44,17 @@ const DatabaseManager: React.FC = () => {
           body: JSON.stringify({ query: 'SHOW TABLES' }),
         });
         const data = await response.json();
-        if (data.success && data.data) {
-          // Flatten the array of arrays [[table1], [table2]] -> [table1, table2]
-          setDatabases(data.data.map((row: any[]) => row[0]));
+        if (!data.success || !data.data) {
+          throw new Error(data.message || 'Could not read database tables.');
         }
+
+        // Flatten the array of arrays [[table1], [table2]] -> [table1, table2]
+        setDatabases(data.data.map((row: any[]) => row[0]));
+        setIsConnected(true);
       } catch (e) {
         console.error('Failed to load tables', e);
         setSelectedDb('Connection Error');
+        setIsConnected(false);
       }
     };
     fetchTables();
@@ -64,30 +62,7 @@ const DatabaseManager: React.FC = () => {
 
   // --- ACTIONS ---
 
-  const [safeMode, setSafeMode] = useState(true);
-
   const handleRunQuery = async () => {
-    const destructiveKeywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'UPDATE', 'INSERT'];
-    const upperQuery = query.toUpperCase();
-    const isDestructive = destructiveKeywords.some((kw) => upperQuery.includes(kw));
-
-    if (isDestructive) {
-      if (safeMode) {
-        toast.error(
-          "Safety Block: Destructive queries are disabled in Safe Mode. Click 'SAFE MODE' to disable it if you are sure."
-        );
-        return;
-      }
-
-      if (
-        !window.confirm(
-          'WARNING: You are about to execute a destructive query. This cannot be undone. Are you sure?'
-        )
-      ) {
-        return;
-      }
-    }
-
     setLoading(true);
     setResult(null);
 
@@ -107,14 +82,6 @@ const DatabaseManager: React.FC = () => {
           headers: data.headers,
           data: data.data,
         });
-
-        if (isDestructive) {
-          toast.success('Query executed successfully.');
-          // Refresh tables if schema changed
-          if (upperQuery.includes('CREATE') || upperQuery.includes('DROP')) {
-            window.location.reload();
-          }
-        }
       } else {
         setResult({
           success: false,
@@ -311,17 +278,9 @@ const DatabaseManager: React.FC = () => {
           <div className="bg-white dark:bg-[#1a1b26] rounded-xl border border-slate-200 dark:border-[#2a2b36] flex-grow flex flex-col overflow-hidden shadow-sm">
             <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tables</h3>
-              <button
-                onClick={() =>
-                  setQuery(
-                    'CREATE TABLE new_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255));'
-                  )
-                }
-                className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                title="Create Table"
-              >
-                <Plus size={16} />
-              </button>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                Read-only
+              </span>
             </div>
             <div className="overflow-y-auto flex-grow p-2 space-y-1">
               {databases.map((db) => (
@@ -329,7 +288,7 @@ const DatabaseManager: React.FC = () => {
                   key={db}
                   onClick={() => {
                     setSelectedDb(db);
-                    setQuery(`SELECT * FROM ${db} LIMIT 50;`);
+                    setQuery(`SELECT * FROM ${quoteSqlIdentifier(db)} LIMIT 50;`);
                   }}
                   className={`group flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all ${selectedDb === db ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900' : 'hover:bg-slate-50 dark:hover:bg-[#242633]/50 text-slate-600 dark:text-slate-400'}`}
                 >
@@ -342,15 +301,6 @@ const DatabaseManager: React.FC = () => {
                       SELECTED
                     </span>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setQuery(`DROP TABLE ${db};`);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-1"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               ))}
             </div>
@@ -370,17 +320,9 @@ const DatabaseManager: React.FC = () => {
                   <span className="text-yellow-400">{selectedDb}</span>
                 </span>
               </div>
-              <button
-                onClick={() => setSafeMode(!safeMode)}
-                className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${
-                  safeMode
-                    ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20 hover:bg-emerald-400/20'
-                    : 'text-rose-400 bg-rose-400/10 border-rose-400/20 hover:bg-rose-400/20 animate-pulse'
-                }`}
-              >
-                <Shield size={12} className={safeMode ? '' : 'animate-bounce'} />
-                {safeMode ? 'Safe Mode Active' : 'Danger: No Safety'}
-              </button>
+              <span className="text-[9px] font-black uppercase tracking-widest flex items-center gap-2 px-3 py-1.5 rounded-full border text-emerald-400 bg-emerald-400/10 border-emerald-400/20">
+                <Shield size={12} /> Read-only inspection
+              </span>
             </div>
 
             <div className="flex-1 relative group">

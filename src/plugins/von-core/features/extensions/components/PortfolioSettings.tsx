@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 interface PortfolioSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -58,14 +58,16 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
 
   const [tempConfig, setTempConfig] = useState<PortfolioConfig>(initialConfig);
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       theme: {
         ...settings.theme,
         portfolio: tempConfig,
       },
     });
+    if (saved === false) return;
+
     toast.success('Portfolio settings saved!');
     onClose();
   };

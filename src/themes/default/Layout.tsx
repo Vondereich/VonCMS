@@ -196,6 +196,10 @@ const DefaultLayout: React.FC<
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   onNavigateAdmin,
   onLogin,
   onLogout,
@@ -814,6 +818,10 @@ const DefaultLayout: React.FC<
               onAddComment={onAddComment}
               onLikeComment={onLikeComment}
               onReplyComment={onReplyComment}
+              onLoadMoreComments={onLoadMoreComments}
+              hasMoreComments={hasMoreComments}
+              commentsLoading={commentsLoading}
+              commentsError={commentsError}
               onLogin={onLogin}
               settings={settings}
               onViewProfile={viewProfile}
@@ -1300,6 +1308,10 @@ const SinglePostView: React.FC<{
   onAddComment: (postId: string, content: string) => void;
   onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
+  onLoadMoreComments?: () => Promise<void>;
+  hasMoreComments?: boolean;
+  commentsLoading?: boolean;
+  commentsError?: string | null;
   onLogin: () => void;
   settings: SiteSettings;
   onViewProfile: (username: string) => void;
@@ -1316,6 +1328,10 @@ const SinglePostView: React.FC<{
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   onLogin,
   settings,
   onViewProfile,
@@ -1447,7 +1463,11 @@ const SinglePostView: React.FC<{
         <ContentRenderer
           html={sanitizeHtml(post.content)}
           className="prose prose-lg md:prose-xl dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-neutral-900 dark:prose-headings:text-white prose-p:text-neutral-600 dark:prose-p:text-neutral-200 prose-p:leading-loose prose-p:font-light prose-img:rounded-2xl prose-img:shadow-lg"
-          style={{ '--tw-prose-links': 'var(--color-primary)' } as any}
+          style={
+            {
+              '--tw-prose-links': 'var(--color-primary)',
+            } as React.CSSProperties & { '--tw-prose-links': string }
+          }
         />
         {aiSummaryPos === 'bottom' && aiSummary}
 
@@ -1490,6 +1510,10 @@ const SinglePostView: React.FC<{
           onAddComment={(content) => onAddComment(post.id, content)}
           onLikeComment={onLikeComment}
           onReplyComment={onReplyComment}
+          onLoadMoreComments={onLoadMoreComments}
+          hasMoreComments={hasMoreComments}
+          commentsLoading={commentsLoading}
+          commentsError={commentsError}
           onLogin={onLogin}
           settings={settings}
           onViewProfile={onViewProfile}

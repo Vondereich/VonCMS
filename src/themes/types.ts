@@ -12,6 +12,10 @@ export interface ThemeLayoutProps {
   onAddComment: (postId: string, content: string) => void;
   onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
+  onLoadMoreComments?: () => Promise<void>;
+  hasMoreComments?: boolean;
+  commentsLoading?: boolean;
+  commentsError?: string | null;
   onNavigateAdmin: () => void;
   onLogin: () => void;
   onLogout: () => void;

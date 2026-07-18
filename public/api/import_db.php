@@ -254,10 +254,38 @@ function iterateSqlStatementsFromFile($path)
  * @param string $statement
  * @return string
  */
-function getImportStatementVerb($statement)
+function getAllowedImportStatementType($statement)
 {
-  if (preg_match('/^([a-zA-Z]+)/', trim($statement), $matches)) {
-    return strtoupper($matches[1]);
+  $statement = trim($statement);
+
+  $identifier = '(?:`(?:``|[^`])+`|[a-zA-Z0-9_$]+)';
+  $columnList = $identifier . '(?:\s*,\s*' . $identifier . ')*';
+
+  if (preg_match('/^DROP\s+TABLE\s+IF\s+EXISTS\s+' . $identifier . '\s*$/is', $statement)) {
+    return 'drop_table';
+  }
+
+  if (
+    preg_match(
+      '/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?' . $identifier . '\s*\(/is',
+      $statement,
+    ) &&
+    !preg_match('/\b(?:AS\s+SELECT|DATA\s+DIRECTORY|INDEX\s+DIRECTORY|TABLESPACE)\b/i', $statement)
+  ) {
+    return 'create_table';
+  }
+
+  if (
+    preg_match(
+      '/^INSERT\s+INTO\s+' . $identifier . '\s*\(\s*' . $columnList . '\s*\)\s+VALUES\s*\(/is',
+      $statement,
+    )
+  ) {
+    return 'insert';
+  }
+
+  if (preg_match('/^SET\s+(?:SESSION\s+)?FOREIGN_KEY_CHECKS\s*=\s*[01]\s*$/i', $statement)) {
+    return 'set_foreign_keys';
   }
 
   return '';
@@ -300,11 +328,12 @@ function detectDestructiveImportStatements($statements)
       continue;
     }
 
-    $verb = getImportStatementVerb($statement);
-    if ($verb !== 'DROP' && $verb !== 'CREATE') {
+    $statementType = getAllowedImportStatementType($statement);
+    if ($statementType !== 'drop_table' && $statementType !== 'create_table') {
       continue;
     }
 
+    $verb = $statementType === 'drop_table' ? 'DROP' : 'CREATE';
     $table = getImportTableName($statement);
     $summary['count']++;
     $summary['statements'][] = $verb . ($table !== '' ? ' ' . $table : '');
@@ -320,6 +349,66 @@ function detectDestructiveImportStatements($statements)
 }
 
 /**
+ * @param string $backupDir
+ * @param string $currentPath
+ * @param int $maxFiles
+ * @param int $maxAgeDays
+ * @return void
+ */
+function prunePreImportSafetyBackups($backupDir, $currentPath, $maxFiles = 5, $maxAgeDays = 30)
+{
+  $files = glob($backupDir . '/pre_import_*.sql');
+  if (!is_array($files)) {
+    return;
+  }
+
+  usort($files, function ($left, $right) use ($currentPath) {
+    if ($left === $currentPath) {
+      return -1;
+    }
+    if ($right === $currentPath) {
+      return 1;
+    }
+    return (filemtime($right) ?: 0) <=> (filemtime($left) ?: 0);
+  });
+
+  $cutoff = time() - $maxAgeDays * 86400;
+  foreach ($files as $index => $backupPath) {
+    if ($backupPath === $currentPath) {
+      continue;
+    }
+
+    $modifiedAt = filemtime($backupPath) ?: 0;
+    if ($index >= $maxFiles || $modifiedAt < $cutoff) {
+      @unlink($backupPath);
+    }
+  }
+}
+
+/**
+ * @param resource $handle
+ * @param string $data
+ * @param callable|null $writer
+ * @return int
+ */
+function writePreImportSafetyBackupData($handle, $data, $writer = null)
+{
+  $length = strlen($data);
+  $offset = 0;
+
+  while ($offset < $length) {
+    $chunk = substr($data, $offset);
+    $written = $writer ? $writer($handle, $chunk) : fwrite($handle, $chunk);
+    if (!is_int($written) || $written < 1 || $written > strlen($chunk)) {
+      throw new RuntimeException('Could not complete the pre-import safety backup write.');
+    }
+    $offset += $written;
+  }
+
+  return $offset;
+}
+
+/**
  * @param PDO $pdo
  * @return array{filename: string, relativePath: string}
  */
@@ -332,10 +421,13 @@ function createPreImportSafetyBackup($pdo)
 
   $htaccessPath = $backupDir . '/.htaccess';
   if (!file_exists($htaccessPath)) {
-    file_put_contents(
+    $protectionWritten = file_put_contents(
       $htaccessPath,
       "<IfModule !mod_authz_core.c>\n  Deny from all\n</IfModule>\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\nOptions -Indexes\n",
     );
+    if ($protectionWritten === false) {
+      throw new Exception('Could not protect the pre-import safety backup directory.');
+    }
   }
 
   $filename = 'pre_import_' . date('Y-m-d_His') . '_' . bin2hex(random_bytes(4)) . '.sql';
@@ -346,64 +438,100 @@ function createPreImportSafetyBackup($pdo)
     throw new Exception('Could not create pre-import safety backup file.');
   }
 
-  fwrite($handle, "-- VonCMS Pre-Import Safety Backup\n");
-  fwrite($handle, '-- Generated: ' . date('Y-m-d H:i:s') . "\n");
-  fwrite($handle, "-- Reason: destructive Database Manager import confirmation\n");
-  fwrite($handle, "-- --------------------------------------------------------\n\n");
-  fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
-
-  $bufferedQueryAttribute = getImportMysqlBufferedQueryAttribute();
-  $restoreBufferedQueries = $bufferedQueryAttribute !== null;
-  $previousBufferedQueryMode = true;
-
-  if ($restoreBufferedQueries) {
-    $previousBufferedQueryMode = $pdo->getAttribute($bufferedQueryAttribute);
-    $pdo->setAttribute($bufferedQueryAttribute, false);
-  }
-
   try {
-    $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($tables as $table) {
-      $createStmt = $pdo->query("SHOW CREATE TABLE `$table`");
-      $createRow = $createStmt->fetch(PDO::FETCH_ASSOC);
-      $createStmt->closeCursor();
+    writePreImportSafetyBackupData($handle, "-- VonCMS Pre-Import Safety Backup\n");
+    writePreImportSafetyBackupData($handle, '-- Generated: ' . date('Y-m-d H:i:s') . "\n");
+    writePreImportSafetyBackupData(
+      $handle,
+      "-- Reason: destructive Database Manager import confirmation\n",
+    );
+    writePreImportSafetyBackupData(
+      $handle,
+      "-- --------------------------------------------------------\n\n",
+    );
+    writePreImportSafetyBackupData($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
-      fwrite($handle, "-- \n");
-      fwrite($handle, "-- Table structure: `$table`\n");
-      fwrite($handle, "-- \n");
-      fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n");
-      fwrite($handle, $createRow['Create Table'] . ";\n\n");
+    $bufferedQueryAttribute = getImportMysqlBufferedQueryAttribute();
+    $restoreBufferedQueries = $bufferedQueryAttribute !== null;
+    $previousBufferedQueryMode = true;
 
-      $stmt = $pdo->query("SELECT * FROM `$table`");
-      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $columns = array_keys($row);
-        $values = [];
-        foreach ($row as $value) {
-          $values[] = $value === null ? 'NULL' : $pdo->quote($value);
-        }
-
-        fwrite(
-          $handle,
-          "INSERT INTO `$table` (`" .
-            implode('`, `', $columns) .
-            '`) VALUES (' .
-            implode(', ', $values) .
-            ");\n",
-        );
-      }
-      $stmt->closeCursor();
-      fwrite($handle, "\n");
-    }
-  } finally {
     if ($restoreBufferedQueries) {
-      $pdo->setAttribute($bufferedQueryAttribute, $previousBufferedQueryMode);
+      $previousBufferedQueryMode = $pdo->getAttribute($bufferedQueryAttribute);
+      $pdo->setAttribute($bufferedQueryAttribute, false);
     }
+
+    try {
+      $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      foreach ($tables as $table) {
+        $createStmt = $pdo->query("SHOW CREATE TABLE `$table`");
+        $createRow = $createStmt->fetch(PDO::FETCH_ASSOC);
+        $createStmt->closeCursor();
+
+        writePreImportSafetyBackupData($handle, "-- \n");
+        writePreImportSafetyBackupData($handle, "-- Table structure: `$table`\n");
+        writePreImportSafetyBackupData($handle, "-- \n");
+        writePreImportSafetyBackupData($handle, "DROP TABLE IF EXISTS `$table`;\n");
+        writePreImportSafetyBackupData($handle, $createRow['Create Table'] . ";\n\n");
+
+        $stmt = $pdo->query("SELECT * FROM `$table`");
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+          $columns = array_keys($row);
+          $values = [];
+          foreach ($row as $value) {
+            $values[] = $value === null ? 'NULL' : $pdo->quote($value);
+          }
+
+          writePreImportSafetyBackupData(
+            $handle,
+            "INSERT INTO `$table` (`" .
+              implode('`, `', $columns) .
+              '`) VALUES (' .
+              implode(', ', $values) .
+              ");\n",
+          );
+        }
+        $stmt->closeCursor();
+        writePreImportSafetyBackupData($handle, "\n");
+      }
+    } finally {
+      if ($restoreBufferedQueries) {
+        $pdo->setAttribute($bufferedQueryAttribute, $previousBufferedQueryMode);
+      }
+    }
+
+    writePreImportSafetyBackupData($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+    writePreImportSafetyBackupData($handle, "-- End of pre-import safety backup\n");
+
+    if (!fflush($handle)) {
+      throw new RuntimeException('Could not flush the pre-import safety backup file.');
+    }
+
+    $expectedFileSize = ftell($handle);
+    if (!is_int($expectedFileSize) || $expectedFileSize < 1) {
+      throw new RuntimeException('Could not verify the pre-import safety backup size.');
+    }
+
+    $closed = fclose($handle);
+    $handle = null;
+    if (!$closed) {
+      throw new RuntimeException('Could not close the pre-import safety backup file.');
+    }
+
+    clearstatcache(true, $path);
+    $savedFileSize = filesize($path);
+    if (!is_int($savedFileSize) || $savedFileSize !== $expectedFileSize) {
+      throw new RuntimeException('Pre-import safety backup size verification failed.');
+    }
+  } catch (Throwable $e) {
+    if (is_resource($handle)) {
+      @fclose($handle);
+    }
+    @unlink($path);
+    throw $e;
   }
 
-  fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
-  fwrite($handle, "-- End of pre-import safety backup\n");
-  fclose($handle);
   @chmod($path, 0600);
+  prunePreImportSafetyBackups($backupDir, $path);
 
   return [
     'filename' => $filename,
@@ -439,9 +567,9 @@ try {
     }
 
     $hasExecutableStatements = true;
-    if (preg_match('/^CREATE\s+(DATABASE|SCHEMA)\b/i', trim($statement))) {
+    if (getAllowedImportStatementType($statement) === '') {
       ResponseHelper::sendError(
-        'CREATE DATABASE and CREATE SCHEMA are not supported in Database Manager imports. Connect VonCMS to the target database first, then import a VonCMS table backup.',
+        'Only unqualified DROP TABLE IF EXISTS, CREATE TABLE, INSERT INTO, and SET FOREIGN_KEY_CHECKS statements from a VonCMS backup are allowed.',
         403,
       );
       exit();
@@ -490,32 +618,11 @@ try {
       continue;
     }
 
-    if (preg_match('/^CREATE\s+(DATABASE|SCHEMA)\b/i', trim($statement))) {
+    if (getAllowedImportStatementType($statement) === '') {
       safeRollbackImport($pdo);
       $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
       ResponseHelper::sendError(
-        'CREATE DATABASE and CREATE SCHEMA are not supported in Database Manager imports. Connect VonCMS to the target database first, then import a VonCMS table backup.',
-        403,
-      );
-      exit();
-    }
-
-    // SECURITY: Allowlist - permit INSERT, CREATE, SET, and DROP statements
-    // DROP is required to restore VonCMS-generated backups (DROP TABLE IF EXISTS)
-    $stmtUpper = strtoupper(trim($statement));
-    $allowed = ['INSERT ', 'CREATE ', 'SET ', 'DROP '];
-    $isAllowed = false;
-    foreach ($allowed as $a) {
-      if (strpos($stmtUpper, $a) === 0) {
-        $isAllowed = true;
-        break;
-      }
-    }
-    if (!$isAllowed) {
-      safeRollbackImport($pdo);
-      $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
-      ResponseHelper::sendError(
-        'Only INSERT, CREATE, SET, and DROP statements are allowed in imports.',
+        'Only unqualified DROP TABLE IF EXISTS, CREATE TABLE, INSERT INTO, and SET FOREIGN_KEY_CHECKS statements from a VonCMS backup are allowed.',
         403,
       );
       exit();

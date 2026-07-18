@@ -15,6 +15,10 @@ interface ThemeColors {
   primary?: string;
 }
 
+type RelatedPostCardStyle = React.CSSProperties & {
+  '--hover-border': string;
+};
+
 interface RelatedPostsComponentProps {
   config: RelatedPostsConfig;
   settings?: SiteSettings;
@@ -34,9 +38,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
 }) => {
   const permalinkSettings =
     settings ||
-    ((typeof window !== 'undefined'
-      ? (window as any).__site_settings
-      : null) as SiteSettings | null) ||
+    ((typeof window !== 'undefined' ? window.__site_settings : null) as SiteSettings | null) ||
     ({ permalinkStructure: 'slug' } as SiteSettings);
 
   const relatedPostsSignature = allPosts
@@ -102,7 +104,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   backgroundColor: themeColors?.surface || undefined,
                   borderColor: themeColors?.border || undefined,
                   '--hover-border': themeColors?.primary || 'var(--color-primary, #3b82f6)',
-                } as any
+                } as RelatedPostCardStyle
               }
             >
               {config.showImage && post.image && (
@@ -159,7 +161,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   backgroundColor: themeColors?.surface || undefined,
                   borderColor: themeColors?.border || undefined,
                   '--hover-border': themeColors?.primary || 'var(--color-primary, #3b82f6)',
-                } as any
+                } as RelatedPostCardStyle
               }
             >
               {config.showImage && post.image && (
@@ -213,7 +215,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                     : undefined,
                   borderColor: themeColors?.border || undefined,
                   '--hover-border': themeColors?.primary || 'var(--color-primary, #3b82f6)',
-                } as any
+                } as RelatedPostCardStyle
               }
             >
               {config.showImage && post.image && (

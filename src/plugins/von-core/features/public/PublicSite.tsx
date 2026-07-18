@@ -28,6 +28,7 @@ interface PublicSiteProps {
   selectedPost: Post | null;
   selectedPage?: Page | null;
   selectedProfile: string | null;
+  resolvedProfile?: User | null;
   onPostClick: (postId: string) => void;
   onViewProfile: (username: string) => void;
   onBackToHome: () => void;
@@ -54,11 +55,15 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
   // Fallback Title Sync: Fixes "stuck" tab titles when VonSEO is disabled
   useEffect(() => {
     if (isSystemPluginActive(props.settings, 'vp_von_seo')) return;
+    const profileTitle =
+      props.currentView === 'profile'
+        ? props.resolvedProfile?.display_name || props.resolvedProfile?.username
+        : null;
     const sub =
       props.selectedPost?.title ||
       props.selectedPage?.title ||
       props.selectedCategory ||
-      props.selectedProfile;
+      profileTitle;
     const siteTitle = props.settings.siteName || 'VonCMS';
     document.title = sub ? `${sub} | ${siteTitle}` : siteTitle;
   }, [
@@ -66,7 +71,8 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
     props.selectedPost?.title,
     props.selectedPage?.title,
     props.selectedCategory,
-    props.selectedProfile,
+    props.resolvedProfile?.display_name,
+    props.resolvedProfile?.username,
     props.settings,
   ]);
 

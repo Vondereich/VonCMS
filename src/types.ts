@@ -185,6 +185,12 @@ export interface ThemeConfig {
     projectColumns?: 2 | 3 | 4;
     animationStyle?: 'fade' | 'slide' | 'none';
     accentColor?: string;
+    githubUrl?: string;
+    linkedinUrl?: string;
+    twitterUrl?: string;
+    dribbbleUrl?: string;
+    instagramUrl?: string;
+    websiteUrl?: string;
   };
 
   digest?: {
@@ -195,16 +201,6 @@ export interface ThemeConfig {
     showSidebar?: boolean;
     showTrending?: boolean;
     enableMarquee?: boolean;
-  };
-
-  sonido?: {
-    containerWidth?: 'narrow' | 'medium' | 'wide' | 'fluid';
-    textAlign?: 'left' | 'center' | 'justify';
-    backgroundColor?: string;
-    containerColor?: string;
-    fontHeading?: 'serif' | 'sans';
-    fontBody?: 'serif' | 'sans';
-    showSidebar?: boolean;
   };
 
   corporatePro?: {
@@ -376,6 +372,13 @@ export interface SiteSettings {
   postsPerPage: number;
   maintenanceMode: boolean;
   emailSmtp: string;
+  emailFrom?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  smtpEncryption?: string;
+  smtpFromName?: string;
   ads: AdConfig;
   theme: ThemeConfig;
   activeThemeId?: string;

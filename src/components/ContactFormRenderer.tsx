@@ -22,7 +22,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
   useEffect(() => {
     const fetchForm = async () => {
       try {
-        const res = await vonFetch(`${API.getContactForm}?id=${id}`);
+        const res = await vonFetch(`${API.getContactForm}?id=${encodeURIComponent(id)}`);
         const data = await res.json();
         if (data.success) {
           setForm(data.form);
@@ -125,6 +125,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
             type={type}
             name={name}
             required={required}
+            maxLength={500}
             className={`${baseClasses} ${themeClasses}`}
             placeholder={defaultValue}
             onChange={handleChange}
@@ -139,6 +140,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
             key={key}
             name={name}
             required={required}
+            maxLength={5000}
             className={`${baseClasses} ${themeClasses} min-h-[140px] resize-y`}
             placeholder={defaultValue}
             onChange={handleChange}

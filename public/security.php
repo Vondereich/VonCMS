@@ -909,6 +909,7 @@ class ResponseHelper
 
     $message = $e instanceof Exception ? $e->getMessage() : $e;
     $isAdmin = SessionManager::isAdmin();
+    $debugEnabled = defined('VONCMS_DEBUG') && constant('VONCMS_DEBUG') === true;
 
     // Log the full error internally
     error_log('VonCMS API Error: ' . $message);
@@ -918,7 +919,8 @@ class ResponseHelper
       echo json_encode([
         'success' => false,
         'error' => $message,
-        'debug_trace' => $isAdmin && $e instanceof Exception ? $e->getTraceAsString() : null,
+        'debug_trace' =>
+          $isAdmin && $debugEnabled && $e instanceof Exception ? $e->getTraceAsString() : null,
       ]);
     } else {
       // Public users see generic message for 5xx to prevent info disclosure

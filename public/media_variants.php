@@ -126,6 +126,47 @@ function voncms_get_generated_media_variant_registry_path(?string $uploadsDir = 
   return $publicDir . '/data/generated_media_variants.php';
 }
 
+function voncms_get_generated_media_variant_registry_lock_path(?string $uploadsDir = null): string
+{
+  return dirname(voncms_get_generated_media_variant_registry_path($uploadsDir)) .
+    '/generated_media_variants.lock';
+}
+
+/**
+ * @return resource|false
+ */
+function voncms_acquire_generated_media_variant_registry_lock(
+  ?string $uploadsDir = null,
+  int $operation = LOCK_SH,
+) {
+  $lockPath = voncms_get_generated_media_variant_registry_lock_path($uploadsDir);
+  $lockDir = dirname($lockPath);
+  if (!is_dir($lockDir) && !@mkdir($lockDir, 0755, true) && !is_dir($lockDir)) {
+    return false;
+  }
+
+  $handle = @fopen($lockPath, 'c+');
+  if ($handle === false || !flock($handle, $operation)) {
+    if (is_resource($handle)) {
+      fclose($handle);
+    }
+    return false;
+  }
+
+  return $handle;
+}
+
+/**
+ * @param resource|false $handle
+ */
+function voncms_release_generated_media_variant_registry_lock($handle): void
+{
+  if (is_resource($handle)) {
+    flock($handle, LOCK_UN);
+    fclose($handle);
+  }
+}
+
 function voncms_normalize_generated_media_variant_relative_path(?string $path): ?string
 {
   $relativePath = voncms_resolve_upload_relative_path($path);
@@ -205,6 +246,23 @@ function voncms_normalize_generated_media_variant_registry(array $registry): arr
   return $normalized;
 }
 
+function voncms_load_generated_media_variant_registry_file(string $registryPath): array
+{
+  $registry = [];
+  if (is_file($registryPath)) {
+    try {
+      $loaded = @include $registryPath;
+      if (is_array($loaded)) {
+        $registry = $loaded;
+      }
+    } catch (Throwable $e) {
+      error_log('Generated media variant registry read failed: ' . $e->getMessage());
+    }
+  }
+
+  return voncms_normalize_generated_media_variant_registry($registry);
+}
+
 function voncms_load_generated_media_variant_registry(?string $uploadsDir = null): array
 {
   $registryPath = voncms_get_generated_media_variant_registry_path($uploadsDir);
@@ -215,15 +273,17 @@ function voncms_load_generated_media_variant_registry(?string $uploadsDir = null
     return $GLOBALS['voncms_generated_media_variant_registry_cache'][$registryPath];
   }
 
-  $registry = [];
-  if (is_file($registryPath)) {
-    $loaded = @include $registryPath;
-    if (is_array($loaded)) {
-      $registry = $loaded;
-    }
+  $lockHandle = voncms_acquire_generated_media_variant_registry_lock($uploadsDir, LOCK_SH);
+  if ($lockHandle === false) {
+    return voncms_normalize_generated_media_variant_registry([]);
   }
 
-  $normalized = voncms_normalize_generated_media_variant_registry($registry);
+  try {
+    $normalized = voncms_load_generated_media_variant_registry_file($registryPath);
+  } finally {
+    voncms_release_generated_media_variant_registry_lock($lockHandle);
+  }
+
   if (!isset($GLOBALS['voncms_generated_media_variant_registry_cache'])) {
     $GLOBALS['voncms_generated_media_variant_registry_cache'] = [];
   }
@@ -232,29 +292,118 @@ function voncms_load_generated_media_variant_registry(?string $uploadsDir = null
   return $normalized;
 }
 
-function voncms_write_generated_media_variant_registry(
+/**
+ * @param resource $handle
+ */
+function voncms_write_generated_media_variant_registry_bytes($handle, string $content): bool
+{
+  $length = strlen($content);
+  $written = 0;
+  while ($written < $length) {
+    $result = fwrite($handle, substr($content, $written));
+    if ($result === false || $result === 0) {
+      return false;
+    }
+    $written += $result;
+  }
+
+  return $written === $length && fflush($handle);
+}
+
+function voncms_write_generated_media_variant_registry_unlocked(
   array $registry,
   ?string $uploadsDir = null,
 ): bool {
   $registryPath = voncms_get_generated_media_variant_registry_path($uploadsDir);
   $registryDir = dirname($registryPath);
-
   if (!is_dir($registryDir) && !@mkdir($registryDir, 0755, true) && !is_dir($registryDir)) {
     return false;
   }
 
   $normalized = voncms_normalize_generated_media_variant_registry($registry);
   $content = "<?php\nreturn " . var_export($normalized, true) . ";\n";
-  if (@file_put_contents($registryPath, $content, LOCK_EX) === false) {
+
+  try {
+    $suffix = bin2hex(random_bytes(8));
+  } catch (Throwable $e) {
+    $suffix = str_replace('.', '', uniqid('', true));
+  }
+
+  $tempPath = $registryPath . '.tmp.' . $suffix;
+  $handle = @fopen($tempPath, 'xb');
+  if ($handle === false) {
     return false;
   }
 
+  $writeOk = false;
+  try {
+    $writeOk = voncms_write_generated_media_variant_registry_bytes($handle, $content);
+    if ($writeOk && function_exists('fsync')) {
+      $writeOk = fsync($handle);
+    }
+  } finally {
+    $closeOk = fclose($handle);
+    $writeOk = $writeOk && $closeOk;
+  }
+
+  clearstatcache(true, $tempPath);
+  if (!$writeOk || !is_file($tempPath) || filesize($tempPath) !== strlen($content)) {
+    @unlink($tempPath);
+    return false;
+  }
+
+  if (!@rename($tempPath, $registryPath)) {
+    $targetHandle = @fopen($registryPath, 'c+b');
+    if ($targetHandle === false) {
+      @unlink($tempPath);
+      return false;
+    }
+
+    $fallbackOk = false;
+    try {
+      $fallbackOk = ftruncate($targetHandle, 0);
+      if ($fallbackOk) {
+        rewind($targetHandle);
+        $fallbackOk = voncms_write_generated_media_variant_registry_bytes($targetHandle, $content);
+      }
+      if ($fallbackOk && function_exists('fsync')) {
+        $fallbackOk = fsync($targetHandle);
+      }
+    } finally {
+      $closeOk = fclose($targetHandle);
+      $fallbackOk = $fallbackOk && $closeOk;
+      @unlink($tempPath);
+    }
+
+    clearstatcache(true, $registryPath);
+    if (!$fallbackOk || !is_file($registryPath) || filesize($registryPath) !== strlen($content)) {
+      return false;
+    }
+  }
+
+  @chmod($registryPath, 0640);
   if (!isset($GLOBALS['voncms_generated_media_variant_registry_cache'])) {
     $GLOBALS['voncms_generated_media_variant_registry_cache'] = [];
   }
   $GLOBALS['voncms_generated_media_variant_registry_cache'][$registryPath] = $normalized;
 
   return true;
+}
+
+function voncms_write_generated_media_variant_registry(
+  array $registry,
+  ?string $uploadsDir = null,
+): bool {
+  $lockHandle = voncms_acquire_generated_media_variant_registry_lock($uploadsDir, LOCK_EX);
+  if ($lockHandle === false) {
+    return false;
+  }
+
+  try {
+    return voncms_write_generated_media_variant_registry_unlocked($registry, $uploadsDir);
+  } finally {
+    voncms_release_generated_media_variant_registry_lock($lockHandle);
+  }
 }
 
 function voncms_build_generated_media_variant_registry_entry(string $absoluteVariantPath): ?array
@@ -286,68 +435,86 @@ function voncms_record_generated_media_variants(
   }
 
   $normalizedUploadsDir = voncms_normalize_generated_media_variant_uploads_dir($uploadsDir);
-  $registry = voncms_load_generated_media_variant_registry($normalizedUploadsDir);
-  $sourceEntry = $registry['sources'][$sourceRelativePath] ?? ['variants' => []];
-  $sourceVariants = is_array($sourceEntry['variants'] ?? null) ? $sourceEntry['variants'] : [];
-
-  foreach (array_keys($sourceVariants) as $existingVariantRelativePath) {
-    if (
-      !voncms_is_registered_generated_media_variant(
-        $existingVariantRelativePath,
-        $normalizedUploadsDir,
-      )
-    ) {
-      unset($sourceVariants[$existingVariantRelativePath]);
-      unset($registry['variants'][$existingVariantRelativePath]);
-    }
-  }
-
-  foreach ($variantPaths as $variantPath) {
-    $variantRelativePath = voncms_normalize_generated_media_variant_relative_path(
-      (string) $variantPath,
-    );
-    if ($variantRelativePath === null || $variantRelativePath === $sourceRelativePath) {
-      continue;
-    }
-
-    $variantEntry = voncms_build_generated_media_variant_registry_entry(
-      $normalizedUploadsDir . $variantRelativePath,
-    );
-    if ($variantEntry === null) {
-      continue;
-    }
-
-    $previousSourcePath = (string) ($registry['variants'][$variantRelativePath]['source'] ?? '');
-    if (
-      $previousSourcePath !== '' &&
-      $previousSourcePath !== $sourceRelativePath &&
-      isset($registry['sources'][$previousSourcePath]['variants'][$variantRelativePath])
-    ) {
-      unset($registry['sources'][$previousSourcePath]['variants'][$variantRelativePath]);
-      if (empty($registry['sources'][$previousSourcePath]['variants'])) {
-        unset($registry['sources'][$previousSourcePath]);
-      }
-    }
-
-    $sourceVariants[$variantRelativePath] = $variantEntry;
-    $registry['variants'][$variantRelativePath] = [
-      'source' => $sourceRelativePath,
-      'hash' => $variantEntry['hash'],
-      'size' => $variantEntry['size'],
-    ];
-  }
-
-  if (empty($sourceVariants)) {
+  $lockHandle = voncms_acquire_generated_media_variant_registry_lock(
+    $normalizedUploadsDir,
+    LOCK_EX,
+  );
+  if ($lockHandle === false) {
     return false;
   }
 
-  ksort($sourceVariants, SORT_STRING);
-  $registry['sources'][$sourceRelativePath] = [
-    'updatedAt' => gmdate('c'),
-    'variants' => $sourceVariants,
-  ];
+  try {
+    $registryPath = voncms_get_generated_media_variant_registry_path($normalizedUploadsDir);
+    $registry = voncms_load_generated_media_variant_registry_file($registryPath);
+    $sourceEntry = $registry['sources'][$sourceRelativePath] ?? ['variants' => []];
+    $sourceVariants = is_array($sourceEntry['variants'] ?? null) ? $sourceEntry['variants'] : [];
 
-  return voncms_write_generated_media_variant_registry($registry, $normalizedUploadsDir);
+    foreach (array_keys($sourceVariants) as $existingVariantRelativePath) {
+      $variantEntry = $registry['variants'][$existingVariantRelativePath] ?? null;
+      $absoluteVariantPath = $normalizedUploadsDir . $existingVariantRelativePath;
+      $expectedHash = is_array($variantEntry)
+        ? strtolower(trim((string) ($variantEntry['hash'] ?? '')))
+        : '';
+      $currentHash = is_file($absoluteVariantPath) ? @sha1_file($absoluteVariantPath) : false;
+      if (
+        $expectedHash === '' ||
+        !is_string($currentHash) ||
+        !hash_equals($expectedHash, strtolower($currentHash))
+      ) {
+        unset($sourceVariants[$existingVariantRelativePath]);
+        unset($registry['variants'][$existingVariantRelativePath]);
+      }
+    }
+
+    foreach ($variantPaths as $variantPath) {
+      $variantRelativePath = voncms_normalize_generated_media_variant_relative_path(
+        (string) $variantPath,
+      );
+      if ($variantRelativePath === null || $variantRelativePath === $sourceRelativePath) {
+        continue;
+      }
+
+      $variantEntry = voncms_build_generated_media_variant_registry_entry(
+        $normalizedUploadsDir . $variantRelativePath,
+      );
+      if ($variantEntry === null) {
+        continue;
+      }
+
+      $previousSourcePath = (string) ($registry['variants'][$variantRelativePath]['source'] ?? '');
+      if (
+        $previousSourcePath !== '' &&
+        $previousSourcePath !== $sourceRelativePath &&
+        isset($registry['sources'][$previousSourcePath]['variants'][$variantRelativePath])
+      ) {
+        unset($registry['sources'][$previousSourcePath]['variants'][$variantRelativePath]);
+        if (empty($registry['sources'][$previousSourcePath]['variants'])) {
+          unset($registry['sources'][$previousSourcePath]);
+        }
+      }
+
+      $sourceVariants[$variantRelativePath] = $variantEntry;
+      $registry['variants'][$variantRelativePath] = [
+        'source' => $sourceRelativePath,
+        'hash' => $variantEntry['hash'],
+        'size' => $variantEntry['size'],
+      ];
+    }
+
+    if (empty($sourceVariants)) {
+      return false;
+    }
+
+    ksort($sourceVariants, SORT_STRING);
+    $registry['sources'][$sourceRelativePath] = [
+      'updatedAt' => gmdate('c'),
+      'variants' => $sourceVariants,
+    ];
+
+    return voncms_write_generated_media_variant_registry_unlocked($registry, $normalizedUploadsDir);
+  } finally {
+    voncms_release_generated_media_variant_registry_lock($lockHandle);
+  }
 }
 
 function voncms_unregister_generated_media_variants_for_source(
@@ -360,18 +527,31 @@ function voncms_unregister_generated_media_variants_for_source(
   }
 
   $normalizedUploadsDir = voncms_normalize_generated_media_variant_uploads_dir($uploadsDir);
-  $registry = voncms_load_generated_media_variant_registry($normalizedUploadsDir);
-  $sourceEntry = $registry['sources'][$sourceRelativePath] ?? null;
-  if (!is_array($sourceEntry)) {
-    return true;
+  $lockHandle = voncms_acquire_generated_media_variant_registry_lock(
+    $normalizedUploadsDir,
+    LOCK_EX,
+  );
+  if ($lockHandle === false) {
+    return false;
   }
 
-  foreach (array_keys($sourceEntry['variants'] ?? []) as $variantRelativePath) {
-    unset($registry['variants'][$variantRelativePath]);
-  }
-  unset($registry['sources'][$sourceRelativePath]);
+  try {
+    $registryPath = voncms_get_generated_media_variant_registry_path($normalizedUploadsDir);
+    $registry = voncms_load_generated_media_variant_registry_file($registryPath);
+    $sourceEntry = $registry['sources'][$sourceRelativePath] ?? null;
+    if (!is_array($sourceEntry)) {
+      return true;
+    }
 
-  return voncms_write_generated_media_variant_registry($registry, $normalizedUploadsDir);
+    foreach (array_keys($sourceEntry['variants'] ?? []) as $variantRelativePath) {
+      unset($registry['variants'][$variantRelativePath]);
+    }
+    unset($registry['sources'][$sourceRelativePath]);
+
+    return voncms_write_generated_media_variant_registry_unlocked($registry, $normalizedUploadsDir);
+  } finally {
+    voncms_release_generated_media_variant_registry_lock($lockHandle);
+  }
 }
 
 function voncms_unregister_generated_media_variant_paths(
@@ -379,37 +559,50 @@ function voncms_unregister_generated_media_variant_paths(
   ?string $uploadsDir = null,
 ): bool {
   $normalizedUploadsDir = voncms_normalize_generated_media_variant_uploads_dir($uploadsDir);
-  $registry = voncms_load_generated_media_variant_registry($normalizedUploadsDir);
-  $changed = false;
-
-  foreach ($variantPaths as $variantPath) {
-    $variantRelativePath = voncms_normalize_generated_media_variant_relative_path(
-      (string) $variantPath,
-    );
-    if ($variantRelativePath === null || !isset($registry['variants'][$variantRelativePath])) {
-      continue;
-    }
-
-    $sourceRelativePath = (string) ($registry['variants'][$variantRelativePath]['source'] ?? '');
-    unset($registry['variants'][$variantRelativePath]);
-
-    if (
-      $sourceRelativePath !== '' &&
-      isset($registry['sources'][$sourceRelativePath]['variants'][$variantRelativePath])
-    ) {
-      unset($registry['sources'][$sourceRelativePath]['variants'][$variantRelativePath]);
-      if (empty($registry['sources'][$sourceRelativePath]['variants'])) {
-        unset($registry['sources'][$sourceRelativePath]);
-      } else {
-        $registry['sources'][$sourceRelativePath]['updatedAt'] = gmdate('c');
-      }
-    }
-
-    $changed = true;
+  $lockHandle = voncms_acquire_generated_media_variant_registry_lock(
+    $normalizedUploadsDir,
+    LOCK_EX,
+  );
+  if ($lockHandle === false) {
+    return false;
   }
 
-  return !$changed ||
-    voncms_write_generated_media_variant_registry($registry, $normalizedUploadsDir);
+  try {
+    $registryPath = voncms_get_generated_media_variant_registry_path($normalizedUploadsDir);
+    $registry = voncms_load_generated_media_variant_registry_file($registryPath);
+    $changed = false;
+
+    foreach ($variantPaths as $variantPath) {
+      $variantRelativePath = voncms_normalize_generated_media_variant_relative_path(
+        (string) $variantPath,
+      );
+      if ($variantRelativePath === null || !isset($registry['variants'][$variantRelativePath])) {
+        continue;
+      }
+
+      $sourceRelativePath = (string) ($registry['variants'][$variantRelativePath]['source'] ?? '');
+      unset($registry['variants'][$variantRelativePath]);
+
+      if (
+        $sourceRelativePath !== '' &&
+        isset($registry['sources'][$sourceRelativePath]['variants'][$variantRelativePath])
+      ) {
+        unset($registry['sources'][$sourceRelativePath]['variants'][$variantRelativePath]);
+        if (empty($registry['sources'][$sourceRelativePath]['variants'])) {
+          unset($registry['sources'][$sourceRelativePath]);
+        } else {
+          $registry['sources'][$sourceRelativePath]['updatedAt'] = gmdate('c');
+        }
+      }
+
+      $changed = true;
+    }
+
+    return !$changed ||
+      voncms_write_generated_media_variant_registry_unlocked($registry, $normalizedUploadsDir);
+  } finally {
+    voncms_release_generated_media_variant_registry_lock($lockHandle);
+  }
 }
 
 function voncms_get_registered_generated_media_variants_for_source(

@@ -19,7 +19,7 @@ import { vonFetch } from '../../../../utils/api';
 
 interface NewsletterManagerProps {
   settings: SiteSettings;
-  onUpdateSettings: (settings: SiteSettings) => void;
+  onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean>;
 }
 
 const defaultNewsletterSettings: NewsletterSettings = {
@@ -344,6 +344,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   name="searchEmail"
                   aria-label="Search email..."
                   type="text"
+                  maxLength={120}
                   placeholder="Search email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

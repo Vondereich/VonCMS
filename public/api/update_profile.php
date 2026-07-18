@@ -121,11 +121,30 @@ try {
       ResponseHelper::sendError('Password must be 8+ chars with uppercase, number & symbol', 400);
     }
 
-    // 3. Update Password
-    $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
-    $stmt = $pdo->prepare('UPDATE users SET password = ? WHERE id = ?');
-    if (!$stmt->execute([$newHash, $userId])) {
-      throw new Exception('Failed to update password');
+    $pdo->beginTransaction();
+    try {
+      // 3. Update Password
+      $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+      $stmt = $pdo->prepare('UPDATE users SET password = ? WHERE id = ?');
+      if (!$stmt->execute([$newHash, $userId])) {
+        throw new Exception('Failed to update password');
+      }
+
+      try {
+        $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+        $revokeRememberStmt->execute([$userId]);
+      } catch (PDOException $e) {
+        if ($e->getCode() !== '42S02') {
+          throw $e;
+        }
+      }
+
+      $pdo->commit();
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      throw $e;
     }
   }
 

@@ -27,6 +27,10 @@ require_once __DIR__ . '/../scheduler_helper.php';
 $id = isset($_GET['id']) ? trim((string) $_GET['id']) : null;
 $slug = isset($_GET['slug']) ? trim((string) $_GET['slug']) : null;
 
+if ($slug !== null && mb_strlen($slug) > 255) {
+  ResponseHelper::sendError('Post slug is too long', 400);
+}
+
 if ($id !== null && $id !== '' && !preg_match('/^\d+$/', $id)) {
   ResponseHelper::sendError('Post ID must be numeric; use slug parameter for slugs', 400);
 }

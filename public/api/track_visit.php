@@ -11,6 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'POST'], true)) {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
@@ -56,9 +60,16 @@ if (rand(1, 100) === 1) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // Record a visit
   $input = json_decode(CSRFProtection::getRequestBody(), true);
-  $pageUrl = $input['url'] ?? ($_SERVER['REQUEST_URI'] ?? '');
-  $referrer = $input['referrer'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
-  $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+  if (!is_array($input)) {
+    ResponseHelper::sendError('Invalid JSON payload', 400);
+  }
+  $pageUrl = mb_substr(trim((string) ($input['url'] ?? ($_SERVER['REQUEST_URI'] ?? ''))), 0, 500);
+  $referrer = mb_substr(
+    trim((string) ($input['referrer'] ?? ($_SERVER['HTTP_REFERER'] ?? ''))),
+    0,
+    500,
+  );
+  $userAgent = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 1000);
 
   // Hash IP for privacy
   $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));
@@ -94,9 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   try {
     $days = isset($_GET['days']) ? (int) $_GET['days'] : 7;
-    if ($days < 1) {
-      $days = 7;
-    }
+    $days = max(1, min(365, $days));
 
     // Get visits per day
     $stmt = $pdo->prepare("

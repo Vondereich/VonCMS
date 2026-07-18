@@ -35,10 +35,23 @@ const getSeoVisibleText = (html: string) => {
     .trim();
 };
 
+const escapeSeoKeyword = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const containsSeoKeyword = (text: string, keyword: string) => {
+  const normalizedText = text.normalize('NFKC').toLowerCase();
+  const normalizedKeyword = keyword.normalize('NFKC').trim().toLowerCase();
+  if (!normalizedText || !normalizedKeyword) return false;
+
+  const keywordPattern = normalizedKeyword.split(/\s+/).map(escapeSeoKeyword).join('\\s+');
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${keywordPattern}(?=$|[^\\p{L}\\p{N}])`, 'u').test(
+    normalizedText
+  );
+};
+
 export const extractKeywords = (content: string, title: string = ''): string[] => {
   const safeContent = (content || '').slice(0, MAX_KEYWORD_CONTENT_CHARS);
   const safeTitle = (title || '').slice(0, MAX_KEYWORD_TITLE_CHARS);
-  if (!safeContent) return [];
+  if (!safeContent && !safeTitle) return [];
 
   // English-only stopwords (web lingua franca)
   // Other languages handled algorithmically via length filter + frequency threshold
@@ -317,10 +330,6 @@ export const analyzeSEO = (
         .map((k) => k.trim().toLowerCase())
         .filter((k) => k)
     : [];
-  const lowerTitle = safeTitle.toLowerCase();
-  const lowerDesc = safeMetaDescription.toLowerCase();
-  const lowerContent = visibleText.toLowerCase();
-
   if (!hasAnySeoInput) {
     return result;
   }
@@ -366,7 +375,7 @@ export const analyzeSEO = (
   // 3. Focus Keywords
   if (keywords.length > 0) {
     // In Title
-    const inTitle = keywords.some((k) => lowerTitle.includes(k));
+    const inTitle = keywords.some((keyword) => containsSeoKeyword(safeTitle, keyword));
     if (inTitle) {
       score += 15;
       result.checks.keywordInTitle = { status: 'good', message: 'Focus keyword appears in title.' };
@@ -378,7 +387,7 @@ export const analyzeSEO = (
     }
 
     // In Description
-    const inDesc = keywords.some((k) => lowerDesc.includes(k));
+    const inDesc = keywords.some((keyword) => containsSeoKeyword(safeMetaDescription, keyword));
     if (inDesc) {
       score += 10;
       result.checks.keywordInDesc = {
@@ -393,7 +402,7 @@ export const analyzeSEO = (
     }
 
     // In Content
-    const inContent = keywords.some((k) => lowerContent.includes(k));
+    const inContent = keywords.some((keyword) => containsSeoKeyword(visibleText, keyword));
     if (inContent) {
       score += 15;
       result.checks.keywordInContent = {

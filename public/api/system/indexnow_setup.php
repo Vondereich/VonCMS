@@ -12,6 +12,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../../von_config.php')) {
   require_once __DIR__ . '/../../von_config.php';
 }
@@ -29,21 +33,24 @@ try {
   }
 
   $indexNow = new IndexNow($pdo);
+  $previousKey = $indexNow->getKey();
 
   // Generate new key
   $newKey = IndexNow::generateKey();
 
-  // Save to database
-  if (!$indexNow->saveKey($newKey)) {
-    throw new Exception('Failed to save IndexNow key to database');
-  }
-
-  // Create verification file in web root
+  // Create the verification file before changing the active database key.
   if (!$indexNow->createKeyFile($newKey)) {
     throw new Exception(
       'Failed to create key verification file. Check write permissions on public folder.',
     );
   }
+
+  if (!$indexNow->saveKey($newKey)) {
+    $indexNow->removeKeyFile($newKey);
+    throw new Exception('Failed to save IndexNow key to database');
+  }
+
+  $indexNow->cleanupOldKeyFiles($previousKey, $newKey);
 
   echo json_encode([
     'success' => true,

@@ -32,6 +32,16 @@ SessionManager::requireAdmin();
 
 // Admin only access
 
+function sanitizeSecurityCsvCell($value)
+{
+  $text = $value === null ? '' : (string) $value;
+  if (preg_match('/^[\t\r\n]/', $text) || preg_match('/^[\x00-\x20]*[=+\-@]/', $text)) {
+    return "'" . $text;
+  }
+
+  return $text;
+}
+
 try {
   // Pagination
   $page = max(1, isset($_GET['page']) ? (int) $_GET['page'] : 1);
@@ -107,17 +117,20 @@ try {
     $stmt->execute();
 
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-      fputcsv($output, [
-        $row['id'],
-        $row['event_type'],
-        $row['ip_address'],
-        $row['user_agent'],
-        $row['endpoint'],
-        $row['severity'],
-        $row['details'],
-        $row['blocked'] ? 'Yes' : 'No',
-        $row['created_at'],
-      ]);
+      fputcsv(
+        $output,
+        array_map('sanitizeSecurityCsvCell', [
+          $row['id'],
+          $row['event_type'],
+          $row['ip_address'],
+          $row['user_agent'],
+          $row['endpoint'],
+          $row['severity'],
+          $row['details'],
+          $row['blocked'] ? 'Yes' : 'No',
+          $row['created_at'],
+        ]),
+      );
     }
 
     fclose($output);

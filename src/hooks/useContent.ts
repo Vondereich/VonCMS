@@ -3,7 +3,7 @@
  * Handles posts and pages CRUD operations
  */
 import { useState, useCallback } from 'react';
-import { Post, Page, SiteSettings } from '../types';
+import { Post, Page, SiteSettings, User } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
@@ -13,9 +13,9 @@ import { extractVideoThumbnail } from '../utils/siteUtils';
 import contentSeed from '../data/content.json';
 const getInitialPosts = (): Post[] => {
   // Try to use PHP-injected hydration data if available (Soft 404 / FOUC fix)
-  const injected = (window as any).__INITIAL_DATA__;
+  const injected = window.__INITIAL_DATA__;
   if (Array.isArray(injected) && injected.length > 0) {
-    return injected.map((p: any) => ({
+    return injected.map((p) => ({
       id: String(p.id || ''),
       title: p.title || '',
       slug: p.slug || '',
@@ -36,7 +36,7 @@ const getInitialPosts = (): Post[] => {
       readTime: p.readTime || '',
     }));
   }
-  return (contentSeed as any).posts || [];
+  return contentSeed.posts as Post[];
 };
 
 const normalizePage = (p: any): Page => ({
@@ -48,7 +48,7 @@ const normalizePage = (p: any): Page => ({
 });
 
 const INITIAL_POSTS: Post[] = getInitialPosts();
-const INITIAL_PAGES: Page[] = ((contentSeed as any).pages || []).map(normalizePage);
+const INITIAL_PAGES: Page[] = contentSeed.pages.map(normalizePage);
 
 export function useContent() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
@@ -106,7 +106,7 @@ export function useContent() {
       id: string | null,
       isPage: boolean = false,
       navigate: any,
-      currentUser: { username: string } | null
+      currentUser: Pick<User, 'username' | 'avatar'> | null
     ) => {
       setIsEditingPage(isPage);
       if (id) {
@@ -114,21 +114,41 @@ export function useContent() {
         setEditingItem(item || null);
       } else {
         // Create new
-        setEditingItem({
-          id: '',
-          title: '',
-          content: '',
-          excerpt: '',
-          status: 'draft',
-          author: currentUser?.username || '',
-          author_data: currentUser
-            ? { username: currentUser.username, avatar: (currentUser as any).avatar || '' }
-            : { username: '', avatar: '' },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          category: isPage ? 'Page' : 'Uncategorized',
-          slug: '',
-        } as any);
+        const timestamp = new Date().toISOString();
+        const authorData = currentUser
+          ? { username: currentUser.username, avatar: currentUser.avatar || '' }
+          : { username: '', avatar: '' };
+        setEditingItem(
+          isPage
+            ? {
+                id: '',
+                title: '',
+                content: '',
+                excerpt: '',
+                status: 'draft',
+                author: currentUser?.username || '',
+                author_data: authorData,
+                created_at: timestamp,
+                updatedAt: timestamp,
+                updated_at: timestamp,
+                category: 'Page',
+                slug: '',
+              }
+            : {
+                id: '',
+                title: '',
+                content: '',
+                excerpt: '',
+                status: 'draft',
+                author: currentUser?.username || '',
+                author_data: authorData,
+                created_at: timestamp,
+                updatedAt: timestamp,
+                updated_at: timestamp,
+                category: 'Uncategorized',
+                slug: '',
+              }
+        );
       }
       // Include type/id so hard refresh can recover the active editor item.
       const editorParams = new URLSearchParams();
@@ -148,7 +168,7 @@ export function useContent() {
       addToMenu: boolean,
       navigate: any,
       settings: SiteSettings,
-      onUpdateSettings: (settings: SiteSettings) => void,
+      onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean>,
       skipNavigate: boolean = false,
       isPageOverride?: boolean
     ) => {
@@ -193,7 +213,7 @@ export function useContent() {
       const endpoint = effectiveIsPage ? API.savePage : API.savePost;
       const stableTempId = item.id || `temp-${Date.now()}`;
       if (!newItem.id) {
-        (newItem as any).id = stableTempId;
+        newItem.id = stableTempId;
       }
 
       // NOTE: Navigation logic moved to AFTER API response to prevent temp ID issues
@@ -227,8 +247,10 @@ export function useContent() {
             throw new Error('Session paused. Please login in the popup to continue.');
           }
 
-          const error = new Error(errData.message || errData.error || 'Failed to save content');
-          (error as any).status = res.status;
+          const error = Object.assign(
+            new Error(errData.message || errData.error || 'Failed to save content'),
+            { status: res.status }
+          );
           throw error;
         }
 

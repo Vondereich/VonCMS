@@ -147,6 +147,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
                 name="email"
                 autoComplete="email"
                 type="email"
+                maxLength={255}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
@@ -238,6 +239,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
             name="email"
             autoComplete="email"
             type="email"
+            maxLength={255}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Enter your email"

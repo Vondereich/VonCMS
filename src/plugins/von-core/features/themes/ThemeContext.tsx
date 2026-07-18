@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ThemeDefinition, THEMES, THEME_DEFAULT } from './themeRegistry';
 import { ThemeEngine } from './ThemeEngine';
-import { API } from '../../../../config/site.config';
-import { vonFetch } from '../../../../utils/api';
 
 interface ThemeContextType {
   activeTheme: ThemeDefinition;
@@ -50,47 +48,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode; initialThemeId
     localStorage.setItem('von_active_theme_id', activeTheme.id);
   }, [activeTheme]);
 
-  // Save theme to database
-  const saveThemeToDatabase = async (themeId: string) => {
-    try {
-      // Fetch current settings
-      const res = await vonFetch(API.settings);
-      if (!res.ok) {
-        return;
-      }
-
-      const settings = await res.json();
-
-      // Update activeThemeId
-      const updatedSettings = { ...settings, activeThemeId: themeId };
-
-      // Remove metadata fields
-      delete updatedSettings._source;
-      delete updatedSettings._access_level;
-      delete updatedSettings._warning;
-
-      // Save back to server (database)
-      const saveRes = await vonFetch(API.saveSettings, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedSettings),
-      });
-
-      if (saveRes.ok) {
-        // Success
-      }
-    } catch (e) {
-      // Theme still works via localStorage
-    }
-  };
-
   const setTheme = (themeId: string) => {
     if (THEMES[themeId]) {
       setActiveTheme(THEMES[themeId]);
-      // Save to database (async, non-blocking)
-      saveThemeToDatabase(themeId);
     } else {
       console.warn(`Theme ${themeId} not found.`);
     }

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 interface VonAnalyticsSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => Promise<void> | void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -24,13 +24,18 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onUpdate({
+      const saved = await onUpdate({
         ...settings,
         analytics: {
           ...settings.analytics,
           cookieConsent: tempAnalytics.cookieConsent,
         },
       });
+      if (saved === false) {
+        setIsSaving(false);
+        return;
+      }
+
       toast.success('Analytics settings saved!');
       onClose();
     } catch (error) {

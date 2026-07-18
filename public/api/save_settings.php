@@ -67,8 +67,11 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'smtpFromName',
     'emailSmtp',
     'indexnowKey',
+    'domainUrl',
     'adminProfile',
     'sidebarLayout',
+    'media',
+    'customPlugins',
   ];
 
   foreach ($restrictedTopLevelKeys as $key) {
@@ -83,6 +86,181 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
 
 if (!$isPrimaryAdmin) {
   voncms_guard_restricted_settings_for_non_primary_admin($settings);
+}
+
+if (isset($settings['domainUrl'])) {
+  $domainUrl = rtrim(trim((string) $settings['domainUrl']), '/');
+  if ($domainUrl !== '') {
+    $domainScheme = strtolower((string) parse_url($domainUrl, PHP_URL_SCHEME));
+    if (
+      filter_var($domainUrl, FILTER_VALIDATE_URL) === false ||
+      !in_array($domainScheme, ['http', 'https'], true)
+    ) {
+      ResponseHelper::sendError('Domain URL must use http or https.', 400);
+    }
+  }
+  $settings['domainUrl'] = $domainUrl;
+}
+
+function voncms_normalize_active_plugins($value): array
+{
+  if (!is_array($value) || count($value) > 100) {
+    ResponseHelper::sendError('Invalid active plugins configuration.', 400);
+  }
+
+  $activePlugins = [];
+  foreach ($value as $pluginId) {
+    if (!is_string($pluginId)) {
+      ResponseHelper::sendError('Invalid active plugin identifier.', 400);
+    }
+
+    $pluginId = trim($pluginId);
+    if (
+      $pluginId === '' ||
+      strlen($pluginId) > 100 ||
+      !preg_match('/^[A-Za-z0-9._-]+$/', $pluginId)
+    ) {
+      ResponseHelper::sendError('Invalid active plugin identifier.', 400);
+    }
+
+    $activePlugins[$pluginId] = true;
+  }
+
+  return array_keys($activePlugins);
+}
+
+function voncms_normalize_custom_plugins($value): array
+{
+  if (!is_array($value) || count($value) > 25) {
+    ResponseHelper::sendError('Invalid custom plugins configuration.', 400);
+  }
+
+  $allowedLocations = ['header_top', 'footer_bottom', 'sidebar_top', 'post_after'];
+  $customPlugins = [];
+
+  foreach ($value as $plugin) {
+    if (!is_array($plugin)) {
+      ResponseHelper::sendError('Invalid custom plugin entry.', 400);
+    }
+
+    foreach (['id', 'name', 'location', 'htmlContent'] as $field) {
+      if (!isset($plugin[$field]) || !is_string($plugin[$field])) {
+        ResponseHelper::sendError('Invalid custom plugin entry.', 400);
+      }
+    }
+
+    if (isset($plugin['cssContent']) && !is_string($plugin['cssContent'])) {
+      ResponseHelper::sendError('Invalid custom plugin entry.', 400);
+    }
+
+    $enabledValue = $plugin['enabled'] ?? false;
+    if (!is_bool($enabledValue) && !is_int($enabledValue) && !is_string($enabledValue)) {
+      ResponseHelper::sendError('Invalid custom plugin entry.', 400);
+    }
+
+    $id = trim((string) ($plugin['id'] ?? ''));
+    $name = trim((string) ($plugin['name'] ?? ''));
+    $location = trim((string) ($plugin['location'] ?? ''));
+    $htmlContent = (string) ($plugin['htmlContent'] ?? '');
+    $cssContent = (string) ($plugin['cssContent'] ?? '');
+
+    if (
+      $id === '' ||
+      strlen($id) > 100 ||
+      !preg_match('/^[A-Za-z0-9._-]+$/', $id) ||
+      $name === '' ||
+      strlen($name) > 150 ||
+      !in_array($location, $allowedLocations, true) ||
+      strlen($htmlContent) > 100000 ||
+      strlen($cssContent) > 50000
+    ) {
+      ResponseHelper::sendError('Invalid custom plugin entry.', 400);
+    }
+
+    $customPlugins[] = [
+      'id' => $id,
+      'name' => $name,
+      'location' => $location,
+      'htmlContent' => $htmlContent,
+      'cssContent' => $cssContent,
+      'enabled' => filter_var($plugin['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+    ];
+  }
+
+  return $customPlugins;
+}
+
+function voncms_validate_plugin_config_node($value, int $depth = 0): void
+{
+  if ($depth > 12) {
+    ResponseHelper::sendError('Plugin configuration is too deeply nested.', 400);
+  }
+
+  if (is_array($value)) {
+    if (count($value) > 200) {
+      ResponseHelper::sendError('Plugin configuration contains too many entries.', 400);
+    }
+
+    foreach ($value as $key => $child) {
+      if (is_string($key) && strlen($key) > 100) {
+        ResponseHelper::sendError('Plugin configuration key is too long.', 400);
+      }
+      voncms_validate_plugin_config_node($child, $depth + 1);
+    }
+    return;
+  }
+
+  if (is_string($value) && strlen($value) > 100000) {
+    ResponseHelper::sendError('Plugin configuration value is too long.', 400);
+  }
+
+  if (!is_null($value) && !is_scalar($value)) {
+    ResponseHelper::sendError('Invalid plugin configuration value.', 400);
+  }
+}
+
+if (array_key_exists('activePlugins', $settings)) {
+  $settings['activePlugins'] = voncms_normalize_active_plugins($settings['activePlugins']);
+}
+
+if (array_key_exists('customPlugins', $settings)) {
+  $settings['customPlugins'] = voncms_normalize_custom_plugins($settings['customPlugins']);
+}
+
+if (array_key_exists('pluginConfig', $settings)) {
+  if (!is_array($settings['pluginConfig'])) {
+    ResponseHelper::sendError('Invalid plugin configuration.', 400);
+  }
+
+  voncms_validate_plugin_config_node($settings['pluginConfig']);
+
+  if (isset($settings['pluginConfig']['pluginStatus'])) {
+    $pluginStatus = $settings['pluginConfig']['pluginStatus'];
+    if (!is_array($pluginStatus) || count($pluginStatus) > 100) {
+      ResponseHelper::sendError('Invalid plugin status configuration.', 400);
+    }
+
+    $normalizedPluginStatus = [];
+    foreach ($pluginStatus as $pluginId => $status) {
+      if (
+        !is_string($pluginId) ||
+        $pluginId === '' ||
+        strlen($pluginId) > 100 ||
+        !preg_match('/^[A-Za-z0-9._-]+$/', $pluginId) ||
+        !is_string($status) ||
+        !in_array($status, ['active', 'inactive', 'not_installed'], true)
+      ) {
+        ResponseHelper::sendError('Invalid plugin status configuration.', 400);
+      }
+      $normalizedPluginStatus[$pluginId] = $status;
+    }
+    $settings['pluginConfig']['pluginStatus'] = $normalizedPluginStatus;
+  }
+
+  $encodedPluginConfig = json_encode($settings['pluginConfig']);
+  if ($encodedPluginConfig === false || strlen($encodedPluginConfig) > 262144) {
+    ResponseHelper::sendError('Plugin configuration is too large.', 400);
+  }
 }
 
 // Remove metadata fields
@@ -169,6 +347,7 @@ function voncms_scrub_admin_profile_avatar(array &$settings): void
 
 try {
   $pdo->beginTransaction();
+  voncms_purge_sensitive_setting_audit_history($pdo);
   voncms_preserve_admin_profile_email_placeholder($pdo, $settings);
   voncms_scrub_admin_profile_avatar($settings);
 
@@ -357,7 +536,7 @@ try {
       }
 
       $isPublicInDb =
-        $group === 'api' && $dbKey === 'config'
+        ($group === 'api' && $dbKey === 'config') || ($group === 'contact' && $dbKey === 'forms')
           ? 0
           : (SecurityHelper::isSensitiveKey($dbKey)
             ? 0
@@ -469,6 +648,57 @@ try {
   // Media settings need custom sub-key mapping
   if (isset($settings['media'])) {
     $media = $settings['media'];
+    if (!is_array($media)) {
+      ResponseHelper::sendError('Invalid media settings data.', 400);
+    }
+
+    if (isset($media['optimization']) && is_array($media['optimization'])) {
+      $media['optimization']['maxWidth'] = max(
+        320,
+        min(7680, (int) ($media['optimization']['maxWidth'] ?? 1920)),
+      );
+      $media['optimization']['maxHeight'] = max(
+        240,
+        min(4320, (int) ($media['optimization']['maxHeight'] ?? 1080)),
+      );
+      $compressionLevel = (string) ($media['optimization']['compressionLevel'] ?? 'medium');
+      $media['optimization']['compressionLevel'] = in_array(
+        $compressionLevel,
+        ['low', 'medium', 'high'],
+        true,
+      )
+        ? $compressionLevel
+        : 'medium';
+    }
+
+    if (isset($media['storage']) && is_array($media['storage'])) {
+      $storageLocation = (string) ($media['storage']['location'] ?? 'local');
+      $media['storage']['location'] = in_array($storageLocation, ['local', 'cdn'], true)
+        ? $storageLocation
+        : 'local';
+      $folderStructure = (string) ($media['storage']['folderStructure'] ?? 'year_month');
+      $media['storage']['folderStructure'] = in_array(
+        $folderStructure,
+        ['year_month', 'flat'],
+        true,
+      )
+        ? $folderStructure
+        : 'year_month';
+
+      $cdnUrl = rtrim(trim((string) ($media['storage']['cdnUrl'] ?? '')), '/');
+      if ($cdnUrl !== '') {
+        $cdnScheme = strtolower((string) parse_url($cdnUrl, PHP_URL_SCHEME));
+        if (
+          filter_var($cdnUrl, FILTER_VALIDATE_URL) === false ||
+          !in_array($cdnScheme, ['http', 'https'], true)
+        ) {
+          ResponseHelper::sendError('CDN URL must use http or https.', 400);
+        }
+        $media['storage']['cdnUrl'] = $cdnUrl;
+      } else {
+        unset($media['storage']['cdnUrl']);
+      }
+    }
     foreach (['optimization', 'storage', 'performance'] as $key) {
       if (isset($media[$key])) {
         $isPublic = SecurityHelper::isSensitiveKey($key) ? 0 : 1;
@@ -550,6 +780,12 @@ try {
   $settingsFile = __DIR__ . '/../data/site_settings.json';
 
   $settingsForFile = $settings;
+  if (!$isPrimaryAdmin && file_exists($settingsFile)) {
+    $existingSettingsForFile = json_decode((string) file_get_contents($settingsFile), true);
+    if (is_array($existingSettingsForFile)) {
+      $settingsForFile = array_replace($existingSettingsForFile, $settingsForFile);
+    }
+  }
   if (isset($settingsForFile['postsPerPage'])) {
     $settingsForFile['postsPerPage'] = max(6, min(50, (int) $settingsForFile['postsPerPage']));
     $settingsForFile['posts_per_page'] = $settingsForFile['postsPerPage'];

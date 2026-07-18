@@ -67,9 +67,14 @@ export function findRelatedPosts(
     case 'views':
       sorted = scored.sort((a, b) => (b.views || 0) - (a.views || 0));
       break;
-    case 'random':
-      sorted = scored.sort(() => Math.random() - 0.5);
+    case 'random': {
+      sorted = [...scored];
+      for (let index = sorted.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [sorted[index], sorted[randomIndex]] = [sorted[randomIndex], sorted[index]];
+      }
       break;
+    }
     default:
       sorted = scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
   }

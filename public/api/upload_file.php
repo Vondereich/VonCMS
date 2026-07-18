@@ -36,6 +36,22 @@ function voncms_build_cdn_media_url(string $cdnUrl, string $relativePath): strin
   return $cdnBase . '/uploads/' . $relativePath;
 }
 
+/**
+ * @param array<int, mixed> $paths
+ */
+function voncms_cleanup_failed_media_upload(array $paths, ?string $registrySource = null): void
+{
+  foreach (array_unique($paths) as $path) {
+    if (is_string($path) && $path !== '' && is_file($path)) {
+      @unlink($path);
+    }
+  }
+
+  if ($registrySource !== null && $registrySource !== '') {
+    voncms_unregister_generated_media_variants_for_source($registrySource);
+  }
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ResponseHelper::sendError('Method not allowed', 405);
 }
@@ -50,6 +66,11 @@ if (!isset($_FILES['file'])) {
 
 $file = $_FILES['file'];
 $baseUploadDir = dirname(__DIR__) . '/uploads/'; // Standardised to __DIR__ based resolution
+
+$uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+if ($uploadError !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) {
+  ResponseHelper::sendError('The image upload did not complete successfully.', 400);
+}
 
 // Check for folder structure preference (from POST data or default to year_month)
 $folderStructure = $_POST['folderStructure'] ?? 'year_month';
@@ -97,10 +118,22 @@ $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
 // Server-side MIME sniffing
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
-$realMime = finfo_file($finfo, $file['tmp_name']);
+$realMime = $finfo ? finfo_file($finfo, $file['tmp_name']) : false;
+if ($finfo) {
+  finfo_close($finfo);
+}
 
-if (!in_array($realMime, $allowedMimes) || !in_array($extension, $allowedExts)) {
+if (
+  !is_string($realMime) ||
+  !in_array($realMime, $allowedMimes, true) ||
+  !in_array($extension, $allowedExts, true)
+) {
   ResponseHelper::sendError('Invalid file type. Only images are allowed.', 400);
+}
+
+$imageInfo = @getimagesize($file['tmp_name']);
+if ($imageInfo === false || empty($imageInfo[0]) || empty($imageInfo[1])) {
+  ResponseHelper::sendError('The uploaded file is not a readable image.', 400);
 }
 
 // Validate file size (max 10MB)
@@ -162,7 +195,14 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     }
     // Get CDN URL if configured
     if (!empty($allSettings['media']['storage']['cdnUrl'])) {
-      $cdnUrl = rtrim($allSettings['media']['storage']['cdnUrl'], '/');
+      $configuredCdnUrl = rtrim((string) $allSettings['media']['storage']['cdnUrl'], '/');
+      $configuredCdnScheme = strtolower((string) parse_url($configuredCdnUrl, PHP_URL_SCHEME));
+      if (
+        filter_var($configuredCdnUrl, FILTER_VALIDATE_URL) !== false &&
+        in_array($configuredCdnScheme, ['http', 'https'], true)
+      ) {
+        $cdnUrl = $configuredCdnUrl;
+      }
     }
   }
 
@@ -183,6 +223,19 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
   if (ImageProcessor::isGdAvailable() && $mediaSettings['enabled']) {
     $processor = new ImageProcessor($mediaSettings);
     $processResult = $processor->processUpload($targetPath);
+    if (empty($processResult['success'])) {
+      voncms_cleanup_failed_media_upload(
+        array_merge(
+          [$targetPath, $processResult['processed'] ?? '', $processResult['webpPath'] ?? ''],
+          array_values($processResult['responsiveVariants'] ?? []),
+        ),
+        $targetPath,
+      );
+      ResponseHelper::sendError(
+        $processResult['message'] ?? 'Image processing failed safely.',
+        422,
+      );
+    }
     $responsiveVariantStatus =
       $processResult['responsiveVariantStatus'] ?? $responsiveVariantStatus;
     $responsiveVariantMessage =
@@ -245,9 +298,13 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     } catch (Exception $e) {
       // CRITICAL: Database insert failed.
       // We must DELETE the uploaded file to prevent "Orphaned Files" (Disk Usage Leak)
-      if (file_exists($targetPath)) {
-        unlink($targetPath);
-      }
+      voncms_cleanup_failed_media_upload(
+        array_merge(
+          [$targetPath, $processResult['webpPath'] ?? ''],
+          array_values($processResult['responsiveVariants'] ?? []),
+        ),
+        $targetPath,
+      );
       ResponseHelper::sendError($e);
     }
   }

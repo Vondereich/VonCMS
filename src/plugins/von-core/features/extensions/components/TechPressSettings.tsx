@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 interface TechPressSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -25,8 +25,8 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
   const [tempConfig, setTempConfig] = useState(initialConfig);
   const [tempFooterLinks, setTempFooterLinks] = useState(initialConfig.footerLinks || []);
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       theme: {
         ...settings.theme,
@@ -36,6 +36,8 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
         },
       },
     });
+    if (saved === false) return;
+
     toast.success('TechPress settings saved!');
     onClose();
   };

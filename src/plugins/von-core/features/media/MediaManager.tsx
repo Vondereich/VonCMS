@@ -31,6 +31,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
   const canManageMediaDestructiveActions = Boolean(settings?._canManageSecrets);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(settings?.media?.defaultView || 'grid');
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -39,6 +40,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRequestIdRef = useRef(0);
 
   const [metaLoading, setMetaLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -93,21 +95,29 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
   }, [selectedItems, media]);
 
-  const fetchMedia = async (page = 1) => {
+  const fetchMedia = async (page = 1, search = searchQuery) => {
+    const requestId = ++mediaRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
-      const res = await vonFetch(`${API.listMedia}?page=${page}&limit=${pagination.limit}`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(pagination.limit),
+      });
+      if (search) params.set('search', search);
+      const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch media');
       const data = await res.json();
+      if (requestId !== mediaRequestIdRef.current) return;
       if (data.success) {
         setMedia(data.files || []);
-        setPagination({
-          ...pagination,
+        setSelectedItems(new Set());
+        setPagination((current) => ({
+          ...current,
           currentPage: data.currentPage || 1,
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
-        });
+        }));
       } else {
         throw new Error(data.error || 'Unknown error');
       }
@@ -115,7 +125,9 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       setError(err.message || 'Failed to load media');
       console.error('Fetch media error:', err);
     } finally {
-      setIsLoading(false);
+      if (requestId === mediaRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -138,26 +150,9 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
           body: formData,
         });
 
-        if (!res.ok) throw new Error('Upload failed');
-
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
         if (data.success) {
-          // Add new file to list
-          const newItem: MediaItem = {
-            id: data.id ? String(data.id) : `m-${Date.now()}`,
-            name: data.filename,
-            type: 'image',
-            url: data.url,
-            webpUrl: data.webpUrl, // Added for Breeze series
-            size: data.size,
-            uploadedAt: data.uploadedAt,
-            path: data.path,
-            extension: data.extension, // Ensure extension is included
-            altText: '', // Initialize new fields
-            caption: '',
-            description: '',
-          };
-          setMedia((prev) => [newItem, ...prev]);
           toast.success(`Uploaded: ${data.filename}`);
         } else {
           throw new Error(data.error || 'Upload failed');
@@ -169,6 +164,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
 
     setIsUploading(false);
+    await fetchMedia(1, searchQuery);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -215,7 +211,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
 
     // Refresh media list
-    await fetchMedia();
+    await fetchMedia(pagination.currentPage, searchQuery);
     setSelectedItems(new Set());
     setIsDeleting(false);
 
@@ -298,15 +294,14 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
   };
 
-  const filteredMedia = media.filter((m) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      m.name.toLowerCase().includes(query) ||
-      (m.altText && m.altText.toLowerCase().includes(query)) ||
-      (m.caption && m.caption.toLowerCase().includes(query)) ||
-      (m.description && m.description.toLowerCase().includes(query))
-    );
-  });
+  const filteredMedia = media;
+
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalizedSearch = searchInput.trim().slice(0, 120);
+    setSearchQuery(normalizedSearch);
+    void fetchMedia(1, normalizedSearch);
+  };
 
   // Lightbox State
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -596,12 +591,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Media Gallery</h2>
           <p className="text-slate-500 text-sm">
             Manage your site's images and files. Double-click an image to view in Lightbox.{' '}
-            {media.length} files
+            {pagination.totalItems} files
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => fetchMedia(pagination.currentPage)}
+            onClick={() => fetchMedia(pagination.currentPage, searchQuery)}
             className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-[#242633] text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition"
             disabled={isLoading}
           >
@@ -672,7 +667,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             </button>
           )}
 
-          <div className="relative flex-1 md:w-64">
+          <form onSubmit={handleSearch} className="relative flex flex-1 md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               id="search-files"
@@ -680,11 +675,18 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               aria-label="Search files..."
               type="text"
               placeholder="Search files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg bg-slate-50 dark:bg-[#16161e] border-slate-200 dark:border-[#2a2b36] text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+              maxLength={120}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-10 pr-20 py-2 border rounded-lg bg-slate-50 dark:bg-[#16161e] border-slate-200 dark:border-[#2a2b36] text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
             />
-          </div>
+            <button
+              type="submit"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+            >
+              Search
+            </button>
+          </form>
         </div>
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#242633] p-1 rounded-lg">
           <button
@@ -849,7 +851,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
           <SmartPagination
             currentPage={pagination.currentPage}
             totalPages={pagination.totalPages}
-            onPageChange={(page) => fetchMedia(page)}
+            onPageChange={(page) => fetchMedia(page, searchQuery)}
             itemsPerPage={pagination.limit}
             totalItems={pagination.totalItems}
           />
@@ -890,6 +892,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         type="text"
                         className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
                         placeholder="Alternative text for accessibility"
+                        maxLength={255}
                         value={editMeta.alt}
                         onChange={(e) => setEditMeta((prev) => ({ ...prev, alt: e.target.value }))}
                       />
@@ -909,6 +912,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         rows={2}
                         className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
                         placeholder="Image caption..."
+                        maxLength={5000}
                         value={editMeta.caption}
                         onChange={(e) =>
                           setEditMeta((prev) => ({ ...prev, caption: e.target.value }))
@@ -927,6 +931,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         rows={3}
                         className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
                         placeholder="Long description..."
+                        maxLength={10000}
                         value={editMeta.desc}
                         onChange={(e) => setEditMeta((prev) => ({ ...prev, desc: e.target.value }))}
                       />

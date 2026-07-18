@@ -223,6 +223,8 @@ if (!function_exists('voncms_public_cache_set')) {
       }
       voncms_public_cache_prune(60, 250);
     } catch (Throwable $e) {
+      // Cache writes are best-effort.
+    } finally {
       if (isset($tempFile) && is_file($tempFile)) {
         @unlink($tempFile);
       }

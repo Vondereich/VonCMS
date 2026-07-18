@@ -4,9 +4,12 @@ const SkeletonLoader: React.FC = () => {
   return (
     <div
       className="skeleton-loader-react"
+      role="status"
+      aria-label="Loading content"
+      aria-busy="true"
       style={{
         fontFamily: "'Inter', sans-serif",
-        padding: '2rem',
+        padding: 'clamp(1rem, 4vw, 2rem)',
         maxWidth: '1280px',
         margin: '0 auto',
       }}
@@ -27,8 +30,8 @@ const SkeletonLoader: React.FC = () => {
                 }
                 .sk-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                    gap: 2rem;
+                    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+                    gap: clamp(1rem, 3vw, 2rem);
                 }
                 .sk-card {
                     height: 300px;
@@ -72,14 +75,21 @@ const SkeletonLoader: React.FC = () => {
                 @keyframes shimmer {
                     100% { transform: translateX(100%); }
                 }
+                @media (prefers-reduced-motion: reduce) {
+                    .sk-nav::after, .sk-hero::after, .sk-card::after {
+                        animation: none;
+                        transform: none;
+                        opacity: 0;
+                    }
+                }
             `}</style>
 
       <div className="sk-nav"></div>
       <div className="sk-hero"></div>
       <div className="sk-grid">
-        <div className="sk-card"></div>
-        <div className="sk-card"></div>
-        <div className="sk-card"></div>
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="sk-card"></div>
+        ))}
       </div>
     </div>
   );

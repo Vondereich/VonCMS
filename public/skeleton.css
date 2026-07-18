@@ -36,7 +36,7 @@ body {
 /* Skeleton Loader (FOUC Prevention) */
 .skeleton-loader {
   font-family: 'Inter', sans-serif;
-  padding: 2rem;
+  padding: clamp(1rem, 4vw, 2rem);
   max-width: 1280px;
   margin: 0 auto;
 }
@@ -57,8 +57,8 @@ body {
 
 .sk-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: clamp(1rem, 3vw, 2rem);
 }
 
 .sk-card {
@@ -117,5 +117,15 @@ body {
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-nav::after,
+  .sk-hero::after,
+  .sk-card::after {
+    animation: none;
+    transform: none;
+    opacity: 0;
   }
 }

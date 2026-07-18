@@ -526,6 +526,10 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   selectedCategory,
   onCategoryClick,
   onClearSearch,
@@ -997,7 +1001,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   ) || { component: null, position: 'top' };
   const relatedPosts = useRelatedPosts(
     settings,
-    selectedPost as any,
+    selectedPost,
     posts,
     (p) => onPostClick && onPostClick(p.id),
     {
@@ -1177,7 +1181,10 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       color: colors.text,
                       '--tw-prose-headings': colors.text,
                       '--tw-prose-body': colors.text,
-                    } as any
+                    } as React.CSSProperties & {
+                      '--tw-prose-headings': string;
+                      '--tw-prose-body': string;
+                    }
                   }
                 />
                 {aiSummaryPos === 'bottom' && aiSummary}
@@ -1234,6 +1241,10 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     onAddComment={(content) => onAddComment(selectedPost.id, content)}
                     onLikeComment={onLikeComment}
                     onReplyComment={onReplyComment}
+                    onLoadMoreComments={onLoadMoreComments}
+                    hasMoreComments={hasMoreComments}
+                    commentsLoading={commentsLoading}
+                    commentsError={commentsError}
                     onLogin={onLogin}
                     settings={settings}
                     onViewProfile={onViewProfile}
@@ -1559,10 +1570,18 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                 settings={settings}
                 onClick={onPostClick}
                 onCategoryClick={onCategoryClick}
-                authorEmail={allUsers.find((u) => u.username === heroArticle?.author)?.email}
+                authorEmail={
+                  allUsers.find(
+                    (u) =>
+                      u.username === (heroArticle?.author_data?.username || heroArticle?.author)
+                  )?.email
+                }
                 authorAvatar={
                   heroArticle?.author_data?.avatar ||
-                  allUsers.find((u) => u.username === heroArticle?.author)?.avatar
+                  allUsers.find(
+                    (u) =>
+                      u.username === (heroArticle?.author_data?.username || heroArticle?.author)
+                  )?.avatar
                 }
               />
             </div>

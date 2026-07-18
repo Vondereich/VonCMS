@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 interface DigestSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -19,14 +19,16 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
     enableMarquee: settings.theme?.digest?.enableMarquee !== false,
   });
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       theme: {
         ...settings.theme,
         digest: tempSettings,
       },
     });
+    if (saved === false) return;
+
     toast.success('Digest settings saved!');
     onClose();
   };

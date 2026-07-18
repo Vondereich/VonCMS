@@ -5,7 +5,7 @@
  *
  * Routes:
  * - /sitemap.xml - Index file (lists all sitemap chunks)
- * - /sitemap.xml?type=posts&page=1 - Posts chunk 1 (max 50K URLs)
+ * - /sitemap.xml?type=posts&page=1 - Posts chunk 1 (max 1,000 posts)
  * - /sitemap.xml?type=pages - All pages
  */
 
@@ -226,7 +226,7 @@ try {
     $permalinkStyle = $plRow && !empty($plRow['setting_value']) ? $plRow['setting_value'] : 'slug';
 
     $postStmt = $pdo->prepare(
-      "SELECT id, slug, updated_at, created_at, category, image_url FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY updated_at DESC LIMIT :limit OFFSET :offset",
+      "SELECT id, slug, updated_at, created_at, category, image_url FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY updated_at DESC, id DESC LIMIT :limit OFFSET :offset",
     );
     $postStmt->bindValue(':currentTime', $currentTime);
     $postStmt->bindValue(':limit', MAX_URLS_PER_SITEMAP, PDO::PARAM_INT);

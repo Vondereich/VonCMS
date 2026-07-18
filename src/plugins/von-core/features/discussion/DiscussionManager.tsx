@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useReducer } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef } from 'react';
 import Gravatar from 'react-gravatar';
 import { Comment, Post } from '../../../../types';
 import { API } from '../../../../config/site.config';
@@ -542,6 +542,7 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
   onDeleteComment,
 }) => {
   const [state, dispatch] = useReducer(discussionReducer, initialState);
+  const commentsRequestId = useRef(0);
   const {
     activeTab,
     pageItems,
@@ -596,6 +597,7 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
 
   const fetchCommentsPage = useCallback(
     async (page: number, filters?: { search?: string }) => {
+      const requestId = ++commentsRequestId.current;
       dispatch({ type: 'setLoading', loading: true });
 
       const params = new URLSearchParams({
@@ -613,6 +615,8 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
         }
 
         const data = await res.json();
+        if (requestId !== commentsRequestId.current) return;
+
         const resolvedPage = Number(data?.meta?.page || page);
         dispatch({
           type: 'setPage',
@@ -627,10 +631,14 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
           currentPage: resolvedPage,
         });
       } catch (error) {
-        console.warn('Failed to fetch comments page:', error);
-        dispatch({ type: 'resetPage' });
+        if (requestId === commentsRequestId.current) {
+          console.warn('Failed to fetch comments page:', error);
+          dispatch({ type: 'resetPage' });
+        }
       } finally {
-        dispatch({ type: 'setLoading', loading: false });
+        if (requestId === commentsRequestId.current) {
+          dispatch({ type: 'setLoading', loading: false });
+        }
       }
     },
     [activeTab]
@@ -659,6 +667,13 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
   useEffect(() => {
     void fetchCommentsPage(1, { search: searchQuery || undefined });
   }, [activeTab, fetchCommentsPage, searchQuery]);
+
+  useEffect(
+    () => () => {
+      commentsRequestId.current += 1;
+    },
+    []
+  );
 
   const clearSearch = () => {
     dispatch({ type: 'clearSearch' });

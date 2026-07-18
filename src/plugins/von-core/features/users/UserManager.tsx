@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
@@ -95,6 +95,7 @@ const UserManager: React.FC<UserManagerProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const usersRequestId = useRef(0);
   const currentUserRole = String(currentUser?.role || '').toLowerCase();
   const currentUserId = String(currentUser?.id || '');
   const isPrimaryAdminActor = currentUserId === '1' || currentUserRole === 'root';
@@ -112,6 +113,7 @@ const UserManager: React.FC<UserManagerProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchUsersPage = useCallback(async (page: number, filters?: { search?: string }) => {
+    const requestId = ++usersRequestId.current;
     setLoading(true);
 
     const params = new URLSearchParams({
@@ -127,6 +129,8 @@ const UserManager: React.FC<UserManagerProps> = ({
       }
 
       const data = await res.json();
+      if (requestId !== usersRequestId.current) return;
+
       const resolvedPage = Number(data?.meta?.page || page);
       setPageUsers(Array.isArray(data?.users) ? data.users : []);
       setMeta({
@@ -138,24 +142,35 @@ const UserManager: React.FC<UserManagerProps> = ({
       });
       setCurrentPage(resolvedPage);
     } catch (error) {
-      console.warn('Failed to fetch users:', error);
-      setPageUsers([]);
-      setMeta({
-        page: 1,
-        limit: itemsPerPage,
-        total: 0,
-        totalPages: 1,
-        hasMore: false,
-      });
-      setCurrentPage(1);
+      if (requestId === usersRequestId.current) {
+        console.warn('Failed to fetch users:', error);
+        setPageUsers([]);
+        setMeta({
+          page: 1,
+          limit: itemsPerPage,
+          total: 0,
+          totalPages: 1,
+          hasMore: false,
+        });
+        setCurrentPage(1);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === usersRequestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void fetchUsersPage(1, { search: searchQuery || undefined });
   }, [fetchUsersPage, searchQuery]);
+
+  useEffect(
+    () => () => {
+      usersRequestId.current += 1;
+    },
+    []
+  );
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > meta.totalPages) {

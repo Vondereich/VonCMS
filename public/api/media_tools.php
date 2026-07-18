@@ -4,16 +4,20 @@
  *
  * Handles bulk media maintenance operations.
  * - Rebuild and purge responsive variants
- * - Cleanup orphaned/unused files
+ * - Cleanup untracked files after review
  * - Report media storage statistics
  * @package VonCMS
  */
 
 require_once __DIR__ . '/../security.php';
-sendApiHeaders('GET, POST, OPTIONS');
+sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
 }
 
 if (file_exists(__DIR__ . '/../von_config.php')) {
@@ -21,6 +25,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/ImageProcessor.php';
+require_once __DIR__ . '/media_library_filter_helper.php';
 
 SessionManager::requirePrimaryAdmin();
 
@@ -217,112 +222,181 @@ function loadMediaCleanupPreview(string $token): ?array
 
 function buildMediaCleanupPath(string $uploadsDir, string $relativePath): ?string
 {
-  $relativePath = ltrim(str_replace('\\', '/', $relativePath), '/');
-  if ($relativePath === '' || strpos($relativePath, '..') !== false) {
-    return null;
-  }
-
-  return rtrim(str_replace('\\', '/', $uploadsDir), '/') . '/' . $relativePath;
+  return voncms_resolve_media_path_within_uploads($relativePath, $uploadsDir);
 }
 
 function getReferencedUploadRelativePaths(): array
 {
   global $pdo;
 
-  if (!isset($pdo)) {
-    return [];
+  if (!isset($pdo) || !($pdo instanceof PDO)) {
+    throw new RuntimeException('Media reference scan requires a database connection.');
   }
 
   $paths = [];
 
-  try {
-    $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
-    if ($tableCheck && $tableCheck->rowCount() > 0) {
-      $stmt = $pdo->query(
-        'SELECT filepath FROM media WHERE filepath IS NOT NULL AND filepath <> ""',
+  $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
+  if ($tableCheck === false) {
+    throw new RuntimeException('Unable to verify the media index before cleanup.');
+  }
+  if ($tableCheck->rowCount() > 0) {
+    $stmt = $pdo->query('SELECT filepath FROM media WHERE filepath IS NOT NULL AND filepath <> ""');
+    if ($stmt === false) {
+      throw new RuntimeException('Unable to read the media index before cleanup.');
+    }
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $filepath) {
+      $relativePath = voncms_resolve_upload_relative_path((string) $filepath);
+      if ($relativePath !== null) {
+        $paths[] = $relativePath;
+      }
+    }
+  }
+
+  $settingsStmt = $pdo->query(
+    'SELECT setting_value FROM settings WHERE setting_value IS NOT NULL AND setting_value <> ""',
+  );
+  if ($settingsStmt === false) {
+    throw new RuntimeException('Unable to scan settings media references before cleanup.');
+  }
+  foreach ($settingsStmt->fetchAll(PDO::FETCH_COLUMN) as $settingValue) {
+    $settingText = str_replace('\/', '/', (string) $settingValue);
+    $relativePath = voncms_resolve_upload_relative_path($settingText);
+    if ($relativePath !== null) {
+      $paths[] = $relativePath;
+    }
+    preg_match_all(
+      "/uploads\/[^\\s\"'<>\\\\]+\.(jpg|jpeg|png|gif|webp|svg|ico)/i",
+      html_entity_decode($settingText, ENT_QUOTES | ENT_HTML5),
+      $matches,
+    );
+    foreach ($matches[0] as $match) {
+      $relativePath = voncms_resolve_upload_relative_path($match);
+      if ($relativePath !== null) {
+        $paths[] = $relativePath;
+      }
+    }
+  }
+
+  $usersStmt = $pdo->query('SELECT avatar FROM users WHERE avatar IS NOT NULL AND avatar <> ""');
+  if ($usersStmt === false) {
+    throw new RuntimeException('Unable to scan user avatar references before cleanup.');
+  }
+  foreach ($usersStmt->fetchAll(PDO::FETCH_COLUMN) as $avatar) {
+    $relativePath = voncms_resolve_upload_relative_path((string) $avatar);
+    if ($relativePath !== null) {
+      $paths[] = $relativePath;
+    }
+  }
+
+  // Scan posts in chunks to avoid loading all content into memory
+  $chunkSize = 200;
+  $offset = 0;
+  do {
+    $postsStmt = $pdo->prepare('SELECT content, image_url FROM posts LIMIT :limit OFFSET :offset');
+    $postsStmt->bindValue(':limit', $chunkSize, PDO::PARAM_INT);
+    $postsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    if (!$postsStmt->execute()) {
+      throw new RuntimeException('Unable to scan post media references before cleanup.');
+    }
+    $rows = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $post) {
+      $imageUrl = trim((string) ($post['image_url'] ?? ''));
+      if ($imageUrl !== '') {
+        $relativePath = voncms_resolve_upload_relative_path($imageUrl);
+        if ($relativePath !== null) {
+          $paths[] = $relativePath;
+        }
+      }
+      preg_match_all(
+        "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp|svg|ico)/i",
+        html_entity_decode((string) ($post['content'] ?? ''), ENT_QUOTES | ENT_HTML5),
+        $matches,
       );
-      foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $filepath) {
-        $relativePath = voncms_resolve_upload_relative_path((string) $filepath);
+      foreach ($matches[0] as $match) {
+        $relativePath = voncms_resolve_upload_relative_path($match);
         if ($relativePath !== null) {
           $paths[] = $relativePath;
         }
       }
     }
-  } catch (Throwable $e) {
-    // Ignore media table issues and continue with content scans.
-  }
-
-  // Scan posts in chunks to avoid loading all content into memory
-  try {
-    $chunkSize = 200;
-    $offset = 0;
-    do {
-      $postsStmt = $pdo->prepare(
-        'SELECT content, image_url FROM posts LIMIT :limit OFFSET :offset',
-      );
-      $postsStmt->bindValue(':limit', $chunkSize, PDO::PARAM_INT);
-      $postsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-      $postsStmt->execute();
-      $rows = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
-      foreach ($rows as $post) {
-        $imageUrl = trim((string) ($post['image_url'] ?? ''));
-        if ($imageUrl !== '') {
-          $relativePath = voncms_resolve_upload_relative_path($imageUrl);
-          if ($relativePath !== null) {
-            $paths[] = $relativePath;
-          }
-        }
-        preg_match_all(
-          "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp)/i",
-          $post['content'] ?? '',
-          $matches,
-        );
-        foreach ($matches[0] as $match) {
-          $relativePath = voncms_resolve_upload_relative_path($match);
-          if ($relativePath !== null) {
-            $paths[] = $relativePath;
-          }
-        }
-      }
-      $offset += $chunkSize;
-    } while (count($rows) === $chunkSize);
-  } catch (Throwable $e) {
-    // Ignore posts scan issues.
-  }
+    $offset += $chunkSize;
+  } while (count($rows) === $chunkSize);
 
   // Scan pages in chunks
-  try {
-    $chunkSize = 200;
-    $offset = 0;
-    do {
-      $pagesStmt = $pdo->prepare('SELECT content FROM pages LIMIT :limit OFFSET :offset');
-      $pagesStmt->bindValue(':limit', $chunkSize, PDO::PARAM_INT);
-      $pagesStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-      $pagesStmt->execute();
-      $rows = $pagesStmt->fetchAll(PDO::FETCH_ASSOC);
-      foreach ($rows as $page) {
-        preg_match_all(
-          "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp)/i",
-          $page['content'] ?? '',
-          $matches,
-        );
-        foreach ($matches[0] as $match) {
-          $relativePath = voncms_resolve_upload_relative_path($match);
-          if ($relativePath !== null) {
-            $paths[] = $relativePath;
-          }
+  $offset = 0;
+  do {
+    $pagesStmt = $pdo->prepare('SELECT content FROM pages LIMIT :limit OFFSET :offset');
+    $pagesStmt->bindValue(':limit', $chunkSize, PDO::PARAM_INT);
+    $pagesStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    if (!$pagesStmt->execute()) {
+      throw new RuntimeException('Unable to scan page media references before cleanup.');
+    }
+    $rows = $pagesStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $page) {
+      preg_match_all(
+        "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp|svg|ico)/i",
+        html_entity_decode((string) ($page['content'] ?? ''), ENT_QUOTES | ENT_HTML5),
+        $matches,
+      );
+      foreach ($matches[0] as $match) {
+        $relativePath = voncms_resolve_upload_relative_path($match);
+        if ($relativePath !== null) {
+          $paths[] = $relativePath;
         }
       }
-      $offset += $chunkSize;
-    } while (count($rows) === $chunkSize);
-  } catch (Throwable $e) {
-    // Ignore pages scan issues.
-  }
+    }
+    $offset += $chunkSize;
+  } while (count($rows) === $chunkSize);
 
   $paths = array_values(array_unique(array_filter($paths)));
   sort($paths, SORT_STRING);
 
   return $paths;
+}
+
+/**
+ * @param array<int, string> $paths
+ * @return array<int, string>
+ */
+function buildMediaReferenceBases(array $paths): array
+{
+  $bases = [];
+  foreach ($paths as $path) {
+    $pathInfo = pathinfo($path);
+    $baseWithDir =
+      !empty($pathInfo['dirname']) && $pathInfo['dirname'] !== '.'
+        ? $pathInfo['dirname'] . '/' . $pathInfo['filename']
+        : $pathInfo['filename'] ?? '';
+    if ($baseWithDir !== '') {
+      $bases[] = $baseWithDir;
+    }
+  }
+
+  return array_values(array_unique($bases));
+}
+
+/**
+ * @param array<int, string> $referencedPaths
+ * @param array<int, string> $referencedBases
+ */
+function isMediaPathReferenced(
+  string $relativePath,
+  array $referencedPaths,
+  array $referencedBases,
+): bool {
+  if (in_array($relativePath, $referencedPaths, true)) {
+    return true;
+  }
+
+  $fileInfo = pathinfo($relativePath);
+  $baseName = (string) ($fileInfo['filename'] ?? '');
+  $baseName = preg_replace('/(_thumb|_[1-9][0-9]{1,4}w)$/i', '', $baseName) ?: $baseName;
+  $fileBaseWithDir =
+    !empty($fileInfo['dirname']) && $fileInfo['dirname'] !== '.'
+      ? $fileInfo['dirname'] . '/' . $baseName
+      : $baseName;
+
+  return in_array($fileBaseWithDir, $referencedBases, true);
 }
 
 function collectResponsiveVariantInventory(): array
@@ -559,7 +633,7 @@ function purgeResponsiveVariants(): void
 }
 
 /**
- * Cleanup unused/orphaned media files
+ * Cleanup untracked media files
  */
 function cleanupUnusedFiles(): void
 {
@@ -581,193 +655,157 @@ function cleanupUnusedFiles(): void
   }
   $uploadsDir = str_replace('\\', '/', $uploadsDir) . '/';
 
-  $executeCleanup = isset($_POST['execute_cleanup']) && $_POST['execute_cleanup'] === 'true';
-  $previewToken = trim((string) ($_POST['preview_token'] ?? ''));
-  $orphaned = [];
-  $totalSize = 0;
+  $cleanupLockHandle = acquireMediaToolLock('media_cleanup');
+  if ($cleanupLockHandle === false) {
+    echo json_encode([
+      'success' => false,
+      'error' => 'Another media cleanup job is already running. Please wait for it to finish.',
+    ]);
+    return;
+  }
 
-  if ($executeCleanup) {
-    if ($previewToken === '') {
-      ResponseHelper::sendError('Preview token required before deleting orphaned files.', 400);
-    }
+  try {
+    $executeCleanup = isset($_POST['execute_cleanup']) && $_POST['execute_cleanup'] === 'true';
+    $previewToken = trim((string) ($_POST['preview_token'] ?? ''));
+    $orphaned = [];
+    $totalSize = 0;
 
-    $preview = loadMediaCleanupPreview($previewToken);
-    if (!$preview || !is_array($preview['orphaned'] ?? null)) {
-      ResponseHelper::sendError(
-        'Saved orphaned-file review not found. Please scan again before deleting.',
-        409,
+    if ($executeCleanup) {
+      if ($previewToken === '') {
+        ResponseHelper::sendError('Preview token required before deleting untracked files.', 400);
+      }
+
+      $preview = loadMediaCleanupPreview($previewToken);
+      if (!$preview || !is_array($preview['orphaned'] ?? null)) {
+        ResponseHelper::sendError(
+          'Saved untracked-file review not found. Please scan again before deleting.',
+          409,
+        );
+      }
+
+      $orphaned = $preview['orphaned'];
+      foreach ($orphaned as $orphanInfo) {
+        $totalSize += (int) ($orphanInfo['size'] ?? 0);
+      }
+    } else {
+      // Keep indexed library files and live post/page references protected.
+      $allUsedFiles = getReferencedUploadRelativePaths();
+      $usedBaseFiles = buildMediaReferenceBases($allUsedFiles);
+
+      $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($uploadsDir, RecursiveDirectoryIterator::SKIP_DOTS),
       );
-    }
 
-    $orphaned = $preview['orphaned'];
-    foreach ($orphaned as $orphanInfo) {
-      $totalSize += (int) ($orphanInfo['size'] ?? 0);
-    }
-  } else {
-    // Get all media entries from database
-    $stmt = $pdo->query('SELECT filepath FROM media');
-    $dbFiles = $stmt->fetchAll(PDO::FETCH_COLUMN);
+      foreach ($iterator as $file) {
+        if (!$file->isFile()) {
+          continue;
+        }
 
-    // Normalize paths
-    $dbFilesNormalized = array_map(function ($path) {
-      return str_replace(['\\', 'uploads/'], ['/', ''], $path);
-    }, $dbFiles);
+        $systemFiles = ['.htaccess', 'index.php', 'index.html'];
+        if (in_array(strtolower($file->getFilename()), $systemFiles)) {
+          continue;
+        }
 
-    // Also check posts and pages for image references
-    $contentFiles = [];
+        $fullPath = str_replace('\\', '/', $file->getPathname());
+        $relativePath = str_replace($uploadsDir, '', $fullPath);
+        $relativePath = ltrim($relativePath, '/');
 
-    // Check posts
-    $postsStmt = $pdo->query('SELECT content, image_url FROM posts');
-    while ($post = $postsStmt->fetch(PDO::FETCH_ASSOC)) {
-      preg_match_all(
-        "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp)/i",
-        $post['content'] ?? '',
-        $matches,
-      );
-      foreach ($matches[0] as $match) {
-        $contentFiles[] = str_replace('uploads/', '', $match);
-      }
-      if (!empty($post['image_url'])) {
-        $contentFiles[] = str_replace('uploads/', '', $post['image_url']);
-      }
-    }
+        $isUsed = isMediaPathReferenced($relativePath, $allUsedFiles, $usedBaseFiles);
 
-    // Check pages
-    $pagesStmt = $pdo->query('SELECT content FROM pages');
-    while ($page = $pagesStmt->fetch(PDO::FETCH_ASSOC)) {
-      preg_match_all(
-        "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp)/i",
-        $page['content'] ?? '',
-        $matches,
-      );
-      foreach ($matches[0] as $match) {
-        $contentFiles[] = str_replace('uploads/', '', $match);
-      }
-    }
-
-    $allUsedFiles = array_unique(array_merge($dbFilesNormalized, $contentFiles));
-
-    // Extract base paths (without extensions) for smarter matching of variants (WebP, Thumbnails)
-    $usedBaseFiles = [];
-    foreach ($allUsedFiles as $uf) {
-      $pathInfo = pathinfo($uf);
-      $baseWithDir =
-        !empty($pathInfo['dirname']) && $pathInfo['dirname'] !== '.'
-          ? $pathInfo['dirname'] . '/' . $pathInfo['filename']
-          : $pathInfo['filename'];
-      $usedBaseFiles[] = $baseWithDir;
-    }
-    $usedBaseFiles = array_unique($usedBaseFiles);
-
-    $iterator = new RecursiveIteratorIterator(
-      new RecursiveDirectoryIterator($uploadsDir, RecursiveDirectoryIterator::SKIP_DOTS),
-    );
-
-    foreach ($iterator as $file) {
-      if (!$file->isFile()) {
-        continue;
-      }
-
-      $systemFiles = ['.htaccess', 'index.php', 'index.html'];
-      if (in_array(strtolower($file->getFilename()), $systemFiles)) {
-        continue;
-      }
-
-      $fullPath = str_replace('\\', '/', $file->getPathname());
-      $relativePath = str_replace($uploadsDir, '', $fullPath);
-      $relativePath = ltrim($relativePath, '/');
-
-      $isUsed = false;
-      if (in_array($relativePath, $allUsedFiles)) {
-        $isUsed = true;
-      } else {
-        $fileInfo = pathinfo($relativePath);
-        $baseName = $fileInfo['filename'];
-        $baseName = preg_replace('/(_thumb|_\\d+w)$/', '', $baseName) ?: $baseName;
-
-        $fileBaseWithDir =
-          !empty($fileInfo['dirname']) && $fileInfo['dirname'] !== '.'
-            ? $fileInfo['dirname'] . '/' . $baseName
-            : $baseName;
-
-        if (in_array($fileBaseWithDir, $usedBaseFiles)) {
-          $isUsed = true;
+        if (!$isUsed) {
+          $size = $file->getSize();
+          $orphaned[] = [
+            'path' => $relativePath,
+            'size' => $size,
+            'sizeFormatted' => formatMediaToolBytes($size),
+            'modified' => date('Y-m-d H:i:s', $file->getMTime()),
+          ];
+          $totalSize += $size;
         }
       }
 
-      if (!$isUsed) {
-        $size = $file->getSize();
-        $orphaned[] = [
-          'path' => $relativePath,
-          'size' => $size,
-          'sizeFormatted' => formatMediaToolBytes($size),
-          'modified' => date('Y-m-d H:i:s', $file->getMTime()),
-        ];
-        $totalSize += $size;
-      }
+      $previewToken = count($orphaned) > 0 ? createMediaCleanupPreview($orphaned) : null;
     }
 
-    $previewToken = count($orphaned) > 0 ? createMediaCleanupPreview($orphaned) : null;
-  }
+    $deletedCount = 0;
+    $deletedSize = 0;
+    $failedDeletions = [];
 
-  $deletedCount = 0;
-  $deletedSize = 0;
-  $failedDeletions = [];
+    if ($executeCleanup) {
+      $currentReferencedFiles = getReferencedUploadRelativePaths();
+      $currentReferencedBases = buildMediaReferenceBases($currentReferencedFiles);
+      foreach ($orphaned as $orphanInfo) {
+        $relativePath = voncms_normalize_media_library_path((string) ($orphanInfo['path'] ?? ''));
+        if (
+          $relativePath === '' ||
+          isMediaPathReferenced($relativePath, $currentReferencedFiles, $currentReferencedBases)
+        ) {
+          $failedDeletions[] =
+            (string) ($orphanInfo['path'] ?? '[invalid path]') . ' (now protected; skipped)';
+          continue;
+        }
 
-  if ($executeCleanup) {
-    foreach ($orphaned as $orphanInfo) {
-      $physicalPath = buildMediaCleanupPath($uploadsDir, (string) ($orphanInfo['path'] ?? ''));
-      if ($physicalPath === null) {
-        $failedDeletions[] = (string) ($orphanInfo['path'] ?? '[invalid path]');
-        continue;
-      }
+        $physicalPath = buildMediaCleanupPath($uploadsDir, (string) ($orphanInfo['path'] ?? ''));
+        if ($physicalPath === null) {
+          $failedDeletions[] = (string) ($orphanInfo['path'] ?? '[invalid path]');
+          continue;
+        }
 
-      if (file_exists($physicalPath) && is_file($physicalPath)) {
-        if (unlink($physicalPath)) {
-          $deletedCount++;
-          $deletedSize += (int) ($orphanInfo['size'] ?? 0);
+        if (file_exists($physicalPath) && is_file($physicalPath)) {
+          if (unlink($physicalPath)) {
+            $deletedCount++;
+            $deletedSize += (int) ($orphanInfo['size'] ?? 0);
+          } else {
+            $failedDeletions[] = (string) ($orphanInfo['path'] ?? '[unknown file]');
+          }
         } else {
-          $failedDeletions[] = (string) ($orphanInfo['path'] ?? '[unknown file]');
+          $failedDeletions[] =
+            (string) ($orphanInfo['path'] ?? '[unknown file]') .
+            ' (File not found at ' .
+            $physicalPath .
+            ')';
         }
-      } else {
-        $failedDeletions[] =
-          (string) ($orphanInfo['path'] ?? '[unknown file]') .
-          ' (File not found at ' .
-          $physicalPath .
-          ')';
+      }
+
+      $preview = loadMediaCleanupPreview($previewToken);
+      if ($preview && !empty($preview['__path'])) {
+        @unlink($preview['__path']);
       }
     }
 
-    $preview = loadMediaCleanupPreview($previewToken);
-    if ($preview && !empty($preview['__path'])) {
-      @unlink($preview['__path']);
+    $sizeFormatted = formatMediaToolBytes($totalSize);
+    $deletedSizeFormatted = formatMediaToolBytes($deletedSize);
+
+    $message = count($orphaned) . ' untracked files found (' . $sizeFormatted . ')';
+    if ($executeCleanup) {
+      $message = "Deleted $deletedCount reviewed untracked files (Freed $deletedSizeFormatted)";
     }
+
+    echo json_encode([
+      'success' => true,
+      'message' => $message,
+      'stats' => [
+        'count' => count($orphaned),
+        'deletedCount' => $deletedCount,
+        'totalSize' => $totalSize,
+        'totalSizeFormatted' => $sizeFormatted,
+        'deletedSizeFormatted' => $deletedSizeFormatted,
+        'isExecuted' => $executeCleanup,
+        'failedCount' => count($failedDeletions),
+      ],
+      'previewToken' => $executeCleanup ? null : $previewToken,
+      'failedDeletions' => $failedDeletions,
+      'orphaned' => $orphaned,
+    ]);
+  } catch (Throwable $error) {
+    error_log('VonCMS media cleanup aborted: ' . $error->getMessage());
+    ResponseHelper::sendError(
+      'Media cleanup was aborted because references could not be verified. No files were deleted.',
+      503,
+    );
+  } finally {
+    releaseMediaToolLock($cleanupLockHandle);
   }
-
-  $sizeFormatted = formatMediaToolBytes($totalSize);
-  $deletedSizeFormatted = formatMediaToolBytes($deletedSize);
-
-  $message = count($orphaned) . ' orphaned files found (' . $sizeFormatted . ')';
-  if ($executeCleanup) {
-    $message = "Successfully deleted $deletedCount orphaned files (Freed $deletedSizeFormatted)";
-  }
-
-  echo json_encode([
-    'success' => true,
-    'message' => $message,
-    'stats' => [
-      'count' => count($orphaned),
-      'deletedCount' => $deletedCount,
-      'totalSize' => $totalSize,
-      'totalSizeFormatted' => $sizeFormatted,
-      'deletedSizeFormatted' => $deletedSizeFormatted,
-      'isExecuted' => $executeCleanup,
-      'failedCount' => count($failedDeletions),
-    ],
-    'previewToken' => $executeCleanup ? null : $previewToken,
-    'failedDeletions' => $failedDeletions,
-    'orphaned' => $orphaned,
-  ]);
 }
 
 /**

@@ -67,12 +67,9 @@ $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 
 /** @var int $limit */
 $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 32;
-if ($page < 1) {
-  $page = 1;
-}
-if ($limit < 1) {
-  $limit = 32;
-}
+$page = max(1, $page);
+$limit = min(100, max(1, $limit));
+$search = voncms_normalize_media_search($_GET['search'] ?? '');
 /** @var int $offset */
 $offset = ($page - 1) * $limit;
 
@@ -82,17 +79,18 @@ $totalItems = 0;
 /** @var int|float $totalPages */
 $totalPages = 1;
 
+/** @var bool $databaseReady */
+$databaseReady = false;
+
+/** @var bool $databaseHasRows */
+$databaseHasRows = false;
+
 // Try to get files from database first
 if (isset($pdo) && $pdo !== null) {
   try {
     // Check if media table exists
     $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
     if ($tableCheck->rowCount() > 0) {
-      // Get Total Count for Pagination
-      $totalStmt = $pdo->query('SELECT COUNT(*) FROM media');
-      $totalItems = (int) $totalStmt->fetchColumn();
-      $totalPages = ceil($totalItems / $limit);
-
       // Fetch only the mapped media columns while tolerating older repaired schemas.
       $mediaColumns = [
         'id',
@@ -119,11 +117,53 @@ if (isset($pdo) && $pdo !== null) {
         throw new RuntimeException('Media table is missing required list columns.');
       }
 
+      $databaseReady = true;
+      $databaseRowCount = (int) $pdo->query('SELECT COUNT(*) FROM media')->fetchColumn();
+      $databaseHasRows = $databaseRowCount > 0;
+
+      $whereSql = '';
+      $searchBindings = [];
+      if ($search !== '') {
+        $searchableColumns = array_values(
+          array_intersect(
+            ['filename', 'alt_text', 'caption', 'description'],
+            $selectedMediaColumns,
+          ),
+        );
+        $searchConditions = [];
+        $escapedSearch = '%' . voncms_escape_media_like($search) . '%';
+        foreach ($searchableColumns as $index => $column) {
+          $placeholder = ':media_search_' . $index;
+          $searchConditions[] = "$column LIKE $placeholder ESCAPE '!'";
+          $searchBindings[$placeholder] = $escapedSearch;
+        }
+        if (!empty($searchConditions)) {
+          $whereSql = ' WHERE (' . implode(' OR ', $searchConditions) . ')';
+        }
+      }
+
+      $totalStmt = $pdo->prepare('SELECT COUNT(*) FROM media' . $whereSql);
+      foreach ($searchBindings as $placeholder => $value) {
+        $totalStmt->bindValue($placeholder, $value, PDO::PARAM_STR);
+      }
+      $totalStmt->execute();
+      $totalItems = (int) $totalStmt->fetchColumn();
+      $totalPages = max(1, (int) ceil($totalItems / $limit));
+      if ($totalItems > 0 && $page > $totalPages) {
+        $page = $totalPages;
+        $offset = ($page - 1) * $limit;
+      }
+
       $stmt = $pdo->prepare(
         'SELECT ' .
           implode(', ', $selectedMediaColumns) .
-          ' FROM media ORDER BY id DESC LIMIT :limit OFFSET :offset',
+          ' FROM media' .
+          $whereSql .
+          ' ORDER BY id DESC LIMIT :limit OFFSET :offset',
       );
+      foreach ($searchBindings as $placeholder => $value) {
+        $stmt->bindValue($placeholder, $value, PDO::PARAM_STR);
+      }
       $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
       $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
       $stmt->execute();
@@ -184,14 +224,10 @@ if (isset($pdo) && $pdo !== null) {
         ];
       }
     }
-  } catch (PDOException $e) {
-    // If table doesn't exist, we fall through to filesystem
-    // but if it's a connection error, we might want to log it
-    if ($pdo) {
-      // Only log real errors, not missing table which is expected fallback
-      error_log('ListMedia DB Error: ' . $e->getMessage());
-    }
-    // Fall through to filesystem scan
+  } catch (Throwable $e) {
+    error_log('ListMedia DB Error: ' . $e->getMessage());
+    $databaseReady = false;
+    $databaseHasRows = false;
     $source = 'filesystem';
   }
 }
@@ -211,6 +247,9 @@ function scanDirectory($dir, $baseUrl, $allowedExtensions, &$files)
   }
 
   $items = scandir($dir);
+  if ($items === false) {
+    return;
+  }
   foreach ($items as $item) {
     if ($item === '.' || $item === '..') {
       continue;
@@ -218,6 +257,10 @@ function scanDirectory($dir, $baseUrl, $allowedExtensions, &$files)
 
     $fullPath = $dir . '/' . $item;
     $relativePath = str_replace(dirname(__DIR__) . '/uploads/', '', $fullPath);
+
+    if (is_link($fullPath)) {
+      continue;
+    }
 
     if (is_dir($fullPath)) {
       scanDirectory($fullPath, $baseUrl, $allowedExtensions, $files);
@@ -245,8 +288,8 @@ function scanDirectory($dir, $baseUrl, $allowedExtensions, &$files)
           'id' => md5($relativePath),
           'name' => $item,
           'path' => $relativePath,
-          'url' => $baseUrl . $relativePath,
-          'webpUrl' => $webpUrl,
+          'url' => ResponseHelper::scrubUrl($baseUrl . $relativePath),
+          'webpUrl' => $webpUrl ? ResponseHelper::scrubUrl($webpUrl) : null,
           'type' => 'image',
           'size' => formatFileSize($stat['size']),
           'sizeBytes' => $stat['size'],
@@ -258,14 +301,25 @@ function scanDirectory($dir, $baseUrl, $allowedExtensions, &$files)
   }
 }
 
-// Fallback: Scan filesystem if database is empty or unavailable
-if (empty($files)) {
+// Fallback: Scan filesystem only when the database table is empty or unavailable.
+if (!$databaseReady || !$databaseHasRows) {
   $source = 'filesystem';
 
   /** @var array<int, string> $allowedExtensions */
   $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
 
   scanDirectory($uploadsDir, $baseUrl, $allowedExtensions, $files);
+
+  if ($search !== '') {
+    $needle = mb_strtolower($search);
+    $files = array_values(
+      array_filter($files, static function ($file) use ($needle) {
+        $name = mb_strtolower((string) ($file['name'] ?? ''));
+        $path = mb_strtolower((string) ($file['path'] ?? ''));
+        return str_contains($name, $needle) || str_contains($path, $needle);
+      }),
+    );
+  }
 
   // Sort by upload date descending
   usort(
@@ -293,4 +347,5 @@ echo json_encode([
   'totalPages' => $totalPages ?? 1,
   'currentPage' => $page ?? 1,
   'source' => $source,
+  'search' => $search,
 ]);

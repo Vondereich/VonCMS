@@ -26,7 +26,7 @@ function normalizeCategoryLabel($value)
 {
   $label = trim((string) $value);
   $label = preg_replace('/\s+/', ' ', $label ?? '');
-  return $label ?? '';
+  return mb_substr($label ?? '', 0, 100);
 }
 
 /**
@@ -96,6 +96,9 @@ function loadStoredCategories($pdo)
 function saveStoredCategories($pdo, $categories, $actorUserId = null)
 {
   $normalized = categories_case_insensitive_unique($categories);
+  if (count($normalized) > 200) {
+    throw new RuntimeException('A maximum of 200 categories is allowed.');
+  }
   if (empty($normalized)) {
     $normalized = ['Uncategorized'];
   }

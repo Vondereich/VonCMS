@@ -96,7 +96,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   let postSlugToFetch: string | null = null;
   let pageSlugToFetch: string | null = null;
   let isAmbiguousSlugRoute = false;
-  const injectedState = (window as any).__INITIAL_STATE__;
+  const injectedState = window.__INITIAL_STATE__;
   const injectedPage =
     injectedState?.status === 'loaded' && injectedState?.contentType === 'page'
       ? (injectedState.page as Page | null)
@@ -179,6 +179,22 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
       navigate(canonicalPostPath, { replace: true });
     }
   }, [fullPost, id, navigate, props.settings]);
+
+  const publicCommentPost =
+    currentView === 'single-post'
+      ? editedPostOverride ||
+        (fullPostMatchesCurrentRoute ? fullPost : null) ||
+        (!isLoadingPost
+          ? posts.find((post: Post) => post.id === id || post.slug === slug) || null
+          : null)
+      : null;
+  const publicCommentPostId = publicCommentPost?.id ? String(publicCommentPost.id) : '';
+
+  useEffect(() => {
+    if (!publicCommentPostId || typeof props.loadPublicComments !== 'function') return;
+
+    void props.loadPublicComments(publicCommentPostId);
+  }, [props.loadPublicComments, publicCommentPostId]);
 
   if (isAmbiguousSlugRoute) {
     if (fullPageMatchesCurrentRoute) {
@@ -318,6 +334,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
         selectedPost={selectedPost}
         selectedPage={selectedPage}
         selectedProfile={selectedProfile}
+        resolvedProfile={resolvedPublicProfile}
         selectedCategory={selectedCategory}
         onPostClick={(pid) => {
           const targetPost = posts.find((x: Post) => x.id === pid) || getCachedPublicPost(pid);
@@ -485,12 +502,14 @@ const App: React.FC = () => {
   } = useContent();
   const {
     comments,
-    loadComments,
     handleAddComment,
     handleReplyComment,
     handleLikeComment,
     handleUpdateCommentStatus,
     handleDeleteComment,
+    loadPublicComments,
+    loadMorePublicComments,
+    publicCommentPagination,
   } = useComments();
   const { users, loadUsers, handleAddUser, handleDeleteUser, handleUpdateUserInList } = useUsers();
   const isPrimaryAdmin =
@@ -562,8 +581,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('von:session-expired', handleSessionExpiry);
   }, [showAuthModal]);
 
-  // Load only the public settings needed to unlock the first render. Public
-  // comments refresh after that gate; admin-scale content stays login-only.
+  // Load only the public settings needed to unlock the first render.
   useEffect(() => {
     const initData = async () => {
       try {
@@ -572,7 +590,6 @@ const App: React.FC = () => {
         console.error('Initial data load failed', e);
       } finally {
         setIsInitialLoading(false);
-        void loadComments();
       }
     };
 
@@ -598,6 +615,11 @@ const App: React.FC = () => {
           // 1. Lightweight Ping
           const res = await vonFetch(API.checkAuth);
           const data = await res.json();
+
+          if (data?.authenticated && data.csrf_token) {
+            const { setCsrfToken } = await import('./utils/security');
+            setCsrfToken(data.csrf_token);
+          }
 
           // 2. If Session Invalid -> KICK TO HOME
           if (data && data.authenticated === false) {
@@ -628,7 +650,6 @@ const App: React.FC = () => {
         loadUsers();
       }
       loadContent();
-      loadComments();
       loadSettings();
     }
   }, [user]);
@@ -651,6 +672,11 @@ const App: React.FC = () => {
     pages,
     user,
     comments,
+    loadPublicComments,
+    loadMorePublicComments,
+    hasMoreComments: publicCommentPagination.hasMore,
+    commentsLoading: publicCommentPagination.loading,
+    commentsError: publicCommentPagination.error,
     allUsers: users,
     onLogin: () => setShowAuthModal(true),
     onLogout: handleLogout,
@@ -775,7 +801,7 @@ const App: React.FC = () => {
                             path="security"
                             element={
                               <ProtectedRoute user={user} allowedRoles={['Admin']}>
-                                <SecurityDashboard />
+                                <SecurityDashboard isPrimaryAdmin={isPrimaryAdmin} />
                               </ProtectedRoute>
                             }
                           />

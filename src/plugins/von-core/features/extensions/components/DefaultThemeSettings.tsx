@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 interface DefaultThemeSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -48,8 +48,10 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
     }));
   };
 
-  const handleSave = () => {
-    onUpdate(tempSettings);
+  const handleSave = async () => {
+    const saved = await onUpdate(tempSettings);
+    if (saved === false) return;
+
     toast.success('Theme settings saved!');
     onClose();
   };

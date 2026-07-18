@@ -54,6 +54,17 @@ interface SecurityStats {
   top_ips: { ip_address: string; count: number }[];
 }
 
+interface SecurityDashboardProps {
+  isPrimaryAdmin: boolean;
+}
+
+interface SecurityLogQueryOverrides {
+  page?: number;
+  filterType?: string;
+  filterSeverity?: string;
+  searchQuery?: string;
+}
+
 const COLORS = {
   login_failed: '#eab308', // Yellow
   honeypot_caught: '#ef4444', // Red
@@ -62,7 +73,7 @@ const COLORS = {
   suspicious: '#3b82f6', // Blue
 };
 
-const SecurityDashboard: React.FC = () => {
+const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin }) => {
   const [logs, setLogs] = useState<SecurityLog[]>([]);
   const [stats, setStats] = useState<SecurityStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,17 +88,21 @@ const SecurityDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDangerZone, setShowDangerZone] = useState(false);
 
-  const fetchData = async (isRefresh = false) => {
+  const fetchData = async (isRefresh = false, overrides: SecurityLogQueryOverrides = {}) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
+      const requestedPage = overrides.page ?? page;
+      const requestedType = overrides.filterType ?? filterType;
+      const requestedSeverity = overrides.filterSeverity ?? filterSeverity;
+      const requestedSearch = overrides.searchQuery ?? searchQuery;
       const queryParams = new URLSearchParams({
-        page: page.toString(),
+        page: requestedPage.toString(),
         limit: '20',
-        ...(filterType && { event_type: filterType }),
-        ...(filterSeverity && { severity: filterSeverity }),
-        ...(searchQuery && { search: searchQuery }),
+        ...(requestedType && { event_type: requestedType }),
+        ...(requestedSeverity && { severity: requestedSeverity }),
+        ...(requestedSearch && { search: requestedSearch }),
       });
 
       const res = await vonFetch(`${API.securityLogs}?${queryParams}`);
@@ -114,7 +129,7 @@ const SecurityDashboard: React.FC = () => {
             if (createData.success) {
               toast.success('Security database initialized! Refreshing...');
               // Retry fetch with refresh mode (smoother UX)
-              setTimeout(() => fetchData(true), 1500);
+              setTimeout(() => fetchData(true, overrides), 1500);
               return;
             } else {
               toast.error('Failed to initialize security database');
@@ -150,14 +165,25 @@ const SecurityDashboard: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchData();
+    if (page === 1) {
+      fetchData(false, { page: 1, searchQuery });
+    }
   };
 
   const clearFilters = () => {
+    const dependencyWillChange = page !== 1 || filterType !== '' || filterSeverity !== '';
     setFilterType('');
     setFilterSeverity('');
     setSearchQuery('');
     setPage(1);
+    if (!dependencyWillChange) {
+      fetchData(false, {
+        page: 1,
+        filterType: '',
+        filterSeverity: '',
+        searchQuery: '',
+      });
+    }
   };
 
   // Process Chart Data
@@ -207,79 +233,85 @@ const SecurityDashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 relative">
-            {/* MAINTENANCE BUTTON (PURGE OLD) */}
-            <button
-              onClick={async () => {
-                if (
-                  window.confirm(
-                    'Clean old logs? This will ONLY remove items older than 30 days to save space.'
-                  )
-                ) {
-                  try {
-                    const res = await vonFetch(`${API.clearSecurityLogs}?mode=purge`, {
-                      method: 'POST',
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      toast.success('Old logs purged!');
-                      fetchData(true);
-                    }
-                  } catch (e) {
-                    toast.error('Failed to purge logs');
-                  }
-                }
-              }}
-              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1b26] dark:hover:bg-[#242633] text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
-              title="Purge logs older than 30 days"
-            >
-              <RefreshCw size={14} /> Maintenance
-            </button>
-
-            {/* DANGER ZONE DROPDOWN */}
-            <button
-              onClick={() => setShowDangerZone(!showDangerZone)}
-              className={`p-1.5 rounded-lg transition-colors ${showDangerZone ? 'bg-red-500 text-white' : 'hover:bg-slate-100 dark:hover:bg-[#1a1b26] text-slate-400'}`}
-            >
-              <Settings size={18} />
-            </button>
-
-            {showDangerZone && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#16161e] border border-red-200 dark:border-red-900 shadow-xl rounded-xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
-                <p className="text-[10px] font-bold text-red-500 px-2 py-1 uppercase tracking-wider">
-                  Danger Zone
-                </p>
-                <button
-                  onClick={async () => {
-                    if (
-                      window.confirm(
-                        'CRITICAL: Clear ALL logs and reset all statistics to zero? This cannot be undone.'
-                      )
-                    ) {
-                      try {
-                        const res = await vonFetch(`${API.clearSecurityLogs}?mode=full`, {
-                          method: 'POST',
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                          toast.success('Full reset complete!');
-                          setShowDangerZone(false);
-                          fetchData(true);
-                        }
-                      } catch (e) {
-                        toast.error('Failed to reset logs');
+          {isPrimaryAdmin && (
+            <div className="flex items-center gap-2 relative">
+              {/* MAINTENANCE BUTTON (PURGE OLD) */}
+              <button
+                onClick={async () => {
+                  if (
+                    window.confirm(
+                      'Clean old logs? This will ONLY remove items older than 30 days to save space.'
+                    )
+                  ) {
+                    try {
+                      const res = await vonFetch(`${API.clearSecurityLogs}?mode=purge`, {
+                        method: 'POST',
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast.success('Old logs purged!');
+                        fetchData(true);
+                      } else {
+                        toast.error(data.message || 'Failed to purge logs');
                       }
+                    } catch (e) {
+                      toast.error('Failed to purge logs');
                     }
-                  }}
-                  className="w-full flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 px-2 py-2 rounded-lg text-xs font-bold transition-colors"
-                >
-                  <Trash2 size={14} /> Reset All Data
-                </button>
-              </div>
-            )}
+                  }
+                }}
+                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1b26] dark:hover:bg-[#242633] text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                title="Purge logs older than 30 days"
+              >
+                <RefreshCw size={14} /> Maintenance
+              </button>
 
-            <div className="h-6 w-px bg-slate-200 dark:bg-[#1a1b26] mx-1"></div>
-          </div>
+              {/* DANGER ZONE DROPDOWN */}
+              <button
+                onClick={() => setShowDangerZone(!showDangerZone)}
+                className={`p-1.5 rounded-lg transition-colors ${showDangerZone ? 'bg-red-500 text-white' : 'hover:bg-slate-100 dark:hover:bg-[#1a1b26] text-slate-400'}`}
+              >
+                <Settings size={18} />
+              </button>
+
+              {showDangerZone && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#16161e] border border-red-200 dark:border-red-900 shadow-xl rounded-xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
+                  <p className="text-[10px] font-bold text-red-500 px-2 py-1 uppercase tracking-wider">
+                    Danger Zone
+                  </p>
+                  <button
+                    onClick={async () => {
+                      if (
+                        window.confirm(
+                          'CRITICAL: Clear ALL logs and reset all statistics to zero? This cannot be undone.'
+                        )
+                      ) {
+                        try {
+                          const res = await vonFetch(`${API.clearSecurityLogs}?mode=full`, {
+                            method: 'POST',
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            toast.success('Full reset complete!');
+                            setShowDangerZone(false);
+                            fetchData(true);
+                          } else {
+                            toast.error(data.message || 'Failed to reset logs');
+                          }
+                        } catch (e) {
+                          toast.error('Failed to reset logs');
+                        }
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 px-2 py-2 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    <Trash2 size={14} /> Reset All Data
+                  </button>
+                </div>
+              )}
+
+              <div className="h-6 w-px bg-slate-200 dark:bg-[#1a1b26] mx-1"></div>
+            </div>
+          )}
           <button
             onClick={() => {
               const queryParams = new URLSearchParams({
@@ -477,7 +509,10 @@ const SecurityDashboard: React.FC = () => {
               name="securitydashboard470"
               aria-label="Selection"
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setPage(1);
+              }}
               className="bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg px-3 py-1.5 outline-none"
             >
               <option value="">All Events</option>

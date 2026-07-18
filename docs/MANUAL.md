@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.25.8
+# VonCMS User Manual v1.25.11
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 

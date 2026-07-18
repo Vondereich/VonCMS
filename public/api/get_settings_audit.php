@@ -7,6 +7,7 @@
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/settings_audit_helper.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('GET, OPTIONS');
@@ -30,6 +31,8 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requirePrimaryAdmin();
 
 try {
+  voncms_purge_sensitive_setting_audit_history($pdo);
+
   // Get filter parameters
   $settingId = isset($_GET['setting_id']) ? intval($_GET['setting_id']) : null;
   $settingKey = isset($_GET['setting_key']) ? trim((string) $_GET['setting_key']) : null;

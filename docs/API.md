@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.25.8`
+Version: `1.25.11`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -57,6 +57,8 @@ await vonFetch(API.savePost, {
 - `reset_password.php`
 - `verify_email.php`
 
+When remember-me is enabled, `login.php` issues a dedicated selector/validator cookie, `check_auth.php` restores and rotates that token, and `logout.php` revokes it. Persistent authentication does not store the raw PHP session ID in the remember cookie.
+
 ### Posts and pages
 
 - `get_posts.php`
@@ -111,15 +113,15 @@ await vonFetch(API.savePost, {
 
 ### Newsletter
 
-- `newsletter_subscribe.php`
-- `newsletter_list.php`
-- `newsletter_export.php`
+- `newsletter_subscribe.php` - POST-only public subscription capture with CSRF, bounded email input, dedicated per-IP throttling, and membership-neutral responses
+- `newsletter_list.php` - admin-only paginated subscriber listing and deletion with bounded search
+- `newsletter_export.php` - admin-only CSRF-protected CSV export with spreadsheet-formula neutralization
 
 ### Tracking and contact
 
 - `track_visit.php`
 - `track_monolithic.php`
-- `submit_contact.php`
+- `submit_contact.php` - POST-only public form delivery with CSRF, bounded template-declared fields, server-side type validation, honeypot/rate controls, generic public mail failures, and 90-day lead retention
 
 ### AI helpers
 

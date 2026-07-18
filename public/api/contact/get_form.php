@@ -22,8 +22,8 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 // Public access allowed (Read-only)
 $id = $_GET['id'] ?? '';
 
-if (!$id) {
-  ResponseHelper::sendError('Missing form ID', 400);
+if (!is_string($id) || !preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $id)) {
+  ResponseHelper::sendError('Invalid form ID', 400);
 }
 
 try {

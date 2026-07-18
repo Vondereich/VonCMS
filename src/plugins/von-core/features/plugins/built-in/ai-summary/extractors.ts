@@ -14,7 +14,7 @@ function getParser(): DOMParser {
 function normalizePointText(text: string): string {
   const trimmed = text
     .replace(/\u00A0/g, ' ')
-    .replace(/^[\s\-*�]+/, '')
+    .replace(/^[\s\-*•]+/, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -30,7 +30,7 @@ function isDescriptiveHeading(text: string): boolean {
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   if (wordCount < 5) return false;
   if (normalized.length < 32) return false;
-  if (/[:;,\-��]$/.test(normalized)) return false;
+  if (/[:;,\-—…]\.?$/.test(normalized)) return false;
 
   return true;
 }

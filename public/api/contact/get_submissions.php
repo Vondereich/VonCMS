@@ -22,6 +22,7 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 SessionManager::requireAdmin();
 
 try {
+  $pdo->exec('DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)');
   $page = max(1, intval($_GET['page'] ?? 1));
   $limit = min(100, max(10, intval($_GET['limit'] ?? 20)));
   $offset = ($page - 1) * $limit;

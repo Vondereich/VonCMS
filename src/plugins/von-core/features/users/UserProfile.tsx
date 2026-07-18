@@ -381,7 +381,7 @@ const UserProfile: React.FC<ProfileProps> = ({
         </div>
 
         <div className="px-6 md:px-10 pb-8 relative">
-          <div className="flex flex-col md:flex-row items-center md:items-end -mt-12 md:-mt-16 gap-8">
+          <div className="flex flex-col md:flex-row items-center md:items-end -mt-12 md:-mt-16 gap-3 md:gap-8">
             {/* Avatar */}
             <div className="relative z-10">
               <ProfileAvatar
@@ -399,14 +399,14 @@ const UserProfile: React.FC<ProfileProps> = ({
             </div>
 
             {/* Info Block */}
-            <div className="flex-grow text-center md:text-left mb-4 w-full">
+            <div className="flex-grow min-w-0 text-center md:text-left mb-4 md:mb-10 w-full">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
+                <div className="min-w-0">
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white md:text-white md:drop-shadow-sm tracking-tight [overflow-wrap:anywhere]">
                     {displayUser.display_name || displayUser.username}
                   </h1>
                   {displayUser.display_name && (
-                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400 [overflow-wrap:anywhere]">
                       @{displayUser.username}
                     </p>
                   )}

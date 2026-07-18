@@ -43,27 +43,41 @@ try {
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid JSON payload', 400);
+}
 $clientUpdatedAt = trim((string) ($input['baseUpdatedAt'] ?? ''));
 
-if (!isset($input['title']) || trim($input['title']) === '') {
+if (
+  !isset($input['title']) ||
+  !is_scalar($input['title']) ||
+  trim((string) $input['title']) === ''
+) {
   ResponseHelper::sendError('Title is required', 400);
 }
 
 // Content length limit (prevent DoS - max 1MB)
-if (isset($input['content']) && strlen($input['content']) > 1048576) {
+if (
+  isset($input['content']) &&
+  (!is_scalar($input['content']) || strlen((string) $input['content']) > 1048576)
+) {
   ResponseHelper::sendError('Content too large. Maximum 1MB allowed.', 400);
 }
 
 // Sanitize input - but preserve fields that shouldn't be HTML encoded
-$rawContent = $input['content'] ?? '';
-$rawTitle = $input['title'] ?? '';
-$rawSlug = $input['slug'] ?? '';
-$rawExcerpt = $input['excerpt'] ?? '';
-$rawMeta = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
-$rawKeywords = $input['keywords'] ?? '';
+$rawContent = (string) ($input['content'] ?? '');
+$rawTitle = (string) ($input['title'] ?? '');
+$rawSlug = is_scalar($input['slug'] ?? '') ? (string) ($input['slug'] ?? '') : '';
+$rawExcerpt = is_scalar($input['excerpt'] ?? '') ? (string) ($input['excerpt'] ?? '') : '';
+$rawMetaValue = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
+$rawMeta = is_scalar($rawMetaValue) ? (string) $rawMetaValue : '';
+$rawKeywords = is_scalar($input['keywords'] ?? '') ? (string) ($input['keywords'] ?? '') : '';
 
 if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
   ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
+}
+if (mb_strlen($rawExcerpt) > 5000 || mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
+  ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
 }
 
 // SECURITY: Prevent Stored XSS
@@ -102,12 +116,20 @@ if (empty($rawSlug)) {
 $input['slug'] = preg_replace('/[^a-z0-9\-]+/', '-', strtolower((string) $input['slug']));
 $input['slug'] = preg_replace('/-+/', '-', (string) $input['slug']);
 $input['slug'] = trim((string) $input['slug'], '-');
+if ($input['slug'] === '') {
+  ResponseHelper::sendError('A valid slug is required.', 400);
+}
+$input['slug'] = mb_substr($input['slug'], 0, 255);
 
 // Ensure slug uniqueness (prevent SEO issues)
 // Note: Dead code removed here; uniqueness is checked safely inside the transaction block later.
 
 // Handle image field (frontend uses 'image', database uses 'image_url')
 $featuredImage = $input['image'] ?? ($input['featured_image'] ?? ($input['image_url'] ?? ''));
+$featuredImage = is_scalar($featuredImage) ? trim((string) $featuredImage) : '';
+if (mb_strlen($featuredImage) > 255) {
+  ResponseHelper::sendError('Featured image URL is too long.', 400);
+}
 
 // Auto-detect first image from content if no featured image provided
 if (empty($featuredImage) && !empty($rawContent)) {
@@ -115,6 +137,9 @@ if (empty($featuredImage) && !empty($rawContent)) {
   if (preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', $rawContent, $matches)) {
     $featuredImage = $matches[1];
   }
+}
+if (mb_strlen($featuredImage) > 255) {
+  ResponseHelper::sendError('Featured image URL is too long.', 400);
 }
 
 // Auto-generate excerpt from content if not provided
@@ -145,7 +170,7 @@ try {
 
   // Check if this is an update (has numeric ID) or insert (no ID or temp ID)
   $postId = $input['id'] ?? null;
-  $isUpdate = $postId && is_numeric($postId);
+  $isUpdate = is_scalar($postId) && preg_match('/^\d+$/', (string) $postId) && (int) $postId > 0;
 
   if ($isUpdate) {
     $checkOwner = $db->prepare('SELECT id, author_id, status, slug FROM posts WHERE id = ?');
@@ -169,7 +194,12 @@ try {
   }
 
   // Get category (default to Uncategorized if not provided)
-  $category = $input['category'] ?? 'Uncategorized';
+  $category = is_scalar($input['category'] ?? null)
+    ? mb_substr(trim((string) $input['category']), 0, 100)
+    : 'Uncategorized';
+  if ($category === '') {
+    $category = 'Uncategorized';
+  }
 
   // Get meta description
   $metaDescription = $input['meta_description'] ?? '';
@@ -193,7 +223,15 @@ try {
 
       foreach (['Y-m-d H:i:s', 'Y-m-d H:i'] as $format) {
         $candidate = DateTime::createFromFormat($format, $scheduledInput, $scheduledTimezone);
-        if ($candidate instanceof DateTime) {
+        $dateErrors = DateTime::getLastErrors();
+        $hasDateErrors =
+          is_array($dateErrors) &&
+          (($dateErrors['warning_count'] ?? 0) > 0 || ($dateErrors['error_count'] ?? 0) > 0);
+        if (
+          $candidate instanceof DateTime &&
+          !$hasDateErrors &&
+          $candidate->format($format) === $scheduledInput
+        ) {
           $scheduledDate = $candidate;
           break;
         }

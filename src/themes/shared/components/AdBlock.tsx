@@ -64,17 +64,10 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     iframe.style.overflow = 'hidden';
     iframe.style.display = 'block';
     iframe.setAttribute('scrolling', 'no');
-    iframe.setAttribute(
-      'sandbox',
-      'allow-scripts allow-popups allow-forms allow-same-origin allow-modals'
-    );
-
-    containerRef.current.replaceChildren();
-    containerRef.current.appendChild(iframe);
+    iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-modals');
 
     const handleMessage = (event: MessageEvent) => {
-      // Origin check — only accept messages from same origin (our own iframe)
-      if (event.origin !== window.location.origin) return;
+      if (event.source !== iframe.contentWindow) return;
       const height = Number(event.data?.height);
       if (event.data?.type === 'adHeight' && Number.isFinite(height) && height > 0 && iframe) {
         iframe.style.height = Math.ceil(height) + 'px';
@@ -82,10 +75,7 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     };
     window.addEventListener('message', handleMessage);
 
-    const iframeDoc = iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      const finalHtml = `
+    const finalHtml = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -160,9 +150,9 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
         </body>
         </html>
       `;
-      iframeDoc.write(finalHtml);
-      iframeDoc.close();
-    }
+    iframe.srcdoc = finalHtml;
+    containerRef.current.replaceChildren();
+    containerRef.current.appendChild(iframe);
 
     return () => {
       window.removeEventListener('message', handleMessage);

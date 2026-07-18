@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
+voncms_apply_site_timezone($pdo ?? null);
 
 // Get input data FIRST (before CSRF checks that use $input)
 $input = json_decode(CSRFProtection::getRequestBody(), true);
@@ -29,6 +30,7 @@ if (!$input) {
 // Enforce Security for Moderation Actions
 // Normalize action early so only known routes stay public.
 $action = isset($input['action']) ? (string) $input['action'] : null;
+$commentRateIdentifier = null;
 
 if ($action !== null) {
   $hasSession = isset($_SESSION['user']);
@@ -42,9 +44,11 @@ if ($action !== null) {
   // Add Comment: require same-site CSRF for both logged-in and guest writers.
   if ($action === 'add') {
     CSRFProtection::requireToken();
-    if (!$hasSession) {
-      RateLimiter::requireNotLimited();
-    }
+    $commentRateIdentifier = $hasSession
+      ? 'comment:user:' . (string) ($_SESSION['user']['id'] ?? 0)
+      : 'comment:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    RateLimiter::requireNotLimited($commentRateIdentifier);
+    RateLimiter::recordAttempt($commentRateIdentifier);
   }
 }
 
@@ -73,11 +77,38 @@ if (!isset($pdo) || $pdo === null) {
   }
 
   $comments = $input['comments'];
-  $data = ['comments' => $comments];
-  $result = file_put_contents($commentsFile, json_encode($data, JSON_PRETTY_PRINT));
+  if (count($comments) > 10000) {
+    ResponseHelper::sendError('Comments migration payload is too large', 400);
+  }
+  $payload = json_encode(['comments' => $comments], JSON_PRETTY_PRINT);
+  if (!is_string($payload) || strlen($payload) > 10 * 1024 * 1024) {
+    ResponseHelper::sendError('Comments migration payload is too large', 400);
+  }
+  $tempCommentsFile = $commentsFile . '.tmp.' . bin2hex(random_bytes(6));
+  $result = file_put_contents($tempCommentsFile, $payload, LOCK_EX);
 
-  if ($result === false) {
+  if ($result !== strlen($payload)) {
+    @unlink($tempCommentsFile);
     ResponseHelper::sendError('Failed to save comments', 500);
+  }
+
+  $previousCommentsFile = null;
+  if (is_file($commentsFile)) {
+    $previousCommentsFile = $commentsFile . '.previous.' . bin2hex(random_bytes(6));
+    if (!@rename($commentsFile, $previousCommentsFile)) {
+      @unlink($tempCommentsFile);
+      ResponseHelper::sendError('Failed to replace comments storage', 500);
+    }
+  }
+  if (!@rename($tempCommentsFile, $commentsFile)) {
+    if ($previousCommentsFile !== null) {
+      @rename($previousCommentsFile, $commentsFile);
+    }
+    @unlink($tempCommentsFile);
+    ResponseHelper::sendError('Failed to replace comments storage', 500);
+  }
+  if ($previousCommentsFile !== null) {
+    @unlink($previousCommentsFile);
   }
 
   echo json_encode(['success' => true, 'message' => 'Comments saved to JSON', 'source' => 'json']);
@@ -87,7 +118,11 @@ if (!isset($pdo) || $pdo === null) {
 try {
   // Handle single comment add
   if ($action === 'add') {
-    $postId = isset($input['postId']) ? intval(preg_replace('/[^0-9]/', '', $input['postId'])) : 0;
+    $postIdRaw = isset($input['postId']) ? (string) $input['postId'] : '';
+    $postId = preg_match('/^\d+$/', $postIdRaw) ? (int) $postIdRaw : 0;
+    if ($postId <= 0) {
+      ResponseHelper::sendError('Valid post ID is required', 400);
+    }
 
     $discussionEnabled = true;
     try {
@@ -110,6 +145,15 @@ try {
     // 1.3 Comment impersonation via client-supplied userId (Fix)
     // derive identity from session if logged in, otherwise force null/anonymous
     $currentUser = $_SESSION['user'] ?? null;
+    if (!SessionManager::isStaff()) {
+      $postStmt = $pdo->prepare(
+        "SELECT id FROM posts WHERE id = ? AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?) LIMIT 1",
+      );
+      $postStmt->execute([$postId, date('Y-m-d H:i:s')]);
+      if (!$postStmt->fetch(PDO::FETCH_ASSOC)) {
+        ResponseHelper::sendError('Post is not available for comments', 404);
+      }
+    }
     if ($currentUser) {
       $userId = $currentUser['id'];
       $username = $currentUser['username'] ?? 'User-' . $userId;
@@ -117,7 +161,11 @@ try {
     } else {
       $userId = null;
       $username = isset($input['username'])
-        ? htmlspecialchars($input['username'], ENT_QUOTES, 'UTF-8')
+        ? htmlspecialchars(
+          mb_substr(trim((string) $input['username']), 0, 100),
+          ENT_QUOTES,
+          'UTF-8',
+        )
         : 'Anonymous';
       $userAvatar = ResponseHelper::scrubAvatarUrl($input['userAvatar'] ?? '');
     }
@@ -149,6 +197,9 @@ try {
     // Quality Check: Reject very short comments (Early Rejection)
     if (mb_strlen($content) < 10) {
       ResponseHelper::sendError('Comment is too short. Please write at least 10 characters.', 400);
+    }
+    if (mb_strlen($content) > 5000) {
+      ResponseHelper::sendError('Comment is too long. Maximum 5000 characters allowed.', 400);
     }
 
     // ============================================
@@ -232,7 +283,6 @@ try {
     $stmt = $pdo->prepare("INSERT INTO comments (post_id, user_id, parent_id, user_name, user_avatar, content, likes, status, created_at) 
                                VALUES (?, ?, ?, ?, ?, ?, 0, ?, NOW())");
     $stmt->execute([$postId, $userId, $parentId, $username, $userAvatar, $content, $status]);
-
     $newId = $pdo->lastInsertId();
     $prefix = $parentId ? 'r-' : 'c-';
 

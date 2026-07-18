@@ -8,6 +8,7 @@
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/settings_audit_helper.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('POST, OPTIONS');
@@ -60,8 +61,20 @@ try {
   $settingGroup = $auditEntry['setting_group'];
   $settingKey = $auditEntry['setting_key'];
 
+  if (voncms_setting_audit_is_sensitive($settingGroup, $settingKey)) {
+    $deleteAuditStmt = $pdo->prepare('DELETE FROM settings_audit_log WHERE id = ?');
+    $deleteAuditStmt->execute([$auditLogId]);
+    $pdo->commit();
+    ResponseHelper::sendError('Sensitive settings cannot be restored from audit history.', 400);
+  }
+
   // Determine public status based on key sensitivity
-  $isPublic = SecurityHelper::isSensitiveKey($settingKey) ? 0 : 1;
+  $isPublic =
+    ($settingGroup === 'api' && $settingKey === 'config') ||
+    ($settingGroup === 'contact' && $settingKey === 'forms') ||
+    SecurityHelper::isSensitiveKey($settingKey)
+      ? 0
+      : 1;
 
   try {
     // Update the setting

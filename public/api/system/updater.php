@@ -5,24 +5,26 @@
  * Handles safe OTA updates from GitHub Releases.
  */
 
-// 1. LOAD SECURITY FIRST
-require_once __DIR__ . '/../../security.php';
+if (!defined('VONCMS_UPDATER_TESTING')) {
+  // 1. LOAD SECURITY FIRST
+  require_once __DIR__ . '/../../security.php';
 
-// 2. SEND HEADERS IMMEDIATELY
-sendApiHeaders('POST, OPTIONS');
+  // 2. SEND HEADERS IMMEDIATELY
+  sendApiHeaders('POST, OPTIONS');
 
-// 3. EXIT FOR PREFLIGHT
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  exit(0);
+  // 3. EXIT FOR PREFLIGHT
+  if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+  }
+
+  // 4. LOAD CONFIG LAST
+  if (file_exists(__DIR__ . '/../../von_config.php')) {
+    require_once __DIR__ . '/../../von_config.php';
+  }
+
+  // STRICT SECURITY CHECK: OTA updates can replace application code.
+  SessionManager::requirePrimaryAdmin();
 }
-
-// 4. LOAD CONFIG LAST
-if (file_exists(__DIR__ . '/../../von_config.php')) {
-  require_once __DIR__ . '/../../von_config.php';
-}
-
-// STRICT SECURITY CHECK: OTA updates can replace application code.
-SessionManager::requirePrimaryAdmin();
 
 class SystemUpdater
 {
@@ -41,6 +43,12 @@ class SystemUpdater
   /** @var array<int, string> */
   private $logMessages = [];
 
+  /** @var resource|null */
+  private $lockHandle = null;
+
+  /** @var int|null */
+  private $testFailureAfterActivations = null;
+
   // FILES TO NEVER TOUCH (Files AND Directories)
   /** @var array<int, string> */
   private $protected = [
@@ -51,6 +59,7 @@ class SystemUpdater
     'data',
     'uploads',
     'backups',
+    'temp_update',
     'public/data',
     'public/uploads',
     '.git',
@@ -80,7 +89,7 @@ class SystemUpdater
     $this->logFile = __DIR__ . '/updater_debug.log'; // Local log file
 
     // Ensure paths exist
-    if (!file_exists($this->backupPath)) {
+    if (!defined('VONCMS_UPDATER_TESTING') && !file_exists($this->backupPath)) {
       mkdir($this->backupPath, 0755, true);
     }
   }
@@ -141,6 +150,16 @@ class SystemUpdater
     ignore_user_abort(true); // Keep running even if connection drops
     set_time_limit(300);
 
+    if (!$this->acquireUpdateLock()) {
+      return [
+        'status' => 'error',
+        'message' => 'Another system update is already running.',
+        'logs' => $this->logMessages,
+      ];
+    }
+
+    $backupFile = null;
+
     try {
       // Pre-check ZipArchive
       if (!class_exists('ZipArchive')) {
@@ -149,6 +168,12 @@ class SystemUpdater
 
       // 0. Security Validation
       $this->validateUrl($downloadUrl);
+      $normalizedVersion = preg_replace('/^v\.?/i', '', trim((string) $version));
+      if (!is_string($normalizedVersion) || !preg_match('/^\d+\.\d+\.\d+$/', $normalizedVersion)) {
+        throw new Exception('Invalid update version.');
+      }
+
+      $this->cleanup();
 
       // 1. Pre-flight Checks
       $this->log('Step 1: Pre-flight checks');
@@ -164,7 +189,7 @@ class SystemUpdater
 
       // 3. Create Backup
       $this->log('Step 3: Creating backup');
-      $this->createBackup();
+      $backupFile = $this->createBackup();
       $this->log('Backup created');
 
       // 4. Extract & Verify
@@ -174,7 +199,7 @@ class SystemUpdater
 
       // 5. ATOMIC SWAP (The scary part)
       $this->log('Step 5: Performing swap');
-      $this->performSwap();
+      $this->performSwap($normalizedVersion);
       $this->log('Swap complete');
 
       // 6. Cleanup
@@ -185,6 +210,7 @@ class SystemUpdater
       return [
         'status' => 'success',
         'message' => "Successfully updated to $version",
+        'backup' => $backupFile !== null ? basename($backupFile) : null,
         'logs' => $this->logMessages,
       ];
     } catch (Throwable $e) {
@@ -193,10 +219,43 @@ class SystemUpdater
       return [
         'status' => 'error',
         'message' => $e->getMessage(),
+        'backup' => $backupFile !== null ? basename($backupFile) : null,
         'debug' => basename($e->getFile()) . ':' . $e->getLine(),
         'logs' => $this->logMessages,
       ];
+    } finally {
+      $this->releaseUpdateLock();
     }
+  }
+
+  private function acquireUpdateLock(): bool
+  {
+    $lockPath = $this->backupPath . '/.voncms-update.lock';
+    $this->lockHandle = @fopen($lockPath, 'c+');
+    if ($this->lockHandle === false) {
+      $this->lockHandle = null;
+      return false;
+    }
+
+    if (!@flock($this->lockHandle, LOCK_EX | LOCK_NB)) {
+      fclose($this->lockHandle);
+      $this->lockHandle = null;
+      return false;
+    }
+
+    @ftruncate($this->lockHandle, 0);
+    @fwrite($this->lockHandle, (string) getmypid());
+    @fflush($this->lockHandle);
+    return true;
+  }
+
+  private function releaseUpdateLock(): void
+  {
+    if (is_resource($this->lockHandle)) {
+      @flock($this->lockHandle, LOCK_UN);
+      fclose($this->lockHandle);
+    }
+    $this->lockHandle = null;
   }
 
   /**
@@ -279,6 +338,7 @@ class SystemUpdater
     $saveTo = null,
     $timeout = 60,
     $connectTimeout = 15,
+    $maxBytes = 0,
   ) {
     $currentUrl = $url;
     $maxRedirects = 5;
@@ -297,6 +357,7 @@ class SystemUpdater
       $redirectLocation = '';
       $currentStatus = 0;
       $responseBody = '';
+      $downloadedBytes = 0;
 
       $ch = curl_init($currentUrl);
       curl_setopt_array($ch, [
@@ -328,12 +389,22 @@ class SystemUpdater
         curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($curlHandle, $data) use (
           $handle,
           &$currentStatus,
+          &$downloadedBytes,
+          $maxBytes,
         ) {
           if ($currentStatus >= 300 && $currentStatus < 400) {
             return strlen($data);
           }
 
+          $chunkLength = strlen($data);
+          if ($maxBytes > 0 && $downloadedBytes + $chunkLength > $maxBytes) {
+            return 0;
+          }
+
           $written = fwrite($handle, $data);
+          if ($written !== false) {
+            $downloadedBytes += $written;
+          }
           return $written === false ? 0 : $written;
         });
       }
@@ -509,6 +580,7 @@ class SystemUpdater
       $saveTo,
       300,
       30,
+      100 * 1024 * 1024,
     );
     $httpCode = $download['status'];
 
@@ -536,7 +608,7 @@ class SystemUpdater
   }
 
   /**
-   * @return void
+   * @return string
    */
   private function createBackup()
   {
@@ -548,17 +620,38 @@ class SystemUpdater
       throw new Exception('Could not create backup zip.');
     }
 
-    // Determine what to backup (Core folders only to save time?)
-    $this->addFolderToZip($this->rootPath . '/assets', $zip, 'assets');
-    $this->addFolderToZip($this->rootPath . '/api', $zip, 'api');
-    if (file_exists($this->rootPath . '/index.html')) {
-      $zip->addFile($this->rootPath . '/index.html', 'index.html');
-    }
-    if (file_exists($this->rootPath . '/.htaccess')) {
-      $zip->addFile($this->rootPath . '/.htaccess', '.htaccess');
+    try {
+      $items = @scandir($this->rootPath);
+      if ($items === false) {
+        throw new Exception('Could not read the current installation for backup.');
+      }
+
+      foreach ($items as $item) {
+        if ($item === '.' || $item === '..' || $item === 'temp_update') {
+          continue;
+        }
+        if ($this->isProtectedPath($item) && $item !== '.htaccess') {
+          continue;
+        }
+
+        $path = $this->rootPath . '/' . $item;
+        if (is_dir($path)) {
+          $this->addFolderToZip($path, $zip, $item);
+        } elseif (is_file($path) && !$zip->addFile($path, $item)) {
+          throw new Exception('Could not add ' . $item . ' to the update backup.');
+        }
+      }
+
+      if (!$zip->close() || !is_file($backupFile) || filesize($backupFile) <= 0) {
+        throw new Exception('Update backup could not be finalized.');
+      }
+    } catch (Throwable $error) {
+      $zip->close();
+      @unlink($backupFile);
+      throw $error;
     }
 
-    $zip->close();
+    return $backupFile;
   }
 
   /**
@@ -569,11 +662,54 @@ class SystemUpdater
   {
     $zip = new ZipArchive();
     if ($zip->open($zipFile) === true) {
+      $this->validateArchive($zip);
       $extractPath = $this->tempPath . '/extracted';
-      $zip->extractTo($extractPath);
+      if (!is_dir($extractPath) && !@mkdir($extractPath, 0755, true)) {
+        $zip->close();
+        throw new Exception('Failed to create update extraction directory.');
+      }
+      if (!$zip->extractTo($extractPath)) {
+        $zip->close();
+        throw new Exception('Failed to extract update ZIP.');
+      }
       $zip->close();
     } else {
       throw new Exception('Failed to open update ZIP.');
+    }
+  }
+
+  private function validateArchive(ZipArchive $zip): void
+  {
+    if ($zip->numFiles <= 0 || $zip->numFiles > 5000) {
+      throw new Exception('Update archive contains an invalid number of entries.');
+    }
+
+    $totalSize = 0;
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+      $stat = $zip->statIndex($index);
+      if (!is_array($stat) || !isset($stat['name'])) {
+        throw new Exception('Update archive contains an unreadable entry.');
+      }
+
+      $entryName = str_replace('\\', '/', (string) $stat['name']);
+      if (
+        $entryName === '' ||
+        strpos($entryName, "\0") !== false ||
+        strpos($entryName, '/') === 0 ||
+        preg_match('/^[a-zA-Z]:\//', $entryName) ||
+        preg_match('~(^|/)\.\.(/|$)~', $entryName)
+      ) {
+        throw new Exception('Update archive contains an unsafe path.');
+      }
+
+      $entrySize = (int) ($stat['size'] ?? 0);
+      if ($entrySize < 0 || $entrySize > 100 * 1024 * 1024) {
+        throw new Exception('Update archive contains an oversized entry.');
+      }
+      $totalSize += $entrySize;
+      if ($totalSize > 512 * 1024 * 1024) {
+        throw new Exception('Update archive is too large when extracted.');
+      }
     }
   }
 
@@ -614,7 +750,7 @@ class SystemUpdater
   /**
    * @return void
    */
-  private function performSwap()
+  private function performSwap(string $expectedVersion)
   {
     $sourceBase = $this->tempPath . '/extracted';
     $this->log("Swap started. Base: $sourceBase");
@@ -626,49 +762,259 @@ class SystemUpdater
       $this->log(
         'Error: Could not find valid update root. Items in base: ' . implode(', ', $items),
       );
-      throw new Exception('Update package structure is invalid (Missing assets or public folder).');
+      throw new Exception('Update package structure is invalid. Use the VonCMS Deploy ZIP.');
     }
 
-    $this->log('Syncing from discovered root: ' . $source);
-    $dest = $this->rootPath;
-    $this->log('Dest Root: ' . $dest);
+    $metadataPath = $source . '/metadata.json';
+    $metadata = json_decode((string) @file_get_contents($metadataPath), true);
+    $packageVersion = is_array($metadata) ? (string) ($metadata['version'] ?? '') : '';
+    if ($packageVersion !== $expectedVersion) {
+      throw new Exception('Update package version does not match the requested release.');
+    }
 
-    // Scan source and copy everything except protected files
-    $items = scandir($source);
+    $this->log('Staging from discovered root: ' . $source);
+    $stageRoot = $this->tempPath . '/staged-release';
+    $rollbackRoot = $this->tempPath . '/rollback-release';
+    $this->stageReleasePayload($source, $stageRoot);
+
+    $this->log('Activating staged release with rollback journal.');
+    $this->activateStagedPayload($stageRoot, $rollbackRoot);
+
+    $this->log('Swap Finished Successfully');
+  }
+
+  private function stageReleasePayload(string $source, string $stageRoot): void
+  {
+    if ($this->pathExists($stageRoot) && !$this->removePath($stageRoot)) {
+      throw new Exception('Could not clear the previous staged update payload.');
+    }
+    if (!@mkdir($stageRoot, 0755, true) && !is_dir($stageRoot)) {
+      throw new Exception('Could not create the staged update payload directory.');
+    }
+
+    $items = @scandir($source);
+    if ($items === false) {
+      throw new Exception('Could not read the extracted update payload.');
+    }
+
     foreach ($items as $item) {
       if ($item === '.' || $item === '..' || $item === '__MACOSX') {
         continue;
       }
-
-      // SECURITY: Never overwrite protected files (von_config.php, etc.)
       if ($this->isProtectedPath($item)) {
         $this->log("Skipping protected item: $item");
         continue;
       }
 
-      $srcItem = $source . '/' . $item;
-      $dstItem = $dest . '/' . $item;
+      $sourceItem = $source . '/' . $item;
+      $stagedItem = $stageRoot . '/' . $item;
+      if (is_dir($sourceItem) && !is_link($sourceItem)) {
+        $this->recursiveCopy($sourceItem, $stagedItem, $item);
+      } elseif (is_file($sourceItem) && !$this->forceCopyFile($sourceItem, $stagedItem)) {
+        throw new Exception('Could not stage update file: ' . $item);
+      } elseif (!is_file($sourceItem)) {
+        throw new Exception('Update payload contains an unsupported item: ' . $item);
+      }
+    }
+  }
 
-      if (is_dir($srcItem)) {
-        $this->log("Syncing directory: $item");
+  private function activateStagedPayload(string $stageRoot, string $rollbackRoot): void
+  {
+    $items = @scandir($stageRoot);
+    if ($items === false) {
+      throw new Exception('Could not read the staged update payload.');
+    }
 
-        // SPECIAL CASE: 'assets' folder (Delete-First Strategy)
-        // This ensures we don't have orphaned JS/CSS files from previous versions
-        if ($item === 'assets') {
-          if (is_dir($dstItem)) {
-            $this->log('Cleaning old assets folder for fresh sync...');
-            $this->recursiveDelete($dstItem);
-          }
+    $journal = [];
+    $activationCount = 0;
+
+    try {
+      foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+          continue;
         }
+        $this->activateStagedPath(
+          $stageRoot . '/' . $item,
+          $this->rootPath . '/' . $item,
+          $rollbackRoot,
+          $journal,
+          $activationCount,
+        );
+      }
+    } catch (Throwable $error) {
+      $rollbackErrors = $this->restoreActivationJournal($journal);
+      if (!empty($rollbackErrors)) {
+        throw new Exception(
+          'Update activation failed and automatic rollback could not complete. The pre-update backup is retained for manual recovery.',
+          0,
+          $error,
+        );
+      }
 
-        $this->recursiveCopy($srcItem, $dstItem, $item);
-      } else {
-        $this->log("Syncing file: $item");
-        $this->forceCopyFile($srcItem, $dstItem);
+      $this->log('Automatic rollback restored the pre-update release after activation failure.');
+      throw $error;
+    }
+  }
+
+  private function activateStagedPath(
+    string $stagedPath,
+    string $destinationPath,
+    string $rollbackRoot,
+    array &$journal,
+    int &$activationCount,
+  ): void {
+    if (is_dir($stagedPath) && !is_link($stagedPath)) {
+      $this->ensureDestinationDirectory(
+        $destinationPath,
+        $rollbackRoot,
+        $journal,
+        $activationCount,
+      );
+      $items = @scandir($stagedPath);
+      if ($items === false) {
+        throw new Exception('Could not read staged directory: ' . basename($stagedPath));
+      }
+      foreach ($items as $item) {
+        if ($item !== '.' && $item !== '..') {
+          $this->activateStagedPath(
+            $stagedPath . '/' . $item,
+            $destinationPath . '/' . $item,
+            $rollbackRoot,
+            $journal,
+            $activationCount,
+          );
+        }
+      }
+      return;
+    }
+
+    if (!is_file($stagedPath)) {
+      throw new Exception('Staged update payload contains an unsupported item.');
+    }
+
+    $previousPath = $this->moveDestinationAside($destinationPath, $rollbackRoot, count($journal));
+    if (!@rename($stagedPath, $destinationPath)) {
+      if ($previousPath !== null && $this->pathExists($previousPath)) {
+        @rename($previousPath, $destinationPath);
+      }
+      throw new Exception('Could not activate update file: ' . basename($destinationPath));
+    }
+
+    $this->recordActivation($journal, $destinationPath, $previousPath, $activationCount);
+  }
+
+  private function ensureDestinationDirectory(
+    string $destinationPath,
+    string $rollbackRoot,
+    array &$journal,
+    int &$activationCount,
+  ): void {
+    if (is_dir($destinationPath) && !is_link($destinationPath)) {
+      return;
+    }
+
+    $previousPath = $this->moveDestinationAside($destinationPath, $rollbackRoot, count($journal));
+    if (!@mkdir($destinationPath, 0755, true) && !is_dir($destinationPath)) {
+      if ($previousPath !== null && $this->pathExists($previousPath)) {
+        @rename($previousPath, $destinationPath);
+      }
+      throw new Exception('Could not prepare update directory: ' . basename($destinationPath));
+    }
+
+    $this->recordActivation($journal, $destinationPath, $previousPath, $activationCount);
+  }
+
+  private function moveDestinationAside(
+    string $destinationPath,
+    string $rollbackRoot,
+    int $sequence,
+  ): ?string {
+    if (!$this->pathExists($destinationPath)) {
+      return null;
+    }
+    if (!is_dir($rollbackRoot) && !@mkdir($rollbackRoot, 0755, true)) {
+      throw new Exception('Could not create the update rollback directory.');
+    }
+
+    $previousPath = $rollbackRoot . '/entry-' . $sequence . '-' . bin2hex(random_bytes(4));
+    if (!@rename($destinationPath, $previousPath)) {
+      throw new Exception('Could not preserve the existing release item for rollback.');
+    }
+
+    return $previousPath;
+  }
+
+  private function recordActivation(
+    array &$journal,
+    string $destinationPath,
+    ?string $previousPath,
+    int &$activationCount,
+  ): void {
+    $journal[] = [
+      'destination' => $destinationPath,
+      'previous' => $previousPath,
+    ];
+    $activationCount++;
+
+    if (
+      $this->testFailureAfterActivations !== null &&
+      $activationCount >= $this->testFailureAfterActivations
+    ) {
+      throw new Exception('Test failure injection after staged activation.');
+    }
+  }
+
+  private function restoreActivationJournal(array $journal): array
+  {
+    $errors = [];
+    foreach (array_reverse($journal) as $entry) {
+      $destinationPath = (string) ($entry['destination'] ?? '');
+      $previousPath = $entry['previous'] ?? null;
+      if ($destinationPath === '') {
+        continue;
+      }
+
+      if ($this->pathExists($destinationPath) && !$this->removePath($destinationPath)) {
+        $errors[] = basename($destinationPath) . ': could not remove staged item';
+        continue;
+      }
+      if (
+        is_string($previousPath) &&
+        $this->pathExists($previousPath) &&
+        !@rename($previousPath, $destinationPath)
+      ) {
+        $errors[] = basename($destinationPath) . ': could not restore previous item';
       }
     }
 
-    $this->log('Swap Finished Successfully');
+    return $errors;
+  }
+
+  private function pathExists(string $path): bool
+  {
+    return file_exists($path) || is_link($path);
+  }
+
+  private function removePath(string $path): bool
+  {
+    if (is_link($path) || is_file($path)) {
+      return @unlink($path);
+    }
+    if (!is_dir($path)) {
+      return true;
+    }
+
+    $items = @scandir($path);
+    if ($items === false) {
+      return false;
+    }
+    foreach ($items as $item) {
+      if ($item !== '.' && $item !== '..' && !$this->removePath($path . '/' . $item)) {
+        return false;
+      }
+    }
+
+    return @rmdir($path);
   }
 
   /**
@@ -689,9 +1035,10 @@ class SystemUpdater
 
     // Check if this dir is a root
     if (
-      in_array('assets', $filtered) ||
-      in_array('public', $filtered) ||
-      in_array('index.html', $filtered)
+      in_array('assets', $filtered, true) &&
+      in_array('api', $filtered, true) &&
+      in_array('index.html', $filtered, true) &&
+      in_array('metadata.json', $filtered, true)
     ) {
       return $dir;
     }
@@ -718,25 +1065,51 @@ class SystemUpdater
    */
   private function forceCopyFile($src, $dst)
   {
-    if (!@copy($src, $dst)) {
-      // Unlink failed or File Locked? Try Rename-Aside
-      if (file_exists($dst)) {
-        $trash = $dst . '.trash.' . uniqid();
-        if (@rename($dst, $trash)) {
-          if (!@copy($src, $dst)) {
-            $this->log("Error: Critical - Could not copy to $dst even after rename.");
-            return false;
-          }
-          $this->log('Force Updated: ' . basename($dst));
-          return true;
-        } else {
-          $this->log("Error: Critical lock on $dst. Cannot rename.");
+    $destinationDirectory = dirname($dst);
+    if (!is_dir($destinationDirectory) && !@mkdir($destinationDirectory, 0755, true)) {
+      return false;
+    }
+
+    $temp = $dst . '.update.' . bin2hex(random_bytes(6));
+    $previous = null;
+    try {
+      if (!@copy($src, $temp)) {
+        return false;
+      }
+
+      clearstatcache(true, $src);
+      clearstatcache(true, $temp);
+      if (
+        @filesize($src) !== @filesize($temp) ||
+        @hash_file('sha256', $src) !== @hash_file('sha256', $temp)
+      ) {
+        return false;
+      }
+
+      if (is_file($dst)) {
+        $previous = $dst . '.previous.' . bin2hex(random_bytes(6));
+        if (!@rename($dst, $previous)) {
           return false;
         }
       }
-      return false;
+
+      if (!@rename($temp, $dst)) {
+        if ($previous !== null && is_file($previous)) {
+          @rename($previous, $dst);
+        }
+        return false;
+      }
+
+      $temp = null;
+      if ($previous !== null) {
+        @unlink($previous);
+      }
+      return true;
+    } finally {
+      if (is_string($temp) && is_file($temp)) {
+        @unlink($temp);
+      }
     }
-    return true;
   }
 
   // --- Helpers ---
@@ -765,9 +1138,13 @@ class SystemUpdater
       } // Ignore self
 
       if (is_dir($file)) {
-        $zipArchive->addEmptyDir("$zipDir/$relativePath");
+        if (!$zipArchive->addEmptyDir("$zipDir/$relativePath")) {
+          throw new Exception('Could not add backup directory: ' . $zipDir . '/' . $relativePath);
+        }
       } elseif (is_file($file)) {
-        $zipArchive->addFile($file, "$zipDir/$relativePath");
+        if (!$zipArchive->addFile($file, "$zipDir/$relativePath")) {
+          throw new Exception('Could not add backup file: ' . $zipDir . '/' . $relativePath);
+        }
       }
     }
   }
@@ -789,43 +1166,6 @@ class SystemUpdater
   }
 
   /**
-   * @param string $srcDir
-   * @param string $dstDir
-   * @return void
-   */
-  private function cleanOrphanedFiles($srcDir, $dstDir)
-  {
-    if (!is_dir($dstDir)) {
-      return;
-    }
-
-    $files = scandir($dstDir);
-    foreach ($files as $file) {
-      if ($file === '.' || $file === '..') {
-        continue;
-      }
-
-      $srcFile = $srcDir . '/' . $file;
-      $dstFile = $dstDir . '/' . $file;
-
-      if (is_dir($dstFile)) {
-        // Determine if we should recursively clean
-        $this->cleanOrphanedFiles($srcFile, $dstFile);
-        // If directory is empty now, remove it
-        if (count(scandir($dstFile)) <= 2) {
-          @rmdir($dstFile);
-        }
-      } else {
-        // If file does NOT exist in source, it's garbage. Delete it.
-        if (!file_exists($srcFile)) {
-          // Suppress errors (in case of file locking)
-          @unlink($dstFile);
-        }
-      }
-    }
-  }
-
-  /**
    * @param string $src
    * @param string $dst
    * @param string $relativeBase
@@ -834,18 +1174,17 @@ class SystemUpdater
   private function recursiveCopy($src, $dst, $relativeBase = '')
   {
     if (!is_dir($src)) {
-      $this->log("Warning: Source not found for copy: $src");
-      return;
+      throw new Exception("Source not found for copy: $src");
     }
 
     $dir = opendir($src);
     if ($dir === false) {
-      $this->log("Error: Failed to open dir: $src");
-      return;
+      throw new Exception("Failed to open directory: $src");
     }
 
-    if (!file_exists($dst)) {
-      @mkdir($dst, 0755, true);
+    if (!file_exists($dst) && !@mkdir($dst, 0755, true)) {
+      closedir($dir);
+      throw new Exception("Failed to create directory: $dst");
     }
 
     while (false !== ($file = readdir($dir))) {
@@ -860,70 +1199,9 @@ class SystemUpdater
         if (is_dir($src . '/' . $file)) {
           $this->recursiveCopy($src . '/' . $file, $dst . '/' . $file, $relativePath);
         } else {
-          if (!@copy($src . '/' . $file, $dst . '/' . $file)) {
-            $this->log('Warning: Failed to copy ' . $relativePath);
-            // Don't throw - API files may have locks but aren't critical for frontend
-          }
-        }
-      }
-    }
-    closedir($dir);
-  }
-
-  /**
-   * @param string $src
-   * @param string $dst
-   * @param string $relativeBase
-   * @return void
-   */
-  private function forceRecursiveCopy($src, $dst, $relativeBase = '')
-  {
-    if (!is_dir($dst)) {
-      @mkdir($dst, 0755, true);
-    }
-
-    $dir = opendir($src);
-    if ($dir === false) {
-      return;
-    }
-
-    while (false !== ($file = readdir($dir))) {
-      if ($file != '.' && $file != '..') {
-        $relativePath = $relativeBase === '' ? $file : $relativeBase . '/' . $file;
-
-        if ($this->isProtectedPath($relativePath)) {
-          $this->log('Skipping protected item: ' . $relativePath);
-          continue;
-        }
-
-        $srcFile = $src . '/' . $file;
-        $dstFile = $dst . '/' . $file;
-
-        if (is_dir($srcFile)) {
-          $this->forceRecursiveCopy($srcFile, $dstFile, $relativePath);
-        } else {
-          // Try to copy directly
-          if (!@copy($srcFile, $dstFile)) {
-            // If Failed (Assume Locked): Try Rename-Aside
-            if (file_exists($dstFile)) {
-              $trashFile = $dstFile . '.trash.' . time();
-              if (@rename($dstFile, $trashFile)) {
-                // Rename succeeeded, now Copy
-                if (!@copy($srcFile, $dstFile)) {
-                  $this->log("Error: Failed to copy $relativePath even after rename-aside.");
-                  throw new Exception("Critical: Cannot copy $relativePath after rename");
-                } else {
-                  $this->log("Force Updated: $relativePath (Original moved to trash)");
-                }
-              } else {
-                $this->log("Error: Critical Lock on $relativePath. Cannot rename or overwrite.");
-                throw new Exception("Critical: File locked - $relativePath");
-              }
-            } else {
-              // File doesn't exist at destination but copy still failed
-              $this->log("Error: Cannot copy $relativePath (Permission denied or source missing)");
-              throw new Exception("Critical: Copy failed - $relativePath");
-            }
+          if (!$this->forceCopyFile($src . '/' . $file, $dst . '/' . $file)) {
+            closedir($dir);
+            throw new Exception('Failed to copy ' . $relativePath);
           }
         }
       }

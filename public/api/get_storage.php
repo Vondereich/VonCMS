@@ -20,23 +20,26 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 SessionManager::requireStaff();
 
 /**
- * Calculate folder size recursively
+ * Calculate folder size and file count recursively
  *
  * @param string $dir
- * @return int
+ * @return array{bytes: int, files: int}
  */
-function getFolderSize($dir)
+function getFolderStats($dir)
 {
-  $size = 0;
+  $stats = ['bytes' => 0, 'files' => 0];
   if (is_dir($dir)) {
     $iterator = new RecursiveIteratorIterator(
       new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
     );
     foreach ($iterator as $file) {
-      $size += $file->getSize();
+      if ($file->isFile()) {
+        $stats['bytes'] += $file->getSize();
+        $stats['files']++;
+      }
     }
   }
-  return $size;
+  return $stats;
 }
 
 /**
@@ -59,8 +62,10 @@ function formatBytes($bytes, $precision = 2)
 // Calculate storage
 $uploadsPath = dirname(__DIR__) . '/uploads';
 
-// Get used space
-$usedBytes = getFolderSize($uploadsPath);
+// Get used space and file count in one traversal
+$folderStats = getFolderStats($uploadsPath);
+$usedBytes = $folderStats['bytes'];
+$fileCount = $folderStats['files'];
 $usedFormatted = formatBytes($usedBytes);
 
 // Get total disk space (or use configurable limit)
@@ -78,19 +83,6 @@ if ($totalDisk && $totalDisk > 0) {
 
 // Calculate percentage
 $percentage = $limitBytes > 0 ? round(($usedBytes / $limitBytes) * 100, 1) : 0;
-
-// Count files
-$fileCount = 0;
-if (is_dir($uploadsPath)) {
-  $iterator = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($uploadsPath, RecursiveDirectoryIterator::SKIP_DOTS),
-  );
-  foreach ($iterator as $file) {
-    if ($file->isFile()) {
-      $fileCount++;
-    }
-  }
-}
 
 echo json_encode([
   'success' => true,

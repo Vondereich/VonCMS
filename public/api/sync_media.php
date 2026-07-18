@@ -13,6 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
@@ -169,9 +173,11 @@ try {
     ],
     JSON_PRETTY_PRINT,
   );
-} catch (Exception $e) {
+} catch (Throwable $e) {
+  error_log('Media sync failed: ' . $e->getMessage());
+  http_response_code(500);
   echo json_encode([
     'success' => false,
-    'error' => $e->getMessage(),
+    'error' => 'Media sync failed. Check the server log for details.',
   ]);
 }

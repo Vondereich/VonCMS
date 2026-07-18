@@ -45,6 +45,21 @@ try {
     ResponseHelper::sendError('Database not configured', 503);
   }
 
+  $contentTable = $contentType === 'page' ? 'pages' : 'posts';
+  $contentStmt = $pdo->prepare("SELECT author_id FROM $contentTable WHERE id = ? LIMIT 1");
+  $contentStmt->execute([$contentId]);
+  $contentRow = $contentStmt->fetch(PDO::FETCH_ASSOC);
+  if (!$contentRow) {
+    ResponseHelper::sendError('Content not found', 404);
+  }
+
+  if (
+    $currentRole === 'writer' &&
+    (string) ($contentRow['author_id'] ?? '') !== (string) ($_SESSION['user']['id'] ?? '')
+  ) {
+    ResponseHelper::sendError('Not authorized to view this edit history', 403);
+  }
+
   try {
     voncms_ensure_content_audit_logs_table($pdo);
   } catch (Throwable $tableError) {

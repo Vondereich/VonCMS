@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AISummaryConfig } from './types';
 import { extractSummary } from './extractors';
 
@@ -8,8 +8,10 @@ interface AISummaryComponentProps {
 }
 
 export const AISummaryComponent: React.FC<AISummaryComponentProps> = ({ config, content }) => {
-  // Extract summary points
-  const summaryPoints = extractSummary(content, config.extractMethod, config.maxBullets);
+  const summaryPoints = useMemo(
+    () => extractSummary(content, config.extractMethod, config.maxBullets),
+    [content, config.extractMethod, config.maxBullets]
+  );
 
   // Don't render if no points extracted
   if (summaryPoints.length === 0) return null;

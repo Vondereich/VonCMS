@@ -69,6 +69,65 @@ function voncms_project_public_admin_profile($profile): ?array
   return $publicProfile;
 }
 
+function voncms_normalize_plugin_settings_value(string $key, $value)
+{
+  if ($key === 'active_plugins') {
+    if (!is_array($value)) {
+      return [];
+    }
+
+    $pluginIds = array_filter(
+      $value,
+      static fn($pluginId): bool => is_string($pluginId) &&
+        $pluginId !== '' &&
+        strlen($pluginId) <= 100 &&
+        preg_match('/^[A-Za-z0-9._-]+$/', $pluginId) === 1,
+    );
+    return array_values(array_unique($pluginIds));
+  }
+
+  if ($key === 'custom_plugins') {
+    if (!is_array($value)) {
+      return [];
+    }
+
+    $allowedLocations = ['header_top', 'footer_bottom', 'sidebar_top', 'post_after'];
+    $plugins = array_filter($value, static function ($plugin) use ($allowedLocations): bool {
+      return is_array($plugin) &&
+        is_string($plugin['id'] ?? null) &&
+        is_string($plugin['name'] ?? null) &&
+        is_string($plugin['location'] ?? null) &&
+        is_string($plugin['htmlContent'] ?? null) &&
+        in_array($plugin['location'], $allowedLocations, true);
+    });
+    return array_values($plugins);
+  }
+
+  if (!is_array($value)) {
+    return [];
+  }
+
+  if ($key === 'plugin_config' && isset($value['pluginStatus'])) {
+    if (!is_array($value['pluginStatus'])) {
+      unset($value['pluginStatus']);
+      return $value;
+    }
+
+    $value['pluginStatus'] = array_filter(
+      $value['pluginStatus'],
+      static fn($status, $pluginId): bool => is_string($pluginId) &&
+        $pluginId !== '' &&
+        strlen($pluginId) <= 100 &&
+        preg_match('/^[A-Za-z0-9._-]+$/', $pluginId) === 1 &&
+        is_string($status) &&
+        in_array($status, ['active', 'inactive', 'not_installed'], true),
+      ARRAY_FILTER_USE_BOTH,
+    );
+  }
+
+  return $value;
+}
+
 /** @var PDOStatement|null $stmt */
 $stmt = null;
 
@@ -252,11 +311,11 @@ try {
         break;
       case 'plugins':
         if ($key === 'active_plugins') {
-          $settings['activePlugins'] = $value;
+          $settings['activePlugins'] = voncms_normalize_plugin_settings_value($key, $value);
         } elseif ($key === 'custom_plugins') {
-          $settings['customPlugins'] = $value;
+          $settings['customPlugins'] = voncms_normalize_plugin_settings_value($key, $value);
         } elseif ($key === 'plugin_config') {
-          $settings['pluginConfig'] = $value;
+          $settings['pluginConfig'] = voncms_normalize_plugin_settings_value($key, $value);
         }
         break;
       case 'smtp':
@@ -286,7 +345,7 @@ try {
         }
         break;
       case 'contact':
-        if ($key === 'forms') {
+        if ($isAdmin && $key === 'forms') {
           $settings['contactForms'] = $value;
         }
         break;
@@ -344,7 +403,7 @@ try {
   }
 
   // --- SMART BRIDGE: Fallback to JSON for Contact Forms if DB is empty ---
-  if (empty($settings['contactForms'])) {
+  if ($isAdmin && empty($settings['contactForms'])) {
     $jsonPath = __DIR__ . '/../data/site_settings.json';
     if (file_exists($jsonPath)) {
       $json = json_decode(file_get_contents($jsonPath), true);

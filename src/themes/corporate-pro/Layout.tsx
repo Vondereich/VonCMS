@@ -75,6 +75,10 @@ interface ThemeLayoutProps {
   onAddComment: (postId: string, content: string) => void;
   onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
+  onLoadMoreComments?: () => Promise<void>;
+  hasMoreComments?: boolean;
+  commentsLoading?: boolean;
+  commentsError?: string | null;
   onNavigateAdmin: () => void;
   onLogin: () => void;
   onLogout: () => void;
@@ -206,7 +210,7 @@ const CorporateProfile: React.FC<{
   return (
     <div className="bg-slate-50 dark:bg-neutral-900 min-h-screen">
       <div className="bg-white dark:bg-neutral-950 border-b border-slate-200 dark:border-neutral-800">
-        <div className="max-w-4xl mx-auto px-5 py-12 text-center md:text-left md:flex items-start gap-8">
+        <div className="max-w-4xl mx-auto px-5 pt-24 md:pt-28 pb-12 text-center md:text-left md:flex items-start gap-8">
           <div className="relative group mx-auto md:mx-0 w-32 h-32 flex-shrink-0">
             {displayUser.avatar ? (
               <img
@@ -233,12 +237,12 @@ const CorporateProfile: React.FC<{
               </button>
             )}
           </div>
-          <div className="mt-4 md:mt-2 flex-grow">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
+          <div className="mt-4 md:mt-2 flex-grow min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2 [overflow-wrap:anywhere]">
               {displayUser.display_name || displayUser.username}
             </h1>
             {displayUser.display_name && (
-              <p className="text-sm text-slate-500 dark:text-neutral-400 mb-2">
+              <p className="text-sm text-slate-500 dark:text-neutral-400 mb-2 [overflow-wrap:anywhere]">
                 @{displayUser.username}
               </p>
             )}
@@ -481,21 +485,15 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
     selectedPost?.content || ''
   ) || { component: null, position: 'top' };
 
-  const relatedPosts = useRelatedPosts(
-    settings,
-    selectedPost as any,
-    posts,
-    (p) => onPostClick(p.id),
-    {
-      primary: settings.theme.primaryColor || '#2563eb',
-      secondary: '#64748b',
-      surface: isDarkMode ? '#1a1a1a' : '#ffffff',
-      surfaceAlt: isDarkMode ? '#121212' : '#f8fafc',
-      border: isDarkMode ? '#2a2a2a' : '#e2e8f0',
-      text: isDarkMode ? '#E5E7EB' : '#0f172a',
-      textSecondary: isDarkMode ? '#9CA3AF' : '#475569',
-    }
-  );
+  const relatedPosts = useRelatedPosts(settings, selectedPost, posts, (p) => onPostClick(p.id), {
+    primary: settings.theme.primaryColor || '#2563eb',
+    secondary: '#64748b',
+    surface: isDarkMode ? '#1a1a1a' : '#ffffff',
+    surfaceAlt: isDarkMode ? '#121212' : '#f8fafc',
+    border: isDarkMode ? '#2a2a2a' : '#e2e8f0',
+    text: isDarkMode ? '#E5E7EB' : '#0f172a',
+    textSecondary: isDarkMode ? '#9CA3AF' : '#475569',
+  });
 
   // --- Hooks Integration ---
   const { showPopup, closePopup } = useAdsPopup(settings.ads);
@@ -1286,6 +1284,10 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                       }
                       onLikeComment={props.onLikeComment}
                       onReplyComment={props.onReplyComment}
+                      onLoadMoreComments={props.onLoadMoreComments}
+                      hasMoreComments={props.hasMoreComments}
+                      commentsLoading={props.commentsLoading}
+                      commentsError={props.commentsError}
                       settings={settings}
                       onLogin={onLogin}
                       onViewProfile={onViewProfile}

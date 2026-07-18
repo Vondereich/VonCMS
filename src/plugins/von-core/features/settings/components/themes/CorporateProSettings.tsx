@@ -6,7 +6,7 @@ import { SafeImage } from '../../../../../../components/SafeImage';
 
 interface CorporateProSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -79,14 +79,16 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
     contactAddress: settings.theme?.corporatePro?.contactAddress || 'Business District, City',
   });
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       theme: {
         ...settings.theme,
         corporatePro: tempSettings,
       },
     });
+    if (saved === false) return;
+
     toast.success('Corporate Pro settings saved!');
     onClose();
   };
@@ -245,7 +247,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                 />
               </div>
               <hr className="border-slate-100 dark:border-[#2a2b36] my-4" />
-              {[1, 2, 3].map((i) => (
+              {([1, 2, 3] as const).map((i) => (
                 <div
                   key={i}
                   className="bg-slate-50 dark:bg-[#16161e]/40 p-5 rounded-xl border border-slate-100 dark:border-[#2a2b36] space-y-4"
@@ -256,26 +258,26 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                   <div className="grid grid-cols-2 gap-4">
                     <InputField
                       label="Title"
-                      value={(tempSettings as any)[`service${i}Title`]}
+                      value={tempSettings[`service${i}Title` as const]}
                       onChange={(v) =>
                         setTempSettings({ ...tempSettings, [`service${i}Title`]: v })
                       }
                     />
                     <InputField
                       label="Icon (Lucide name)"
-                      value={(tempSettings as any)[`service${i}Icon`]}
+                      value={tempSettings[`service${i}Icon` as const]}
                       onChange={(v) => setTempSettings({ ...tempSettings, [`service${i}Icon`]: v })}
                     />
                   </div>
                   <InputField
                     label="Link URL"
-                    value={(tempSettings as any)[`service${i}Link`]}
+                    value={tempSettings[`service${i}Link` as const]}
                     onChange={(v) => setTempSettings({ ...tempSettings, [`service${i}Link`]: v })}
                     placeholder="#"
                   />
                   <TextAreaField
                     label="Description"
-                    value={(tempSettings as any)[`service${i}Desc`]}
+                    value={tempSettings[`service${i}Desc` as const]}
                     onChange={(v) => setTempSettings({ ...tempSettings, [`service${i}Desc`]: v })}
                     rows={2}
                   />

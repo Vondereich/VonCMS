@@ -8,6 +8,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
+const VONCMS_WP_IMPORT_MAX_XML_BYTES = 64 * 1024 * 1024;
+const VONCMS_WP_IMPORT_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
 if (file_exists(__DIR__ . '/../../von_config.php')) {
   require_once __DIR__ . '/../../von_config.php';
 }
@@ -249,16 +256,17 @@ function register_imported_media($conn, $relativePath, $mimeType, $size, $upload
   }
 
   try {
+    $storedPath = 'uploads/' . ltrim(str_replace('\\', '/', $relativePath), '/');
+    $existing = $conn->prepare('SELECT id FROM media WHERE filepath = ? LIMIT 1');
+    $existing->execute([$storedPath]);
+    if ($existing->fetch(PDO::FETCH_ASSOC)) {
+      return;
+    }
+
     $stmt = $conn->prepare(
       'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by) VALUES (?, ?, ?, ?, ?)',
     );
-    $stmt->execute([
-      $filename,
-      'uploads/' . ltrim(str_replace('\\', '/', $relativePath), '/'),
-      $mimeType,
-      (int) $size,
-      $uploadedBy,
-    ]);
+    $stmt->execute([$filename, $storedPath, $mimeType, (int) $size, $uploadedBy]);
   } catch (Throwable $e) {
     debug_log('Media register skipped: ' . $e->getMessage());
   }
@@ -548,6 +556,7 @@ function fetch_import_image_hop_with_curl($url, $tempPath)
   $httpCode = 0;
   $redirectLocation = '';
   $currentStatus = 0;
+  $downloadedBytes = 0;
 
   $options = [
     CURLOPT_CONNECTTIMEOUT => 10,
@@ -580,12 +589,24 @@ function fetch_import_image_hop_with_curl($url, $tempPath)
      * @param string $data
      * @return int
      */
-    CURLOPT_WRITEFUNCTION => function ($curlHandle, $data) use ($handle, &$currentStatus) {
+    CURLOPT_WRITEFUNCTION => function ($curlHandle, $data) use (
+      $handle,
+      &$currentStatus,
+      &$downloadedBytes,
+    ) {
       if ($currentStatus >= 300 && $currentStatus < 400) {
         return strlen($data);
       }
 
+      $chunkLength = strlen($data);
+      if ($downloadedBytes + $chunkLength > VONCMS_WP_IMPORT_MAX_IMAGE_BYTES) {
+        return 0;
+      }
+
       $written = fwrite($handle, $data);
+      if ($written !== false) {
+        $downloadedBytes += $written;
+      }
       return $written === false ? 0 : $written;
     },
   ];
@@ -804,7 +825,7 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
   }
 
   $size = @filesize($tempPath);
-  if ($size === false || $size <= 0 || $size > 10 * 1024 * 1024) {
+  if ($size === false || $size <= 0 || $size > VONCMS_WP_IMPORT_MAX_IMAGE_BYTES) {
     debug_log('Media localizer skipped unsupported file size for: ' . $absoluteUrl);
     @unlink($tempPath);
     return null;
@@ -827,8 +848,17 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
   }
 
   $safeName = sanitize_import_media_name($absoluteUrl);
-  $filename = $safeName . '_' . uniqid() . '.' . $extension;
+  $filename = $safeName . '_' . substr(hash('sha256', $absoluteUrl), 0, 16) . '.' . $extension;
   $targetPath = $uploadContext['absolute_dir'] . $filename;
+
+  if (is_file($targetPath)) {
+    @unlink($tempPath);
+    $relativePath = $uploadContext['relative_dir'] . $filename;
+    register_imported_media($conn, $relativePath, $mimeType, $size, $uploadedBy, $filename);
+    $localUrl = $uploadContext['url_prefix'] . $filename;
+    $cache[$absoluteUrl] = $localUrl;
+    return $localUrl;
+  }
 
   if (!@rename($tempPath, $targetPath)) {
     if (!@copy($tempPath, $targetPath)) {
@@ -844,6 +874,11 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
 
   $relativePath = $uploadContext['relative_dir'] . $filename;
   register_imported_media($conn, $relativePath, $mimeType, $size, $uploadedBy, $filename);
+
+  $GLOBALS['voncms_wp_import_created_media'][] = [
+    'physical_path' => $targetPath,
+    'stored_path' => 'uploads/' . ltrim(str_replace('\\', '/', $relativePath), '/'),
+  ];
 
   $localUrl = $uploadContext['url_prefix'] . $filename;
   $cache[$absoluteUrl] = $localUrl;
@@ -1315,9 +1350,41 @@ SessionManager::requirePrimaryAdmin();
 CSRFProtection::requireToken();
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid JSON payload', 400);
+}
+
+function rollback_imported_media_since(PDO $conn, int $checkpoint): void
+{
+  $createdMedia = $GLOBALS['voncms_wp_import_created_media'] ?? [];
+  if (!is_array($createdMedia) || $checkpoint < 0 || $checkpoint >= count($createdMedia)) {
+    return;
+  }
+
+  $rollbackItems = array_slice($createdMedia, $checkpoint);
+  foreach (array_reverse($rollbackItems) as $item) {
+    $physicalPath = (string) ($item['physical_path'] ?? '');
+    $storedPath = (string) ($item['stored_path'] ?? '');
+    if ($physicalPath !== '') {
+      @unlink($physicalPath);
+    }
+    if ($storedPath !== '' && import_media_table_exists($conn)) {
+      try {
+        $deleteStmt = $conn->prepare('DELETE FROM media WHERE filepath = ?');
+        $deleteStmt->execute([$storedPath]);
+      } catch (Throwable $error) {
+        debug_log('Media rollback row cleanup skipped: ' . $error->getMessage());
+      }
+    }
+  }
+
+  $GLOBALS['voncms_wp_import_created_media'] = array_slice($createdMedia, 0, $checkpoint);
+}
 $filename = $input['temp_file'] ?? '';
-$batchIndex = $input['batch_index'] ?? 0;
-$limit = $input['limit'] ?? 10;
+$batchIndex = filter_var($input['batch_index'] ?? 0, FILTER_VALIDATE_INT);
+$limit = filter_var($input['limit'] ?? 10, FILTER_VALIDATE_INT);
+$batchIndex = $batchIndex === false ? -1 : $batchIndex;
+$limit = $limit === false ? 0 : $limit;
 $sourceSiteUrl = normalize_import_url($input['source_site_url'] ?? '');
 $sourceBlogUrl = normalize_import_url($input['source_blog_url'] ?? '');
 
@@ -1325,9 +1392,19 @@ if (empty($filename)) {
   ResponseHelper::sendError('Filename required', 400);
 }
 
+if ($batchIndex < 0 || $batchIndex > 100000 || $limit < 1 || $limit > 50) {
+  ResponseHelper::sendError('Invalid import batch parameters', 400);
+}
+
 $filePath = __DIR__ . '/../../uploads/temp/' . basename($filename);
 if (!file_exists($filePath)) {
   ResponseHelper::sendError('Temp file not found', 404);
+}
+
+$xmlSize = @filesize($filePath);
+if ($xmlSize === false || $xmlSize <= 0 || $xmlSize > VONCMS_WP_IMPORT_MAX_XML_BYTES) {
+  @unlink($filePath);
+  ResponseHelper::sendError('WordPress XML file exceeds the 64MB import limit', 400);
 }
 
 // Security: Validate File Extension
@@ -1364,6 +1441,7 @@ $imported = 0;
 $skipped = 0;
 $localizedMedia = 0;
 $errors = [];
+$GLOBALS['voncms_wp_import_created_media'] = [];
 
 try {
   // XXE Protection - disable external entity loading
@@ -1378,7 +1456,7 @@ try {
   /** @var array<string, string> $attachmentMap */
   $attachmentMap = [];
   $preScanReader = new XMLReader();
-  if ($preScanReader->open($filePath)) {
+  if ($preScanReader->open($filePath, null, LIBXML_NONET | LIBXML_COMPACT)) {
     while ($preScanReader->read()) {
       if (
         $preScanReader->nodeType == XMLReader::ELEMENT &&
@@ -1414,7 +1492,7 @@ try {
   }
 
   $reader = new XMLReader();
-  if (!$reader->open($filePath)) {
+  if (!$reader->open($filePath, null, LIBXML_NONET | LIBXML_COMPACT)) {
     throw new Exception("Cannot open XML at $filePath");
   }
   debug_log("XML Reader opened for batch $batchIndex");
@@ -1510,36 +1588,19 @@ try {
               debug_log("Inferred source base URLs from attachment: $inferredOrigin");
             }
           }
-          // Double-import guard: skip if already localized via content import
-          $path = (string) (parse_url($attachmentUrl, PHP_URL_PATH) ?? '');
-          $filename = basename($path);
-          $alreadyLocalized = false;
-          if ($filename !== '' && import_media_table_exists($conn)) {
-            try {
-              $check = $conn->prepare('SELECT id FROM media WHERE filename = ?');
-              $check->execute([$filename]);
-              $alreadyLocalized = (bool) $check->fetch(PDO::FETCH_ASSOC);
-            } catch (Throwable $e) {
-              // Media table may not exist yet
-            }
-          }
-          if (!$alreadyLocalized) {
-            $uploadBy = $_SESSION['user']['id'] ?? null;
-            $localized = rehost_import_image_url(
-              $attachmentUrl,
-              $sourceBaseUrls,
-              $targetSiteUrl,
-              $conn,
-              $uploadBy,
-            );
-            if ($localized) {
-              $localizedMedia++;
-              debug_log("Localized attachment: $attachmentUrl -> $localized");
-            } else {
-              debug_log("Skipped attachment: $attachmentUrl");
-            }
+          $uploadBy = $_SESSION['user']['id'] ?? null;
+          $localized = rehost_import_image_url(
+            $attachmentUrl,
+            $sourceBaseUrls,
+            $targetSiteUrl,
+            $conn,
+            $uploadBy,
+          );
+          if ($localized) {
+            $localizedMedia++;
+            debug_log("Localized attachment: $attachmentUrl -> $localized");
           } else {
-            debug_log("Already localized attachment: $attachmentUrl");
+            debug_log("Skipped attachment: $attachmentUrl");
           }
         }
         $processed++;
@@ -1562,12 +1623,22 @@ try {
       }
 
       if ($postType === 'post' || $postType === 'page') {
-        $title = (string) $sxe->title;
+        $title = mb_substr(trim((string) $sxe->title), 0, 255);
         if (empty($slug)) {
           $slug = sanitize_title($title);
         }
+        $slug = mb_substr(trim(sanitize_title($slug), '-'), 0, 255);
+        if ($title === '' || $slug === '') {
+          $skipped++;
+          $processed++;
+          $count++;
+          $reader->next();
+          continue;
+        }
 
         $targetStatus = $postStatus === 'publish' ? 'published' : 'draft';
+        $parsedDate = strtotime($date);
+        $date = $parsedDate === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $parsedDate);
 
         $table = $postType === 'post' ? 'posts' : 'pages';
         $stmt = $conn->prepare("SELECT id FROM $table WHERE slug = ?");
@@ -1601,6 +1672,7 @@ try {
             }
           }
         } else {
+          $mediaCheckpoint = count($GLOBALS['voncms_wp_import_created_media']);
           // Try INSERT. If it fails with duplicate, handle it.
           try {
             // Content fallback: encoded -> content (generic) -> description -> empty
@@ -1612,6 +1684,7 @@ try {
               $rawContent = (string) $sxe->description;
             }
 
+            $rawContent = substr($rawContent, 0, 1048576);
             $localizedContent = localize_imported_media_references(
               $rawContent,
               $sourceBaseUrls,
@@ -1633,13 +1706,13 @@ try {
                 foreach ($sxe->category as $c) {
                   // 1. WP Style: Check for domain="category"
                   if (isset($c['domain']) && (string) $c['domain'] === 'category') {
-                    $category = (string) $c;
+                    $category = mb_substr(trim((string) $c), 0, 100);
                     break;
                   }
                   // 2. Generic Style: Just take the first <category> tag found if it has no attributes or domain isn't 'post_tag'
                   // We wait to see if we find a better one, but keep this as fallback
                   if (!isset($c['domain']) && $category === 'Uncategorized') {
-                    $category = (string) $c;
+                    $category = mb_substr(trim((string) $c), 0, 100);
                   }
                 }
                 // If still 'Uncategorized' but we found a fallback, use it (logic simplified above)
@@ -1787,8 +1860,9 @@ try {
               debug_log(' -> Redirect Error: ' . $e->getMessage());
             }
             // -------------------------------------------
-          } catch (PDOException $e) {
-            if ($e->getCode() == '23000') {
+          } catch (Throwable $e) {
+            rollback_imported_media_since($conn, $mediaCheckpoint);
+            if ($e instanceof PDOException && $e->getCode() == '23000') {
               // Duplicate detected during INSERT (race condition or check failed)
               $skipped++;
               debug_log("Skipped duplicate (Insert Catch): $slug");

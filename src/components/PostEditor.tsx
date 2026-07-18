@@ -21,6 +21,7 @@ import {
   History,
   Clock3,
   User,
+  Search,
 } from 'lucide-react';
 import { sanitizeHTML, trimTrailingHtml } from '../utils/colorSanitizer';
 import { htmlToPlainText, sanitizeEditorHtml } from '../utils/security';
@@ -75,6 +76,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const [isFeaturedLibraryLoading, setIsFeaturedLibraryLoading] = useState(false);
   const [featuredMediaPage, setFeaturedMediaPage] = useState(1);
   const [featuredMediaTotalPages, setFeaturedMediaTotalPages] = useState(1);
+  const [featuredMediaSearchInput, setFeaturedMediaSearchInput] = useState('');
+  const [featuredMediaSearchQuery, setFeaturedMediaSearchQuery] = useState('');
   const [auditLogs, setAuditLogs] = useState<ContentAuditLog[]>([]);
   const [isAuditLogsLoading, setIsAuditLogsLoading] = useState(false);
   const [isAuditHistoryOpen, setIsAuditHistoryOpen] = useState(false);
@@ -605,10 +608,12 @@ const PostEditor: React.FC<PostEditorProps> = ({
     return parsed.toLocaleString();
   };
 
-  const loadFeaturedMedia = async (page = 1) => {
+  const loadFeaturedMedia = async (page = 1, search = featuredMediaSearchQuery) => {
     setIsFeaturedLibraryLoading(true);
     try {
-      const res = await vonFetch(`${API.listMedia}?page=${page}&limit=18`);
+      const params = new URLSearchParams({ page: String(page), limit: '18' });
+      if (search) params.set('search', search);
+      const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
       const data = await res.json();
 
       if (data.success) {
@@ -627,7 +632,14 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
   const openFeaturedLibrary = () => {
     setIsFeaturedLibraryOpen(true);
-    void loadFeaturedMedia(1);
+    void loadFeaturedMedia(1, featuredMediaSearchQuery);
+  };
+
+  const handleFeaturedMediaSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalizedSearch = featuredMediaSearchInput.trim().slice(0, 120);
+    setFeaturedMediaSearchQuery(normalizedSearch);
+    void loadFeaturedMedia(1, normalizedSearch);
   };
 
   const applyFeaturedImage = (url?: string) => {
@@ -795,7 +807,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                 value={item.status || 'draft'}
                 onChange={(e) => {
-                  const newStatus = e.target.value as any;
+                  const newStatus = e.target.value as Post['status'];
                   // Safety: Prevent rescheduling already published posts to protect SEO
                   if (
                     initialItem &&
@@ -805,7 +817,12 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     notify.error('Cannot schedule an already published post (SEO Safety).');
                     return;
                   }
-                  setItem((prev) => (prev ? { ...prev, status: newStatus } : null));
+                  setItem((prev) => {
+                    if (!prev) return null;
+                    return isPage
+                      ? ({ ...prev, status: newStatus as Page['status'] } as Page)
+                      : ({ ...prev, status: newStatus } as Post);
+                  });
                 }}
               >
                 <option value="published">Published</option>
@@ -1398,6 +1415,35 @@ const PostEditor: React.FC<PostEditorProps> = ({
               </button>
             </div>
 
+            <form
+              onSubmit={handleFeaturedMediaSearch}
+              className="flex gap-2 border-b border-slate-200 px-5 py-3 dark:border-[#2a2b36]"
+            >
+              <div className="relative flex-1">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  id="featured-media-search"
+                  name="featuredMediaSearch"
+                  type="search"
+                  value={featuredMediaSearchInput}
+                  maxLength={120}
+                  aria-label="Search featured images"
+                  onChange={(event) => setFeaturedMediaSearchInput(event.target.value)}
+                  placeholder="Search featured images..."
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+              >
+                Search
+              </button>
+            </form>
+
             <div className="max-h-[70vh] overflow-y-auto p-5">
               {isFeaturedLibraryLoading ? (
                 <div className="py-16 text-center text-slate-500 dark:text-slate-400">
@@ -1444,7 +1490,9 @@ const PostEditor: React.FC<PostEditorProps> = ({
             <div className="flex items-center justify-between border-t border-slate-200 dark:border-[#2a2b36] px-5 py-4">
               <button
                 type="button"
-                onClick={() => void loadFeaturedMedia(featuredMediaPage - 1)}
+                onClick={() =>
+                  void loadFeaturedMedia(featuredMediaPage - 1, featuredMediaSearchQuery)
+                }
                 disabled={isFeaturedLibraryLoading || featuredMediaPage <= 1}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-50"
               >
@@ -1456,7 +1504,9 @@ const PostEditor: React.FC<PostEditorProps> = ({
               </span>
               <button
                 type="button"
-                onClick={() => void loadFeaturedMedia(featuredMediaPage + 1)}
+                onClick={() =>
+                  void loadFeaturedMedia(featuredMediaPage + 1, featuredMediaSearchQuery)
+                }
                 disabled={isFeaturedLibraryLoading || featuredMediaPage >= featuredMediaTotalPages}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-50"
               >

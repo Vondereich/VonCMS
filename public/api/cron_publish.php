@@ -26,10 +26,10 @@ voncms_apply_site_timezone($pdo ?? null);
 
 // SECURITY: Check for secret cron key or admin session
 // You can define CRON_KEY in von_config.php for automated tasks
-$providedKey = $_GET['key'] ?? '';
+$providedKey = (string) ($_SERVER['HTTP_X_CRON_KEY'] ?? ($_GET['key'] ?? ''));
 $configuredKey = defined('CRON_KEY') ? (string) constant('CRON_KEY') : '';
 
-if (!empty($configuredKey) && $providedKey !== $configuredKey) {
+if (!empty($configuredKey) && !hash_equals($configuredKey, $providedKey)) {
   ResponseHelper::sendError('Unauthorized: Invalid Cron Key', 401);
 }
 

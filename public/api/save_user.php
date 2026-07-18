@@ -252,6 +252,17 @@ try {
       ResponseHelper::sendError('User not found or no changes made', 404);
     }
 
+    if (!empty($input['password'])) {
+      try {
+        $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+        $revokeRememberStmt->execute([$input['id']]);
+      } catch (PDOException $e) {
+        if ($e->getCode() !== '42S02') {
+          throw $e;
+        }
+      }
+    }
+
     $pdo->commit();
     voncms_public_cache_clear();
     echo json_encode([

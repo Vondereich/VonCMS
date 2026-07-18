@@ -11,7 +11,7 @@ interface PremiumModalProps {
 
 const PremiumModal: React.FC<PremiumModalProps> = ({ open, onClose, themeColor, children }) => {
   const ref = useRef<HTMLDivElement | null>(null);
-  const cfg = config as any;
+  const cfg = config;
   const modalBg = cfg.modalStyle?.bg || '#fff';
   const modalRadius = cfg.modalStyle?.radius || '10px';
   const modalPadding = cfg.modalStyle?.padding || '20px';

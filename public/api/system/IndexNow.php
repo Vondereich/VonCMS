@@ -208,44 +208,71 @@ class IndexNow
     $publicRoot = dirname(__DIR__, 2);
     $filePath = $publicRoot . '/' . $key . '.txt';
 
-    // Auto-Cleanup: Remove old key files to prevent clutter
-    $this->cleanupOldKeys($publicRoot, $key);
+    $tempPath = @tempnam($publicRoot, '.voncms_indexnow_');
+    if ($tempPath === false) {
+      return false;
+    }
 
     try {
-      // The file content must be the key itself (per IndexNow spec)
-      if (@file_put_contents($filePath, $key) === false) {
-        $error = error_get_last();
-        throw new Exception(
-          'Failed to write IndexNow key file: ' .
-            ($error['message'] ?? 'Check directory permissions.'),
-        );
+      $handle = @fopen($tempPath, 'wb');
+      if ($handle === false) {
+        return false;
       }
+
+      $length = strlen($key);
+      $written = 0;
+      while ($written < $length) {
+        $chunkBytes = @fwrite($handle, substr($key, $written));
+        if ($chunkBytes === false || $chunkBytes === 0) {
+          fclose($handle);
+          return false;
+        }
+        $written += $chunkBytes;
+      }
+
+      if (!@fflush($handle)) {
+        fclose($handle);
+        return false;
+      }
+      if (function_exists('fsync')) {
+        @fsync($handle);
+      }
+      if (!@fclose($handle)) {
+        return false;
+      }
+
+      clearstatcache(true, $tempPath);
+      if (@filesize($tempPath) !== $length || !@rename($tempPath, $filePath)) {
+        return false;
+      }
+
+      $tempPath = null;
+      @chmod($filePath, 0644);
       return true;
-    } catch (Exception $e) {
-      throw $e;
+    } finally {
+      if (is_string($tempPath) && is_file($tempPath)) {
+        @unlink($tempPath);
+      }
     }
   }
 
-  /**
-   * Remove old IndexNow verification files
-   * Scans for 32-char hex .txt files and deletes them
-   */
-  private function cleanupOldKeys(string $directory, string $currentKey): void
+  public function removeKeyFile(string $key): void
   {
-    try {
-      $files = glob($directory . '/*.txt');
-      foreach ($files as $file) {
-        $filename = basename($file, '.txt');
-        // Check if filename matches 32-char hex usage (IndexNow format)
-        if (preg_match('/^[a-f0-9]{32}$/', $filename)) {
-          // Don't delete the current key if it already exists
-          if ($filename !== $currentKey) {
-            @unlink($file);
-          }
-        }
-      }
-    } catch (Exception $e) {
-      // Passive failure - don't stop execution
+    if (!preg_match('/^[a-f0-9]{32}$/', $key)) {
+      return;
+    }
+
+    @unlink(dirname(__DIR__, 2) . '/' . $key . '.txt');
+  }
+
+  public function cleanupOldKeyFiles(?string $previousKey, string $currentKey): void
+  {
+    if (
+      is_string($previousKey) &&
+      $previousKey !== $currentKey &&
+      preg_match('/^[a-f0-9]{32}$/', $previousKey)
+    ) {
+      $this->removeKeyFile($previousKey);
     }
   }
 

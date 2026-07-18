@@ -28,7 +28,7 @@ try {
   // Pagination and search
   $limit = isset($_GET['limit']) ? max(1, min(2000, (int) $_GET['limit'])) : 100;
   $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
-  $search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
+  $search = isset($_GET['search']) ? mb_substr(trim((string) $_GET['search']), 0, 120) : '';
   $offset = 0;
   $hasDisplayNameColumn = false;
   try {

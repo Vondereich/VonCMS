@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
+voncms_apply_site_timezone($pdo ?? null);
 
 // Check database connection
 if (!isset($pdo)) {
@@ -31,7 +32,7 @@ try {
   $postId = isset($_GET['post_id']) ? intval($_GET['post_id']) : null;
   $flat = isset($_GET['flat']) && $_GET['flat'] === 'true';
   $status = isset($_GET['status']) ? trim((string) $_GET['status']) : '';
-  $search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
+  $search = isset($_GET['search']) ? mb_substr(trim((string) $_GET['search']), 0, 120) : '';
   $profileUserId = isset($_GET['user_id']) ? trim((string) $_GET['user_id']) : '';
   $profileUsername = isset($_GET['user']) ? trim((string) $_GET['user']) : '';
   $limit = isset($_GET['limit']) ? max(1, min(100, (int) $_GET['limit'])) : 10;
@@ -55,14 +56,18 @@ try {
   $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
   if (!$isStaff) {
     $where[] = "c.status = 'approved'";
+    $where[] =
+      "EXISTS (SELECT 1 FROM posts p WHERE p.id = c.post_id AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?))";
+    $countParams[] = date('Y-m-d H:i:s');
   } elseif ($flat && !$postId && $status !== '' && $search === '') {
     $where[] = 'c.status = ?';
     $countParams[] = $status;
   }
 
   if ($flat && !$postId && $search !== '') {
-    $searchLike = '%' . $search . '%';
-    $where[] = '(c.content LIKE ? OR c.user_name LIKE ?)';
+    $escapedSearch = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search);
+    $searchLike = '%' . $escapedSearch . '%';
+    $where[] = "(c.content LIKE ? ESCAPE '\\\\' OR c.user_name LIKE ? ESCAPE '\\\\')";
     $countParams[] = $searchLike;
     $countParams[] = $searchLike;
   }
@@ -93,7 +98,10 @@ try {
 
   // 2. Fetch Paginated Comments
   // Fetch ALL comments with user email (via JOIN)
-  $orderBy = $flat && !$postId ? ' ORDER BY c.created_at DESC' : ' ORDER BY c.created_at ASC';
+  $orderBy =
+    $flat && !$postId
+      ? ' ORDER BY c.created_at DESC, c.id DESC'
+      : ' ORDER BY c.created_at ASC, c.id ASC';
   $query =
     "SELECT c.id, c.post_id AS postId, c.user_id AS userId, c.parent_id AS parentId, 
                      c.user_name AS username, c.user_avatar AS userAvatar, c.content, c.likes, c.status, 
@@ -152,8 +160,8 @@ try {
   }
 
   // 4. Build Tree or return Flat list
-  if ($flat && !$postId) {
-    // For admin dashboard flat view if requested, or just return map
+  if ($flat) {
+    // Flat pages let public post comments append safely without re-sending prior pages.
     echo json_encode([
       'comments' => array_values($commentMap),
       'meta' => [

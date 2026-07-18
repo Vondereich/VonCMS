@@ -25,8 +25,8 @@ export const RelatedPostsPlugin: PluginDefinition = {
     if (!relatedConfig.enabled) return null;
 
     // Get current post and all posts from context
-    const currentPost = (window as any).__current_post;
-    const allPosts = (window as any).__all_posts || [];
+    const currentPost = window.__current_post;
+    const allPosts = window.__all_posts || [];
 
     if (!currentPost || allPosts.length === 0) return null;
 
@@ -37,8 +37,8 @@ export const RelatedPostsPlugin: PluginDefinition = {
         allPosts={allPosts}
         onPostClick={(post) => {
           // Navigate to post (will be handled by theme)
-          if ((window as any).__navigate_to_post) {
-            (window as any).__navigate_to_post(post.id);
+          if (window.__navigate_to_post) {
+            window.__navigate_to_post(post.id);
           }
         }}
       />

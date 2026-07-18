@@ -26,6 +26,7 @@ $honeypot = $input['hp_field'] ?? '';
 
 // Honeypot check
 if (!empty($honeypot)) {
+  RateLimiter::recordAttempt();
   error_log(
     'Honeypot triggered during password reset from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
   );
@@ -102,6 +103,16 @@ if ($action === 'request') {
     }
 
     if ($domainUrl) {
+      $domainScheme = strtolower((string) parse_url($domainUrl, PHP_URL_SCHEME));
+      if (
+        filter_var($domainUrl, FILTER_VALIDATE_URL) === false ||
+        !in_array($domainScheme, ['http', 'https'], true)
+      ) {
+        $domainUrl = '';
+      }
+    }
+
+    if ($domainUrl) {
       $resetUrl = "$domainUrl/?reset_token=$token";
     } else {
       // Fallback: derive from request (only when domain_url is not configured)
@@ -135,7 +146,7 @@ if ($action === 'request') {
                     <p style="color: #666;">You requested a password reset. Click the button below to set a new password:</p>
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="' .
-      $resetUrl .
+      htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') .
       '" style="display: inline-block; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 15px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Reset Password</a>
                     </div>
                     <p style="color: #999; font-size: 12px;">This link expires in 1 hour. If you didn\'t request this, ignore this email.</p>
@@ -193,12 +204,31 @@ if ($action === 'request') {
       ResponseHelper::sendError('Invalid or expired token', 400);
     }
 
-    // Update password
-    $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
-    $stmt = $pdo->prepare(
-      'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-    );
-    $stmt->execute([$hashedPassword, $user['id']]);
+    $pdo->beginTransaction();
+    try {
+      // Update password
+      $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
+      $stmt = $pdo->prepare(
+        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+      );
+      $stmt->execute([$hashedPassword, $user['id']]);
+
+      try {
+        $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+        $revokeRememberStmt->execute([$user['id']]);
+      } catch (PDOException $e) {
+        if ($e->getCode() !== '42S02') {
+          throw $e;
+        }
+      }
+
+      $pdo->commit();
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+      }
+      throw $e;
+    }
 
     echo json_encode([
       'success' => true,

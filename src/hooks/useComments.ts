@@ -2,7 +2,7 @@
  * VonCMS Comments Hook
  * Handles comment CRUD operations
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Comment, User } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
@@ -34,8 +34,59 @@ const buildCommentTree = (flatComments: Comment[]): Comment[] => {
   return roots;
 };
 
+const flattenCommentTree = (comments: Comment[]): Comment[] => {
+  const flattened: Comment[] = [];
+
+  const visit = (comment: Comment) => {
+    flattened.push({ ...comment, replies: [] });
+    (comment.replies || []).forEach(visit);
+  };
+
+  comments.forEach(visit);
+  return flattened;
+};
+
+const mergeCommentPages = (existing: Comment[], incoming: Comment[]): Comment[] => {
+  const byNumericId = new Map<string, Comment>();
+
+  existing.forEach((comment) => byNumericId.set(getCommentNumericId(comment), comment));
+  incoming.forEach((comment) => byNumericId.set(getCommentNumericId(comment), comment));
+
+  return Array.from(byNumericId.values());
+};
+
+interface PublicCommentPagination {
+  postId: string;
+  page: number;
+  hasMore: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
+const EMPTY_PUBLIC_COMMENT_PAGINATION: PublicCommentPagination = {
+  postId: '',
+  page: 0,
+  hasMore: false,
+  loading: false,
+  error: null,
+};
+
+const PUBLIC_COMMENT_PAGE_SIZE = 50;
+
 export function useComments(initialComments: Comment[] = []) {
   const [comments, setComments] = useState<Comment[]>(initialComments);
+  const [publicCommentPagination, setPublicCommentPagination] = useState<PublicCommentPagination>(
+    EMPTY_PUBLIC_COMMENT_PAGINATION
+  );
+  const publicCommentPaginationRef = useRef<PublicCommentPagination>(
+    EMPTY_PUBLIC_COMMENT_PAGINATION
+  );
+  const publicCommentRequestIdRef = useRef(0);
+
+  const updatePublicCommentPagination = useCallback((next: PublicCommentPagination) => {
+    publicCommentPaginationRef.current = next;
+    setPublicCommentPagination(next);
+  }, []);
 
   // Helper to save comment to database
   const saveCommentToDb = async (action: string, data: any) => {
@@ -290,44 +341,94 @@ export function useComments(initialComments: Comment[] = []) {
     [comments]
   );
 
-  // Load comments from API
-  const loadComments = useCallback(async () => {
-    const allComments: Comment[] = [];
-    let page = 1;
-    let hasMore = true;
+  const loadPublicComments = useCallback(
+    async (postId: string, append = false) => {
+      const normalizedPostId = String(postId || '').trim();
+      if (!/^\d+$/.test(normalizedPostId)) return;
 
-    try {
-      while (hasMore) {
-        const res = await vonFetch(`${API.getComments}?flat=true&limit=100&page=${page}`);
-        if (!res.ok) break;
+      const current = publicCommentPaginationRef.current;
+      if (
+        (append && (current.loading || current.postId !== normalizedPostId || !current.hasMore)) ||
+        (!append && current.loading && current.postId === normalizedPostId)
+      ) {
+        return;
+      }
 
-        const data = await res.json();
-        if (data.comments && Array.isArray(data.comments)) {
-          allComments.push(...data.comments);
-        } else if (Array.isArray(data)) {
-          allComments.push(...data);
+      const nextPage = append ? current.page + 1 : 1;
+      const requestId = ++publicCommentRequestIdRef.current;
+      updatePublicCommentPagination({
+        postId: normalizedPostId,
+        page: append ? current.page : 0,
+        hasMore: append ? current.hasMore : false,
+        loading: true,
+        error: null,
+      });
+
+      if (!append) {
+        setComments([]);
+      }
+
+      try {
+        const params = new URLSearchParams({
+          post_id: normalizedPostId,
+          flat: 'true',
+          limit: String(PUBLIC_COMMENT_PAGE_SIZE),
+          page: String(nextPage),
+        });
+        const response = await vonFetch(`${API.getComments}?${params.toString()}`);
+        const data = await response.json();
+
+        if (!response.ok || !data?.success || !Array.isArray(data.comments)) {
+          throw new Error(data?.error || data?.message || 'Failed to load comments');
         }
+        if (requestId !== publicCommentRequestIdRef.current) return;
 
-        hasMore = Boolean(data?.meta?.hasMore);
-        page += 1;
-      }
+        const incoming = data.comments as Comment[];
+        setComments((previous) => {
+          const existing = append ? flattenCommentTree(previous) : [];
+          return buildCommentTree(mergeCommentPages(existing, incoming));
+        });
 
-      if (allComments.length > 0 || page > 1) {
-        setComments(buildCommentTree(allComments));
+        updatePublicCommentPagination({
+          postId: normalizedPostId,
+          page: Number(data.meta?.page) || nextPage,
+          hasMore: Boolean(data.meta?.hasMore),
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (requestId !== publicCommentRequestIdRef.current) return;
+
+        console.warn('Failed to load public comments:', error);
+        updatePublicCommentPagination({
+          postId: normalizedPostId,
+          page: append ? current.page : 0,
+          hasMore: append ? current.hasMore : true,
+          loading: false,
+          error: 'Failed to load comments. Please try again.',
+        });
       }
-    } catch (e) {
-      console.warn('Failed to load comments:', e);
-    }
-  }, []);
+    },
+    [updatePublicCommentPagination]
+  );
+
+  const loadMorePublicComments = useCallback(async () => {
+    const current = publicCommentPaginationRef.current;
+    if (!current.postId || current.loading || !current.hasMore) return;
+
+    await loadPublicComments(current.postId, true);
+  }, [loadPublicComments]);
 
   return {
     comments,
     setComments,
-    loadComments,
     handleAddComment,
     handleReplyComment,
     handleLikeComment,
     handleUpdateCommentStatus,
     handleDeleteComment,
+    loadPublicComments,
+    loadMorePublicComments,
+    publicCommentPagination,
   };
 }

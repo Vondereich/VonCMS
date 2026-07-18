@@ -18,7 +18,7 @@ export const useSinglePost = (
   enabled: boolean
 ): UseSinglePostResult => {
   // ── 1. Check PHP injection first (Hydration Bridge) ─────────────────────────
-  const injected = (window as any).__INITIAL_STATE__;
+  const injected = window.__INITIAL_STATE__;
   const slugMatch = injected?.slug === postSlug || injected?.post?.slug === postSlug;
   const idMatch = injected?.post?.id && String(injected.post.id) === postId;
   const hasInjectedPost = injected?.status === 'loaded' && injected?.post && (slugMatch || idMatch);
@@ -31,7 +31,7 @@ export const useSinglePost = (
     : '';
 
   const buildPostFromInjected = (): Post | null => {
-    if (!hasInjectedPost) return null;
+    if (!hasInjectedPost || !injected?.post) return null;
     const p = injected.post;
     return {
       id: String(p.id || ''),
@@ -95,7 +95,7 @@ export const useSinglePost = (
       setIsLoading(false);
       setSettledRequestKey(requestedPostKey);
       // Cleanup: Remove hydration data after consuming to prevent stale matches on SPA navigation
-      delete (window as any).__INITIAL_STATE__;
+      delete window.__INITIAL_STATE__;
       return;
     }
 

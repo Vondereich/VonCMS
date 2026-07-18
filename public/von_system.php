@@ -30,12 +30,8 @@ switch ($action) {
     break;
 
   case 'system_update_check':
-    // Ensure admin
-    SessionManager::requireValidSession();
-    if (strtolower($_SESSION['user']['role'] ?? '') !== 'admin') {
-      http_response_code(403);
-      exit(json_encode(['error' => 'Admin required']));
-    }
+    // OTA is owner-only: accept root or the primary administrator ID.
+    SessionManager::requirePrimaryAdmin();
 
     require_once __DIR__ . '/api/system/updater.php';
     $updater = new SystemUpdater();
@@ -47,12 +43,8 @@ switch ($action) {
     break;
 
   case 'system_update_start':
-    // Ensure admin
-    SessionManager::requireValidSession();
-    if (strtolower($_SESSION['user']['role'] ?? '') !== 'admin') {
-      http_response_code(403);
-      exit(json_encode(['error' => 'Admin required']));
-    }
+    // OTA is owner-only: accept root or the primary administrator ID.
+    SessionManager::requirePrimaryAdmin();
 
     // Only accept POST
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

@@ -30,11 +30,20 @@ CSRFProtection::requireToken();
 
 // 1. Get Input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
-$url = $input['url'] ?? '';
-$referrer = $input['referrer'] ?? '';
-$postId = $input['postId'] ?? null;
-$pageId = $input['pageId'] ?? null;
-$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid JSON payload', 400);
+}
+$url = mb_substr(trim((string) ($input['url'] ?? '')), 0, 500);
+$referrer = mb_substr(trim((string) ($input['referrer'] ?? '')), 0, 500);
+$postId =
+  isset($input['postId']) && preg_match('/^\d+$/', (string) $input['postId'])
+    ? (int) $input['postId']
+    : null;
+$pageId =
+  isset($input['pageId']) && preg_match('/^\d+$/', (string) $input['pageId'])
+    ? (int) $input['pageId']
+    : null;
+$userAgent = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 1000);
 
 // 2. Visit Tracking (Analytics Table)
 $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));

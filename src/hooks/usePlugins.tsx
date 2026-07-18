@@ -131,7 +131,7 @@ export function useAISummary(
  */
 export function useRelatedPosts(
   settings: SiteSettings,
-  currentPost: Post,
+  currentPost: Post | null,
   allPosts: Post[],
   onPostClick?: (post: Post) => void,
   themeColors?: any

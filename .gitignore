@@ -63,6 +63,10 @@ backups/
 public/von_config.php
 public/data/backups/
 public/data/public-cache/
+public/data/generated_media_variants.php
+public/data/generated_media_variants.lock
+public/data/generated_media_variants.php.tmp.*
+public/data/media_cleanup_previews/
 logs/
 
 # Internal Planning (Private)

@@ -49,10 +49,23 @@ function assertExcludes(label, content, needles, successMessage, failureMessage)
   }
 }
 
+function sliceBetween(content, startMarker, endMarker) {
+  const startIndex = content.indexOf(startMarker);
+  if (startIndex < 0) return '';
+  const endIndex = content.indexOf(endMarker, startIndex + startMarker.length);
+  return endIndex < 0 ? content.slice(startIndex) : content.slice(startIndex, endIndex);
+}
+
 if (!exists('server/themes-api.js')) {
   pass('CodeQL Source Hygiene: inactive legacy server/themes-api.js duplicate is absent.');
 } else {
   fail('CodeQL Source Hygiene: inactive legacy server/themes-api.js duplicate still exists.');
+}
+
+if (!exists('server/simple-test.cjs')) {
+  pass('Source Hygiene: orphaned Hello World test server is absent.');
+} else {
+  fail('Source Hygiene: orphaned server/simple-test.cjs is still tracked and packaged.');
 }
 
 const themesApiServerContent = read('server/themes-api.cjs');
@@ -717,11 +730,17 @@ const contentRendererContent = read('src/components/ContentRenderer.tsx');
 const skeletonCssContent = read('public/skeleton.css');
 const submitContactContent = read('public/api/submit_contact.php');
 const newsletterSubscribeContent = read('public/api/newsletter_subscribe.php');
+const newsletterListContent = read('public/api/newsletter_list.php');
+const newsletterExportContent = read('public/api/newsletter_export.php');
 const vonNewsletterContent = read('src/components/VonNewsletter.tsx');
 const newsletterManagerContent = read(
   'src/plugins/von-core/features/newsletter/NewsletterManager.tsx'
 );
 const contactSubmissionsContent = read('public/api/contact/get_submissions.php');
+const contactGetFormContent = read('public/api/contact/get_form.php');
+const contactSaveFormContent = read('public/api/contact/save_form.php');
+const contactDeleteFormContent = read('public/api/contact/delete_form.php');
+const contactMigrateContent = read('public/api/contact/migrate_from_settings.php');
 const contactManagerContent = read('src/pages/admin/ContactManager.tsx');
 const securityDashboardContent = read(
   'src/plugins/von-core/features/security/SecurityDashboard.tsx'
@@ -732,18 +751,19 @@ if (
   appShellContent.includes('await loadSettings();') &&
   !appShellContent.includes('Promise.all([loadSettings(), loadContent(), loadComments()])') &&
   appShellContent.includes('setIsInitialLoading(false);') &&
-  appShellContent.includes('void loadComments();') &&
+  appShellContent.includes('void props.loadPublicComments(publicCommentPostId);') &&
+  !appShellContent.includes('void loadComments();') &&
   appShellContent.includes('if (user) {') &&
   appShellContent.includes('loadContent();') &&
-  appShellContent.includes('loadComments();') &&
+  !appShellContent.includes('loadComments();') &&
   appShellContent.includes('loadSettings();')
 ) {
   pass(
-    'Public Boot Data Budget: anonymous first render waits on settings only, then refreshes public comments without restoring admin-scale content preload.'
+    'Public Boot Data Budget: anonymous first render waits on settings only, then loads only the resolved post discussion without restoring admin-scale preload.'
   );
 } else {
   fail(
-    'Public Boot Data Budget: app boot can still block public first render on admin-scale content, or guest comments can remain empty until login.'
+    'Public Boot Data Budget: app boot can still block on admin-scale content, restore global comments, or leave a resolved post discussion unloaded.'
   );
 }
 const adSettingsContent = read('src/plugins/von-core/features/settings/components/AdSettings.tsx');
@@ -771,6 +791,9 @@ const aiSummaryPluginContent = read(
 );
 const relatedPostsPluginContent = read(
   'src/plugins/von-core/features/plugins/built-in/related-posts/index.tsx'
+);
+const relatedPostsMatcherContent = read(
+  'src/plugins/von-core/features/plugins/built-in/related-posts/matcher.ts'
 );
 const aiSummaryExtractorsContent = read(
   'src/plugins/von-core/features/plugins/built-in/ai-summary/extractors.ts'
@@ -803,22 +826,72 @@ if (
 }
 
 if (
-  submitContactContent.includes('$requiredFields = [];') &&
-  submitContactContent.includes('$missingRequiredFields') &&
+  submitContactContent.includes("if ($_SERVER['REQUEST_METHOD'] !== 'POST')") &&
+  submitContactContent.includes('strlen($requestBody) > 32768') &&
+  submitContactContent.includes('$declaredFields = [];') &&
+  submitContactContent.includes('$normalizedFormData = [];') &&
+  submitContactContent.includes("$fieldDefinition['type'] === 'email'") &&
+  submitContactContent.includes("$fieldDefinition['type'] === 'url'") &&
+  submitContactContent.includes("$fieldDefinition['type'] === 'number'") &&
+  submitContactContent.includes("$fieldDefinition['type'] === 'date'") &&
+  submitContactContent.includes("$fieldDefinition['type'] === 'tel'") &&
   submitContactContent.includes("$messages['validationError']") &&
+  submitContactContent.includes("ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'") &&
   !submitContactContent.includes(
     'RateLimiter::recordAttempt();\r\nCSRFProtection::requireToken();'
   ) &&
   !submitContactContent.includes('RateLimiter::recordAttempt();\nCSRFProtection::requireToken();')
 ) {
   pass(
-    'Contact Submit Contract: backend validates required template fields without counting successful submissions as failed rate-limit attempts.'
+    'Contact Submit Contract: backend accepts POST only, bounds the request, normalizes declared scalar fields, validates field types, and avoids counting successful submissions as failed rate-limit attempts.'
   );
 } else {
   fail(
-    'Contact Submit Contract: contact submissions must enforce required fields server-side and avoid recording valid submits as failed attempts.'
+    'Contact Submit Contract: contact submissions must reject unsupported methods, oversized or undeclared payloads, invalid field types, and non-scalar tag values without counting valid submits as failed attempts.'
   );
 }
+
+if (
+  submitContactContent.includes(
+    'DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)'
+  ) &&
+  contactSubmissionsContent.includes(
+    'DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)'
+  ) &&
+  contactDeleteFormContent.includes('DELETE FROM contact_submissions WHERE form_id = ?') &&
+  submitContactContent.includes("error_log('Contact mail delivery failed: '") &&
+  submitContactContent.includes('http_response_code(502);') &&
+  !submitContactContent.includes("$messages['error'] . ' (' . $result['message']")
+) {
+  pass(
+    'Contact Privacy And Error Contract: stale leads expire, form deletion removes linked leads, and public mail failures do not expose SMTP diagnostics.'
+  );
+} else {
+  fail(
+    'Contact Privacy And Error Contract: contact lead retention/deletion or public SMTP error privacy can regress.'
+  );
+}
+
+assertIncludes(
+  'Contact Admin Mutation Method Contract',
+  contactSaveFormContent + contactDeleteFormContent + contactMigrateContent,
+  [
+    "if ($_SERVER['REQUEST_METHOD'] !== 'POST')",
+    "if (!in_array($_SERVER['REQUEST_METHOD'], ['POST', 'DELETE'], true))",
+    'strlen($requestBody) > 131072',
+    "preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $formValues['id'])",
+  ],
+  'Contact Admin Mutation Method Contract: form save, delete, and migration enforce their supported methods while saved IDs and payloads stay bounded.',
+  'Contact Admin Mutation Method Contract: an authenticated contact mutation can accept an unsupported method or unbounded form payload.'
+);
+
+assertIncludes(
+  'Contact Public Form ID Contract',
+  contactGetFormContent + contactFormRendererContent,
+  ["preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $id)", 'encodeURIComponent(id)'],
+  'Contact Public Form ID Contract: public form IDs are URL-encoded by the renderer and strictly bounded by the endpoint.',
+  'Contact Public Form ID Contract: malformed form IDs can alter the query string or reach the database fallback.'
+);
 
 assertIncludes(
   'Newsletter Public Subscribe Contract',
@@ -830,6 +903,42 @@ assertIncludes(
   ],
   'Newsletter Public Subscribe Contract: direct subscribe API honors the admin enabled setting.',
   'Newsletter Public Subscribe Contract: subscribe endpoint can accept direct posts while newsletter is disabled.'
+);
+
+if (
+  newsletterSubscribeContent.includes("$rateIdentifier = 'newsletter:' . $clientIP;") &&
+  newsletterSubscribeContent.includes('RateLimiter::requireNotLimited($rateIdentifier);') &&
+  newsletterSubscribeContent.includes('RateLimiter::recordAttempt($rateIdentifier);') &&
+  newsletterSubscribeContent.includes('strlen($requestBody) > 8192') &&
+  newsletterSubscribeContent.includes(
+    'If this address is eligible, your subscription request has been received.'
+  ) &&
+  !newsletterSubscribeContent.includes('You are already subscribed!') &&
+  !newsletterSubscribeContent.includes('Welcome back! You have been resubscribed.') &&
+  !newsletterSubscribeContent.includes("SET status = 'active'")
+) {
+  pass(
+    'Newsletter Privacy And Rate Contract: all subscribe attempts use a dedicated throttle, responses do not reveal list state, and unsubscribed addresses are not silently reactivated.'
+  );
+} else {
+  fail(
+    'Newsletter Privacy And Rate Contract: duplicate probes can bypass throttling, reveal subscription state, or silently reactivate an unsubscribed address.'
+  );
+}
+
+assertIncludes(
+  'Newsletter Input And CSV Contract',
+  newsletterListContent + newsletterExportContent + vonNewsletterContent + newsletterManagerContent,
+  [
+    'mb_substr(trim((string) $searchInput), 0, 120)',
+    "str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search)",
+    `email LIKE ? ESCAPE '!'`,
+    "preg_match('/^[=+\\-@\\t\\r]/', $cell)",
+    'maxLength={255}',
+    'maxLength={120}',
+  ],
+  'Newsletter Input And CSV Contract: public/admin inputs are bounded and exported spreadsheet cells are formula-neutralized.',
+  'Newsletter Input And CSV Contract: newsletter inputs or CSV exports can regain unbounded/formula-active values.'
 );
 
 assertIncludes(
@@ -892,6 +1001,33 @@ assertIncludes(
   ['$page = max(1,', '$limit = min(100, max(1,', '$offset = ($page - 1) * $limit;'],
   'Security Logs Pagination Contract: admin security logs clamp page and limit before querying.',
   'Security Logs Pagination Contract: admin security logs still trust raw page/limit query values.'
+);
+
+assertIncludes(
+  'Security Logs CSV Formula Guard',
+  securityLogsContent,
+  [
+    'function sanitizeSecurityCsvCell',
+    "preg_match('/^[\\t\\r\\n]/', $text)",
+    "preg_match('/^[\\x00-\\x20]*[=+\\-@]/', $text)",
+    "array_map('sanitizeSecurityCsvCell'",
+  ],
+  'Security Logs CSV Formula Guard: attacker-controlled CSV cells are neutralized before spreadsheet export.',
+  'Security Logs CSV Formula Guard: security-log exports can still emit formula-leading attacker input.'
+);
+
+assertIncludes(
+  'Security Dashboard Primary Maintenance Boundary',
+  securityDashboardContent + '\n' + read('src/App.tsx'),
+  [
+    'interface SecurityDashboardProps',
+    'isPrimaryAdmin &&',
+    '<SecurityDashboard isPrimaryAdmin={isPrimaryAdmin} />',
+    "data.message || 'Failed to purge logs'",
+    "data.message || 'Failed to reset logs'",
+  ],
+  'Security Dashboard Primary Maintenance Boundary: appointed admins keep log visibility while owner-only purge/reset controls stay hidden.',
+  'Security Dashboard Primary Maintenance Boundary: owner-only log maintenance is still exposed or silent on failure.'
 );
 
 if (
@@ -2112,9 +2248,9 @@ assertIncludes(
 assertIncludes(
   'Remember Me Cookie SameSite Contract',
   loginContent,
-  ["'expires' => time() + 86400 * 30", "'samesite' => 'Lax'"],
-  'Remember Me Cookie SameSite Contract: extended login sessions explicitly keep SameSite=Lax.',
-  'Remember Me Cookie SameSite Contract: remember-me cookie can still omit an explicit SameSite policy.'
+  ["'voncms_remember'", "'samesite' => 'Lax'"],
+  'Remember Me Cookie SameSite Contract: dedicated remember tokens explicitly keep SameSite=Lax.',
+  'Remember Me Cookie SameSite Contract: remember-token cookies can still omit an explicit SameSite policy.'
 );
 
 const authLoginContent = read('src/plugins/von-core/features/auth/Login.tsx');
@@ -2301,7 +2437,7 @@ assertIncludes(
     'Sidebar widget area',
     'expandedWidgetId',
     'selectedWidgetType',
-    'onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean> | void',
+    'onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean>',
     'const saved = await onUpdateSettings',
     'if (saved === false)',
     'aria-expanded={isExpanded}',
@@ -2373,7 +2509,7 @@ assertIncludes(
   'Settings Save Failure Rollback Contract',
   read('src/hooks/useSettings.ts'),
   [
-    'let previousSettings: SiteSettings | null = settingsRef.current;',
+    'const previousSettings: SiteSettings = settingsRef.current;',
     'restorePreviousSettings',
     'settingsRef.current = previousSettings;',
     'setSettings(previousSettings)',
@@ -2907,7 +3043,8 @@ assertIncludes(
     'Content changed in another tab. Reload before saving again.',
     'const SAVE_CONFLICT_MESSAGE =',
     'Content was updated elsewhere. Reload the editor before saving again.',
-    '(error as any).status = res.status;',
+    'const error = Object.assign(',
+    '{ status: res.status }',
     'err?.status === 409',
     'notify.error(SAVE_CONFLICT_MESSAGE);',
     "updated_at' => $savedUpdatedAt",
@@ -2915,6 +3052,13 @@ assertIncludes(
   ],
   'PostEditor Autosave Conflict Guard: restored content updates the clean baseline, stale same-user tab saves fail with 409, and publishers see a conflict-specific reload notice.',
   'PostEditor Autosave Conflict Guard: autosave baseline restore, stale-tab save protection, or conflict-specific publisher feedback is incomplete.'
+);
+assertIncludes(
+  'Page Editor Atomic Conflict Guard',
+  savePageApiContent,
+  ['SELECT author_id, status, slug, updated_at FROM pages WHERE id = ? FOR UPDATE'],
+  'Page Editor Atomic Conflict Guard: page updates lock the current row before comparing updated_at.',
+  'Page Editor Atomic Conflict Guard: simultaneous page saves can both pass the stale-content check before overwriting each other.'
 );
 
 const getPostApiContent = read('public/api/get_post.php');
@@ -2951,6 +3095,25 @@ const giftWidgetContent = read(
 const extensionsManagerContent = read(
   'src/plugins/von-core/features/extensions/ExtensionsManager.tsx'
 );
+const themeContextContent = read('src/plugins/von-core/features/themes/ThemeContext.tsx');
+const aiSummaryComponentContent = read(
+  'src/plugins/von-core/features/plugins/built-in/ai-summary/AISummaryComponent.tsx'
+);
+const redirectManagerContent = read(
+  'src/plugins/von-core/features/extensions/components/RedirectManager.tsx'
+);
+const extensionSaveModalPaths = [
+  'src/plugins/von-core/features/extensions/components/DefaultThemeSettings.tsx',
+  'src/plugins/von-core/features/extensions/components/DigestSettings.tsx',
+  'src/plugins/von-core/features/extensions/components/PortfolioSettings.tsx',
+  'src/plugins/von-core/features/extensions/components/PrismSettings.tsx',
+  'src/plugins/von-core/features/extensions/components/TechPressSettings.tsx',
+  'src/plugins/von-core/features/settings/components/themes/CorporateProSettings.tsx',
+  'src/plugins/von-core/features/extensions/components/VonAnalyticsSettings.tsx',
+  'src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx',
+  'src/plugins/von-core/features/plugins/built-in/ai-summary/SettingsModal.tsx',
+  'src/plugins/von-core/features/plugins/built-in/related-posts/SettingsModal.tsx',
+];
 assertIncludes(
   'Promo Bar Solid Color Picker',
   promoBarContent + extensionsManagerContent,
@@ -2979,9 +3142,10 @@ assertIncludes(
   'Extensions Manager Install State Contract',
   extensionsManagerContent,
   [
-    'const handleInstall = (id: string) => {',
+    'const handleInstall = async (id: string) => {',
     "newPluginStatus[id] = 'inactive';",
-    'onUpdateSettings({',
+    'const saved = await persistSettings({',
+    'if (!saved) return;',
     'pluginStatus: newPluginStatus',
   ],
   'Extensions Manager Install State Contract: plugin install persists inactive status instead of staying local-only.',
@@ -2992,9 +3156,10 @@ assertIncludes(
   'Extensions Manager Uninstall State Contract',
   extensionsManagerContent,
   [
-    'const handleUninstall = (id: string) => {',
+    'const handleUninstall = async (id: string) => {',
     "newPluginStatus[id] = 'not_installed';",
     'newActivePlugins = newActivePlugins.filter((pId) => pId !== id);',
+    'const saved = await persistSettings({',
     'pluginStatus: newPluginStatus',
   ],
   'Extensions Manager Uninstall State Contract: plugin uninstall persists inactive cleanup and removes active plugin state.',
@@ -3006,8 +3171,9 @@ assertIncludes(
   extensionsManagerContent + pluginRegistryContent + usePluginsContent + pluginRuntimeContent,
   [
     "const savedPluginStatus = settings.pluginConfig?.['pluginStatus']?.[plugin.id];",
-    "(settings.activePlugins?.includes(plugin.id) ? 'active' : plugin.status)",
-    'return isSystemPluginActive({ activePlugins: safeActivePlugins, pluginConfig }, p.id);',
+    'const activePluginIds = Array.isArray(settings.activePlugins)',
+    "(activePluginIds.includes(plugin.id) ? 'active' : plugin.status)",
+    'pluginConfig: safePluginConfig',
     "if (!isSystemPluginActive(settings, 'vp_ai_summary')) return null;",
     "const isActive = isSystemPluginActive(settings, 'vp_related_posts');",
     'if (!isActive || !currentPost || !config.enabled || candidatePosts.length === 0) return null;',
@@ -3036,12 +3202,188 @@ assertIncludes(
   pluginRuntimeContent,
   [
     'export function isSystemPluginActive',
-    'settings?.activePlugins?.includes(pluginId)',
-    "const status = settings.pluginConfig?.['pluginStatus']?.[pluginId];",
+    'const activePlugins = Array.isArray(settings?.activePlugins)',
+    'if (!activePlugins.includes(pluginId)) return false;',
+    "const status = pluginConfig['pluginStatus']?.[pluginId];",
     "return status ? status === 'active' : true;",
   ],
   'System Plugin Runtime Helper Contract: shared active/pluginStatus gating helper is present.',
   'System Plugin Runtime Helper Contract: plugin active checks are still scattered or missing pluginStatus handling.'
+);
+
+assertIncludes(
+  'Extensions Persisted Save Acknowledgement',
+  extensionsManagerContent + '\n' + themeContextContent + '\n' + useSettingsContent,
+  [
+    'const persistSettings = async (nextSettings: SiteSettings): Promise<boolean> => {',
+    'onUpdateSettings(nextSettings, { optimistic: false })',
+    'const optimistic = options.optimistic !== false;',
+    'if (!optimistic) {',
+    'const handleActivateTheme = async (themeId: string) => {',
+    'if (!saved) return;',
+    'setTheme(themeId);',
+  ],
+  'Extensions Persisted Save Acknowledgement: activation and card state change only after the canonical settings write succeeds.',
+  'Extensions Persisted Save Acknowledgement: extension UI can still report success or switch local state before persistence succeeds.'
+);
+assertExcludes(
+  'Theme Activation Single Write',
+  themeContextContent,
+  ['saveThemeToDatabase', 'API.saveSettings', "from '../../../../utils/api'"],
+  'Theme Activation Single Write: ThemeContext owns local theme state while ExtensionsManager owns the one settings write.',
+  'Theme Activation Single Write: ThemeContext can still duplicate the ExtensionsManager database save.'
+);
+
+const extensionSaveAcknowledgementsComplete = extensionSaveModalPaths.every((file) => {
+  const content = read(file);
+  return (
+    content.includes('const saved = await onUpdate(') && content.includes('if (saved === false)')
+  );
+});
+if (extensionSaveAcknowledgementsComplete) {
+  pass(
+    'Extension Settings Save Acknowledgement: all bundled theme and plugin settings modals wait for a successful save before closing or showing success.'
+  );
+} else {
+  fail(
+    'Extension Settings Save Acknowledgement: at least one bundled settings modal can still close or show success after a failed save.'
+  );
+}
+
+assertIncludes(
+  'Plugin Settings Shape And Ownership Boundary',
+  saveSettingsContent + '\n' + getSettingsContent + '\n' + pluginRegistryContent,
+  [
+    "'customPlugins',",
+    'function voncms_normalize_active_plugins',
+    'function voncms_normalize_custom_plugins',
+    'function voncms_validate_plugin_config_node',
+    "'Invalid plugin status configuration.'",
+    'function voncms_normalize_plugin_settings_value',
+    'const safeCustomPlugins = Array.isArray(customPlugins)',
+    'const safePluginConfig =',
+  ],
+  'Plugin Settings Shape And Ownership Boundary: custom HTML/CSS stays primary-admin-only and malformed stored plugin shapes fail safe.',
+  'Plugin Settings Shape And Ownership Boundary: appointed admins can still change custom site-wide code or malformed plugin rows can crash public rendering.'
+);
+
+assertIncludes(
+  'AI Summary Encoding And Memoization',
+  aiSummaryExtractorsContent + '\n' + aiSummaryComponentContent,
+  [
+    String.raw`.replace(/^[\s\-*•]+/, '')`,
+    String.raw`if (/[:;,\-—…]\.?$/.test(normalized)) return false;`,
+    "import React, { useMemo } from 'react';",
+    'const summaryPoints = useMemo(',
+    '[content, config.extractMethod, config.maxBullets]',
+  ],
+  'AI Summary Encoding And Memoization: intended punctuation survives UTF-8 and extraction reruns only when summary inputs change.',
+  'AI Summary Encoding And Memoization: replacement characters or render-time repeated extraction remain.'
+);
+
+const sourceReplacementCharacterFiles = walkFiles(
+  resolveFromRoot('src'),
+  (file) => file.endsWith('.ts') || file.endsWith('.tsx')
+).filter((file) => fs.readFileSync(file, 'utf8').includes('\uFFFD'));
+if (sourceReplacementCharacterFiles.length === 0) {
+  pass('Source UTF-8 Replacement Character Guard: no U+FFFD remains in TypeScript source.');
+} else {
+  fail(
+    `Source UTF-8 Replacement Character Guard: replacement characters remain in ${sourceReplacementCharacterFiles
+      .map((file) => path.relative(root, file))
+      .join(', ')}.`
+  );
+}
+
+assertIncludes(
+  'Related Posts Uniform Random Shuffle',
+  relatedPostsMatcherContent,
+  [
+    'sorted = [...scored];',
+    'for (let index = sorted.length - 1; index > 0; index -= 1)',
+    'const randomIndex = Math.floor(Math.random() * (index + 1));',
+    '[sorted[index], sorted[randomIndex]] = [sorted[randomIndex], sorted[index]];',
+  ],
+  'Related Posts Uniform Random Shuffle: random ordering uses Fisher-Yates before the configured slice.',
+  'Related Posts Uniform Random Shuffle: random ordering is missing a uniform shuffle.'
+);
+assertExcludes(
+  'Related Posts Uniform Random Shuffle',
+  relatedPostsMatcherContent,
+  ['sort(() => Math.random() - 0.5)'],
+  'Related Posts Uniform Random Shuffle: biased random-comparator sorting is absent.',
+  'Related Posts Uniform Random Shuffle: biased random-comparator sorting remains.'
+);
+
+assertIncludes(
+  'Plugin Boolean New-Tab Contract',
+  promoBarContent + '\n' + giftWidgetContent,
+  ["props?.targetBlank !== false && props?.targetBlank !== 'false'"],
+  'Plugin Boolean New-Tab Contract: Promo Bar and Gift Widget honor both boolean and legacy string false values.',
+  'Plugin Boolean New-Tab Contract: a stored boolean false can still open a new tab.'
+);
+
+assertIncludes(
+  'Redirect Manager Server Pagination',
+  redirectManagerContent + '\n' + read('public/api/list_redirects.php'),
+  [
+    'const [currentPage, setCurrentPage] = useState(1);',
+    'page: String(currentPage)',
+    'limit: String(itemsPerPage)',
+    'setTotalItems(Math.max(0, Number(data.pagination?.total) || 0));',
+    'const requestId = ++redirectRequestId.current;',
+    'if (requestId !== redirectRequestId.current) return;',
+    'ORDER BY created_at DESC, id DESC',
+    '<SmartPagination',
+  ],
+  'Redirect Manager Server Pagination: the admin UI consumes stable bounded backend pages and ignores stale responses.',
+  'Redirect Manager Server Pagination: backend pages can reorder equal timestamps or stale requests can replace newer results.'
+);
+
+assertIncludes(
+  'Local Theme API External Bind Guard',
+  themesApiServerContent,
+  [
+    "const HOST = process.env.THEMES_API_HOST || '127.0.0.1';",
+    'const IS_LOOPBACK_HOST =',
+    "if (IS_LOOPBACK_HOST && token?.startsWith('mock_dev_token_'))",
+    "app.post('/api/save_comments', adminLimiter, verifyDevToken",
+    'Refusing external Themes API binding without ADMIN_SAVE_TOKEN.',
+  ],
+  'Local Theme API External Bind Guard: mock tokens work only on loopback and external mutation routes require an explicit secret.',
+  'Local Theme API External Bind Guard: a developer can expose prefix-only mock authentication or comment writes to the network.'
+);
+
+const extensionTypesContent = read('src/types.ts');
+if (
+  !exists('src/plugins/PluginProvider.tsx') &&
+  !exists('src/plugins/types.ts') &&
+  !exists('src/features/NotificationPlugin/index.tsx')
+) {
+  pass('Extension Orphan Cleanup: unused parallel plugin provider/type/demo files are absent.');
+} else {
+  fail('Extension Orphan Cleanup: unused parallel plugin provider/type/demo files still remain.');
+}
+assertIncludes(
+  'Portfolio Theme Type Parity',
+  extensionTypesContent,
+  [
+    'githubUrl?: string;',
+    'linkedinUrl?: string;',
+    'twitterUrl?: string;',
+    'dribbbleUrl?: string;',
+    'instagramUrl?: string;',
+    'websiteUrl?: string;',
+  ],
+  'Portfolio Theme Type Parity: saved social-link fields are represented by the shared theme settings type.',
+  'Portfolio Theme Type Parity: shared theme types still omit saved Portfolio social links.'
+);
+assertExcludes(
+  'Retired Sonido Theme Type',
+  extensionTypesContent,
+  ['sonido?: {'],
+  'Retired Sonido Theme Type: the unused theme branch is absent.',
+  'Retired Sonido Theme Type: dead theme configuration remains in the shared type.'
 );
 
 assertIncludes(
@@ -3498,6 +3840,27 @@ if (
 }
 
 const databaseManagerContent = read('src/plugins/von-core/features/database/DatabaseManager.tsx');
+assertIncludes(
+  'Database Manager Read-Only UI Contract',
+  databaseManagerContent,
+  [
+    'const quoteSqlIdentifier',
+    'setIsConnected(false);',
+    'setIsConnected(true);',
+    'Read-only inspection',
+  ],
+  'Database Manager Read-Only UI Contract: connection state and table inspection match the read-only backend.',
+  'Database Manager Read-Only UI Contract: the UI still misreports connection/read-only state.'
+);
+
+assertExcludes(
+  'Database Manager Destructive UI Retirement',
+  databaseManagerContent,
+  ['safeMode', 'CREATE TABLE new_table', 'DROP TABLE ${db}', 'Danger: No Safety'],
+  'Database Manager Destructive UI Retirement: dead create/drop and unsafe-mode controls are absent.',
+  'Database Manager Destructive UI Retirement: UI still offers destructive SQL that the backend rejects.'
+);
+
 if (
   databaseManagerContent.includes("data.error || data.message || 'Unknown import error'") &&
   !databaseManagerContent.includes('Import failed: ${data.message}')
@@ -3524,12 +3887,29 @@ if (
 }
 
 const importDbContent = read('public/api/import_db.php');
+const backupWriteFunctionStart = importDbContent.indexOf('function writePreImportSafetyBackupData');
+let backupWriteFunctionSource = '';
+if (backupWriteFunctionStart !== -1) {
+  const bodyStart = importDbContent.indexOf('{', backupWriteFunctionStart);
+  let depth = 0;
+  for (let index = bodyStart; index < importDbContent.length; index += 1) {
+    if (importDbContent[index] === '{') depth += 1;
+    if (importDbContent[index] === '}') depth -= 1;
+    if (depth === 0) {
+      backupWriteFunctionSource = importDbContent.slice(backupWriteFunctionStart, index + 1);
+      break;
+    }
+  }
+}
 if (
   importDbContent.includes('function stripLeadingSqlComments') &&
   importDbContent.includes('function iterateSqlStatementsFromFile') &&
   importDbContent.includes('yield $statement;') &&
   importDbContent.includes('$statement = stripLeadingSqlComments($rawStatement);') &&
-  importDbContent.includes('DROP is required to restore VonCMS-generated backups') &&
+  importDbContent.includes('function getAllowedImportStatementType') &&
+  importDbContent.includes('$columnList =') &&
+  importDbContent.includes('AS\\s+SELECT') &&
+  importDbContent.includes('VALUES\\s*\\(') &&
   !importDbContent.includes("explode(';', $sql)")
 ) {
   pass(
@@ -3548,7 +3928,12 @@ if (
   importDbContent.includes('function createPreImportSafetyBackup') &&
   importDbContent.includes('pre_import_') &&
   importDbContent.includes('safetyBackup') &&
-  importDbContent.includes('CREATE DATABASE and CREATE SCHEMA are not supported') &&
+  importDbContent.includes('Only unqualified DROP TABLE IF EXISTS, CREATE TABLE, INSERT INTO') &&
+  importDbContent.includes('function prunePreImportSafetyBackups') &&
+  importDbContent.includes('$index >= $maxFiles || $modifiedAt < $cutoff') &&
+  importDbContent.includes(
+    "throw new Exception('Could not protect the pre-import safety backup directory.')"
+  ) &&
   importDbContent.includes('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY') &&
   importDbContent.includes('Pdo\\\\Mysql::ATTR_USE_BUFFERED_QUERY') &&
   importDbContent.includes('$bufferedQueryAttribute = getImportMysqlBufferedQueryAttribute();') &&
@@ -3556,16 +3941,32 @@ if (
   importDbContent.includes(
     '$pdo->setAttribute($bufferedQueryAttribute, $previousBufferedQueryMode);'
   ) &&
-  importDbContent.includes('$stmt->closeCursor();')
+  importDbContent.includes('$stmt->closeCursor();') &&
+  importDbContent.includes('function writePreImportSafetyBackupData') &&
+  importDbContent.includes('$written < 1 || $written > strlen($chunk)') &&
+  importDbContent.includes('if (!fflush($handle))') &&
+  importDbContent.includes('$savedFileSize !== $expectedFileSize') &&
+  importDbContent.includes('@unlink($path);')
 ) {
   pass(
-    'Database Import Safety Guard: destructive SQL imports require confirmation, create a pre-import safety backup, and stream backup rows with unbuffered queries.'
+    'Database Import Safety Guard: destructive SQL imports require confirmation, create a byte-verified pre-import safety backup, and stream backup rows with unbuffered queries.'
   );
 } else {
   fail(
-    'Database Import Safety Guard: destructive SQL imports must require confirmation, create a pre-import safety backup, and avoid buffered backup row dumps.'
+    'Database Import Safety Guard: destructive SQL imports must require confirmation, reject partial backup writes, remove failed dumps, and avoid buffered backup row dumps.'
   );
 }
+
+assertExcludes(
+  'Database Import Server-Scope SQL Guard',
+  importDbContent,
+  [
+    "$allowed = ['INSERT ', 'CREATE ', 'SET ', 'DROP ']",
+    "preg_match('/^CREATE\\s+(DATABASE|SCHEMA)\\b/i'",
+  ],
+  'Database Import Server-Scope SQL Guard: broad verb-only CREATE/DROP/SET execution paths are absent.',
+  'Database Import Server-Scope SQL Guard: import still relies on broad verb-only SQL allowlisting.'
+);
 
 const legacyDatabaseSqlFiles = [
   'database/add_category_column.sql',
@@ -3941,6 +4342,28 @@ if (
     'Database Backup PHP 8.5 Compatibility: buffered-query mode must use the MySQL attribute resolver.'
   );
 }
+const backupCompletionIndex = backupDbContent.indexOf(
+  'writeBackupStream($backupStream, "-- End of backup\\n");'
+);
+const backupDownloadHeaderIndex = backupDbContent.indexOf(
+  "header('Content-Type: application/sql');"
+);
+if (
+  backupDbContent.includes("fopen('php://temp/maxmemory:5242880', 'w+b')") &&
+  backupDbContent.includes('function writeBackupStream($stream, string $content): void') &&
+  backupDbContent.includes('if ($written === false || $written === 0)') &&
+  backupDbContent.includes('catch (Throwable $e)') &&
+  backupCompletionIndex >= 0 &&
+  backupDownloadHeaderIndex > backupCompletionIndex
+) {
+  pass(
+    'Database Backup Complete Generation Contract: the SQL dump completes in a verified temporary stream before download headers or body are sent.'
+  );
+} else {
+  fail(
+    'Database Backup Complete Generation Contract: a failed table read or short write can still leave a partial SQL download that appears successful.'
+  );
+}
 
 const phpStaticAnalysisMetadataContracts = [
   {
@@ -4147,7 +4570,10 @@ if (
   updateMediaContent.includes('exit(0);') &&
   updateMediaContent.includes("if ($_SERVER['REQUEST_METHOD'] !== 'POST') {") &&
   updateMediaContent.includes('SessionManager::requireMediaAccess();') &&
-  updateMediaContent.includes('CSRFProtection::requireToken();')
+  updateMediaContent.includes('CSRFProtection::requireToken();') &&
+  updateMediaContent.includes("ResponseHelper::sendError('Media item not found', 404);") &&
+  updateMediaContent.includes('mb_substr(strip_tags(trim((string) $input') &&
+  !updateMediaContent.includes('filepath LIKE ?')
 ) {
   pass(
     'Media Metadata API Contract: update_media.php now matches the standard POST + OPTIONS preflight, auth, and CSRF guard pattern.'
@@ -4162,6 +4588,10 @@ const deleteMediaContent = read('public/api/delete_media.php');
 if (
   deleteMediaContent.includes('SessionManager::requirePrimaryAdmin();') &&
   deleteMediaContent.includes('CSRFProtection::requireToken();') &&
+  deleteMediaContent.includes('voncms_resolve_media_path_within_uploads') &&
+  deleteMediaContent.includes('Media deletion stopped before the original file was removed.') &&
+  deleteMediaContent.indexOf('unlink($targetPath)') <
+    deleteMediaContent.indexOf('DELETE FROM media WHERE filepath IN') &&
   !deleteMediaContent.includes('SessionManager::requireValidSession();')
 ) {
   pass(
@@ -4172,6 +4602,21 @@ if (
     'Media Delete Authorization: delete_media.php must require primary-admin access before physical or database deletion.'
   );
 }
+
+const syncMediaContent = read('public/api/sync_media.php');
+assertIncludes(
+  'Media Sync Mutation Contract',
+  syncMediaContent,
+  [
+    "if ($_SERVER['REQUEST_METHOD'] !== 'POST')",
+    'SessionManager::requirePrimaryAdmin();',
+    'CSRFProtection::requireToken();',
+    'voncms_is_generated_media_variant($fullPath)',
+    "error_log('Media sync failed: '",
+  ],
+  'Media Sync Mutation Contract: sync is POST-only, owner-only, CSRF-protected, and filters registered or safe legacy variants.',
+  'Media Sync Mutation Contract: media sync method, authorization, error privacy, or variant filtering is incomplete.'
+);
 
 const saveCommentsContent = read('public/api/save_comments.php');
 const useCommentsContent = read('src/hooks/useComments.ts');
@@ -4194,7 +4639,7 @@ if (
   saveCommentsContent.includes('INSERT IGNORE INTO comment_likes') &&
   saveCommentsContent.includes('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?') &&
   saveCommentsContent.includes('CSRFProtection::requireToken();') &&
-  saveCommentsContent.includes('RateLimiter::requireNotLimited();') &&
+  saveCommentsContent.includes('RateLimiter::requireNotLimited($commentRateIdentifier);') &&
   useCommentsContent.includes('const delta = wasJustLiked ? -1 : 1;') &&
   useCommentsContent.includes('setComments(originalComments);') &&
   useCommentsContent.includes(
@@ -4246,18 +4691,23 @@ if (
   );
 }
 
-assertIncludes(
-  'Public Comments Full Hydration Contract',
-  useCommentsContent,
-  [
-    '`${API.getComments}?flat=true&limit=100&page=${page}`',
-    'while (hasMore)',
-    'buildCommentTree(allComments)',
-    'parentId',
-  ],
-  'Public Comments Full Hydration Contract: global public comments load all pages as flat rows and rebuild the tree client-side.',
-  'Public Comments Full Hydration Contract: public comments can still be capped to one page or orphan replies across pages.'
-);
+if (
+  useCommentsContent.includes('post_id: normalizedPostId') &&
+  useCommentsContent.includes("flat: 'true'") &&
+  useCommentsContent.includes('PUBLIC_COMMENT_PAGE_SIZE') &&
+  useCommentsContent.includes('loadMorePublicComments') &&
+  !useCommentsContent.includes('while (hasMore)') &&
+  publicCommentsContent.includes('visiblePages') &&
+  !publicCommentsContent.includes('Array.from({ length: totalPages }, (_, index) => index + 1).map')
+) {
+  pass(
+    'Public Comments Paged Loading Contract: public posts fetch bounded per-post pages, append safely, and keep visible page controls compact.'
+  );
+} else {
+  fail(
+    'Public Comments Paged Loading Contract: public comments can still hydrate every global page or render an unbounded page-number list.'
+  );
+}
 
 assertIncludes(
   'Comment Reply Parent Post Boundary',
@@ -4272,6 +4722,13 @@ assertIncludes(
 );
 
 const getCommentsContent = read('public/api/get_comments.php');
+assertIncludes(
+  'Public Comment Flat Post Page Contract',
+  getCommentsContent,
+  ['if ($postId)', 'if ($flat) {', 'LIMIT $limit OFFSET $offset'],
+  'Public Comment Flat Post Page Contract: a filtered public post can append bounded flat comment pages without re-sending earlier rows.',
+  'Public Comment Flat Post Page Contract: filtered public comments cannot safely request the next page as flat rows.'
+);
 assertIncludes(
   'Comments Admin Search Contract',
   getCommentsContent,
@@ -4383,6 +4840,60 @@ assertIncludes(
   ],
   'Content Manager Page Contract: page mode shares the server search flow while keeping category/status post-only and manual submit search.',
   'Content Manager Page Contract: page mode is missing the server-side search parity flow.'
+);
+assertIncludes(
+  'Admin Manager Stale Response Contract',
+  contentManagerContent +
+    '\n' +
+    read('src/plugins/von-core/features/discussion/DiscussionManager.tsx') +
+    '\n' +
+    read('src/plugins/von-core/features/users/UserManager.tsx'),
+  [
+    'const requestId = ++pageRequestId.current;',
+    'if (requestId !== pageRequestId.current) return;',
+    'const requestId = ++commentsRequestId.current;',
+    'if (requestId !== commentsRequestId.current) return;',
+    'const requestId = ++usersRequestId.current;',
+    'if (requestId !== usersRequestId.current) return;',
+  ],
+  'Admin Manager Stale Response Contract: content, discussion, and user filters ignore superseded page responses.',
+  'Admin Manager Stale Response Contract: a slow old page request can still overwrite newer admin filters.'
+);
+assertExcludes(
+  'Content Manager Literal Page Category Contract',
+  contentManagerContent,
+  [".filter((i: Post) => i.category !== 'Page')", 'const adjustedTotal ='],
+  'Content Manager Literal Page Category Contract: real posts named Page remain visible and backend totals stay authoritative.',
+  'Content Manager Literal Page Category Contract: posts in the literal Page category can still disappear without matching pagination totals.'
+);
+assertIncludes(
+  'Post Discovery Deterministic Pagination Contract',
+  read('public/api/get_posts.php') +
+    '\n' +
+    read('public/rss.php') +
+    '\n' +
+    read('public/sitemap.php'),
+  [
+    'ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC',
+    'ORDER BY p.created_at DESC, p.id DESC',
+    'ORDER BY updated_at DESC, id DESC',
+  ],
+  'Post Discovery Deterministic Pagination Contract: post lists, RSS, and sitemap use stable ID tie-breakers.',
+  'Post Discovery Deterministic Pagination Contract: equal timestamps can still reorder items across pages.'
+);
+assertIncludes(
+  'Storage And SMTP Complete IO Contract',
+  read('public/api/get_storage.php') + '\n' + read('public/api/mail_helper.php'),
+  [
+    'function getFolderStats($dir)',
+    "$stats = ['bytes' => 0, 'files' => 0];",
+    "$fileCount = $folderStats['files'];",
+    'function ($content) use ($socket)',
+    'if ($written === false || $written === 0)',
+    '$writeSocket($email);',
+  ],
+  'Storage And SMTP Complete IO Contract: storage uses one traversal and SMTP writes loop until the request is complete.',
+  'Storage And SMTP Complete IO Contract: storage still walks uploads twice or SMTP can accept a short socket write.'
 );
 
 if (
@@ -5104,9 +5615,6 @@ const relatedPostsComponentContent = read(
 const relatedPostsSettingsContent = read(
   'src/plugins/von-core/features/plugins/built-in/related-posts/SettingsModal.tsx'
 );
-const relatedPostsMatcherContent = read(
-  'src/plugins/von-core/features/plugins/built-in/related-posts/matcher.ts'
-);
 const relatedPostsListApiContent = read('public/api/get_posts.php');
 assertIncludes(
   'Related Posts Defaults And Controls Audit',
@@ -5554,7 +6062,8 @@ assertIncludes(
     'array_intersect($mediaColumns, $availableMediaColumns)',
     "'SELECT ' .",
     "implode(', ', $selectedMediaColumns)",
-    "' FROM media ORDER BY id DESC LIMIT :limit OFFSET :offset'",
+    "' FROM media'",
+    "' ORDER BY id DESC LIMIT :limit OFFSET :offset'",
   ],
   'Media List Query Narrowing Contract: media list fetches only mapped columns while preserving schema fallback behavior.',
   'Media List Query Narrowing Contract: media list still fetches broad rows or lacks schema-compatible column narrowing.'
@@ -5565,6 +6074,86 @@ assertExcludes(
   ['SELECT * FROM media'],
   'Media List Select Star Exclusion: media list no longer fetches unused columns.',
   'Media List Select Star Exclusion: media list still uses SELECT *.'
+);
+
+const mediaFilterHelperContent = read('public/api/media_library_filter_helper.php');
+const galleryMediaManagerContent = read('src/plugins/von-core/features/media/MediaManager.tsx');
+const editorMediaLibraryContent = read('src/components/Editor.tsx');
+const featuredMediaLibraryContent = read('src/components/PostEditor.tsx');
+assertIncludes(
+  'Media Library Server Search Contract',
+  listMediaContent + '\n' + mediaFilterHelperContent,
+  [
+    "voncms_normalize_media_search($_GET['search'] ?? '')",
+    'min(100, max(1, $limit))',
+    "LIKE $placeholder ESCAPE '!'",
+    'voncms_escape_media_like($search)',
+    'if (!$databaseReady || !$databaseHasRows)',
+    "'search' => $search",
+  ],
+  'Media Library Server Search Contract: bounded metadata search and stable DB/filesystem pagination markers detected.',
+  'Media Library Server Search Contract: search is still page-local, unbounded, or able to fall through into unrelated filesystem results.'
+);
+assertIncludes(
+  'Media Library Search UI Parity',
+  galleryMediaManagerContent +
+    '\n' +
+    editorMediaLibraryContent +
+    '\n' +
+    featuredMediaLibraryContent,
+  [
+    'const params = new URLSearchParams',
+    "params.set('search', search)",
+    'maxLength={120}',
+    'handleMediaSearch',
+    'handleFeaturedMediaSearch',
+    'file.altText || file.name ||',
+  ],
+  'Media Library Search UI Parity: Gallery, editor insertion, and featured-image pickers share the bounded server query flow.',
+  'Media Library Search UI Parity: one or more media surfaces still lacks global search or uses the stale filename response key.'
+);
+assertExcludes(
+  'Media Gallery Page-Local Filter Exclusion',
+  galleryMediaManagerContent,
+  ['media.filter((m) =>'],
+  'Media Gallery Page-Local Filter Exclusion: Gallery no longer searches only the loaded page.',
+  'Media Gallery Page-Local Filter Exclusion: Gallery still filters only the current page in memory.'
+);
+
+assertIncludes(
+  'Media Variant Registry Integrity Contract',
+  mediaVariantsContent +
+    '\n' +
+    read('.gitignore') +
+    '\n' +
+    read('create_release.cjs') +
+    '\n' +
+    packageJsonContent,
+  [
+    'generated_media_variants.lock',
+    'LOCK_SH',
+    'LOCK_EX',
+    'voncms_write_generated_media_variant_registry_bytes',
+    'fwrite($handle, substr($content, $written))',
+    'filesize($tempPath) !== strlen($content)',
+    'public/data/media_cleanup_previews/',
+    "src.includes('generated_media_variants')",
+  ],
+  'Media Variant Registry Integrity Contract: locked full writes and runtime-state package exclusions detected.',
+  'Media Variant Registry Integrity Contract: concurrent/partial writes or runtime registry packaging can still corrupt deployment state.'
+);
+assertIncludes(
+  'Media Processing Memory Guard',
+  imageProcessorContent,
+  [
+    'MAX_PROCESSING_PIXELS',
+    'hasProcessingMemoryBudget',
+    'processing would exceed the safe memory budget',
+    'imagedestroy($sourceImage)',
+    'imagedestroy($variantImage)',
+  ],
+  'Media Processing Memory Guard: GD decoding and variant loops enforce a bounded memory budget and release image buffers.',
+  'Media Processing Memory Guard: compressed high-dimension uploads can still reach unbounded GD allocation.'
 );
 
 const siteUtilsImageContent = read('src/utils/siteUtils.ts');
@@ -5609,6 +6198,20 @@ assertIncludes(
   ],
   'Ads Manager Responsive Iframe Contract: script/iframe ads stay bounded and recalculate delayed heights.',
   'Ads Manager Responsive Iframe Contract: isolated ad iframe lacks mobile containment or delayed height sync.'
+);
+assertIncludes(
+  'Ads Manager Opaque Origin Isolation Contract',
+  sharedAdBlockContent,
+  ['event.source !== iframe.contentWindow', 'iframe.srcdoc = finalHtml;'],
+  'Ads Manager Opaque Origin Isolation Contract: script ads run in an opaque-origin sandbox and height messages are bound to the owned iframe window.',
+  'Ads Manager Opaque Origin Isolation Contract: ad scripts can still share the page origin or spoof iframe resize messages.'
+);
+assertExcludes(
+  'Ads Manager Same Origin Sandbox Guard',
+  sharedAdBlockContent,
+  ['allow-same-origin'],
+  'Ads Manager Same Origin Sandbox Guard: executable ads cannot combine scripts with same-origin access.',
+  'Ads Manager Same Origin Sandbox Guard: executable ads can still reach the parent origin through the sandbox.'
 );
 assertIncludes(
   'TechPress In-Feed Ad Container Cap',
@@ -6144,6 +6747,7 @@ if (
 
 if (
   skeletonCssContent.includes('.skeleton-loader {') &&
+  skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   !skeletonCssContent.includes('animation: fadeOut') &&
   !skeletonCssContent.includes('@keyframes fadeOut')
 ) {
@@ -6159,7 +6763,28 @@ if (
 const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
   ? read('src/components/SkeletonLoader.tsx')
   : '';
+const initialSkeletonCardCount = (rootIndexHtmlContent.match(/class="sk-card"/g) || []).length;
+const skeletonClassNames = ['sk-nav', 'sk-hero', 'sk-grid', 'sk-card'];
+const skeletonClassParity = skeletonClassNames.every(
+  (className) =>
+    skeletonCssContent.includes(`.${className}`) &&
+    rootIndexHtmlContent.includes(`class="${className}"`) &&
+    reactSkeletonContent.includes(`className="${className}"`)
+);
 if (
+  initialSkeletonCardCount === 3 &&
+  publicIndexHtmlContent.includes('<div id="root"></div>') &&
+  rootIndexHtmlContent.includes('aria-label="Loading content"') &&
+  reactSkeletonContent.includes('Array.from({ length: 3 }') &&
+  reactSkeletonContent.includes('aria-label="Loading content"') &&
+  skeletonClassParity &&
+  skeletonCssContent.includes('padding: clamp(1rem, 4vw, 2rem);') &&
+  skeletonCssContent.includes('minmax(min(300px, 100%), 1fr)') &&
+  reactSkeletonContent.includes("padding: 'clamp(1rem, 4vw, 2rem)'") &&
+  reactSkeletonContent.includes('minmax(min(300px, 100%), 1fr)') &&
+  reactSkeletonContent.includes('@media (prefers-reduced-motion: reduce)') &&
+  indexCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
+  indexCssContent.includes('.animate-spin,') &&
   reactSkeletonContent.includes('background: #111827;') &&
   reactSkeletonContent.includes('border: 1px solid rgba(148, 163, 184, 0.08);') &&
   reactSkeletonContent.includes('rgba(59, 130, 246, 0.1) 20%') &&
@@ -6168,11 +6793,11 @@ if (
   !reactSkeletonContent.includes('rgba(255, 255, 255, 0.7)')
 ) {
   pass(
-    'React Skeleton Palette Contract: Suspense/route skeletons stay visually aligned with the initial bundled skeleton CSS.'
+    'React Skeleton Palette Contract: production PHP keeps its empty React mount while static HTML and React fallbacks retain matching responsive cards, accessible status, reduced-motion support, and the shared dark palette.'
   );
 } else {
   fail(
-    'React Skeleton Palette Contract: React fallback skeletons drift from the initial bundled skeleton CSS palette.'
+    'React Skeleton Palette Contract: the production PHP mount boundary or static HTML and React fallback class names, responsive layout, card count, accessibility, reduced motion, or palette can drift.'
   );
 }
 
@@ -6434,6 +7059,84 @@ assertIncludes(
 );
 
 assertIncludes(
+  'Settings Owner Domain And Media Boundary',
+  saveSettingsContent +
+    '\n' +
+    read('public/api/reset_password.php') +
+    '\n' +
+    read('public/api/upload_file.php') +
+    '\n' +
+    read('src/plugins/von-core/features/settings/components/GeneralSettings.tsx'),
+  [
+    "'domainUrl',",
+    "'media',",
+    'Domain URL must use http or https.',
+    'CDN URL must use http or https.',
+    'array_replace($existingSettingsForFile, $settingsForFile)',
+    "in_array($domainScheme, ['http', 'https'], true)",
+    "htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8')",
+    'disabled={!canManageSecrets}',
+    'Only the primary administrator can change the site domain used in account emails.',
+    'Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB.',
+  ],
+  'Settings Owner Domain And Media Boundary: appointed admins cannot rewrite domain/media ownership, legacy mirrors preserve owner values, and reset/CDN URLs fail closed to HTTP(S).',
+  'Settings Owner Domain And Media Boundary: domain reset links or media/CDN settings can still bypass the primary-admin boundary or accept unsafe schemes.'
+);
+
+assertIncludes(
+  'Legacy Contact Settings Privacy Boundary',
+  getSettingsContent + '\n' + saveSettingsContent,
+  [
+    "if ($isAdmin && $key === 'forms')",
+    "if ($isAdmin && empty($settings['contactForms']))",
+    "($group === 'contact' && $dbKey === 'forms')",
+  ],
+  'Legacy Contact Settings Privacy Boundary: guest settings no longer expose legacy mail templates while admin migration fallback remains available.',
+  'Legacy Contact Settings Privacy Boundary: legacy contact mail configuration can still enter guest settings payloads.'
+);
+
+assertIncludes(
+  'Settings Audit Secret Retention Boundary',
+  read('public/api/settings_audit_helper.php') +
+    '\n' +
+    read('public/api/get_settings_audit.php') +
+    '\n' +
+    read('public/api/rollback_setting.php'),
+  [
+    'voncms_setting_audit_is_sensitive',
+    'voncms_purge_sensitive_setting_audit_history',
+    "setting_group IN ('smtp', 'api', 'analytics', 'contact')",
+    'Sensitive settings cannot be restored from audit history.',
+    "($settingGroup === 'api' && $settingKey === 'config')",
+  ],
+  'Settings Audit Secret Retention Boundary: secret-bearing history is skipped/purged and rollback cannot restore protected values or mark API config public.',
+  'Settings Audit Secret Retention Boundary: old credentials can still persist or return through settings audit/rollback flows.'
+);
+
+const honeypotRateFiles = [
+  'public/api/login.php',
+  'public/api/register.php',
+  'public/api/reset_password.php',
+  'public/api/newsletter_subscribe.php',
+];
+const honeypotRateGaps = honeypotRateFiles.filter(
+  (file) => !/RateLimiter::recordAttempt\([^)]*\);/.test(read(file))
+);
+if (
+  honeypotRateGaps.length === 0 &&
+  submitContactContent.includes("'value_length' => strlen((string) $honeypot)") &&
+  !submitContactContent.includes("'value' => $honeypot")
+) {
+  pass(
+    'Honeypot Rate And Log Boundary: bot hits count toward throttling and contact logs keep metadata instead of raw trap input.'
+  );
+} else {
+  fail(
+    `Honeypot Rate And Log Boundary: attempt accounting or raw-value logging regressed. Missing: ${honeypotRateGaps.join(', ')}`
+  );
+}
+
+assertIncludes(
   'Admin Profile Public Email Boundary',
   getSettingsContent + '\n' + read('public/api/save_settings.php'),
   [
@@ -6523,6 +7226,7 @@ assertIncludes(
 );
 
 const ownerOnlySystemEndpoints = [
+  'public/von_system.php',
   'public/api/backup_db.php',
   'public/api/import_db.php',
   'public/api/get_settings_audit.php',
@@ -6548,6 +7252,30 @@ if (ownerOnlySystemGaps.length === 0) {
 } else {
   fail(
     `Primary Admin Owner Endpoint Boundary: appointed admins can still reach owner-only endpoints: ${ownerOnlySystemGaps.join(', ')}`
+  );
+}
+
+const dashboardOtaOwnerParity = read('src/plugins/von-core/features/dashboard/Dashboard.tsx');
+const legacyOtaBridgeOwnerParity = read('public/von_system.php');
+const dashboardSystemOwnerChecks = (dashboardOtaOwnerParity.match(/if \(canManageSystem\)/g) || [])
+  .length;
+const legacyOtaBridgeOwnerChecks = (
+  legacyOtaBridgeOwnerParity.match(/SessionManager::requirePrimaryAdmin\(\);/g) || []
+).length;
+if (
+  dashboardOtaOwnerParity.includes("currentUser?.role?.toLowerCase() === 'root'") &&
+  dashboardOtaOwnerParity.includes("currentUser?.id === '1'") &&
+  dashboardSystemOwnerChecks >= 2 &&
+  !dashboardOtaOwnerParity.includes("currentUser?.role?.toLowerCase() !== 'admin'") &&
+  legacyOtaBridgeOwnerChecks >= 2 &&
+  !legacyOtaBridgeOwnerParity.includes("strtolower($_SESSION['user']['role'] ?? '') !== 'admin'")
+) {
+  pass(
+    'OTA Owner Role Parity: Dashboard and legacy bridge allow root or primary-admin ID, matching the updater backend.'
+  );
+} else {
+  fail(
+    'OTA Owner Role Parity: root/primary-admin access has drifted between the Dashboard, legacy bridge, and updater backend.'
   );
 }
 
@@ -7043,6 +7771,16 @@ assertIncludes(
   'Public Quote and Code Styling Contract: live content is missing quote/code styling parity with the editor.'
 );
 
+assertIncludes(
+  'Single Post Noscript Whitespace Contract',
+  read('public/index.php'),
+  [
+    '<div class="content"><?php echo nl2br(htmlspecialchars($noscriptPostContent, ENT_QUOTES, \'UTF-8\')); ?></div>',
+  ],
+  'Single Post Noscript Whitespace Contract: plaintext content closes inline without template indentation in raw HTML.',
+  'Single Post Noscript Whitespace Contract: template indentation can reappear after plaintext post content.'
+);
+
 const getPostContent = read('public/api/get_post.php');
 assertIncludes(
   'Single Post Responsive Contract',
@@ -7281,7 +8019,7 @@ if (
 }
 
 const postSeoFieldPreservationOk =
-  savePostContent.includes("$rawExcerpt = $input['excerpt'] ?? '';") &&
+  savePostContent.includes("$rawExcerpt = is_scalar($input['excerpt'] ?? '')") &&
   savePostContent.includes("$input['excerpt'] = $rawExcerpt;") &&
   savePostContent.includes("$input['metaDescription'] = $rawMeta;");
 const pageSeoFieldPreservationOk =
@@ -7448,7 +8186,7 @@ if (
 }
 
 try {
-  const { analyzeSEO } = loadTsModuleForSmoke('src/utils/seoAnalyzer.ts');
+  const { analyzeSEO, extractKeywords } = loadTsModuleForSmoke('src/utils/seoAnalyzer.ts');
   const emptySeo = analyzeSEO('', '', '', '');
   const textOnlySeo = analyzeSEO(
     'A practical title for SEO scoring checks',
@@ -7479,6 +8217,40 @@ try {
     fail(
       `Editor SEO Empty Keyword Copy: expected title/meta/content-specific empty keyword messages, got "${emptySeo.checks.keywordInTitle.message}", "${emptySeo.checks.keywordInDesc.message}", "${emptySeo.checks.keywordInContent.message}".`
     );
+  }
+
+  const titleOnlyKeywords = extractKeywords('', 'Practical Laravel Deployment Guide');
+  if (titleOnlyKeywords.includes('laravel') && titleOnlyKeywords.includes('deployment')) {
+    pass('SEO Keyword Extraction Title Fallback: title-only drafts can generate focus keywords.');
+  } else {
+    fail(
+      `SEO Keyword Extraction Title Fallback: expected title keywords, got ${JSON.stringify(titleOnlyKeywords)}.`
+    );
+  }
+
+  const substringSeo = analyzeSEO(
+    'Article writing guide',
+    'An article description',
+    '<p>This article explains writing.</p>',
+    'art'
+  );
+  const exactKeywordSeo = analyzeSEO(
+    'Practical art guide for beginners',
+    'Learn practical art techniques for daily creative work.',
+    '<p>Art helps beginners build creative confidence.</p>',
+    'art'
+  );
+  if (
+    substringSeo.checks.keywordInTitle.status !== 'good' &&
+    substringSeo.checks.keywordInDesc.status !== 'good' &&
+    substringSeo.checks.keywordInContent.status !== 'good' &&
+    exactKeywordSeo.checks.keywordInTitle.status === 'good' &&
+    exactKeywordSeo.checks.keywordInDesc.status === 'good' &&
+    exactKeywordSeo.checks.keywordInContent.status === 'good'
+  ) {
+    pass('SEO Focus Keyword Boundary: exact words score while partial-word substrings do not.');
+  } else {
+    fail('SEO Focus Keyword Boundary: focus keyword checks still accept partial-word matches.');
   }
 } catch (error) {
   fail(`SEO Analyzer Runtime Baseline: unable to execute analyzer smoke (${error.message}).`);
@@ -7884,16 +8656,23 @@ const mediaSettingsContent = read(
 );
 if (
   mediaToolsContent.includes("$_POST['preview_token']") &&
-  mediaToolsContent.includes('Preview token required before deleting orphaned files.') &&
+  mediaToolsContent.includes('Preview token required before deleting untracked files.') &&
+  mediaToolsContent.includes("acquireMediaToolLock('media_cleanup')") &&
+  mediaToolsContent.includes('getReferencedUploadRelativePaths()') &&
+  mediaToolsContent.includes('(now protected; skipped)') &&
+  mediaToolsContent.includes('reviewed untracked files') &&
   mediaSettingsContent.includes("const reviewedPreviewToken = toolResult?.previewToken ?? '';") &&
   mediaSettingsContent.includes("formData.append('preview_token', reviewedPreviewToken);") &&
   mediaSettingsContent.includes('Delete Reviewed Files') &&
-  mediaSettingsContent.includes('Scanning does not delete anything.')
+  mediaSettingsContent.includes('Scan Untracked Files') &&
+  mediaSettingsContent.includes('Indexed library items stay protected')
 ) {
-  pass('Media Cleanup Review Flow: orphan cleanup uses a review token and scan-first admin copy.');
+  pass(
+    'Media Cleanup Review Flow: untracked cleanup uses a locked review token, current-reference recheck, and scan-first admin copy.'
+  );
 } else {
   fail(
-    'Media Cleanup Review Flow: orphan cleanup is missing the review-token safety flow or the scan-first UI copy.'
+    'Media Cleanup Review Flow: untracked cleanup is missing locking, current-reference recheck, review-token safety, or accurate UI copy.'
   );
 }
 
@@ -8194,11 +8973,486 @@ if (
   );
 }
 
+const profileOverflowContent = read('src/plugins/von-core/features/users/UserProfile.tsx');
+assertIncludes(
+  'Default Profile Long Name Containment',
+  profileOverflowContent,
+  [
+    'gap-3 md:gap-8',
+    'mb-4 md:mb-10',
+    'flex-grow min-w-0',
+    'md:text-white',
+    '[overflow-wrap:anywhere]',
+  ],
+  'Default Profile Long Name Containment: mobile spacing stays close, desktop names sit above the cover boundary, and long display names stay inside the header.',
+  'Default Profile Long Name Containment: profile identity spacing or heading containment can still drift.'
+);
+
+const corporateProfileContent = read('src/themes/corporate-pro/Layout.tsx');
+assertIncludes(
+  'Corporate Profile Identity Alignment',
+  corporateProfileContent,
+  ['pt-24 md:pt-28 pb-12', 'mt-4 md:mt-2 flex-grow min-w-0', '[overflow-wrap:anywhere]'],
+  'Corporate Profile Identity Alignment: the profile header clears the fixed navbar while avatar and identity text stay balanced and contained.',
+  'Corporate Profile Identity Alignment: the profile header can still sit under the fixed navbar or overflow beside the avatar.'
+);
+
+const publicSiteProfileTitleContent = read('src/plugins/von-core/features/public/PublicSite.tsx');
+const appProfileTitleContent = read('src/App.tsx');
+assertIncludes(
+  'Shared Profile Display Name Title Fallback',
+  `${publicSiteProfileTitleContent}\n${appProfileTitleContent}`,
+  [
+    'resolvedProfile?: User | null;',
+    "props.currentView === 'profile'",
+    'props.resolvedProfile?.display_name || props.resolvedProfile?.username',
+    'resolvedProfile={resolvedPublicProfile}',
+  ],
+  'Shared Profile Display Name Title Fallback: every bundled theme receives the resolved pen name when VonSEO is disabled.',
+  'Shared Profile Display Name Title Fallback: a bundled theme can still fall back to the profile route username.'
+);
+
+const techPressHeroAvatarContent = read('src/themes/techpress/Layout.tsx');
+const techPressHeroUsernameLookup = 'heroArticle?.author_data?.username || heroArticle?.author';
+if (techPressHeroAvatarContent.split(techPressHeroUsernameLookup).length - 1 >= 2) {
+  pass(
+    'TechPress Hero Gravatar Identity: hero email and avatar fallbacks use the stable author username.'
+  );
+} else {
+  fail(
+    'TechPress Hero Gravatar Identity: hero fallback can still compare a display name against usernames.'
+  );
+}
+
+const rememberLoginContent = read('public/api/login.php');
+const rememberCheckAuthContent = read('public/api/check_auth.php');
+const rememberLogoutContent = read('public/api/logout.php');
+const rememberInstallContent = read('public/api/install.php');
+const rememberRepairContent = read('public/api/repair_db.php');
+const rememberInstallSqlContent = read('public/install.sql');
+const rememberUseAuthContent = read('src/hooks/useAuth.ts');
+const rememberAppContent = read('src/App.tsx');
+const rememberResetPasswordContent = read('public/api/reset_password.php');
+const rememberUpdateProfileContent = read('public/api/update_profile.php');
+const rememberSaveUserContent = read('public/api/save_user.php');
+
+assertIncludes(
+  'Remember Token Login Contract',
+  rememberLoginContent,
+  [
+    'CREATE TABLE IF NOT EXISTS remember_tokens',
+    'random_bytes(12)',
+    'random_bytes(32)',
+    "hash('sha256', $rememberValidator)",
+    "'voncms_remember'",
+    "'samesite' => 'Lax'",
+  ],
+  'Remember Token Login Contract: remember-me stores a hashed validator behind a dedicated HttpOnly cookie.',
+  'Remember Token Login Contract: login is missing the dedicated selector/validator token flow.'
+);
+
+if (
+  !rememberLoginContent.includes('setcookie(session_name(), session_id()') &&
+  !rememberLoginContent.includes("'expires' => time() + 86400 * 30")
+) {
+  pass('Remember Token Session Boundary: PHPSESSID is no longer extended for 30 days.');
+} else {
+  fail('Remember Token Session Boundary: remember-me can still persist the raw PHP session ID.');
+}
+
+assertIncludes(
+  'Remember Token Restore Rotation Contract',
+  rememberCheckAuthContent,
+  [
+    'JOIN users u ON u.id = rt.user_id',
+    'hash_equals(',
+    'session_regenerate_id(true)',
+    'SET token_hash = ?, expires_at = ?, last_used_at = NOW()',
+    "'voncms_remember'",
+    "'csrf_token' => $csrfToken",
+  ],
+  'Remember Token Restore Rotation Contract: check-auth restores the user and rotates the validator.',
+  'Remember Token Restore Rotation Contract: remember-token restore or rotation markers are missing.'
+);
+
+if (
+  rememberCheckAuthContent.includes('$rememberRotationConflict = false;') &&
+  rememberCheckAuthContent.includes("$rememberCookie !== '' && !$rememberRotationConflict") &&
+  !rememberCheckAuthContent.includes('DELETE FROM remember_tokens WHERE selector = ?')
+) {
+  pass(
+    'Remember Token Rotation Race Guard: a stale concurrent restore cannot delete or expire the validator another request just rotated.'
+  );
+} else {
+  fail(
+    'Remember Token Rotation Race Guard: concurrent restore cleanup can still invalidate a freshly rotated token.'
+  );
+}
+
+assertIncludes(
+  'Remember Token Rotation Conflict Telemetry',
+  rememberCheckAuthContent,
+  [
+    "require_once __DIR__ . '/security/SecurityLogger.php';",
+    "SecurityLogger::log('remember_rotation_conflict', 'low'",
+    "'reason' => 'compare_and_swap_lost'",
+  ],
+  'Remember Token Rotation Conflict Telemetry: compare-and-swap losses are logged without changing restore behavior.',
+  'Remember Token Rotation Conflict Telemetry: rotation conflicts can remain invisible in the security audit log.'
+);
+assertExcludes(
+  'Remember Token Rotation Conflict Telemetry',
+  sliceBetween(
+    rememberCheckAuthContent,
+    "SecurityLogger::log('remember_rotation_conflict'",
+    '$rememberRotationConflict = true;'
+  ),
+  ['$rememberSelector', '$rememberValidator', 'token_hash'],
+  'Remember Token Rotation Conflict Telemetry: the audit event excludes selector, validator, and stored hash material.',
+  'Remember Token Rotation Conflict Telemetry: token material can leak into the security audit event.'
+);
+
+if (
+  rememberUseAuthContent.includes('setCsrfToken(data.csrf_token);') &&
+  rememberAppContent.includes('setCsrfToken(data.csrf_token);')
+) {
+  pass('Remember Token CSRF Handoff: restored sessions refresh the frontend CSRF cache.');
+} else {
+  fail('Remember Token CSRF Handoff: a restored session can leave the frontend CSRF cache stale.');
+}
+
+assertIncludes(
+  'Remember Token Logout Contract',
+  rememberLogoutContent,
+  ['DELETE FROM remember_tokens WHERE selector = ?', "'voncms_remember'", 'time() - 42000'],
+  'Remember Token Logout Contract: logout revokes the database token and expires its cookie.',
+  'Remember Token Logout Contract: logout can leave a reusable remember token behind.'
+);
+
+const rememberUserRevokeSql = 'DELETE FROM remember_tokens WHERE user_id = ?';
+if (
+  rememberResetPasswordContent.includes(rememberUserRevokeSql) &&
+  rememberUpdateProfileContent.includes(rememberUserRevokeSql) &&
+  rememberSaveUserContent.includes(rememberUserRevokeSql)
+) {
+  pass(
+    'Remember Token Password Change Revocation: reset, self-service, and admin password changes revoke remembered sessions.'
+  );
+} else {
+  fail(
+    'Remember Token Password Change Revocation: a password-change path can leave remembered sessions active.'
+  );
+}
+
+if (
+  rememberResetPasswordContent.includes('$pdo->beginTransaction();') &&
+  rememberResetPasswordContent.includes('$pdo->commit();') &&
+  rememberResetPasswordContent.includes('$pdo->rollBack();') &&
+  rememberUpdateProfileContent.includes('$pdo->beginTransaction();') &&
+  rememberUpdateProfileContent.includes('$pdo->commit();') &&
+  rememberUpdateProfileContent.includes('$pdo->rollBack();')
+) {
+  pass(
+    'Remember Token Password Change Atomicity: reset and self-service password changes roll back if token revocation fails.'
+  );
+} else {
+  fail(
+    'Remember Token Password Change Atomicity: a password can change before remember-token revocation completes.'
+  );
+}
+
+if (
+  rememberInstallContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
+  rememberRepairContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
+  rememberInstallSqlContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
+  rememberInstallContent.includes('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') &&
+  rememberRepairContent.includes('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') &&
+  rememberInstallSqlContent.includes('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+) {
+  pass('Remember Token Schema Contract: fresh install, SQL schema, and repair flows stay aligned.');
+} else {
+  fail(
+    'Remember Token Schema Contract: remember-token schema is missing from an install or repair path.'
+  );
+}
+
+const hardenedMediaToolsContent = read('public/api/media_tools.php');
+const mediaReferenceScanner = sliceBetween(
+  hardenedMediaToolsContent,
+  'function getReferencedUploadRelativePaths()',
+  'function buildMediaReferenceBases'
+);
+assertIncludes(
+  'Media Cleanup Fail-Closed Reference Contract',
+  mediaReferenceScanner,
+  [
+    'throw new RuntimeException',
+    'Unable to verify the media index before cleanup.',
+    'SELECT setting_value FROM settings',
+    'Unable to scan settings media references before cleanup.',
+    'SELECT avatar FROM users',
+    'Unable to scan user avatar references before cleanup.',
+    'Unable to scan post media references before cleanup.',
+    'Unable to scan page media references before cleanup.',
+  ],
+  'Media Cleanup Fail-Closed Reference Contract: indexed media, settings, user avatars, posts, and pages all abort instead of treating a failed query as no references.',
+  'Media Cleanup Fail-Closed Reference Contract: cleanup can miss active settings or user references, or fail open while collecting protected references.'
+);
+assertExcludes(
+  'Media Cleanup Fail-Closed Reference Contract',
+  mediaReferenceScanner,
+  ['Ignore media table issues', 'Ignore posts scan issues', 'Ignore pages scan issues'],
+  'Media Cleanup Fail-Closed Reference Contract: stale fail-open scan fallbacks are absent.',
+  'Media Cleanup Fail-Closed Reference Contract: a failed reference scan is still silently ignored.'
+);
+assertIncludes(
+  'Media Cleanup Delete Recheck Contract',
+  hardenedMediaToolsContent,
+  [
+    'Media cleanup was aborted because references could not be verified. No files were deleted.',
+    '$currentReferencedFiles = getReferencedUploadRelativePaths();',
+  ],
+  'Media Cleanup Delete Recheck Contract: preview and delete recheck both fail closed when live references cannot be verified.',
+  'Media Cleanup Delete Recheck Contract: cleanup can still proceed after a failed live-reference recheck.'
+);
+
+const unsafeAnyCasts = walkFiles(
+  resolveFromRoot('src'),
+  (file) => file.endsWith('.ts') || file.endsWith('.tsx')
+).filter((file) => /\bas\s+any\b/.test(fs.readFileSync(file, 'utf8')));
+if (unsafeAnyCasts.length === 0) {
+  pass('TypeScript Any-Cast Contract: source files do not bypass strict typing with `as any`.');
+} else {
+  fail(
+    `TypeScript Any-Cast Contract: unsafe casts remain in ${unsafeAnyCasts
+      .map((file) => path.relative(root, file))
+      .join(', ')}.`
+  );
+}
+
+const postEditorRegressionContent = read('src/components/PostEditor.tsx');
+const auditHistoryModal = sliceBetween(
+  postEditorRegressionContent,
+  '{isAuditHistoryOpen && (',
+  '{!isPage && isFeaturedLibraryOpen && ('
+);
+const featuredImageModal = sliceBetween(
+  postEditorRegressionContent,
+  '{!isPage && isFeaturedLibraryOpen && (',
+  'export default PostEditor;'
+);
+assertExcludes(
+  'Featured Image Search Modal Placement',
+  auditHistoryModal,
+  ['handleFeaturedMediaSearch', 'featured-media-search'],
+  'Featured Image Search Modal Placement: edit history no longer contains featured-image search controls.',
+  'Featured Image Search Modal Placement: featured-image search remains inside the edit-history modal.'
+);
+assertIncludes(
+  'Featured Image Search Modal Placement',
+  featuredImageModal,
+  ['handleFeaturedMediaSearch', 'id="featured-media-search"', 'maxLength={120}'],
+  'Featured Image Search Modal Placement: featured-image picker owns its bounded server search form.',
+  'Featured Image Search Modal Placement: featured-image picker is missing its own bounded search form.'
+);
+
+const mediaUpdateRegressionContent = read('public/api/update_media.php');
+assertIncludes(
+  'Media Metadata Path Ambiguity Contract',
+  mediaUpdateRegressionContent,
+  [
+    'SELECT id FROM media WHERE filepath IN ($placeholders) LIMIT 1',
+    'SELECT id FROM media WHERE filename = ? ORDER BY id ASC LIMIT 2',
+    'Media filename is ambiguous. Use the full media path.',
+  ],
+  'Media Metadata Path Ambiguity Contract: exact paths win and duplicate basenames require a full path.',
+  'Media Metadata Path Ambiguity Contract: metadata updates can still choose an arbitrary duplicate filename.'
+);
+assertExcludes(
+  'Media Metadata Path Ambiguity Contract',
+  mediaUpdateRegressionContent,
+  ['OR filename = ? LIMIT 1'],
+  'Media Metadata Path Ambiguity Contract: ambiguous filename fallback is removed.',
+  'Media Metadata Path Ambiguity Contract: path lookup still uses ambiguous filename OR matching.'
+);
+
+assertIncludes(
+  'Destructive Write Safety Contract',
+  read('public/api/system/repair_htaccess.php') + '\n' + read('public/api/system/IndexNow.php'),
+  [
+    'function writeHtaccessAtomically',
+    'while ($written < $length)',
+    'filesize($tempPath) !== $length',
+    'function createKeyFile',
+    'function removeKeyFile',
+    'function cleanupOldKeyFiles',
+  ],
+  'Destructive Write Safety Contract: .htaccess and IndexNow use complete temporary writes before activation.',
+  'Destructive Write Safety Contract: .htaccess or IndexNow can still activate unchecked direct writes.'
+);
+assertIncludes(
+  'OTA Recovery Contract',
+  read('public/api/system/updater.php'),
+  [
+    'private function acquireUpdateLock()',
+    'private function validateArchive(ZipArchive $zip): void',
+    '100 * 1024 * 1024',
+    'Use the VonCMS Deploy ZIP.',
+    'stageReleasePayload',
+    'activateStagedPayload',
+    'restoreActivationJournal',
+    'VONCMS_UPDATER_TESTING',
+    "in_array('metadata.json', $filtered, true)",
+  ],
+  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, and stage the full release with rollback recovery.',
+  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, or leave a partial release after activation failure.'
+);
+assertIncludes(
+  'WordPress Import Bounds Contract',
+  read('public/api/tools/wp_scan.php') + '\n' + read('public/api/tools/wp_import.php'),
+  [
+    'VONCMS_WP_IMPORT_MAX_XML_BYTES',
+    'VONCMS_WP_IMPORT_MAX_IMAGE_BYTES',
+    "is_uploaded_file($file['tmp_name'])",
+    'LIBXML_NONET | LIBXML_COMPACT',
+    'Invalid import batch parameters',
+    'rollback_imported_media_since',
+    "substr(hash('sha256', $absoluteUrl), 0, 16)",
+  ],
+  'WordPress Import Bounds Contract: XML, batches, media downloads, and failed-item media cleanup are bounded.',
+  'WordPress Import Bounds Contract: importer can still accept unbounded XML/batches/downloads or retain failed-item media.'
+);
+assertIncludes(
+  'Comment Visibility and Rate Contract',
+  read('public/api/save_comments.php') + '\n' + read('public/api/get_comments.php'),
+  [
+    'comment:user:',
+    'RateLimiter::recordAttempt($commentRateIdentifier)',
+    'Post is not available for comments',
+    'Comment is too long. Maximum 5000 characters allowed.',
+    'EXISTS (SELECT 1 FROM posts p WHERE p.id = c.post_id',
+  ],
+  'Comment Visibility and Rate Contract: submissions are bounded/throttled and public reads exclude unpublished posts.',
+  'Comment Visibility and Rate Contract: comments can still bypass rate accounting or expose unpublished-post discussion.'
+);
+assertIncludes(
+  'Public Comment Recovery State Contract',
+  publicCommentsContent,
+  [
+    'comments.length === 0 ? 1 : Math.min(prev, totalPages)',
+    ') : commentsLoading ? (',
+    ') : commentsError ? (',
+    'Try Again',
+  ],
+  'Public Comment Recovery State Contract: first-page loading, failure, retry, and post-switch page reset stay explicit.',
+  'Public Comment Recovery State Contract: an empty failed request can still look like a real no-comments result or retain an old page.'
+);
+assertIncludes(
+  'Comment Pagination Deterministic Order Contract',
+  getCommentsContent,
+  ['ORDER BY c.created_at DESC, c.id DESC', 'ORDER BY c.created_at ASC, c.id ASC'],
+  'Comment Pagination Deterministic Order Contract: equal timestamps use comment IDs as stable tie-breakers.',
+  'Comment Pagination Deterministic Order Contract: equal timestamps can still reorder across pages.'
+);
+const commentRateLimitIndex = saveCommentsContent.indexOf(
+  'RateLimiter::requireNotLimited($commentRateIdentifier);'
+);
+const commentRateRecordIndex = saveCommentsContent.indexOf(
+  'RateLimiter::recordAttempt($commentRateIdentifier);'
+);
+const commentValidationIndex = saveCommentsContent.indexOf('$postIdRaw =');
+if (
+  commentRateLimitIndex >= 0 &&
+  commentRateRecordIndex > commentRateLimitIndex &&
+  commentRateRecordIndex < commentValidationIndex
+) {
+  pass(
+    'Comment Rejected Attempt Rate Contract: add attempts consume the bounded quota before validation exits.'
+  );
+} else {
+  fail(
+    'Comment Rejected Attempt Rate Contract: invalid add attempts can still avoid rate accounting.'
+  );
+}
+assertIncludes(
+  'Content Audit Ownership Contract',
+  read('public/api/get_content_audit_logs.php'),
+  [
+    'SELECT author_id FROM $contentTable WHERE id = ? LIMIT 1',
+    "$currentRole === 'writer'",
+    'Not authorized to view this edit history',
+  ],
+  'Content Audit Ownership Contract: writers can view only their own post history.',
+  "Content Audit Ownership Contract: writers can still read another author's audit history."
+);
+
 const phpBinary = findPhpBinary();
 if (!phpBinary) {
   warn('PHP Lint: no PHP binary found automatically; skipping syntax lint checks.');
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
+
+  if (backupWriteFunctionSource) {
+    const backupWriteProbe = spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `${backupWriteFunctionSource}
+$handle = fopen('php://temp', 'w+b');
+$captured = '';
+$shortWriter = function ($stream, $data) use (&$captured) {
+  $written = min(2, strlen($data));
+  $captured .= substr($data, 0, $written);
+  return $written;
+};
+$shortCount = writePreImportSafetyBackupData($handle, 'abcdef', $shortWriter);
+$zeroFailed = false;
+try {
+  writePreImportSafetyBackupData($handle, 'x', static fn($stream, $data) => 0);
+} catch (RuntimeException $error) {
+  $zeroFailed = true;
+}
+$falseFailed = false;
+try {
+  writePreImportSafetyBackupData($handle, 'x', static fn($stream, $data) => false);
+} catch (RuntimeException $error) {
+  $falseFailed = true;
+}
+fclose($handle);
+if ($shortCount !== 6 || $captured !== 'abcdef' || !$zeroFailed || !$falseFailed) {
+  exit(2);
+}
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+    if (backupWriteProbe.status === 0 && backupWriteProbe.stdout.trim() === 'ok') {
+      pass(
+        'Database Import Backup Write Runtime: short writes complete fully while zero/false writes fail closed.'
+      );
+    } else {
+      fail(
+        `Database Import Backup Write Runtime: failed/short write handling regressed. ${(backupWriteProbe.stderr || backupWriteProbe.stdout || '').trim()}`
+      );
+    }
+  } else {
+    fail('Database Import Backup Write Runtime: write helper source could not be extracted.');
+  }
+
+  const updaterRollbackProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/test-updater-rollback.php')],
+    { encoding: 'utf8' }
+  );
+  if (updaterRollbackProbe.status === 0 && updaterRollbackProbe.stdout.trim() === 'ok') {
+    pass(
+      'OTA Rollback Runtime: injected failure restores the old release, normal activation updates it, and protected data persists.'
+    );
+  } else {
+    fail(
+      `OTA Rollback Runtime: automatic recovery failed. ${(updaterRollbackProbe.stderr || updaterRollbackProbe.stdout || '').trim()}`
+    );
+  }
 
   const phpFilesToLint = [
     'public/media_variants.php',
@@ -8216,12 +9470,30 @@ if (!phpBinary) {
     'public/api/system/clear_public_cache.php',
     'public/api/get_storage.php',
     'public/api/media_tools.php',
+    'public/api/update_media.php',
+    'public/api/get_comments.php',
+    'public/api/save_comments.php',
+    'public/api/get_content_audit_logs.php',
+    'public/api/delete_redirect.php',
+    'public/api/save_redirect.php',
     'public/api/submit_contact.php',
     'public/api/verify_email.php',
     'public/api/tools/wp_scan.php',
+    'public/api/tools/wp_import.php',
     'public/api/system/fix_integrity.php',
     'public/api/system/repair_htaccess.php',
+    'public/api/system/IndexNow.php',
+    'public/api/system/indexnow_setup.php',
+    'public/api/system/indexnow_ping.php',
+    'public/api/system/updater.php',
     'public/api/install.php',
+    'public/api/login.php',
+    'public/api/check_auth.php',
+    'public/api/logout.php',
+    'public/api/reset_password.php',
+    'public/api/update_profile.php',
+    'public/api/save_user.php',
+    'public/api/repair_db.php',
     'public/security.php',
     'public/index.php',
   ];

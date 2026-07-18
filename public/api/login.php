@@ -35,6 +35,7 @@ $honeypot = $input['hp_field'] ?? '';
 
 // Honeypot check - bots will fill this hidden field
 if (!empty($honeypot)) {
+  RateLimiter::recordAttempt();
   // Log suspicious activity but don't reveal it's a honeypot
   SecurityLogger::log(
     'honeypot_caught',
@@ -121,16 +122,75 @@ try {
 
     // HANDLE REMEMBER ME (30 Days)
     $rememberMe = $input['remember_me'] ?? false;
-    if ($rememberMe) {
-      $params = session_get_cookie_params();
-      setcookie(session_name(), session_id(), [
-        'expires' => time() + 86400 * 30,
+    $rememberCookieName = 'voncms_remember';
+    $rememberCookie = (string) ($_COOKIE[$rememberCookieName] ?? '');
+    $params = session_get_cookie_params();
+
+    if ($rememberCookie !== '') {
+      $rememberParts = explode(':', $rememberCookie, 2);
+      $existingSelector = $rememberParts[0] ?? '';
+
+      if (preg_match('/^[a-f0-9]{24}$/', $existingSelector)) {
+        try {
+          $deleteRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE selector = ?');
+          $deleteRememberStmt->execute([$existingSelector]);
+        } catch (Throwable $e) {
+          // Older installs may not have the remember token table until first use or repair.
+        }
+      }
+
+      setcookie($rememberCookieName, '', [
+        'expires' => time() - 42000,
         'path' => $params['path'],
         'domain' => $params['domain'],
         'secure' => $params['secure'],
-        'httponly' => $params['httponly'],
+        'httponly' => true,
         'samesite' => 'Lax',
       ]);
+    }
+
+    if ($rememberMe) {
+      try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS remember_tokens (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        selector CHAR(24) NOT NULL UNIQUE,
+        token_hash CHAR(64) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        last_used_at DATETIME DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_remember_user (user_id),
+        INDEX idx_remember_expires (expires_at),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+        $pdo->exec('DELETE FROM remember_tokens WHERE expires_at <= NOW()');
+
+        $rememberSelector = bin2hex(random_bytes(12));
+        $rememberValidator = bin2hex(random_bytes(32));
+        $rememberTokenHash = hash('sha256', $rememberValidator);
+        $rememberExpiresAt = time() + 86400 * 30;
+        $rememberStmt = $pdo->prepare(
+          'INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at) VALUES (?, ?, ?, ?)',
+        );
+        $rememberStmt->execute([
+          $user['id'],
+          $rememberSelector,
+          $rememberTokenHash,
+          date('Y-m-d H:i:s', $rememberExpiresAt),
+        ]);
+
+        setcookie($rememberCookieName, $rememberSelector . ':' . $rememberValidator, [
+          'expires' => $rememberExpiresAt,
+          'path' => $params['path'],
+          'domain' => $params['domain'],
+          'secure' => $params['secure'],
+          'httponly' => true,
+          'samesite' => 'Lax',
+        ]);
+      } catch (Throwable $e) {
+        error_log('Remember token creation failed: ' . $e->getMessage());
+      }
     }
 
     echo json_encode([

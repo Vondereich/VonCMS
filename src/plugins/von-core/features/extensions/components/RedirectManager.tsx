@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { API } from '../../../../../config/site.config';
 import { vonFetch } from '../../../../../utils/api';
+import SmartPagination from '../../../../../components/SmartPagination';
 import {
   ArrowRight,
   Plus,
@@ -47,35 +48,62 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
   const [redirects, setRedirects] = useState<Redirect[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Redirect | null>(null);
   const [isScanningLoops, setIsScanningLoops] = useState(false);
   const [loopSummary, setLoopSummary] = useState<RedirectLoopSummary | null>(null);
   const [loopIssues, setLoopIssues] = useState<RedirectLoopIssue[]>([]);
+  const redirectRequestId = useRef(0);
 
   // Form state
   const [sourceUrl, setSourceUrl] = useState('');
   const [targetUrl, setTargetUrl] = useState('');
   const [redirectType, setRedirectType] = useState(301);
 
+  const itemsPerPage = 25;
+
   const fetchRedirects = async () => {
+    const requestId = ++redirectRequestId.current;
     setLoading(true);
     try {
-      const res = await vonFetch(`${API.listRedirects}?search=${encodeURIComponent(search)}`);
+      const params = new URLSearchParams({
+        search,
+        page: String(currentPage),
+        limit: String(itemsPerPage),
+      });
+      const res = await vonFetch(`${API.listRedirects}?${params.toString()}`);
       const data = await res.json();
+      if (requestId !== redirectRequestId.current) return;
+
       if (data.success) {
         setRedirects(data.data || []);
+        const pages = Math.max(1, Number(data.pagination?.pages) || 1);
+        setTotalPages(pages);
+        setTotalItems(Math.max(0, Number(data.pagination?.total) || 0));
+        if (currentPage > pages) {
+          setCurrentPage(pages);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch redirects:', err);
+      if (requestId === redirectRequestId.current) {
+        console.error('Failed to fetch redirects:', err);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === redirectRequestId.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchRedirects();
-  }, [search]);
+    void fetchRedirects();
+    return () => {
+      redirectRequestId.current += 1;
+    };
+  }, [search, currentPage]);
 
   const handleSave = async () => {
     if (!sourceUrl.trim() || !targetUrl.trim()) {
@@ -209,7 +237,10 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
               type="text"
               placeholder="Search redirects..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
               className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white text-sm"
             />
           </div>
@@ -298,67 +329,76 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
               </p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-[#2a2b36]">
-                  <th className="pb-3 font-medium">From</th>
-                  <th className="pb-3 font-medium">To</th>
-                  <th className="pb-3 font-medium text-center">Type</th>
-                  <th className="pb-3 font-medium text-center">Hits</th>
-                  <th className="pb-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {redirects.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="border-b border-slate-100 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50"
-                  >
-                    <td className="py-3 font-mono text-xs text-red-600 dark:text-red-400">
-                      {r.source_url}
-                    </td>
-                    <td className="py-3 font-mono text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <ArrowRight size={12} />
-                      {r.target_url}
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                        {r.redirect_type}
-                      </span>
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className="flex items-center justify-center gap-1 text-slate-500">
-                        <BarChart3 size={12} />
-                        {r.hit_count}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() => handleEdit(r)}
-                          className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+            <div className="space-y-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-[#2a2b36]">
+                    <th className="pb-3 font-medium">From</th>
+                    <th className="pb-3 font-medium">To</th>
+                    <th className="pb-3 font-medium text-center">Type</th>
+                    <th className="pb-3 font-medium text-center">Hits</th>
+                    <th className="pb-3 font-medium text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {redirects.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="border-b border-slate-100 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50"
+                    >
+                      <td className="py-3 font-mono text-xs text-red-600 dark:text-red-400">
+                        {r.source_url}
+                      </td>
+                      <td className="py-3 font-mono text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <ArrowRight size={12} />
+                        {r.target_url}
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                          {r.redirect_type}
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className="flex items-center justify-center gap-1 text-slate-500">
+                          <BarChart3 size={12} />
+                          {r.hit_count}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => handleEdit(r)}
+                            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(r.id)}
+                            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <SmartPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                totalItems={totalItems}
+              />
+            </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#16161e] text-xs text-slate-500 flex justify-between">
-          <span>{redirects.length} redirect(s)</span>
-          <span>Total hits: {redirects.reduce((sum, r) => sum + r.hit_count, 0)}</span>
+          <span>{totalItems} redirect(s)</span>
+          <span>Visible hits: {redirects.reduce((sum, r) => sum + r.hit_count, 0)}</span>
         </div>
       </div>
 

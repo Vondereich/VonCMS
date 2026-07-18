@@ -14,9 +14,6 @@ interface AnalyticsInjectorProps {
   analytics?: AnalyticsSettings;
 }
 
-// Removed conflicting global declaration
-// We will cast window to any for Google Analytics injection to avoid Type conflicts with other libraries
-
 export const AnalyticsInjector: React.FC<AnalyticsInjectorProps> = ({ analytics }) => {
   const location = useLocation();
 
@@ -55,24 +52,24 @@ export const AnalyticsInjector: React.FC<AnalyticsInjectorProps> = ({ analytics 
       document.head.appendChild(script);
 
       // Initialize DataLayer
-      (window as any).dataLayer = (window as any).dataLayer || [];
-      (window as any).gtag = function () {
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () {
         // eslint-disable-next-line
-        (window as any).dataLayer.push(arguments);
+        window.dataLayer?.push(arguments);
       };
-      (window as any).gtag('js', new Date());
+      window.gtag('js', new Date());
 
-      const config: any = {
+      const config: Record<string, boolean> = {
         anonymize_ip: analytics.anonymizeIP || false,
         send_page_view: false,
       };
 
-      (window as any).gtag('config', gaId, config);
+      window.gtag('config', gaId, config);
     }
 
     // 4. Track Page View (SPA)
-    if (analytics.trackPageViews !== false && (window as any).gtag) {
-      (window as any).gtag('event', 'page_view', {
+    if (analytics.trackPageViews !== false && window.gtag) {
+      window.gtag('event', 'page_view', {
         page_location: window.location.href,
         page_path: window.location.pathname,
         page_title: document.title,

@@ -69,11 +69,15 @@ try {
   }
 
   if (isset($_GET['id']) && $_GET['id'] !== '') {
+    if (!preg_match('/^\d+$/', (string) $_GET['id'])) {
+      ResponseHelper::sendError('Page ID must be numeric', 400);
+    }
     $whereClauses[] = 'p.id = :id';
     $params[':id'] = (string) $_GET['id'];
   } elseif (isset($_GET['slug']) && $_GET['slug'] !== '') {
+    $requestedSlug = mb_substr(trim((string) $_GET['slug']), 0, 255);
     $whereClauses[] = 'p.slug = :slug';
-    $params[':slug'] = (string) $_GET['slug'];
+    $params[':slug'] = $requestedSlug;
   }
 
   $search = trim((string) ($_GET['search'] ?? ''));

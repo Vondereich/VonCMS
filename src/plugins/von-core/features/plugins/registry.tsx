@@ -61,16 +61,25 @@ export const PluginSlot: React.FC<{
   pluginConfig?: Record<string, any>;
   className?: string;
 }> = ({ location, activePlugins, customPlugins = [], pluginConfig = {}, className }) => {
-  // Ensure activePlugins is always an array (fix for fresh install where it might be null)
-  const safeActivePlugins = activePlugins || [];
+  const safeActivePlugins = Array.isArray(activePlugins) ? activePlugins : [];
+  const safeCustomPlugins = Array.isArray(customPlugins) ? customPlugins : [];
+  const safePluginConfig =
+    pluginConfig && typeof pluginConfig === 'object' && !Array.isArray(pluginConfig)
+      ? pluginConfig
+      : {};
 
   // 1. Load System Plugins - Filter by activePlugins AND pluginStatus
   const systemPlugins = AVAILABLE_PLUGINS.filter((p) => {
-    return isSystemPluginActive({ activePlugins: safeActivePlugins, pluginConfig }, p.id);
+    return isSystemPluginActive(
+      { activePlugins: safeActivePlugins, pluginConfig: safePluginConfig },
+      p.id
+    );
   });
 
   // 2. Load User Custom HTML Plugins
-  const userPlugins = customPlugins.filter((p) => p.enabled && p.location === location);
+  const userPlugins = safeCustomPlugins.filter(
+    (p) => p && p.enabled === true && p.location === location
+  );
 
   if (systemPlugins.length === 0 && userPlugins.length === 0) return null;
 
@@ -79,7 +88,7 @@ export const PluginSlot: React.FC<{
       {/* Render System Plugins */}
       {systemPlugins.map((plugin) => (
         <React.Fragment key={plugin.id}>
-          {plugin.render(location, pluginConfig[plugin.id] || {})}
+          {plugin.render(location, safePluginConfig[plugin.id] || {})}
         </React.Fragment>
       ))}
 

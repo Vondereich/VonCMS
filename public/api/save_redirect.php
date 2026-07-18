@@ -11,6 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 require_once __DIR__ . '/../von_config.php';
 require_once __DIR__ . '/redirect_loop_helper.php';
 
@@ -25,6 +29,10 @@ $id = $data['id'] ?? null;
 $sourceUrl = trim($data['source_url'] ?? '');
 $targetUrl = trim($data['target_url'] ?? '');
 $redirectType = (int) ($data['redirect_type'] ?? 301);
+
+if (strlen($sourceUrl) > 500 || strlen($targetUrl) > 2000) {
+  ResponseHelper::sendError('Redirect URL is too long.', 400);
+}
 
 // Validation
 if (empty($sourceUrl) || empty($targetUrl)) {

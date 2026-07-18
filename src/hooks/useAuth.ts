@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
 import { API, BASE_PATH } from '../config/site.config';
 import { vonFetch } from '../utils/api';
+import { setCsrfToken } from '../utils/security';
 import toast from 'react-hot-toast';
 import { updatePublicProfileCache } from './usePublicProfile';
 
@@ -36,6 +37,9 @@ export function useAuth() {
         if (res.ok) {
           const data = await res.json();
           if (data.authenticated && data.user) {
+            if (data.csrf_token) {
+              setCsrfToken(data.csrf_token);
+            }
             setUser(data.user);
           }
         }

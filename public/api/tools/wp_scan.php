@@ -6,6 +6,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+const VONCMS_WP_IMPORT_MAX_XML_BYTES = 64 * 1024 * 1024;
+
 $configPath = __DIR__ . '/../../von_config.php';
 if (!file_exists($configPath)) {
   ResponseHelper::sendError('Server Config Error: Config file not found', 500);
@@ -74,18 +76,40 @@ if (strtolower($ext) !== 'xml') {
   ResponseHelper::sendError('Invalid file type. Only XML allowed.', 400);
 }
 
+$uploadSize = (int) ($file['size'] ?? 0);
+if ($uploadSize <= 0 || $uploadSize > VONCMS_WP_IMPORT_MAX_XML_BYTES) {
+  ResponseHelper::sendError('XML file must be between 1 byte and 64MB.', 400);
+}
+
+if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+  ResponseHelper::sendError('Invalid uploaded file.', 400);
+}
+
 // Move to temp directory
 $uploadDir = __DIR__ . '/../../uploads/temp/';
 debug_log('Upload Dir: ' . realpath($uploadDir));
 
 if (!file_exists($uploadDir)) {
   debug_log('Creating dir: ' . $uploadDir);
-  mkdir($uploadDir, 0755, true);
+  if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+    ResponseHelper::sendError('Failed to create temporary import directory', 500);
+  }
+}
+
+foreach (glob($uploadDir . 'wp_import_*.xml') ?: [] as $oldImportFile) {
+  if (is_file($oldImportFile) && filemtime($oldImportFile) < time() - 86400) {
+    @unlink($oldImportFile);
+  }
 }
 
 $tempShield = $uploadDir . '.htaccess';
 if (!file_exists($tempShield)) {
-  @file_put_contents($tempShield, "Require all denied\nDeny from all\n");
+  $shieldRule = "Require all denied\nDeny from all\n";
+  $shieldBytes = @file_put_contents($tempShield, $shieldRule, LOCK_EX);
+  if ($shieldBytes !== strlen($shieldRule)) {
+    @unlink($tempShield);
+    ResponseHelper::sendError('Failed to protect the temporary import directory', 500);
+  }
 }
 
 $tempPath = $uploadDir . 'wp_import_' . bin2hex(random_bytes(16)) . '.xml';
@@ -114,15 +138,11 @@ try {
   libxml_use_internal_errors(true);
 
   $reader = new XMLReader();
-  if (!$reader->open($tempPath)) {
+  if (!$reader->open($tempPath, null, LIBXML_NONET | LIBXML_COMPACT)) {
     throw new Exception('Failed to open XML file at: ' . $tempPath);
   }
 
   debug_log('XML Reader opened');
-
-  // Debug logging to file
-  $debugFile = __DIR__ . '/../../uploads/wp_debug.log';
-  file_put_contents($debugFile, "Scan Started: $tempPath\n", FILE_APPEND);
 
   while ($reader->read()) {
     if ($reader->nodeType == XMLReader::ELEMENT) {
@@ -196,7 +216,8 @@ try {
     'source_blog_url' => $sourceBlogUrl,
     'temp_file' => basename($tempPath), // Send back filename for next step
   ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
   debug_log('Exception: ' . $e->getMessage());
-  ResponseHelper::sendError($e);
+  @unlink($tempPath);
+  ResponseHelper::sendError('Unable to scan the WordPress XML file.', 400);
 }

@@ -5,28 +5,42 @@ import toast from 'react-hot-toast';
 
 interface PrismSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
 export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate, onClose }) => {
+  type PrismConfig = NonNullable<SiteSettings['theme']['prism']>;
+
   // Initialize with defaults if undefined
-  const initialConfig = settings.theme.prism || {
+  const initialConfig: PrismConfig = settings.theme.prism || {
     neonEffects: true,
     colorScheme: 'cyan',
     fontSize: 'md',
   };
 
   const [tempConfig, setTempConfig] = useState(initialConfig);
+  const colorSchemes: Array<{
+    id: NonNullable<PrismConfig['colorScheme']>;
+    label: string;
+    color: string;
+  }> = [
+    { id: 'cyan', label: 'CYBER_CYAN', color: 'bg-cyan-500' },
+    { id: 'purple', label: 'SYNTH_PURPLE', color: 'bg-purple-500' },
+    { id: 'green', label: 'MATRIX_GREEN', color: 'bg-green-500' },
+  ];
+  const fontSizes: Array<NonNullable<PrismConfig['fontSize']>> = ['sm', 'md', 'lg'];
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       theme: {
         ...settings.theme,
         prism: tempConfig,
       },
     });
+    if (saved === false) return;
+
     toast.success('Prism config updated!');
     onClose();
   };
@@ -71,14 +85,10 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
               <Palette size={16} /> COLOR_MATRIX
             </h3>
             <div className="grid grid-cols-3 gap-4">
-              {[
-                { id: 'cyan', label: 'CYBER_CYAN', color: 'bg-cyan-500' },
-                { id: 'purple', label: 'SYNTH_PURPLE', color: 'bg-purple-500' },
-                { id: 'green', label: 'MATRIX_GREEN', color: 'bg-green-500' },
-              ].map((scheme) => (
+              {colorSchemes.map((scheme) => (
                 <button
                   key={scheme.id}
-                  onClick={() => setTempConfig({ ...tempConfig, colorScheme: scheme.id as any })}
+                  onClick={() => setTempConfig({ ...tempConfig, colorScheme: scheme.id })}
                   className={`p-4 border text-center transition-all relative overflow-hidden group ${
                     tempConfig.colorScheme === scheme.id
                       ? 'border-white bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.2)]'
@@ -103,10 +113,10 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
               <Monitor size={16} /> UI_DENSITY
             </h3>
             <div className="flex bg-black/50 p-1 border border-white/10">
-              {['sm', 'md', 'lg'].map((size) => (
+              {fontSizes.map((size) => (
                 <button
                   key={size}
-                  onClick={() => setTempConfig({ ...tempConfig, fontSize: size as any })}
+                  onClick={() => setTempConfig({ ...tempConfig, fontSize: size })}
                   className={`flex-1 py-1 text-xs font-bold transition-all ${
                     tempConfig.fontSize === size
                       ? 'bg-white text-black'

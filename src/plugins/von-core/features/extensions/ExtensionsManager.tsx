@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import SmartPagination from '../../../../components/SmartPagination';
 import toast from 'react-hot-toast';
-import { SiteSettings } from '../../../../types';
+import { SeoConfig, SiteSettings } from '../../../../types';
 import { useTheme } from '../../providers/VonProviders';
 import { DefaultThemeSettings } from './components/DefaultThemeSettings';
 import { PrismSettings } from './components/PrismSettings';
@@ -57,7 +57,10 @@ interface ExtensionItem {
 
 interface ExtensionsManagerProps {
   settings: SiteSettings;
-  onUpdateSettings: (newSettings: SiteSettings) => void;
+  onUpdateSettings: (
+    newSettings: SiteSettings,
+    options?: { optimistic?: boolean }
+  ) => boolean | Promise<boolean>;
 }
 
 import { AVAILABLE_PLUGINS } from '../plugins/registry';
@@ -83,14 +86,14 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
   // Load plugin status from settings on mount
   React.useEffect(() => {
+    const activePluginIds = Array.isArray(settings.activePlugins) ? settings.activePlugins : [];
     setPluginItems((prev) =>
       prev.map((plugin) => {
         const savedPluginStatus = settings.pluginConfig?.['pluginStatus']?.[plugin.id];
         return {
           ...plugin,
           status:
-            savedPluginStatus ||
-            (settings.activePlugins?.includes(plugin.id) ? 'active' : plugin.status),
+            savedPluginStatus || (activePluginIds.includes(plugin.id) ? 'active' : plugin.status),
         };
       })
     );
@@ -119,16 +122,26 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
   const allItems = activeTab === 'themes' ? themeItems : pluginItems;
 
-  const handleActivateTheme = (themeId: string) => {
-    setTheme(themeId);
-    onUpdateSettings({
+  const persistSettings = async (nextSettings: SiteSettings): Promise<boolean> => {
+    try {
+      return (await onUpdateSettings(nextSettings, { optimistic: false })) !== false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleActivateTheme = async (themeId: string) => {
+    const saved = await persistSettings({
       ...settings,
       activeThemeId: themeId,
     });
+    if (!saved) return;
+
+    setTheme(themeId);
     toast.success('Theme activated successfully!');
   };
 
-  const handleToggleStatus = (id: string) => {
+  const handleToggleStatus = async (id: string) => {
     const item = allItems.find((i) => i.id === id);
     if (!item) return;
 
@@ -140,27 +153,20 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       // Plugin logic - update state and save to settings
       const newStatus = item.status === 'active' ? 'inactive' : 'active';
 
-      setPluginItems((prev) =>
-        prev.map((i) => {
-          if (i.id === id) {
-            return { ...i, status: newStatus };
-          }
-          return i;
-        })
-      );
-
       // Save plugin status to settings AND update activePlugins array
       const currentPluginStatus = settings.pluginConfig?.['pluginStatus'] || {};
 
       // Update activePlugins array
-      let newActivePlugins = [...(settings.activePlugins || [])];
+      let newActivePlugins = [
+        ...(Array.isArray(settings.activePlugins) ? settings.activePlugins : []),
+      ];
       if (newStatus === 'active') {
         if (!newActivePlugins.includes(id)) newActivePlugins.push(id);
       } else {
         newActivePlugins = newActivePlugins.filter((pId) => pId !== id);
       }
 
-      onUpdateSettings({
+      const saved = await persistSettings({
         ...settings,
         activePlugins: newActivePlugins,
         pluginConfig: {
@@ -171,44 +177,56 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
           },
         },
       });
+      if (!saved) return;
+
+      setPluginItems((prev) =>
+        prev.map((i) => {
+          if (i.id === id) {
+            return { ...i, status: newStatus };
+          }
+          return i;
+        })
+      );
 
       toast.success(`Plugin ${newStatus === 'active' ? 'activated' : 'deactivated'}!`);
     }
   };
 
-  const handleInstall = (id: string) => {
+  const handleInstall = async (id: string) => {
     const confirm = window.confirm('Install this extension?');
     if (confirm) {
-      setPluginItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status: 'inactive' } : item))
-      );
       const currentPluginStatus = settings.pluginConfig?.['pluginStatus'] || {};
       const newPluginStatus = { ...currentPluginStatus };
       newPluginStatus[id] = 'inactive';
 
-      onUpdateSettings({
+      const saved = await persistSettings({
         ...settings,
         pluginConfig: {
           ...settings.pluginConfig,
           pluginStatus: newPluginStatus,
         },
       });
+      if (!saved) return;
+
+      setPluginItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status: 'inactive' } : item))
+      );
+      toast.success('Plugin installed!');
     }
   };
 
-  const handleUninstall = (id: string) => {
+  const handleUninstall = async (id: string) => {
     const confirm = window.confirm('Are you sure you want to uninstall this? Data may be lost.');
     if (confirm) {
-      setPluginItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status: 'not_installed' } : item))
-      );
       const currentPluginStatus = settings.pluginConfig?.['pluginStatus'] || {};
       const newPluginStatus = { ...currentPluginStatus };
-      let newActivePlugins = [...(settings.activePlugins || [])];
+      let newActivePlugins = [
+        ...(Array.isArray(settings.activePlugins) ? settings.activePlugins : []),
+      ];
       newActivePlugins = newActivePlugins.filter((pId) => pId !== id);
       newPluginStatus[id] = 'not_installed';
 
-      onUpdateSettings({
+      const saved = await persistSettings({
         ...settings,
         activePlugins: newActivePlugins,
         pluginConfig: {
@@ -216,6 +234,12 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
           pluginStatus: newPluginStatus,
         },
       });
+      if (!saved) return;
+
+      setPluginItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status: 'not_installed' } : item))
+      );
+      toast.success('Plugin uninstalled!');
     }
   };
 
@@ -238,7 +262,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         siteTitle: settings.siteName,
         sitemapEnabled: true,
       };
-      setTempConfig(seoConfig as any);
+      setTempConfig({ ...seoConfig });
     } else if (id === 'vp_promo_bar') {
       const currentConfig = settings.pluginConfig?.[id] || {};
       setTempConfig({
@@ -270,22 +294,24 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
     setConfiguringPluginId(id);
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (!configuringPluginId) return;
 
     if (configuringPluginId === 'vp_von_seo') {
-      onUpdateSettings({
+      const saved = await persistSettings({
         ...settings,
-        seo: tempConfig as any,
+        seo: tempConfig as SeoConfig,
       });
+      if (!saved) return;
     } else {
-      onUpdateSettings({
+      const saved = await persistSettings({
         ...settings,
         pluginConfig: {
           ...settings.pluginConfig,
           [configuringPluginId]: tempConfig,
         },
       });
+      if (!saved) return;
     }
 
     toast.success('Settings saved successfully!');
@@ -317,7 +343,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'theme-default' && (
         <DefaultThemeSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -326,7 +352,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'theme-prism' && (
         <PrismSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -335,7 +361,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'theme-techpress' && (
         <TechPressSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -344,7 +370,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'theme-portfolio' && (
         <PortfolioSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -353,7 +379,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'theme-digest' && (
         <DigestSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -362,7 +388,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'theme-corporate-pro' && (
         <CorporateProSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -371,7 +397,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'vp_von_seo' && (
         <VonSEOSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -380,7 +406,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'vp_analytics' && (
         <VonAnalyticsSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -389,7 +415,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'vp_ai_summary' && (
         <AISummarySettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}
@@ -398,7 +424,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {configuringPluginId === 'vp_related_posts' && (
         <RelatedPostsSettings
           settings={settings}
-          onUpdate={onUpdateSettings}
+          onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
       )}

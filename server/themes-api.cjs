@@ -9,6 +9,9 @@ const AdmZip = require('adm-zip');
 
 const app = express();
 const PORT = process.env.THEMES_API_PORT || 5000;
+const HOST = process.env.THEMES_API_HOST || '127.0.0.1';
+const IS_LOOPBACK_HOST = ['127.0.0.1', '::1', 'localhost'].includes(HOST.toLowerCase());
+const ADMIN_SAVE_TOKEN = process.env.ADMIN_SAVE_TOKEN || '';
 const cors = require('cors');
 app.use(cors());
 app.use(express.json());
@@ -273,8 +276,7 @@ const saveSettingsLimiter = buildRateLimiter({
 });
 
 // SECURITY MIDDLEWARE
-// For Dev Mode (Mock Auth), we check for "mock_dev_token_" prefix.
-// In Production, this should be replaced by real JWT verification.
+// Mock tokens are intentionally limited to the local development host.
 const verifyDevToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -282,14 +284,15 @@ const verifyDevToken = (req, res, next) => {
   }
 
   const token = authHeader.split(' ')[1]; // Bearer <token>
-  if (!token || !token.startsWith('mock_dev_token_')) {
-    // Also check for env variable bypass if configured
-    if (process.env.ADMIN_SAVE_TOKEN && token === process.env.ADMIN_SAVE_TOKEN) {
-      return next();
-    }
-    return res.status(403).json({ success: false, message: 'Forbidden: Invalid Token' });
+  if (ADMIN_SAVE_TOKEN && token === ADMIN_SAVE_TOKEN) {
+    return next();
   }
-  next();
+
+  if (IS_LOOPBACK_HOST && token?.startsWith('mock_dev_token_')) {
+    return next();
+  }
+
+  return res.status(403).json({ success: false, message: 'Forbidden: Invalid Token' });
 };
 
 // Multer setup
@@ -589,7 +592,7 @@ app.get('/api/get_comments', adminLimiter, verifyDevToken, (req, res) => {
 });
 
 // Save comments
-app.post('/api/save_comments', adminLimiter, async (req, res) => {
+app.post('/api/save_comments', adminLimiter, verifyDevToken, async (req, res) => {
   try {
     const { comments } = req.body;
     if (!comments) return res.status(400).json({ success: false, message: 'No comments provided' });
@@ -1011,8 +1014,12 @@ app.post('/api/delete_user', adminLimiter, verifyDevToken, async (req, res) => {
 });
 
 // Bind server explicitly to localhost and attempt fallback ports when busy.
-const HOST = process.env.THEMES_API_HOST || '127.0.0.1';
 function startServer(port, attempt = 0) {
+  if (!IS_LOOPBACK_HOST && !ADMIN_SAVE_TOKEN) {
+    console.error('Refusing external Themes API binding without ADMIN_SAVE_TOKEN.');
+    process.exit(1);
+  }
+
   try {
     const server = app.listen(port, HOST, () => {
       console.log(`Themes API listening on http://${HOST}:${port}`);

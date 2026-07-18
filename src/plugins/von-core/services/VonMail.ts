@@ -7,7 +7,17 @@ export interface MailPayload {
   html?: string;
 }
 
-const getTransportOptions = (settings: SiteSettings) => {
+interface MailTransportOptions {
+  host: string;
+  port?: number;
+  secure: boolean;
+  auth?: {
+    user: string;
+    pass?: string;
+  };
+}
+
+const getTransportOptions = (settings: SiteSettings): MailTransportOptions | null => {
   const envHost = process.env['SMTP_HOST'];
   const envPort = process.env['SMTP_PORT'];
   const envUser = process.env['SMTP_USER'];
@@ -15,14 +25,14 @@ const getTransportOptions = (settings: SiteSettings) => {
   const envSecure = (process.env['SMTP_SECURE'] || 'false') === 'true';
 
   // `settings.emailSmtp` is a simple string in current types; use it as host when present.
-  const host = envHost || (settings as any).emailSmtp || '';
+  const host = envHost || settings.emailSmtp || '';
   const port = parseInt(envPort || '', 10) || undefined;
   const user = envUser || undefined;
   const pass = envPass || undefined;
   const secure = envSecure;
 
   if (!host) return null;
-  return { host, port, secure, auth: user ? { user, pass } : undefined } as any;
+  return { host, port, secure, auth: user ? { user, pass } : undefined };
 };
 
 export const sendEmail = async (
@@ -50,8 +60,7 @@ export const sendEmail = async (
 
   try {
     const transporter = nodemailer.createTransport(transportOpts);
-    const from =
-      (settings as any).emailFrom || process.env['SMTP_FROM'] || `no-reply@${transportOpts.host}`;
+    const from = settings.emailFrom || process.env['SMTP_FROM'] || `no-reply@${transportOpts.host}`;
 
     if (transporter.verify) await transporter.verify();
 

@@ -1057,6 +1057,10 @@ const SingleProject = ({
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   onLogin,
   settings,
   onViewProfile,
@@ -1070,7 +1074,7 @@ const SingleProject = ({
   ) || { component: null, position: 'top' };
   const relatedPosts = useRelatedPosts(
     settings,
-    project as any,
+    project,
     posts || [],
     (p) => onPostClick && onPostClick(p.id),
     {
@@ -1236,6 +1240,10 @@ const SingleProject = ({
           onAddComment={(content: string) => onAddComment(project.id, content)}
           onLikeComment={onLikeComment}
           onReplyComment={onReplyComment}
+          onLoadMoreComments={onLoadMoreComments}
+          hasMoreComments={hasMoreComments}
+          commentsLoading={commentsLoading}
+          commentsError={commentsError}
           onLogin={onLogin}
           settings={settings}
           onViewProfile={onViewProfile}
@@ -1870,9 +1878,9 @@ const PortfolioLayout = ({
     () =>
       ({
         ...defaultSettings,
-        ...((siteSettings.theme as any)?.portfolio || {}),
+        ...(siteSettings.theme.portfolio || {}),
       }) as PortfolioSettings,
-    [(siteSettings.theme as any)?.portfolio]
+    [siteSettings.theme.portfolio]
   );
 
   // Get colors

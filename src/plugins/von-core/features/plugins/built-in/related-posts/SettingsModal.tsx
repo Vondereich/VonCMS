@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 interface RelatedPostsSettingsProps {
   settings: SiteSettings;
-  onUpdate: (newSettings: SiteSettings) => void;
+  onUpdate: (newSettings: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -27,15 +27,23 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
   };
 
   const [config, setConfig] = useState<RelatedPostsConfig>(currentConfig);
+  const countOptions: RelatedPostsConfig['count'][] = [3, 4, 6, 8];
+  const layoutOptions: Array<{ value: RelatedPostsConfig['layout']; label: string }> = [
+    { value: 'grid', label: 'Grid' },
+    { value: 'list', label: 'List' },
+    { value: 'cards', label: 'Cards' },
+  ];
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       pluginConfig: {
         ...settings.pluginConfig,
         vp_related_posts: config,
       },
     });
+    if (saved === false) return;
+
     toast.success('Related Posts settings saved!');
     onClose();
   };
@@ -69,10 +77,10 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
               Number of Posts
             </span>
             <div className="grid grid-cols-4 gap-3">
-              {[3, 4, 6, 8].map((num) => (
+              {countOptions.map((num) => (
                 <button
                   key={num}
-                  onClick={() => setConfig({ ...config, count: num as any })}
+                  onClick={() => setConfig({ ...config, count: num })}
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.count === num
                       ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
@@ -91,14 +99,10 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
               Layout Style
             </span>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { value: 'grid', label: 'Grid' },
-                { value: 'list', label: 'List' },
-                { value: 'cards', label: 'Cards' },
-              ].map((layout) => (
+              {layoutOptions.map((layout) => (
                 <button
                   key={layout.value}
-                  onClick={() => setConfig({ ...config, layout: layout.value as any })}
+                  onClick={() => setConfig({ ...config, layout: layout.value })}
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.layout === layout.value
                       ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
@@ -121,7 +125,12 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
               id="settingsmodal-119"
               name="settingsmodal119"
               value={config.orderBy}
-              onChange={(e) => setConfig({ ...config, orderBy: e.target.value as any })}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  orderBy: e.target.value as RelatedPostsConfig['orderBy'],
+                })
+              }
               className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
             >
               <option value="relevance">Relevance (Category + Tags)</option>

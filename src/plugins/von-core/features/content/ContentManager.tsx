@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Post, Page } from '../../../../types';
 import { sanitizeHtml } from '../../../../utils/security';
 import { vonFetch } from '../../../../utils/api';
@@ -101,6 +101,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
+  const pageRequestId = useRef(0);
 
   // Fetch page data from server
   const fetchPage = useCallback(
@@ -108,6 +109,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       page: number,
       filters?: { search?: string; category?: string | null; status?: string | null }
     ) => {
+      const requestId = ++pageRequestId.current;
       setLoading(true);
       const endpoint = type === 'post' ? API.getPosts : API.getPages;
       const params = new URLSearchParams({
@@ -123,33 +125,28 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         const res = await vonFetch(`${endpoint}?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          const items =
-            type === 'post'
-              ? (data.posts || []).filter((i: Post) => i.category !== 'Page')
-              : data.pages || [];
+          if (requestId !== pageRequestId.current) return;
+
+          const items = type === 'post' ? data.posts || [] : data.pages || [];
           setPageItems(items);
           if (data.meta) {
-            // Adjust totalPages for filtered post results (category !== 'Page' filter reduces count)
-            const adjustedTotal =
-              type === 'post' && !filters?.search && !filters?.category && !filters?.status
-                ? Math.max(0, data.meta.total - (data.meta.totalPages > 0 ? 0 : 0)) // "Page" category posts are rare in practice; keep total as-is
-                : data.meta.total;
             setMeta({
               page: data.meta.page,
               limit: data.meta.limit,
-              total: adjustedTotal,
-              totalPages:
-                type === 'post'
-                  ? Math.max(1, Math.ceil(adjustedTotal / itemsPerPage))
-                  : data.meta.totalPages,
+              total: data.meta.total,
+              totalPages: data.meta.totalPages,
               hasMore: data.meta.hasMore,
             });
           }
         }
       } catch (e) {
-        console.warn('Failed to fetch page:', e);
+        if (requestId === pageRequestId.current) {
+          console.warn('Failed to fetch page:', e);
+        }
       } finally {
-        setLoading(false);
+        if (requestId === pageRequestId.current) {
+          setLoading(false);
+        }
       }
     },
     [type]
@@ -176,6 +173,13 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       setSelectedStatus(null);
     }
   }, [type]);
+
+  useEffect(
+    () => () => {
+      pageRequestId.current += 1;
+    },
+    []
+  );
 
   // Handle page change
   const handlePageChange = (page: number) => {

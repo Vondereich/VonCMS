@@ -29,6 +29,7 @@ import {
   ChevronDown, // Added ChevronDown for dropdown
   Eye, // Added Eye for Preview
   Braces, // Added Braces for HTML source
+  Search,
 } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import { API } from '../config/site.config';
@@ -136,6 +137,8 @@ const Editor: React.FC<EditorProps> = ({
     totalItems: 0,
     limit: 32,
   });
+  const [mediaSearchInput, setMediaSearchInput] = useState('');
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
 
   // Modal State
   const [activeModal, setActiveModal] = useState<
@@ -640,25 +643,37 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  const fetchMedia = async (page = 1) => {
+  const fetchMedia = async (page = 1, search = mediaSearchQuery) => {
     setLoadingMedia(true);
     try {
-      const res = await vonFetch(`${API.listMedia}?page=${page}&limit=${mediaPagination.limit}`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(mediaPagination.limit),
+      });
+      if (search) params.set('search', search);
+      const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         setMediaFiles(data.files || []);
-        setMediaPagination({
-          ...mediaPagination,
+        setMediaPagination((current) => ({
+          ...current,
           currentPage: data.currentPage || 1,
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
-        });
+        }));
       }
     } catch (error) {
       notify.error('Failed to load media library');
     } finally {
       setLoadingMedia(false);
     }
+  };
+
+  const handleMediaSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalizedSearch = mediaSearchInput.trim().slice(0, 120);
+    setMediaSearchQuery(normalizedSearch);
+    void fetchMedia(1, normalizedSearch);
   };
 
   const escapeImageAttr = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
@@ -1858,6 +1873,35 @@ const Editor: React.FC<EditorProps> = ({
               </button>
             </div>
 
+            <form
+              onSubmit={handleMediaSearch}
+              className="flex gap-2 border-b border-slate-100 bg-white p-3 dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+            >
+              <div className="relative flex-1">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  id="editor-media-search"
+                  name="editorMediaSearch"
+                  type="search"
+                  value={mediaSearchInput}
+                  maxLength={120}
+                  aria-label="Search media library"
+                  onChange={(event) => setMediaSearchInput(event.target.value)}
+                  placeholder="Search filename, alt text or caption..."
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+              >
+                Search
+              </button>
+            </form>
+
             <div className="flex-grow overflow-y-auto p-4 bg-slate-100 dark:bg-[#16161e] custom-scrollbar">
               {loadingMedia ? (
                 <div className="flex flex-col items-center justify-center h-64 text-slate-500">
@@ -1880,7 +1924,7 @@ const Editor: React.FC<EditorProps> = ({
                       <div className="aspect-square relative bg-slate-100 dark:bg-[#16161e]">
                         <img
                           src={file.webpUrl || file.url}
-                          alt={file.filename}
+                          alt={file.altText || file.name || ''}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           loading="lazy"
                         />
@@ -1891,7 +1935,7 @@ const Editor: React.FC<EditorProps> = ({
                         </div>
                       </div>
                       <div className="p-2 text-xs truncate text-slate-600 dark:text-slate-300 font-medium">
-                        {file.filename}
+                        {file.name}
                       </div>
                     </div>
                   ))}
@@ -1903,7 +1947,7 @@ const Editor: React.FC<EditorProps> = ({
               <SmartPagination
                 currentPage={mediaPagination.currentPage}
                 totalPages={mediaPagination.totalPages}
-                onPageChange={(page) => fetchMedia(page)}
+                onPageChange={(page) => fetchMedia(page, mediaSearchQuery)}
                 itemsPerPage={mediaPagination.limit}
                 totalItems={mediaPagination.totalItems}
               />

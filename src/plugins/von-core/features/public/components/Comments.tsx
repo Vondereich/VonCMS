@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { Comment, User, SiteSettings } from '../../../../../types';
@@ -57,6 +57,10 @@ interface CommentsProps {
   onAddComment: (content: string) => void;
   onLikeComment: (commentId: string) => boolean | Promise<boolean>;
   onReplyComment: (commentId: string, content: string) => void;
+  onLoadMoreComments?: () => Promise<void>;
+  hasMoreComments?: boolean;
+  commentsLoading?: boolean;
+  commentsError?: string | null;
   onLogin: () => void;
   settings: SiteSettings;
   onViewProfile?: (username: string) => void;
@@ -70,6 +74,10 @@ export const VpComments: React.FC<CommentsProps> = ({
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments = false,
+  commentsLoading = false,
+  commentsError = null,
   onLogin,
   settings,
   onViewProfile,
@@ -110,10 +118,26 @@ export const VpComments: React.FC<CommentsProps> = ({
     currentPage * commentsPerPage
   );
   const hasPagination = totalPages > 1;
+  const visiblePages = useMemo<(number | 'ellipsis-start' | 'ellipsis-end')[]>(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const pages: (number | 'ellipsis-start' | 'ellipsis-end')[] = [1];
+    if (currentPage > 3) pages.push('ellipsis-start');
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let page = start; page <= end; page += 1) pages.push(page);
+
+    if (currentPage < totalPages - 2) pages.push('ellipsis-end');
+    pages.push(totalPages);
+    return pages;
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
-    setCurrentPage((prev) => Math.min(prev, totalPages));
-  }, [totalPages]);
+    setCurrentPage((prev) => (comments.length === 0 ? 1 : Math.min(prev, totalPages)));
+  }, [comments.length, totalPages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,26 +494,36 @@ export const VpComments: React.FC<CommentsProps> = ({
                   >
                     <ChevronLeft size={14} /> Prev
                   </button>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                        currentPage === page
-                          ? 'text-white shadow-lg'
-                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                      style={
-                        currentPage === page
-                          ? {
-                              backgroundColor: themeColors?.primary || settings.theme.primaryColor,
-                            }
-                          : undefined
-                      }
-                    >
-                      {page}
-                    </button>
-                  ))}
+                  {visiblePages.map((page) =>
+                    typeof page === 'number' ? (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                          currentPage === page
+                            ? 'text-white shadow-lg'
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                        style={
+                          currentPage === page
+                            ? {
+                                backgroundColor:
+                                  themeColors?.primary || settings.theme.primaryColor,
+                              }
+                            : undefined
+                        }
+                      >
+                        {page}
+                      </button>
+                    ) : (
+                      <span
+                        key={page}
+                        className="inline-flex min-w-[2.5rem] items-center justify-center px-1 text-slate-400"
+                      >
+                        ...
+                      </span>
+                    )
+                  )}
                   <button
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
@@ -503,7 +537,42 @@ export const VpComments: React.FC<CommentsProps> = ({
                 </p>
               </div>
             )}
+
+            {(hasMoreComments || commentsError) && onLoadMoreComments && (
+              <div className="mt-5 text-center">
+                <button
+                  type="button"
+                  onClick={() => void onLoadMoreComments()}
+                  disabled={commentsLoading}
+                  className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ backgroundColor: themeColors?.primary || settings.theme.primaryColor }}
+                >
+                  {commentsLoading ? 'Loading comments...' : 'Load More Comments'}
+                </button>
+                {commentsError && <p className="mt-2 text-xs text-red-500">{commentsError}</p>}
+              </div>
+            )}
           </>
+        ) : commentsLoading ? (
+          <div className="py-10 text-center">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Loading comments...
+            </p>
+          </div>
+        ) : commentsError ? (
+          <div className="py-10 text-center">
+            <p className="text-sm font-medium text-red-500">{commentsError}</p>
+            {onLoadMoreComments && (
+              <button
+                type="button"
+                onClick={() => void onLoadMoreComments()}
+                className="mt-4 inline-flex items-center rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition-opacity"
+                style={{ backgroundColor: themeColors?.primary || settings.theme.primaryColor }}
+              >
+                Try Again
+              </button>
+            )}
+          </div>
         ) : (
           <div className="text-center py-10 opacity-50">
             <p className="text-slate-400 italic">Be the first to comment.</p>

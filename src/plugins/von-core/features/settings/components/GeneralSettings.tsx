@@ -221,7 +221,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 />
               </label>
               <p className="text-xs text-slate-500 mt-2">
-                Recommended: PNG or SVG, max 2MB.
+                Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB.
                 <br />
                 <span className="text-[10px] opacity-80">
                   Best size: <strong>200x50px</strong> (Landscape) or <strong>64x64px</strong>{' '}
@@ -450,11 +450,14 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="url"
             value={settings.domainUrl || ''}
             onChange={(e) => onChange('domainUrl', e.target.value)}
+            disabled={!canManageSecrets}
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
             placeholder="https://example.com"
           />
           <p className="text-xs text-slate-500 mt-1">
-            The full URL of your site (e.g., https://mysite.com).
+            {canManageSecrets
+              ? 'The full URL of your site (e.g. https://mysite.com).'
+              : 'Only the primary administrator can change the site domain used in account emails.'}
           </p>
         </div>
         <div>
@@ -529,7 +532,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   id="generalsettings-467"
                   name="generalsettings467"
                   type="text"
-                  value={(settings as any).smtpHost || ''}
+                  value={settings.smtpHost || ''}
                   onChange={(e) => onChange('smtpHost', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
                   placeholder="smtp.gmail.com"
@@ -544,7 +547,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings479"
                   aria-label="SMTP Port"
                   type="number"
-                  value={(settings as any).smtpPort || 587}
+                  value={settings.smtpPort || 587}
                   onChange={(e) => onChange('smtpPort', parseInt(e.target.value) || 587)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
                   placeholder="587"
@@ -559,7 +562,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   id="generalsettings-491"
                   name="generalsettings491"
                   type="email"
-                  value={(settings as any).smtpUser || ''}
+                  value={settings.smtpUser || ''}
                   onChange={(e) => onChange('smtpUser', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
                   placeholder="your@email.com"
@@ -574,7 +577,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings503"
                   aria-label="SMTP Password"
                   type="password"
-                  value={(settings as any).smtpPass || ''}
+                  value={settings.smtpPass || ''}
                   onChange={(e) => onChange('smtpPass', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
                   placeholder="••••••••"
@@ -588,7 +591,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   aria-label="Encryption"
                   id="generalsettings-515"
                   name="generalsettings515"
-                  value={(settings as any).smtpEncryption || 'tls'}
+                  value={settings.smtpEncryption || 'tls'}
                   onChange={(e) => onChange('smtpEncryption', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
                 >
@@ -606,7 +609,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings529"
                   aria-label="From Name"
                   type="text"
-                  value={(settings as any).smtpFromName || ''}
+                  value={settings.smtpFromName || ''}
                   onChange={(e) => onChange('smtpFromName', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
                   placeholder="My Website"
@@ -691,7 +694,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             name="generalsettings595"
             rows={3}
             value={
-              (settings as any).spamKeywords ||
+              settings.spamKeywords ||
               'viagra, cialis, casino, lottery, prize winner, click here, buy now, free money, make money fast, earn extra cash, work from home, crypto investment, bitcoin profit, forex trading, adult content, xxx, nigerian prince, wire transfer, western union'
             }
             onChange={(e) => onChange('spamKeywords', e.target.value)}

@@ -25,6 +25,8 @@ class ImageProcessor
     'image/webp' => IMAGETYPE_WEBP,
   ];
 
+  private const MAX_PROCESSING_PIXELS = 50000000;
+
   /** @var array Default settings */
   private array $settings;
 
@@ -102,6 +104,16 @@ class ImageProcessor
       return $result;
     }
 
+    if (!self::hasProcessingMemoryBudget($originalWidth, $originalHeight)) {
+      $result['success'] = true;
+      $result['message'] =
+        'Image saved as-is because processing would exceed the safe memory budget.';
+      $result['responsiveVariantStatus'] = 'fallback_original';
+      $result['responsiveVariantMessage'] =
+        'Responsive processing was skipped to protect server memory.';
+      return $result;
+    }
+
     // Create image resource from file
     $sourceImage = $this->createImageFromFile($filePath, $mimeType);
     if ($sourceImage === null) {
@@ -140,6 +152,7 @@ class ImageProcessor
         $newHeight,
       );
       if ($resizedImage !== null) {
+        imagedestroy($sourceImage);
         $sourceImage = $resizedImage;
         $result['resized'] = true;
       }
@@ -181,6 +194,7 @@ class ImageProcessor
     // Save processed image (with compression) - keep original format too
     $quality = (int) $this->settings['quality'];
     $saveSuccess = $this->saveImage($sourceImage, $filePath, $mimeType, $quality);
+    imagedestroy($sourceImage);
 
     if ($saveSuccess) {
       $result['compressed'] = true;
@@ -286,7 +300,12 @@ class ImageProcessor
       $srcHeight,
     );
 
-    return $success ? $destination : null;
+    if (!$success) {
+      imagedestroy($destination);
+      return null;
+    }
+
+    return $destination;
   }
 
   /**
@@ -340,6 +359,10 @@ class ImageProcessor
     $sourceHeight = (int) $imageInfo[1];
 
     if (!isset(self::SUPPORTED_TYPES[$mimeType])) {
+      return [];
+    }
+
+    if (!self::hasProcessingMemoryBudget($sourceWidth, $sourceHeight)) {
       return [];
     }
 
@@ -409,18 +432,62 @@ class ImageProcessor
         'w.' .
         $pathInfo['extension'];
 
-      if (
-        $this->saveImage($variantImage, $variantPath, $mimeType, (int) $this->settings['quality'])
-      ) {
+      $saved = $this->saveImage(
+        $variantImage,
+        $variantPath,
+        $mimeType,
+        (int) $this->settings['quality'],
+      );
+      imagedestroy($variantImage);
+      if ($saved) {
         $generated[$targetWidth] = $variantPath;
       }
     }
+
+    imagedestroy($sourceImage);
 
     if (!empty($generated)) {
       voncms_record_generated_media_variants($sourcePath, array_values($generated));
     }
 
     return $generated;
+  }
+
+  private static function hasProcessingMemoryBudget(
+    int $width,
+    int $height,
+    int $bufferMultiplier = 4,
+  ): bool {
+    if ($width <= 0 || $height <= 0) {
+      return false;
+    }
+
+    $pixels = $width * $height;
+    if ($pixels > self::MAX_PROCESSING_PIXELS) {
+      return false;
+    }
+
+    $memoryLimit = ini_get('memory_limit');
+    if ($memoryLimit === false || trim($memoryLimit) === '-1') {
+      return true;
+    }
+
+    $value = trim($memoryLimit);
+    if (!preg_match('/^(\d+)([GgMmKk]?)$/', $value, $matches)) {
+      return true;
+    }
+
+    $multiplier = match (strtoupper($matches[2] ?? '')) {
+      'G' => 1073741824,
+      'M' => 1048576,
+      'K' => 1024,
+      default => 1,
+    };
+    $limitBytes = (int) $matches[1] * $multiplier;
+    $estimatedBytes = $pixels * 4 * max(2, $bufferMultiplier);
+    $availableBytes = max(0, $limitBytes - memory_get_usage(true) - 16 * 1024 * 1024);
+
+    return $estimatedBytes <= $availableBytes;
   }
   /**
    * Get settings

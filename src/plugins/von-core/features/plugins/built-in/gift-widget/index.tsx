@@ -23,7 +23,7 @@ export const FloatingGiftPlugin: PluginDefinition = {
     const buttonColor = props?.buttonColor || '#ef4444';
     const position = positionClasses[props?.position] ? props.position : 'bottom-left';
     const iconLabel = props?.iconLabel || '';
-    const targetBlank = props?.targetBlank !== 'false';
+    const targetBlank = props?.targetBlank !== false && props?.targetBlank !== 'false';
 
     return (
       <div

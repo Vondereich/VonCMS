@@ -20,7 +20,7 @@ import { SiteSettings, SidebarWidget, WidgetType } from '../../../../types';
 
 interface WidgetsManagerProps {
   settings: SiteSettings;
-  onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean> | void;
+  onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean>;
 }
 
 type WidgetTypeOption = {

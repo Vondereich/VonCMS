@@ -63,6 +63,7 @@ $honeypot = $input['hp_field'] ?? '';
 
 // Honeypot check
 if (!empty($honeypot)) {
+  RateLimiter::recordAttempt();
   error_log(
     'Honeypot triggered during registration from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
   );

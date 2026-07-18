@@ -29,7 +29,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 // Get token from URL
 $token = $_GET['token'] ?? '';
 
-if (empty($token) || strlen($token) !== 64) {
+if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/i', $token)) {
   showResult(false, 'Invalid verification link.');
   exit();
 }

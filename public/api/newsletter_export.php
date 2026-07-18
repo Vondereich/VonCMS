@@ -64,7 +64,15 @@ try {
 
   // Stream data rows - O(1) memory instead of O(N)
   while ($sub = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    fputcsv($output, [$sub['email'], $sub['status'], $sub['subscribed_at'], $sub['source']]);
+    $csvRow = [$sub['email'], $sub['status'], $sub['subscribed_at'], $sub['source']];
+    foreach ($csvRow as $index => $cell) {
+      $cell = (string) $cell;
+      if ($cell !== '' && preg_match('/^[=+\-@\t\r]/', $cell)) {
+        $cell = "'" . $cell;
+      }
+      $csvRow[$index] = $cell;
+    }
+    fputcsv($output, $csvRow);
   }
 
   fclose($output);

@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // 1. Load Config (connect to DB)
 require_once __DIR__ . '/../von_config.php';
+require_once __DIR__ . '/media_library_filter_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   http_response_code(405);
@@ -20,63 +21,75 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // 2. Verify Member Auth & CSRF
-CSRFProtection::requireToken();
 SessionManager::requireMediaAccess(); // Enforces valid session + Staff role
+CSRFProtection::requireToken();
 
 // 2. Get Input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid JSON payload', 400);
+}
 
 $id = isset($input['id']) && is_numeric($input['id']) ? (int) $input['id'] : null;
-$path = isset($input['path']) ? trim($input['path']) : null;
+$path = isset($input['path']) && is_scalar($input['path']) ? trim((string) $input['path']) : null;
+$row = null;
+
+if ($id && $id > 0) {
+  $findStmt = $pdo->prepare('SELECT id FROM media WHERE id = ? LIMIT 1');
+  $findStmt->execute([$id]);
+  $row = $findStmt->fetch(PDO::FETCH_ASSOC);
+}
 
 // Handle Smart Lookup: Find ID by path if ID is missing
-if (!$id && $path) {
-  // 1. Clean & Normalize Path
-  $cleanPath = ltrim(preg_replace('/^https?:\/\/[^\/]+\//i', '', $path), '/');
-  $normalizedDbPath = ltrim(str_replace('\\', '/', $cleanPath), '/');
-
-  // 2. Extra Clean: Take everything after 'uploads/' if present
-  if (strpos($normalizedDbPath, 'uploads/') !== false) {
-    $normalizedDbPath = substr($normalizedDbPath, strpos($normalizedDbPath, 'uploads/'));
+if (!$row && $path) {
+  $normalizedPath = voncms_normalize_media_library_path($path);
+  if (!voncms_is_safe_media_relative_path($normalizedPath)) {
+    ResponseHelper::sendError('Invalid media path', 400);
   }
 
-  // 3. Prepare variants for lookup (Exact Match)
   $pathVariants = [
-    $normalizedDbPath,
-    '/' . $normalizedDbPath,
-    'uploads/' . $normalizedDbPath,
-    '/uploads/' . $normalizedDbPath,
-    ltrim($normalizedDbPath, 'uploads/'),
+    $normalizedPath,
+    '/' . $normalizedPath,
+    'uploads/' . $normalizedPath,
+    '/uploads/' . $normalizedPath,
   ];
   $pathVariants = array_unique(array_filter($pathVariants));
 
-  // Strategy 1: Exact Match
   $placeholders = implode(',', array_fill(0, count($pathVariants), '?'));
-  $findStmt = $pdo->prepare(
-    "SELECT id FROM media WHERE filepath IN ($placeholders) OR filename = ? LIMIT 1",
-  );
-  $findStmt->execute(array_merge($pathVariants, [basename($normalizedDbPath)]));
+  $findStmt = $pdo->prepare("SELECT id FROM media WHERE filepath IN ($placeholders) LIMIT 1");
+  $findStmt->execute($pathVariants);
   $row = $findStmt->fetch(PDO::FETCH_ASSOC);
 
-  // Strategy 2: Suffix Match (No LIKE wildcard suffix)
-  if (!$row) {
-    $findStmt = $pdo->prepare('SELECT id FROM media WHERE filepath LIKE ? LIMIT 1');
-    $findStmt->execute(['%' . basename($normalizedDbPath)]);
-    $row = $findStmt->fetch(PDO::FETCH_ASSOC);
-  }
-
-  if ($row) {
-    $id = (int) $row['id'];
+  if (!$row && strpos($normalizedPath, '/') === false) {
+    $filenameStmt = $pdo->prepare(
+      'SELECT id FROM media WHERE filename = ? ORDER BY id ASC LIMIT 2',
+    );
+    $filenameStmt->execute([$normalizedPath]);
+    $filenameMatches = $filenameStmt->fetchAll(PDO::FETCH_ASSOC);
+    if (count($filenameMatches) > 1) {
+      ResponseHelper::sendError('Media filename is ambiguous. Use the full media path.', 409);
+    }
+    $row = $filenameMatches[0] ?? null;
   }
 }
 
-if (!$id) {
-  ResponseHelper::sendError('Valid numeric media ID or identifiable path is required', 400);
+if (!$row) {
+  ResponseHelper::sendError('Media item not found', 404);
 }
+$id = (int) $row['id'];
 
-$altText = isset($input['alt_text']) ? strip_tags(trim($input['alt_text'])) : null;
-$caption = isset($input['caption']) ? strip_tags(trim($input['caption'])) : null;
-$description = isset($input['description']) ? strip_tags(trim($input['description'])) : null;
+$altText =
+  isset($input['alt_text']) && is_scalar($input['alt_text'])
+    ? mb_substr(strip_tags(trim((string) $input['alt_text'])), 0, 255)
+    : '';
+$caption =
+  isset($input['caption']) && is_scalar($input['caption'])
+    ? mb_substr(strip_tags(trim((string) $input['caption'])), 0, 5000)
+    : '';
+$description =
+  isset($input['description']) && is_scalar($input['description'])
+    ? mb_substr(strip_tags(trim((string) $input['description'])), 0, 10000)
+    : '';
 
 // 3. Update Database
 try {

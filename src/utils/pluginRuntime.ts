@@ -6,8 +6,15 @@ export function isSystemPluginActive(
   settings: PluginRuntimeSettings | null | undefined,
   pluginId: string
 ): boolean {
-  if (!settings?.activePlugins?.includes(pluginId)) return false;
+  const activePlugins = Array.isArray(settings?.activePlugins) ? settings.activePlugins : [];
+  if (!activePlugins.includes(pluginId)) return false;
 
-  const status = settings.pluginConfig?.['pluginStatus']?.[pluginId];
+  const pluginConfig =
+    settings?.pluginConfig &&
+    typeof settings.pluginConfig === 'object' &&
+    !Array.isArray(settings.pluginConfig)
+      ? settings.pluginConfig
+      : {};
+  const status = pluginConfig['pluginStatus']?.[pluginId];
   return status ? status === 'active' : true;
 }

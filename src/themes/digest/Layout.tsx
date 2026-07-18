@@ -344,11 +344,13 @@ inline-flex max-w-[10rem] sm:max-w-[12rem] items-center overflow-hidden rounded 
 transition-all hover:scale-105 hover:shadow-lg whitespace-nowrap digest-category-pill
                 ${size === 'sm' ? 'px-2.5 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'}
 `}
-      style={{
-        backgroundColor: colors.safeAccent,
-        color: colors.accentContrast,
-        ['--pill-color' as any]: `${colors.accent}66`,
-      }}
+      style={
+        {
+          backgroundColor: colors.safeAccent,
+          color: colors.accentContrast,
+          '--pill-color': `${colors.accent}66`,
+        } as React.CSSProperties & { '--pill-color': string }
+      }
     >
       <span className="truncate">{label}</span>
     </span>
@@ -1190,6 +1192,10 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   selectedProfile,
   selectedCategory,
   onCategoryClick,
@@ -1516,7 +1522,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   ) || { component: null, position: 'top' };
   const relatedPosts = useRelatedPosts(
     settings,
-    selectedPost as any,
+    selectedPost,
     posts,
     (p) => onPostClick && onPostClick(p.id),
     {
@@ -1716,6 +1722,10 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                   onAddComment={(content) => onAddComment(selectedPost.id, content)}
                   onLikeComment={onLikeComment}
                   onReplyComment={onReplyComment}
+                  onLoadMoreComments={onLoadMoreComments}
+                  hasMoreComments={hasMoreComments}
+                  commentsLoading={commentsLoading}
+                  commentsError={commentsError}
                   onLogin={onLogin}
                   settings={settings}
                   onViewProfile={onViewProfile}
@@ -1879,7 +1889,12 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   return (
     <div
       className={`min-h-screen flex flex-col ${isDarkMode ? 'dark' : ''}`}
-      style={{ background: colors.background, '--digest-accent': colors.accent } as any}
+      style={
+        {
+          background: colors.background,
+          '--digest-accent': colors.accent,
+        } as React.CSSProperties & { '--digest-accent': string }
+      }
     >
       <DigestThemeStyles />
       {shouldRenderVonSEO && (

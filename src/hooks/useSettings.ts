@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 
 // Initial Settings
 // Initial Settings -- Hydrated from PHP injection to prevent early-load thrashing / default fallback on bots
-const _s = typeof window !== 'undefined' ? (window as any).__INITIAL_SETTINGS__ : null;
+const _s = typeof window !== 'undefined' ? window.__INITIAL_SETTINGS__ : null;
 
 const INITIAL_SETTINGS: SiteSettings = {
   siteName: _s?.siteName || 'My Website',
@@ -130,61 +130,73 @@ export function useSettings() {
   }, []);
 
   // Update settings
-  const handleUpdateSettings = useCallback(async (newSettings: SiteSettings): Promise<boolean> => {
-    let previousSettings: SiteSettings | null = settingsRef.current;
-    const restorePreviousSettings = () => {
-      if (previousSettings) {
-        settingsRef.current = previousSettings;
-        setSettings(previousSettings);
-      }
-    };
-
-    settingsRef.current = newSettings;
-    setSettings(newSettings);
-
-    try {
-      const res = await vonFetch(API.saveSettings, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
-        },
-        body: JSON.stringify(newSettings),
-      });
-
-      if (!res.ok) {
-        // Check for Session/CSRF issues
-        const data = await res.json().catch(() => ({}));
-
-        if (res.status === 401 || (res.status === 403 && data.error === 'Invalid CSRF token')) {
-          // Soft Error Handling: Dispatch event to open Login Modal
-          window.dispatchEvent(new Event('von:session-expired'));
-          console.warn('Session expired or invalid CSRF token during settings save.');
-          restorePreviousSettings();
-          return false; // Stop here, don't show scary error
+  const handleUpdateSettings = useCallback(
+    async (newSettings: SiteSettings, options: { optimistic?: boolean } = {}): Promise<boolean> => {
+      const optimistic = options.optimistic !== false;
+      const previousSettings: SiteSettings = settingsRef.current;
+      const restorePreviousSettings = () => {
+        if (optimistic) {
+          settingsRef.current = previousSettings;
+          setSettings(previousSettings);
         }
+      };
 
-        console.error('Failed to save settings:', res.status, data);
-        toast.error('Failed to save settings: ' + (data.message || 'Database error'));
-        restorePreviousSettings();
-        return false;
-      } else {
-        const data = await res.json();
-        if (!data.success) {
-          console.error('Settings save failed:', data.message);
-          toast.error('Settings save failed: ' + (data.message || 'Unknown error'));
+      if (optimistic) {
+        settingsRef.current = newSettings;
+        setSettings(newSettings);
+      }
+
+      try {
+        const res = await vonFetch(API.saveSettings, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
+          },
+          body: JSON.stringify(newSettings),
+        });
+
+        if (!res.ok) {
+          // Check for Session/CSRF issues
+          const data = await res.json().catch(() => ({}));
+
+          if (res.status === 401 || (res.status === 403 && data.error === 'Invalid CSRF token')) {
+            // Soft Error Handling: Dispatch event to open Login Modal
+            window.dispatchEvent(new Event('von:session-expired'));
+            console.warn('Session expired or invalid CSRF token during settings save.');
+            restorePreviousSettings();
+            return false; // Stop here, don't show scary error
+          }
+
+          console.error('Failed to save settings:', res.status, data);
+          toast.error('Failed to save settings: ' + (data.message || 'Database error'));
           restorePreviousSettings();
           return false;
+        } else {
+          const data = await res.json();
+          if (!data.success) {
+            console.error('Settings save failed:', data.message);
+            toast.error('Settings save failed: ' + (data.message || 'Unknown error'));
+            restorePreviousSettings();
+            return false;
+          }
         }
+
+        if (!optimistic) {
+          settingsRef.current = newSettings;
+          setSettings(newSettings);
+        }
+
+        return true;
+      } catch (e) {
+        console.error('Settings save error:', e);
+        toast.error('Failed to save settings. Changes may be lost on refresh.');
+        restorePreviousSettings();
+        return false;
       }
-      return true;
-    } catch (e) {
-      console.error('Settings save error:', e);
-      toast.error('Failed to save settings. Changes may be lost on refresh.');
-      restorePreviousSettings();
-      return false;
-    }
-  }, []);
+    },
+    []
+  );
 
   // Toggle navigation item
   const onToggleNav = useCallback(async (pageId: string, pages: Page[]) => {

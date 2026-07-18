@@ -251,7 +251,7 @@ try {
   FROM posts p
   LEFT JOIN users u ON p.author_id = u.id
   $statusClause
-  ORDER BY effective_publish_at DESC, p.created_at DESC
+  ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC
   LIMIT :limit OFFSET :offset";
 
   $stmt = $db->prepare($sql);

@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.25.8
+# VonCMS Security Policy v1.25.11
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 
@@ -59,6 +59,8 @@ What it does:
 - enables the `Secure` flag when HTTPS is active
 - regenerates the session ID on login
 - binds active sessions to the current user agent to reduce session hijacking risk
+- uses a dedicated hashed selector/validator token for remember-me instead of persisting the raw PHP session ID
+- rotates the remember validator when restoring a session and revokes the active token on logout
 
 What this helps with:
 
@@ -131,11 +133,27 @@ What it does:
 - uses honeypot fields in places where bot traffic is common
 - logs suspicious events for review
 
+Contact submissions are restricted to bounded fields declared by the selected form template and validated by field type before storage or mail tag replacement. Stored contact leads are pruned after 90 days, linked leads are removed with their form, and detailed mail transport failures remain server-side.
+
+Newsletter subscription attempts use a dedicated per-IP throttle, including repeated requests for addresses already in the list. Public responses do not reveal whether an address is active or previously unsubscribed, and an unsubscribed address is not reactivated without a separate ownership-confirmation flow.
+
 What this helps with:
 
 - brute-force login attempts
 - noisy spam bots
 - basic scripted abuse on public forms
+
+## Settings Ownership and Secret History
+
+The primary administrator owns canonical-domain, SMTP/API credential, and Media storage or optimization settings. Appointed administrators can still manage normal site settings, but direct API requests cannot overwrite those owner-only values.
+
+Secret-bearing settings are not retained in rollback history. Legacy sensitive audit rows are removed when Settings or the audit viewer runs, and public contact forms receive only the dedicated safe field projection rather than private delivery configuration.
+
+## Database Operations and Security Exports
+
+Database backup, import, repair, and query inspection are primary-administrator operations protected by session and CSRF checks. The query console is read-only, while SQL restore accepts only the table-level statements produced by VonCMS backups and rejects server/account/global operations.
+
+Pre-import safety backups are access-protected, excluded from release packages, and bounded by count and age. Security-log and newsletter-subscriber CSV exports neutralize formula-leading cells before spreadsheet software receives them.
 
 ## 6. Error Handling and Information Exposure
 

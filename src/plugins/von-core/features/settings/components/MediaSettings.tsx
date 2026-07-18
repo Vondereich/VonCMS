@@ -252,12 +252,12 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
     const reviewedPreviewToken = toolResult?.previewToken ?? '';
     if (executeDelete) {
       if (!reviewedPreviewToken) {
-        toast.error('Scan orphaned files first before deleting.');
+        toast.error('Scan untracked files first before deleting.');
         return;
       }
       if (
         !window.confirm(
-          'Delete the reviewed orphaned files from this scan result? This cannot be undone.'
+          'Delete the reviewed untracked files from this scan result? This cannot be undone.'
         )
       ) {
         return;
@@ -654,7 +654,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                           <div>
                             Found: {toolResult.stats.count}{' '}
                             {toolResult.type === 'cleanup'
-                              ? 'orphaned files'
+                              ? 'untracked files'
                               : 'generated variants'}
                             {toolResult.stats.totalSizeFormatted &&
                               ` (${toolResult.stats.totalSizeFormatted})`}
@@ -709,8 +709,8 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                       !toolResult.stats?.isExecuted && (
                         <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
                           <p className="text-sm text-orange-800 dark:text-orange-300 font-medium mb-3">
-                            Scanning does not delete anything. Review the exact file list below
-                            before removing anything from this snapshot.
+                            Scanning does not delete anything. Review the exact untracked-file list
+                            below before removing anything from this snapshot.
                           </p>
                           {toolResult.orphaned && toolResult.orphaned.length > 0 && (
                             <div className="max-h-64 overflow-auto rounded-lg border border-orange-200 dark:border-orange-800 bg-white/80 dark:bg-[#101018]/40">
@@ -837,11 +837,12 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
               </div>
               <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
-                  Review Orphaned Files
+                  Review Untracked Files
                 </h4>
                 <p className="text-sm text-slate-500 mb-4">
-                  Scan storage for orphaned files not attached to any post or page. Scanning does
-                  not delete anything.
+                  Scan storage for files that are neither indexed in the Media Library nor
+                  referenced by a post or page. Indexed library items stay protected, and scanning
+                  does not delete anything.
                 </p>
                 <button
                   onClick={() => handleCleanupUnused(false)}
@@ -849,7 +850,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   className={`px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 flex items-center gap-2 transition-all ${isScanning || isManagingVariants || isRebuildingVariants ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <Trash2 size={16} className={isScanning ? 'animate-pulse' : ''} />
-                  {isScanning ? 'Scanning...' : 'Scan Orphaned Files'}
+                  {isScanning ? 'Scanning...' : 'Scan Untracked Files'}
                 </button>
               </div>
             </div>

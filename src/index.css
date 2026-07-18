@@ -46,6 +46,23 @@
     0 0 5px #3b82f6 !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  #nprogress .bar,
+  #nprogress .peg {
+    transition: none !important;
+  }
+
+  #nprogress .peg {
+    box-shadow: none !important;
+  }
+
+  .animate-spin,
+  .animate-pulse,
+  .animate-pulse-slow {
+    animation: none !important;
+  }
+}
+
 /* Ad Layout Normalization: Anti-Compression Slot */
 .ad-slot-wrapper {
   width: 100%;

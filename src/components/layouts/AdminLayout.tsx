@@ -441,7 +441,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
               >
                 <div
                   className={`${isActive ? 'animate-pulse-slow' : 'group-hover:scale-110 transition-transform'}`}
-                  style={!isActive ? { color: (item as any).color } : {}}
+                  style={!isActive ? { color: item.color } : {}}
                 >
                   {item.icon}
                 </div>

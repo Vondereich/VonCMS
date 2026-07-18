@@ -137,7 +137,7 @@ export const PromoBarPlugin: PluginDefinition = {
     const dismissHours = Number(props?.dismissHours || 24);
     const startsAt = props?.startsAt || '';
     const endsAt = props?.endsAt || '';
-    const targetBlank = props?.targetBlank !== 'false';
+    const targetBlank = props?.targetBlank !== false && props?.targetBlank !== 'false';
 
     return (
       <PromoBarComponent

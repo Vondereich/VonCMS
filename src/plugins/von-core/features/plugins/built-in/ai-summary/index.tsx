@@ -24,7 +24,7 @@ export const AISummaryPlugin: PluginDefinition = {
 
     // Get post content from global context if available
     // This will be injected by the theme when rendering
-    const postContent = (window as any).__current_post_content || '';
+    const postContent = window.__current_post_content || '';
 
     if (!postContent) return null;
 

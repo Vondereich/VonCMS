@@ -23,7 +23,7 @@ import { vonFetch } from '../../../../../utils/api';
 
 interface VonSEOSettingsProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => Promise<void> | void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -216,10 +216,15 @@ Disallow: /`;
       delete nextSeo.defaultKeywords;
       nextSeo.robotsTxt = normalizeRobotsRules(nextSeo.robotsTxt || defaultRobots);
 
-      await onUpdate({
+      const saved = await onUpdate({
         ...settings,
         seo: nextSeo,
       });
+      if (saved === false) {
+        setIsSaving(false);
+        return;
+      }
+
       toast.success('SEO settings saved!');
       onClose();
     } catch (error) {

@@ -32,16 +32,19 @@ try {
     $page = max(1, intval($_GET['page'] ?? 1));
     $limit = min(100, max(10, intval($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
-    $search = trim($_GET['search'] ?? '');
-    $status = $_GET['status'] ?? 'all';
+    $searchInput = $_GET['search'] ?? '';
+    $search = is_scalar($searchInput) ? mb_substr(trim((string) $searchInput), 0, 120) : '';
+    $statusInput = $_GET['status'] ?? 'all';
+    $status = is_scalar($statusInput) ? (string) $statusInput : 'all';
 
     // Build query
     $where = [];
     $params = [];
 
     if ($search) {
-      $where[] = 'email LIKE ?';
-      $params[] = "%$search%";
+      $where[] = "email LIKE ? ESCAPE '!'";
+      $escapedSearch = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search);
+      $params[] = "%$escapedSearch%";
     }
 
     if ($status !== 'all' && in_array($status, ['active', 'unsubscribed'])) {

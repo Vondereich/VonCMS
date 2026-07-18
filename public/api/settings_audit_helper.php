@@ -19,6 +19,36 @@ function voncms_settings_audit_available(PDO $pdo): bool
   return $cache[$cacheKey];
 }
 
+function voncms_setting_audit_is_sensitive(string $group, string $key): bool
+{
+  if (in_array($group, ['smtp', 'api', 'analytics', 'contact'], true)) {
+    return true;
+  }
+
+  if (in_array($key, ['admin_profile', 'email_smtp', 'indexnow_key'], true)) {
+    return true;
+  }
+
+  return class_exists('SecurityHelper') && SecurityHelper::isSensitiveKey($key);
+}
+
+function voncms_purge_sensitive_setting_audit_history(PDO $pdo): void
+{
+  if (!voncms_settings_audit_available($pdo)) {
+    return;
+  }
+
+  try {
+    $pdo->exec(
+      "DELETE FROM settings_audit_log
+       WHERE setting_group IN ('smtp', 'api', 'analytics', 'contact')
+          OR setting_key IN ('admin_profile', 'email_smtp', 'indexnow_key')",
+    );
+  } catch (Throwable $e) {
+    error_log('Sensitive settings audit cleanup failed: ' . $e->getMessage());
+  }
+}
+
 function voncms_get_setting_audit_snapshot(PDO $pdo, string $group, string $key): ?array
 {
   try {
@@ -44,6 +74,10 @@ function voncms_record_setting_audit(
   ?string $changeType = null,
 ): void {
   if (!voncms_settings_audit_available($pdo)) {
+    return;
+  }
+
+  if (voncms_setting_audit_is_sensitive($group, $key)) {
     return;
   }
 

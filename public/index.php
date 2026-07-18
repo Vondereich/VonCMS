@@ -1639,9 +1639,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         <header>
           <h1><?php echo htmlspecialchars($post['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?></h1>
         </header>
-        <div class="content">
-          <?php echo nl2br(htmlspecialchars($noscriptPostContent, ENT_QUOTES, 'UTF-8')); ?>
-        </div>
+        <div class="content"><?php echo nl2br(htmlspecialchars($noscriptPostContent, ENT_QUOTES, 'UTF-8')); ?></div>
       </article>
     </noscript>
   <?php elseif (!empty($homepagePosts)): ?>

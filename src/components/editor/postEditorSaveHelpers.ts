@@ -76,9 +76,8 @@ export const buildSavedSnapshot = (itemToSave: ContentItem, savedData: any): Con
         ...itemToSave,
         ...savedData,
         id: String(savedData.id),
-        updatedAt: savedData.updatedAt || savedData.updated_at || (itemToSave as any).updatedAt,
-        updated_at:
-          savedData.updated_at || savedData.updatedAt || (itemToSave as any).updated_at || '',
+        updatedAt: savedData.updatedAt || savedData.updated_at || itemToSave.updatedAt,
+        updated_at: savedData.updated_at || savedData.updatedAt || itemToSave.updated_at || '',
       } as ContentItem)
     : itemToSave;
 };

@@ -108,6 +108,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
   onAddComment,
   onLikeComment,
   onReplyComment,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   onNavigateAdmin,
   onLogin,
   onLogout,
@@ -207,7 +211,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
   const relatedPosts = useRelatedPosts(
     settings,
-    selectedPost as any,
+    selectedPost,
     posts,
     (p: Post) => onPostClick(p.id),
     {
@@ -961,6 +965,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       onAddComment={(content) => onAddComment(selectedPost.id, content)}
                       onLikeComment={onLikeComment}
                       onReplyComment={onReplyComment}
+                      onLoadMoreComments={onLoadMoreComments}
+                      hasMoreComments={hasMoreComments}
+                      commentsLoading={commentsLoading}
+                      commentsError={commentsError}
                       onLogin={onLogin}
                       settings={settings}
                       onViewProfile={onViewProfile}

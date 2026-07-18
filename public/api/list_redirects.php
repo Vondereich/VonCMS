@@ -28,7 +28,7 @@ $limit = min(100, max(10, (int) ($_GET['limit'] ?? 50)));
 $offset = ($page - 1) * $limit;
 
 // Search
-$search = trim($_GET['search'] ?? '');
+$search = mb_substr(trim((string) ($_GET['search'] ?? '')), 0, 120);
 
 try {
   // Build query
@@ -36,8 +36,9 @@ try {
   $params = [];
 
   if (!empty($search)) {
-    $where = 'WHERE source_url LIKE ? OR target_url LIKE ?';
-    $params = ["%$search%", "%$search%"];
+    $where = "WHERE source_url LIKE ? ESCAPE '\\\\' OR target_url LIKE ? ESCAPE '\\\\'";
+    $escapedSearch = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search);
+    $params = ["%$escapedSearch%", "%$escapedSearch%"];
   }
 
   // Get total count
@@ -46,7 +47,9 @@ try {
   $total = (int) $countStmt->fetchColumn();
 
   // Get redirects (parameterized LIMIT/OFFSET for SQL injection prevention)
-  $stmt = $pdo->prepare("SELECT * FROM redirects $where ORDER BY created_at DESC LIMIT ? OFFSET ?");
+  $stmt = $pdo->prepare(
+    "SELECT * FROM redirects $where ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+  );
   // Bind search params + pagination
   $bindIndex = 1;
   foreach ($params as $param) {

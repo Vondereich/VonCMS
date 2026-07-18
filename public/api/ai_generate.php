@@ -42,13 +42,20 @@ if (json_last_error() !== JSON_ERROR_NONE || !is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
 }
 
-$topic = trim($input['topic'] ?? '');
-$context = trim($input['context'] ?? '');
+$topic = isset($input['topic']) && is_scalar($input['topic']) ? trim((string) $input['topic']) : '';
+$context =
+  isset($input['context']) && is_scalar($input['context']) ? trim((string) $input['context']) : '';
 $model = $input['model'] ?? 'gemini-2.0-flash'; // Default to 2.0-flash
 $regenerate = isset($input['regenerate']) && $input['regenerate'] === true;
 
 if (empty($topic)) {
   ResponseHelper::sendError('Topic is required and cannot be empty', 400);
+}
+if (mb_strlen($topic) > 500 || mb_strlen($context) > 20000) {
+  ResponseHelper::sendError('AI prompt input is too large.', 400);
+}
+if (!is_string($model) || !preg_match('/^[a-zA-Z0-9._-]{1,100}$/', $model)) {
+  ResponseHelper::sendError('Invalid AI model name.', 400);
 }
 
 if (!function_exists('curl_init')) {

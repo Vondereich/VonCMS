@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 interface AISummarySettingsProps {
   settings: SiteSettings;
-  onUpdate: (newSettings: SiteSettings) => void;
+  onUpdate: (newSettings: SiteSettings) => boolean | Promise<boolean>;
   onClose: () => void;
 }
 
@@ -25,15 +25,22 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
   };
 
   const [config, setConfig] = useState<AISummaryConfig>(currentConfig);
+  const positionOptions: Array<{ value: AISummaryConfig['position']; label: string }> = [
+    { value: 'top', label: 'Above Content (Top)' },
+    { value: 'bottom', label: 'Below Content (Bottom)' },
+  ];
+  const bulletOptions: AISummaryConfig['maxBullets'][] = [3, 5, 7];
 
-  const handleSave = () => {
-    onUpdate({
+  const handleSave = async () => {
+    const saved = await onUpdate({
       ...settings,
       pluginConfig: {
         ...settings.pluginConfig,
         vp_ai_summary: config,
       },
     });
+    if (saved === false) return;
+
     toast.success('AI Summary settings saved!');
     onClose();
   };
@@ -71,7 +78,12 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
               id="settingsmodal-69"
               name="settingsmodal69"
               value={config.extractMethod}
-              onChange={(e) => setConfig({ ...config, extractMethod: e.target.value as any })}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  extractMethod: e.target.value as AISummaryConfig['extractMethod'],
+                })
+              }
               className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
             >
               <option value="hybrid">Smart (Hybrid) - Recommended</option>
@@ -89,13 +101,10 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
               Position
             </span>
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { value: 'top', label: 'Above Content (Top)' },
-                { value: 'bottom', label: 'Below Content (Bottom)' },
-              ].map((pos) => (
+              {positionOptions.map((pos) => (
                 <button
                   key={pos.value}
-                  onClick={() => setConfig({ ...config, position: pos.value as any })}
+                  onClick={() => setConfig({ ...config, position: pos.value })}
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.position === pos.value
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
@@ -114,10 +123,10 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
               Number of Points
             </span>
             <div className="grid grid-cols-3 gap-3">
-              {[3, 5, 7].map((num) => (
+              {bulletOptions.map((num) => (
                 <button
                   key={num}
-                  onClick={() => setConfig({ ...config, maxBullets: num as any })}
+                  onClick={() => setConfig({ ...config, maxBullets: num })}
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.maxBullets === num
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'

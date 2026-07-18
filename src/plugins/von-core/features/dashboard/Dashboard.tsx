@@ -83,6 +83,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
   const [days, setDays] = useState(7);
   const [chartData, setChartData] = useState<{ name: string; views: number }[]>([]);
   const navigate = useNavigate();
+  const canManageSystem = currentUser?.role?.toLowerCase() === 'root' || currentUser?.id === '1';
 
   // Auto-Update State
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -101,7 +102,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
   );
 
   useEffect(() => {
-    if (currentUser?.role?.toLowerCase() === 'admin') {
+    if (canManageSystem) {
       vonFetch(API.checkDbStatus)
         .then((res) => res.json())
         .then((data) => {
@@ -111,7 +112,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
         })
         .catch((err) => console.error('DB Status Check Failed', err));
     }
-  }, [currentUser]);
+  }, [canManageSystem]);
 
   // Compare semantic versions (returns true if remote > local)
   const isNewerVersion = (local: string, remote: string): boolean => {
@@ -129,7 +130,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
   // Check for updates from GitHub
   const checkForUpdates = async () => {
-    if (currentUser?.role?.toLowerCase() !== 'admin') return;
+    if (!canManageSystem) return;
 
     setCheckingUpdate(true);
     try {
@@ -176,12 +177,12 @@ const VpDashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  // Check for updates on mount (Admin only)
+  // Check for updates on mount (primary owner only)
   useEffect(() => {
-    if (currentUser?.role?.toLowerCase() === 'admin') {
+    if (canManageSystem) {
       checkForUpdates();
     }
-  }, [currentUser]);
+  }, [canManageSystem]);
 
   // Calculate Real Stats
   const [activeUsers, setActiveUsers] = useState(users.length);

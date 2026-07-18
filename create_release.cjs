@@ -52,6 +52,10 @@ function walkSync(dir, baseDir = basePath) {
       normalizedRelativePath.startsWith('docs/superpowers/') ||
       normalizedRelativePath.startsWith('public/data/backups/') ||
       normalizedRelativePath.startsWith('public/data/public-cache/') ||
+      normalizedRelativePath === 'public/data/generated_media_variants.php' ||
+      normalizedRelativePath === 'public/data/generated_media_variants.lock' ||
+      normalizedRelativePath.startsWith('public/data/generated_media_variants.php.tmp.') ||
+      normalizedRelativePath.startsWith('public/data/media_cleanup_previews/') ||
       normalizedRelativePath.startsWith('data/backups/') ||
       normalizedRelativePath.startsWith('data/public-cache/') ||
       lowerItem.endsWith('.zip') ||
@@ -84,15 +88,22 @@ try {
   execSync('npm run build', { stdio: 'inherit', env: buildEnv });
   log('Build successful.\n');
 
-  ['migrations', 'install.sql', 'von_config.php', 'docs/superpowers', 'data/public-cache'].forEach(
-    (item) => {
-      const itemPath = path.join(basePath, 'dist', item);
-      if (fs.existsSync(itemPath)) {
-        fs.rmSync(itemPath, { recursive: true, force: true });
-        log(`Removed dist/${item} (configured to exclude from Deploy).`);
-      }
+  [
+    'migrations',
+    'install.sql',
+    'von_config.php',
+    'docs/superpowers',
+    'data/public-cache',
+    'data/generated_media_variants.php',
+    'data/generated_media_variants.lock',
+    'data/media_cleanup_previews',
+  ].forEach((item) => {
+    const itemPath = path.join(basePath, 'dist', item);
+    if (fs.existsSync(itemPath)) {
+      fs.rmSync(itemPath, { recursive: true, force: true });
+      log(`Removed dist/${item} (configured to exclude from Deploy).`);
     }
-  );
+  });
 
   const skeletonPath = path.join(basePath, 'dist', 'skeleton.css');
   if (fs.existsSync(skeletonPath)) {

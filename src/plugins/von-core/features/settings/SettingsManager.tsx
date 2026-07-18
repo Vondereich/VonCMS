@@ -48,7 +48,7 @@ const isSavedAiKeyExpired = (api?: SiteSettings['api']) => {
 
 interface SettingsViewProps {
   settings: SiteSettings;
-  onUpdate: (s: SiteSettings) => boolean | Promise<boolean> | void;
+  onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
   posts?: any[];
   pages?: any[];
   notify: (msg: string) => void;
@@ -139,18 +139,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }, [activeTab, canManageSecrets]);
 
-  const handleChange = (section: keyof SiteSettings, key: string, value: any) => {
+  const handleChange = (section: 'ads' | 'api' | null, key: string, value: any) => {
     setTempSettings((prev) => {
       if (section === 'ads' || section === 'api') {
-        return { ...prev, [section]: { ...(prev[section] as any), [key]: value } };
+        return { ...prev, [section]: { ...prev[section], [key]: value } };
       }
       return { ...prev, [key]: value };
     });
   };
 
   // Handlers for sub-components
-  const handleGeneralChange = (key: string, value: any) =>
-    handleChange('siteName' as any, key, value); // Hacky casting as logic is shared
+  const handleGeneralChange = (key: string, value: any) => handleChange(null, key, value);
   const handleAdsChange = (key: string, value: any) => handleChange('ads', key, value);
 
   const handlePermalinkChange = (key: string, value: any) => {

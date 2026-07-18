@@ -19,6 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ResponseHelper::sendError('Method not allowed', 405);
 }
 
+$requestBody = CSRFProtection::getRequestBody();
+if (!is_string($requestBody) || strlen($requestBody) > 8192) {
+  ResponseHelper::sendError('Subscription payload is too large.', 413);
+}
+
 // 0. Enforce CSRF
 CSRFProtection::requireToken();
 
@@ -41,28 +46,24 @@ if (!$newsletterEnabled) {
   ResponseHelper::sendError('Newsletter subscriptions are currently disabled.', 403);
 }
 
-// Rate Limiting: Max 5 subscriptions per IP per hour
 $clientIP = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-
-try {
-  // Check rate limit
-  $stmt = $pdo->prepare(
-    'SELECT COUNT(*) as count FROM newsletter_subscribers WHERE ip_address = ? AND subscribed_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)',
-  );
-  $stmt->execute([$clientIP]);
-  $rateCheck = $stmt->fetch(PDO::FETCH_ASSOC);
-
-  if ($rateCheck && $rateCheck['count'] >= 5) {
-    ResponseHelper::sendError('Too many requests. Please try again later.', 429);
-  }
-} catch (PDOException $e) {
-  // Table might not exist yet, continue
-}
+$rateIdentifier = 'newsletter:' . $clientIP;
+RateLimiter::requireNotLimited($rateIdentifier);
 
 // Get and validate input
-$input = json_decode(CSRFProtection::getRequestBody(), true);
-$email = trim($input['email'] ?? '');
+$input = json_decode($requestBody, true);
+$input = is_array($input) ? $input : [];
+$email = $input['email'] ?? '';
 $honeypot = $input['hp_field'] ?? '';
+
+if ((!is_scalar($email) && $email !== null) || (!is_scalar($honeypot) && $honeypot !== null)) {
+  RateLimiter::recordAttempt($rateIdentifier);
+  ResponseHelper::sendError('Invalid subscription data', 400);
+}
+
+$email = trim((string) $email);
+$honeypot = (string) $honeypot;
+RateLimiter::recordAttempt($rateIdentifier);
 
 // Honeypot check
 if (!empty($honeypot)) {
@@ -91,27 +92,16 @@ if (strlen($email) > 255) {
 }
 
 try {
+  $publicMessage = 'If this address is eligible, your subscription request has been received.';
+
   // Check if already subscribed
   $stmt = $pdo->prepare('SELECT id, status FROM newsletter_subscribers WHERE email = ?');
   $stmt->execute([$email]);
   $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
   if ($existing) {
-    if ($existing['status'] === 'active') {
-      echo json_encode(['success' => true, 'message' => 'You are already subscribed!']);
-      exit();
-    } else {
-      // Resubscribe
-      $stmt = $pdo->prepare(
-        "UPDATE newsletter_subscribers SET status = 'active', subscribed_at = NOW(), unsubscribed_at = NULL WHERE id = ?",
-      );
-      $stmt->execute([$existing['id']]);
-      echo json_encode([
-        'success' => true,
-        'message' => 'Welcome back! You have been resubscribed.',
-      ]);
-      exit();
-    }
+    echo json_encode(['success' => true, 'message' => $publicMessage]);
+    exit();
   }
 
   // Insert new subscriber
@@ -122,12 +112,14 @@ try {
 
   echo json_encode([
     'success' => true,
-    'message' => 'Thank you for subscribing!',
+    'message' => $publicMessage,
   ]);
 } catch (PDOException $e) {
   // Check if table doesn't exist
   if (strpos($e->getMessage(), "doesn't exist") !== false) {
     ResponseHelper::sendError('Newsletter not configured. Please contact admin.', 500);
+  } elseif ($e->getCode() === '23000') {
+    echo json_encode(['success' => true, 'message' => $publicMessage]);
   } else {
     ResponseHelper::sendError($e);
   }

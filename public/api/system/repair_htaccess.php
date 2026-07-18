@@ -261,6 +261,110 @@ function normalizePreservedHtaccessContent($content)
 
 /**
  * @param string $filePath
+ * @param string $content
+ * @param string|null $backupPath
+ * @return bool
+ */
+function writeHtaccessAtomically($filePath, $content, $backupPath = null)
+{
+  $directory = dirname($filePath);
+  $lockPath = $directory . '/.' . basename($filePath) . '.voncms.lock';
+  $lockHandle = @fopen($lockPath, 'c+');
+  if ($lockHandle === false || !@flock($lockHandle, LOCK_EX)) {
+    if (is_resource($lockHandle)) {
+      fclose($lockHandle);
+    }
+    return false;
+  }
+
+  $tempPath = @tempnam($directory, '.voncms_htaccess_');
+  $previousPath = null;
+
+  try {
+    if ($tempPath === false) {
+      return false;
+    }
+
+    $handle = @fopen($tempPath, 'wb');
+    if ($handle === false) {
+      return false;
+    }
+
+    $length = strlen($content);
+    $written = 0;
+    while ($written < $length) {
+      $chunkBytes = @fwrite($handle, substr($content, $written));
+      if ($chunkBytes === false || $chunkBytes === 0) {
+        fclose($handle);
+        return false;
+      }
+      $written += $chunkBytes;
+    }
+
+    if (!@fflush($handle)) {
+      fclose($handle);
+      return false;
+    }
+    if (function_exists('fsync')) {
+      @fsync($handle);
+    }
+    if (!@fclose($handle)) {
+      return false;
+    }
+
+    clearstatcache(true, $tempPath);
+    if (!is_file($tempPath) || @filesize($tempPath) !== $length) {
+      return false;
+    }
+
+    if ($backupPath !== null && is_file($filePath)) {
+      if (!@copy($filePath, $backupPath)) {
+        return false;
+      }
+      clearstatcache(true, $filePath);
+      clearstatcache(true, $backupPath);
+      if (@filesize($backupPath) !== @filesize($filePath)) {
+        @unlink($backupPath);
+        return false;
+      }
+    }
+
+    if (is_file($filePath)) {
+      $previousPath = $filePath . '.replace.' . bin2hex(random_bytes(6));
+      if (!@rename($filePath, $previousPath)) {
+        return false;
+      }
+    }
+
+    if (!@rename($tempPath, $filePath)) {
+      if ($previousPath !== null && is_file($previousPath)) {
+        @rename($previousPath, $filePath);
+      }
+      return false;
+    }
+
+    $tempPath = null;
+    if ($previousPath !== null) {
+      @unlink($previousPath);
+    }
+    @chmod($filePath, 0644);
+    return true;
+  } catch (Throwable $error) {
+    if ($previousPath !== null && is_file($previousPath) && !is_file($filePath)) {
+      @rename($previousPath, $filePath);
+    }
+    return false;
+  } finally {
+    if (is_string($tempPath) && is_file($tempPath)) {
+      @unlink($tempPath);
+    }
+    @flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
+  }
+}
+
+/**
+ * @param string $filePath
  * @param string $prefix
  * @return array{status: string, removedCorruptedPrefix: bool, path: string}
  */
@@ -297,12 +401,7 @@ function updateHtaccessWithBlock($filePath, $prefix)
     ];
   }
 
-  if (file_exists($filePath)) {
-    @copy($filePath, $filePath . '.bak');
-  }
-
-  $written = @file_put_contents($filePath, $finalContent);
-  if ($written === false) {
+  if (!writeHtaccessAtomically($filePath, $finalContent, $filePath . '.bak')) {
     return [
       'status' => 'failed',
       'removedCorruptedPrefix' => $removedCorruptedPrefix,
@@ -357,8 +456,7 @@ function repairUploadsShield($publicPath, $projectRoot)
     }
   }
 
-  $written = @file_put_contents($shieldPath, $shieldRule);
-  if ($written === false) {
+  if (!writeHtaccessAtomically($shieldPath, $shieldRule, $shieldPath . '.bak')) {
     return [
       'status' => 'failed',
       'path' => $shieldPath,

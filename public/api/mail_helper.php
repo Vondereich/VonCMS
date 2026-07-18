@@ -271,14 +271,34 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
       return $response;
     };
 
+  $writeSocket =
+    /**
+     * @param string $content
+     * @return void
+     */
+    function ($content) use ($socket) {
+      $length = strlen($content);
+      $offset = 0;
+
+      while ($offset < $length) {
+        $written = fwrite($socket, substr($content, $offset));
+        if ($written === false || $written === 0) {
+          throw new RuntimeException(
+            'SMTP connection closed before the complete request was sent.',
+          );
+        }
+        $offset += $written;
+      }
+    };
+
   // Helper to send command and get full response
   $sendCmd =
     /**
      * @param string $cmd
      * @return string
      */
-    function ($cmd) use ($socket, $getResponse) {
-      fwrite($socket, $cmd . "\r\n");
+    function ($cmd) use ($writeSocket, $getResponse) {
+      $writeSocket($cmd . "\r\n");
       return $getResponse();
     };
 
@@ -380,7 +400,7 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     $email .= $safeHtmlBody;
     $email .= "\r\n.\r\n";
 
-    fwrite($socket, $email);
+    $writeSocket($email);
     $dataResponse = $getResponse();
 
     // QUIT

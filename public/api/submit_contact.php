@@ -15,6 +15,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  ResponseHelper::sendError('Method not allowed', 405);
+}
+
 // 4. Load Database Config LAST (below)
 require_once __DIR__ . '/mail_helper.php';
 
@@ -26,13 +30,32 @@ if (time() - $lastSubmit < 30) {
 }
 
 RateLimiter::requireNotLimited();
+
+$requestBody = CSRFProtection::getRequestBody();
+if (!is_string($requestBody) || strlen($requestBody) > 32768) {
+  RateLimiter::recordAttempt();
+  ResponseHelper::sendError('Contact form payload is too large.', 413);
+}
+
 CSRFProtection::requireToken();
 
 // 2. Parse Input
-$input = json_decode(CSRFProtection::getRequestBody(), true);
+$input = json_decode($requestBody, true);
+$input = is_array($input) ? $input : [];
 $formId = $input['formId'] ?? '';
 $formData = $input['data'] ?? [];
 $honeypot = $input['hp_field'] ?? '';
+
+if (!is_string($formId) || !preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $formId)) {
+  RateLimiter::recordAttempt();
+  ResponseHelper::sendError('Invalid form data.', 400);
+}
+
+if (!is_scalar($honeypot) && $honeypot !== null) {
+  RateLimiter::recordAttempt();
+  ResponseHelper::sendError('Invalid form data.', 400);
+}
+$honeypot = (string) $honeypot;
 
 // 3. Honeypot Check - bots will fill this hidden field
 if (!empty($honeypot)) {
@@ -41,7 +64,7 @@ if (!empty($honeypot)) {
   SecurityLogger::log('honeypot_caught', 'medium', [
     'form_id' => $formId,
     'field' => 'hp_field',
-    'value' => $honeypot,
+    'value_length' => strlen((string) $honeypot),
     'context' => 'contact_form',
   ]);
   // Return fake success to not alert the bot
@@ -49,7 +72,7 @@ if (!empty($honeypot)) {
   exit();
 }
 
-if (empty($formId) || !is_array($formData) || empty($formData)) {
+if (!is_array($formData) || empty($formData)) {
   RateLimiter::recordAttempt();
   ResponseHelper::sendError('Invalid form data.', 400);
 }
@@ -111,29 +134,83 @@ try {
   ResponseHelper::sendError($e);
 }
 
-$requiredFields = [];
+$declaredFields = [];
 if (
   preg_match_all(
-    '/\[(?:text|email|textarea|tel|url|date|number)\*\s+([a-zA-Z0-9_-]+)/',
+    '/\[(text|email|textarea|tel|url|date|number)(\*)?\s+([a-zA-Z0-9_-]+)/',
     (string) $formTemplate,
-    $requiredMatches,
+    $fieldMatches,
+    PREG_SET_ORDER,
   )
 ) {
-  $requiredFields = array_values(array_unique($requiredMatches[1]));
-}
-
-$missingRequiredFields = [];
-foreach ($requiredFields as $requiredField) {
-  $fieldValue = $formData[$requiredField] ?? '';
-  if (is_array($fieldValue) || trim((string) $fieldValue) === '') {
-    $missingRequiredFields[] = $requiredField;
+  foreach ($fieldMatches as $fieldMatch) {
+    $declaredFields[$fieldMatch[3]] = [
+      'type' => $fieldMatch[1],
+      'required' => ($fieldMatch[2] ?? '') === '*',
+    ];
   }
 }
 
-if (!empty($missingRequiredFields)) {
-  RateLimiter::recordAttempt();
-  ResponseHelper::sendError($messages['validationError'] ?: 'Required fields are missing.', 400);
+$normalizedFormData = [];
+$invalidFields = [];
+foreach ($declaredFields as $fieldName => $fieldDefinition) {
+  $hasValue = array_key_exists($fieldName, $formData);
+  $fieldValue = $hasValue ? $formData[$fieldName] : '';
+  if (!is_scalar($fieldValue) && $fieldValue !== null) {
+    $invalidFields[] = $fieldName;
+    continue;
+  }
+
+  $fieldValue = trim((string) $fieldValue);
+  if ($fieldDefinition['required'] && $fieldValue === '') {
+    $invalidFields[] = $fieldName;
+    continue;
+  }
+
+  if ($fieldValue === '') {
+    if ($hasValue) {
+      $normalizedFormData[$fieldName] = '';
+    }
+    continue;
+  }
+
+  $maxLength = $fieldDefinition['type'] === 'textarea' ? 5000 : 500;
+  if (strlen($fieldValue) > $maxLength) {
+    $invalidFields[] = $fieldName;
+    continue;
+  }
+
+  $isValid = true;
+  if ($fieldDefinition['type'] === 'email') {
+    $isValid = filter_var($fieldValue, FILTER_VALIDATE_EMAIL) !== false;
+  } elseif ($fieldDefinition['type'] === 'url') {
+    $scheme = strtolower((string) parse_url($fieldValue, PHP_URL_SCHEME));
+    $isValid =
+      filter_var($fieldValue, FILTER_VALIDATE_URL) !== false &&
+      in_array($scheme, ['http', 'https'], true);
+  } elseif ($fieldDefinition['type'] === 'number') {
+    $isValid = is_numeric($fieldValue);
+  } elseif ($fieldDefinition['type'] === 'date') {
+    $dateValue = DateTime::createFromFormat('Y-m-d', $fieldValue);
+    $isValid = $dateValue !== false && $dateValue->format('Y-m-d') === $fieldValue;
+  } elseif ($fieldDefinition['type'] === 'tel') {
+    $isValid = preg_match('/^[0-9+().\-\s]{3,50}$/', $fieldValue) === 1;
+  }
+
+  if (!$isValid) {
+    $invalidFields[] = $fieldName;
+    continue;
+  }
+
+  $normalizedFormData[$fieldName] = $fieldValue;
 }
+
+if (empty($declaredFields) || empty($normalizedFormData) || !empty($invalidFields)) {
+  RateLimiter::recordAttempt();
+  ResponseHelper::sendError($messages['validationError'] ?: 'Invalid form data.', 400);
+}
+
+$formData = $normalizedFormData;
 
 // 4. Process Template Tags
 /**
@@ -147,14 +224,14 @@ function replaceTags($template, $data, $pdo = null)
   $result = $template;
   // Replace standard tags [name]
   foreach ($data as $key => $value) {
-    $cleanValue = htmlspecialchars($value);
+    $cleanValue = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $result = str_replace("[$key]", $cleanValue, $result);
   }
 
   // Replace special tags
   $result = str_replace('[_date]', date('Y-m-d'), $result);
   $result = str_replace('[_time]', date('H:i:s'), $result);
-  $result = str_replace('[_remote_ip]', $_SERVER['REMOTE_ADDR'], $result);
+  $result = str_replace('[_remote_ip]', $_SERVER['REMOTE_ADDR'] ?? '', $result);
 
   // Global Tags
   if ($pdo) {
@@ -217,6 +294,7 @@ if (preg_match('/^(.*?)<(.*?)>$/', $from, $matches)) {
 
 // 5. Save to Database (Leads)
 try {
+  $pdo->exec('DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)');
   $stmt = $pdo->prepare("
         INSERT INTO contact_submissions (form_id, data, ip_address, user_agent, referrer) 
         VALUES (?, ?, ?, ?, ?)
@@ -224,9 +302,9 @@ try {
   $stmt->execute([
     $formId,
     json_encode($formData),
-    $_SERVER['REMOTE_ADDR'] ?? '',
-    $_SERVER['HTTP_USER_AGENT'] ?? '',
-    $_SERVER['HTTP_REFERER'] ?? '',
+    substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45),
+    substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500),
+    substr((string) ($_SERVER['HTTP_REFERER'] ?? ''), 0, 2048),
   ]);
 } catch (Exception $e) {
   // Don't block email if DB fails to save submission
@@ -238,8 +316,10 @@ if ($result['success']) {
   $_SESSION['last_contact_submit'] = time();
   echo json_encode(['success' => true, 'message' => $messages['success']]);
 } else {
+  error_log('Contact mail delivery failed: ' . ($result['message'] ?? 'Unknown mail error'));
+  http_response_code(502);
   echo json_encode([
     'success' => false,
-    'message' => $messages['error'] . ' (' . $result['message'] . ')',
+    'message' => $messages['error'] ?: 'Unable to send your message right now.',
   ]);
 }
