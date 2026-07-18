@@ -2018,15 +2018,17 @@ const publicHtaccessContent = read('public/.htaccess');
 if (
   rootHtaccessContent.includes('RewriteRule ^index\\.html$ index.php [L,QSA]') &&
   publicHtaccessContent.includes('RewriteRule ^index\\.html$ index.php [L,QSA]') &&
-  publicRuntimeIndexContent.includes("strtolower($currentPath) === 'index.html'") &&
+  publicRuntimeIndexContent.includes(
+    "in_array(strtolower($currentPath), ['index.html', 'index.php'], true)"
+  ) &&
   publicRuntimeIndexContent.includes("header('Location: ' . $basePath, true, 301);")
 ) {
   pass(
-    'Index HTML Runtime Guard: direct /index.html requests are routed through PHP and canonically redirected to the homepage instead of serving the static Vite shell.'
+    'Index Entry Canonical Guard: direct /index.html and /index.php requests are canonically redirected to the homepage instead of serving the static Vite shell or falling through as public 404 routes.'
   );
 } else {
   fail(
-    'Index HTML Runtime Guard: direct /index.html can still bypass PHP hydration, serve the static Vite shell, or fall through as a 404 slug.'
+    'Index Entry Canonical Guard: direct /index.html or /index.php can still bypass the canonical homepage, serve the static Vite shell, or fall through as public 404 routes.'
   );
 }
 
