@@ -56,7 +56,7 @@ import {
 } from '../shared';
 
 import PrismProfile from './components/PrismProfile';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
 
 // Utility for rendering ads safely (Raw HTML)
 
@@ -342,6 +342,9 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       return;
                     }
                     if (nav.url.startsWith('post:')) return onPostClick(nav.url.split(':')[1]);
+                    const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+                    if (categoryTarget !== null && onCategoryClick)
+                      return onCategoryClick(categoryTarget);
                     window.location.href = normalizeSiteUrl(nav.url);
                   }}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all relative overflow-hidden group ${currentView === 'home' && nav.url === 'home' ? 'text-[var(--color-primary)]' : 'text-slate-400 hover:text-white'}`}
@@ -386,6 +389,9 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                           }
                           if (nav.url.startsWith('post:'))
                             return onPostClick(nav.url.split(':')[1]);
+                          const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+                          if (categoryTarget !== null && onCategoryClick)
+                            return onCategoryClick(categoryTarget);
                           window.location.href = normalizeSiteUrl(nav.url);
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
@@ -578,7 +584,12 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       const pg = pages.find((p) => p.id === pageId);
                       if (onPageClick) onPageClick(pg?.slug || pageId);
                     } else if (nav.url.startsWith('post:')) onPostClick(nav.url.split(':')[1]);
-                    else window.location.href = normalizeSiteUrl(nav.url);
+                    else {
+                      const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+                      if (categoryTarget !== null && onCategoryClick)
+                        onCategoryClick(categoryTarget);
+                      else window.location.href = normalizeSiteUrl(nav.url);
+                    }
                     setIsMobileMenuOpen(false);
                   }}
                   className="text-left px-4 py-3 rounded border border-white/5 hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-primary)]/10 text-slate-300 hover:text-white transition-all font-mono"

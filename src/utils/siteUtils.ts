@@ -148,6 +148,27 @@ export const normalizeSiteUrl = (url?: string): string => {
   return `${basePath}/${trimmed.replace(/^\/+/, '')}`;
 };
 
+export const getSameSiteCategoryNavigation = (url?: string): string | null => {
+  if (!url || typeof window === 'undefined') return null;
+
+  const normalizedUrl = normalizeSiteUrl(url);
+  if (normalizedUrl === '#') return null;
+
+  try {
+    const parsedUrl = new URL(normalizedUrl, window.location.origin);
+    if (parsedUrl.origin !== window.location.origin) return null;
+
+    const basePath = getBasePathPrefix();
+    const homePath = (basePath || '/').replace(/\/+$/, '') || '/';
+    const targetPath = parsedUrl.pathname.replace(/\/+$/, '') || '/';
+    if (targetPath !== homePath || !parsedUrl.searchParams.has('category')) return null;
+
+    return (parsedUrl.searchParams.get('category') || '').trim().slice(0, 100);
+  } catch {
+    return null;
+  }
+};
+
 export const normalizeImageSource = (url?: string, fallback: string = ''): string => {
   if (!url) return fallback;
 

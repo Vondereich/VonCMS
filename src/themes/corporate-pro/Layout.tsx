@@ -61,7 +61,7 @@ import {
 
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
 
@@ -611,6 +611,16 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
       onPostClick(postId);
       setMobileMenuOpen(false);
       return;
+    }
+
+    const categoryTarget = getSameSiteCategoryNavigation(trimmed);
+    const preservesBrowserNavigation = Boolean(
+      e && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    );
+    if (categoryTarget !== null && onCategoryClick && !preservesBrowserNavigation) {
+      e?.preventDefault();
+      onCategoryClick(categoryTarget);
+      setMobileMenuOpen(false);
     }
   };
 

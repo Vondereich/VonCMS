@@ -34,7 +34,10 @@ body {
 }
 
 /* Skeleton Loader (FOUC Prevention) */
-.skeleton-loader {
+.skeleton-loader,
+.skeleton-loader-react {
+  box-sizing: border-box;
+  width: 100%;
   font-family: 'Inter', sans-serif;
   padding: clamp(1rem, 4vw, 2rem);
   max-width: 1280px;
@@ -42,29 +45,85 @@ body {
 }
 
 .sk-nav {
-  height: 64px;
+  box-sizing: border-box;
+  height: 56px;
   background: #e5e7eb;
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
   border-radius: 0.5rem;
 }
 
 .sk-hero {
-  height: 200px;
+  box-sizing: border-box;
+  height: 160px;
   background: #e5e7eb;
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
   border-radius: 1rem;
 }
 
 .sk-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
-  gap: clamp(1rem, 3vw, 2rem);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
 }
 
 .sk-card {
-  height: 300px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 220px;
   background: #e5e7eb;
   border-radius: 1rem;
+}
+
+.sk-card-tablet {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .sk-nav {
+    height: 64px;
+    margin-bottom: 2rem;
+  }
+
+  .sk-hero {
+    height: 180px;
+    margin-bottom: 1.5rem;
+  }
+
+  .sk-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  .sk-card {
+    height: 260px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .sk-card-tablet {
+    display: block;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sk-nav {
+    margin-bottom: 3rem;
+  }
+
+  .sk-hero {
+    height: 200px;
+    margin-bottom: 2rem;
+  }
+
+  .sk-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+  }
+
+  .sk-card {
+    height: 300px;
+  }
 }
 
 .dark .sk-nav,

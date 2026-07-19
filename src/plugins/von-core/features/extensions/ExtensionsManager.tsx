@@ -259,7 +259,6 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
     if (id === 'vp_von_seo') {
       const seoConfig = settings.seo || {
-        siteTitle: settings.siteName,
         sitemapEnabled: true,
       };
       setTempConfig({ ...seoConfig });

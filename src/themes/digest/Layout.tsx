@@ -56,7 +56,7 @@ import {
 import { vonFetch } from '../../utils/api';
 import { API } from '../../config/site.config';
 import { DarkModeStyles } from '../../styles/DarkModeStyles';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
 
@@ -1289,6 +1289,11 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     } else if (nav.url.startsWith('post:') && onPostClick) {
       onPostClick(nav.url.split(':')[1]);
     } else {
+      const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+      if (categoryTarget !== null && onCategoryClick) {
+        onCategoryClick(categoryTarget);
+        return;
+      }
       window.location.href = normalizeSiteUrl(nav.url);
     }
   };

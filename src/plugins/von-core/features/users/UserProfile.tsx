@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Gravatar from 'react-gravatar';
-import toast from 'react-hot-toast';
 import { User, Post, Comment } from '../../../../types';
 import {
   ArrowLeft,
@@ -10,11 +9,10 @@ import {
   ThumbsUp,
   LayoutDashboard,
 } from 'lucide-react';
-import { API } from '../../../../config/site.config';
-import { vonFetch } from '../../../../utils/api';
 import { sanitizeHtml } from '../../../../utils/security';
 import { LoadMoreButton } from '../../../../components/LoadMoreButton';
 import { useProfileActivity } from '../../../../hooks/useProfileActivity';
+import { useProfileEditor } from '../../../../hooks/useProfileEditor';
 import { getResponsiveImageAttributes } from '../../../../utils/siteUtils';
 import { SafeImage } from '../../../../components/SafeImage';
 import {
@@ -74,27 +72,6 @@ const UserProfile: React.FC<ProfileProps> = ({
   onUpdateUser,
   postsPerPage = 6,
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDisplayName, setEditDisplayName] = useState(targetUser.display_name || '');
-  const [editBio, setEditBio] = useState(targetUser.bio || '');
-  const [editAvatar, setEditAvatar] = useState(targetUser.avatar || '');
-
-  // Password Change State
-  const [showPasswordFields, setShowPasswordFields] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-
-  // Optimistic update state
-  const [displayUser, setDisplayUser] = useState(targetUser);
-
-  useEffect(() => {
-    setDisplayUser(targetUser);
-    setEditDisplayName(targetUser.display_name || '');
-    setEditBio(targetUser.bio || '');
-    setEditAvatar(targetUser.avatar || '');
-  }, [targetUser]);
-
   const [activeTab, setActiveTab] = useState<'articles' | 'comments'>('articles');
 
   const {
@@ -113,6 +90,26 @@ const UserProfile: React.FC<ProfileProps> = ({
   } = useProfileActivity(targetUser, postsPerPage);
 
   const isOwnProfile = isOwnUserProfile(currentUser, targetUser);
+  const {
+    isEditing,
+    setIsEditing,
+    editDisplayName,
+    setEditDisplayName,
+    editBio,
+    setEditBio,
+    editAvatar,
+    setEditAvatar,
+    showPasswordFields,
+    setShowPasswordFields,
+    currentPassword,
+    setCurrentPassword,
+    newPassword,
+    setNewPassword,
+    confirmNewPassword,
+    setConfirmNewPassword,
+    displayUser,
+    handleSaveProfile,
+  } = useProfileEditor({ targetUser, currentUser, isOwner: isOwnProfile, onUpdateUser });
   const canAccessAdmin = isOwnProfile && isStaffUser(currentUser);
   const displayRole = getProfileDisplayRole(currentUser, displayUser);
 
@@ -124,81 +121,6 @@ const UserProfile: React.FC<ProfileProps> = ({
         : displayRole === 'Writer'
           ? 'bg-amber-100 text-amber-600 border-amber-200'
           : 'bg-neutral-100 text-neutral-600 border-neutral-200';
-
-  const handleSaveProfile = async () => {
-    try {
-      // Optimistic update
-      const updatedUser = {
-        ...displayUser,
-        display_name: editDisplayName,
-        bio: editBio,
-        avatar: editAvatar,
-      };
-      setDisplayUser(updatedUser);
-      setIsEditing(false);
-
-      // Global Update
-      if (onUpdateUser && isOwnProfile) {
-        onUpdateUser({ display_name: editDisplayName, bio: editBio, avatar: editAvatar });
-      }
-
-      // Build payload - only add password if actually changing it
-      const payload: any = {
-        id: currentUser?.id,
-        display_name: editDisplayName,
-        bio: editBio,
-        avatar: editAvatar,
-      };
-
-      // Only include password fields if user actually entered a new password
-      if (showPasswordFields && newPassword) {
-        if (!currentPassword) {
-          toast.error('Current password is required');
-          return;
-        }
-        if (newPassword !== confirmNewPassword) {
-          toast.error('Passwords do not match');
-          return;
-        }
-        // Strong Password Check
-        if (
-          newPassword.length < 8 ||
-          !/[A-Z]/.test(newPassword) ||
-          !/[0-9]/.test(newPassword) ||
-          !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
-        ) {
-          toast.error('Password too weak (8+ chars, Upper, Number, Symbol)');
-          return;
-        }
-        payload.current_password = currentPassword;
-        payload.new_password = newPassword;
-      }
-
-      const response = await vonFetch(API.updateProfile, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json(); // Clean Parse
-
-      if (response.ok && data.success) {
-        toast.success(data.message || 'Profile updated!');
-        // Clear sensitive fields
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmNewPassword('');
-        setShowPasswordFields(false);
-      } else {
-        toast.error(data.error || 'Failed to save profile');
-        // Revert optimistic update only on error
-        setDisplayUser(targetUser);
-      }
-    } catch (e) {
-      toast.error('Failed to save profile');
-      setDisplayUser(targetUser);
-    }
-  };
 
   return (
     <div className="animate-fade-in w-full max-w-5xl mx-auto pb-20">

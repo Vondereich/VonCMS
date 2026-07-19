@@ -6,6 +6,7 @@ import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { GlobalLightbox } from '../../../../components/GlobalLightbox';
 import { CookieBanner } from '../../../../components/CookieBanner';
+import SkeletonLoader from '../../../../components/SkeletonLoader';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
 
 interface PublicSiteProps {
@@ -114,7 +115,7 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
         pluginConfig={props.settings.pluginConfig}
       />
 
-      <React.Suspense fallback={<div className="min-h-screen bg-white dark:bg-slate-950" />}>
+      <React.Suspense fallback={<SkeletonLoader />}>
         <LayoutComponent {...props} onPageClick={props.onPageClick || (() => {})} />
       </React.Suspense>
 

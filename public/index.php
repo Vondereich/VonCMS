@@ -484,6 +484,110 @@ if (!function_exists('buildCanonicalContentPath')) {
   }
 }
 
+if (!function_exists('voncms_fetch_public_post')) {
+  /**
+   * @param PDO $pdo
+   * @param string $slugOrId
+   * @param bool $isId
+   * @param string $currentTime
+   * @param string $authorNameSql
+   * @param string $authorDisplayNameSql
+   * @return array<string, mixed>|null
+   */
+  function voncms_fetch_public_post($pdo, $slugOrId, $isId, $currentTime, $authorNameSql, $authorDisplayNameSql)
+  {
+    $lookupColumn = $isId ? 'p.id' : 'p.slug';
+    $sql =
+      'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, ' .
+      $authorNameSql .
+      ' as author_name, u.username as author_username, ' .
+      $authorDisplayNameSql .
+      ' as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE ' .
+      $lookupColumn .
+      " = ? AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$slugOrId, $currentTime]);
+    $post = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($post) ? $post : null;
+  }
+}
+
+if (!function_exists('voncms_clean_seo_description')) {
+  /**
+   * @param mixed $description
+   * @return string
+   */
+  function voncms_clean_seo_description($description)
+  {
+    $description = (string) $description;
+    if ($description === '') {
+      return '';
+    }
+
+    if (preg_match('/content=["\']([^"\']+)["\']/', $description, $matches)) {
+      $description = $matches[1];
+    }
+
+    $description = strip_tags($description);
+    $description = html_entity_decode($description, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $description = str_replace('"', "'", $description);
+
+    return mb_substr($description, 0, 160);
+  }
+}
+
+if (!function_exists('voncms_apply_content_schema')) {
+  /**
+   * @param mixed $schemaData
+   * @param array<string, mixed> $content
+   * @param string $contentType
+   * @param string $seoDescription
+   * @param string $seoImage
+   * @param string $seoUrl
+   * @param string $siteName
+   * @param string $domainUrl
+   * @param string $logoUrl
+   * @return void
+   */
+  function voncms_apply_content_schema(&$schemaData, $content, $contentType, $seoDescription, $seoImage, $seoUrl, $siteName, $domainUrl, $logoUrl)
+  {
+    if (!is_array($schemaData)) {
+      $schemaData = ['@context' => 'https://schema.org'];
+    }
+
+    $schemaTitle = html_entity_decode((string) ($content['title'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $schemaData['@type'] = $contentType === 'page' ? 'WebPage' : 'Article';
+    $schemaData['name'] = $schemaTitle;
+    $schemaData['headline'] = $schemaTitle;
+    $schemaData['description'] = $seoDescription;
+    $schemaData['url'] = $seoUrl;
+    if ($seoImage !== '') {
+      $schemaData['image'] = [$seoImage];
+    }
+    $schemaData['datePublished'] = !empty($content['created_at'])
+      ? date('c', strtotime((string) $content['created_at']))
+      : date('c');
+
+    if (!empty($content['author_name']) || !empty($content['author'])) {
+      $schemaAuthor = (string) ($content['author_name'] ?? $content['author']);
+      $schemaAuthorUsername = (string) ($content['author_username'] ?? ($content['author'] ?? $schemaAuthor));
+      $schemaData['author'] = [
+        '@type' => 'Person',
+        'name' => html_entity_decode($schemaAuthor, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        'url' => $domainUrl . '/profile/' . rawurlencode($schemaAuthorUsername),
+      ];
+    }
+
+    if ($contentType === 'post') {
+      $schemaData['publisher'] = voncms_build_schema_publisher($siteName, $domainUrl, $logoUrl);
+    }
+    $schemaData['dateModified'] = !empty($content['updated_at'])
+      ? date('c', strtotime((string) $content['updated_at']))
+      : $schemaData['datePublished'];
+  }
+}
+
 if (!function_exists('voncms_apply_404_seo_metadata')) {
   /**
    * @param mixed $seoTitle
@@ -832,13 +936,14 @@ try {
         $slugOrId = $matches[2];
         $isId = is_numeric($slugOrId);
 
-        $sql =
-          'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, ' . $authorNameSql . ' as author_name, u.username as author_username, ' . $authorDisplayNameSql . ' as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE ' .
-          ($isId ? 'p.id' : 'p.slug') .
-          " = ? AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$slugOrId, $publicContentCurrentTime]);
-        $post = $stmt->fetch(PDO::FETCH_ASSOC);
+        $post = voncms_fetch_public_post(
+          $pdo,
+          $slugOrId,
+          $isId,
+          $publicContentCurrentTime,
+          $authorNameSql,
+          $authorDisplayNameSql,
+        );
 
         if ($post) {
           // Collapse any legacy /post|/blog route to the configured canonical permalink,
@@ -863,50 +968,16 @@ try {
           $cleanTitle = html_entity_decode($post['title'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
           $seoTitle = $cleanTitle . ' | ' . $seoTitle;
 
-          // Triple-step sanitization for description
           $desc = $post['meta_description'] ?: $post['excerpt'] ?: '';
-          if (!empty($desc)) {
-            // Smart Extract: If user pasted full tag
-            if (preg_match('/content=["\']([^"\']+)["\']/', $desc, $m)) {
-              $desc = $m[1];
-            }
-
-            // Step 1: Strip HTML tags
-            $cleanDesc = strip_tags($desc);
-            // Step 2: Decode HTML entities
-            $cleanDesc = html_entity_decode($cleanDesc, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            // Step 3: Replace double quotes with single quotes (prevents breaking content="...")
-            $cleanDesc = str_replace('"', "'", $cleanDesc);
-            // Trim to reasonable length
-            $seoDescription = mb_substr($cleanDesc, 0, 160);
+          $cleanDesc = voncms_clean_seo_description($desc);
+          if ($cleanDesc !== '') {
+            $seoDescription = $cleanDesc;
           }
 
           $seoImage = $post['image_url'] ?? '';
           $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
 
-          // Update Schema for Article
           $seoOgType = 'article';
-          $schemaData['@type'] = 'Article';
-          $schemaTitle = html_entity_decode($post['title'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-          $schemaData['name'] = $schemaTitle;
-          $schemaData['headline'] = $schemaTitle;
-          $schemaData['description'] = $seoDescription;
-          if (!empty($seoImage)) {
-            $schemaData['image'] = [$seoImage];
-          }
-          $schemaData['datePublished'] = !empty($post['created_at']) ? date('c', strtotime($post['created_at'])) : date('c');
-
-          if (!empty($post['author_name']) || !empty($post['author'])) {
-            $schemaAuthor = (string) ($post['author_name'] ?? $post['author']);
-            $schemaAuthorUsername = (string) ($post['author_username'] ?? ($post['author'] ?? $schemaAuthor));
-            $schemaData['author'] = [
-              '@type' => 'Person',
-              'name' => html_entity_decode($schemaAuthor, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-              'url' => $domainUrl . '/profile/' . rawurlencode($schemaAuthorUsername)
-            ];
-          }
-
-          $schemaData['publisher'] = voncms_build_schema_publisher($siteName ?? $seoTitle, $domainUrl, $logoUrl);
 
           // --------------------------------------------
           // Construct Absolute URLs for Open Graph
@@ -920,11 +991,17 @@ try {
             'post',
           );
           $seoUrl = $domainUrl . $canonicalPath;
-          $schemaData['url'] = $seoUrl;
-
-          // Image URL was normalized before schema assignment so JSON-LD and OG stay aligned.
-
-          $schemaData['dateModified'] = !empty($post['updated_at']) ? date('c', strtotime($post['updated_at'])) : $schemaData['datePublished'];
+          voncms_apply_content_schema(
+            $schemaData,
+            $post,
+            'post',
+            $seoDescription,
+            $seoImage,
+            $seoUrl,
+            $siteName ?? $seoTitle,
+            $domainUrl,
+            $logoUrl,
+          );
         } else {
           // SOFT 404 FIX: If URL looks like a post but not found, send 404
           http_response_code(404);
@@ -996,13 +1073,14 @@ try {
         $resolvedContentType = 'post';
 
         // Try posts first
-        $sql =
-          'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, ' . $authorNameSql . ' as author_name, u.username as author_username, ' . $authorDisplayNameSql . ' as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE ' .
-          ($isId ? 'p.id' : 'p.slug') .
-          " = ? AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$slugOrId, $publicContentCurrentTime]);
-        $post = $stmt->fetch(PDO::FETCH_ASSOC);
+        $post = voncms_fetch_public_post(
+          $pdo,
+          $slugOrId,
+          $isId,
+          $publicContentCurrentTime,
+          $authorNameSql,
+          $authorDisplayNameSql,
+        );
 
         if (!$post) {
           // Try pages
@@ -1021,16 +1099,9 @@ try {
           $seoTitle = $cleanTitle . ' | ' . $seoTitle;
 
           $desc = $post['meta_description'] ?? ($post['excerpt'] ?? ($post['content'] ?? ''));
-          if (!empty($desc)) {
-            // Smart Extract: If user pasted full tag
-            if (preg_match('/content=["\']([^"\']+)["\']/', $desc, $m)) {
-              $desc = $m[1];
-            }
-
-            $cleanDesc = strip_tags($desc);
-            $cleanDesc = html_entity_decode($cleanDesc, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $cleanDesc = str_replace('"', "'", $cleanDesc);
-            $seoDescription = mb_substr($cleanDesc, 0, 160);
+          $cleanDesc = voncms_clean_seo_description($desc);
+          if ($cleanDesc !== '') {
+            $seoDescription = $cleanDesc;
           }
 
           $seoImage = $post['image_url'] ?? '';
@@ -1066,35 +1137,21 @@ try {
             $canonicalPath = buildCanonicalContentPath($post, 'slug', 'page');
             $seoUrl = $domainUrl . $canonicalPath;
           }
-          $schemaData['url'] = $seoUrl;
-
           // Construct Absolute Image URL for og:image
           $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
 
-          // Update Schema for Article/Page
           $seoOgType = $resolvedContentType === 'page' ? 'website' : 'article';
-          $schemaData['@type'] = $resolvedContentType === 'page' ? 'WebPage' : 'Article';
-          $schemaTitle = html_entity_decode($post['title'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-          $schemaData['name'] = $schemaTitle;
-          $schemaData['headline'] = $schemaTitle;
-          $schemaData['description'] = $seoDescription;
-          if (!empty($seoImage)) {
-            $schemaData['image'] = [$seoImage];
-          }
-          $schemaData['datePublished'] = !empty($post['created_at']) ? date('c', strtotime($post['created_at'])) : date('c');
-          if (!empty($post['author_name']) || !empty($post['author'])) {
-            $schemaAuthor = (string) ($post['author_name'] ?? $post['author']);
-            $schemaAuthorUsername = (string) ($post['author_username'] ?? ($post['author'] ?? $schemaAuthor));
-            $schemaData['author'] = [
-              '@type' => 'Person',
-              'name' => html_entity_decode($schemaAuthor, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-              'url' => $domainUrl . '/profile/' . rawurlencode($schemaAuthorUsername)
-            ];
-          }
-          if ($resolvedContentType === 'post') {
-            $schemaData['publisher'] = voncms_build_schema_publisher($siteName ?? $seoTitle, $domainUrl, $logoUrl);
-          }
-          $schemaData['dateModified'] = !empty($post['updated_at']) ? date('c', strtotime($post['updated_at'])) : $schemaData['datePublished'];
+          voncms_apply_content_schema(
+            $schemaData,
+            $post,
+            $resolvedContentType,
+            $seoDescription,
+            $seoImage,
+            $seoUrl,
+            $siteName ?? $seoTitle,
+            $domainUrl,
+            $logoUrl,
+          );
         } else {
           // SOFT 404 FIX: If URL looks like a slug but not found in Posts or Pages
           http_response_code(404);
@@ -1663,7 +1720,25 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
       </main>
     </noscript>
   <?php endif; ?>
-  <div id="root"></div>
+  <noscript>
+    <style>
+      #root {
+        display: none !important;
+      }
+    </style>
+  </noscript>
+  <div id="root">
+    <div class="skeleton-loader" role="status" aria-label="Loading content" aria-busy="true">
+      <div class="sk-nav"></div>
+      <div class="sk-hero"></div>
+      <div class="sk-grid">
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+        <div class="sk-card sk-card-tablet" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
   <script type="module" crossorigin src="<?php echo $basePath . $assetPrefix . $jsFile; ?>"></script>
 </body>
 

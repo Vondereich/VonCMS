@@ -10,6 +10,7 @@ export { useUsers } from './useUsers';
 // Shared Theme Hooks (v1.9.5)
 export { usePublicProfile } from './usePublicProfile';
 export { useProfileActivity } from './useProfileActivity';
+export { useProfileEditor } from './useProfileEditor';
 export { useAdsPopup } from './useAdsPopup';
 export { useClickOutside } from './useClickOutside';
 

@@ -324,6 +324,28 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
     return saved;
   };
 
+  const isCurrentHomePath = () =>
+    window.location.pathname === '/' || window.location.pathname === BASE_PATH;
+
+  const handleCategoryNavigation = (cat: string) => {
+    if (isCurrentHomePath()) {
+      setSearchParams(cat ? { category: cat } : {});
+      return;
+    }
+
+    navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/');
+  };
+
+  const handleBackToHome = () => {
+    window.scrollTo(0, 0);
+    if (isCurrentHomePath()) {
+      setSearchParams({});
+      return;
+    }
+
+    navigate('/');
+  };
+
   return (
     <>
       <PublicSite
@@ -385,24 +407,8 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
           void resolveAndNavigatePage();
         }}
         onViewProfile={(u) => navigate(`/profile/${u}`)}
-        onCategoryClick={(cat: string) => {
-          if (cat) {
-            setSearchParams({ category: cat });
-            if (window.location.pathname !== '/' && window.location.pathname !== BASE_PATH) {
-              navigate(`/?category=${encodeURIComponent(cat)}`);
-            }
-          } else {
-            setSearchParams({});
-            if (window.location.pathname !== '/' && window.location.pathname !== BASE_PATH) {
-              navigate('/');
-            }
-          }
-        }}
-        onBackToHome={() => {
-          window.scrollTo(0, 0);
-          setSearchParams({});
-          navigate('/');
-        }}
+        onCategoryClick={handleCategoryNavigation}
+        onBackToHome={handleBackToHome}
         onNavigateAdmin={() => navigate('/admin/dashboard')}
         onUpdateUser={props.onUpdateUser}
       />

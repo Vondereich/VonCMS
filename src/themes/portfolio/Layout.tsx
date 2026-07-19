@@ -4,7 +4,12 @@ import toast from 'react-hot-toast';
 import { Post } from '../../types';
 import { Edit2, Save, X, Camera, Menu, Moon, Sun, Rss } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
-import { getBasePathPrefix, getPermalink, normalizeSiteUrl } from '../../utils/siteUtils';
+import {
+  getBasePathPrefix,
+  getPermalink,
+  getSameSiteCategoryNavigation,
+  normalizeSiteUrl,
+} from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import {
@@ -766,6 +771,7 @@ const PortfolioNav = ({
   onBackToHome,
   onPageClick,
   onPostClick,
+  onCategoryClick,
   settings,
   pages,
   transparentTextColor,
@@ -787,6 +793,24 @@ const PortfolioNav = ({
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleNavigationItem = (nav: any, closeMobileMenu = false) => {
+    if (closeMobileMenu) setIsMobileMenuOpen(false);
+    if (nav.url === 'home') return onBackToHome();
+    if (nav.url.startsWith('page:') && onPageClick) {
+      const pageId = nav.url.split(':')[1];
+      const page = pages?.find((item: any) => item.id === pageId || item.slug === pageId);
+      return onPageClick(page?.slug || pageId);
+    }
+    if (nav.url.startsWith('post:') && onPostClick) {
+      return onPostClick(nav.url.split(':')[1]);
+    }
+    const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+    if (categoryTarget !== null && onCategoryClick) {
+      return onCategoryClick(categoryTarget);
+    }
+    window.location.href = normalizeSiteUrl(nav.url);
+  };
 
   return (
     <nav
@@ -829,17 +853,7 @@ const PortfolioNav = ({
           {visibleNavigationItems.map((nav: any) => (
             <button
               key={nav.id}
-              onClick={() => {
-                if (nav.url === 'home') return onBackToHome();
-                if (nav.url.startsWith('page:') && onPageClick) {
-                  const pid = nav.url.split(':')[1];
-                  const page = pages?.find((p: any) => p.id === pid || p.slug === pid);
-                  return onPageClick(page?.slug || pid);
-                }
-                if (nav.url.startsWith('post:') && onPostClick)
-                  return onPostClick(nav.url.split(':')[1]);
-                window.location.href = normalizeSiteUrl(nav.url);
-              }}
+              onClick={() => handleNavigationItem(nav)}
               className={desktopNavigationItemClassName}
               style={{
                 color:
@@ -888,17 +902,7 @@ const PortfolioNav = ({
                 {overflowNavigationItems.map((nav: any) => (
                   <button
                     key={nav.id}
-                    onClick={() => {
-                      if (nav.url === 'home') return onBackToHome();
-                      if (nav.url.startsWith('page:') && onPageClick) {
-                        const pid = nav.url.split(':')[1];
-                        const page = pages?.find((p: any) => p.id === pid || p.slug === pid);
-                        return onPageClick(page?.slug || pid);
-                      }
-                      if (nav.url.startsWith('post:') && onPostClick)
-                        return onPostClick(nav.url.split(':')[1]);
-                      window.location.href = normalizeSiteUrl(nav.url);
-                    }}
+                    onClick={() => handleNavigationItem(nav)}
                     className="w-full px-4 py-3 text-left text-sm hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer"
                     style={{ color: colors.text }}
                   >
@@ -1022,18 +1026,7 @@ const PortfolioNav = ({
             {navigationItems.map((nav: any) => (
               <button
                 key={nav.id}
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  if (nav.url === 'home') return onBackToHome();
-                  if (nav.url.startsWith('page:') && onPageClick) {
-                    const pid = nav.url.split(':')[1];
-                    const page = pages?.find((p: any) => p.id === pid || p.slug === pid);
-                    return onPageClick(page?.slug || pid);
-                  }
-                  if (nav.url.startsWith('post:') && onPostClick)
-                    return onPostClick(nav.url.split(':')[1]);
-                  window.location.href = normalizeSiteUrl(nav.url);
-                }}
+                onClick={() => handleNavigationItem(nav, true)}
                 className="text-left py-2 text-lg font-medium border-b bg-transparent cursor-pointer"
                 style={{ color: colors.text, borderColor: colors.cardBorder }}
               >
@@ -2121,6 +2114,7 @@ const PortfolioLayout = ({
               pages={pages}
               onPageClick={onPageClick}
               onPostClick={onPostClick}
+              onCategoryClick={onCategoryClick}
               settings={siteSettings}
             />
 

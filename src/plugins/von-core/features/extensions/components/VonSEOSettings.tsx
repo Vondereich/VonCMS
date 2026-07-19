@@ -124,7 +124,6 @@ Disallow: /`;
   }, []);
 
   const initialSEO = {
-    siteTitle: settings.seo?.siteTitle || settings.siteName,
     sitemapEnabled: settings.seo?.sitemapEnabled ?? true,
     robotsTxt: normalizeRobotsRules(
       settings.seo?.robotsTxt && !isLegacyVonCmsRobotsPolicy(settings.seo.robotsTxt)
@@ -211,6 +210,7 @@ Disallow: /`;
     setIsSaving(true);
     try {
       const nextSeo = { ...(settings.seo || {}), ...tempSEO };
+      delete nextSeo.siteTitle;
       delete nextSeo.defaultMetaDescription;
       delete nextSeo.canonicalHost;
       delete nextSeo.defaultKeywords;
@@ -301,19 +301,22 @@ Disallow: /`;
               {/* Site Title */}
               <div className="space-y-2">
                 <span className="block text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Site Title
+                  Site Title (from General Settings)
                 </span>
                 <input
                   aria-label="Site Title"
                   id="vonseosettings-262"
                   name="vonseosettings262"
                   type="text"
-                  value={tempSEO.siteTitle}
-                  onChange={(e) => setTempSEO({ ...tempSEO, siteTitle: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="Your Site Name"
+                  value={settings.siteName || ''}
+                  readOnly
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-none transition-all"
+                  placeholder="Set this in Settings > General"
                 />
-                <p className="text-xs text-slate-500">Appears in browser tabs and search results</p>
+                <p className="text-xs text-slate-500">
+                  Edit this in Settings &gt; General so browser, search, and social titles stay in
+                  one place.
+                </p>
               </div>
 
               {/* Meta Description */}

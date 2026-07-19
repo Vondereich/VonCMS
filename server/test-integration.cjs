@@ -712,16 +712,19 @@ const publicSiteContent = read('src/plugins/von-core/features/public/PublicSite.
 if (
   publicSiteContent.includes('lazy(() => import(') &&
   publicSiteContent.includes('React.Suspense') &&
+  publicSiteContent.includes('fallback={<SkeletonLoader />}') &&
   publicSiteContent.includes("themeLayouts[activeTheme.id] || themeLayouts['theme-default']") &&
   !publicSiteContent.includes("import DefaultLayout from '../../../../themes/default/Layout'") &&
   !publicSiteContent.includes(
     "import CorporateProLayout from '../../../../themes/corporate-pro/Layout'"
   )
 ) {
-  pass('Public Theme Lazy Loading: inactive public themes stay out of the initial source graph.');
+  pass(
+    'Public Theme Lazy Loading: inactive public themes stay out of the initial source graph while the shared skeleton covers the lazy theme handoff.'
+  );
 } else {
   fail(
-    'Public Theme Lazy Loading: PublicSite must lazy-load theme layouts instead of statically importing all themes.'
+    'Public Theme Lazy Loading: PublicSite must lazy-load theme layouts with a visible skeleton handoff instead of statically importing all themes or exposing a blank surface.'
   );
 }
 
@@ -3444,6 +3447,35 @@ assertExcludes(
 );
 
 assertIncludes(
+  'VonSEO General Title Source Contract',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx') +
+    read('src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx'),
+  [
+    'const siteTitle = settings.siteName;',
+    'Site Title (from General Settings)',
+    "value={settings.siteName || ''}",
+    'delete nextSeo.siteTitle;',
+    'readOnly',
+  ],
+  'VonSEO General Title Source Contract: site title is sourced from General Settings and shown read-only in SEO settings.',
+  'VonSEO General Title Source Contract: site title can still drift away from General Settings.'
+);
+
+assertExcludes(
+  'VonSEO Site Title Drift Guard',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx') +
+    read('src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx') +
+    read('src/plugins/von-core/features/extensions/ExtensionsManager.tsx'),
+  [
+    'settings.seo?.siteTitle || settings.siteName',
+    'siteTitle: settings.siteName',
+    'setTempSEO({ ...tempSEO, siteTitle: e.target.value })',
+  ],
+  'VonSEO Site Title Drift Guard: stale SEO site title no longer overrides the General Settings website name.',
+  'VonSEO Site Title Drift Guard: SEO settings can still override the General Settings website name.'
+);
+
+assertIncludes(
   'VonSEO General Description Source Contract',
   read('src/plugins/von-core/features/seo/VonSEO.tsx') +
     read('src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx'),
@@ -5262,9 +5294,9 @@ assertIncludes(
   'SSR JSON-LD Script Escape Boundary: schema JSON-LD can still emit raw script-breaking characters.'
 );
 if (
-  indexContent.includes("$schemaData['@type'] = 'Article';") &&
+  indexContent.includes('function voncms_apply_content_schema') &&
   indexContent.includes(
-    "$schemaData['@type'] = $resolvedContentType === 'page' ? 'WebPage' : 'Article';"
+    "$schemaData['@type'] = $contentType === 'page' ? 'WebPage' : 'Article';"
   ) &&
   !indexContent.includes('BlogPosting') &&
   indexContent.includes("$schemaData['name'] = $schemaTitle;") &&
@@ -6748,7 +6780,8 @@ if (
 }
 
 if (
-  skeletonCssContent.includes('.skeleton-loader {') &&
+  skeletonCssContent.includes('.skeleton-loader,') &&
+  skeletonCssContent.includes('.skeleton-loader-react {') &&
   skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   !skeletonCssContent.includes('animation: fadeOut') &&
   !skeletonCssContent.includes('@keyframes fadeOut')
@@ -6765,41 +6798,53 @@ if (
 const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
   ? read('src/components/SkeletonLoader.tsx')
   : '';
-const initialSkeletonCardCount = (rootIndexHtmlContent.match(/class="sk-card"/g) || []).length;
+const initialSkeletonCardCount = (rootIndexHtmlContent.match(/class="sk-card/g) || []).length;
+const publicSkeletonCardCount = (publicIndexHtmlContent.match(/class="sk-card/g) || []).length;
+const initialSkeletonStylesheetCount = (rootIndexHtmlContent.match(/skeleton\.css/g) || []).length;
+const publicSkeletonStylesheetCount = (publicIndexHtmlContent.match(/skeleton\.css/g) || []).length;
 const skeletonClassNames = ['sk-nav', 'sk-hero', 'sk-grid', 'sk-card'];
 const skeletonClassParity = skeletonClassNames.every(
   (className) =>
     skeletonCssContent.includes(`.${className}`) &&
+    publicIndexHtmlContent.includes(`class="${className}"`) &&
     rootIndexHtmlContent.includes(`class="${className}"`) &&
     reactSkeletonContent.includes(`className="${className}"`)
 );
 if (
-  initialSkeletonCardCount === 3 &&
-  publicIndexHtmlContent.includes('<div id="root"></div>') &&
+  initialSkeletonCardCount === 4 &&
+  publicSkeletonCardCount === 4 &&
+  initialSkeletonStylesheetCount === 1 &&
+  publicSkeletonStylesheetCount === 1 &&
+  publicIndexHtmlContent.includes('aria-label="Loading content"') &&
   rootIndexHtmlContent.includes('aria-label="Loading content"') &&
   reactSkeletonContent.includes('Array.from({ length: 3 }') &&
+  publicIndexHtmlContent.includes('class="sk-card sk-card-tablet"') &&
+  rootIndexHtmlContent.includes('class="sk-card sk-card-tablet"') &&
+  reactSkeletonContent.includes('className="sk-card sk-card-tablet"') &&
   reactSkeletonContent.includes('aria-label="Loading content"') &&
   skeletonClassParity &&
   skeletonCssContent.includes('padding: clamp(1rem, 4vw, 2rem);') &&
-  skeletonCssContent.includes('minmax(min(300px, 100%), 1fr)') &&
-  reactSkeletonContent.includes("padding: 'clamp(1rem, 4vw, 2rem)'") &&
-  reactSkeletonContent.includes('minmax(min(300px, 100%), 1fr)') &&
-  reactSkeletonContent.includes('@media (prefers-reduced-motion: reduce)') &&
+  skeletonCssContent.includes('grid-template-columns: minmax(0, 1fr);') &&
+  skeletonCssContent.includes('grid-template-columns: repeat(2, minmax(0, 1fr));') &&
+  skeletonCssContent.includes('grid-template-columns: repeat(3, minmax(0, 1fr));') &&
+  skeletonCssContent.includes('@media (min-width: 640px) and (max-width: 1023px)') &&
+  skeletonCssContent.includes('.sk-card-tablet {') &&
+  skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   indexCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   indexCssContent.includes('.animate-spin,') &&
-  reactSkeletonContent.includes('background: #111827;') &&
-  reactSkeletonContent.includes('border: 1px solid rgba(148, 163, 184, 0.08);') &&
-  reactSkeletonContent.includes('rgba(59, 130, 246, 0.1) 20%') &&
-  reactSkeletonContent.includes('rgba(148, 163, 184, 0.16) 60%') &&
-  !reactSkeletonContent.includes('background: #1a1a1a;') &&
-  !reactSkeletonContent.includes('rgba(255, 255, 255, 0.7)')
+  skeletonCssContent.includes('background: #111827;') &&
+  skeletonCssContent.includes('border: 1px solid rgba(148, 163, 184, 0.08);') &&
+  skeletonCssContent.includes('rgba(59, 130, 246, 0.1) 20%') &&
+  skeletonCssContent.includes('rgba(148, 163, 184, 0.16) 60%') &&
+  !reactSkeletonContent.includes('<style>') &&
+  !reactSkeletonContent.includes('style={{')
 ) {
   pass(
-    'React Skeleton Palette Contract: production PHP keeps its empty React mount while static HTML and React fallbacks retain matching responsive cards, accessible status, reduced-motion support, and the shared dark palette.'
+    'React Skeleton Palette Contract: production PHP, static HTML, and React fallbacks retain matching responsive cards while one shared stylesheet owns sizing, palette, shimmer, and reduced motion.'
   );
 } else {
   fail(
-    'React Skeleton Palette Contract: the production PHP mount boundary or static HTML and React fallback class names, responsive layout, card count, accessibility, reduced motion, or palette can drift.'
+    'React Skeleton Palette Contract: shell markup, React fallback classes, shared stylesheet count, responsive layout, accessibility, reduced motion, or palette can drift.'
   );
 }
 
@@ -6937,6 +6982,64 @@ if (publicDiscoveryIssues.length === 0) {
 } else {
   fail(
     `Public Discovery 200+ Contract: bundled theme discovery wiring is incomplete: ${publicDiscoveryIssues.join('; ')}`
+  );
+}
+
+assertIncludes(
+  'Category Navigation Single Transition Contract',
+  read('src/App.tsx'),
+  [
+    'const isCurrentHomePath = () =>',
+    'const handleCategoryNavigation = (cat: string) => {',
+    'setSearchParams(cat ? { category: cat } : {});',
+    "navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/');",
+    'onCategoryClick={handleCategoryNavigation}',
+    'onBackToHome={handleBackToHome}',
+  ],
+  'Category Navigation Single Transition Contract: homepage filters update in place while content routes navigate directly to the category homepage.',
+  'Category Navigation Single Transition Contract: category buttons can regress to redundant route transitions.'
+);
+
+assertExcludes(
+  'Category Navigation Double Transition Guard',
+  read('src/App.tsx'),
+  ['onCategoryClick={(cat: string) => {', 'setSearchParams({ category: cat });'],
+  'Category Navigation Double Transition Guard: category buttons no longer update the current route before navigating home.',
+  'Category Navigation Double Transition Guard: the legacy two-step category transition is still present.'
+);
+
+assertIncludes(
+  'Same-Site Category Navigation Resolver',
+  read('src/utils/siteUtils.ts'),
+  [
+    'export const getSameSiteCategoryNavigation = (url?: string): string | null => {',
+    'if (parsedUrl.origin !== window.location.origin) return null;',
+    "if (targetPath !== homePath || !parsedUrl.searchParams.has('category')) return null;",
+  ],
+  'Same-Site Category Navigation Resolver: root and subfolder category URLs on the current origin stay inside the SPA.',
+  'Same-Site Category Navigation Resolver: current-origin category navigation can regress to a full document reload.'
+);
+
+const sameSiteCategoryNavigationThemes = [
+  'src/themes/default/Layout.tsx',
+  'src/themes/prism/Layout.tsx',
+  'src/themes/portfolio/Layout.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/techpress/Layout.tsx',
+  'src/themes/corporate-pro/Layout.tsx',
+];
+const sameSiteCategoryNavigationIssues = sameSiteCategoryNavigationThemes.filter((file) => {
+  const content = read(file);
+  return !content.includes('getSameSiteCategoryNavigation') || !content.includes('onCategoryClick');
+});
+
+if (sameSiteCategoryNavigationIssues.length === 0) {
+  pass(
+    'Bundled Theme Category Navigation Contract: current-origin absolute category links avoid full reloads in every bundled theme.'
+  );
+} else {
+  fail(
+    `Bundled Theme Category Navigation Contract: missing same-site category routing in ${sameSiteCategoryNavigationIssues.join(', ')}`
   );
 }
 
@@ -7947,7 +8050,8 @@ assertIncludes(
   [
     '$publicContentCurrentTime = date(',
     "AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1",
-    '$stmt->execute([$slugOrId, $publicContentCurrentTime]);',
+    '$stmt->execute([$slugOrId, $currentTime]);',
+    'voncms_fetch_public_post(',
     'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p',
     "WHERE p.slug = ? AND p.status = 'published' LIMIT 1",
     "WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 5",
@@ -9386,6 +9490,101 @@ assertIncludes(
   ],
   'Content Audit Ownership Contract: writers can view only their own post history.',
   "Content Audit Ownership Contract: writers can still read another author's audit history."
+);
+
+const profileEditorHookContent = read('src/hooks/useProfileEditor.ts');
+const defaultProfileEditorContent = read('src/plugins/von-core/features/users/UserProfile.tsx');
+const techPressProfileEditorContent = read('src/themes/techpress/Profile.tsx');
+assertIncludes(
+  'Shared Profile Editor Contract',
+  profileEditorHookContent,
+  [
+    'interface ProfileUpdatePayload',
+    'export function useProfileEditor',
+    'Current password is required to change password',
+    'onUpdateUser(profileUpdates);',
+  ],
+  'Shared Profile Editor Contract: profile/password validation and persistence use one typed hook.',
+  'Shared Profile Editor Contract: the shared typed profile/password save path is incomplete.'
+);
+assertIncludes(
+  'Shared Profile Editor Consumers',
+  defaultProfileEditorContent + '\n' + techPressProfileEditorContent,
+  ['import { useProfileEditor }', 'useProfileEditor({ targetUser, currentUser'],
+  'Shared Profile Editor Consumers: Default and TechPress profiles consume the shared editor hook.',
+  'Shared Profile Editor Consumers: a public profile still owns a divergent save implementation.'
+);
+assertExcludes(
+  'Shared Profile Editor Consumers',
+  defaultProfileEditorContent + '\n' + techPressProfileEditorContent,
+  ['API.updateProfile', 'const payload: any'],
+  'Shared Profile Editor Consumers: API/password payload logic is absent from both presentation components.',
+  'Shared Profile Editor Consumers: duplicated profile persistence or untyped payload logic remains.'
+);
+if (
+  profileEditorHookContent.indexOf('onUpdateUser(profileUpdates);') >
+  profileEditorHookContent.indexOf('if (!response.ok || !data.success)')
+) {
+  pass('Profile Save State Contract: global user state updates only after backend success.');
+} else {
+  fail(
+    'Profile Save State Contract: failed profile saves can still update global user state optimistically.'
+  );
+}
+
+const sharedSsrPostQueryMarker =
+  'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category';
+const sharedSsrPostQuerySource = sliceBetween(
+  publicIndexContent,
+  'function voncms_fetch_public_post',
+  "if (!function_exists('voncms_clean_seo_description'))"
+);
+assertIncludes(
+  'Shared Public SSR Post Contract',
+  publicIndexContent,
+  [
+    'function voncms_fetch_public_post',
+    'function voncms_clean_seo_description',
+    'function voncms_apply_content_schema',
+    "voncms_apply_content_schema(\n            $schemaData,\n            $post,\n            'post'",
+    'voncms_apply_content_schema(\n            $schemaData,\n            $post,\n            $resolvedContentType',
+  ],
+  'Shared Public SSR Post Contract: legacy and permalink routes share published-post lookup, description, and schema helpers.',
+  'Shared Public SSR Post Contract: a public post route has drifted away from the shared SSR helpers.'
+);
+if (
+  sharedSsrPostQuerySource.split(sharedSsrPostQueryMarker).length - 1 === 1 &&
+  publicIndexContent.split('voncms_fetch_public_post(').length - 1 === 3
+) {
+  pass('Shared Public SSR Query Contract: the published-post SELECT has one source of truth.');
+} else {
+  fail('Shared Public SSR Query Contract: the published-post SELECT is duplicated across routes.');
+}
+
+const defaultNavigationContent = read('src/themes/default/Layout.tsx');
+const portfolioNavigationContent = read('src/themes/portfolio/Layout.tsx');
+assertIncludes(
+  'Shared Theme Navigation Contract',
+  defaultNavigationContent,
+  [
+    'const resolveNavigationLabel = (nav: NavItem): string =>',
+    'const handleNavigationItem = (nav: NavItem, closeMobileMenu = false) =>',
+    "return page ? page.title || 'Untitled Page' : nav.url;",
+    "return post ? post.title || 'Untitled' : nav.url;",
+    'handleNavigationItem(nav, true)',
+  ],
+  'Shared Theme Navigation Contract: Default navigation variants share label/action resolution.',
+  'Shared Theme Navigation Contract: Default navigation label/action variants can drift independently.'
+);
+assertIncludes(
+  'Shared Theme Navigation Contract',
+  portfolioNavigationContent,
+  [
+    'const handleNavigationItem = (nav: any, closeMobileMenu = false) =>',
+    'handleNavigationItem(nav, true)',
+  ],
+  'Shared Theme Navigation Contract: Portfolio navigation variants share one action resolver.',
+  'Shared Theme Navigation Contract: Portfolio navigation variants can drift independently.'
 );
 
 const phpBinary = findPhpBinary();

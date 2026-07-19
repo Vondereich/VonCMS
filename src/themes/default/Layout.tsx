@@ -52,7 +52,7 @@ import {
   hasEmbeddedVideoMarkup,
   getResponsiveImageAttributes,
 } from '../shared';
-import { normalizeSiteUrl } from '../../utils/siteUtils';
+import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
 
 // Utility to render User Avatar
 const UserAvatar: React.FC<{
@@ -275,6 +275,40 @@ const DefaultLayout: React.FC<
 
   const rssPath = `${getBasePathPrefix()}/rss`;
 
+  const resolveNavigationLabel = (nav: NavItem): string => {
+    if (nav.label) return nav.label;
+    if (nav.url.startsWith('page:')) {
+      const pageId = nav.url.split(':')[1];
+      const page = pages.find((item) => item.id === pageId);
+      return page ? page.title || 'Untitled Page' : nav.url;
+    }
+    if (nav.url.startsWith('post:')) {
+      const postId = nav.url.split(':')[1];
+      const post = posts.find((item) => item.id === postId);
+      return post ? post.title || 'Untitled' : nav.url;
+    }
+    return nav.url;
+  };
+
+  const handleNavigationItem = (nav: NavItem, closeMobileMenu = false) => {
+    if (closeMobileMenu) setIsMobileMenuOpen(false);
+    if (nav.url === 'home') return goHome();
+    if (nav.url.startsWith('page:')) {
+      const pageId = nav.url.split(':')[1];
+      const page = pages.find((item) => item.id === pageId);
+      if (onPageClick) return onPageClick(page?.slug || pageId);
+      return;
+    }
+    if (nav.url.startsWith('post:')) {
+      return viewPost(nav.url.split(':')[1]);
+    }
+    const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+    if (categoryTarget !== null && onCategoryClick) {
+      return onCategoryClick(categoryTarget);
+    }
+    window.location.href = normalizeSiteUrl(nav.url);
+  };
+
   return (
     <div
       className={`min-h-screen flex justify-center transition-colors duration-300 ${isDarkMode ? 'dark' : ''} bg-[var(--bg-body)] text-[var(--text-primary)]`}
@@ -360,44 +394,14 @@ const DefaultLayout: React.FC<
                 )}
               </div>
               <div className={desktopNavigationClassName}>
-                {visibleNavigationItems.map((nav: NavItem) => {
-                  // compute a friendly label when label is missing
-                  let computedLabel = nav.label;
-                  if (!computedLabel) {
-                    if (nav.url && nav.url.startsWith('page:')) {
-                      const pid = nav.url.split(':')[1];
-                      const pg = pages.find((p) => p.id === pid);
-                      computedLabel = pg ? pg.title || 'Untitled Page' : nav.url;
-                    } else if (nav.url && nav.url.startsWith('post:')) {
-                      const mid = nav.url.split(':')[1];
-                      const pst = posts.find((p) => p.id === mid);
-                      computedLabel = pst ? pst.title || 'Untitled' : nav.url;
-                    } else {
-                      computedLabel = nav.url;
-                    }
-                  }
-                  return (
-                    <NavLink
-                      key={nav.id}
-                      label={computedLabel}
-                      onClick={() => {
-                        if (nav.url === 'home') return goHome();
-                        if (nav.url.startsWith('page:')) {
-                          const pageId = nav.url.split(':')[1];
-                          const pg = pages.find((p) => p.id === pageId);
-                          if (onPageClick) return onPageClick(pg?.slug || pageId);
-                          return;
-                        }
-                        if (nav.url.startsWith('post:')) {
-                          const postId = nav.url.split(':')[1];
-                          return viewPost(postId);
-                        }
-                        window.location.href = normalizeSiteUrl(nav.url);
-                      }}
-                      isActive={currentView === 'home' && nav.url === 'home'}
-                    />
-                  );
-                })}
+                {visibleNavigationItems.map((nav: NavItem) => (
+                  <NavLink
+                    key={nav.id}
+                    label={resolveNavigationLabel(nav)}
+                    onClick={() => handleNavigationItem(nav)}
+                    isActive={currentView === 'home' && nav.url === 'home'}
+                  />
+                ))}
                 {/* More Dropdown */}
                 {overflowNavigationItems.length > 0 && (
                   <div className="relative group">
@@ -428,34 +432,16 @@ const DefaultLayout: React.FC<
                         border: '1px solid rgba(128,128,128,0.3)',
                       }}
                     >
-                      {overflowNavigationItems.map((nav: NavItem) => {
-                        let label = nav.label || nav.url;
-                        if (!nav.label && nav.url.startsWith('page:')) {
-                          const pg = pages.find((p) => p.id === nav.url.split(':')[1]);
-                          label = pg?.title || nav.url;
-                        }
-                        return (
-                          <button
-                            key={nav.id}
-                            onClick={() => {
-                              if (nav.url === 'home') return goHome();
-                              if (nav.url.startsWith('page:')) {
-                                const pageId = nav.url.split(':')[1];
-                                const pg = pages.find((p) => p.id === pageId);
-                                if (onPageClick) return onPageClick(pg?.slug || pageId);
-                                return;
-                              }
-                              if (nav.url.startsWith('post:'))
-                                return viewPost(nav.url.split(':')[1]);
-                              window.location.href = normalizeSiteUrl(nav.url);
-                            }}
-                            className="w-full px-4 py-2 text-left text-sm transition-opacity opacity-70 hover:opacity-100"
-                            style={{ color: 'var(--text-nav)' }}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
+                      {overflowNavigationItems.map((nav: NavItem) => (
+                        <button
+                          key={nav.id}
+                          onClick={() => handleNavigationItem(nav)}
+                          className="w-full px-4 py-2 text-left text-sm transition-opacity opacity-70 hover:opacity-100"
+                          style={{ color: 'var(--text-nav)' }}
+                        >
+                          {resolveNavigationLabel(nav)}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -662,46 +648,16 @@ const DefaultLayout: React.FC<
               }}
             >
               <div className="px-6 py-8 space-y-6">
-                {navigationItems.map((nav: NavItem) => {
-                  let computedLabel = nav.label;
-                  if (!computedLabel) {
-                    if (nav.url && nav.url.startsWith('page:')) {
-                      const pid = nav.url.split(':')[1];
-                      const pg = pages.find((p) => p.id === pid);
-                      computedLabel = pg ? pg.title || 'Untitled Page' : nav.url;
-                    } else if (nav.url && nav.url.startsWith('post:')) {
-                      const mid = nav.url.split(':')[1];
-                      const pst = posts.find((p) => p.id === mid);
-                      computedLabel = pst ? pst.title || 'Untitled' : nav.url;
-                    } else {
-                      computedLabel = nav.url;
-                    }
-                  }
-                  return (
-                    <button
-                      key={nav.id}
-                      onClick={() => {
-                        if (nav.url === 'home') return (goHome(), setIsMobileMenuOpen(false));
-                        if (nav.url.startsWith('page:')) {
-                          const pageId = nav.url.split(':')[1];
-                          const pg = pages.find((p) => p.id === pageId);
-                          if (onPageClick)
-                            return (onPageClick(pg?.slug || pageId), setIsMobileMenuOpen(false));
-                          return;
-                        }
-                        if (nav.url.startsWith('post:')) {
-                          const postId = nav.url.split(':')[1];
-                          return (viewPost(postId), setIsMobileMenuOpen(false));
-                        }
-                        window.location.href = normalizeSiteUrl(nav.url);
-                      }}
-                      className="block w-full text-left text-lg font-bold"
-                      style={{ color: 'var(--text-nav)' }}
-                    >
-                      {computedLabel}
-                    </button>
-                  );
-                })}
+                {navigationItems.map((nav: NavItem) => (
+                  <button
+                    key={nav.id}
+                    onClick={() => handleNavigationItem(nav, true)}
+                    className="block w-full text-left text-lg font-bold"
+                    style={{ color: 'var(--text-nav)' }}
+                  >
+                    {resolveNavigationLabel(nav)}
+                  </button>
+                ))}
                 <hr style={{ borderColor: 'rgba(128,128,128,0.3)' }} />
                 {user ? (
                   <>

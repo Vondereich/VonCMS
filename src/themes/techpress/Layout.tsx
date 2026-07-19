@@ -40,7 +40,11 @@ import {
   getVisibleNavigationItems,
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
-import { getPermalink, normalizeSiteUrl } from '../../utils/siteUtils';
+import {
+  getPermalink,
+  getSameSiteCategoryNavigation,
+  normalizeSiteUrl,
+} from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 
@@ -641,6 +645,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     } else if (nav.url.startsWith('post:') && onPostClick) {
       onPostClick(nav.url.split(':')[1]);
     } else {
+      const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+      if (categoryTarget !== null && onCategoryClick) {
+        onCategoryClick(categoryTarget);
+        return;
+      }
       window.location.href = normalizeSiteUrl(nav.url);
     }
   };

@@ -104,7 +104,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
   }, [currentView, selectedCategory, categoryPostCount]);
 
   useEffect(() => {
-    const siteTitle = settings.seo?.siteTitle || settings.siteName;
+    const siteTitle = settings.siteName;
     const existingRobots =
       document.head.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
 
