@@ -117,12 +117,13 @@ body {
   }
 
   .sk-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(3, minmax(0, 300px));
+    justify-content: center;
+    gap: 1.5rem;
   }
 
   .sk-card {
-    height: 300px;
+    height: 240px;
   }
 }
 

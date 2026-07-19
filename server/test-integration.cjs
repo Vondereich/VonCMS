@@ -6826,7 +6826,9 @@ if (
   skeletonCssContent.includes('padding: clamp(1rem, 4vw, 2rem);') &&
   skeletonCssContent.includes('grid-template-columns: minmax(0, 1fr);') &&
   skeletonCssContent.includes('grid-template-columns: repeat(2, minmax(0, 1fr));') &&
-  skeletonCssContent.includes('grid-template-columns: repeat(3, minmax(0, 1fr));') &&
+  skeletonCssContent.includes('grid-template-columns: repeat(3, minmax(0, 300px));') &&
+  skeletonCssContent.includes('justify-content: center;') &&
+  skeletonCssContent.includes('height: 240px;') &&
   skeletonCssContent.includes('@media (min-width: 640px) and (max-width: 1023px)') &&
   skeletonCssContent.includes('.sk-card-tablet {') &&
   skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
