@@ -116,12 +116,13 @@ export function usePublicPostsQuery({
     !hasShortSearch &&
     fallbackPosts.length === 0 &&
     (normalizedCategory.length > 0 || normalizedSearch.length >= 2 || rawSearchQuery.length >= 2);
+  const startsWithPublicFetch = enabled && !hasShortSearch && fallbackPosts.length === 0;
 
   const [posts, setPosts] = useState<Post[]>(fallbackPosts);
   const [meta, setMeta] = useState<PublicPostsMeta | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [isLoading, setIsLoading] = useState(preserveVisiblePostsDuringFetch);
+  const [isLoading, setIsLoading] = useState(startsWithPublicFetch);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

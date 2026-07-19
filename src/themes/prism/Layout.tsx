@@ -44,6 +44,7 @@ import {
   PUBLIC_SEARCH_MAX_LENGTH,
   normalizePublicSearchInput,
   usePublicPostsQuery,
+  PublicDiscoverySkeleton,
   useAISummary,
   useRelatedPosts,
   decodeEntities,
@@ -692,9 +693,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                 </div>
               )}
               {isInitialDiscoveryLoading ? (
-                <div className="mb-12 rounded-2xl border border-[var(--color-primary)]/20 bg-[#0a0a1f]/80 px-6 py-16 text-center font-mono text-[var(--color-primary)] shadow-[0_0_30px_rgba(6,182,212,0.12)]">
-                  SYNCING_ARCHIVE...
-                </div>
+                <PublicDiscoverySkeleton className="mb-12" />
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">

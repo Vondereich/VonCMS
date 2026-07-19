@@ -28,6 +28,7 @@ import {
   ProseDarkModeStyles,
   AdBlock,
   VonPopupAd,
+  PublicDiscoverySkeleton,
   getResponsiveImageAttributes,
 } from '../shared';
 
@@ -1544,12 +1545,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
       <main className="max-w-7xl mx-auto px-5 py-8">
         {isInitialDiscoveryLoading ? (
-          <div
-            className="py-20 text-center border rounded-2xl"
-            style={{ borderColor: colors.border, color: colors.textSecondary }}
-          >
-            <p className="text-sm font-black uppercase tracking-[0.3em]">Loading stories...</p>
-          </div>
+          <PublicDiscoverySkeleton />
         ) : hasNoDiscoveryPosts ? (
           <div
             className="py-20 px-6 text-center border rounded-2xl"

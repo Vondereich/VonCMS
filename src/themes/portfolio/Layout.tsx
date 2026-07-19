@@ -33,6 +33,7 @@ import {
   useAdsPopup,
   usePublicProfile,
   usePublicPostsQuery,
+  PublicDiscoverySkeleton,
   useProfileActivity,
   VonPopupAd,
   getResponsiveImageAttributes,
@@ -650,14 +651,7 @@ const ProjectsSection = ({
         )}
 
         {isInitialDiscoveryLoading ? (
-          <div className="text-center py-20 rounded-2xl" style={{ background: colors.bgTertiary }}>
-            <p
-              className="text-sm font-semibold uppercase tracking-[0.25em]"
-              style={{ color: colors.textSecondary }}
-            >
-              Loading projects...
-            </p>
-          </div>
+          <PublicDiscoverySkeleton />
         ) : (
           <>
             {/* Projects grid */}

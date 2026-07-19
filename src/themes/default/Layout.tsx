@@ -40,6 +40,7 @@ import {
   PUBLIC_SEARCH_MAX_LENGTH,
   normalizePublicSearchInput,
   usePublicPostsQuery,
+  PublicDiscoverySkeleton,
   useAISummary,
   useRelatedPosts,
   formatDate,
@@ -1217,14 +1218,7 @@ const HomeView: React.FC<{
               ))}
             </div>
           ) : isSearching ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 animate-fade-in text-center px-4">
-              <div className="bg-white dark:bg-neutral-800 p-4 rounded-full shadow-sm mb-6">
-                <Search size={48} className="text-neutral-300 dark:text-neutral-600" />
-              </div>
-              <h3 className="text-2xl font-bold text-neutral-800 dark:text-white mb-2">
-                Searching articles...
-              </h3>
-            </div>
+            <PublicDiscoverySkeleton />
           ) : (
             <div className="flex flex-col items-center justify-center py-20 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 animate-fade-in text-center px-4">
               <div className="bg-white dark:bg-neutral-800 p-4 rounded-full shadow-sm mb-6">

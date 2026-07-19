@@ -42,6 +42,7 @@ import {
   PUBLIC_SEARCH_MAX_LENGTH,
   normalizePublicSearchInput,
   usePublicPostsQuery,
+  PublicDiscoverySkeleton,
   useProfileActivity,
   useAISummary,
   useRelatedPosts,
@@ -2076,11 +2077,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             ))}
           </div>
         ) : isSearching ? (
-          <div className="text-center py-20">
-            <p className="text-lg" style={{ color: colors.textMuted }}>
-              Searching articles...
-            </p>
-          </div>
+          <PublicDiscoverySkeleton />
         ) : (
           <div className="text-center py-20">
             <p className="text-lg" style={{ color: colors.textMuted }}>

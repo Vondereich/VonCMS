@@ -48,6 +48,7 @@ import {
   useAdsPopup,
   useClickOutside,
   usePublicPostsQuery,
+  PublicDiscoverySkeleton,
   useProfileActivity,
   useAISummary,
   useRelatedPosts,
@@ -1417,11 +1418,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                         </div>
                       )}
                       {isInitialDiscoveryLoading ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-16 text-center text-slate-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
-                          <p className="text-sm font-bold uppercase tracking-[0.25em]">
-                            Loading articles...
-                          </p>
-                        </div>
+                        <PublicDiscoverySkeleton />
                       ) : (
                         <>
                           <div className="grid md:grid-cols-3 gap-8">

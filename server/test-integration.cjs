@@ -6439,7 +6439,10 @@ if (exists(publicPostsQueryHookPath)) {
     publicPostsQueryContent.includes('const preserveVisiblePostsDuringFetch =') &&
     publicPostsQueryContent.includes('fallbackPosts.length === 0') &&
     publicPostsQueryContent.includes(
-      'const [isLoading, setIsLoading] = useState(preserveVisiblePostsDuringFetch);'
+      'const startsWithPublicFetch = enabled && !hasShortSearch && fallbackPosts.length === 0;'
+    ) &&
+    publicPostsQueryContent.includes(
+      'const [isLoading, setIsLoading] = useState(startsWithPublicFetch);'
     ) &&
     publicPostsQueryContent.includes('if (!preserveVisiblePostsDuringFetch) {') &&
     publicPostsQueryContent.includes('setPosts(fallbackPosts);')
@@ -7642,7 +7645,7 @@ const defaultThemeContent = read('src/themes/default/Layout.tsx');
 if (
   defaultThemeContent.includes('const isSearching = publicPosts.isLoading;') &&
   defaultThemeContent.includes(') : isSearching ? (') &&
-  defaultThemeContent.includes('Searching articles...')
+  defaultThemeContent.includes('<PublicDiscoverySkeleton />')
 ) {
   pass(
     'Default Theme Discovery Loading Contract: first server-backed searches show a loading state instead of jumping straight to the empty-results UI.'
@@ -7657,7 +7660,7 @@ const digestThemeContent = read('src/themes/digest/Layout.tsx');
 if (
   digestThemeContent.includes('const isSearching = publicPosts.isLoading;') &&
   digestThemeContent.includes(') : isSearching ? (') &&
-  digestThemeContent.includes('Searching articles...')
+  digestThemeContent.includes('<PublicDiscoverySkeleton />')
 ) {
   pass(
     'Digest Theme Discovery Loading Contract: first server-backed searches show a loading state instead of jumping straight to the empty-results UI.'
@@ -7674,39 +7677,55 @@ const remainingDiscoveryLoadingContracts = [
     file: 'src/themes/techpress/Layout.tsx',
     marker:
       'const isInitialDiscoveryLoading = publicPosts.isLoading && paginatedPosts.length === 0;',
-    copy: 'Loading stories...',
+    loader: '<PublicDiscoverySkeleton />',
   },
   {
     name: 'Prism',
     file: 'src/themes/prism/Layout.tsx',
     marker: 'const isInitialDiscoveryLoading = publicPosts.isLoading && currentPosts.length === 0;',
-    copy: 'SYNCING_ARCHIVE...',
+    loader: '<PublicDiscoverySkeleton className="mb-12" />',
   },
   {
     name: 'Corporate Pro',
     file: 'src/themes/corporate-pro/Layout.tsx',
     marker: 'const isInitialDiscoveryLoading = publicPosts.isLoading && visiblePosts.length === 0;',
-    copy: 'Loading articles...',
+    loader: '<PublicDiscoverySkeleton />',
   },
   {
     name: 'Portfolio',
     file: 'src/themes/portfolio/Layout.tsx',
     marker:
       'const isInitialDiscoveryLoading = publicPosts.isLoading && filteredProjects.length === 0;',
-    copy: 'Loading projects...',
+    loader: '<PublicDiscoverySkeleton />',
   },
 ];
 
+const publicPostsFirstFrameContent = read('src/hooks/usePublicPostsQuery.ts');
+if (
+  publicPostsFirstFrameContent.includes(
+    'const startsWithPublicFetch = enabled && !hasShortSearch && fallbackPosts.length === 0;'
+  ) &&
+  publicPostsFirstFrameContent.includes('useState(startsWithPublicFetch)')
+) {
+  pass(
+    'Public Discovery First Frame Contract: an empty guest preload enters loading state immediately instead of flashing an empty result before the first fetch effect.'
+  );
+} else {
+  fail(
+    'Public Discovery First Frame Contract: guest discovery can still flash an empty result before the first public fetch starts.'
+  );
+}
+
 const missingDiscoveryLoading = remainingDiscoveryLoadingContracts.flatMap(
-  ({ name, file, marker, copy }) => {
+  ({ name, file, marker, loader }) => {
     const content = read(file);
-    return content.includes(marker) && content.includes(copy) ? [] : [`${name} (${file})`];
+    return content.includes(marker) && content.includes(loader) ? [] : [`${name} (${file})`];
   }
 );
 
 if (missingDiscoveryLoading.length === 0) {
   pass(
-    'Remaining Theme Discovery Loading Contract: TechPress, Prism, Corporate Pro, and Portfolio show initial loading states before empty grids on server-backed category/search fetches.'
+    'Remaining Theme Discovery Loading Contract: TechPress, Prism, Corporate Pro, and Portfolio reuse the compact shared discovery skeleton before empty grids on server-backed category/search fetches.'
   );
 } else {
   fail(
