@@ -6832,7 +6832,8 @@ if (
   skeletonCssContent.includes('grid-template-columns: repeat(3, minmax(0, 300px));') &&
   skeletonCssContent.includes('justify-content: center;') &&
   skeletonCssContent.includes('height: 240px;') &&
-  skeletonCssContent.includes('@media (min-width: 640px) and (max-width: 1023px)') &&
+  skeletonCssContent.includes('@media (min-width: 640px) and (max-width: 959px)') &&
+  skeletonCssContent.includes('@media (min-width: 960px)') &&
   skeletonCssContent.includes('.sk-card-tablet {') &&
   skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   indexCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
