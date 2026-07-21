@@ -1,3 +1,13 @@
+### [v1.25.12] - 2026-07-22
+
+> Guest homepage ticker continuity and slow category-navigation feedback.
+
+- **Guest Ticker Hydration**: Default, Digest, and TechPress now source their homepage ticker from the same bounded public discovery results used by the visible story list, so opening a post in a new guest window and returning Home no longer leaves the ticker empty until reload. Default reuses its existing Home discovery request and guards Category-to-Home handoff from briefly publishing stale filtered rows instead of adding a duplicate fetch.
+- **Category Navigation Feedback**: All six bundled themes keep their current visible stories during a slow category request while exposing the same accessible shared loading status and busy state, so delayed public discovery no longer looks like an ignored navigation click without replacing useful content with a second skeleton.
+- **Adaptive Empty Sidebar Layout**: Default, Digest, and TechPress single posts now remove the sidebar column and center the article when every shared widget is hidden and no sidebar newsletter is active. When the TechPress homepage widget column is empty, Latest Updates now uses the full theme container with larger balanced thumbnails on tablet and desktop; enabling any homepage sidebar widget restores the original compact feed and sidebar proportions. Digest continues to respect its explicit theme-level sidebar toggle.
+- **Dependency Maintenance**: Updated the compatible OpenRouter SDK, PostCSS, Prettier, React, React DOM, React Is, and Recharts releases while leaving the breaking OpenRouter 1, Tailwind 4, and TypeScript 7 migrations outside the final OpenGate patch line.
+- **Regression And Release**: Integration guards all three bundled ticker themes against guest preload drift, locks the Default stale-scope handoff, shared category refresh state across every bundled theme, and adaptive empty-sidebar behavior across all sidebar-capable themes; package metadata plus public docs identify `v1.25.12`.
+
 ### [v1.25.11] - 2026-07-17
 
 > Media Library safety, extension integrity, and responsive-variant maintenance.

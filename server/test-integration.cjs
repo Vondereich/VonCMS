@@ -5558,6 +5558,166 @@ assertIncludes(
   'TechPress Latest Source Naming Audit: latest-slice source names still imply breaking/trending behavior.'
 );
 assertIncludes(
+  'Bundled Guest Ticker Public Source Guard',
+  read('src/themes/default/Layout.tsx') + '\n' + digestLayoutContent + '\n' + techPressLayout,
+  [
+    'onPublicPostsChange={setPublicTickerPosts}',
+    'onPublicPostsChange?.(publicPosts.posts);',
+    'const discoveryScopeChanged = previousDiscoveryScopeRef.current !== discoveryScope;',
+    '!discoveryScopeChanged &&',
+    '!publicPosts.isLoading',
+    'publicTickerPosts.length > 0 ? publicTickerPosts : publishedPosts',
+    'posts={displayedPosts.slice(0, 5)}',
+    '? displayedPosts.slice(0, config.breakingNewsCount || 3)',
+    'latestTickerItems={latestTickerItems}',
+  ],
+  'Bundled Guest Ticker Public Source Guard: Default, Digest, and TechPress tickers follow hydrated public discovery data after a guest direct-post navigation.',
+  'Bundled Guest Ticker Public Source Guard: a bundled homepage ticker can still depend only on the empty guest global preload.'
+);
+assertExcludes(
+  'Bundled Guest Ticker Global Preload Drift Guard',
+  digestLayoutContent + '\n' + techPressLayout,
+  [
+    'posts={publishedPosts.slice(0, 5)}',
+    '? publishedPosts.slice(0, config.breakingNewsCount || 3)',
+  ],
+  'Bundled Guest Ticker Global Preload Drift Guard: Digest and TechPress no longer read the guest global preload directly.',
+  'Bundled Guest Ticker Global Preload Drift Guard: a hydrated ticker still reads the guest global preload directly.'
+);
+const publicDiscoveryRefreshStatusContent = read(
+  'src/themes/shared/components/PublicDiscoveryRefreshStatus.tsx'
+);
+assertIncludes(
+  'Shared Category Refresh Feedback Guard',
+  publicDiscoveryRefreshStatusContent + '\n' + read('src/themes/shared/index.ts'),
+  [
+    "label = 'Loading category stories...'",
+    'role="status"',
+    'aria-live="polite"',
+    'aria-busy="true"',
+    'motion-safe:animate-pulse',
+    'PublicDiscoveryRefreshStatus',
+  ],
+  'Shared Category Refresh Feedback Guard: bundled themes expose one accessible, reduced-motion-safe category refresh status.',
+  'Shared Category Refresh Feedback Guard: category refresh feedback can drift between bundled themes or lose its accessible status.'
+);
+
+const bundledCategoryRefreshContracts = [
+  {
+    name: 'Default',
+    content: read('src/themes/default/Layout.tsx'),
+    stateMarker: 'Boolean(selectedCategory) && publicPosts.isLoading && currentPosts.length > 0;',
+  },
+  {
+    name: 'Digest',
+    content: digestLayoutContent,
+    stateMarker: 'Boolean(selectedCategory) && publicPosts.isLoading && displayedPosts.length > 0;',
+  },
+  {
+    name: 'TechPress',
+    content: techPressLayout,
+    stateMarker: 'Boolean(selectedCategory) && publicPosts.isLoading && paginatedPosts.length > 0;',
+  },
+  {
+    name: 'Prism',
+    content: read('src/themes/prism/Layout.tsx'),
+    stateMarker: 'Boolean(selectedCategory) && publicPosts.isLoading && currentPosts.length > 0;',
+  },
+  {
+    name: 'Corporate Pro',
+    content: read('src/themes/corporate-pro/Layout.tsx'),
+    stateMarker: 'Boolean(selectedCategory) && publicPosts.isLoading && visiblePosts.length > 0;',
+  },
+  {
+    name: 'Portfolio',
+    content: read('src/themes/portfolio/Layout.tsx'),
+    stateMarker:
+      "activeCategory !== 'all' && publicPosts.isLoading && filteredProjects.length > 0;",
+  },
+];
+
+const missingCategoryRefreshContracts = bundledCategoryRefreshContracts.flatMap(
+  ({ name, content, stateMarker }) =>
+    content.includes('const isCategoryRefreshing =') &&
+    content.includes(stateMarker) &&
+    content.includes('<PublicDiscoveryRefreshStatus') &&
+    content.includes('aria-busy={isCategoryRefreshing || undefined}')
+      ? []
+      : [name]
+);
+
+if (missingCategoryRefreshContracts.length === 0) {
+  pass(
+    'Bundled Category Refresh Feedback Guard: all six bundled themes keep visible rows while exposing the shared category refresh status.'
+  );
+} else {
+  fail(
+    `Bundled Category Refresh Feedback Guard: missing category refresh parity in ${missingCategoryRefreshContracts.join(', ')}.`
+  );
+}
+
+const sidebarVisibilityContent = read('src/themes/shared/sidebarVisibility.ts');
+assertIncludes(
+  'Shared Empty Sidebar Visibility Guard',
+  sidebarVisibilityContent + '\n' + read('src/themes/shared/index.ts'),
+  [
+    "Pick<SiteSettings, 'newsletter' | 'sidebarLayout'>",
+    '(settings.sidebarLayout || []).some((widget) => widget.isVisible !== false)',
+    'settings.newsletter?.enabled',
+    "settings.newsletter.position === 'sidebar'",
+    "settings.newsletter.position === 'both'",
+    'includeNewsletter = true',
+    'hasActiveSidebarContent',
+  ],
+  'Shared Empty Sidebar Visibility Guard: bundled themes share widget/newsletter-aware sidebar visibility without adding a new setting.',
+  'Shared Empty Sidebar Visibility Guard: sidebar-capable themes can drift on what counts as active sidebar content.'
+);
+
+assertIncludes(
+  'Default Empty Sidebar Centering Guard',
+  read('src/themes/default/Layout.tsx'),
+  [
+    'const hasSinglePostSidebar = hasActiveSidebarContent(settings);',
+    "hasSinglePostSidebar ? 'lg:flex-row' : ''",
+    "hasSinglePostSidebar ? 'lg:max-w-[calc(100%-420px)]' : 'w-full max-w-4xl mx-auto'",
+    '{hasSinglePostSidebar && (',
+  ],
+  'Default Empty Sidebar Centering Guard: single posts center when widgets and the sidebar newsletter are disabled.',
+  'Default Empty Sidebar Centering Guard: an empty single-post sidebar can still reserve a blank desktop column.'
+);
+
+assertIncludes(
+  'Digest Empty Sidebar Centering Guard',
+  digestLayoutContent,
+  [
+    'digestSettings.showSidebar && hasActiveSidebarContent(settings);',
+    "hasSinglePostSidebar ? 'lg:flex-row' : ''",
+    "hasSinglePostSidebar ? 'w-full' : 'max-w-4xl mx-auto'",
+    '{hasSinglePostSidebar && (',
+  ],
+  'Digest Empty Sidebar Centering Guard: explicit theme visibility and active shared content both control the single-post sidebar.',
+  'Digest Empty Sidebar Centering Guard: the theme can still reserve a blank sidebar after every shared block is disabled.'
+);
+
+assertIncludes(
+  'TechPress Adaptive Empty Sidebar Guard',
+  techPressLayout,
+  [
+    'const hasSinglePostSidebar = hasActiveSidebarContent(settings);',
+    'const hasHomepageSidebar = hasActiveSidebarContent(settings, { includeNewsletter: false });',
+    "hasSinglePostSidebar ? 'lg:flex-row' : ''",
+    "hasSinglePostSidebar ? 'lg:max-w-[calc(100%-370px)]' : 'max-w-4xl mx-auto'",
+    "hasHomepageSidebar ? 'lg:flex-row' : ''",
+    "hasHomepageSidebar ? '' : 'w-full'",
+    'expandedHorizontalImage={!hasHomepageSidebar}',
+    "expandedHorizontalImage ? 'sm:w-72 lg:w-80' : 'sm:w-64'",
+    '{hasSinglePostSidebar && (',
+    '{hasHomepageSidebar && (',
+  ],
+  'TechPress Adaptive Empty Sidebar Guard: single posts center while sidebar-free Latest Updates expands to the theme container with larger tablet and desktop thumbnails.',
+  'TechPress Adaptive Empty Sidebar Guard: an empty sidebar can still reserve a blank column or leave the homepage feed undersized.'
+);
+assertIncludes(
   'TechPress Featured Title Clamp',
   techPressLayout,
   [
@@ -6910,10 +7070,10 @@ const publicDiscoveryThemeContracts = [
       'publicPosts.posts',
       'publicPosts.loadMore',
       'publicPosts.hasMore',
-      'publishedPosts.slice(0, config.breakingNewsCount || 3)',
+      'displayedPosts.slice(0, config.breakingNewsCount || 3)',
       'config.enableBreaking && !selectedCategory && !activeSearchQuery',
     ],
-    forbids: ['? displayedPosts.slice(0, config.breakingNewsCount || 3)'],
+    forbids: ['? publishedPosts.slice(0, config.breakingNewsCount || 3)'],
   },
   {
     file: 'src/themes/prism/Layout.tsx',

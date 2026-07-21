@@ -1,7 +1,7 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.25.11",
+  "version": "1.25.12",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,7 @@
     "test:smoke": "node server/test-integration.cjs"
   },
   "dependencies": {
-    "@openrouter/sdk": "^0.13.65",
+    "@openrouter/sdk": "^0.13.67",
     "@tiptap/core": "^3.28.0",
     "@tiptap/extension-image": "^3.28.0",
     "@tiptap/extension-link": "^3.28.0",
@@ -39,14 +39,14 @@
     "multer": "^2.2.0",
     "nprogress": "^0.2.0",
     "prop-types": "^15.8.1",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-gravatar": "^2.6.3",
     "react-hot-toast": "^2.6.0",
-    "react-is": "^19.2.7",
+    "react-is": "^19.2.8",
     "react-router-dom": "^7.18.1",
     "react-share": "^5.2.2",
-    "recharts": "^3.9.2"
+    "recharts": "^3.10.0"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -58,8 +58,8 @@
     "@types/react-gravatar": "^2.6.14",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.5.4",
-    "postcss": "^8.5.20",
-    "prettier": "^3.9.5",
+    "postcss": "^8.5.21",
+    "prettier": "^3.9.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^6.0.3",
     "vite": "^8.1.5"

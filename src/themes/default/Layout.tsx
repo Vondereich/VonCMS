@@ -41,6 +41,8 @@ import {
   normalizePublicSearchInput,
   usePublicPostsQuery,
   PublicDiscoverySkeleton,
+  PublicDiscoveryRefreshStatus,
+  hasActiveSidebarContent,
   useAISummary,
   useRelatedPosts,
   formatDate,
@@ -222,6 +224,7 @@ const DefaultLayout: React.FC<
   // Internal state for mobile menu only
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const [publicTickerPosts, setPublicTickerPosts] = useState<Post[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [resetKey, setResetKey] = useState(0); // Add reset key for pagination
@@ -717,7 +720,10 @@ const DefaultLayout: React.FC<
           !activeSearchQuery &&
           settings.theme.default?.showTrending !== false && (
             <TrendingTicker
-              posts={publishedPosts.slice(0, 5)}
+              posts={(publicTickerPosts.length > 0 ? publicTickerPosts : publishedPosts).slice(
+                0,
+                5
+              )}
               onPostClick={onPostClick || viewPost}
               isDarkMode={isDarkMode}
               accentColor={settings.theme?.primaryColor || '#0ea5ff'}
@@ -747,6 +753,7 @@ const DefaultLayout: React.FC<
               allUsers={allUsers}
               selectedCategory={currentView === 'category' ? selectedCategory : null}
               onCategoryClick={onCategoryClick}
+              onPublicPostsChange={setPublicTickerPosts}
               resetKey={resetKey}
             />
           ) : currentView === 'page' && selectedPage ? (
@@ -983,6 +990,7 @@ const HomeView: React.FC<{
   allUsers?: User[];
   selectedCategory?: string | null;
   onCategoryClick?: (category: string) => void;
+  onPublicPostsChange?: (posts: Post[]) => void;
   resetKey?: number;
 }> = ({
   posts,
@@ -995,6 +1003,7 @@ const HomeView: React.FC<{
   allUsers = [],
   selectedCategory,
   onCategoryClick,
+  onPublicPostsChange,
 }) => {
   const postsPerPage = settings.postsPerPage || 6;
   const [localSearchTerm, setLocalSearchTerm] = useState(activeSearchQuery);
@@ -1013,6 +1022,31 @@ const HomeView: React.FC<{
   });
 
   const finalPosts = publicPosts.posts;
+  const discoveryScope = `${selectedCategory || ''}\u0000${activeSearchQuery}`;
+  const previousDiscoveryScopeRef = useRef(discoveryScope);
+  const discoveryScopeChanged = previousDiscoveryScopeRef.current !== discoveryScope;
+
+  useEffect(() => {
+    previousDiscoveryScopeRef.current = discoveryScope;
+  }, [discoveryScope]);
+
+  useEffect(() => {
+    if (
+      !discoveryScopeChanged &&
+      !selectedCategory &&
+      !activeSearchQuery &&
+      !publicPosts.isLoading
+    ) {
+      onPublicPostsChange?.(publicPosts.posts);
+    }
+  }, [
+    activeSearchQuery,
+    discoveryScopeChanged,
+    onPublicPostsChange,
+    publicPosts.isLoading,
+    publicPosts.posts,
+    selectedCategory,
+  ]);
 
   // Sync from parent
   useEffect(() => {
@@ -1038,12 +1072,17 @@ const HomeView: React.FC<{
       ? `Showing first ${visibleSearchCount} results`
       : `Showing ${visibleSearchCount} ${visibleSearchLabel}`;
   const isSearching = publicPosts.isLoading;
+  const isCategoryRefreshing =
+    Boolean(selectedCategory) && publicPosts.isLoading && currentPosts.length > 0;
 
   const handleLoadMore = publicPosts.loadMore;
   const loadingMore = publicPosts.loadingMore;
 
   return (
-    <div className="animate-fade-in w-full max-w-7xl mx-auto">
+    <div
+      className="animate-fade-in w-full max-w-7xl mx-auto"
+      aria-busy={isCategoryRefreshing || undefined}
+    >
       <div className="max-w-md mx-auto relative mb-8 mt-8">
         <div className="relative group">
           <input
@@ -1089,6 +1128,10 @@ const HomeView: React.FC<{
               <h3 className="text-2xl font-bold text-neutral-800 dark:text-white">
                 Category: <span className="text-primary-600">"{selectedCategory}"</span>
               </h3>
+              <PublicDiscoveryRefreshStatus
+                active={isCategoryRefreshing}
+                className="mx-auto mt-3 text-primary-600 dark:text-primary-400"
+              />
               <button
                 className="text-sm text-neutral-500 hover:text-primary-600 mt-2 hover:underline"
                 onClick={(e) => {
@@ -1312,10 +1355,15 @@ const SinglePostView: React.FC<{
   const authorEmail = allUsers.find((u) => u.username === authorUsername)?.email;
   const authorAvatar =
     post.author_data?.avatar || allUsers.find((u) => u.username === authorUsername)?.avatar;
+  const hasSinglePostSidebar = hasActiveSidebarContent(settings);
 
   return (
-    <div className="w-full max-w-7xl mx-auto py-12 animate-fade-in flex flex-col lg:flex-row gap-12">
-      <article className="flex-grow lg:max-w-[calc(100%-420px)]">
+    <div
+      className={`w-full max-w-7xl mx-auto py-12 animate-fade-in flex flex-col gap-12 ${hasSinglePostSidebar ? 'lg:flex-row' : ''}`}
+    >
+      <article
+        className={`flex-grow min-w-0 ${hasSinglePostSidebar ? 'lg:max-w-[calc(100%-420px)]' : 'w-full max-w-4xl mx-auto'}`}
+      >
         <button
           onClick={onBack}
           className="flex items-center gap-3 text-neutral-400 hover:text-neutral-900 dark:hover:text-white mb-12 transition-colors group font-medium"
@@ -1479,42 +1527,44 @@ const SinglePostView: React.FC<{
         />
       </article>
 
-      <aside className="w-full lg:w-[400px] flex-shrink-0 space-y-8">
-        {/* Newsletter Widget (Sidebar) */}
-        {settings.newsletter?.enabled &&
-          (settings.newsletter?.position === 'sidebar' ||
-            settings.newsletter?.position === 'both') && (
-            <VonNewsletter
-              settings={settings.newsletter}
-              variant="sidebar"
-              accentColor={settings.theme.primaryColor || '#0ea5ff'}
-              themeColors={{
-                surface: isDarkMode ? '#171717' : '#ffffff',
-                surfaceAlt: isDarkMode ? '#0a0a0a' : '#f8fafc',
-                border: isDarkMode ? '#262626' : '#e2e8f0',
-                text: isDarkMode ? '#fafafa' : '#0f172a',
-                textSecondary: isDarkMode ? '#a3a3a3' : '#64748b',
-              }}
-            />
-          )}
+      {hasSinglePostSidebar && (
+        <aside className="w-full lg:w-[400px] flex-shrink-0 space-y-8">
+          {/* Newsletter Widget (Sidebar) */}
+          {settings.newsletter?.enabled &&
+            (settings.newsletter?.position === 'sidebar' ||
+              settings.newsletter?.position === 'both') && (
+              <VonNewsletter
+                settings={settings.newsletter}
+                variant="sidebar"
+                accentColor={settings.theme.primaryColor || '#0ea5ff'}
+                themeColors={{
+                  surface: isDarkMode ? '#171717' : '#ffffff',
+                  surfaceAlt: isDarkMode ? '#0a0a0a' : '#f8fafc',
+                  border: isDarkMode ? '#262626' : '#e2e8f0',
+                  text: isDarkMode ? '#fafafa' : '#0f172a',
+                  textSecondary: isDarkMode ? '#a3a3a3' : '#64748b',
+                }}
+              />
+            )}
 
-        {settings.sidebarLayout
-          .filter((widget) => widget.isVisible !== false)
-          .map((widget) => (
-            <VpSidebarWidget
-              key={widget.id}
-              widget={widget}
-              settings={settings}
-              posts={posts}
-              onPostClick={onPostClick}
-              currentPostId={post.id}
-              themeColors={{
-                surface: isDarkMode ? '#121212' : '#ffffff',
-                border: isDarkMode ? '#1a1a1a' : '#f1f5f9',
-              }}
-            />
-          ))}
-      </aside>
+          {settings.sidebarLayout
+            .filter((widget) => widget.isVisible !== false)
+            .map((widget) => (
+              <VpSidebarWidget
+                key={widget.id}
+                widget={widget}
+                settings={settings}
+                posts={posts}
+                onPostClick={onPostClick}
+                currentPostId={post.id}
+                themeColors={{
+                  surface: isDarkMode ? '#121212' : '#ffffff',
+                  border: isDarkMode ? '#1a1a1a' : '#f1f5f9',
+                }}
+              />
+            ))}
+        </aside>
+      )}
     </div>
   );
 };

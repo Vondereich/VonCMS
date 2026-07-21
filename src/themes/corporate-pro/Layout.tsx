@@ -49,6 +49,7 @@ import {
   useClickOutside,
   usePublicPostsQuery,
   PublicDiscoverySkeleton,
+  PublicDiscoveryRefreshStatus,
   useProfileActivity,
   useAISummary,
   useRelatedPosts,
@@ -527,6 +528,8 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
   const loadingMore = publicPosts.loadingMore;
   const handleLoadMore = publicPosts.loadMore;
   const isInitialDiscoveryLoading = publicPosts.isLoading && visiblePosts.length === 0;
+  const isCategoryRefreshing =
+    Boolean(selectedCategory) && publicPosts.isLoading && visiblePosts.length > 0;
 
   // Scroll effect for header
   React.useEffect(() => {
@@ -1382,7 +1385,10 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
 
                 {/* Latest News */}
                 {settings.theme?.corporatePro?.showPosts !== false && (
-                  <section className="py-20 bg-white dark:bg-neutral-950">
+                  <section
+                    className="py-20 bg-white dark:bg-neutral-950"
+                    aria-busy={isCategoryRefreshing || undefined}
+                  >
                     <div className="max-w-7xl mx-auto px-5">
                       <div className="flex justify-between items-end mb-12">
                         <div>
@@ -1404,6 +1410,10 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                               <p className="text-sm text-slate-500 dark:text-neutral-400">
                                 Showing server-backed results beyond the homepage preload.
                               </p>
+                              <PublicDiscoveryRefreshStatus
+                                active={isCategoryRefreshing}
+                                className="mt-3 text-blue-600 dark:text-blue-400"
+                              />
                             </div>
                             {onCategoryClick && (
                               <button

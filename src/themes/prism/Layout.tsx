@@ -45,6 +45,7 @@ import {
   normalizePublicSearchInput,
   usePublicPostsQuery,
   PublicDiscoverySkeleton,
+  PublicDiscoveryRefreshStatus,
   useAISummary,
   useRelatedPosts,
   decodeEntities,
@@ -173,6 +174,8 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
   const loadingMore = publicPosts.loadingMore;
   const handleLoadMore = publicPosts.loadMore;
   const isInitialDiscoveryLoading = publicPosts.isLoading && currentPosts.length === 0;
+  const isCategoryRefreshing =
+    Boolean(selectedCategory) && publicPosts.isLoading && currentPosts.length > 0;
 
   const prismConfig = settings.theme.prism || {
     neonEffects: true,
@@ -632,7 +635,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
           </div>
         )}
 
-        <main className="flex-grow w-full max-w-7xl mx-auto px-6 py-12">
+        <main
+          className="flex-grow w-full max-w-7xl mx-auto px-6 py-12"
+          aria-busy={isCategoryRefreshing || undefined}
+        >
           {currentView === 'home' || currentView === 'category' ? (
             <>
               {/* Search Bar */}
@@ -680,6 +686,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       {selectedCategory}
                     </h2>
                   </div>
+                  <PublicDiscoveryRefreshStatus
+                    active={isCategoryRefreshing}
+                    className="mx-auto mt-4 font-mono text-[var(--color-primary)]"
+                  />
                   <div className="mt-4">
                     <button
                       onClick={() =>

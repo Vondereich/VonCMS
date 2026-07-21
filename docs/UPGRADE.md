@@ -10,18 +10,18 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.25.11
+## Recommended path to v1.25.12
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
-4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.25.11`. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed.
+4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.25.12`. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed.
 5. If you update to `v1.25.0` through OTA, open **System Tools** after the update and run **Repair `.htaccess`** once. The OTA updater protects the live `.htaccess` file, so this manual repair step applies the new v1.25.0 managed routing and sensitive-file rules while preserving host-specific rules outside the VonCMS block.
-6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to `v1.25.11`.
+6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to `v1.25.12`.
 7. After the update, verify the homepage, one single post, and the admin dashboard.
-8. After the site is already on `v1.25.0` with a repaired `.htaccess`, use the admin panel updater for future patches such as `v1.25.11`.
+8. After the site is already on `v1.25.0` with a repaired `.htaccess`, use the admin panel updater for future patches such as `v1.25.12`.
 
-## What to verify after updating to v1.25.11
+## What to verify after updating to v1.25.12
 
 This release line focuses on OpenGate source onboarding, direct `/index.html` routing safety, slow post/page route loading, AI key expiry handling, Gemini completion handling, self-hosted default fonts, and the existing HourGlass installer, `.htaccess`, editor, privacy, and admin reliability baseline.
 

@@ -43,6 +43,8 @@ import {
   normalizePublicSearchInput,
   usePublicPostsQuery,
   PublicDiscoverySkeleton,
+  PublicDiscoveryRefreshStatus,
+  hasActiveSidebarContent,
   useProfileActivity,
   useAISummary,
   useRelatedPosts,
@@ -1274,6 +1276,8 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   const handleLoadMore = publicPosts.loadMore;
   const loadingMore = publicPosts.loadingMore;
   const isSearching = publicPosts.isLoading;
+  const isCategoryRefreshing =
+    Boolean(selectedCategory) && publicPosts.isLoading && displayedPosts.length > 0;
 
   // Hero article (first post when not searching)
   const heroArticle = !searchQuery && !selectedCategory && displayedPosts[0];
@@ -1548,6 +1552,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     const authorUser = allUsers.find((u) => u.username === authorUsername);
     const authorAvatar = selectedPost.author_data?.avatar || authorUser?.avatar;
     const authorEmail = authorUser?.email;
+    const hasSinglePostSidebar = digestSettings.showSidebar && hasActiveSidebarContent(settings);
     return (
       <div
         className={`min-h-screen flex flex-col transition-colors ${isDarkMode ? 'dark' : ''}`}
@@ -1577,10 +1582,10 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             <ChevronLeft size={16} /> Back to Home
           </button>
 
-          <div className={`flex flex-col ${digestSettings.showSidebar ? 'lg:flex-row' : ''} gap-8`}>
+          <div className={`flex flex-col ${hasSinglePostSidebar ? 'lg:flex-row' : ''} gap-8`}>
             {/* Main Content */}
             <main
-              className={`flex-1 ${digestSettings.showSidebar ? 'w-full' : 'max-w-4xl mx-auto'} min-w-0`}
+              className={`flex-1 ${hasSinglePostSidebar ? 'w-full' : 'max-w-4xl mx-auto'} min-w-0`}
             >
               <article>
                 {/* Header */}
@@ -1749,7 +1754,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             </main>
 
             {/* Sidebar */}
-            {digestSettings.showSidebar && (
+            {hasSinglePostSidebar && (
               <aside className="w-full lg:w-[380px] flex-shrink-0 space-y-6">
                 {/* Newsletter Widget (Sidebar) */}
                 {settings.newsletter?.enabled &&
@@ -1910,7 +1915,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       {/* Trending Ticker - Improvise */}
       {!selectedCategory && !searchQuery && digestSettings.showTrending !== false && (
         <TrendingTicker
-          posts={publishedPosts.slice(0, 5)}
+          posts={displayedPosts.slice(0, 5)}
           colors={colors}
           onPostClick={onPostClick}
           enableMarquee={digestSettings.enableMarquee !== false}
@@ -1972,7 +1977,10 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
         </div>
       )}
 
-      <main className="flex-1 max-w-7xl mx-auto px-5 py-8 w-full">
+      <main
+        className="flex-1 max-w-7xl mx-auto px-5 py-8 w-full"
+        aria-busy={isCategoryRefreshing || undefined}
+      >
         {/* Search / Category Header */}
         {hasActiveSearch ? (
           <div className="mb-8 pb-6 border-b" style={{ borderColor: colors.border }}>
@@ -1998,6 +2006,11 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
               <p className="mt-2" style={{ color: colors.textSecondary }}>
                 {displayedPosts.length} {categoryArticlesLabel}
               </p>
+              <PublicDiscoveryRefreshStatus
+                active={isCategoryRefreshing}
+                className="mt-3"
+                style={{ color: colors.accent }}
+              />
             </div>
           )
         )}

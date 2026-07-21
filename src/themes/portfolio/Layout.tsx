@@ -34,6 +34,7 @@ import {
   usePublicProfile,
   usePublicPostsQuery,
   PublicDiscoverySkeleton,
+  PublicDiscoveryRefreshStatus,
   useProfileActivity,
   VonPopupAd,
   getResponsiveImageAttributes,
@@ -599,9 +600,16 @@ const ProjectsSection = ({
   const loadingMore = publicPosts.loadingMore;
   const onLoadMore = publicPosts.loadMore;
   const isInitialDiscoveryLoading = publicPosts.isLoading && filteredProjects.length === 0;
+  const isCategoryRefreshing =
+    activeCategory !== 'all' && publicPosts.isLoading && filteredProjects.length > 0;
 
   return (
-    <section id="projects" className="py-20 px-6" style={{ background: colors.bgSecondary }}>
+    <section
+      id="projects"
+      className="py-20 px-6"
+      style={{ background: colors.bgSecondary }}
+      aria-busy={isCategoryRefreshing || undefined}
+    >
       <div className="max-w-7xl mx-auto">
         {/* Section header */}
         <div className="text-center mb-16">
@@ -649,6 +657,12 @@ const ProjectsSection = ({
             ))}
           </div>
         )}
+
+        <PublicDiscoveryRefreshStatus
+          active={isCategoryRefreshing}
+          className="mx-auto mb-8"
+          style={{ color: colors.accent }}
+        />
 
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />

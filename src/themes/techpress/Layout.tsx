@@ -29,6 +29,8 @@ import {
   AdBlock,
   VonPopupAd,
   PublicDiscoverySkeleton,
+  PublicDiscoveryRefreshStatus,
+  hasActiveSidebarContent,
   getResponsiveImageAttributes,
 } from '../shared';
 
@@ -337,6 +339,7 @@ function NewsCard({
   authorEmail,
   authorAvatar,
   rankLabel,
+  expandedHorizontalImage = false,
 }: {
   article: Post;
   colors: any;
@@ -347,6 +350,7 @@ function NewsCard({
   authorEmail?: string;
   authorAvatar?: string;
   rankLabel?: string;
+  expandedHorizontalImage?: boolean;
 }) {
   if (layout === 'vertical') {
     return (
@@ -448,7 +452,7 @@ function NewsCard({
             onClick(article.id);
           })
         }
-        className="w-full sm:w-64 aspect-video rounded-lg flex-shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer"
+        className={`w-full ${expandedHorizontalImage ? 'sm:w-72 lg:w-80' : 'sm:w-64'} aspect-video rounded-lg flex-shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer`}
         aria-label={decodeEntities(article.title)}
       >
         {article.image && (
@@ -609,6 +613,10 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   const handleLoadMore = publicPosts.loadMore;
   const loadingMore = publicPosts.loadingMore;
   const isInitialDiscoveryLoading = publicPosts.isLoading && paginatedPosts.length === 0;
+  const isCategoryRefreshing =
+    Boolean(selectedCategory) && publicPosts.isLoading && paginatedPosts.length > 0;
+  const hasSinglePostSidebar = hasActiveSidebarContent(settings);
+  const hasHomepageSidebar = hasActiveSidebarContent(settings, { includeNewsletter: false });
   const hasNoDiscoveryPosts = !isInitialDiscoveryLoading && paginatedPosts.length === 0;
   const noDiscoveryTitle = selectedCategory
     ? 'No stories found in this category'
@@ -628,7 +636,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   const heroArticle = displayedPosts[0];
   // 2. Latest ticker: first published items, controlled by the legacy ticker setting keys.
   const latestTickerItems = config.enableBreaking
-    ? publishedPosts.slice(0, config.breakingNewsCount || 3)
+    ? displayedPosts.slice(0, config.breakingNewsCount || 3)
     : [];
   const storyPosts = heroArticle ? paginatedPosts.slice(1) : paginatedPosts;
   // 3. Latest highlights: Items after hero (first 4) -> Full Width Row
@@ -1061,8 +1069,12 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
           </div>
         )}
         <div className="max-w-7xl mx-auto px-5 py-12 flex-1 w-full">
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
-            <main className="flex-1 w-full lg:max-w-[calc(100%-370px)] min-w-0">
+          <div
+            className={`flex flex-col gap-8 items-start ${hasSinglePostSidebar ? 'lg:flex-row' : ''}`}
+          >
+            <main
+              className={`flex-1 w-full min-w-0 ${hasSinglePostSidebar ? 'lg:max-w-[calc(100%-370px)]' : 'max-w-4xl mx-auto'}`}
+            >
               <button
                 onClick={handleReturnHome}
                 className="mb-10 font-bold text-sm hover:underline flex items-center gap-2 transition-opacity hover:opacity-70"
@@ -1273,43 +1285,45 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             </main>
 
             {/* Sidebar */}
-            <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-8">
-              {/* Newsletter Widget */}
-              {settings.newsletter?.enabled &&
-                (settings.newsletter?.position === 'sidebar' ||
-                  settings.newsletter?.position === 'both') && (
-                  <VonNewsletter
-                    settings={settings.newsletter}
-                    variant="sidebar"
-                    accentColor={colors.primary}
-                    themeColors={{
-                      surface: colors.surface,
-                      surfaceAlt: colors.surfaceAlt,
-                      border: colors.border,
-                      text: colors.text,
-                      textSecondary: colors.textSecondary,
-                    }}
-                  />
-                )}
-              {settings.sidebarLayout
-                .filter((widget: any) => widget.isVisible !== false && widget.type !== 'search')
-                .map((widget: any) => (
-                  <VpSidebarWidget
-                    key={widget.id}
-                    widget={widget}
-                    settings={settings}
-                    posts={posts}
-                    onPostClick={onPostClick}
-                    currentPostId={selectedPost?.id}
-                    themeColors={{
-                      surface: colors.surface,
-                      border: colors.border,
-                      text: colors.text,
-                      textSecondary: colors.textSecondary,
-                    }}
-                  />
-                ))}
-            </aside>
+            {hasSinglePostSidebar && (
+              <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-8">
+                {/* Newsletter Widget */}
+                {settings.newsletter?.enabled &&
+                  (settings.newsletter?.position === 'sidebar' ||
+                    settings.newsletter?.position === 'both') && (
+                    <VonNewsletter
+                      settings={settings.newsletter}
+                      variant="sidebar"
+                      accentColor={colors.primary}
+                      themeColors={{
+                        surface: colors.surface,
+                        surfaceAlt: colors.surfaceAlt,
+                        border: colors.border,
+                        text: colors.text,
+                        textSecondary: colors.textSecondary,
+                      }}
+                    />
+                  )}
+                {settings.sidebarLayout
+                  .filter((widget: any) => widget.isVisible !== false && widget.type !== 'search')
+                  .map((widget: any) => (
+                    <VpSidebarWidget
+                      key={widget.id}
+                      widget={widget}
+                      settings={settings}
+                      posts={posts}
+                      onPostClick={onPostClick}
+                      currentPostId={selectedPost?.id}
+                      themeColors={{
+                        surface: colors.surface,
+                        border: colors.border,
+                        text: colors.text,
+                        textSecondary: colors.textSecondary,
+                      }}
+                    />
+                  ))}
+              </aside>
+            )}
           </div>
         </div>
 
@@ -1462,6 +1476,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
           <h2 className="text-3xl font-black mb-2" style={{ color: colors.text }}>
             Category: <span style={{ color: colors.primary }}>{selectedCategory}</span>
           </h2>
+          <PublicDiscoveryRefreshStatus
+            active={isCategoryRefreshing}
+            className="mx-auto mb-2 font-bold uppercase tracking-wider"
+            style={{ color: colors.primary }}
+          />
           <button
             onClick={(e) => {
               e.preventDefault();
@@ -1543,7 +1562,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-5 py-8">
+      <main className="max-w-7xl mx-auto px-5 py-8" aria-busy={isCategoryRefreshing || undefined}>
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />
         ) : hasNoDiscoveryPosts ? (
@@ -1629,8 +1648,8 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-8">
-              <div className="flex-1 min-w-0">
+            <div className={`flex flex-col gap-8 ${hasHomepageSidebar ? 'lg:flex-row' : ''}`}>
+              <div className={`flex-1 min-w-0 ${hasHomepageSidebar ? '' : 'w-full'}`}>
                 <div className="mb-6 pb-3 border-b" style={{ borderColor: colors.border }}>
                   <h2 className="text-xl font-bold" style={{ color: colors.text }}>
                     Latest Updates
@@ -1644,6 +1663,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                         colors={colors}
                         settings={settings}
                         layout="horizontal"
+                        expandedHorizontalImage={!hasHomepageSidebar}
                         onClick={onPostClick}
                         onCategoryClick={onCategoryClick}
                         authorEmail={
@@ -1685,27 +1705,29 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                 </div>
               </div>
 
-              <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-6">
-                {/* Dynamic Widgets */}
-                {settings.sidebarLayout
-                  .filter((widget: any) => widget.isVisible !== false)
-                  .map((widget: any) => (
-                    <VpSidebarWidget
-                      key={widget.id}
-                      widget={widget}
-                      settings={settings}
-                      posts={posts}
-                      onPostClick={onPostClick}
-                      currentPostId={selectedPost?.id}
-                      themeColors={{
-                        surface: colors.surface,
-                        border: colors.border,
-                        text: colors.text,
-                        textSecondary: colors.textSecondary,
-                      }}
-                    />
-                  ))}
-              </aside>
+              {hasHomepageSidebar && (
+                <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-6">
+                  {/* Dynamic Widgets */}
+                  {settings.sidebarLayout
+                    .filter((widget: any) => widget.isVisible !== false)
+                    .map((widget: any) => (
+                      <VpSidebarWidget
+                        key={widget.id}
+                        widget={widget}
+                        settings={settings}
+                        posts={posts}
+                        onPostClick={onPostClick}
+                        currentPostId={selectedPost?.id}
+                        themeColors={{
+                          surface: colors.surface,
+                          border: colors.border,
+                          text: colors.text,
+                          textSecondary: colors.textSecondary,
+                        }}
+                      />
+                    ))}
+                </aside>
+              )}
             </div>
           </>
         )}

@@ -1,6 +1,6 @@
 # Custom Fonts
 
-VonCMS v1.25.11 ships with local Inter variable WOFF2 files so fresh installs do not depend on Google Fonts at runtime.
+VonCMS v1.25.12 ships with local Inter variable WOFF2 files so fresh installs do not depend on Google Fonts at runtime.
 
 Use this guide when you fork VonCMS, build a custom theme, or package a client-specific font.
 
