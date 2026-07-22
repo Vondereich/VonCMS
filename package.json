@@ -1,7 +1,7 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.25.12",
+  "version": "1.25.13",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -56,9 +56,9 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/react-gravatar": "^2.6.14",
-    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.5.4",
-    "postcss": "^8.5.21",
+    "postcss": "^8.5.22",
     "prettier": "^3.9.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^6.0.3",

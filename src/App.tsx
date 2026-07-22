@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   useNavigate,
+  useLocation,
   useParams,
   Navigate,
   useSearchParams,
@@ -80,6 +81,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   const { id, username, slug, category } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isQuickEditOpen, setIsQuickEditOpen] = useState(false);
   const [editedPostOverride, setEditedPostOverride] = useState<Post | null>(null);
   const [editedPageOverride, setEditedPageOverride] = useState<Page | null>(null);
@@ -329,11 +331,17 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
 
   const handleCategoryNavigation = (cat: string) => {
     if (isCurrentHomePath()) {
-      setSearchParams(cat ? { category: cat } : {});
+      setSearchParams(cat ? { category: cat } : {}, { state: location.state });
       return;
     }
 
-    navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/');
+    navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/', {
+      state: cat
+        ? {
+            publicDiscoveryResetKey: `category-from-${location.key}`,
+          }
+        : null,
+    });
   };
 
   const handleBackToHome = () => {
@@ -349,6 +357,11 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   return (
     <>
       <PublicSite
+        key={
+          currentView === 'category' && location.state?.publicDiscoveryResetKey
+            ? location.state.publicDiscoveryResetKey
+            : 'public-site'
+        }
         {...props}
         posts={posts}
         pages={pages}

@@ -1,4 +1,4 @@
-import React, { lazy, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Post, User, Comment, SiteSettings, Page } from '../../../../types';
 import { useTheme } from '../themes/ThemeContext';
 import { PluginSlot } from '../plugins/registry';
@@ -8,6 +8,12 @@ import { GlobalLightbox } from '../../../../components/GlobalLightbox';
 import { CookieBanner } from '../../../../components/CookieBanner';
 import SkeletonLoader from '../../../../components/SkeletonLoader';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
+import {
+  getLoadedPublicThemeLayout,
+  loadPublicThemeLayout,
+  resolvePublicThemeId,
+  type PublicThemeLayoutComponent,
+} from './themeLayoutLoader';
 
 interface PublicSiteProps {
   posts: Post[];
@@ -40,18 +46,49 @@ interface PublicSiteProps {
   onPageClick?: (slug: string) => void;
 }
 
-const themeLayouts: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
-  'theme-default': lazy(() => import('../../../../themes/default/Layout')),
-  'theme-prism': lazy(() => import('../../../../themes/prism/Layout')),
-  'theme-techpress': lazy(() => import('../../../../themes/techpress/Layout')),
-  'theme-portfolio': lazy(() => import('../../../../themes/portfolio/Layout')),
-  'theme-digest': lazy(() => import('../../../../themes/digest/Layout')),
-  'theme-corporate-pro': lazy(() => import('../../../../themes/corporate-pro/Layout')),
-};
-
 const PublicSite: React.FC<PublicSiteProps> = (props) => {
   const { activeTheme } = useTheme();
   const analyticsPluginActive = isSystemPluginActive(props.settings, 'vp_analytics');
+  const requestedThemeId = resolvePublicThemeId(activeTheme.id);
+  const [loadedThemeLayout, setLoadedThemeLayout] = useState<{
+    themeId: string;
+    Component: PublicThemeLayoutComponent;
+  } | null>(() => {
+    const Component = getLoadedPublicThemeLayout(requestedThemeId);
+    return Component ? { themeId: requestedThemeId, Component } : null;
+  });
+  const [themeLoadError, setThemeLoadError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const cachedLayout = getLoadedPublicThemeLayout(requestedThemeId);
+    if (cachedLayout) {
+      setLoadedThemeLayout({ themeId: requestedThemeId, Component: cachedLayout });
+      setThemeLoadError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setThemeLoadError(null);
+
+    void loadPublicThemeLayout(requestedThemeId).then(
+      (Component) => {
+        if (!cancelled) setLoadedThemeLayout({ themeId: requestedThemeId, Component });
+      },
+      (error: unknown) => {
+        if (!cancelled) {
+          setThemeLoadError(
+            error instanceof Error ? error : new Error('Failed to load the active public theme.')
+          );
+        }
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedThemeId]);
+
+  if (themeLoadError) throw themeLoadError;
 
   // Fallback Title Sync: Fixes "stuck" tab titles when VonSEO is disabled
   useEffect(() => {
@@ -77,7 +114,10 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
     props.settings,
   ]);
 
-  const LayoutComponent = themeLayouts[activeTheme.id] || themeLayouts['theme-default'];
+  const cachedLayout = getLoadedPublicThemeLayout(requestedThemeId);
+  const LayoutComponent =
+    cachedLayout ||
+    (loadedThemeLayout?.themeId === requestedThemeId ? loadedThemeLayout.Component : null);
 
   // Track page views (Monolithic Tracking)
   useEffect(() => {
@@ -115,9 +155,11 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
         pluginConfig={props.settings.pluginConfig}
       />
 
-      <React.Suspense fallback={<SkeletonLoader />}>
+      {LayoutComponent ? (
         <LayoutComponent {...props} onPageClick={props.onPageClick || (() => {})} />
-      </React.Suspense>
+      ) : (
+        <SkeletonLoader />
+      )}
 
       {/* Global Plugin Slot: Footer Bottom (Automatic for all themes) */}
       <PluginSlot

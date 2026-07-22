@@ -1,3 +1,13 @@
+### [v1.25.13] - 2026-07-22
+
+> Public theme startup, category handoff, and legacy sidebar compatibility closeout.
+
+- **Public Theme Startup**: The active public theme now begins its existing dynamic import before React mounts and shares one resolved/pending layout cache with the public renderer, removing the React Suspense reveal delay without bundling inactive themes. Login, install, and admin routes skip the public-theme preload; runtime theme changes keep stale-load cancellation, the shared skeleton handoff, and the existing Error Boundary.
+- **Category Transition Integrity**: Category navigation from a post, page, or profile now resets public discovery once so stale homepage/latest rows cannot flash while the category request is in flight. Category changes already on the homepage retain the existing visible-row refresh behavior and accessible busy feedback.
+- **Legacy Sidebar Compatibility**: Unsupported stored legacy widgets such as the retired search block no longer count as active sidebar content, preventing an empty desktop column while supported trending, profile, custom, and sidebar-newsletter content retain their existing layouts.
+- **Dependency Maintenance**: Updated the compatible `@vitejs/plugin-react` and PostCSS patch releases while leaving OpenRouter 1, Tailwind 4, and TypeScript 7 parked for dedicated migrations.
+- **Regression And Release**: Integration now executes the shared sidebar visibility helper against legacy and supported widget states, guards the scoped post-to-category reset, and locks the early public-theme preload/code-split boundary. Public documentation now reflects the current 82 API and 96 public PHP file surface; package metadata and public docs identify `v1.25.13`.
+
 ### [v1.25.12] - 2026-07-22
 
 > Guest homepage ticker continuity and slow category-navigation feedback.

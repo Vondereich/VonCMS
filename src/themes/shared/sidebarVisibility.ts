@@ -1,11 +1,16 @@
-import { SiteSettings } from '../../types';
+import type { SiteSettings } from '../../types';
 
 interface SidebarContentOptions {
   includeNewsletter?: boolean;
 }
 
+const renderableSidebarWidgetTypes = new Set(['trending', 'profile', 'custom']);
+
 export const hasVisibleSidebarWidgets = (settings: Pick<SiteSettings, 'sidebarLayout'>): boolean =>
-  (settings.sidebarLayout || []).some((widget) => widget.isVisible !== false);
+  (settings.sidebarLayout || []).some(
+    (widget) =>
+      widget.isVisible !== false && renderableSidebarWidgetTypes.has(widget.type as string)
+  );
 
 export const hasSidebarNewsletter = (settings: Pick<SiteSettings, 'newsletter'>): boolean =>
   Boolean(

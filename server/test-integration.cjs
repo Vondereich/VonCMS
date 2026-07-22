@@ -709,22 +709,36 @@ if (
 }
 
 const publicSiteContent = read('src/plugins/von-core/features/public/PublicSite.tsx');
+const publicThemeLoaderContent = read('src/plugins/von-core/features/public/themeLayoutLoader.ts');
+const reactEntryContent = read('src/index.tsx');
 if (
-  publicSiteContent.includes('lazy(() => import(') &&
-  publicSiteContent.includes('React.Suspense') &&
-  publicSiteContent.includes('fallback={<SkeletonLoader />}') &&
-  publicSiteContent.includes("themeLayouts[activeTheme.id] || themeLayouts['theme-default']") &&
+  publicThemeLoaderContent.includes('const publicThemeLayoutLoaders = {') &&
+  publicThemeLoaderContent.includes("'theme-techpress': () => import(") &&
+  publicThemeLoaderContent.includes('const themeLayoutPromises = new Map') &&
+  publicThemeLoaderContent.includes('const loadedThemeLayouts = new Map') &&
+  publicThemeLoaderContent.includes(
+    'export const preloadPublicThemeLayout = loadPublicThemeLayout'
+  ) &&
+  reactEntryContent.includes('? preloadPublicThemeLayout(') &&
+  reactEntryContent.includes('shouldPreloadPublicTheme()') &&
+  reactEntryContent.indexOf('const themePreload =') < reactEntryContent.indexOf('renderApp();') &&
+  reactEntryContent.includes('admin(?:\\/|$)|login\\/?$|install\\/?$') &&
+  publicSiteContent.includes('getLoadedPublicThemeLayout(requestedThemeId)') &&
+  publicSiteContent.includes('let cancelled = false;') &&
+  publicSiteContent.includes('<SkeletonLoader />') &&
+  !publicSiteContent.includes('React.Suspense') &&
+  !publicSiteContent.includes('lazy(() => import(') &&
   !publicSiteContent.includes("import DefaultLayout from '../../../../themes/default/Layout'") &&
   !publicSiteContent.includes(
     "import CorporateProLayout from '../../../../themes/corporate-pro/Layout'"
   )
 ) {
   pass(
-    'Public Theme Lazy Loading: inactive public themes stay out of the initial source graph while the shared skeleton covers the lazy theme handoff.'
+    'Public Theme Early Preload: the active public theme is promise-cached before React mounts, while inactive themes remain split and stale runtime loads stay guarded.'
   );
 } else {
   fail(
-    'Public Theme Lazy Loading: PublicSite must lazy-load theme layouts with a visible skeleton handoff instead of statically importing all themes or exposing a blank surface.'
+    'Public Theme Early Preload: public routes must preload one cached dynamic theme before mount without delaying admin/login or weakening skeleton, stale-load, and chunk-error boundaries.'
   );
 }
 
@@ -5662,7 +5676,8 @@ assertIncludes(
   sidebarVisibilityContent + '\n' + read('src/themes/shared/index.ts'),
   [
     "Pick<SiteSettings, 'newsletter' | 'sidebarLayout'>",
-    '(settings.sidebarLayout || []).some((widget) => widget.isVisible !== false)',
+    "new Set(['trending', 'profile', 'custom'])",
+    'renderableSidebarWidgetTypes.has(widget.type as string)',
     'settings.newsletter?.enabled',
     "settings.newsletter.position === 'sidebar'",
     "settings.newsletter.position === 'both'",
@@ -5671,6 +5686,56 @@ assertIncludes(
   ],
   'Shared Empty Sidebar Visibility Guard: bundled themes share widget/newsletter-aware sidebar visibility without adding a new setting.',
   'Shared Empty Sidebar Visibility Guard: sidebar-capable themes can drift on what counts as active sidebar content.'
+);
+
+try {
+  const { hasActiveSidebarContent, hasVisibleSidebarWidgets } = loadTsModuleForSmoke(
+    'src/themes/shared/sidebarVisibility.ts'
+  );
+  const newsletterDisabled = { enabled: false, position: 'footer' };
+  const legacySearchOnly = {
+    newsletter: newsletterDisabled,
+    sidebarLayout: [{ id: 'legacy-search', type: 'search', isVisible: true }],
+  };
+  const supportedWidget = {
+    newsletter: newsletterDisabled,
+    sidebarLayout: [{ id: 'custom', type: 'custom', isVisible: true }],
+  };
+  const sidebarNewsletterOnly = {
+    newsletter: { enabled: true, position: 'sidebar' },
+    sidebarLayout: [],
+  };
+
+  if (
+    hasVisibleSidebarWidgets(legacySearchOnly) === false &&
+    hasActiveSidebarContent(legacySearchOnly) === false &&
+    hasVisibleSidebarWidgets(supportedWidget) === true &&
+    hasActiveSidebarContent(supportedWidget) === true &&
+    hasActiveSidebarContent(sidebarNewsletterOnly) === true
+  ) {
+    pass(
+      'Shared Empty Sidebar Runtime Guard: unsupported legacy widgets cannot reserve an empty sidebar column while supported widgets and sidebar newsletters remain active.'
+    );
+  } else {
+    fail(
+      'Shared Empty Sidebar Runtime Guard: sidebar visibility behavior drifted for unsupported legacy widgets or supported sidebar content.'
+    );
+  }
+} catch (error) {
+  fail(`Shared Empty Sidebar Runtime Guard: helper execution failed (${error.message}).`);
+}
+
+assertIncludes(
+  'Post-To-Category Discovery Reset Guard',
+  read('src/App.tsx'),
+  [
+    'useLocation',
+    'publicDiscoveryResetKey: `category-from-${location.key}`',
+    "currentView === 'category' && location.state?.publicDiscoveryResetKey",
+    'setSearchParams(cat ? { category: cat } : {}, { state: location.state })',
+  ],
+  'Post-To-Category Discovery Reset Guard: content-to-category navigation remounts public discovery once while same-home category changes retain visible rows during refresh.',
+  'Post-To-Category Discovery Reset Guard: content-to-category navigation can briefly reuse stale homepage rows or same-home category refresh can lose its stable handoff.'
 );
 
 assertIncludes(
@@ -7157,8 +7222,9 @@ assertIncludes(
   [
     'const isCurrentHomePath = () =>',
     'const handleCategoryNavigation = (cat: string) => {',
-    'setSearchParams(cat ? { category: cat } : {});',
-    "navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/');",
+    'setSearchParams(cat ? { category: cat } : {}, { state: location.state });',
+    "navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/', {",
+    'publicDiscoveryResetKey: `category-from-${location.key}`',
     'onCategoryClick={handleCategoryNavigation}',
     'onBackToHome={handleBackToHome}',
   ],
