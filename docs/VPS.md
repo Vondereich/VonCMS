@@ -54,7 +54,7 @@ Once connected, you should see a shell prompt like root@ubuntu:~#.
 Run this command on the server:
 
 ```
-URL=https://www.aapanel.com/script/install_panel_en.sh && if [ -f /usr/bin/curl ];then curl -ksSO $URL ;else wget --no-check-certificate -O install_panel_en.sh $URL;fi;bash install_panel_en.sh ipssl
+URL=https://www.aapanel.com/script/install_panel_en.sh && if [ -f /usr/bin/curl ];then curl -ksSO $URL ;else wget --no-check-certificate -O install_panel_en.sh $URL;fi;bash install_panel_en.sh forum
 ```
 
 After installation finishes, aaPanel will show:
@@ -128,7 +128,7 @@ Open your website entry in aaPanel.
 Go to the SSL tab.
 Choose Let's Encrypt.
 Apply the certificate.
-Once SSL is active, open the site with https://.
+Once SSL is active, open the site with https://. After confirming the certificate works, enable Force HTTPS for the site in aaPanel. Choose either the root domain or www as the canonical hostname and redirect the other hostname to it. The Apache .htaccess defaults to non-www, but Nginx does not read that rule.
 
 ## Step 7: Upload VonCMS
 Open the Files section in aaPanel.
@@ -180,6 +180,15 @@ The generated include name may be different depending on the PHP version selecte
 # Prefer index.php when both index.php and index.html exist.
 index index.php index.html;
 
+# Mirror the security headers from the Apache/LiteSpeed baseline.
+server_tokens off;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+
 # Route direct index.html requests through PHP hydration.
 location = /index.html {
     rewrite ^ /index.php last;
@@ -214,7 +223,6 @@ location ^~ /uploads/ {
     # Optional browser cache for public uploaded images.
     location ~* \.(jpg|jpeg|png|gif|webp|avif|svg|ico)$ {
         expires 7d;
-        add_header Cache-Control "public, max-age=604800";
         try_files $uri =404;
     }
 
@@ -274,6 +282,7 @@ Important notes:
 - Confirm the PHP handler contains a missing file check such as `try_files $uri =404;`.
 - Do not add a broad regex location for `/api/` or `/admin` just to attach cache headers.
 - A broad `/api|admin` regex can override PHP handling and may serve PHP source as plain text.
+- Security headers are declared at server level with `always` so they also cover static and error responses. If you add another `add_header` inside a child location, Nginx may stop inheriting the server-level headers, so repeat them there or avoid the child `add_header`.
 - The `/index.html` rule is intentional. It keeps direct index.html requests on the same PHP hydration path as Apache/LiteSpeed.
 - VonCMS Integrity Fix repairs the Apache/LiteSpeed managed block. It does not edit Nginx configuration.
 
@@ -478,14 +487,13 @@ robots.txt, sitemap.xml, rss.xml, and llms.txt
 von_config.php, backup files, SQL files, logs, ZIP files, or helper PHP files
 
 ### Nginx Static Cache Example
-The Step 8 uploads/ block already contains conservative caching for public uploaded images.
+The Step 8 uploads/ block already contains conservative caching for public uploaded images. The expires directive generates the Cache-Control header, so do not add a second Cache-Control header in the same location.
 
 Add only the static build cache below inside the same server {} block, after the protection rules and before the PHP-FPM include:
 
 ```nginx
 location ~* ^/(assets|fonts)/.+\.(css|js|woff2?|ttf|otf|eot|svg)$ {
     expires 30d;
-    add_header Cache-Control "public, max-age=2592000, immutable";
     try_files $uri =404;
 }
 ```
