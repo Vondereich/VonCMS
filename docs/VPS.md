@@ -112,6 +112,7 @@ curl
 fileinfo
 json
 gd
+zip or ZipArchive for OTA updates and ZIP handling
 
 If your panel image already enables most of these, just verify them before deployment.
 
@@ -136,48 +137,93 @@ Delete the default placeholder files such as index.html if they exist.
 Upload the latest VonCMS Deploy package.
 Extract the ZIP into the site root.
 
-After extraction, your root should contain files such as index.php, .htaccess, api/, assets/, and the other deploy files.
+After extraction, your root should contain files such as index.php, .htaccess, api/, assets/, data/, uploads/, and the other deploy files.
+
+The contents of the Deploy ZIP must be placed directly inside the site root. Do not leave VonCMS inside an additional nested folder.
+
+Correct example:
+
+```text
+/www/wwwroot/example.com/index.php
+/www/wwwroot/example.com/api/
+/www/wwwroot/example.com/assets/
+```
+
+Incorrect example:
+
+```text
+/www/wwwroot/example.com/VonCMS_Deploy/index.php
+```
+
+Confirm that the extracted files are owned by the website or PHP-FPM user configured by aaPanel. Correct 644 and 755 modes are not enough if PHP-FPM cannot write to files or directories required by the installer, uploads, logs, backups, and OTA updater.
+
+Do not set the website or uploads/ directory to 777.
 
 ## Step 8: Add Nginx Rewrite and Protection Rules
-VonCMS ships Apache/LiteSpeed rules in .htaccess. On Nginx, add the equivalent rules manually in the same server {} block as the site.
+VonCMS ships three layers of Apache/LiteSpeed protection:
 
-Open your site config in aaPanel and make sure these rules are present. Place them **before** the PHP-FPM handler block that aaPanel generates - Nginx matches regex location blocks in the order they appear, so deny rules must come first.
+- the root .htaccess
+- uploads/.htaccess
+- data/.htaccess
+
+Nginx does not read any of these files. The following rules reproduce the required routing and essential file protection for an Nginx-only site.
+
+Open the site config in aaPanel. Put these rules inside the same server {} block as the website and before the PHP-FPM handler block that aaPanel generates, such as:
 
 ```nginx
-location / {
-    try_files $uri $uri/ /index.php?$query_string;
-}
+include enable-php-82.conf;
+```
 
+The generated include name may be different depending on the PHP version selected for the website. Keep aaPanel's PHP-FPM handler unchanged.
+
+```nginx
+# Prefer index.php when both index.php and index.html exist.
+index index.php index.html;
+
+# Route direct index.html requests through PHP hydration.
 location = /index.html {
     rewrite ^ /index.php last;
 }
 
-location /api/ {
-    try_files $uri =404;
+# Hide the internal public cache directory.
+location = /api/public-cache {
+    return 404;
 }
 
-# Block access to the data/ directory.
-# On Apache this is handled by data/.htaccess automatically.
-# On Nginx, files inside data/ are accessible unless blocked explicitly.
+location ^~ /api/public-cache/ {
+    return 404;
+}
+
+# Block all direct access to data/.
+location = /data {
+    deny all;
+}
+
 location ^~ /data/ {
     deny all;
 }
 
-# Block uploads/ directory.
-# ^~ prefix stops Nginx from falling through to the PHP-FPM regex handler,
-# which would otherwise execute PHP files uploaded by users.
-# On Apache, uploads/.htaccess handles script blocking automatically.
+# Protect uploaded media.
+# The ^~ prefix prevents requests under uploads/ from reaching PHP-FPM.
 location ^~ /uploads/ {
+    # Block executable and script-like files.
     location ~* \.(php|php3|php4|php5|phtml|pl|py|jsp|asp|htm|html|shtml|sh|cgi|js|exe)$ {
         deny all;
     }
+
+    # Optional browser cache for public uploaded images.
+    location ~* \.(jpg|jpeg|png|gif|webp|avif|svg|ico)$ {
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+        try_files $uri =404;
+    }
+
+    # Serve only files that really exist.
     try_files $uri =404;
 }
 
 # Block internal API helper files.
-# On Apache these are blocked by .htaccess with [F,L,NC].
-# On Nginx they must be listed explicitly - the files exist on disk and
-# PHP-FPM will execute them if not denied here.
+# These regex blocks must appear before the generic PHP-FPM regex handler.
 location ~* ^/api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\.php$ {
     deny all;
 }
@@ -186,7 +232,13 @@ location ~* ^/api/(system/IndexNow|security/SecurityLogger)\.php$ {
     deny all;
 }
 
-# Mirror the sensitive-file protection normally handled by .htaccess.
+# Existing API files continue to the normal PHP-FPM handler.
+# Missing non-PHP API paths return 404.
+location /api/ {
+    try_files $uri =404;
+}
+
+# Mirror sensitive file protection from the root .htaccess.
 location ~* \.(sql|md|json|log|bak|env|zip|lock)$ {
     deny all;
 }
@@ -203,16 +255,35 @@ location = /package.json {
     deny all;
 }
 
+# Block hidden files while allowing ACME validation.
 location ~ /\.(?!well-known) {
     deny all;
 }
+
+# Serve existing files and directories, then fall back to VonCMS.
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
 ```
 
-The /index.html rule is intentional. It keeps direct index.html requests on the same PHP hydration path as Apache/LiteSpeed, instead of serving the static Vite shell directly.
+Important notes:
 
-Keep the PHP handler block that aaPanel creates automatically. The rules above only add VonCMS routing and file-protection parity; they do not replace PHP-FPM handling.
+- Keep the PHP handler block generated by aaPanel.
+- These rules do not replace PHP-FPM handling.
+- Do not hardcode a PHP socket unless you manage the complete Nginx config yourself.
+- Confirm the PHP handler contains a missing file check such as `try_files $uri =404;`.
+- Do not add a broad regex location for `/api/` or `/admin` just to attach cache headers.
+- A broad `/api|admin` regex can override PHP handling and may serve PHP source as plain text.
+- The `/index.html` rule is intentional. It keeps direct index.html requests on the same PHP hydration path as Apache/LiteSpeed.
+- VonCMS Integrity Fix repairs the Apache/LiteSpeed managed block. It does not edit Nginx configuration.
 
-Reload Nginx after saving changes.
+Test the configuration before reloading Nginx:
+
+```bash
+nginx -t
+```
+
+Reload Nginx only after the configuration test succeeds. You may use aaPanel's reload button if aaPanel manages a custom Nginx installation.
 
 ## Step 9: Run the Installer
 Open your domain in the browser. The installer will appear automatically - VonCMS detects that von_config.php is missing and redirects to /install. The domain URL is auto-detected from your request; you do not need to enter it manually.
@@ -237,55 +308,155 @@ Sign in at /admin.
 ## Step 10: Post-Install Checks
 Check these before you call the deployment done:
 
-Homepage loads
-Admin login works
-Settings can be saved
-robots.txt opens
-sitemap.xml opens
-One article page opens without 404
+- Homepage loads
+- Admin login works
+- Settings can be saved
+- robots.txt opens
+- sitemap.xml opens
+- rss.xml opens
+- One article page opens without 404
+- A missing file under uploads/ returns 404
+- Direct access to data/, von_config.php, and install.lock is denied
+- PHP files under uploads/ are denied and never reach PHP-FPM
 
-If you later change PHP version or handler rules in the panel, VonCMS Integrity Fix will create a .bak backup and repair only the VonCMS-managed routing block.
+Optional command line checks:
+
+```bash
+curl -I https://example.com/
+curl -I https://example.com/install
+curl -I https://example.com/robots.txt
+curl -I https://example.com/sitemap.xml
+curl -I https://example.com/uploads/missing.jpg
+curl -I https://example.com/data/
+curl -I https://example.com/von_config.php
+curl -I https://example.com/install.lock
+curl -I https://example.com/api/public-cache/test.json
+```
+
+Expected protection results:
+
+```text
+/uploads/missing.jpg             404
+/data/                           403 or 404
+/von_config.php                  403 or 404
+/install.lock                    403 or 404
+/api/public-cache/test.json      404
+```
+
+If you later change the PHP version or handler rules in the panel, re-check the Nginx configuration manually. VonCMS Integrity Fix does not edit Nginx configuration.
 
 ## Common Problems
 
 ### Installer does not load
 Check:
 
-DNS has propagated
-SSL is active if you force HTTPS
-Nginx rewrite rules are present
-PHP 8.2+ is selected
+- DNS has propagated
+- SSL is active if you force HTTPS
+- Nginx rewrite rules are present
+- PHP 8.2+ is selected
+- PHP-FPM can write von_config.php and install.lock
+- The site files have the correct owner
+- The Deploy ZIP contents are directly inside the site root
 
 ### API returns 404 on VPS
-Check the Nginx config again. Most VPS issues here come from missing rewrite rules or broken PHP handling.
+Check:
+
+- The requested API file exists
+- The generic PHP-FPM handler is still present
+- The VonCMS rules are inside the same server {} block
+- The PHP handler contains `try_files $uri =404;`
+- The request is not matching a broad cache regex
+
+### PHP source appears as plain text
+Immediately disable public access to the site and inspect the Nginx configuration.
+
+This usually means a location block is serving a .php file as a normal static file instead of passing it to PHP-FPM.
+
+Remove broad blocks similar to:
+
+```nginx
+location ~* ^/(api|admin)(/|$) {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
+Keep the normal PHP-FPM handler generated by aaPanel.
 
 ### Sensitive files are downloadable on VPS
-Nginx is not using the VonCMS .htaccess rules. Re-check Step 8 and make sure all deny rules are inside the same server {} block as the site, and that they appear before the PHP-FPM handler block.
+Nginx does not use the VonCMS .htaccess files. Re-check Step 8 and confirm:
+
+- All deny rules are inside the same server {} block
+- Protected API regex rules appear before the generic PHP-FPM regex handler
+- Nginx was reloaded after the config test succeeded
+- No second website config is serving the same domain
 
 ### PHP scripts in uploads/ are executing
-This happens when the PHP-FPM handler block appears before the uploads deny rules in the Nginx config. The fix is to use `location ^~ /uploads/` with a nested deny block as shown in Step 8 - the `^~` prefix stops Nginx from matching the PHP handler regex for anything under uploads/.
+Use the exact `location ^~ /uploads/` block shown in Step 8.
+
+The `^~` prefix prevents requests under uploads/ from falling through to the PHP-FPM regex handler. Do not create another PHP handler inside the uploads/ location.
 
 ### Uploads fail
 Check:
 
-fileinfo is enabled
-gd is enabled
-PHP upload limits are large enough
-folder permissions are correct (755 for directories, 644 for files)
+- fileinfo is enabled
+- gd is enabled
+- PHP upload limits are large enough
+- The website or PHP-FPM user can write to uploads/
+- Directories use 755
+- Files use 644
 
-If images appear broken on the frontend: file permission may be 600. Run chmod -R 644 uploads/ and chmod -R 755 uploads/*/ (for subdirectories). Apache/Nginx needs read access to serve images to visitors.
+If images appear broken because manually uploaded files use mode 600, repair the modes without making files executable:
+
+```bash
+find uploads/ -type f -exec chmod 644 {} +
+find uploads/ -type d -exec chmod 755 {} +
+```
+
+Do not use:
+
+```bash
+chmod -R 755 uploads/
+```
+
+The command above makes normal uploaded files executable. Do not use 777.
+
+### Permission modes look correct but writing still fails
+Check ownership:
+
+```bash
+ls -la
+ls -la uploads
+ls -la data
+```
+
+The owner and group must match the user used by the website or PHP-FPM configuration. Do not copy a random chown command from another server because aaPanel users can differ between installations.
+
+### OTA updater reports that ZipArchive is missing
+Enable the PHP zip extension for the same PHP version used by the website. Restart or reload that PHP-FPM service after enabling it.
+
+The command line PHP version may differ from the website PHP version, so verify the extension inside aaPanel too.
 
 ### White page or 500 error
 Check:
 
-Nginx error log
-PHP error log in aaPanel
-database credentials in von_config.php
+- Nginx error log
+- PHP error log in aaPanel
+- Database credentials in von_config.php
+- Ownership and write permissions
+- Whether the selected PHP-FPM service is running
+- Whether all required PHP extensions are enabled
 
 ## After Install
-After the site is live, re-check the VPS Security Baseline above, confirm database and uploads/ backups are running, and remove any temporary files from the web root.
+After the site is live:
 
-Optional static cache, CDN, compression, and LiteSpeed tuning belongs at the server/CDN layer. It is not required for a normal VonCMS install.
+- Re-check the VPS Security Baseline
+- Confirm database and uploads/ backups are running
+- Remove temporary files from the web root
+- Re-check Nginx after changing the PHP version or PHP-FPM handler
+- Keep the Deploy ZIP and checksum outside the public web root
+- Keep Ubuntu, Nginx, MySQL, PHP, and aaPanel updated
+
+Optional static cache, CDN, compression, and LiteSpeed tuning belongs at the server or CDN layer. It is not required for a normal VonCMS install.
 
 ## Server Tuning
 VonCMS already has a lightweight guest JSON cache for public post lists and public settings. If you want more performance on a VPS, dedicated server, CDN, or LiteSpeed host, tune static delivery first instead of adding full-page cache logic to the CMS core.
@@ -307,7 +478,9 @@ robots.txt, sitemap.xml, rss.xml, and llms.txt
 von_config.php, backup files, SQL files, logs, ZIP files, or helper PHP files
 
 ### Nginx Static Cache Example
-Add this inside the same server {} block after the protection rules:
+The Step 8 uploads/ block already contains conservative caching for public uploaded images.
+
+Add only the static build cache below inside the same server {} block, after the protection rules and before the PHP-FPM include:
 
 ```nginx
 location ~* ^/(assets|fonts)/.+\.(css|js|woff2?|ttf|otf|eot|svg)$ {
@@ -315,20 +488,9 @@ location ~* ^/(assets|fonts)/.+\.(css|js|woff2?|ttf|otf|eot|svg)$ {
     add_header Cache-Control "public, max-age=2592000, immutable";
     try_files $uri =404;
 }
-
-location ~* ^/uploads/.+\.(jpg|jpeg|png|gif|webp|avif|svg)$ {
-    expires 7d;
-    add_header Cache-Control "public, max-age=604800";
-    try_files $uri =404;
-}
-
-location ~* ^/(api|admin)(/|$) {
-    add_header Cache-Control "no-store";
-    try_files $uri $uri/ /index.php?$query_string;
-}
 ```
 
-Use the uploads cache window conservatively. If your workflow replaces media at the same URL, keep it short. If your workflow always creates new upload file names, you can raise it later.
+Do not create a separate regex block for `/api/` or `/admin` just to add Cache-Control. Keep those routes on the normal VonCMS and PHP-FPM path, then bypass them at the CDN layer.
 
 ### Cloudflare Or CDN Cache
 Use CDN caching for static files first:
@@ -360,9 +522,9 @@ VonCMS is designed to run efficiently across hosting tiers with the right indexe
 
 | Scale | Hosting type | Spec | Notes |
 |---|---|---|---|
-| < 5k – 10k posts | Shared hosting | Default shared plan | Indexes eliminate table scans the real bottleneck on shared I/O. VonCMS caps admin bulk requests at 200 items for safety. Actual capacity depends on your host's resource sharing these are directional estimates, not a guaranteed SLA. |
-| 10k – 100k posts | VPS (high-end) | 8-16GB RAM, 4-8 vCPU, NVMe SSD | Index fits in InnoDB buffer pool. No drama for normal publishing traffic. Set innodb_buffer_pool_size to 50-70% of available RAM. |
-| 100k – 1M+ posts | Dedicated server | 32GB+ RAM, 8+ cores, NVMe | InnoDB handles 1M rows as a small table. PDO + proper indexes = solid foundation. Beyond 1M rows or millions of concurrent hits, consider partitioning. |
+| < 5k - 10k posts | Shared hosting | Default shared plan | Indexes eliminate table scans the real bottleneck on shared I/O. VonCMS caps admin bulk requests at 200 items for safety. Actual capacity depends on your host's resource sharing these are directional estimates, not a guaranteed SLA. |
+| 10k - 100k posts | VPS (high-end) | 8-16GB RAM, 4-8 vCPU, NVMe SSD | Index fits in InnoDB buffer pool. No drama for normal publishing traffic. Set innodb_buffer_pool_size to 50-70% of available RAM. |
+| 100k - 1M+ posts | Dedicated server | 32GB+ RAM, 8+ cores, NVMe | InnoDB handles 1M rows as a small table. PDO + proper indexes = solid foundation. Beyond 1M rows or millions of concurrent hits, consider partitioning. |
 
 ### MySQL Tuning for Scale
 On VPS or dedicated servers, adjust these in /etc/mysql/my.cnf or via aaPanel:
