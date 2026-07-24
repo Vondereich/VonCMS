@@ -141,7 +141,7 @@ After extraction, your root should contain files such as index.php, .htaccess, a
 ## Step 8: Add Nginx Rewrite and Protection Rules
 VonCMS ships Apache/LiteSpeed rules in .htaccess. On Nginx, add the equivalent rules manually in the same server {} block as the site.
 
-Open your site config in aaPanel and make sure these rules are present. Place them **before** the PHP-FPM handler block that aaPanel generates — Nginx matches regex location blocks in the order they appear, so deny rules must come first.
+Open your site config in aaPanel and make sure these rules are present. Place them **before** the PHP-FPM handler block that aaPanel generates - Nginx matches regex location blocks in the order they appear, so deny rules must come first.
 
 ```nginx
 location / {
@@ -176,7 +176,7 @@ location ^~ /uploads/ {
 
 # Block internal API helper files.
 # On Apache these are blocked by .htaccess with [F,L,NC].
-# On Nginx they must be listed explicitly — the files exist on disk and
+# On Nginx they must be listed explicitly - the files exist on disk and
 # PHP-FPM will execute them if not denied here.
 location ~* ^/api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\.php$ {
     deny all;
@@ -215,15 +215,15 @@ Keep the PHP handler block that aaPanel creates automatically. The rules above o
 Reload Nginx after saving changes.
 
 ## Step 9: Run the Installer
-Open your domain in the browser. The installer will appear automatically — VonCMS detects that von_config.php is missing and redirects to /install. The domain URL is auto-detected from your request; you do not need to enter it manually.
+Open your domain in the browser. The installer will appear automatically - VonCMS detects that von_config.php is missing and redirects to /install. The domain URL is auto-detected from your request; you do not need to enter it manually.
 
 Fill in the following fields:
 
-- **Database host** — usually localhost
-- **Database name** — from Step 5
-- **Database user** — from Step 5
-- **Database password** — from Step 5
-- **Site name** — the display name for your site
+- **Database host** - usually localhost
+- **Database name** - from Step 5
+- **Database user** - from Step 5
+- **Database password** - from Step 5
+- **Site name** - the display name for your site
 - **Admin username**
 - **Admin email**
 - **Admin password**
@@ -263,7 +263,7 @@ Check the Nginx config again. Most VPS issues here come from missing rewrite rul
 Nginx is not using the VonCMS .htaccess rules. Re-check Step 8 and make sure all deny rules are inside the same server {} block as the site, and that they appear before the PHP-FPM handler block.
 
 ### PHP scripts in uploads/ are executing
-This happens when the PHP-FPM handler block appears before the uploads deny rules in the Nginx config. The fix is to use `location ^~ /uploads/` with a nested deny block as shown in Step 8 — the `^~` prefix stops Nginx from matching the PHP handler regex for anything under uploads/.
+This happens when the PHP-FPM handler block appears before the uploads deny rules in the Nginx config. The fix is to use `location ^~ /uploads/` with a nested deny block as shown in Step 8 - the `^~` prefix stops Nginx from matching the PHP handler regex for anything under uploads/.
 
 ### Uploads fail
 Check:
