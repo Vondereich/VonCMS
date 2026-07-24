@@ -212,9 +212,24 @@ location ^~ /data/ {
     deny all;
 }
 
+# Protect temporary import files completely.
+location ^~ /uploads/temp/ {
+    deny all;
+}
+
 # Protect uploaded media.
 # The ^~ prefix prevents requests under uploads/ from reaching PHP-FPM.
 location ^~ /uploads/ {
+    # Because ^~ skips server-level regex locations, repeat hidden and sensitive
+    # file protection inside uploads/.
+    location ~ /\.(?!well-known) {
+        deny all;
+    }
+
+    location ~* \.(sql|md|json|xml|log|bak|env|zip|lock|ini|conf|inc|phar)$ {
+        deny all;
+    }
+
     # Block executable and script-like files.
     location ~* \.(php|php3|php4|php5|phtml|pl|py|jsp|asp|htm|html|shtml|sh|cgi|js|exe)$ {
         deny all;
@@ -284,6 +299,8 @@ Important notes:
 - A broad `/api|admin` regex can override PHP handling and may serve PHP source as plain text.
 - Security headers are declared at server level with `always` so they also cover static and error responses. If you add another `add_header` inside a child location, Nginx may stop inheriting the server-level headers, so repeat them there or avoid the child `add_header`.
 - The `/index.html` rule is intentional. It keeps direct index.html requests on the same PHP hydration path as Apache/LiteSpeed.
+- The `/uploads/temp/` rule must remain above the broader `/uploads/` rule because WordPress import XML files are stored there temporarily.
+- Hidden and sensitive file rules are repeated inside `/uploads/` because the `^~` prefix intentionally skips server-level regex locations.
 - VonCMS Integrity Fix repairs the Apache/LiteSpeed managed block. It does not edit Nginx configuration.
 
 Test the configuration before reloading Nginx:
