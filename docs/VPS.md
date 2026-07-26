@@ -2,7 +2,20 @@
 
 This guide is for users who are comfortable with cPanel or shared hosting and want to run VonCMS on a VPS without getting lost in server jargon.
 
-> **Recommended default:** VonCMS is designed for **LAMP**: Linux, Apache, MySQL, PHP. This guide uses **LNMP** with Nginx for VPS users who prefer it, but Nginx does not read `.htaccess`, so the rewrite and protection rules in Step 8 are required. If you want the simplest path, install Apache instead of Nginx.
+> **Simplest choice:** Use Apache or LiteSpeed Enterprise if you do not specifically need Nginx. They can apply the `.htaccess` files shipped with VonCMS. Nginx and OpenLiteSpeed do not automatically apply those files and need server-level configuration.
+
+## Choose Your Web Server First
+
+| Web server           | Reads VonCMS `.htaccess` automatically?                             | What you need to do                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apache               | Yes, when `mod_rewrite` and the required `AllowOverride` are active | Extract the Deploy ZIP and continue with the normal installer. Most managed Apache hosting enables this already.                                               |
+| LiteSpeed Enterprise | Yes                                                                 | Use the normal VonCMS installer. This is the Apache-compatible LiteSpeed commonly offered by cPanel/DirectAdmin.                                               |
+| OpenLiteSpeed        | No                                                                  | Configure equivalent rewrite and protection rules in its virtual-host settings, then restart it. This Nginx configuration cannot be pasted into OpenLiteSpeed. |
+| Nginx                | No                                                                  | Follow this guide completely, including the Nginx-only rules in Step 8.                                                                                        |
+
+If you are unsure which LiteSpeed edition is installed, check the server or hosting-panel information before continuing. LiteSpeed Enterprise automatically reads existing Apache configuration and `.htaccess`; OpenLiteSpeed does not. See the [LiteSpeed edition overview](https://docs.litespeedtech.com/licenses/) and [Apache `.htaccess` requirements](https://httpd.apache.org/docs/2.4/en/howto/htaccess.html).
+
+For beginners, use Apache or LiteSpeed Enterprise. Use Nginx when you are comfortable editing and validating a website `server {}` block. Use OpenLiteSpeed only when you are comfortable translating the required protections into its virtual-host configuration.
 
 The stack used in this guide:
 
@@ -183,7 +196,7 @@ Confirm that the extracted files are owned by the website or PHP-FPM user config
 
 Do not set the website or `uploads/` directory to `777`.
 
-## Step 8: Add Nginx Rewrite and Protection Rules
+## Step 8: Add Nginx-Only Rewrite and Protection Rules
 
 VonCMS ships three Apache/LiteSpeed protection layers:
 
@@ -191,7 +204,9 @@ VonCMS ships three Apache/LiteSpeed protection layers:
 - `uploads/.htaccess`
 - `data/.htaccess`
 
-Nginx does not read any of them. The following rules reproduce the required routing and essential file protection for an Nginx-only site.
+Apache and LiteSpeed Enterprise users can skip this step after confirming that `.htaccess` is enabled. OpenLiteSpeed users must not paste the Nginx `location` blocks below; configure equivalent virtual-host rules instead and run the security audit in Step 11.
+
+Nginx does not read any of the shipped `.htaccess` files. The following rules reproduce the required routing and essential file protection for an Nginx-only site.
 
 Open the site configuration in aaPanel. Put these rules inside the same `server {}` block as the website and before the PHP-FPM handler that aaPanel generates, such as:
 
@@ -382,9 +397,9 @@ Check these before you call the deployment done:
 - PHP files under `uploads/` are denied and never reach PHP-FPM
 - Direct `/index.php` and `/index.html` requests redirect once to the canonical `/` URL
 
-### Automated Nginx Security Audit
+### Automated Web Server Security Audit
 
-Run this only after replacing `DOMAIN` and `WEBROOT`. The script creates one temporary PHP file under `uploads/`, requests it once, and removes it automatically.
+Run this after replacing `DOMAIN` and `WEBROOT`. The same audit can verify Apache, LiteSpeed Enterprise, OpenLiteSpeed, or Nginx after that server has been configured. It creates one temporary PHP file under `uploads/`, requests it once, and removes it automatically.
 
 ```bash
 DOMAIN="https://example.com"
@@ -467,10 +482,10 @@ if [ "$failures" -ne 0 ]; then
     exit 1
 fi
 
-printf "\nAll VonCMS Nginx checks passed.\n"
+printf "\nAll VonCMS web server checks passed.\n"
 ```
 
-With the exact Step 8 configuration, protected helper/configuration paths return `403`, deliberately concealed public-cache paths return `404`, and normal public/API paths return `200`. Any `200` from a protected helper, configuration, or data path is a security gap. If the uploads test body contains `VULNERABLE`, disable public access immediately because PHP is executing inside `uploads/`.
+With the correct configuration for the selected web server, protected helper/configuration paths return `403`, deliberately concealed public-cache paths return `404`, and normal public/API paths return `200`. Any `200` from a protected helper, configuration, or data path is a security gap. If the uploads test body contains `VULNERABLE`, disable public access immediately because PHP is executing inside `uploads/`.
 
 If you later change the PHP version or handler rules in aaPanel, run `nginx -t` and repeat this audit. VonCMS Integrity Fix does not edit Nginx configuration.
 
