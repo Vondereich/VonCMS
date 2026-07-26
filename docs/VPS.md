@@ -206,7 +206,9 @@ VonCMS ships three Apache/LiteSpeed protection layers:
 
 Apache and LiteSpeed Enterprise users can skip this step after confirming that `.htaccess` is enabled. OpenLiteSpeed users must not paste the Nginx `location` blocks below; configure equivalent virtual-host rules instead and run the security audit in Step 11.
 
-Nginx does not read any of the shipped `.htaccess` files. The following rules reproduce the required routing and essential file protection for an Nginx-only site.
+Nginx does not read any of the shipped `.htaccess` files. Complete this step before opening the VonCMS installer. Without these rules, the homepage might appear to work while `/install`, clean permalinks, or protected files behave incorrectly.
+
+The following rules reproduce the required routing and essential file protection for an Nginx-only site.
 
 Open the site configuration in aaPanel. Put these rules inside the same `server {}` block as the website and before the PHP-FPM handler that aaPanel generates, such as:
 
@@ -364,7 +366,28 @@ Reload Nginx only after the test succeeds. You may use aaPanel's reload button i
 
 ## Step 9: Run the Installer
 
-Open your domain in the browser. VonCMS detects that `von_config.php` is missing and redirects to `/install`. The Domain URL is derived from the request, so it does not need a separate installer field.
+Run the installer only after Step 8 passes `nginx -t` and Nginx has been reloaded. Open the clean base URL, not `index.php` or `index.html`:
+
+- root domain: `https://example.com/`
+- dedicated subdomain: `https://news.example.com/`
+- subfolder installation: `https://example.com/blog/`
+
+The first request follows this path:
+
+1. Nginx receives the clean base URL.
+2. The `index` or `try_files` rule sends the request to the VonCMS `index.php` front controller through the existing PHP-FPM handler.
+3. VonCMS detects that `von_config.php` is missing and redirects to `/install`, or `/blog/install` for a subfolder installation.
+4. `/install` is a clean application route rather than a physical directory. The Nginx SPA fallback sends it to `index.php`, which renders the installer.
+
+The Domain URL is derived from the request, so it does not need a separate installer field.
+
+Direct index requests are cleaned automatically:
+
+- `/index.php` returns a `301` redirect to `/`
+- `/index.html` is routed through PHP and then returns a `301` redirect to `/`
+- `/blog/index.php` and `/blog/index.html` return a `301` redirect to `/blog/` when VonCMS is installed in that subfolder
+
+After installation, the same SPA fallback handles clean URLs such as `/login`, `/profile/name`, and post permalinks without exposing `index.php` in the browser address bar.
 
 Fill in:
 
@@ -683,18 +706,18 @@ VonCMS is designed to run efficiently across hosting tiers with the right indexe
 
 | Scale                | Hosting type     | Spec                           | Notes                                                                                                                                                                                                                                        |
 | -------------------- | ---------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **< 5k – 10k posts** | Shared hosting   | Default shared plan            | Indexes eliminate table scans — the real bottleneck on shared I/O. VonCMS caps admin bulk requests at 200 items for safety. Actual capacity depends on your host's resource sharing — these are directional estimates, not a guaranteed SLA. |
-| **10k – 100k posts** | VPS (high-end)   | 8-16GB RAM, 4-8 vCPU, NVMe SSD | Index fits in InnoDB buffer pool. No drama for normal publishing traffic. Set `innodb_buffer_pool_size` to 50-70% of available RAM.                                                                                                          |
-| **100k – 1M+ posts** | Dedicated server | 32GB+ RAM, 8+ cores, NVMe      | InnoDB handles 1M rows as a small table. PDO + proper indexes = solid foundation. Beyond 1M rows or millions of concurrent hits, consider partitioning.                                                                                      |
+| **< 5k - 10k posts** | Shared hosting   | Default shared plan            | Indexes eliminate table scans - the real bottleneck on shared I/O. VonCMS caps admin bulk requests at 200 items for safety. Actual capacity depends on your host's resource sharing - these are directional estimates, not a guaranteed SLA. |
+| **10k - 100k posts** | VPS (high-end)   | 8-16GB RAM, 4-8 vCPU, NVMe SSD | Index fits in InnoDB buffer pool. No drama for normal publishing traffic. Set `innodb_buffer_pool_size` to 50-70% of available RAM.                                                                                                          |
+| **100k - 1M+ posts** | Dedicated server | 32GB+ RAM, 8+ cores, NVMe      | InnoDB handles 1M rows as a small table. PDO + proper indexes = solid foundation. Beyond 1M rows or millions of concurrent hits, consider partitioning.                                                                                      |
 
 ### MySQL Tuning for Scale
 
 On VPS or dedicated servers, adjust these in `/etc/mysql/my.cnf` or via aaPanel:
 
-- `innodb_buffer_pool_size` — set to 50-70% of available RAM. This keeps indexes in memory and eliminates disk reads for most queries.
-- `innodb_log_file_size` — 256M or higher for write-heavy workloads (frequent publishing, imports).
-- `ft_min_word_len` — default is 4. Lower to 3 if you need shorter keyword matching in FULLTEXT search (requires rebuild: `REPAIR TABLE posts QUICK`).
-- `max_connections` — default 151. Increase if you expect high concurrent traffic, but monitor RAM usage per connection.
+- `innodb_buffer_pool_size` - set to 50-70% of available RAM. This keeps indexes in memory and eliminates disk reads for most queries.
+- `innodb_log_file_size` - 256M or higher for write-heavy workloads (frequent publishing, imports).
+- `ft_min_word_len` - default is 4. Lower to 3 if you need shorter keyword matching in FULLTEXT search (requires rebuild: `REPAIR TABLE posts QUICK`).
+- `max_connections` - default 151. Increase if you expect high concurrent traffic, but monitor RAM usage per connection.
 
 ### Why Indexes Matter Most
 
@@ -704,7 +727,7 @@ Without indexes, a search like `LIKE '%keyword%'` scans every row in the table. 
 2. Shared I/O = disk reads queue behind other tenants
 3. CPU/RAM limits = no buffer pool caching to compensate
 
-With proper indexes (`FULLTEXT`, `idx_slug`, `idx_status`, etc.), the same search becomes an **index lookup** — logarithmic reads instead of linear scans. On a VPS with NVMe and enough RAM for buffer pool, the index sits in memory and the query returns in milliseconds.
+With proper indexes (`FULLTEXT`, `idx_slug`, `idx_status`, etc.), the same search becomes an **index lookup** - logarithmic reads instead of linear scans. On a VPS with NVMe and enough RAM for buffer pool, the index sits in memory and the query returns in milliseconds.
 
 **TL;DR:** Fix indexes first. Upgrade hosting second. Most "slow CMS" problems are missing indexes, not insufficient hardware.
 
