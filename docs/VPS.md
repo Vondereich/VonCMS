@@ -250,6 +250,10 @@ location = /index.html {
     rewrite ^ /index.php last;
 }
 
+# This is intentional: index.html is the static build shell, while index.php
+# owns canonical redirects, server-rendered metadata, installer routing, and
+# HTTP status handling before React starts.
+
 # Hide the internal public cache directory.
 location = /api/public-cache {
     return 404;
@@ -352,7 +356,7 @@ Important:
 - Confirm the PHP handler contains a missing-file check such as `try_files $uri =404;`.
 - Do not add a broad regex `location` for `/api/` or `/admin` merely to attach cache headers. It can override PHP handling and expose PHP source as plain text.
 - If you add another `add_header` inside a child location, Nginx may stop inheriting the server-level headers. Repeat the required headers there or avoid the child `add_header`.
-- The `/index.html` rule is intentional. Direct `/index.php` and `/index.html` requests are canonicalized to `/` after installation.
+- The `/index.html` rewrite is intentional, not a fallback mistake. VonCMS sends the static build shell through `index.php` so canonical redirects, server-rendered metadata, installer routing, and HTTP status handling run before React starts. Direct `/index.php` and `/index.html` requests are then canonicalized to `/` after installation.
 - Keep the `/uploads/temp/` rule above the broader `/uploads/` rule.
 - VonCMS Integrity Fix repairs the Apache/LiteSpeed managed block. It does not edit Nginx configuration.
 
