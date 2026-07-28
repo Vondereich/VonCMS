@@ -19,6 +19,8 @@ The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, edit
 > After the OTA update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > The OTA updater intentionally protects your live `.htaccess`, so this step is needed to apply the v1.25.0 managed routing and sensitive-file protection changes while preserving hosting rules outside the VonCMS block.
 
+<img width="1920" height="957" alt="126" src="https://github.com/user-attachments/assets/c0fdec1a-827f-457b-9feb-d84ce0d62c0c" />
+
 ## Why VonCMS?
 
 Traditional CMS platforms are easy to host but often become slow, plugin-heavy, and hard to maintain. Modern headless stacks are powerful but usually add paid hosting assumptions, build pipelines, and too many moving parts for ordinary publishing sites.
