@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.25.13 feature baseline for the OpenGate line.
+> VonCMS v1.26.1 feature baseline for the After Hours line.
 
-## Introduction to VonCMS v1.25.13 "OpenGate"
+## Introduction to VonCMS v1.26.1 "After Hours"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,11 +47,11 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.25.13 "OpenGate"
+### This is v1.26.1 "After Hours"
 
-_"OpenGate" - the open-source handoff line, focused on making VonCMS easier to inspect, fork, customize, install, and verify._
+_"After Hours" - the maintenance and modernization line, focused on moving the development toolchain forward without changing the practical PHP hosting model._
 
-**OpenGate** builds on the closed HourGlass editor baseline with clearer developer onboarding, safer direct-entry routing, self-hosted default fonts, slow-route loading guards, and AI key/completion handling polish.
+**After Hours** begins with Tailwind CSS 4, TypeScript 7 native compilation, OpenRouter SDK 1, and refreshed editor/UI dependencies while retaining the OpenGate runtime, routing, security, and packaging baseline.
 
 It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
 
@@ -132,7 +132,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail         | Value                                     |
 | -------------- | ----------------------------------------- |
-| Stable release | `v1.25.13 "OpenGate"`                     |
+| Stable release | `v1.26.1 "After Hours"`                   |
 | Minimum PHP    | `8.2+`                                    |
 | Architecture   | React 19 frontend + PHP API backend       |
 | Hosting        | Shared hosting, cPanel, VPS - your choice |
@@ -339,7 +339,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.25.13` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.26.1` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -349,5 +349,5 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 - **82 PHP API files** — current API surface under `public/api/`, with 96 public PHP files covered by the lint gate across the public runtime.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** — current local `v1.25.13` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** - current local `v1.26.1` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.

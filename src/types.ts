@@ -1,3 +1,5 @@
+import type { ArticleSchemaType } from './utils/articleSchema';
+
 export type UserRole = 'Admin' | 'Root' | 'Moderator' | 'Writer' | 'Member';
 
 export interface User {
@@ -360,6 +362,7 @@ export interface SeoConfig {
   canonicalHost?: string;
   sitemapEnabled?: boolean;
   robotsTxt?: string;
+  articleSchemaType?: ArticleSchemaType;
   googleSearchConsole?: string; // Verification Code
 }
 

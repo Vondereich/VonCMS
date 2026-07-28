@@ -43,7 +43,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
       <div className="bg-white dark:bg-[#16161e] w-full max-w-2xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-slate-50 dark:bg-[#16161e]">
@@ -77,7 +77,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   type="color"
                   value={tempConfig.primaryColor}
                   onChange={(e) => setTempConfig({ ...tempConfig, primaryColor: e.target.value })}
-                  className="h-10 w-20 rounded cursor-pointer border-0"
+                  className="h-10 w-20 rounded-sm cursor-pointer border-0"
                 />
                 <input
                   id="techpresssettings-124"
@@ -102,7 +102,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   onChange={(e) =>
                     setTempConfig({ ...tempConfig, enableBreaking: e.target.checked })
                   }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Enable Latest Ticker
@@ -117,7 +117,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   onChange={(e) =>
                     setTempConfig({ ...tempConfig, enableMarquee: e.target.checked })
                   }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
                 />
                 <div className="flex flex-col">
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -135,7 +135,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   onChange={(e) =>
                     setTempConfig({ ...tempConfig, enableDarkMode: e.target.checked })
                   }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Show Dark Mode Toggle
@@ -199,7 +199,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                     onClick={() => {
                       setTempFooterLinks([...tempFooterLinks, { label: 'New Link', url: '#' }]);
                     }}
-                    className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded hover:bg-blue-100 flex items-center gap-1"
+                    className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-sm hover:bg-blue-100 flex items-center gap-1"
                   >
                     <Plus size={12} /> Add Link
                   </button>
@@ -223,7 +223,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                           newLinks[idx] = { ...newLinks[idx], label: e.target.value };
                           setTempFooterLinks(newLinks);
                         }}
-                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded text-sm dark:bg-[#1a1b26] dark:text-white"
+                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-sm text-sm dark:bg-[#1a1b26] dark:text-white"
                         placeholder="Label"
                       />
                       <input
@@ -237,7 +237,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                           newLinks[idx] = { ...newLinks[idx], url: e.target.value };
                           setTempFooterLinks(newLinks);
                         }}
-                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded text-sm dark:bg-[#1a1b26] dark:text-white"
+                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-sm text-sm dark:bg-[#1a1b26] dark:text-white"
                         placeholder="URL"
                       />
                       <button
@@ -245,7 +245,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                           const newLinks = tempFooterLinks.filter((_, i) => i !== idx);
                           setTempFooterLinks(newLinks);
                         }}
-                        className="p-2 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100"
+                        className="p-2 text-slate-400 hover:text-red-500 rounded-sm hover:bg-slate-100"
                       >
                         <Trash2 size={16} />
                       </button>

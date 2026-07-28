@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Gravatar from 'react-gravatar';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link } from 'react-router';
 import toast from 'react-hot-toast';
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
@@ -272,13 +272,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                     toast.error('System error occurred.', { id: loadingId });
                   }
                 }}
-                className="mt-2 bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-red-700 transition-colors"
+                className="mt-2 bg-red-600 text-white px-3 py-1 rounded-sm text-xs font-semibold hover:bg-red-700 transition-colors"
               >
                 Repair .htaccess Now
               </button>
               <button
                 onClick={() => toast.dismiss(t.id)}
-                className="mt-2 bg-slate-200 dark:bg-[#242633] text-slate-800 dark:text-slate-200 px-3 py-1 rounded text-xs font-semibold hover:bg-slate-300 transition-colors"
+                className="mt-2 bg-slate-200 dark:bg-[#242633] text-slate-800 dark:text-slate-200 px-3 py-1 rounded-sm text-xs font-semibold hover:bg-slate-300 transition-colors"
               >
                 Dismiss
               </button>
@@ -410,15 +410,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         <div className="h-16 flex items-center justify-center border-b border-white/10">
           {isSidebarOpen ? (
             <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-              <div className="text-blue-600 dark:text-blue-400">
+              <div className="text-white">
                 <VonLogo variant="simple" className="w-8 h-8" />
               </div>
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-slate-200 to-white">
+              <span className="bg-clip-text text-transparent bg-linear-to-r from-slate-200 to-white">
                 VonCMS Panel
               </span>
             </div>
           ) : (
-            <VonLogo variant="simple" className="w-7 h-7 text-blue-400" />
+            <VonLogo variant="simple" className="w-7 h-7 text-white" />
           )}
         </div>
 
@@ -511,7 +511,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Top Header */}
         <header
           className="h-16 px-6 flex items-center justify-between 
-                    bg-white/90 dark:bg-[#1a1b26]/90 backdrop-blur-md border-b border-slate-200 dark:border-white/10 sticky top-0 z-30 shadow-sm dark:shadow-slate-900/10"
+                    bg-white/90 dark:bg-[#1a1b26]/90 backdrop-blur-md border-b border-slate-200 dark:border-white/10 sticky top-0 z-30 shadow-xs dark:shadow-slate-900/10"
         >
           <div className="flex items-center gap-4">
             <button
@@ -537,7 +537,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                 placeholder="Search admin..."
                 value={searchQuery}
                 onChange={handleSearch}
-                className="pl-9 pr-4 py-2 bg-slate-100 dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36]/50 focus:border-blue-500 dark:focus:border-blue-500 rounded-full text-sm outline-none transition-all w-64 focus:w-80 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-sm"
+                className="pl-9 pr-4 py-2 bg-slate-100 dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36]/50 focus:border-blue-500 dark:focus:border-blue-500 rounded-full text-sm outline-hidden transition-all w-64 focus:w-80 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-xs"
               />
               {/* Search Results Dropdown */}
               {searchResults.length > 0 && (

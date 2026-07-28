@@ -19,7 +19,7 @@ const UserAvatar: React.FC<{
   return (
     <div
       onClick={onClick}
-      className={`${size} rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 flex-shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      className={`${size} rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
     >
       {url && !imageFailed ? (
         <img
@@ -249,10 +249,10 @@ export const VpComments: React.FC<CommentsProps> = ({
               name={user.username}
               email={user.email}
               size="w-14 h-14"
-              className="shadow-sm"
+              className="shadow-xs"
             />
 
-            <div className="flex-grow">
+            <div className="grow">
               <textarea
                 aria-label="( )"
                 id="comment-content"
@@ -261,7 +261,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Write your thoughts..."
-                className={`w-full p-6 border-none focus:ring-0 min-h-[140px] resize-none shadow-sm text-lg placeholder:font-light ${themeColors ? '' : 'bg-white dark:bg-slate-800 dark:text-white'}`}
+                className={`w-full p-6 border-none focus:ring-0 min-h-[140px] resize-none shadow-xs text-lg placeholder:font-light ${themeColors ? '' : 'bg-white dark:bg-slate-800 dark:text-white'}`}
                 style={{
                   borderRadius: settings.theme.borderRadius,
                   ...(themeColors
@@ -333,7 +333,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                       onClick={() => onViewProfile && onViewProfile(comment.username)}
                     />
 
-                    <div className="flex-grow">
+                    <div className="grow">
                       <div className="flex items-baseline gap-3 mb-2">
                         <span
                           className="font-bold text-slate-900 dark:text-white text-lg cursor-pointer hover:text-primary-600 transition-colors"
@@ -387,7 +387,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                             value={replyContent}
                             onChange={(e) => setReplyContent(e.target.value)}
                             placeholder="Write a reply..."
-                            className={`flex-grow p-2 text-sm border rounded-lg focus:outline-none focus:border-primary-500 ${themeColors ? '' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 dark:text-white'}`}
+                            className={`grow p-2 text-sm border rounded-lg focus:outline-hidden focus:border-primary-500 ${themeColors ? '' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 dark:text-white'}`}
                             style={
                               themeColors
                                 ? {
@@ -440,7 +440,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                               size="w-8 h-8"
                               onClick={() => onViewProfile && onViewProfile(reply.username)}
                             />
-                            <div className="flex-grow">
+                            <div className="grow">
                               <div className="flex items-baseline gap-2 mb-1">
                                 <span
                                   className="font-bold text-slate-800 dark:text-white text-sm cursor-pointer hover:text-primary-600"
@@ -499,7 +499,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                       <button
                         key={page}
                         onClick={() => setCurrentPage(page)}
-                        className={`min-w-[2.5rem] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                        className={`min-w-10 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
                           currentPage === page
                             ? 'text-white shadow-lg'
                             : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
@@ -518,7 +518,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                     ) : (
                       <span
                         key={page}
-                        className="inline-flex min-w-[2.5rem] items-center justify-center px-1 text-slate-400"
+                        className="inline-flex min-w-10 items-center justify-center px-1 text-slate-400"
                       >
                         ...
                       </span>

@@ -47,7 +47,7 @@ export const CookieBanner: React.FC<CookieBannerProps> = ({ cookieConsentRequire
   if (!showBanner) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[100] p-4 animate-fade-in-up">
+    <div className="fixed bottom-0 left-0 right-0 z-100 p-4 animate-fade-in-up">
       <div className="max-w-6xl mx-auto bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">

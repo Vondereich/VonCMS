@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-VonCMS v1.25.13 "OpenGate" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+VonCMS v1.26.1 "After Hours" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -12,7 +12,7 @@ VonCMS v1.25.13 "OpenGate" is the current open-source release line. You can inst
 
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
-The v1.25.x line is focused on open-source onboarding, shared-hosting deployment, stable public routing, source packaging, and developer documentation. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
+The v1.26.x line modernizes the compiler, styling pipeline, and bundled extension baseline while preserving the shared-hosting PHP runtime established by OpenGate. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
 
 > [!IMPORTANT]
 > **Updating an existing site to v1.25.0 through OTA?**
@@ -51,11 +51,11 @@ VonCMS keeps the runtime simple:
 | Database           | MySQL 5.7 or newer                   |
 | Web server         | Apache or LiteSpeed with `.htaccess` |
 | Local PHP checks   | Laragon, XAMPP, WAMP, or PHP on PATH |
-| Source development | Node.js LTS and npm                  |
+| Source development | Node.js 22.22 or newer and npm       |
 
 Production hosting does not need Node.js, Vite, npm, or a separate frontend server. Source development does.
 
-For source work, install Node.js LTS from <https://nodejs.org/>. The installer includes `npm`. After installing, open a terminal and confirm:
+For source work, install Node.js 22.22 or newer from <https://nodejs.org/>. The installer includes `npm`. After installing, open a terminal and confirm:
 
 ```bash
 node --version
@@ -66,19 +66,19 @@ On Windows, Laragon is the easiest PHP/MySQL stack for local checks. XAMPP, WAMP
 
 ## Choose Your Path
 
-| Goal                                         | Start here                                                                                           |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Install VonCMS on shared hosting             | Download `VonCMS_v1.25.13_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases) |
-| Study the code or build custom features      | Fork or clone the repository                                                                         |
-| Build a custom theme, plugin, or extension   | Read [Extension Development](docs/EXTENSION_DEVELOPMENT.md)                                          |
-| Work on APIs, installer, routing, or updater | Read [API](docs/API.md), [Security](docs/SECURITY.md), and [Routing](docs/ROUTING.md)                |
-| Upgrade an existing website                  | Read [Upgrade](docs/UPGRADE.md)                                                                      |
+| Goal                                         | Start here                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Install VonCMS on shared hosting             | Download `VonCMS_v1.26.1_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases) |
+| Study the code or build custom features      | Fork or clone the repository                                                                        |
+| Build a custom theme, plugin, or extension   | Read [Extension Development](docs/EXTENSION_DEVELOPMENT.md)                                         |
+| Work on APIs, installer, routing, or updater | Read [API](docs/API.md), [Security](docs/SECURITY.md), and [Routing](docs/ROUTING.md)               |
+| Upgrade an existing website                  | Read [Upgrade](docs/UPGRADE.md)                                                                     |
 
 ## Install A Website From Deploy ZIP
 
 Use this path for normal site owners and shared-hosting installs.
 
-1. Download `VonCMS_v1.25.13_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases).
+1. Download `VonCMS_v1.26.1_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases).
 2. Extract it into your hosting web root.
 3. Create a MySQL database and database user.
 4. Open `https://yourdomain.com/install`.
@@ -235,8 +235,8 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.25.13_Deploy.zip`
-- `VonCMS_v1.25.13_Source.zip`
+- `VonCMS_v1.26.1_Deploy.zip`
+- `VonCMS_v1.26.1_Source.zip`
 
 No checksum sidecar files are generated by the release script.
 
@@ -285,20 +285,16 @@ After a site is already on the fixed updater baseline, the dashboard updater can
 
 Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
 
-v1.25.13 includes:
+v1.26.1 includes:
 
-- Promise-cached early loading for the active public theme while inactive themes remain code-split.
-- Scoped post/page/profile-to-category discovery resets without disturbing same-home category refreshes.
-- Legacy unsupported sidebar widgets no longer reserve empty desktop columns.
-- Full-library server-backed Media search across Gallery, editor insertion, and featured-image selection.
-- Safer upload, metadata, deletion, sync, and untracked-file cleanup boundaries.
-- Locked atomic responsive-variant registry updates with runtime-state package exclusions.
-- Bounded GD image processing with explicit buffer cleanup and safe original-image fallback.
-- Regression smoke coverage for the complete Media Library lifecycle.
-- Guest-safe homepage ticker recovery across Default, Digest, and TechPress after direct-post navigation.
-- Accessible slow-category feedback across all six bundled themes while the current story list remains visible.
+- Word-safe homepage discovery excerpts plus SSR/hydrated article schema context parity.
+- Tailwind CSS 4 with its dedicated PostCSS adapter and CSS-first configuration.
+- TypeScript 7 native compilation with a TypeScript 6 API compatibility alias for current tooling.
+- OpenRouter SDK 1 plus current TipTap, Lucide, Recharts, PostCSS, and filesystem utility releases.
+- Canonical Tailwind 4 utility migration across the admin, editor, plugins, and all six bundled themes.
+- Bundled themes and built-in plugins aligned to the `1.26` Extensions Manager series label.
 
-Recent v1.25.x OpenGate work also includes post ownership hardening, staff protected-content read boundaries, public discovery copy cleanup, title-length guards, footer brand minimalism, public cache contract tightening, and current Deploy/Source ZIP packaging.
+The completed v1.25.x OpenGate line remains the runtime foundation, including post ownership hardening, staff protected-content read boundaries, public discovery cleanup, public cache controls, media safety, and release packaging.
 
 ## License
 

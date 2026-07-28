@@ -3,6 +3,11 @@ import { Post, Page, SiteSettings, User } from '../../../../types';
 import { getPermalink } from '../../../../utils/siteUtils';
 import { API, BASE_PATH } from '../../../../config/site.config';
 import { htmlToPlainText } from '../../../../utils/security';
+import {
+  normalizeArticleSchemaType,
+  normalizeSchemaLanguage,
+  truncateSchemaText,
+} from '../../../../utils/articleSchema';
 
 const ensureMeta = (nameOrProp: string, attr: 'name' | 'property', content: string) => {
   let el = document.head.querySelector(`meta[${attr}="${nameOrProp}"]`);
@@ -167,6 +172,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
         ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1'
         : 'noindex, follow';
     }
+    description = truncateSchemaText(description, 160);
 
     // --- 2. Apply Document Title ---
     try {
@@ -256,8 +262,10 @@ const VonSEO: React.FC<VonSEOProps> = ({
       const authorProfileUrl = authorUsername
         ? canonicalUrl(`profile/${encodeURIComponent(authorUsername)}`)
         : '';
+      const articleSection = selectedPost.category?.trim();
+      const articleLanguage = normalizeSchemaLanguage(settings.site_language);
       const articleNode = {
-        '@type': 'Article',
+        '@type': normalizeArticleSchemaType(settings.seo?.articleSchemaType),
         '@id': `${canonical}#article`,
         headline: selectedPost.title,
         description: description,
@@ -267,6 +275,8 @@ const VonSEO: React.FC<VonSEOProps> = ({
         author: { '@type': 'Person', name: selectedPost.author, url: authorProfileUrl },
         publisher: { '@id': `${canonicalBase}/#organization` },
         mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+        ...(articleSection ? { articleSection } : {}),
+        ...(articleLanguage ? { inLanguage: articleLanguage } : {}),
       };
       jsonLd['@graph'].push(articleNode);
     } else if (currentView === 'profile' && selectedProfile) {

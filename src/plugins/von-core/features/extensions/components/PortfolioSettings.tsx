@@ -73,10 +73,10 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
       <div className="bg-white dark:bg-[#16161e] w-full max-w-2xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-gradient-to-r from-purple-500 to-pink-500">
+        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-purple-500 to-pink-500">
           <div>
             <h2 className="text-xl font-bold text-white">Portfolio Settings</h2>
             <p className="text-sm text-white/80">Customize your portfolio showcase</p>
@@ -126,7 +126,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                 type="color"
                 value={tempConfig.accentColor}
                 onChange={(e) => setTempConfig({ ...tempConfig, accentColor: e.target.value })}
-                className="h-10 w-20 rounded cursor-pointer border-0"
+                className="h-10 w-20 rounded-sm cursor-pointer border-0"
               />
               <input
                 id="portfoliosettings-126"
@@ -372,7 +372,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
           </button>
           <button
             onClick={handleSave}
-            className="px-8 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/30 flex items-center gap-2"
+            className="px-8 py-2 bg-linear-to-r from-purple-600 to-pink-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/30 flex items-center gap-2"
           >
             <Save size={18} /> Save Changes
           </button>

@@ -114,7 +114,7 @@ export const GlobalLightbox: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-9999 bg-black/95 backdrop-blur-xs flex items-center justify-center animate-fade-in"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -149,7 +149,7 @@ export const GlobalLightbox: React.FC = () => {
         <img
           src={currentImage}
           alt={`Gallery ${currentIndex + 1}`}
-          className="max-w-full max-h-[90vh] object-contain shadow-2xl rounded-sm select-none"
+          className="max-w-full max-h-[90vh] object-contain shadow-2xl rounded-xs select-none"
           onClick={(e) => e.stopPropagation()}
         />
 

@@ -42,7 +42,7 @@ const ProfileAvatar: React.FC<{ url?: string; name: string; email?: string; size
 }) => {
   return (
     <div
-      className={`${size} rounded-full overflow-hidden border-4 border-white dark:border-neutral-900 bg-neutral-100 flex-shrink-0 shadow-lg`}
+      className={`${size} rounded-full overflow-hidden border-4 border-white dark:border-neutral-900 bg-neutral-100 shrink-0 shadow-lg`}
     >
       <SafeImage
         src={url}
@@ -126,7 +126,7 @@ const UserProfile: React.FC<ProfileProps> = ({
     <div className="animate-fade-in w-full max-w-5xl mx-auto pb-20">
       {/* Edit Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-neutral-100 dark:border-neutral-800">
             <div className="p-6 border-b border-neutral-100 dark:border-neutral-800">
               <h3 className="text-xl font-bold text-neutral-900 dark:text-white">Edit Profile</h3>
@@ -144,7 +144,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                   value={editDisplayName}
                   onChange={(e) => setEditDisplayName(e.target.value)}
                   placeholder="Public author name"
-                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden"
                 />
               </div>
               <div>
@@ -159,7 +159,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                   value={editAvatar}
                   onChange={(e) => setEditAvatar(e.target.value)}
                   placeholder="https://example.com/avatar.jpg"
-                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden"
                 />
                 <p className="text-xs text-neutral-400 mt-1">
                   Leave empty for auto-generated avatar.
@@ -177,7 +177,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                   onChange={(e) => setEditBio(e.target.value)}
                   rows={4}
                   placeholder="Tell us about yourself..."
-                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden resize-none"
                 />
               </div>
 
@@ -204,7 +204,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                         type="password"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-none"
+                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
                       />
                     </div>
                     <div>
@@ -219,7 +219,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="8+ chars, Upper, Number, Symbol"
-                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-none"
+                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
                       />
                     </div>
                     <div>
@@ -234,7 +234,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                         placeholder="Repeat new password"
-                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-none"
+                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
                       />
                     </div>
                   </div>
@@ -266,7 +266,7 @@ const UserProfile: React.FC<ProfileProps> = ({
           onClick={onBack}
           className="flex items-center gap-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors group font-medium"
         >
-          <div className="p-2 rounded-full bg-white dark:bg-neutral-800 shadow-sm group-hover:bg-neutral-100 transition-colors">
+          <div className="p-2 rounded-full bg-white dark:bg-neutral-800 shadow-xs group-hover:bg-neutral-100 transition-colors">
             <ArrowLeft size={18} />
           </div>
           Back to Feed
@@ -297,9 +297,9 @@ const UserProfile: React.FC<ProfileProps> = ({
       {/* Profile Header Card */}
       <div className="bg-white dark:bg-neutral-900 rounded-3xl overflow-hidden shadow-xl shadow-neutral-200/50 dark:shadow-none border border-neutral-100 dark:border-neutral-800 mb-8 mx-4 lg:mx-0">
         {/* Cover Photo (Gradient for now) */}
-        <div className="h-48 md:h-64 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 relative overflow-hidden">
+        <div className="h-48 md:h-64 bg-linear-to-r from-blue-600 via-purple-600 to-indigo-600 relative overflow-hidden">
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+          <div className="absolute inset-0 bg-linear-to-t from-black/30 to-transparent"></div>
         </div>
 
         <div className="px-6 md:px-10 pb-8 relative">
@@ -314,21 +314,21 @@ const UserProfile: React.FC<ProfileProps> = ({
               />
               {isOwnProfile && (
                 <span
-                  className="absolute bottom-2 right-2 bg-green-500 border-4 border-white dark:border-neutral-900 w-6 h-6 rounded-full shadow-sm"
+                  className="absolute bottom-2 right-2 bg-green-500 border-4 border-white dark:border-neutral-900 w-6 h-6 rounded-full shadow-xs"
                   title="It's You!"
                 ></span>
               )}
             </div>
 
             {/* Info Block */}
-            <div className="flex-grow min-w-0 text-center md:text-left mb-4 md:mb-10 w-full">
+            <div className="grow min-w-0 text-center md:text-left mb-4 md:mb-10 w-full">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <h1 className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white md:text-white md:drop-shadow-sm tracking-tight [overflow-wrap:anywhere]">
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white md:text-white md:drop-shadow-xs tracking-tight wrap-anywhere">
                     {displayUser.display_name || displayUser.username}
                   </h1>
                   {displayUser.display_name && (
-                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400 [overflow-wrap:anywhere]">
+                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400 wrap-anywhere">
                       @{displayUser.username}
                     </p>
                   )}
@@ -412,12 +412,12 @@ const UserProfile: React.FC<ProfileProps> = ({
                     key={`profile-article-skeleton-${index}`}
                     className="animate-pulse bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-100 dark:border-neutral-800 flex gap-4"
                   >
-                    <div className="w-24 h-24 rounded-xl bg-neutral-200 dark:bg-neutral-800 flex-shrink-0" />
+                    <div className="w-24 h-24 rounded-xl bg-neutral-200 dark:bg-neutral-800 shrink-0" />
                     <div className="flex-1 space-y-3 py-2">
-                      <div className="h-3 w-1/4 rounded bg-neutral-200 dark:bg-neutral-800" />
-                      <div className="h-4 rounded bg-neutral-200 dark:bg-neutral-800" />
-                      <div className="h-4 w-2/3 rounded bg-neutral-200 dark:bg-neutral-800" />
-                      <div className="h-3 w-1/3 rounded bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="h-3 w-1/4 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="h-4 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="h-4 w-2/3 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="h-3 w-1/3 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
                     </div>
                   </div>
                 ))
@@ -428,7 +428,7 @@ const UserProfile: React.FC<ProfileProps> = ({
                     onClick={() => onViewPost(post.id)}
                     className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-100 dark:border-neutral-800 cursor-pointer hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 transition-all group flex gap-4"
                   >
-                    <div className="w-24 h-24 rounded-xl bg-neutral-200 dark:bg-neutral-800 overflow-hidden flex-shrink-0">
+                    <div className="w-24 h-24 rounded-xl bg-neutral-200 dark:bg-neutral-800 overflow-hidden shrink-0">
                       {post.image && (
                         <img
                           {...getResponsiveImageAttributes(post, 'card')}
@@ -481,9 +481,9 @@ const UserProfile: React.FC<ProfileProps> = ({
                     <div className="flex items-start gap-4">
                       <div className="mt-1 h-5 w-5 rounded-full bg-neutral-200 dark:bg-neutral-800" />
                       <div className="flex-1 space-y-3">
-                        <div className="h-4 rounded bg-neutral-200 dark:bg-neutral-800" />
-                        <div className="h-4 w-4/5 rounded bg-neutral-200 dark:bg-neutral-800" />
-                        <div className="h-3 w-1/3 rounded bg-neutral-200 dark:bg-neutral-800" />
+                        <div className="h-4 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
+                        <div className="h-4 w-4/5 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
+                        <div className="h-3 w-1/3 rounded-sm bg-neutral-200 dark:bg-neutral-800" />
                       </div>
                     </div>
                   </div>

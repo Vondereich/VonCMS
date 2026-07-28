@@ -353,7 +353,7 @@ const UserManager: React.FC<UserManagerProps> = ({
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search users..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
           />
         </div>
         <button
@@ -484,7 +484,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                 : ''
             }
           >
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fade-in">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 animate-fade-in">
               <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-[#2a2b36]">
                   <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
@@ -663,7 +663,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                 : ''
             }
           >
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fade-in">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 animate-fade-in">
               <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
                 <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle className="text-red-500" size={32} />
@@ -699,7 +699,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         )}
 
       {/* Users Table */}
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 size={20} className="animate-spin text-primary-600" />

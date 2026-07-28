@@ -157,7 +157,7 @@ const TrendingTicker: React.FC<{
     >
       <div className="max-w-7xl mx-auto px-5 flex items-center gap-4">
         <span
-          className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded flex-shrink-0 animate-pulse shadow-sm"
+          className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded-sm shrink-0 animate-pulse shadow-xs"
           style={{ background: colors.safeAccent, color: colors.accentContrast }}
         >
           Latest Stories
@@ -308,7 +308,7 @@ const DigestAvatar: React.FC<{
   className?: string;
 }> = ({ url, name, email, size = 'w-8 h-8', className = '' }) => (
   <div
-    className={`${size} rounded-full overflow-hidden ${className} flex-shrink-0 ring-2 ring-white/10`}
+    className={`${size} rounded-full overflow-hidden ${className} shrink-0 ring-2 ring-white/10`}
   >
     <SafeImage
       src={url}
@@ -343,7 +343,7 @@ const CategoryBadge: React.FC<{
         onClick?.();
       }}
       className={`
-inline-flex max-w-[10rem] sm:max-w-[12rem] items-center overflow-hidden rounded font-bold uppercase tracking-wider cursor-pointer
+inline-flex max-w-40 sm:max-w-48 items-center overflow-hidden rounded font-bold uppercase tracking-wider cursor-pointer
 transition-all hover:scale-105 hover:shadow-lg whitespace-nowrap digest-category-pill
                 ${size === 'sm' ? 'px-2.5 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'}
 `}
@@ -373,7 +373,7 @@ const DigestHero: React.FC<{
 
   return (
     <div
-      className="relative overflow-hidden rounded-xl group cursor-pointer mb-8 border shadow-sm"
+      className="relative overflow-hidden rounded-xl group cursor-pointer mb-8 border shadow-xs"
       onClick={() => onClick(article.id)}
       style={{ background: colors.surface, borderColor: colors.border }}
     >
@@ -397,10 +397,10 @@ const DigestHero: React.FC<{
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-slate-700 to-slate-900" />
+            <div className="absolute inset-0 w-full h-full bg-linear-to-br from-slate-700 to-slate-900" />
           )}
           {/* Gradient overlay for mobile */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent lg:hidden" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent lg:hidden" />
         </a>
 
         {/* Content Side */}
@@ -493,7 +493,7 @@ const DigestCard: React.FC<{
     style={{ background: colors.surface, borderColor: colors.border }}
   >
     {/* Image */}
-    <div className="aspect-[16/10] overflow-hidden relative">
+    <div className="aspect-16/10 overflow-hidden relative">
       {article.image ? (
         <img
           {...getResponsiveImageAttributes(article, 'card')}
@@ -754,7 +754,7 @@ const DigestProfile: React.FC<{
     <div className="max-w-4xl mx-auto relative">
       {/* Edit Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
           <div
             className="w-full max-w-lg bg-white dark:bg-slate-900 border rounded-xl shadow-2xl overflow-hidden"
             style={{ borderColor: colors.border }}
@@ -782,7 +782,7 @@ const DigestProfile: React.FC<{
                   type="text"
                   value={editDisplayName}
                   onChange={(e) => setEditDisplayName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 outline-hidden transition-all"
                   style={{
                     background: colors.surface,
                     borderColor: colors.border,
@@ -806,7 +806,7 @@ const DigestProfile: React.FC<{
                   type="text"
                   value={editAvatar}
                   onChange={(e) => setEditAvatar(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 outline-hidden transition-all"
                   style={{
                     background: colors.surface,
                     borderColor: colors.border,
@@ -830,7 +830,7 @@ const DigestProfile: React.FC<{
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
                   rows={4}
-                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 outline-none transition-all resize-none"
+                  className="w-full px-4 py-3 rounded-lg border focus:ring-2 outline-hidden transition-all resize-none"
                   style={{
                     background: colors.surface,
                     borderColor: colors.border,
@@ -868,7 +868,7 @@ const DigestProfile: React.FC<{
                         type="password"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-3 py-2 rounded border focus:ring-1 outline-none"
+                        className="w-full px-3 py-2 rounded-sm border focus:ring-1 outline-hidden"
                         style={{
                           background: colors.surface,
                           borderColor: colors.border,
@@ -891,7 +891,7 @@ const DigestProfile: React.FC<{
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="8+ chars, Upper, Number, Symbol"
-                        className="w-full px-3 py-2 rounded border focus:ring-1 outline-none"
+                        className="w-full px-3 py-2 rounded-sm border focus:ring-1 outline-hidden"
                         style={{
                           background: colors.surface,
                           borderColor: colors.border,
@@ -913,7 +913,7 @@ const DigestProfile: React.FC<{
                         type="password"
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        className="w-full px-3 py-2 rounded border focus:ring-1 outline-none"
+                        className="w-full px-3 py-2 rounded-sm border focus:ring-1 outline-hidden"
                         style={{
                           background: colors.surface,
                           borderColor: colors.border,
@@ -1065,15 +1065,15 @@ const DigestProfile: React.FC<{
                     />
                     <div className="space-y-3">
                       <div
-                        className="h-4 w-3/4 rounded"
+                        className="h-4 w-3/4 rounded-sm"
                         style={{ background: colors.surfaceAlt }}
                       />
                       <div
-                        className="h-4 w-1/2 rounded"
+                        className="h-4 w-1/2 rounded-sm"
                         style={{ background: colors.surfaceAlt }}
                       />
                       <div
-                        className="h-3 w-1/3 rounded"
+                        className="h-3 w-1/3 rounded-sm"
                         style={{ background: colors.surfaceAlt }}
                       />
                     </div>
@@ -1111,14 +1111,17 @@ const DigestProfile: React.FC<{
                     style={{ background: colors.surface, borderColor: colors.border }}
                   >
                     <div
-                      className="mb-3 h-4 w-4/5 rounded"
+                      className="mb-3 h-4 w-4/5 rounded-sm"
                       style={{ background: colors.surfaceAlt }}
                     />
                     <div
-                      className="mb-5 h-4 w-2/3 rounded"
+                      className="mb-5 h-4 w-2/3 rounded-sm"
                       style={{ background: colors.surfaceAlt }}
                     />
-                    <div className="h-3 w-1/3 rounded" style={{ background: colors.surfaceAlt }} />
+                    <div
+                      className="h-3 w-1/3 rounded-sm"
+                      style={{ background: colors.surfaceAlt }}
+                    />
                   </div>
                 ))}
               </div>
@@ -1324,7 +1327,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 invertLogoInDarkMode={settings.invertLogoInDarkMode}
               />
             ) : (
-              <VonLogo variant="default" className="!w-10 !h-10 !mr-0" />
+              <VonLogo variant="default" className="w-10! h-10! mr-0!" />
             )}
             {!settings.useLogoAsTitle && (
               <div className="hidden sm:block max-w-[200px] lg:max-w-[260px]">
@@ -1755,7 +1758,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* Sidebar */}
             {hasSinglePostSidebar && (
-              <aside className="w-full lg:w-[380px] flex-shrink-0 space-y-6">
+              <aside className="w-full lg:w-[380px] shrink-0 space-y-6">
                 {/* Newsletter Widget (Sidebar) */}
                 {settings.newsletter?.enabled &&
                   (settings.newsletter?.position === 'sidebar' ||
@@ -1925,7 +1928,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       <Header />
 
       <div className="max-w-7xl mx-auto px-5 py-8 border-b" style={{ borderColor: colors.border }}>
-        <div className="relative group mx-auto w-full max-w-full md:w-[42rem] lg:w-[52rem] xl:w-[58rem]">
+        <div className="relative group mx-auto w-full max-w-full md:w-2xl lg:w-208 xl:w-232">
           <input
             aria-label="Search"
             id="digest-search"
@@ -1935,7 +1938,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             value={searchQuery}
             maxLength={PUBLIC_SEARCH_MAX_LENGTH}
             onChange={(e) => setSearchQuery(normalizePublicSearchInput(e.target.value))}
-            className="w-full pl-8 pr-14 py-4 text-lg rounded-full outline-none transition-all shadow-sm focus:shadow-md"
+            className="w-full pl-8 pr-14 py-4 text-lg rounded-full outline-hidden transition-all shadow-xs focus:shadow-md"
             style={{
               background: colors.surface,
               color: colors.text,

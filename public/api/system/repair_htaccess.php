@@ -155,9 +155,8 @@ function getHtaccessContent($prefix)
 
   # Security Headers
   <IfModule mod_headers.c>
-    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    Header set Strict-Transport-Security "max-age=31536000"
     Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
-    Header set X-XSS-Protection "1; mode=block"
     Header set X-Content-Type-Options "nosniff"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
     Header set X-Frame-Options "SAMEORIGIN"
@@ -175,6 +174,14 @@ function getHtaccessContent($prefix)
   AddType text/css .css
   AddType image/webp .webp
   AddType font/woff2 .woff2
+  </IfModule>
+
+  # Cache fingerprinted build assets only. Dynamic routes and mutable public files stay uncached.
+  <IfModule mod_setenvif.c>
+    SetEnvIfNoCase Request_URI "(^|/)assets/[^/?]+-[A-Za-z0-9_-]{8,}\.(css|js|woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif)$" VONCMS_FINGERPRINTED_ASSET=1
+  </IfModule>
+  <IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=2592000, immutable" env=VONCMS_FINGERPRINTED_ASSET
   </IfModule>
 
   # Prevent directory listing globally

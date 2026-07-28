@@ -205,10 +205,10 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
       <div className="bg-white dark:bg-[#16161e] w-full max-w-5xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-slate-900">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <ArrowRight className="text-emerald-600" size={28} />
@@ -354,7 +354,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
                         {r.target_url}
                       </td>
                       <td className="py-3 text-center">
-                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-sm text-xs font-medium">
                           {r.redirect_type}
                         </span>
                       </td>
@@ -404,7 +404,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
           <div className="bg-white dark:bg-[#1a1b26] w-full max-w-lg rounded-xl shadow-2xl p-6">
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
               {editing ? 'Edit Redirect' : 'Add Redirect'}

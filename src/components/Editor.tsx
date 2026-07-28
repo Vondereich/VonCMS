@@ -688,7 +688,7 @@ const Editor: React.FC<EditorProps> = ({
       image.id !== undefined && image.id !== null && image.id !== ''
         ? ` data-id="${escapeImageAttr(String(image.id))}"`
         : '';
-    return `<img src="${escapeImageAttr(image.url)}" alt="${alt}"${dataId} class="rounded-lg shadow-sm" style="max-width: 100%; height: auto;" />`;
+    return `<img src="${escapeImageAttr(image.url)}" alt="${alt}"${dataId} class="rounded-lg shadow-xs" style="max-width: 100%; height: auto;" />`;
   };
 
   const insertEditorImages = (
@@ -1210,7 +1210,7 @@ const Editor: React.FC<EditorProps> = ({
     <div
       ref={editorShellRef}
       onBlurCapture={flushPendingEditorChange}
-      className="relative flex flex-col overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+      className="relative flex flex-col overflow-visible rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]"
     >
       <DarkModeStyles prefix="editor" />
       <style>{`
@@ -1389,7 +1389,7 @@ const Editor: React.FC<EditorProps> = ({
                 e.preventDefault();
                 insertHeading(level);
               }}
-              className="px-2 py-1 text-xs font-bold rounded text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
+              className="px-2 py-1 text-xs font-bold rounded-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
               title={`Heading ${level}`}
             >
               H{level}
@@ -1400,7 +1400,7 @@ const Editor: React.FC<EditorProps> = ({
               e.preventDefault();
               execCmd('formatBlock', 'p');
             }}
-            className="px-2 py-1 text-xs font-medium rounded text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
+            className="px-2 py-1 text-xs font-medium rounded-sm text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
             title="Normal paragraph"
           >
             ¶
@@ -1474,7 +1474,7 @@ const Editor: React.FC<EditorProps> = ({
               e.preventDefault();
               setIsImageMenuOpen(!isImageMenuOpen);
             }}
-            className="flex h-9 cursor-pointer shadow-sm transition-colors duration-150 items-center overflow-hidden rounded-lg border border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 hover:shadow dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white"
+            className="flex h-9 cursor-pointer shadow-xs transition-colors duration-150 items-center overflow-hidden rounded-lg border border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 hover:shadow-sm dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white"
             title="Insert Image Options"
             type="button"
           >
@@ -1487,7 +1487,7 @@ const Editor: React.FC<EditorProps> = ({
             </span>
           </button>
           {isImageMenuOpen && (
-            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1a1b26] rounded-lg shadow-xl border border-slate-200 dark:border-[#2a2b36] w-48 z-[60] overflow-hidden flex flex-col py-1 animate-fade-in">
+            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1a1b26] rounded-lg shadow-xl border border-slate-200 dark:border-[#2a2b36] w-48 z-60 overflow-hidden flex flex-col py-1 animate-fade-in">
               <button
                 onClick={() => {
                   openModal('image');
@@ -1665,7 +1665,7 @@ const Editor: React.FC<EditorProps> = ({
         aria-label="Text Content"
         value={htmlContent}
         onChange={handleHtmlChange}
-        className="flex-grow p-4 outline-none font-mono text-sm bg-[#101018] text-slate-300 resize-none rounded-b-lg"
+        className="grow p-4 outline-hidden font-mono text-sm bg-[#101018] text-slate-300 resize-none rounded-b-lg"
         spellCheck={false}
         style={{ minHeight: '300px', display: isCodeView ? 'block' : 'none' }}
         placeholder="<p>Edit HTML here...</p>"
@@ -1674,7 +1674,7 @@ const Editor: React.FC<EditorProps> = ({
       {/* WYSIWYG Visual Editor - TipTap owns the editing surface */}
       <div
         ref={editorRef}
-        className="editor-content relative flex-grow overflow-y-auto bg-white focus-within:ring-2 focus-within:ring-sky-500/30 focus-within:ring-inset dark:bg-[#101018]/80 [&_iframe]:pointer-events-none"
+        className="editor-content relative grow overflow-y-auto bg-white focus-within:ring-2 focus-within:ring-sky-500/30 focus-within:ring-inset dark:bg-[#101018]/80 [&_iframe]:pointer-events-none"
         onMouseDown={handleEditorSurfaceMouseDown}
         onPaste={handlePaste}
         onClick={handleEditorSurfaceClick}
@@ -1697,7 +1697,7 @@ const Editor: React.FC<EditorProps> = ({
 
       {/* Preview Modal */}
       {isPreviewOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center backdrop-blur-xl p-4">
+        <div className="fixed inset-0 bg-black/60 z-80 flex items-center justify-center backdrop-blur-xl p-4">
           <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] border border-slate-200 dark:border-[#2a2b36] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
               <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
@@ -1711,7 +1711,7 @@ const Editor: React.FC<EditorProps> = ({
                 <X size={18} />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto flex-grow">
+            <div className="p-6 overflow-y-auto grow">
               <ContentRenderer
                 className="prose prose-lg dark:prose-invert max-w-none"
                 html={previewHtml}
@@ -1723,7 +1723,7 @@ const Editor: React.FC<EditorProps> = ({
 
       {/* Editor Input Modal (Link, Video, Code, Table) */}
       {activeModal && (
-        <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center backdrop-blur-xl p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 z-80 flex items-center justify-center backdrop-blur-xl p-4 animate-fade-in">
           <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-[#2a2b36] overflow-hidden transform transition-all scale-100">
             <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
               <h3 className="font-bold text-slate-800 dark:text-white capitalize flex items-center gap-2">
@@ -1757,7 +1757,7 @@ const Editor: React.FC<EditorProps> = ({
                       min="1"
                       value={modalInput}
                       onChange={(e) => setModalInput(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                     />
                   </div>
                   <div>
@@ -1772,7 +1772,7 @@ const Editor: React.FC<EditorProps> = ({
                       min="1"
                       value={modalInput2}
                       onChange={(e) => setModalInput2(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                     />
                   </div>
                 </div>
@@ -1789,7 +1789,7 @@ const Editor: React.FC<EditorProps> = ({
                     rows={6}
                     value={modalInput}
                     onChange={(e) => setModalInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm"
                     placeholder="Paste your code here..."
                   />
                 </div>
@@ -1817,7 +1817,7 @@ const Editor: React.FC<EditorProps> = ({
                     value={modalInput}
                     onChange={(e) => setModalInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleModalConfirm()}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                     placeholder={
                       activeModal === 'video' ? 'https://youtube.com/...' : 'https://example.com'
                     }
@@ -1857,7 +1857,7 @@ const Editor: React.FC<EditorProps> = ({
 
       {/* Media Library Modal */}
       {activeModal === 'mediaLibrary' && (
-        <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center backdrop-blur-xl p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 z-80 flex items-center justify-center backdrop-blur-xl p-4 animate-fade-in">
           <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] border border-slate-200 dark:border-[#2a2b36] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -1891,7 +1891,7 @@ const Editor: React.FC<EditorProps> = ({
                   aria-label="Search media library"
                   onChange={(event) => setMediaSearchInput(event.target.value)}
                   placeholder="Search filename, alt text or caption..."
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
                 />
               </div>
               <button
@@ -1902,7 +1902,7 @@ const Editor: React.FC<EditorProps> = ({
               </button>
             </form>
 
-            <div className="flex-grow overflow-y-auto p-4 bg-slate-100 dark:bg-[#16161e] custom-scrollbar">
+            <div className="grow overflow-y-auto p-4 bg-slate-100 dark:bg-[#16161e] custom-scrollbar">
               {loadingMedia ? (
                 <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
@@ -1919,7 +1919,7 @@ const Editor: React.FC<EditorProps> = ({
                     <div
                       key={idx}
                       onClick={() => handleMediaSelect(file)} // Pass full file object
-                      className="group cursor-pointer bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36] overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm"
+                      className="group cursor-pointer bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36] overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-xs"
                     >
                       <div className="aspect-square relative bg-slate-100 dark:bg-[#16161e]">
                         <img
@@ -1967,7 +1967,7 @@ const Editor: React.FC<EditorProps> = ({
       {/* Image Bubble Menu */}
       {selectedImage && (
         <div
-          className="absolute z-[70] bg-white dark:bg-[#1a1b26] shadow-xl border border-slate-200 dark:border-[#2a2b36] rounded-lg p-2 flex flex-col gap-2 w-72 animate-fade-in"
+          className="absolute z-70 bg-white dark:bg-[#1a1b26] shadow-xl border border-slate-200 dark:border-[#2a2b36] rounded-lg p-2 flex flex-col gap-2 w-72 animate-fade-in"
           style={{ top: bubblePosition.top, left: Math.max(10, bubblePosition.left) }}
         >
           <div className="flex items-center gap-2 mb-1">
@@ -1980,7 +1980,7 @@ const Editor: React.FC<EditorProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded p-1">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded-sm p-1">
             <ToolButton
               icon={<AlignLeft size={14} />}
               onClick={() => alignImage('left')}
@@ -2001,7 +2001,7 @@ const Editor: React.FC<EditorProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded p-1">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded-sm p-1">
             <span className="text-[10px] text-slate-500 font-semibold px-1">SIZE</span>
             {(['25', '50', '75', '100'] as const).map((size) => (
               <button
@@ -2009,7 +2009,7 @@ const Editor: React.FC<EditorProps> = ({
                 onClick={() => resizeImage(size)}
                 className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
                   selectedImageSize === size
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-[#1a1b26]'
                 }`}
                 title={`Resize to ${size}%`}
@@ -2028,12 +2028,12 @@ const Editor: React.FC<EditorProps> = ({
                 name="editor1513"
                 value={bubbleAlt}
                 onChange={(e) => setBubbleAlt(e.target.value)}
-                className="flex-grow text-xs p-1.5 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] dark:text-white"
+                className="grow text-xs p-1.5 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] dark:text-white"
                 placeholder="Describe image..."
               />
               <button
                 onClick={updateImageAlt}
-                className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700"
+                className="bg-blue-600 text-white p-1.5 rounded-sm hover:bg-blue-700"
                 title="Save Alt Text"
               >
                 <CheckCircle size={14} />
@@ -2050,12 +2050,12 @@ const Editor: React.FC<EditorProps> = ({
                 aria-label="CREDIT / ATTRIBUTION"
                 value={bubbleCredit}
                 onChange={(e) => setBubbleCredit(e.target.value)}
-                className="flex-grow text-xs p-1.5 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] dark:text-white"
+                className="grow text-xs p-1.5 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] dark:text-white"
                 placeholder="e.g. Bernama, Reuters, AP, AFP..."
               />
               <button
                 onClick={updateImageCredit}
-                className="bg-cyan-600 text-white p-1.5 rounded hover:bg-cyan-700"
+                className="bg-cyan-600 text-white p-1.5 rounded-sm hover:bg-cyan-700"
                 title="Save Credit"
               >
                 <CheckCircle size={14} />
@@ -2065,7 +2065,7 @@ const Editor: React.FC<EditorProps> = ({
 
           <button
             onClick={setAsFeaturedIndex}
-            className="text-xs p-1.5 bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded hover:bg-amber-100 flex items-center justify-center gap-1 font-medium mt-1"
+            className="text-xs p-1.5 bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-100 flex items-center justify-center gap-1 font-medium mt-1"
           >
             <Sparkles size={14} /> Set as Featured Image
           </button>
@@ -2075,7 +2075,7 @@ const Editor: React.FC<EditorProps> = ({
       {/* Video Bubble Menu */}
       {selectedVideoEmbed && (
         <div
-          className="absolute z-[70] bg-white dark:bg-[#1a1b26] shadow-xl border border-slate-200 dark:border-[#2a2b36] rounded-lg p-2 flex flex-col gap-2 w-72 animate-fade-in"
+          className="absolute z-70 bg-white dark:bg-[#1a1b26] shadow-xl border border-slate-200 dark:border-[#2a2b36] rounded-lg p-2 flex flex-col gap-2 w-72 animate-fade-in"
           style={{ top: bubblePosition.top, left: Math.max(10, bubblePosition.left) }}
         >
           <div className="flex items-center gap-2 mb-1">
@@ -2088,7 +2088,7 @@ const Editor: React.FC<EditorProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded p-1">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded-sm p-1">
             <ToolButton
               icon={<AlignLeft size={14} />}
               onClick={() => alignImage('left')}
@@ -2109,7 +2109,7 @@ const Editor: React.FC<EditorProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded p-1">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#16161e] rounded-sm p-1">
             <span className="text-[10px] text-slate-500 font-semibold px-1">ASPECT</span>
             {(
               [
@@ -2123,7 +2123,7 @@ const Editor: React.FC<EditorProps> = ({
                 onClick={() => applyVideoAspectMode(mode)}
                 className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
                   selectedVideoAspect === mode
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-[#1a1b26]'
                 }`}
                 title={`Set video aspect to ${label}`}
@@ -2150,7 +2150,7 @@ const ToolButton: React.FC<{
       e.preventDefault();
       onClick();
     }}
-    className={`flex h-9 w-9 cursor-pointer shadow-sm transition-colors duration-150 items-center justify-center rounded-lg border hover:shadow ${
+    className={`flex h-9 w-9 cursor-pointer shadow-xs transition-colors duration-150 items-center justify-center rounded-lg border hover:shadow-sm ${
       active
         ? 'border-blue-500 bg-blue-600 text-white shadow-blue-500/20 dark:border-blue-400 dark:bg-blue-500 dark:text-white'
         : 'border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white'
@@ -2162,7 +2162,7 @@ const ToolButton: React.FC<{
 );
 
 const Divider = () => (
-  <div className="mx-0.5 h-6 w-px rounded bg-slate-200 dark:bg-[#242633]"></div>
+  <div className="mx-0.5 h-6 w-px rounded-sm bg-slate-200 dark:bg-[#242633]"></div>
 );
 
 export default React.memo(Editor);

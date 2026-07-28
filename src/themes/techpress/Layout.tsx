@@ -60,7 +60,7 @@ const TechPressAvatar: React.FC<{
   className?: string;
 }> = ({ url, name, email, size = 'w-8 h-8', className = '' }) => {
   return (
-    <div className={`${size} rounded-full overflow-hidden ${className} flex-shrink-0`}>
+    <div className={`${size} rounded-full overflow-hidden ${className} shrink-0`}>
       <SafeImage
         src={url}
         alt={name}
@@ -164,7 +164,7 @@ function LatestTickerBanner({
     >
       <div className="max-w-7xl mx-auto flex items-center gap-4 overflow-hidden whitespace-nowrap">
         <span
-          className="bg-black text-white px-4 py-3 font-black text-xs uppercase italic tracking-tighter flex-shrink-0 z-10"
+          className="bg-black text-white px-4 py-3 font-black text-xs uppercase italic tracking-tighter shrink-0 z-10"
           style={{ background: colors.primary }}
         >
           LATEST
@@ -246,10 +246,10 @@ function HeroArticle({
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-neutral-700 to-neutral-900" />
+            <div className="absolute inset-0 w-full h-full bg-linear-to-br from-neutral-700 to-neutral-900" />
           )}
           {/* Gradient overlay for mobile */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent lg:hidden" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent lg:hidden" />
         </a>
 
         {/* Content Side - Fixed 2/5 width */}
@@ -266,13 +266,13 @@ function HeroArticle({
                 e.stopPropagation();
                 onCategoryClick && onCategoryClick(article.category);
               }}
-              className="px-3 py-1 text-xs font-bold uppercase rounded cursor-pointer hover:opacity-80 transition-opacity"
+              className="px-3 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
               style={{ background: colors.primary, color: 'white' }}
             >
               {article.category || 'News'}
             </span>
             <span
-              className="px-3 py-1 text-xs font-bold uppercase rounded"
+              className="px-3 py-1 text-xs font-bold uppercase rounded-sm"
               style={{ background: colors.accent, color: 'white' }}
             >
               FEATURED
@@ -393,7 +393,7 @@ function NewsCard({
                 e.stopPropagation();
                 onCategoryClick && onCategoryClick(article.category);
               }}
-              className="px-2 py-1 text-xs font-bold uppercase rounded cursor-pointer hover:opacity-80 transition-opacity"
+              className="px-2 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
               style={{ background: colors.primary, color: 'white' }}
             >
               {article.category || 'Tech'}
@@ -452,7 +452,7 @@ function NewsCard({
             onClick(article.id);
           })
         }
-        className={`w-full ${expandedHorizontalImage ? 'sm:w-72 lg:w-80' : 'sm:w-64'} aspect-video rounded-lg flex-shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer`}
+        className={`w-full ${expandedHorizontalImage ? 'sm:w-72 lg:w-80' : 'sm:w-64'} aspect-video rounded-lg shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer`}
         aria-label={decodeEntities(article.title)}
       >
         {article.image && (
@@ -472,7 +472,7 @@ function NewsCard({
               e.stopPropagation();
               onCategoryClick && onCategoryClick(article.category);
             }}
-            className="px-2 py-1 text-xs font-bold uppercase rounded cursor-pointer hover:opacity-80 transition-opacity"
+            className="px-2 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
             style={{ background: colors.primary, color: 'white' }}
           >
             {article.category || 'News'}
@@ -691,7 +691,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               ) : (
                 <VonLogo
                   variant="default"
-                  className="!w-10 !h-10 md:!w-12 md:!h-12 !mr-0 flex-shrink-0"
+                  className="w-10! h-10! md:w-12! md:h-12! mr-0! shrink-0"
                 />
               )}
               {!settings.useLogoAsTitle && (
@@ -930,7 +930,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               ) : (
                 <button
                   onClick={onLogin}
-                  className="px-5 py-2 rounded text-sm font-bold transition-all hover:opacity-90"
+                  className="px-5 py-2 rounded-sm text-sm font-bold transition-all hover:opacity-90"
                   style={{ background: colors.primary, color: 'white' }}
                 >
                   Login
@@ -940,7 +940,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               {config.enableDarkMode && (
                 <button
                   onClick={toggleDarkMode}
-                  className="w-10 h-10 rounded flex items-center justify-center transition-all hover:opacity-70 border"
+                  className="w-10 h-10 rounded-sm flex items-center justify-center transition-all hover:opacity-70 border"
                   style={{ background: colors.surface, borderColor: colors.border }}
                   aria-label="Toggle Dark Mode"
                 >
@@ -955,7 +955,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               {/* Mobile Menu Toggle */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className={`${compactNavigationClassName} w-10 h-10 rounded flex items-center justify-center transition-all hover:opacity-70 border`}
+                className={`${compactNavigationClassName} w-10 h-10 rounded-sm flex items-center justify-center transition-all hover:opacity-70 border`}
                 style={{
                   background: colors.surface,
                   borderColor: colors.border,
@@ -982,7 +982,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       handleNavClick(nav);
                       setIsMobileMenuOpen(false);
                     }}
-                    className="text-left px-4 py-3 rounded hover:opacity-70 transition font-semibold"
+                    className="text-left px-4 py-3 rounded-sm hover:opacity-70 transition font-semibold"
                     style={{ color: colors.text, background: colors.surface }}
                   >
                     {nav.label}
@@ -1095,7 +1095,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                 <header className="mb-8">
                   <span
                     onClick={() => onCategoryClick && onCategoryClick(selectedPost.category)}
-                    className="inline-block px-3 py-1 mb-6 text-xs font-black uppercase tracking-widest rounded"
+                    className="inline-block px-3 py-1 mb-6 text-xs font-black uppercase tracking-widest rounded-sm"
                     style={{ background: colors.primary, color: 'white' }}
                   >
                     {selectedPost.category || 'Lifestyle'}
@@ -1236,7 +1236,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       {selectedPost.keywords.split(',').map((keyword: string, idx: number) => (
                         <span
                           key={idx}
-                          className="px-4 py-2 text-sm font-bold border rounded-lg cursor-pointer transition-colors hover:bg-opacity-10 hover:bg-gray-500"
+                          className="px-4 py-2 text-sm font-bold border rounded-lg cursor-pointer transition-colors hover:bg-gray-500/10"
                           style={{ borderColor: colors.border, color: colors.text }}
                         >
                           #{keyword.trim()}
@@ -1254,7 +1254,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               <div className="mt-20 pt-12 border-t" style={{ borderColor: colors.border }}>
                 <h3 className="text-3xl font-black mb-10 tracking-tight">Discussion</h3>
                 <div
-                  className="not-prose p-6 md:p-10 rounded-2xl border-2 shadow-sm"
+                  className="not-prose p-6 md:p-10 rounded-2xl border-2 shadow-xs"
                   style={{ borderColor: colors.border, background: colors.surface }}
                 >
                   <VpComments
@@ -1286,7 +1286,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* Sidebar */}
             {hasSinglePostSidebar && (
-              <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-8">
+              <aside className="w-full lg:w-[350px] shrink-0 space-y-8">
                 {/* Newsletter Widget */}
                 {settings.newsletter?.enabled &&
                   (settings.newsletter?.position === 'sidebar' ||
@@ -1507,7 +1507,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             value={activeSearchQuery}
             maxLength={PUBLIC_SEARCH_MAX_LENGTH}
             onChange={(e) => handleSearch(normalizePublicSearchInput(e.target.value))}
-            className="w-full px-5 py-3 rounded-full text-sm outline-none transition-all border shadow-sm"
+            className="w-full px-5 py-3 rounded-full text-sm outline-hidden transition-all border shadow-xs"
             style={{
               background: colors.surface,
               color: colors.text,
@@ -1706,7 +1706,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               </div>
 
               {hasHomepageSidebar && (
-                <aside className="w-full lg:w-[350px] flex-shrink-0 space-y-6">
+                <aside className="w-full lg:w-[350px] shrink-0 space-y-6">
                   {/* Dynamic Widgets */}
                   {settings.sidebarLayout
                     .filter((widget: any) => widget.isVisible !== false)

@@ -100,7 +100,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
+    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
       <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-[#2a2b36] pb-2">
         Site Information
       </h3>
@@ -240,7 +240,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   checked={settings.useLogoAsTitle || false}
                   onChange={(e) => onChange('useLogoAsTitle', e.target.checked)}
                   disabled={!settings.logoUrl}
-                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
+                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
                 />
                 <div>
                   <label
@@ -265,7 +265,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   checked={settings.invertLogoInDarkMode || false}
                   onChange={(e) => onChange('invertLogoInDarkMode', e.target.checked)}
                   disabled={!settings.logoUrl}
-                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
+                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
                 />
                 <div>
                   <label
@@ -649,7 +649,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="checkbox"
             checked={settings.maintenanceMode}
             onChange={(e) => onChange('maintenanceMode', e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
+            className="w-4 h-4 text-primary-600 border-slate-300 rounded-sm focus:ring-primary-500"
           />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Maintenance Mode
@@ -663,7 +663,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="checkbox"
             checked={settings.discussionEnabled ?? true}
             onChange={(e) => onChange('discussionEnabled', e.target.checked)}
-            className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            className="w-5 h-5 rounded-sm border-slate-300 text-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Allow Public Discussion on Posts
@@ -677,7 +677,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="checkbox"
             checked={settings.registrationEnabled ?? true}
             onChange={(e) => onChange('registrationEnabled', e.target.checked)}
-            className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            className="w-5 h-5 rounded-sm border-slate-300 text-primary-600 focus:ring-primary-500"
           />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Membership: Anyone can register

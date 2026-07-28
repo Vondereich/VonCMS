@@ -167,7 +167,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
 
         {/* Stats Cards */}
         <div className="flex gap-4">
-          <div className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white">
+          <div className="px-4 py-2 rounded-xl bg-linear-to-r from-cyan-500 to-cyan-600 text-white">
             <div className="text-2xl font-bold">{stats.active}</div>
             <div className="text-xs opacity-80">Active</div>
           </div>

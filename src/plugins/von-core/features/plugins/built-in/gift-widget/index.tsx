@@ -13,7 +13,7 @@ export const FloatingGiftPlugin: PluginDefinition = {
   id: 'vp_gift_widget',
   name: 'Holiday Gift Widget',
   description: 'Adds a floating gift icon at the bottom right corner.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   render: (location: PluginLocation, props?: any) => {
     if (location !== 'footer_bottom') return null;
@@ -46,7 +46,7 @@ export const FloatingGiftPlugin: PluginDefinition = {
           <Gift size={24} />
           {iconLabel && <span className="pr-1 text-sm font-bold">{iconLabel}</span>}
           {/* Tooltip on hover */}
-          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             {tooltipText}
           </div>
         </div>

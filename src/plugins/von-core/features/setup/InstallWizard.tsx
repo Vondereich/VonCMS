@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 const InstallWizard: React.FC = () => {
   const navigate = useNavigate();
@@ -104,20 +104,20 @@ const InstallWizard: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100 p-4 font-sans relative overflow-hidden">
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-20 pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-purple-600 rounded-full blur-[120px]" />
-        <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] bg-blue-600 rounded-full blur-[120px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-600 rounded-full blur-[120px]" />
+        <div className="absolute top-[40%] right-[-10%] w-[40%] h-[60%] bg-blue-600 rounded-full blur-[120px]" />
       </div>
 
       <div className="w-full max-w-2xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl relative z-10 overflow-hidden">
         {/* Header */}
         <div className="bg-white/5 p-6 border-b border-white/5 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-linear-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
               <Database size={20} className="text-white" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">VonCMS Installer</h1>
-              <p className="text-xs text-slate-400">System Setup Wizard v1.25 "OpenGate"</p>
+              <p className="text-xs text-slate-400">System Setup Wizard v1.26 "After Hours"</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -161,7 +161,7 @@ const InstallWizard: React.FC = () => {
                         name="dbHost"
                         value={formData.dbHost}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         placeholder="localhost"
                       />
                     </div>
@@ -178,7 +178,7 @@ const InstallWizard: React.FC = () => {
                         name="dbName"
                         value={formData.dbName}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         placeholder="my_database"
                       />
                     </div>
@@ -195,7 +195,7 @@ const InstallWizard: React.FC = () => {
                         name="dbUser"
                         value={formData.dbUser}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         placeholder="root"
                       />
                     </div>
@@ -212,7 +212,7 @@ const InstallWizard: React.FC = () => {
                         name="dbPass"
                         value={formData.dbPass}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         placeholder="Leave empty if none"
                       />
                     </div>
@@ -251,7 +251,7 @@ const InstallWizard: React.FC = () => {
                         name="siteTitle"
                         value={formData.siteTitle}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                       />
                     </div>
                   </div>
@@ -266,7 +266,7 @@ const InstallWizard: React.FC = () => {
                         name="adminUsername"
                         value={formData.adminUsername}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         placeholder="admin"
                       />
                     </div>
@@ -281,7 +281,7 @@ const InstallWizard: React.FC = () => {
                         name="adminEmail"
                         value={formData.adminEmail}
                         onChange={handleChange}
-                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         placeholder="admin@example.com"
                       />
                     </div>
@@ -298,7 +298,7 @@ const InstallWizard: React.FC = () => {
                         name="adminPass"
                         value={formData.adminPass}
                         onChange={handleChange}
-                        className={`w-full bg-slate-800/50 border rounded-lg py-2.5 pl-4 pr-10 text-white focus:ring-2 focus:ring-blue-500 outline-none ${passwordErrors.length > 0 && formData.adminPass ? 'border-red-500' : 'border-slate-700'}`}
+                        className={`w-full bg-slate-800/50 border rounded-lg py-2.5 pl-4 pr-10 text-white focus:ring-2 focus:ring-blue-500 outline-hidden ${passwordErrors.length > 0 && formData.adminPass ? 'border-red-500' : 'border-slate-700'}`}
                       />
                       <button
                         type="button"

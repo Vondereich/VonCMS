@@ -85,7 +85,7 @@ const CyberAvatar: React.FC<{ url?: string; name: string; email?: string; size?:
 }) => {
   return (
     <div className={`${size} relative group`}>
-      <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] rounded-lg rotate-45 opacity-20 group-hover:rotate-90 transition-transform duration-500"></div>
+      <div className="absolute inset-0 bg-linear-to-r from-(--color-primary) to-(--color-secondary) rounded-lg rotate-45 opacity-20 group-hover:rotate-90 transition-transform duration-500"></div>
       <div className="absolute inset-0.5 bg-[#050510] rounded-lg overflow-hidden flex items-center justify-center border border-white/10">
         <SafeImage
           src={url}
@@ -265,7 +265,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
   return (
     <div
-      className="min-h-screen bg-[#050510] text-slate-300 font-mono selection:bg-[var(--color-primary)] selection:text-black dark"
+      className="min-h-screen bg-[#050510] text-slate-300 font-mono selection:bg-(--color-primary) selection:text-black dark"
       style={dynamicStyle}
     >
       <ProseDarkModeStyles />
@@ -291,8 +291,8 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
       ></div>
 
       {/* Glowing Orbs */}
-      <div className="fixed top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[var(--color-primary)] opacity-10 blur-[100px] pointer-events-none"></div>
-      <div className="fixed bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-[var(--color-secondary)] opacity-10 blur-[120px] pointer-events-none"></div>
+      <div className="fixed top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-(--color-primary) opacity-10 blur-[100px] pointer-events-none"></div>
+      <div className="fixed bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-(--color-secondary) opacity-10 blur-[120px] pointer-events-none"></div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
         {/* PRISM HEADER: Glassmorphism, Neon Borders */}
@@ -313,7 +313,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               ) : (
                 <VonLogo
                   variant="default"
-                  className="!w-10 !h-10 shadow-[0_0_15px_rgba(245,158,11,0.5)] group-hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] transition-all"
+                  className="w-10! h-10! shadow-[0_0_15px_rgba(245,158,11,0.5)] group-hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] transition-all"
                 />
               )}
               {!settings.useLogoAsTitle && (
@@ -351,7 +351,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       return onCategoryClick(categoryTarget);
                     window.location.href = normalizeSiteUrl(nav.url);
                   }}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all relative overflow-hidden group ${currentView === 'home' && nav.url === 'home' ? 'text-[var(--color-primary)]' : 'text-slate-400 hover:text-white'}`}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all relative overflow-hidden group ${currentView === 'home' && nav.url === 'home' ? 'text-(--color-primary)' : 'text-slate-400 hover:text-white'}`}
                 >
                   <span className="relative z-10">{nav.label || nav.url}</span>
                   <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
@@ -412,7 +412,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             <div className={`${compactNavigationClassName} flex items-center gap-4`}>
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 text-[var(--color-primary)] hover:text-white transition-colors"
+                className="p-2 text-(--color-primary) hover:text-white transition-colors"
                 aria-label={isMobileMenuOpen ? 'Close Mobile Menu' : 'Open Mobile Menu'}
               >
                 {isMobileMenuOpen ? <X /> : <Menu />}
@@ -466,9 +466,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm truncate text-white">{user.username}</p>
-                            <p className="text-xs truncate text-[var(--color-secondary)]">
-                              {user.role}
-                            </p>
+                            <p className="text-xs truncate text-(--color-secondary)">{user.role}</p>
                           </div>
                         </div>
                       </div>
@@ -506,7 +504,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                               onNavigateAdmin();
                               setShowUserDropdown(false);
                             }}
-                            className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3 text-slate-300 hover:bg-white/5 hover:text-[var(--color-primary)]"
+                            className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3 text-slate-300 hover:bg-white/5 hover:text-(--color-primary)"
                           >
                             <svg
                               className="w-4 h-4"
@@ -558,9 +556,9 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               ) : (
                 <button
                   onClick={onLogin}
-                  className="relative px-3 md:px-6 py-2 group overflow-hidden rounded bg-transparent border border-[var(--color-primary)] text-[var(--color-primary)] font-mono text-xs font-bold tracking-widest hover:text-black hover:shadow-[0_0_20px_rgba(79,151,255,0.5)] transition-all duration-300"
+                  className="relative px-3 md:px-6 py-2 group overflow-hidden rounded-sm bg-transparent border border-(--color-primary) text-(--color-primary) font-mono text-xs font-bold tracking-widest hover:text-black hover:shadow-[0_0_20px_rgba(79,151,255,0.5)] transition-all duration-300"
                 >
-                  <span className="absolute inset-0 w-full h-full bg-[var(--color-primary)] -translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></span>
+                  <span className="absolute inset-0 w-full h-full bg-(--color-primary) -translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></span>
                   <span className="relative flex items-center gap-2">
                     <Terminal size={14} />
                     <span className="hidden md:inline">INITIALIZE_SESSION</span>
@@ -596,7 +594,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     }
                     setIsMobileMenuOpen(false);
                   }}
-                  className="text-left px-4 py-3 rounded border border-white/5 hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-primary)]/10 text-slate-300 hover:text-white transition-all font-mono"
+                  className="text-left px-4 py-3 rounded-sm border border-white/5 hover:border-(--color-primary)/50 hover:bg-(--color-primary)/10 text-slate-300 hover:text-white transition-all font-mono"
                 >
                   &gt; {nav.label || nav.url}
                 </button>
@@ -614,7 +612,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   value={activeSearchQuery}
                   maxLength={PUBLIC_SEARCH_MAX_LENGTH}
                   onChange={(e) => setActiveSearchQuery(normalizePublicSearchInput(e.target.value))}
-                  className="w-full bg-black/50 border border-white/10 rounded py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-[var(--color-primary)] text-slate-300 font-mono"
+                  className="w-full bg-black/50 border border-white/10 rounded-sm py-3 pl-10 pr-4 text-sm focus:outline-hidden focus:border-(--color-primary) text-slate-300 font-mono"
                 />
                 {activeSearchQuery.length >= PUBLIC_SEARCH_MAX_LENGTH && (
                   <p className="mt-2 text-center text-[10px] font-semibold uppercase tracking-wide text-amber-300">
@@ -636,7 +634,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
         )}
 
         <main
-          className="flex-grow w-full max-w-7xl mx-auto px-6 py-12"
+          className="grow w-full max-w-7xl mx-auto px-6 py-12"
           aria-busy={isCategoryRefreshing || undefined}
         >
           {currentView === 'home' || currentView === 'category' ? (
@@ -656,7 +654,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     onChange={(e) =>
                       setActiveSearchQuery(normalizePublicSearchInput(e.target.value))
                     }
-                    className="w-full bg-black/50 border border-white/10 rounded-full py-4 pl-14 pr-12 text-sm focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all text-slate-300 placeholder:text-slate-600 font-mono"
+                    className="w-full bg-black/50 border border-white/10 rounded-full py-4 pl-14 pr-12 text-sm focus:outline-hidden focus:border-(--color-primary) focus:shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all text-slate-300 placeholder:text-slate-600 font-mono"
                   />
                   {activeSearchQuery.length >= PUBLIC_SEARCH_MAX_LENGTH && (
                     <p className="mt-2 text-center text-[10px] font-semibold uppercase tracking-wide text-amber-300">
@@ -666,7 +664,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   {activeSearchQuery && (
                     <button
                       onClick={handleClearSearch}
-                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[var(--color-primary)] transition-colors bg-slate-800/50 rounded-full p-1"
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-(--color-primary) transition-colors bg-slate-800/50 rounded-full p-1"
                       title="CLEAR_PROTOCOL"
                       aria-label="Clear Search"
                     >
@@ -678,9 +676,9 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               {selectedCategory && (
                 <div className="mb-12 text-center relative z-10">
                   <div className="inline-block relative">
-                    <div className="absolute inset-0 bg-[var(--color-primary)] blur-3xl opacity-20 rounded-full"></div>
+                    <div className="absolute inset-0 bg-(--color-primary) blur-3xl opacity-20 rounded-full"></div>
                     <h2 className="relative text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-2 tracking-tight">
-                      <span className="text-[var(--color-primary)] text-lg block mb-2 font-mono uppercase tracking-widest">
+                      <span className="text-(--color-primary) text-lg block mb-2 font-mono uppercase tracking-widest">
                         CATEGORY_VIEW
                       </span>
                       {selectedCategory}
@@ -688,7 +686,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   </div>
                   <PublicDiscoveryRefreshStatus
                     active={isCategoryRefreshing}
-                    className="mx-auto mt-4 font-mono text-[var(--color-primary)]"
+                    className="mx-auto mt-4 font-mono text-(--color-primary)"
                   />
                   <div className="mt-4">
                     <button
@@ -718,7 +716,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                           <div className="absolute inset-0 rounded-2xl border-2 border-transparent transition-colors pointer-events-none z-20"></div>
 
                           <div className="h-48 overflow-hidden relative">
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1f] to-transparent z-10 opacity-60"></div>
+                            <div className="absolute inset-0 bg-linear-to-t from-[#0a0a1f] to-transparent z-10 opacity-60"></div>
                             {post.image ? (
                               <img
                                 {...getResponsiveImageAttributes(post, 'card')}
@@ -727,13 +725,13 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                               />
                             ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                              <div className="w-full h-full bg-linear-to-br from-slate-800 to-slate-900 flex items-center justify-center">
                                 <Cpu className="text-white/10 w-16 h-16" />
                               </div>
                             )}
                             <div className="absolute top-4 left-4 z-20">
                               <span
-                                className="px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded text-xs font-mono text-[var(--color-secondary)] uppercase tracking-wider hover:bg-[var(--color-secondary)]/10 hover:border-[var(--color-secondary)]/50 transition-colors cursor-pointer"
+                                className="px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-sm text-xs font-mono text-(--color-secondary) uppercase tracking-wider hover:bg-(--color-secondary)/10 hover:border-(--color-secondary)/50 transition-colors cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (onCategoryClick) onCategoryClick(post.category);
@@ -748,7 +746,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                             <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mb-3">
                               <span>{post.readTime || '5 min read'}</span>
                             </div>
-                            <h2 className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors">
+                            <h2 className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-(--color-primary) transition-colors">
                               <a
                                 href={getPermalink(post, settings)}
                                 onClick={(event) =>
@@ -784,7 +782,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                                 />
                                 <span className="text-xs text-slate-300">{post.author}</span>
                               </div>
-                              <ArrowLeft className="text-[var(--color-primary)] rotate-180 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                              <ArrowLeft className="text-(--color-primary) rotate-180 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </div>
                           </div>
                         </article>
@@ -794,7 +792,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                           settings.ads.adsEnabled &&
                           settings.ads.inFeedAd && (
                             <div className="col-span-1 md:col-span-2 lg:col-span-3 py-6 ad-slot-flex border-y border-white/5 bg-transparent relative overflow-hidden">
-                              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-30"></div>
+                              <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-(--color-primary) to-transparent opacity-30"></div>
                               <AdBlock content={settings.ads.inFeedAd} slotId="infeed" />
                             </div>
                           )}
@@ -817,12 +815,12 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             <div className="max-w-4xl mx-auto">
               <button
                 onClick={handleReturnHome}
-                className="mb-8 flex items-center gap-2 text-slate-400 hover:text-[var(--color-primary)] transition-colors font-mono text-sm"
+                className="mb-8 flex items-center gap-2 text-slate-400 hover:text-(--color-primary) transition-colors font-mono text-sm"
               >
                 <ChevronLeft size={16} /> SYSTEM.RETURN_HOME()
               </button>
-              <article className="bg-[#0a0a1f]/50 backdrop-blur-sm border border-white/5 rounded-3xl overflow-hidden p-8 md:p-12 relative">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-primary)]/10 blur-3xl rounded-full pointer-events-none"></div>
+              <article className="bg-[#0a0a1f]/50 backdrop-blur-xs border border-white/5 rounded-3xl overflow-hidden p-8 md:p-12 relative">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-(--color-primary)/10 blur-3xl rounded-full pointer-events-none"></div>
                 <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-8 leading-tight tracking-tight">
                   <GlitchText text={selectedPage.title} />
                 </h1>
@@ -837,20 +835,20 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               <div className="max-w-4xl mx-auto">
                 <button
                   onClick={handleReturnHome}
-                  className="mb-8 flex items-center gap-2 text-slate-400 hover:text-[var(--color-primary)] transition-colors font-mono text-sm"
+                  className="mb-8 flex items-center gap-2 text-slate-400 hover:text-(--color-primary) transition-colors font-mono text-sm"
                 >
                   <ChevronLeft size={16} /> SYSTEM.RETURN_HOME()
                 </button>
 
-                <article className="bg-[#0a0a1f]/50 backdrop-blur-sm border border-white/5 rounded-3xl overflow-hidden p-8 md:p-12 relative">
+                <article className="bg-[#0a0a1f]/50 backdrop-blur-xs border border-white/5 rounded-3xl overflow-hidden p-8 md:p-12 relative">
                   {/* Decorative elements */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-primary)]/10 blur-3xl rounded-full pointer-events-none"></div>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-(--color-primary)/10 blur-3xl rounded-full pointer-events-none"></div>
 
                   <header className="mb-12 relative z-10">
                     <div className="flex flex-wrap items-center gap-4 mb-6">
                       <span
                         onClick={() => onCategoryClick && onCategoryClick(selectedPost.category)}
-                        className="px-3 py-1 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/30 text-[var(--color-primary)] rounded text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-[var(--color-primary)]/20 transition-colors"
+                        className="px-3 py-1 bg-(--color-primary)/10 border border-(--color-primary)/30 text-(--color-primary) rounded-sm text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-(--color-primary)/20 transition-colors"
                       >
                         {selectedPost.category}
                       </span>
@@ -885,7 +883,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       />
                       <div>
                         <div className="text-white font-bold text-sm">{selectedPost.author}</div>
-                        <div className="text-[var(--color-secondary)] text-xs">Author / Admin</div>
+                        <div className="text-(--color-secondary) text-xs">Author / Admin</div>
                       </div>
                     </div>
                   </header>
@@ -904,7 +902,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     if (contentHasImage) return null;
                     return (
                       <div className="w-full h-[400px] rounded-2xl overflow-hidden mb-12 border border-white/10 relative group">
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1f] via-transparent to-transparent opacity-50"></div>
+                        <div className="absolute inset-0 bg-linear-to-t from-[#0a0a1f] via-transparent to-transparent opacity-50"></div>
                         <img
                           {...getResponsiveImageAttributes(selectedPost, 'hero')}
                           alt={decodeEntities(selectedPost.title)}
@@ -929,7 +927,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
                   <ContentRenderer
                     html={sanitizeHtml(selectedPost.content)}
-                    className="prose prose-invert prose-lg max-w-none prose-headings:font-bold prose-headings:text-white prose-p:text-slate-300 prose-a:text-[var(--color-primary)] prose-code:text-[var(--color-secondary)] prose-code:bg-black/50 prose-code:px-1 prose-code:rounded prose-pre:bg-black/80 prose-pre:border prose-pre:border-white/10"
+                    className="prose prose-invert prose-lg max-w-none prose-headings:font-bold prose-headings:text-white prose-p:text-slate-300 prose-a:text-(--color-primary) prose-code:text-(--color-secondary) prose-code:bg-black/50 prose-code:px-1 prose-code:rounded-sm prose-pre:bg-black/80 prose-pre:border prose-pre:border-white/10"
                   />
                   {aiSummaryPos === 'bottom' && aiSummary}
 
@@ -940,7 +938,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                         {selectedPost.keywords.split(',').map((tag: string, i: number) => (
                           <span
                             key={i}
-                            className="px-3 py-1.5 text-sm rounded-full bg-white/5 text-slate-400 hover:bg-[var(--color-primary)]/20 hover:text-[var(--color-primary)] transition-colors"
+                            className="px-3 py-1.5 text-sm rounded-full bg-white/5 text-slate-400 hover:bg-(--color-primary)/20 hover:text-(--color-primary) transition-colors"
                           >
                             #{tag.trim()}
                           </span>
@@ -965,7 +963,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   <div className="mt-16 pt-8 border-t border-white/10">
                     <div className="flex items-center justify-between mb-8">
                       <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                        <MessageSquare className="text-[var(--color-primary)]" />
+                        <MessageSquare className="text-(--color-primary)" />
                         COMMENTS_SECTION
                       </h3>
                       <div className="flex gap-2">
@@ -1004,7 +1002,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                 <Loader2
                   size={48}
-                  className="mb-4 opacity-50 animate-spin text-[var(--color-primary)]"
+                  className="mb-4 opacity-50 animate-spin text-(--color-primary)"
                 />
                 <p className="font-mono animate-pulse">ACCESSING_DATABASE...</p>
               </div>
@@ -1031,7 +1029,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
         </main>
 
         <footer className="border-t border-white/10 bg-[#020205] py-12 mt-auto relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-50"></div>
+          <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-(--color-primary) to-transparent opacity-50"></div>
           <div className="max-w-7xl mx-auto px-6 space-y-12">
             {/* Newsletter Widget - Prism Style (Inherits theme colors) */}
             {settings.newsletter?.enabled &&
@@ -1053,7 +1051,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-2">
-                <Zap className="text-[var(--color-primary)] w-5 h-5" />
+                <Zap className="text-(--color-primary) w-5 h-5" />
                 <span className="font-bold text-white tracking-wider">{settings.siteName}</span>
               </div>
               <div className="flex items-center gap-6">

@@ -146,7 +146,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 w-full h-full bg-black/60 flex items-center justify-center z-[9999] animate-fade-in backdrop-blur-sm">
+    <div className="fixed inset-0 w-full h-full bg-black/60 flex items-center justify-center z-9999 animate-fade-in backdrop-blur-xs">
       <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200 dark:border-[#2a2b36]">
         {/* Header */}
         <div className="bg-orange-600 px-6 py-4 flex items-center justify-between">

@@ -102,9 +102,9 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
     required: boolean,
     defaultValue: string = ''
   ) => {
-    const baseClasses = 'w-full px-4 py-2.5 rounded-xl transition-all duration-200 outline-none';
+    const baseClasses = 'w-full px-4 py-2.5 rounded-xl transition-all duration-200 outline-hidden';
     const themeClasses =
-      'bg-white/50 dark:bg-neutral-800/50 border border-slate-200 dark:border-neutral-700 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 dark:focus:border-neutral-400 backdrop-blur-sm';
+      'bg-white/50 dark:bg-neutral-800/50 border border-slate-200 dark:border-neutral-700 text-slate-800 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 focus:ring-4 focus:ring-slate-500/10 focus:border-slate-500 dark:focus:border-neutral-400 backdrop-blur-xs';
     const key = `field-${name}-${type}`;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

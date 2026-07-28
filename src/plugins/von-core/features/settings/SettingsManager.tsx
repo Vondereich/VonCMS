@@ -262,7 +262,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('general')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'general'
-              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shadow-sm ring-1 ring-blue-200 dark:ring-blue-800'
+              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shadow-xs ring-1 ring-blue-200 dark:ring-blue-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -272,7 +272,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('google')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'google'
-              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shadow-sm ring-1 ring-blue-200 dark:ring-blue-800'
+              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shadow-xs ring-1 ring-blue-200 dark:ring-blue-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -282,7 +282,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('profile')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'profile'
-              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm ring-1 ring-emerald-200 dark:ring-emerald-800'
+              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-xs ring-1 ring-emerald-200 dark:ring-emerald-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -292,7 +292,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('permalinks')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'permalinks'
-              ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 shadow-sm ring-1 ring-amber-200 dark:ring-amber-800'
+              ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 shadow-xs ring-1 ring-amber-200 dark:ring-amber-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -302,7 +302,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('categories')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'categories'
-              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm ring-1 ring-emerald-200 dark:ring-emerald-800'
+              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-xs ring-1 ring-emerald-200 dark:ring-emerald-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -312,7 +312,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('menu')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'menu'
-              ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400 shadow-sm ring-1 ring-pink-200 dark:ring-pink-800'
+              ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400 shadow-xs ring-1 ring-pink-200 dark:ring-pink-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -322,7 +322,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('ads')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'ads'
-              ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 shadow-sm ring-1 ring-rose-200 dark:ring-rose-800'
+              ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 shadow-xs ring-1 ring-rose-200 dark:ring-rose-800'
               : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -333,7 +333,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             onClick={() => setActiveTab('api')}
             className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
               activeTab === 'api'
-                ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 shadow-sm ring-1 ring-violet-200 dark:ring-violet-800'
+                ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 shadow-xs ring-1 ring-violet-200 dark:ring-violet-800'
                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -347,7 +347,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={() => setActiveTab('media')}
               className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
                 activeTab === 'media'
-                  ? 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400 shadow-sm ring-1 ring-cyan-200 dark:ring-cyan-800'
+                  ? 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400 shadow-xs ring-1 ring-cyan-200 dark:ring-cyan-800'
                   : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -357,7 +357,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={() => setActiveTab('bridge')}
               className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
                 activeTab === 'bridge'
-                  ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 shadow-sm ring-1 ring-orange-200 dark:ring-orange-800'
+                  ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 shadow-xs ring-1 ring-orange-200 dark:ring-orange-800'
                   : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -367,7 +367,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={() => setActiveTab('tools')}
               className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
                 activeTab === 'tools'
-                  ? 'bg-slate-100 text-slate-600 dark:bg-[#1a1b26] dark:text-slate-300 shadow-sm ring-1 ring-slate-200 dark:ring-white/10'
+                  ? 'bg-slate-100 text-slate-600 dark:bg-[#1a1b26] dark:text-slate-300 shadow-xs ring-1 ring-slate-200 dark:ring-white/10'
                   : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -425,7 +425,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       )}
 
       {activeTab === 'menu' && (
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Existing Menu Items */}
             <div>
@@ -446,13 +446,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       reorderMenuItem(idx);
                     }}
                     onDragEnd={() => setDraggedMenuItemIndex(null)}
-                    className={`flex justify-between items-center p-3 bg-white dark:bg-[#1a1b26] rounded-lg shadow-sm border border-slate-200 dark:border-[#2a2b36] group cursor-move transition-all ${
+                    className={`flex justify-between items-center p-3 bg-white dark:bg-[#1a1b26] rounded-lg shadow-xs border border-slate-200 dark:border-[#2a2b36] group cursor-move transition-all ${
                       draggedMenuItemIndex === idx ? 'opacity-50 scale-[0.99]' : ''
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <GripVertical size={16} />
-                      <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-[#242633] px-1.5 py-0.5 rounded">
+                      <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-[#242633] px-1.5 py-0.5 rounded-sm">
                         {idx + 1}
                       </span>
                       <div>
@@ -490,7 +490,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="Label (e.g., About)"
                     value={newMenuItem.label}
                     onChange={(e) => setNewMenuItem({ ...newMenuItem, label: e.target.value })}
-                    className="border border-slate-300 dark:border-[#333544] p-2.5 rounded-lg flex-1 text-sm dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                    className="border border-slate-300 dark:border-[#333544] p-2.5 rounded-lg flex-1 text-sm dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-hidden transition-all"
                   />
                   <label htmlFor="menu-item-url" className="sr-only">
                     URL
@@ -502,7 +502,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="URL (e.g., /about or https://...)"
                     value={newMenuItem.url}
                     onChange={(e) => setNewMenuItem({ ...newMenuItem, url: e.target.value })}
-                    className="border border-slate-300 dark:border-[#333544] p-2.5 rounded-lg flex-1 text-sm dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                    className="border border-slate-300 dark:border-[#333544] p-2.5 rounded-lg flex-1 text-sm dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-hidden transition-all"
                   />
                   <button
                     type="button"
@@ -567,7 +567,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                                 }
                               }}
                               aria-label={`Add page ${page.title} to menu`}
-                              className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500"
+                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500"
                             />
                             <span
                               className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]"
@@ -634,7 +634,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                                 }
                               }}
                               aria-label={`Add post ${post.title} to menu`}
-                              className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500"
+                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500"
                             />
                             <span
                               className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]"
@@ -663,7 +663,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       {activeTab === 'api' && canManageSecrets && (
         <div className="space-y-6">
           {/* Spam Protection - Honeypot & Rate Limiting */}
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-4">
+          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-4">
             <h3 className="text-lg font-bold dark:text-white flex items-center gap-2">
               <ShieldCheck size={20} className="text-green-500" /> Spam Protection Active
             </h3>
@@ -686,7 +686,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           {/* AI Generation Settings */}
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
+          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
             <h3 className="text-lg font-bold dark:text-white flex items-center gap-2">
               <Zap size={20} className="text-violet-500" /> AI Content Generation
             </h3>
@@ -743,7 +743,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       onChange={(e) =>
                         handleChange('api', 'expireAiKeyAfter30Days', e.target.checked)
                       }
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span>Expire saved AI key after 30 days</span>
                   </label>
@@ -777,7 +777,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="flex justify-end gap-3 pt-4 border-t border-slate-200/30 dark:border-[#2a2b36]/30 sticky bottom-0 bg-white/70 dark:bg-[#16161e]/70 backdrop-blur-xl py-4 -mx-4 px-4 shadow-2xl z-10">
         <button
           onClick={() => setTempSettings(settings)}
-          className="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-[#1a1b26]/60 rounded-lg font-medium transition-all backdrop-blur-sm border border-slate-200/50 dark:border-[#2a2b36]/50"
+          className="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-[#1a1b26]/60 rounded-lg font-medium transition-all backdrop-blur-xs border border-slate-200/50 dark:border-[#2a2b36]/50"
         >
           Cancel
         </button>

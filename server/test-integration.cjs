@@ -412,6 +412,23 @@ if (
   );
 }
 
+const legacyTailwindOpacityUtilities = walkFiles(resolveFromRoot('src'), (file) =>
+  /\.(?:css|ts|tsx)$/.test(file)
+).flatMap((file) => {
+  const content = fs.readFileSync(file, 'utf8');
+  const matches = content.match(/\b(?:bg|border|divide|ring|text)-opacity-\d+\b/g) || [];
+  return matches.map((utility) => `${path.relative(root, file).replace(/\\/g, '/')}: ${utility}`);
+});
+if (legacyTailwindOpacityUtilities.length === 0) {
+  pass(
+    'Tailwind 4 Legacy Opacity Utility Guard: source uses slash-opacity colors instead of retired color-opacity helpers.'
+  );
+} else {
+  fail(
+    `Tailwind 4 Legacy Opacity Utility Guard: retired utilities remain: ${legacyTailwindOpacityUtilities.join(', ')}`
+  );
+}
+
 const createReleaseContent = read('create_release.cjs');
 if (
   createReleaseContent.includes('const buildEnv = { ...process.env };') &&
@@ -793,6 +810,20 @@ const postEditorSaveHelpersPath = 'src/components/editor/postEditorSaveHelpers.t
 const postEditorSaveHelpersContent = exists(postEditorSaveHelpersPath)
   ? read(postEditorSaveHelpersPath)
   : '';
+const postEditorAuditPath = 'src/components/editor/PostEditorAudit.tsx';
+const postEditorAuditContent = exists(postEditorAuditPath) ? read(postEditorAuditPath) : '';
+const postEditorSeoPanelPath = 'src/components/editor/PostEditorSeoPanel.tsx';
+const postEditorSeoPanelContent = exists(postEditorSeoPanelPath)
+  ? read(postEditorSeoPanelPath)
+  : '';
+const featuredMediaLibraryModalPath = 'src/components/editor/FeaturedMediaLibraryModal.tsx';
+const featuredMediaLibraryModalContent = exists(featuredMediaLibraryModalPath)
+  ? read(featuredMediaLibraryModalPath)
+  : '';
+const postEditorTextHelpersPath = 'src/components/editor/postEditorTextHelpers.ts';
+const postEditorTextHelpersContent = exists(postEditorTextHelpersPath)
+  ? read(postEditorTextHelpersPath)
+  : '';
 const seoAnalyzerContent = read('src/utils/seoAnalyzer.ts');
 const useContentRoutingContent = read('src/hooks/useContent.ts');
 const packageJsonContent = read('package.json');
@@ -1047,6 +1078,23 @@ assertIncludes(
   'Security Dashboard Primary Maintenance Boundary: owner-only log maintenance is still exposed or silent on failure.'
 );
 
+assertIncludes(
+  'Security Dashboard Source Ranking',
+  securityDashboardContent,
+  [
+    'title="Most Active Source"',
+    'Top Source IPs',
+    'By recorded security events',
+    'sourceData.map((source) =>',
+    "item.ip_address === '::1'",
+    "item.ip_address === '127.0.0.1'",
+    'source.attempts / highestSourceCount',
+    'No source data available',
+  ],
+  'Security Dashboard Source Ranking: source activity uses a compact ranked list with localhost context and an honest empty state.',
+  'Security Dashboard Source Ranking: source activity can regress to the oversized attacker bar chart or lose localhost and empty-state context.'
+);
+
 if (
   contentRendererNoSemgrepCount >= 2 &&
   contentRendererContent.includes('sanitizeHtml(part)') &&
@@ -1232,7 +1280,7 @@ assertIncludes(
     'href: normalizedUrl',
     '.editor-content .${EDITOR_SURFACE_CLASS} table {',
     'border-collapse: collapse;',
-    'cursor-pointer shadow-sm transition-colors',
+    'cursor-pointer shadow-xs transition-colors',
   ],
   'HourGlass Editor Toolbar Repair: link URLs are normalized, tables are visible, and toolbar hitboxes stay stable.',
   'HourGlass Editor Toolbar Repair: link/table/cursor stability markers are missing.'
@@ -1401,6 +1449,61 @@ assertExcludes(
   ],
   'PostEditor Save Helper Extraction Boundary: parent editor no longer owns extracted save/autosave helper definitions.',
   'PostEditor Save Helper Extraction Boundary: parent editor still owns extracted save/autosave helper definitions.'
+);
+
+assertIncludes(
+  'After Hours PostEditor Panel Extraction Boundary',
+  postEditorContent +
+    '\n' +
+    postEditorAuditContent +
+    '\n' +
+    postEditorSeoPanelContent +
+    '\n' +
+    featuredMediaLibraryModalContent +
+    '\n' +
+    postEditorTextHelpersContent,
+  [
+    "from './editor/PostEditorAudit'",
+    "from './editor/PostEditorSeoPanel'",
+    "from './editor/FeaturedMediaLibraryModal'",
+    "from './editor/postEditorTextHelpers'",
+    '<PostEditorAuditSummary',
+    '<PostEditorAuditHistoryModal',
+    '<PostEditorSeoPanel',
+    '<FeaturedMediaLibraryModal',
+    'export const getPostEditorCleanText',
+  ],
+  'After Hours PostEditor Panel Extraction Boundary: audit, SEO, featured-media, and text-helper surfaces are delegated while PostEditor keeps save and hydration ownership.',
+  'After Hours PostEditor Panel Extraction Boundary: one or more delegated editor surfaces are missing.'
+);
+
+assertExcludes(
+  'After Hours PostEditor Parent Cleanliness',
+  postEditorContent,
+  [
+    'const formatAuditActor =',
+    'const formatAuditTimestamp =',
+    'id="featured-media-search"',
+    '<span className="text-blue-500">●</span> SEO Settings',
+  ],
+  'After Hours PostEditor Parent Cleanliness: extracted audit, SEO, media-modal, and text-helper implementations no longer live in the parent.',
+  'After Hours PostEditor Parent Cleanliness: extracted panel implementations still remain in PostEditor.'
+);
+
+assertIncludes(
+  'PostEditor Excerpt Guidance Boundary',
+  postEditorContent + '\n' + postEditorTextHelpersContent,
+  [
+    'const EXCERPT_RECOMMENDED_MAX_LENGTH = 200;',
+    'const EXCERPT_WARNING_LENGTH = 220;',
+    'placeholder="Short summary (recommended 160-200 characters)..."',
+    'aria-describedby="post-excerpt-help"',
+    'Long excerpts may be shortened in cards and discovery metadata.',
+    'const characters = Array.from(text);',
+    'let truncatedCharacters = characters.slice(0, contentLimit);',
+  ],
+  'PostEditor Excerpt Guidance Boundary: excerpt Auto Fill, counter, warning, and word-safe truncation remain aligned.',
+  'PostEditor Excerpt Guidance Boundary: excerpt guidance or word-safe Auto Fill markers are missing.'
 );
 
 assertIncludes(
@@ -1782,17 +1885,17 @@ if (!topReleaseEntry.trim()) {
 }
 
 const currentReleaseLabel = `v${pkg.version}`;
-const currentOpenGateLabel = `v${pkg.version} "OpenGate"`;
+const currentSeriesLabel = `v${pkg.version} "After Hours"`;
 const docsVersionChecks = [
-  ['README.md', currentOpenGateLabel],
-  ['docs/INSTALL.md', currentOpenGateLabel],
+  ['README.md', currentSeriesLabel],
+  ['docs/INSTALL.md', currentSeriesLabel],
   ['docs/MANUAL.md', currentReleaseLabel],
   ['docs/SECURITY.md', currentReleaseLabel],
   ['docs/UPGRADE.md', currentReleaseLabel],
-  ['docs/FEATURES.md', `VonCMS ${currentReleaseLabel} feature baseline for the OpenGate line.`],
-  ['docs/FEATURES.md', currentOpenGateLabel],
+  ['docs/FEATURES.md', `VonCMS ${currentReleaseLabel} feature baseline for the After Hours line.`],
+  ['docs/FEATURES.md', currentSeriesLabel],
   ['docs/EXTENSION_DEVELOPMENT.md', `VonCMS Extension Development Guide ${currentReleaseLabel}`],
-  ['docs/ROUTING.md', 'VonCMS Routing Flow v1.25.x'],
+  ['docs/ROUTING.md', 'VonCMS Routing Flow v1.26.x'],
   ['docs/API.md', `Version: \`${pkg.version}\``],
   ['LICENSE.md', `Version: \`${pkg.version}\``],
   ['docs/LICENSE.md', `Version: \`${pkg.version}\``],
@@ -2118,6 +2221,49 @@ const htaccessSecuritySources = [
   ['public/api/install.php', installContent],
   ['public/api/system/repair_htaccess.php', repairHtaccessContent],
 ];
+
+const unsafePortableHeaderDefaults = htaccessSecuritySources
+  .filter(
+    ([, content]) =>
+      !content.includes('Strict-Transport-Security "max-age=31536000"') ||
+      /Strict-Transport-Security[^\r\n]*(?:includeSubDomains|preload)/.test(content) ||
+      /X-XSS-Protection/.test(content)
+  )
+  .map(([file]) => file);
+if (unsafePortableHeaderDefaults.length === 0) {
+  pass(
+    'Portable Security Header Defaults: generated Apache/LiteSpeed policies retain one-year HSTS without opting unrelated subdomains into preload or restoring the deprecated browser XSS filter.'
+  );
+} else {
+  fail(
+    `Portable Security Header Defaults: unsafe HSTS preload/subdomain scope or deprecated XSS filtering remains in ${unsafePortableHeaderDefaults.join(', ')}.`
+  );
+}
+
+const fingerprintedAssetCacheSources = htaccessSecuritySources.filter(
+  ([file]) => !file.startsWith('dist/')
+);
+const missingFingerprintCacheBoundary = fingerprintedAssetCacheSources
+  .filter(
+    ([, content]) =>
+      !content.includes('SetEnvIfNoCase Request_URI') ||
+      !content.includes('assets/[^/?]+-[A-Za-z0-9_-]{8,}') ||
+      !content.includes('VONCMS_FINGERPRINTED_ASSET=1') ||
+      !content.includes(
+        'Header set Cache-Control "public, max-age=2592000, immutable" env=VONCMS_FINGERPRINTED_ASSET'
+      )
+  )
+  .map(([file]) => file);
+if (missingFingerprintCacheBoundary.length === 0) {
+  pass(
+    'Fingerprint Asset Cache Boundary: Apache/LiteSpeed templates cache only hashed build assets for 30 days without caching dynamic routes or mutable public files.'
+  );
+} else {
+  fail(
+    `Fingerprint Asset Cache Boundary: missing bounded asset-cache contract in ${missingFingerprintCacheBoundary.join(', ')}.`
+  );
+}
+
 if (exists('dist/.htaccess')) {
   htaccessSecuritySources.push(['dist/.htaccess', read('dist/.htaccess')]);
 }
@@ -4964,10 +5110,12 @@ if (
     'type === \'post\' && <th className="px-4 py-4">Publish At</th>'
   ) &&
   contentManagerContent.includes('formatCreatedDateTime(item.createdAt') &&
-  contentManagerContent.includes('formatScheduledDateTime(') &&
+  contentManagerContent.includes('formatDateTime(') &&
   contentManagerContent.includes("item.status === 'draft'") &&
-  contentManagerContent.includes('(item as Post).scheduledAt ||') &&
-  contentManagerContent.includes('item.createdAt ||') &&
+  contentManagerContent.includes('const getPublishDateTime = (item: Post) =>') &&
+  contentManagerContent.includes(
+    'item.scheduledAt || item.scheduled_at || item.createdAt || item.created_at'
+  ) &&
   contentManagerContent.includes("colSpan={type === 'post' ? 8 : 6}")
 ) {
   pass(
@@ -4978,6 +5126,44 @@ if (
     'Content Manager Date Clarity: post/page tables still mix created and publish timing under one vague Date column or leave published posts blank.'
   );
 }
+assertIncludes(
+  'Content Manager Edit Visibility',
+  contentManagerContent,
+  [
+    'const hasBeenEdited = (item: Post | Page) => {',
+    'return updatedTime > createdTime;',
+    '{hasBeenEdited(item) && (',
+    'className="mt-1 block max-w-full truncate text-xs text-slate-400 dark:text-slate-500"',
+    'title={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}',
+    'aria-label={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}',
+    'Edited {formatCompactDate(item.updatedAt || item.updated_at)}',
+  ],
+  'Content Manager Edit Visibility: newer post/page update metadata appears compactly beneath Created with its full timestamp still accessible.',
+  'Content Manager Edit Visibility: update metadata is missing, overflows its existing column, or hides the full timestamp from assistive access.'
+);
+assertExcludes(
+  'Content Manager Edit Column Width Guard',
+  contentManagerContent,
+  ['<th className="px-4 py-4">Last Edited</th>', '<th className="px-4 py-4">Edited</th>'],
+  'Content Manager Edit Column Width Guard: edit metadata stays inside the existing Created column.',
+  'Content Manager Edit Column Width Guard: a separate edit-date column widens the current table.'
+);
+assertIncludes(
+  'Content Manager Narrow Width Contract',
+  contentManagerContent,
+  [
+    'className="max-w-full truncate hover:text-primary-500',
+    'title={`Filter by category: ${item.category}`}',
+    'aria-label={`Filter by category: ${item.category}`}',
+    'const getPublishDateTime = (item: Post) =>',
+    'className="block max-w-full truncate"',
+    'title={`Publish at ${formatDateTime(publishDateTime)}`}',
+    'aria-label={`Publish at ${formatDateTime(publishDateTime)}`}',
+    '{formatCompactDateTime(publishDateTime)}',
+  ],
+  'Content Manager Narrow Width Contract: long categories and publish timestamps remain contained while their full values stay accessible.',
+  'Content Manager Narrow Width Contract: category or publish metadata can overflow fixed tablet columns or lose its full value.'
+);
 
 const getPagesContent = read('public/api/get_pages.php');
 assertIncludes(
@@ -5124,6 +5310,7 @@ assertIncludes(
 );
 
 const indexContent = read('public/index.php');
+const phpSeoSchemaHelperContent = read('public/seo_schema_helper.php');
 
 assertIncludes(
   'Public Discussion Toggle Rendering',
@@ -5207,6 +5394,26 @@ assertIncludes(
 );
 
 assertIncludes(
+  'Category SSR Content Parity Contract',
+  indexContent + '\n' + phpSeoSchemaHelperContent,
+  [
+    '$categoryLandingPosts = [];',
+    '$categoryPostCount > 0',
+    'function voncms_fetch_category_landing_posts(',
+    'AND category = :category',
+    "$post['url'] = buildCanonicalContentPath(",
+    'function voncms_apply_category_collection_items(',
+    "$schemaData['mainEntity'] = [",
+    "'numberOfItems' => max(0, $totalPosts)",
+    "'itemListElement' => $itemList",
+    '$noscriptListingPosts = $categoryNoscriptLanding ? $categoryLandingPosts : $homepagePosts;',
+    'foreach ($noscriptListingPosts as $hp)',
+  ],
+  'Category SSR Content Parity Contract: category discovery raw HTML, noscript links, and CollectionPage ItemList use published posts from the requested category.',
+  'Category SSR Content Parity Contract: category discovery can expose unrelated homepage posts before hydration and retain soft-404-style content mismatch.'
+);
+
+assertIncludes(
   'VonSEO Hydrated Category Robots Contract',
   read('src/plugins/von-core/features/seo/VonSEO.tsx'),
   [
@@ -5227,7 +5434,7 @@ assertIncludes(
 
 assertIncludes(
   'Public 404 SEO Metadata Contract',
-  indexContent,
+  indexContent + '\n' + phpSeoSchemaHelperContent,
   [
     'function voncms_is_spa_shell_route($path)',
     "in_array($normalizedPath, ['login', 'install'], true)",
@@ -5235,7 +5442,7 @@ assertIncludes(
     '$isPreheadNotFoundRoute',
     'empty($profileUser)',
     '!voncms_is_spa_shell_route($path)',
-    'function voncms_apply_404_seo_metadata(&$seoTitle, &$seoDescription, &$seoUrl, &$seoRobots, &$schemaData, $siteName, $domainUrl, $requestPath)',
+    'function voncms_apply_404_seo_metadata(',
     "$seoTitle = 'Page Not Found - ' . $siteName;",
     "$seoRobots = 'noindex, follow';",
     '$schemaData = null;',
@@ -5300,6 +5507,12 @@ assertExcludes(
 );
 
 const vonSeoContent = read('src/plugins/von-core/features/seo/VonSEO.tsx');
+const articleSchemaSettingsUiContent = read(
+  'src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx'
+);
+const articleSchemaSettingsHookContent = read('src/hooks/useSettings.ts');
+const articleSchemaSaveSettingsContent = read('public/api/save_settings.php');
+const articleSchemaUtilityContent = read('src/utils/articleSchema.ts');
 assertIncludes(
   'SSR JSON-LD Script Escape Boundary',
   indexContent,
@@ -5307,28 +5520,122 @@ assertIncludes(
   'SSR JSON-LD Script Escape Boundary: schema JSON-LD uses script-safe hex escaping.',
   'SSR JSON-LD Script Escape Boundary: schema JSON-LD can still emit raw script-breaking characters.'
 );
+
+try {
+  const { normalizeArticleSchemaType, normalizeSchemaLanguage, truncateSchemaText } =
+    loadTsModuleForSmoke('src/utils/articleSchema.ts');
+  const normalizedArticleSchemaTypes = [
+    normalizeArticleSchemaType(undefined),
+    normalizeArticleSchemaType('Article'),
+    normalizeArticleSchemaType('NewsArticle'),
+    normalizeArticleSchemaType('BlogPosting'),
+    normalizeArticleSchemaType('InvalidType'),
+  ];
+  if (
+    JSON.stringify(normalizedArticleSchemaTypes) ===
+    JSON.stringify(['Article', 'Article', 'NewsArticle', 'BlogPosting', 'Article'])
+  ) {
+    pass(
+      'Article Schema Type Normalizer: allowed values survive and invalid values fall back to Article.'
+    );
+  } else {
+    fail(
+      'Article Schema Type Normalizer: schema allowlist or Article fallback changed unexpectedly.'
+    );
+  }
+
+  const normalizedSchemaLanguages = [
+    normalizeSchemaLanguage(undefined),
+    normalizeSchemaLanguage('ms'),
+    normalizeSchemaLanguage('ms-MY'),
+    normalizeSchemaLanguage('zh-hans'),
+    normalizeSchemaLanguage('ms, en'),
+    normalizeSchemaLanguage('not a language'),
+    normalizeSchemaLanguage('ms<script></script>-MY'),
+    normalizeSchemaLanguage('ms@-MY'),
+  ];
+  if (
+    JSON.stringify(normalizedSchemaLanguages) ===
+    JSON.stringify(['', 'ms', 'ms-MY', 'zh-Hans', 'ms', '', '', ''])
+  ) {
+    pass(
+      'Article Schema Language Normalizer: the primary valid site language is normalized without hardcoded portal locale assumptions.'
+    );
+  } else {
+    fail(
+      'Article Schema Language Normalizer: dynamic site-language selection or invalid-value exclusion changed unexpectedly.'
+    );
+  }
+
+  const longExcerpt =
+    'Stok senjata pertahanan udara Amerika Syarikat berdepan tekanan selepas penggunaan tinggi dalam konflik Iran dan Ukraine. Washington kini mempercepat pengeluaran beberapa pemintas utama menerusi kontrak berbilion dolar dan perjanjian jangka panjang.';
+  const boundedExcerpt = truncateSchemaText(longExcerpt, 200);
+  const unchangedExcerpt = truncateSchemaText('Short complete excerpt.', 200);
+  const unicodeExcerpt = truncateSchemaText(`${'😀'.repeat(205)}X`, 200);
+  if (
+    boundedExcerpt.length <= 200 &&
+    boundedExcerpt.endsWith('...') &&
+    !boundedExcerpt.endsWith('pengeluara...') &&
+    unchangedExcerpt === 'Short complete excerpt.' &&
+    Array.from(unicodeExcerpt).length <= 200 &&
+    Buffer.from(unicodeExcerpt, 'utf8').toString('utf8') === unicodeExcerpt &&
+    unicodeExcerpt.endsWith('...')
+  ) {
+    pass(
+      'Schema Text Truncation: bounded excerpts keep complete words and Unicode code points while including the ellipsis inside the output ceiling.'
+    );
+  } else {
+    fail(
+      'Schema Text Truncation: excerpt output can exceed its ceiling, split a word/code point, or alter already bounded text.'
+    );
+  }
+} catch (error) {
+  fail(`Article Schema Utility Runtime: ${error.message}`);
+}
+
 if (
-  indexContent.includes('function voncms_apply_content_schema') &&
-  indexContent.includes(
-    "$schemaData['@type'] = $contentType === 'page' ? 'WebPage' : 'Article';"
+  phpSeoSchemaHelperContent.includes('function voncms_apply_content_schema') &&
+  indexContent.includes("require_once __DIR__ . '/seo_schema_helper.php';") &&
+  phpSeoSchemaHelperContent.includes('function voncms_normalize_article_schema_type') &&
+  phpSeoSchemaHelperContent.includes("['Article', 'NewsArticle', 'BlogPosting']") &&
+  phpSeoSchemaHelperContent.includes("$contentType === 'page'") &&
+  phpSeoSchemaHelperContent.includes("? 'WebPage'") &&
+  phpSeoSchemaHelperContent.includes(
+    ': voncms_normalize_article_schema_type($articleSchemaType);'
   ) &&
-  !indexContent.includes('BlogPosting') &&
-  indexContent.includes("$schemaData['name'] = $schemaTitle;") &&
-  indexContent.includes(
+  indexContent.includes("'@type' => $articleSchemaType") &&
+  indexContent.includes("'articleSchemaType' => $articleSchemaType") &&
+  phpSeoSchemaHelperContent.includes("$schemaData['name'] = $schemaTitle;") &&
+  phpSeoSchemaHelperContent.includes(
     "'url' => $domainUrl . '/profile/' . rawurlencode($schemaAuthorUsername)"
   ) &&
-  indexContent.includes("$schemaData['url'] = $seoUrl;") &&
-  indexContent.includes('function voncms_build_schema_publisher') &&
-  indexContent.includes("'@type' => 'Organization'") &&
-  indexContent.includes("'@type' => 'ImageObject'") &&
-  indexContent.includes("$schemaData['publisher'] = voncms_build_schema_publisher") &&
+  phpSeoSchemaHelperContent.includes("$schemaData['url'] = $seoUrl;") &&
+  phpSeoSchemaHelperContent.includes('function voncms_truncate_word_safe') &&
+  indexContent.includes('voncms_truncate_word_safe($cleanExcerpt, 200)') &&
+  indexContent.includes(
+    "voncms_truncate_word_safe(voncms_extract_plaintext_for_noscript($hp['excerpt']), 200)"
+  ) &&
+  phpSeoSchemaHelperContent.includes("$schemaData['mainEntityOfPage'] = [") &&
+  phpSeoSchemaHelperContent.includes("$schemaData['articleSection'] = $articleSection;") &&
+  phpSeoSchemaHelperContent.includes("$schemaData['inLanguage'] = $schemaLanguage;") &&
+  phpSeoSchemaHelperContent.includes('function voncms_normalize_schema_language') &&
+  phpSeoSchemaHelperContent.includes("($_SERVER['SCRIPT_FILENAME'] ?? '')") &&
+  phpSeoSchemaHelperContent.includes('http_response_code(403);') &&
+  phpSeoSchemaHelperContent.includes('function voncms_build_schema_publisher') &&
+  phpSeoSchemaHelperContent.includes("'@type' => 'Organization'") &&
+  phpSeoSchemaHelperContent.includes("'@type' => 'ImageObject'") &&
+  phpSeoSchemaHelperContent.includes("$schemaData['publisher'] = voncms_build_schema_publisher") &&
+  !indexContent.includes('function voncms_apply_content_schema') &&
+  !indexContent.includes('function voncms_apply_404_seo_metadata') &&
+  !indexContent.includes('function voncms_extract_plaintext_for_noscript') &&
+  !indexContent.includes('function voncms_absolute_public_url') &&
+  !indexContent.includes('function voncms_build_schema_publisher') &&
   vonSeoContent.includes('const normalizeSchemaDate = (value?: string) => {') &&
   vonSeoContent.includes(
     'const authorUsername = selectedPost.author_data?.username || selectedPost.author;'
   ) &&
   vonSeoContent.includes('const authorProfileUrl = authorUsername') &&
-  vonSeoContent.includes("'@type': 'Article'") &&
-  !vonSeoContent.includes("'@type': 'BlogPosting'") &&
+  vonSeoContent.includes("'@type': normalizeArticleSchemaType(settings.seo?.articleSchemaType)") &&
   vonSeoContent.includes(
     'datePublished: normalizeSchemaDate(selectedPost.createdAt || selectedPost.updatedAt),'
   ) &&
@@ -5338,14 +5645,34 @@ if (
   vonSeoContent.includes("publisher: { '@id': `${canonicalBase}/#organization` },") &&
   vonSeoContent.includes(
     "author: { '@type': 'Person', name: selectedPost.author, url: authorProfileUrl },"
+  ) &&
+  vonSeoContent.includes("mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },") &&
+  vonSeoContent.includes('...(articleSection ? { articleSection } : {}),') &&
+  vonSeoContent.includes('...(articleLanguage ? { inLanguage: articleLanguage } : {}),') &&
+  vonSeoContent.includes('description = truncateSchemaText(description, 160);') &&
+  articleSchemaSettingsHookContent.includes(
+    'articleSchemaType: normalizeArticleSchemaType(_s?.seo?.articleSchemaType)'
+  ) &&
+  articleSchemaSettingsUiContent.includes('id="vonseo-article-schema-type"') &&
+  articleSchemaSettingsUiContent.includes('ARTICLE_SCHEMA_TYPES.map((schemaType) =>') &&
+  articleSchemaUtilityContent.includes("'Article'") &&
+  articleSchemaUtilityContent.includes("'NewsArticle'") &&
+  articleSchemaUtilityContent.includes("'BlogPosting'") &&
+  articleSchemaUtilityContent.includes('export const normalizeSchemaLanguage') &&
+  articleSchemaUtilityContent.includes('export const truncateSchemaText') &&
+  articleSchemaSaveSettingsContent.includes(
+    "$allowedArticleSchemaTypes = ['Article', 'NewsArticle', 'BlogPosting'];"
+  ) &&
+  articleSchemaSaveSettingsContent.includes(
+    "ResponseHelper::sendError('Invalid article schema type.', 400);"
   )
 ) {
   pass(
-    'Schema Markup Polish: Article schema includes author URL, publisher/logo, and explicit ISO timestamps, while SSR page schema resolves to WebPage.'
+    'Schema Markup Polish: configurable article types, word-safe descriptions, canonical-page identity, category section, and dynamic language stay aligned across SSR and hydration while pages remain WebPage.'
   );
 } else {
   fail(
-    'Schema Markup Polish: Article schema is missing the H-21 author/publisher/type/timezone markers, or SSR pages still render as Article.'
+    'Schema Markup Polish: article type selection, bounded descriptions, hydration parity, article context, validation, author/publisher markers, or the WebPage boundary is incomplete.'
   );
 }
 
@@ -5815,7 +6142,7 @@ assertIncludes(
   defaultThemeLayout + '\n' + prismThemeLayout + '\n' + portfolioThemeLayout,
   [
     'className="text-2xl font-bold text-neutral-900 dark:text-white mb-4 leading-tight line-clamp-2 group-hover:text-primary-600 transition-colors"',
-    'className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors"',
+    'className="text-xl font-bold text-white mb-3 leading-tight line-clamp-2 group-hover:text-(--color-primary) transition-colors"',
     'className="text-lg font-semibold mb-2 line-clamp-2 transition-colors duration-300"',
   ],
   'Bundled Card Title Clamp: Default, Prism, and Portfolio card/list titles stay bounded to two lines.',
@@ -5857,7 +6184,7 @@ if (
   techPressProfile.includes('md:bg-neutral-500/10') &&
   techPressProfile.includes('md:text-neutral-400') &&
   techPressProfile.includes('text-slate-600 dark:text-neutral-400 md:text-neutral-400') &&
-  !techPressProfile.includes('font-black text-transparent bg-clip-text bg-gradient-to-r')
+  !techPressProfile.includes('font-black text-transparent bg-clip-text bg-linear-to-r')
 ) {
   pass(
     'TechPress Profile Username: mobile profile username and status text use solid contrast-safe colors, not gradient text.'
@@ -6338,7 +6665,7 @@ assertExcludes(
 const mediaFilterHelperContent = read('public/api/media_library_filter_helper.php');
 const galleryMediaManagerContent = read('src/plugins/von-core/features/media/MediaManager.tsx');
 const editorMediaLibraryContent = read('src/components/Editor.tsx');
-const featuredMediaLibraryContent = read('src/components/PostEditor.tsx');
+const featuredMediaLibraryContent = postEditorContent + '\n' + featuredMediaLibraryModalContent;
 assertIncludes(
   'Media Library Server Search Contract',
   listMediaContent + '\n' + mediaFilterHelperContent,
@@ -6479,7 +6806,7 @@ assertIncludes(
     '<div className="flex-1 min-w-0">',
     'className="w-full max-w-full overflow-hidden py-8 my-4 border-y ad-slot-flex"',
     '<AdBlock content={settings.ads.inFeedAd} slotId="infeed" />',
-    '<aside className="w-full lg:w-[350px] flex-shrink-0 space-y-6">',
+    '<aside className="w-full lg:w-[350px] shrink-0 space-y-6">',
   ],
   'TechPress In-Feed Ad Container Cap: in-feed ads stay capped by the Latest Updates column without pushing the sidebar.',
   'TechPress In-Feed Ad Container Cap: Latest Updates or in-feed ads can still force the sidebar wider/off-layout.'
@@ -6910,6 +7237,58 @@ if (
   );
 }
 
+if (
+  appContent.includes("location.state?.publicContentType === 'page'") &&
+  appContent.includes("typeof location.state?.publicContentSlug === 'string'") &&
+  appContent.includes('} else if (hintedPageSlug === slug) {') &&
+  appContent.includes('pageSlugToFetch = slug;') &&
+  appContent.includes("publicContentType: 'page',") &&
+  appContent.includes('publicContentSlug: targetPage.slug,')
+) {
+  pass(
+    'Single Page SPA Route Hint: resolved page links fetch the full page directly without an unnecessary post lookup, while unmatched slugs keep the ambiguous fallback.'
+  );
+} else {
+  fail(
+    'Single Page SPA Route Hint: resolved page links can still fall through to the ambiguous post/page probe.'
+  );
+}
+
+const defaultCardLayoutContent = read('src/themes/default/Layout.tsx');
+if (
+  defaultCardLayoutContent.includes(
+    'className="aspect-video bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative block"'
+  ) &&
+  !defaultCardLayoutContent.includes(
+    'className="h-64 bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative block"'
+  )
+) {
+  pass(
+    'Default Card Image Ratio: homepage cards keep a responsive 16:9 frame across viewport sizes.'
+  );
+} else {
+  fail(
+    'Default Card Image Ratio: homepage card thumbnails can still drift between fixed-height aspect ratios.'
+  );
+}
+
+if (
+  defaultCardLayoutContent.includes('const publishedPosts = useMemo(') &&
+  defaultCardLayoutContent.includes("() => posts.filter((post) => post.status === 'published'),") &&
+  defaultCardLayoutContent.includes('[posts]') &&
+  !defaultCardLayoutContent.includes(
+    "const publishedPosts = posts.filter((p) => p.status === 'published');"
+  )
+) {
+  pass(
+    'Default Public Feed Stability: ticker state updates reuse a stable published-post projection instead of restarting public discovery.'
+  );
+} else {
+  fail(
+    'Default Public Feed Stability: parent ticker renders can still recreate the published-post input and restart public discovery.'
+  );
+}
+
 const publicSettingsHookContent = read('src/hooks/useSettings.ts');
 if (
   publicSettingsHookContent.includes('_s?.discussionEnabled') &&
@@ -6969,15 +7348,15 @@ const digestSinglePostLayoutContent = read('src/themes/digest/Layout.tsx');
 const singlePostStickySidebarMarkers = [
   [
     'Default',
-    defaultSinglePostLayoutContent.includes('flex-shrink-0 space-y-8 lg:sticky lg:top-32 h-fit'),
+    defaultSinglePostLayoutContent.includes('shrink-0 space-y-8 lg:sticky lg:top-32 h-fit'),
   ],
   [
     'TechPress',
-    techPressSinglePostLayoutContent.includes('flex-shrink-0 space-y-8 lg:sticky lg:top-32 h-fit'),
+    techPressSinglePostLayoutContent.includes('shrink-0 space-y-8 lg:sticky lg:top-32 h-fit'),
   ],
   [
     'Digest',
-    digestSinglePostLayoutContent.includes('flex-shrink-0 space-y-6 lg:sticky lg:top-24 h-fit'),
+    digestSinglePostLayoutContent.includes('shrink-0 space-y-6 lg:sticky lg:top-24 h-fit'),
   ],
 ].filter(([, hasStickySidebar]) => hasStickySidebar);
 
@@ -8270,12 +8649,12 @@ if (
 const cronPublishContent = read('public/api/cron_publish.php');
 const analyticsInjectorContent = read('src/components/AnalyticsInjector.tsx');
 if (
-  publicIndexContent.includes('@param mixed $content') &&
-  publicIndexContent.includes('@return string') &&
-  publicIndexContent.includes('function voncms_extract_plaintext_for_noscript') &&
-  publicIndexContent.includes('html_entity_decode($content') &&
-  publicIndexContent.includes("preg_replace('/<(br|hr)\\s*\\/?>/i") &&
-  publicIndexContent.includes(
+  phpSeoSchemaHelperContent.includes('@param mixed $content') &&
+  phpSeoSchemaHelperContent.includes('@return string') &&
+  phpSeoSchemaHelperContent.includes('function voncms_extract_plaintext_for_noscript') &&
+  phpSeoSchemaHelperContent.includes('html_entity_decode($content') &&
+  phpSeoSchemaHelperContent.includes("preg_replace('/<(br|hr)\\s*\\/?>/i") &&
+  phpSeoSchemaHelperContent.includes(
     "'/<\\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li)>/i"
   ) &&
   publicIndexContent.includes(
@@ -8310,7 +8689,7 @@ assertIncludes(
 );
 assertIncludes(
   'Public SSR Schema Image Contract',
-  publicIndexContent,
+  publicIndexContent + '\n' + phpSeoSchemaHelperContent,
   [
     'function voncms_absolute_public_url',
     "$domainPath = trim((string) (parse_url($domainUrl, PHP_URL_PATH) ?: ''), '/');",
@@ -8512,7 +8891,7 @@ assertIncludes(
 
 assertIncludes(
   'Admin Editor SEO Restore Gate',
-  postEditorContent,
+  postEditorContent + '\n' + postEditorSeoPanelContent,
   [
     'const [isSeoRestoring, setIsSeoRestoring] = useState(',
     'if (!item || isSeoRestoring) {',
@@ -8527,8 +8906,8 @@ assertIncludes(
 
 if (
   postEditorContent.includes('const result = analyzeSEO(') &&
-  postEditorContent.includes('{seoResult && !isSeoRestoring && (') &&
-  !postEditorContent.includes('if (!hasSeoInput) {')
+  postEditorSeoPanelContent.includes('{result && !isRestoring && (') &&
+  !(postEditorContent + '\n' + postEditorSeoPanelContent).includes('if (!hasSeoInput) {')
 ) {
   pass(
     'Editor SEO Empty Draft Visibility: SEO Health stays visible with a 0/100 analyzer result for empty editor content.'
@@ -8952,6 +9331,61 @@ assertIncludes(
   'Dashboard Staff Count Loading Truth: comments and active users show loading placeholders until count-only totals resolve.',
   'Dashboard Staff Count Loading Truth: comments or active users can still flash preload fallback counts before count-only totals resolve.'
 );
+assertIncludes(
+  'Dashboard Media Usage Truth',
+  dashboardContent,
+  [
+    "const [storageData, setStorageData] = useState({ used: '0 MB' });",
+    'used: data.storage.used,',
+    'title="Media Usage"',
+    'value={storageData.used}',
+  ],
+  'Dashboard Media Usage Truth: upload-folder consumption uses an honest media label and formatted byte size.',
+  'Dashboard Media Usage Truth: the dashboard can still present upload usage as a hosting quota percentage.'
+);
+if (
+  !dashboardContent.includes('value={`${storageData.percentage}%`}') &&
+  !dashboardContent.includes('title="Storage"')
+) {
+  pass(
+    'Dashboard Media Usage Truth: the synthetic storage percentage and ambiguous label are absent.'
+  );
+} else {
+  fail(
+    'Dashboard Media Usage Truth: the synthetic storage percentage or ambiguous label remains visible.'
+  );
+}
+assertIncludes(
+  'Dashboard Permalink-Neutral Analytics Detail',
+  dashboardContent + '\n' + read('public/api/track_visit.php'),
+  [
+    'COUNT(*) as visits',
+    'COUNT(DISTINCT ip_hash) as unique_visitors',
+    'const [trafficSummary, setTrafficSummary] = useState<TrafficSummary>',
+    'const trafficPeriodSummary = useMemo(() =>',
+    '<ComposedChart data={chartData}>',
+    'dataKey="uniqueVisitors"',
+    'Active days',
+    'Period Summary',
+    'Daily average',
+    'Peak day',
+    'Peak visits',
+  ],
+  'Dashboard Permalink-Neutral Analytics Detail: traffic totals and daily trends produce a path-independent period summary without a new storage or endpoint contract.',
+  'Dashboard Permalink-Neutral Analytics Detail: the traffic panel can regress to raw path ranking or drift toward a separate analytics storage path.'
+);
+assertExcludes(
+  'Dashboard Permalink-Neutral Analytics Detail',
+  dashboardContent + '\n' + read('public/api/track_visit.php'),
+  [
+    'COUNT(DISTINCT page_url) as pages_viewed',
+    "'topPages' => $topPages",
+    'data.analytics.topPages',
+    '>Top Pages</h4>',
+  ],
+  'Dashboard Permalink-Neutral Analytics Detail: raw paths are no longer counted or ranked as stable content identities.',
+  'Dashboard Permalink-Neutral Analytics Detail: raw path ranking can still mislabel historical permalink aliases as current pages.'
+);
 if (
   !dashboardContent.includes('articles: posts.length,') &&
   !dashboardContent.includes('pages: pages.length,') &&
@@ -9264,18 +9698,14 @@ assertIncludes(
 assertIncludes(
   'Digest Hero Discipline',
   digestLayoutContent,
-  [
-    'lg:w-3/5 aspect-video overflow-hidden relative',
-    'max-w-[10rem] sm:max-w-[12rem]',
-    'title={label}',
-  ],
+  ['lg:w-3/5 aspect-video overflow-hidden relative', 'max-w-40 sm:max-w-48', 'title={label}'],
   'Digest Hero Discipline: featured hero and category labels are kept within the tighter baseline.',
   'Digest Hero Discipline: hero/category truncation markers are incomplete.'
 );
 assertIncludes(
   'Digest Card Thumbnail Ratio',
   digestLayoutContent,
-  ['aspect-[16/10] overflow-hidden relative'],
+  ['aspect-16/10 overflow-hidden relative'],
   'Digest Card Thumbnail Ratio: article cards use a tighter 16:10 thumbnail frame.',
   'Digest Card Thumbnail Ratio: article cards still use the taller 4:3 thumbnail frame.'
 );
@@ -9331,13 +9761,7 @@ const profileOverflowContent = read('src/plugins/von-core/features/users/UserPro
 assertIncludes(
   'Default Profile Long Name Containment',
   profileOverflowContent,
-  [
-    'gap-3 md:gap-8',
-    'mb-4 md:mb-10',
-    'flex-grow min-w-0',
-    'md:text-white',
-    '[overflow-wrap:anywhere]',
-  ],
+  ['gap-3 md:gap-8', 'mb-4 md:mb-10', 'grow min-w-0', 'md:text-white', 'wrap-anywhere'],
   'Default Profile Long Name Containment: mobile spacing stays close, desktop names sit above the cover boundary, and long display names stay inside the header.',
   'Default Profile Long Name Containment: profile identity spacing or heading containment can still drift.'
 );
@@ -9346,7 +9770,7 @@ const corporateProfileContent = read('src/themes/corporate-pro/Layout.tsx');
 assertIncludes(
   'Corporate Profile Identity Alignment',
   corporateProfileContent,
-  ['pt-24 md:pt-28 pb-12', 'mt-4 md:mt-2 flex-grow min-w-0', '[overflow-wrap:anywhere]'],
+  ['pt-24 md:pt-28 pb-12', 'mt-4 md:mt-2 grow min-w-0', 'wrap-anywhere'],
   'Corporate Profile Identity Alignment: the profile header clears the fixed navbar while avatar and identity text stay balanced and contained.',
   'Corporate Profile Identity Alignment: the profile header can still sit under the fixed navbar or overflow beside the avatar.'
 );
@@ -9404,6 +9828,52 @@ assertIncludes(
   'Remember Token Login Contract: remember-me stores a hashed validator behind a dedicated HttpOnly cookie.',
   'Remember Token Login Contract: login is missing the dedicated selector/validator token flow.'
 );
+
+assertIncludes(
+  'Admin Official Brand Mark',
+  read('src/components/VonLogo.tsx') + '\n' + adminLayoutContent,
+  [
+    "variant === 'simple'",
+    'd="M29.4 9.1A14.5 14.5 0 1 0 31.2 29.7"',
+    'd="M11.1 16.2 19.5 31.5 29.2 11.2"',
+    'd="m24.9 11.3 6.9-4.1.9 7.9-3.5-3.9-4.3.1Z"',
+    '<linearGradient id="logoGrad"',
+    '<VonLogo variant="simple" className="w-8 h-8" />',
+    '<VonLogo variant="simple" className="w-7 h-7 text-white" />',
+  ],
+  'Admin Official Brand Mark: the admin shell uses the white circle/V/rising-arrow mark while public fallbacks retain their established gradient.',
+  'Admin Official Brand Mark: the admin mark can drift from the official geometry, lose its white treatment, or overwrite public fallback branding.'
+);
+
+assertIncludes(
+  'Dashboard Information Density',
+  dashboardContent,
+  [
+    '>Dashboard</h1>',
+    '>VonCMS</span>',
+    'v{pkg.version}',
+    'System ready',
+    'const formatActivityTime = (value?: string) =>',
+    'title: post.title',
+    "description: 'Article activity'",
+    'title: `VonCMS v${pkg.version}`',
+    'View Activity History',
+    'Activity History',
+    'className="h-52 w-full"',
+    'className="line-clamp-2 text-sm font-semibold',
+    'title={log.title}',
+  ],
+  'Dashboard Information Density: system identity, summary cards, traffic chart, and recent activity use the compact readable layout.',
+  'Dashboard Information Density: the dashboard can regress to the oversized status banner, raw timestamps, or forced title truncation.'
+);
+
+if (!dashboardContent.includes('Action performed by System/Admin.')) {
+  pass('Dashboard Activity Wording: generated post activity avoids false audit-log attribution.');
+} else {
+  fail(
+    'Dashboard Activity Wording: generated post activity still claims an unknown system/admin actor.'
+  );
+}
 
 if (
   !rememberLoginContent.includes('setcookie(session_name(), session_id()') &&
@@ -9584,28 +10054,17 @@ if (unsafeAnyCasts.length === 0) {
   );
 }
 
-const postEditorRegressionContent = read('src/components/PostEditor.tsx');
-const auditHistoryModal = sliceBetween(
-  postEditorRegressionContent,
-  '{isAuditHistoryOpen && (',
-  '{!isPage && isFeaturedLibraryOpen && ('
-);
-const featuredImageModal = sliceBetween(
-  postEditorRegressionContent,
-  '{!isPage && isFeaturedLibraryOpen && (',
-  'export default PostEditor;'
-);
 assertExcludes(
   'Featured Image Search Modal Placement',
-  auditHistoryModal,
+  postEditorAuditContent,
   ['handleFeaturedMediaSearch', 'featured-media-search'],
   'Featured Image Search Modal Placement: edit history no longer contains featured-image search controls.',
   'Featured Image Search Modal Placement: featured-image search remains inside the edit-history modal.'
 );
 assertIncludes(
   'Featured Image Search Modal Placement',
-  featuredImageModal,
-  ['handleFeaturedMediaSearch', 'id="featured-media-search"', 'maxLength={120}'],
+  featuredMediaLibraryModalContent,
+  ['onSubmit={onSearch}', 'id="featured-media-search"', 'maxLength={120}'],
   'Featured Image Search Modal Placement: featured-image picker owns its bounded server search form.',
   'Featured Image Search Modal Placement: featured-image picker is missing its own bounded search form.'
 );
@@ -9654,12 +10113,15 @@ assertIncludes(
     'Use the VonCMS Deploy ZIP.',
     'stageReleasePayload',
     'activateStagedPayload',
+    "private const REPLACE_ON_UPDATE_DIRECTORIES = ['docs'];",
+    'activateManagedReleaseDirectory',
     'restoreActivationJournal',
     'VONCMS_UPDATER_TESTING',
+    "in_array('docs', $filtered, true)",
     "in_array('metadata.json', $filtered, true)",
   ],
-  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, and stage the full release with rollback recovery.',
-  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, or leave a partial release after activation failure.'
+  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed docs, and stage the full release with rollback recovery.',
+  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, retain retired docs, or leave a partial release after activation failure.'
 );
 assertIncludes(
   'WordPress Import Bounds Contract',
@@ -9785,11 +10247,11 @@ const sharedSsrPostQueryMarker =
 const sharedSsrPostQuerySource = sliceBetween(
   publicIndexContent,
   'function voncms_fetch_public_post',
-  "if (!function_exists('voncms_clean_seo_description'))"
+  "if (!function_exists('voncms_is_spa_shell_route'))"
 );
 assertIncludes(
   'Shared Public SSR Post Contract',
-  publicIndexContent,
+  publicIndexContent + '\n' + phpSeoSchemaHelperContent,
   [
     'function voncms_fetch_public_post',
     'function voncms_clean_seo_description',
@@ -9840,6 +10302,74 @@ if (!phpBinary) {
   warn('PHP Lint: no PHP binary found automatically; skipping syntax lint checks.');
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
+
+  const seoSchemaHelperProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/index.php'))};
+require ${JSON.stringify(resolveFromRoot('public/seo_schema_helper.php'))};
+if (voncms_normalize_schema_language('ms-MY') !== 'ms-MY') {
+  exit(2);
+}
+if (voncms_normalize_schema_language('ms<script></script>-MY') !== '') {
+  exit(3);
+}
+if (voncms_normalize_schema_language('ms@-MY') !== '') {
+  exit(4);
+}
+$encodedExcerpt = htmlspecialchars(
+  voncms_truncate_word_safe(voncms_extract_plaintext_for_noscript('Tom &amp; Jerry'), 200),
+  ENT_QUOTES | ENT_HTML5,
+  'UTF-8'
+);
+if ($encodedExcerpt !== 'Tom &amp; Jerry') {
+  exit(5);
+}
+$unicodeExcerpt = voncms_truncate_word_safe(str_repeat('😀', 205) . 'X', 200);
+if (
+  !mb_check_encoding($unicodeExcerpt, 'UTF-8') ||
+  mb_strlen($unicodeExcerpt) > 200 ||
+  !str_ends_with($unicodeExcerpt, '...')
+) {
+  exit(6);
+}
+$categorySchema = ['@type' => 'CollectionPage'];
+voncms_apply_category_collection_items(
+  $categorySchema,
+  [[
+    'title' => 'Global Story',
+    'url' => '/global/global-story',
+    'excerpt' => 'Category-specific summary',
+    'image_url' => '',
+  ]],
+  12,
+  'NewsArticle',
+  'https://example.com'
+);
+$categoryMainEntity = $categorySchema['mainEntity'] ?? [];
+$categoryListItem = $categoryMainEntity['itemListElement'][0]['item'] ?? [];
+if (
+  ($categoryMainEntity['@type'] ?? '') !== 'ItemList' ||
+  ($categoryMainEntity['numberOfItems'] ?? 0) !== 12 ||
+  ($categoryListItem['@type'] ?? '') !== 'NewsArticle' ||
+  ($categoryListItem['url'] ?? '') !== 'https://example.com/global/global-story'
+) {
+  exit(7);
+}
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (seoSchemaHelperProbe.status === 0 && seoSchemaHelperProbe.stdout.trim() === 'ok') {
+    pass(
+      'SEO Schema Helper Runtime: PHP language rejection, entity decoding, Unicode truncation, and category ItemList output match the public SSR contract.'
+    );
+  } else {
+    fail(
+      `SEO Schema Helper Runtime: schema language, entity, Unicode, or category ItemList behavior drifted. ${(seoSchemaHelperProbe.stderr || seoSchemaHelperProbe.stdout || '').trim()}`
+    );
+  }
 
   if (backupWriteFunctionSource) {
     const backupWriteProbe = spawnSync(
@@ -9895,7 +10425,7 @@ echo 'ok';`,
   );
   if (updaterRollbackProbe.status === 0 && updaterRollbackProbe.stdout.trim() === 'ok') {
     pass(
-      'OTA Rollback Runtime: injected failure restores the old release, normal activation updates it, and protected data persists.'
+      'OTA Rollback Runtime: injected failure restores the old release, normal activation replaces managed docs, and protected data persists.'
     );
   } else {
     fail(

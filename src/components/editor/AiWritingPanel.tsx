@@ -47,7 +47,7 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
   const isBusy = isGenerating || isChecking;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -69,7 +69,7 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
           onClick={() => onModeChange('write')}
           className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
             isWriteMode
-              ? 'bg-white text-slate-900 shadow-sm dark:bg-[#1a1b26] dark:text-white'
+              ? 'bg-white text-slate-900 shadow-xs dark:bg-[#1a1b26] dark:text-white'
               : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
@@ -80,7 +80,7 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
           onClick={() => onModeChange('check')}
           className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
             !isWriteMode
-              ? 'bg-white text-slate-900 shadow-sm dark:bg-[#1a1b26] dark:text-white'
+              ? 'bg-white text-slate-900 shadow-xs dark:bg-[#1a1b26] dark:text-white'
               : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
@@ -108,7 +108,7 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
                   ? `Leave blank to use the current title: ${title}`
                   : 'Describe what you want AI to write...'
               }
-              className="h-28 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-100"
+              className="h-28 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-hidden transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-100"
             />
             <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
               {title

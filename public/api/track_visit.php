@@ -122,32 +122,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $pdo->prepare("
             SELECT 
                 COUNT(*) as total_views,
-                COUNT(DISTINCT ip_hash) as unique_visitors,
-                COUNT(DISTINCT page_url) as pages_viewed
+                COUNT(DISTINCT ip_hash) as unique_visitors
             FROM analytics 
             WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL (? - 1) DAY)
         ");
     $stmt->execute([$days]);
     $totals = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // Get top pages
-    $stmt = $pdo->prepare("
-            SELECT page_url, COUNT(*) as views 
-            FROM analytics 
-            WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL (? - 1) DAY)
-            GROUP BY page_url
-            ORDER BY views DESC
-            LIMIT 10
-        ");
-    $stmt->execute([$days]);
-    $topPages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
     echo json_encode([
       'success' => true,
       'analytics' => [
         'daily' => $dailyStats,
         'totals' => $totals,
-        'topPages' => $topPages,
         'period' => $days . ' days',
       ],
     ]);

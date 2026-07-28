@@ -1,8 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import pkg from '../../../../../package.json';
 
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts';
 import {
   FileText,
   MessageSquare,
@@ -22,7 +31,6 @@ import { Post, User, Comment, Page, SiteSettings } from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { flattenComments } from '../../../../utils/siteUtils';
-import { sanitizeHtml } from '../../../../utils/security';
 
 interface DashboardProps {
   posts: Post[];
@@ -32,6 +40,30 @@ interface DashboardProps {
   currentUser?: User | null;
   serverInfo?: SiteSettings['_serverInfo'];
 }
+
+interface DashboardActivity {
+  title: string;
+  description: string;
+  time: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+interface TrafficChartPoint {
+  name: string;
+  visits: number;
+  uniqueVisitors: number;
+}
+
+interface TrafficSummary {
+  totalVisits: number;
+  uniqueVisitors: number;
+}
+
+const parseTrafficCount = (value: unknown) => {
+  const count = Number(value);
+  return Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0;
+};
 
 const StatCard: React.FC<{
   title: string;
@@ -46,21 +78,40 @@ const StatCard: React.FC<{
   trend,
   color = 'bg-primary-50 text-primary-600 dark:bg-primary-900/20',
 }) => (
-  <div className="bg-white dark:bg-[#16161e]/50 backdrop-blur-sm p-6 rounded-xl shadow-sm border border-slate-200 dark:border-white/10 hover:shadow-md transition-shadow">
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 rounded-lg ${color}`}>{icon}</div>
+  <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition-shadow hover:shadow-md dark:border-white/10 dark:bg-[#16161e]/50 sm:p-5">
+    <div className={`shrink-0 rounded-lg p-2.5 ${color}`}>{icon}</div>
+    <div className="min-w-0 grow">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {title}
+      </h3>
+      <p className="mt-1 truncate text-2xl font-extrabold text-slate-800 dark:text-white">
+        {value}
+      </p>
+    </div>
+    <div className="shrink-0">
       {trend && (
         <span className="text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-2.5 py-1 rounded-full border border-green-100 dark:border-green-800">
           {trend}
         </span>
       )}
     </div>
-    <h3 className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-      {title}
-    </h3>
-    <p className="text-3xl font-extrabold text-slate-800 dark:text-white mt-2">{value}</p>
   </div>
 );
+
+const formatActivityTime = (value?: string) => {
+  if (!value) return 'Recently';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
 
 const VpDashboard: React.FC<DashboardProps> = ({
   posts = [],
@@ -71,7 +122,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
   serverInfo,
 }) => {
   const [showAuditLog, setShowAuditLog] = useState(false);
-  const [storageData, setStorageData] = useState({ percentage: 0, used: '0 MB' });
+  const [storageData, setStorageData] = useState({ used: '0 MB' });
   const [contentTotals, setContentTotals] = useState({
     articles: 0,
     pages: 0,
@@ -81,7 +132,11 @@ const VpDashboard: React.FC<DashboardProps> = ({
     pages: true,
   });
   const [days, setDays] = useState(7);
-  const [chartData, setChartData] = useState<{ name: string; views: number }[]>([]);
+  const [chartData, setChartData] = useState<TrafficChartPoint[]>([]);
+  const [trafficSummary, setTrafficSummary] = useState<TrafficSummary>({
+    totalVisits: 0,
+    uniqueVisitors: 0,
+  });
   const navigate = useNavigate();
   const canManageSystem = currentUser?.role?.toLowerCase() === 'root' || currentUser?.id === '1';
 
@@ -338,19 +393,18 @@ const VpDashboard: React.FC<DashboardProps> = ({
         .then((data) => {
           if (data.success) {
             setStorageData({
-              percentage: data.storage.percentage,
               used: data.storage.used,
             });
           }
         })
-        .catch(() => setStorageData({ percentage: 0, used: '0 MB' }));
+        .catch(() => setStorageData({ used: '0 MB' }));
     }
 
     // Fetch analytics
     vonFetch(`${API.trackVisit}?days=${days}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.analytics?.daily) {
+        if (data.success && Array.isArray(data.analytics?.daily)) {
           const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
           // Generate a full range of dates to ensure zero-padding
@@ -367,10 +421,17 @@ const VpDashboard: React.FC<DashboardProps> = ({
             dateRange.push(`${year}-${month}-${day}`);
           }
 
-          const dailyMap = new Map(data.analytics.daily.map((d: any) => [d.visit_date, d.visits]));
+          const dailyMap = new Map<string, Record<string, unknown>>(
+            data.analytics.daily
+              .filter((entry: unknown): entry is Record<string, unknown> => {
+                return typeof entry === 'object' && entry !== null;
+              })
+              .map((entry: Record<string, unknown>) => [String(entry['visit_date'] || ''), entry])
+          );
 
           const formatted = dateRange.map((dateStr) => {
-            const d = new Date(dateStr);
+            const d = new Date(`${dateStr}T00:00:00`);
+            const dailyEntry = dailyMap.get(dateStr);
             const label =
               days === 7
                 ? daysShort[d.getDay()]
@@ -378,73 +439,117 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
             return {
               name: label,
-              views: parseInt(dailyMap.get(dateStr) as string) || 0,
+              visits: parseTrafficCount(dailyEntry?.['visits']),
+              uniqueVisitors: parseTrafficCount(dailyEntry?.['unique_visitors']),
             };
           });
 
           setChartData(formatted);
+
+          const totals =
+            typeof data.analytics.totals === 'object' && data.analytics.totals !== null
+              ? (data.analytics.totals as Record<string, unknown>)
+              : {};
+          setTrafficSummary({
+            totalVisits: parseTrafficCount(totals['total_views']),
+            uniqueVisitors: parseTrafficCount(totals['unique_visitors']),
+          });
         } else {
-          setChartData(getDefaultChart());
+          setChartData(getDefaultChart(days));
+          setTrafficSummary({ totalVisits: 0, uniqueVisitors: 0 });
         }
       })
-      .catch(() => setChartData(getDefaultChart()));
+      .catch(() => {
+        setChartData(getDefaultChart(days));
+        setTrafficSummary({ totalVisits: 0, uniqueVisitors: 0 });
+      });
   }, [days]);
 
-  const getDefaultChart = () => [
-    { name: 'Mon', views: 0 },
-    { name: 'Tue', views: 0 },
-    { name: 'Wed', views: 0 },
-    { name: 'Thu', views: 0 },
-    { name: 'Fri', views: 0 },
-    { name: 'Sat', views: 0 },
-    { name: 'Sun', views: 0 },
-  ];
+  const getDefaultChart = (range: number): TrafficChartPoint[] => {
+    const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    return Array.from({ length: range }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (range - index - 1));
+
+      return {
+        name:
+          range === 7
+            ? daysShort[date.getDay()]
+            : `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })}`,
+        visits: 0,
+        uniqueVisitors: 0,
+      };
+    });
+  };
+
+  const trafficPeriodSummary = useMemo(() => {
+    const activeDays = chartData.filter((entry) => entry.visits > 0).length;
+    const peakDay = chartData.reduce<TrafficChartPoint | null>((highest, entry) => {
+      if (!highest || entry.visits > highest.visits) return entry;
+      return highest;
+    }, null);
+    const dailyAverage = chartData.length > 0 ? trafficSummary.totalVisits / chartData.length : 0;
+
+    return {
+      activeDays,
+      dailyAverage,
+      peakDay: peakDay && peakDay.visits > 0 ? peakDay.name : 'No visits',
+      peakVisits: peakDay?.visits || 0,
+    };
+  }, [chartData, trafficSummary.totalVisits]);
 
   // Calculate Recent Activity from Posts
   const recentActivity = useMemo(() => {
-    const activity: { text: string; time: string; icon: React.ReactNode; color: string }[] = [];
+    const activity: DashboardActivity[] = [];
 
     // Add recent posts
     posts.slice(0, 5).forEach((post) => {
       activity.push({
-        text: `New Article: ${post.title.substring(0, 20)}...`,
-        time: post.updatedAt || 'Recently',
+        title: post.title,
+        description: 'Article activity',
+        time: formatActivityTime(
+          post.updatedAt || post.updated_at || post.createdAt || post.created_at
+        ),
         icon: <FileText size={14} />,
-        color: 'text-blue-500 bg-blue-100',
+        color: 'text-blue-500 bg-blue-100 dark:bg-blue-500/10',
       });
     });
 
     // Add system update (static for now)
     activity.push({
-      text: `System Updated to v${pkg.version}`,
-      time: 'System Stable',
+      title: `VonCMS v${pkg.version}`,
+      description: 'Current installed release',
+      time: 'System ready',
       icon: <Server size={14} />,
-      color: 'text-green-500 bg-green-100',
+      color: 'text-green-500 bg-green-100 dark:bg-green-500/10',
     });
 
     return activity;
   }, [posts]);
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* System Status Banner */}
-      <div className="bg-[#1a1b26] rounded-2xl p-6 text-white shadow-sm border border-white/10 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400">
+            <Server size={20} />
+          </div>
           <div>
-            <h2 className="text-2xl font-bold mb-1">VonCMS Core System</h2>
-            <p className="text-slate-400 text-sm">
-              Platform Version {pkg.version}{' '}
-              {serverInfo?.phpVersion && <>&bull; PHP {serverInfo.phpVersion} </>}
-              &bull; Build Stable
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">VonCMS</span>{' '}
+              <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">
+                v{pkg.version}
+              </span>
+              {serverInfo?.phpVersion && <>&nbsp;&bull;&nbsp; PHP {serverInfo.phpVersion}</>}
             </p>
           </div>
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
-            <div className="relative">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75"></div>
-            </div>
-            <span className="font-mono text-sm font-bold text-green-400">SYSTEM ONLINE</span>
-          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+          <span className="size-2 rounded-full bg-green-500" aria-hidden="true" />
+          System ready
         </div>
       </div>
 
@@ -487,7 +592,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
       {/* Database Repair Warning Standardized */}
       {dbStatus?.needs_repair && (
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-6 rounded-r-xl shadow-sm animate-fade-in mb-8">
+        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-6 rounded-r-xl shadow-xs animate-fade-in mb-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex gap-4">
               <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-full text-red-600 dark:text-red-400">
@@ -535,7 +640,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Articles"
           value={contentTotalsLoading.articles ? '...' : contentTotals.articles.toString()}
@@ -561,8 +666,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
           color="bg-blue-50 text-blue-600 dark:bg-blue-900/20"
         />
         <StatCard
-          title="Storage"
-          value={`${storageData.percentage}%`}
+          title="Media Usage"
+          value={storageData.used}
           icon={<HardDrive size={24} />}
           color="bg-amber-50 text-amber-600 dark:bg-amber-900/20"
         />
@@ -570,9 +675,14 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#16161e]/50 backdrop-blur-sm p-6 rounded-xl shadow-sm border border-slate-200 dark:border-white/10">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Visitor Traffic</h3>
+        <div className="lg:col-span-2 bg-white dark:bg-[#16161e]/50 backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-white/10">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Visitor Traffic</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Visits and unique visitors recorded by the existing analytics log.
+              </p>
+            </div>
             <label htmlFor="dashboard-traffic-range" className="sr-only">
               Visitor traffic date range
             </label>
@@ -587,9 +697,48 @@ const VpDashboard: React.FC<DashboardProps> = ({
               <option value={30}>Last 30 Days</option>
             </select>
           </div>
-          <div className="h-72 w-full">
+
+          <div className="mb-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 px-2 py-3 dark:divide-white/10 dark:bg-[#1a1b26]/70">
+            <div className="min-w-0 px-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Total visits
+              </p>
+              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                {trafficSummary.totalVisits.toLocaleString()}
+              </p>
+            </div>
+            <div className="min-w-0 px-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Unique visitors
+              </p>
+              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                {trafficSummary.uniqueVisitors.toLocaleString()}
+              </p>
+            </div>
+            <div className="min-w-0 px-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Active days
+              </p>
+              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                {trafficPeriodSummary.activeDays}/{chartData.length || days}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+            <span className="flex items-center gap-2">
+              <span className="size-2 rounded-sm bg-sky-500" aria-hidden="true" />
+              Visits
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="h-0.5 w-4 bg-violet-500" aria-hidden="true" />
+              Unique visitors
+            </span>
+          </div>
+
+          <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
+              <ComposedChart data={chartData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
@@ -603,7 +752,12 @@ const VpDashboard: React.FC<DashboardProps> = ({
                   tick={{ fill: '#94a3b8', fontSize: 12 }}
                   dy={10}
                 />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                <YAxis
+                  allowDecimals={false}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                />
                 <Tooltip
                   contentStyle={{
                     borderRadius: '8px',
@@ -613,31 +767,88 @@ const VpDashboard: React.FC<DashboardProps> = ({
                   }}
                   cursor={{ fill: 'rgba(14, 165, 233, 0.1)' }}
                 />
-                <Bar dataKey="views" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
+                <Bar
+                  dataKey="visits"
+                  name="Visits"
+                  fill="#0ea5e9"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={32}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="uniqueVisitors"
+                  name="Unique visitors"
+                  stroke="#8b5cf6"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
+          </div>
+
+          <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
+            <div className="flex items-center justify-between gap-4">
+              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Period Summary
+              </h4>
+              <span className="text-xs text-slate-400">{days} days</span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-[#1a1b26]/70">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Daily average
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
+                  {trafficPeriodSummary.dailyAverage.toLocaleString(undefined, {
+                    maximumFractionDigits: 1,
+                  })}{' '}
+                  visits
+                </p>
+              </div>
+              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-[#1a1b26]/70">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Peak day
+                </p>
+                <p className="mt-1 truncate text-sm font-bold text-slate-800 dark:text-white">
+                  {trafficPeriodSummary.peakDay}
+                </p>
+              </div>
+              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-[#1a1b26]/70">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Peak visits
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
+                  {trafficPeriodSummary.peakVisits.toLocaleString()}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Audit Log */}
-        <div className="bg-white dark:bg-[#16161e]/50 backdrop-blur-sm p-6 rounded-xl shadow-sm border border-slate-200 dark:border-white/10 flex flex-col">
+        <div className="bg-white dark:bg-[#16161e]/50 backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-white/10 flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Recent Activity</h3>
-          <div className="space-y-0 flex-grow">
+          <div className="space-y-0 grow">
             {recentActivity.slice(0, 4).map((log, i) => (
               <div
                 key={i}
                 className="flex gap-3 items-start border-b border-slate-100 dark:border-white/10 py-4 last:border-0 hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50 transition-colors px-2 rounded-lg -mx-2"
               >
-                <div className={`mt-0.5 p-1.5 rounded-full ${log.color} dark:bg-opacity-10`}>
-                  {log.icon}
-                </div>
-                <div>
+                <div className={`mt-0.5 p-1.5 rounded-full ${log.color}`}>{log.icon}</div>
+                <div className="min-w-0">
                   <p
-                    className="text-sm font-semibold text-slate-700 dark:text-slate-200"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(log.text) }}
-                  />
-                  <div className="flex items-center gap-1 text-xs text-slate-400 mt-1">
-                    <Clock size={10} /> {log.time}
+                    className="line-clamp-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+                    title={log.title}
+                  >
+                    {log.title}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400">
+                    <span>{log.description}</span>
+                    <span aria-hidden="true">&bull;</span>
+                    <span className="flex items-center gap-1">
+                      <Clock size={10} /> {log.time}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -647,18 +858,18 @@ const VpDashboard: React.FC<DashboardProps> = ({
             onClick={() => setShowAuditLog(true)}
             className="mt-4 w-full py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#2a2b36] rounded-lg hover:bg-slate-50 dark:hover:bg-[#1a1b26] transition-colors"
           >
-            View Full Audit Logs
+            View Activity History
           </button>
         </div>
       </div>
 
-      {/* Audit Log Modal */}
+      {/* Activity History Modal */}
       {showAuditLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
           <div className="bg-white dark:bg-[#16161e] w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div className="p-6 border-b border-slate-100 dark:border-white/10 flex justify-between items-center">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Activity className="text-primary-500" /> System Audit Logs
+                <Activity className="text-primary-500" /> Activity History
               </h2>
               <button
                 onClick={() => setShowAuditLog(false)}
@@ -667,34 +878,38 @@ const VpDashboard: React.FC<DashboardProps> = ({
                 <X size={20} className="text-slate-500" />
               </button>
             </div>
-            <div className="overflow-y-auto p-6 space-y-4">
+            <div className="overflow-y-auto px-6 py-2">
               {recentActivity.length > 0 ? (
-                recentActivity.map((log, i) => (
-                  <div
-                    key={i}
-                    className="flex gap-4 items-start p-4 bg-slate-50 dark:bg-[#1a1b26]/50 rounded-xl border border-slate-100 dark:border-white/10"
-                  >
-                    <div className={`p-2 rounded-lg ${log.color} bg-opacity-20`}>{log.icon}</div>
-                    <div className="flex-grow">
-                      <div className="flex justify-between items-start">
+                <div className="divide-y divide-slate-100 dark:divide-white/10">
+                  {recentActivity.map((log, i) => (
+                    <div key={i} className="flex gap-4 py-4">
+                      <div
+                        className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${log.color}`}
+                      >
+                        {log.icon}
+                      </div>
+                      <div className="min-w-0 grow">
                         <p
                           className="font-semibold text-slate-800 dark:text-slate-200"
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(log.text) }}
-                        />
-                        <span className="text-xs font-mono text-slate-400 bg-slate-200 dark:bg-[#1a1b26] px-2 py-1 rounded">
-                          {log.time}
-                        </span>
+                          title={log.title}
+                        >
+                          {log.title}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                          <span>{log.description}</span>
+                          <span aria-hidden="true">&bull;</span>
+                          <span className="flex items-center gap-1 font-mono text-xs">
+                            <Clock size={11} /> {log.time}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Action performed by System/Admin.
-                      </p>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-12 text-slate-500">
                   <CheckCircle2 size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>No audit logs found.</p>
+                  <p>No recent activity found.</p>
                 </div>
               )}
             </div>

@@ -35,7 +35,7 @@ interface FetchMeta {
   hasMore: boolean;
 }
 
-const formatScheduledDateTime = (value?: string) => {
+const formatDateTime = (value?: string) => {
   if (!value) return '-';
   const normalized = value.includes('T') ? value : value.replace(' ', 'T');
   const parsed = new Date(normalized);
@@ -51,6 +51,25 @@ const formatScheduledDateTime = (value?: string) => {
   });
 };
 
+const hasBeenEdited = (item: Post | Page) => {
+  const createdValue = item.createdAt || item.created_at;
+  const updatedValue = item.updatedAt || item.updated_at;
+  if (!createdValue || !updatedValue) return false;
+
+  const createdTime = new Date(
+    createdValue.includes('T') ? createdValue : createdValue.replace(' ', 'T')
+  ).getTime();
+  const updatedTime = new Date(
+    updatedValue.includes('T') ? updatedValue : updatedValue.replace(' ', 'T')
+  ).getTime();
+
+  if (!Number.isNaN(createdTime) && !Number.isNaN(updatedTime)) {
+    return updatedTime > createdTime;
+  }
+
+  return updatedValue !== createdValue;
+};
+
 const formatCreatedDateTime = (value?: string) => {
   if (!value) return '-';
   const normalized = value.includes('T') ? value : value.replace(' ', 'T');
@@ -64,6 +83,38 @@ const formatCreatedDateTime = (value?: string) => {
     year: 'numeric',
   });
 };
+
+const formatCompactDate = (value?: string) => {
+  if (!value) return '-';
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  });
+};
+
+const formatCompactDateTime = (value?: string) => {
+  if (!value) return '-';
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return `${parsed.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  })}, ${parsed.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+};
+
+const getPublishDateTime = (item: Post) =>
+  item.scheduledAt || item.scheduled_at || item.createdAt || item.created_at;
 
 const getAuthorName = (item: Post | Page) =>
   (item.author || item.author_data?.username || '').trim();
@@ -347,7 +398,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
               maxLength={PUBLIC_SEARCH_MAX_LENGTH}
               onChange={(e) => setSearchInput(normalizePublicSearchInput(e.target.value))}
               placeholder={type === 'post' ? 'Search articles...' : 'Search pages...'}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 text-slate-900 dark:text-white placeholder-slate-400"
+              className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 text-slate-900 dark:text-white placeholder-slate-400"
             />
             {searchInput.length >= PUBLIC_SEARCH_MAX_LENGTH && (
               <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -380,7 +431,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         </div>
       ) : (
         <>
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-x-auto">
+          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-x-auto">
             <table
               className={`w-full ${
                 type === 'post' ? 'min-w-[1120px]' : 'min-w-[900px]'
@@ -468,7 +519,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                             <button
                               onClick={() => setSelectedCategory(item.category as string)}
                               className="max-w-full truncate hover:text-primary-500 hover:underline decoration-dashed underline-offset-4"
-                              title="Filter by this category"
+                              title={`Filter by category: ${item.category}`}
+                              aria-label={`Filter by category: ${item.category}`}
                             >
                               {item.category}
                             </button>
@@ -517,18 +569,33 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         )}
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {formatCreatedDateTime(item.createdAt || item.created_at)}
+                        <div>{formatCreatedDateTime(item.createdAt || item.created_at)}</div>
+                        {hasBeenEdited(item) && (
+                          <div
+                            className="mt-1 block max-w-full truncate text-xs text-slate-400 dark:text-slate-500"
+                            title={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}
+                            aria-label={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}
+                          >
+                            Edited {formatCompactDate(item.updatedAt || item.updated_at)}
+                          </div>
+                        )}
                       </td>
                       {type === 'post' && (
                         <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
                           {item.status === 'draft'
                             ? '-'
-                            : formatScheduledDateTime(
-                                (item as Post).scheduledAt ||
-                                  (item as Post).scheduled_at ||
-                                  item.createdAt ||
-                                  item.created_at
-                              )}
+                            : (() => {
+                                const publishDateTime = getPublishDateTime(item as Post);
+                                return (
+                                  <span
+                                    className="block max-w-full truncate"
+                                    title={`Publish at ${formatDateTime(publishDateTime)}`}
+                                    aria-label={`Publish at ${formatDateTime(publishDateTime)}`}
+                                  >
+                                    {formatCompactDateTime(publishDateTime)}
+                                  </span>
+                                );
+                              })()}
                         </td>
                       )}
                       <td className="px-4 py-4 text-right">

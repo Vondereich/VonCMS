@@ -47,9 +47,9 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-4">
-      <div className="bg-[#101018] border border-[var(--color-primary)] w-full max-w-lg rounded-none shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative">
+      <div className="bg-[#101018] border border-(--color-primary) w-full max-w-lg rounded-none shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative">
         {/* Cyberpunk Header */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500"></div>
+        <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-cyan-500 via-purple-500 to-pink-500"></div>
 
         <div className="p-6 border-b border-white/10 flex justify-between items-center bg-black/50">
           <h2 className="text-xl font-bold text-white font-mono tracking-widest uppercase flex items-center gap-2">

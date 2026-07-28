@@ -212,7 +212,7 @@ const ContactManager = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-gray-200 dark:border-[#2a2b36] overflow-hidden">
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-gray-200 dark:border-[#2a2b36] overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-gray-50 dark:bg-[#16161e]/70 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-[#2a2b36]">
               <tr>
@@ -245,7 +245,7 @@ const ContactManager = () => {
                       {form.title}
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#101018] px-3 py-1 rounded border border-gray-200 dark:border-[#2a2b36] w-fit text-sm font-mono text-gray-600 dark:text-gray-400">
+                      <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#101018] px-3 py-1 rounded-sm border border-gray-200 dark:border-[#2a2b36] w-fit text-sm font-mono text-gray-600 dark:text-gray-400">
                         {`[von-contact id="${form.id}"]`}
                         <button
                           onClick={() => copyShortcode(form.id)}
@@ -334,7 +334,7 @@ const ContactManager = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-gray-200 dark:border-[#2a2b36] overflow-hidden min-h-[600px] flex flex-col">
+      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-gray-200 dark:border-[#2a2b36] overflow-hidden min-h-150 flex flex-col">
         <div className="flex border-b border-gray-200 dark:border-[#2a2b36]">
           <button
             onClick={() => setActiveTab('form')}
@@ -356,7 +356,7 @@ const ContactManager = () => {
           </button>
         </div>
 
-        <div className="p-6 flex-grow overflow-y-auto">
+        <div className="p-6 grow overflow-y-auto">
           {/* FORM TAB */}
           {activeTab === 'form' && (
             <div className="space-y-4 h-full flex flex-col">
@@ -382,7 +382,7 @@ const ContactManager = () => {
                         setCurrentForm({ ...currentForm, template: newText });
                       }
                     }}
-                    className="bg-gray-100 dark:bg-[#242633] hover:bg-gray-200 px-3 py-1 rounded text-xs font-mono text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#333544] dark:hover:bg-[#333544]"
+                    className="bg-gray-100 dark:bg-[#242633] hover:bg-gray-200 px-3 py-1 rounded-sm text-xs font-mono text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#333544] dark:hover:bg-[#333544]"
                   >
                     [{tag}]
                   </button>
@@ -393,7 +393,7 @@ const ContactManager = () => {
                 id="form-template"
                 value={currentForm.template}
                 onChange={(e) => setCurrentForm({ ...currentForm, template: e.target.value })}
-                className="flex-grow w-full min-h-[400px] font-mono text-sm p-4 bg-gray-50 dark:bg-[#16161e] border border-gray-200 dark:border-[#2a2b36] rounded-lg focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none resize-none"
+                className="grow w-full min-h-100 font-mono text-sm p-4 bg-gray-50 dark:bg-[#16161e] border border-gray-200 dark:border-[#2a2b36] rounded-lg focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden resize-none"
                 placeholder="Edit your form template here using HTML and tags..."
               />
               <p className="text-xs text-gray-500">
@@ -425,7 +425,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, to: e.target.value },
                         })
                       }
-                      className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none dark:text-white"
+                      className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
                     />
                     <button
                       onClick={() =>
@@ -434,7 +434,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, to: '[_site_email]' },
                         })
                       }
-                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-[#242633] text-slate-700 dark:text-slate-200 text-xs rounded hover:bg-slate-300 dark:hover:bg-[#333544]"
+                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-[#242633] text-slate-700 dark:text-slate-200 text-xs rounded-sm hover:bg-slate-300 dark:hover:bg-[#333544]"
                     >
                       Use Site Email
                     </button>
@@ -464,7 +464,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, from: e.target.value },
                         })
                       }
-                      className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none dark:text-white"
+                      className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
                     />
                     <button
                       onClick={() =>
@@ -473,7 +473,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, from: '[_site_email]' },
                         })
                       }
-                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-[#242633] text-slate-700 dark:text-slate-200 text-xs rounded hover:bg-slate-300 dark:hover:bg-[#333544]"
+                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-[#242633] text-slate-700 dark:text-slate-200 text-xs rounded-sm hover:bg-slate-300 dark:hover:bg-[#333544]"
                     >
                       Use Site Email
                     </button>
@@ -502,7 +502,7 @@ const ContactManager = () => {
                         mail: { ...currentForm.mail, subject: e.target.value },
                       })
                     }
-                    className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none dark:text-white"
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
                   />
                 </div>
                 <div>
@@ -521,7 +521,7 @@ const ContactManager = () => {
                         mail: { ...currentForm.mail, body: e.target.value },
                       })
                     }
-                    className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none font-mono text-sm dark:text-white"
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden font-mono text-sm dark:text-white"
                   />
                   <p className="text-xs text-gray-500 mt-2">
                     Use tags like <code>[your-name]</code> to insert field values.
@@ -550,7 +550,7 @@ const ContactManager = () => {
                       messages: { ...currentForm.messages, success: e.target.value },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
                 />
               </div>
               <div>
@@ -569,7 +569,7 @@ const ContactManager = () => {
                       messages: { ...currentForm.messages, error: e.target.value },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
                 />
               </div>
               <div>
@@ -588,7 +588,7 @@ const ContactManager = () => {
                       messages: { ...currentForm.messages, validationError: e.target.value },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-none dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
                 />
               </div>
             </div>

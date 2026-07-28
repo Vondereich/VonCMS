@@ -219,7 +219,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
       </div>
 
       <div className="mx-auto grid max-w-[1064px] grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)] gap-6 items-start">
-        <section className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-5 animate-fade-in">
+        <section className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-5 animate-fade-in">
           <div className="space-y-4 border-b border-slate-100 dark:border-[#2a2b36] pb-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -227,7 +227,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 Order, titles, visibility, and custom content are stored in the shared{' '}
-                <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#101018] text-xs">
+                <code className="px-1.5 py-0.5 rounded-sm bg-slate-100 dark:bg-[#101018] text-xs">
                   sidebarLayout
                 </code>{' '}
                 setting. Drag rows to reorder, expand a row to edit, or use the arrow controls.
@@ -465,7 +465,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
         </section>
 
         <div className="space-y-6">
-          <section className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-5">
+          <section className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-5">
             <div className="border-b border-slate-100 dark:border-[#2a2b36] pb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Mail size={18} className="text-cyan-500" />
@@ -500,7 +500,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                       enabled: event.target.checked,
                     }))
                   }
-                  className="h-5 w-5 rounded text-cyan-500 focus:ring-cyan-500"
+                  className="h-5 w-5 rounded-sm text-cyan-500 focus:ring-cyan-500"
                 />
               </label>
 
@@ -569,10 +569,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
 
           <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/10 p-4 space-y-4">
             <div className="flex gap-3">
-              <ShieldCheck
-                className="text-emerald-600 dark:text-emerald-400 flex-shrink-0"
-                size={20}
-              />
+              <ShieldCheck className="text-emerald-600 dark:text-emerald-400 shrink-0" size={20} />
               <div>
                 <h3 className="font-bold text-emerald-900 dark:text-emerald-100">
                   Security boundary

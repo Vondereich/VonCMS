@@ -110,7 +110,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
     normalizedRename.toLowerCase() === selectedCategory.toLowerCase();
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
+    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400">
           <FolderTree size={22} />
@@ -123,7 +123,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr,0.8fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
         <div className="border border-slate-200 dark:border-[#2a2b36] rounded-xl overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 dark:bg-[#16161e]/50 border-b border-slate-200 dark:border-[#2a2b36]">
             <h4 className="font-semibold text-slate-800 dark:text-white">Existing Categories</h4>

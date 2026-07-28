@@ -103,7 +103,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
         <div className="flex flex-col md:flex-row items-center gap-6">
           <div className="flex items-center gap-4">
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
               style={{ background: accentColor }}
             >
               <Mail size={24} className="text-white" />
@@ -151,7 +151,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className={`flex-1 px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 ${themeColors ? '' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white'}`}
+                className={`flex-1 px-4 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 ${themeColors ? '' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white'}`}
                 style={
                   themeColors
                     ? ({
@@ -167,7 +167,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="px-6 py-2.5 rounded-xl text-white font-medium text-sm flex items-center gap-2 transition-all hover:opacity-90 disabled:opacity-50 flex-shrink-0"
+                className="px-6 py-2.5 rounded-xl text-white font-medium text-sm flex items-center gap-2 transition-all hover:opacity-90 disabled:opacity-50 shrink-0"
                 style={{ background: accentColor }}
               >
                 {status === 'loading' ? (
@@ -243,7 +243,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Enter your email"
-            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 ${themeColors ? '' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-white'}`}
+            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:outline-hidden focus:ring-2 ${themeColors ? '' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-white'}`}
             style={
               themeColors
                 ? ({

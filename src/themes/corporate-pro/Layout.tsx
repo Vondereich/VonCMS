@@ -213,7 +213,7 @@ const CorporateProfile: React.FC<{
     <div className="bg-slate-50 dark:bg-neutral-900 min-h-screen">
       <div className="bg-white dark:bg-neutral-950 border-b border-slate-200 dark:border-neutral-800">
         <div className="max-w-4xl mx-auto px-5 pt-24 md:pt-28 pb-12 text-center md:text-left md:flex items-start gap-8">
-          <div className="relative group mx-auto md:mx-0 w-32 h-32 flex-shrink-0">
+          <div className="relative group mx-auto md:mx-0 w-32 h-32 shrink-0">
             {displayUser.avatar ? (
               <img
                 src={displayUser.avatar}
@@ -239,12 +239,12 @@ const CorporateProfile: React.FC<{
               </button>
             )}
           </div>
-          <div className="mt-4 md:mt-2 flex-grow min-w-0">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2 [overflow-wrap:anywhere]">
+          <div className="mt-4 md:mt-2 grow min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2 wrap-anywhere">
               {displayUser.display_name || displayUser.username}
             </h1>
             {displayUser.display_name && (
-              <p className="text-sm text-slate-500 dark:text-neutral-400 mb-2 [overflow-wrap:anywhere]">
+              <p className="text-sm text-slate-500 dark:text-neutral-400 mb-2 wrap-anywhere">
                 @{displayUser.username}
               </p>
             )}
@@ -260,7 +260,7 @@ const CorporateProfile: React.FC<{
 
       {/* Edit Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
           <div className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-slide-up">
             <div className="p-6 border-b border-slate-100 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white">Edit Profile</h3>
@@ -280,7 +280,7 @@ const CorporateProfile: React.FC<{
                   aria-label="Display name / Pen name"
                   id="layout-display-name"
                   name="layoutDisplayName"
-                  className="w-full px-3 py-2 border rounded bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   value={editDisplayName}
                   onChange={(e) => setEditDisplayName(e.target.value)}
                   placeholder="Public author name"
@@ -294,7 +294,7 @@ const CorporateProfile: React.FC<{
                   aria-label="Avatar URL"
                   id="layout-229"
                   name="layout229"
-                  className="w-full px-3 py-2 border rounded bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   value={editAvatar}
                   onChange={(e) => setEditAvatar(e.target.value)}
                   placeholder="https://..."
@@ -308,7 +308,7 @@ const CorporateProfile: React.FC<{
                   id="layout-240"
                   name="layout240"
                   aria-label="Bio"
-                  className="w-full px-3 py-2 border rounded bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   rows={3}
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
@@ -335,7 +335,7 @@ const CorporateProfile: React.FC<{
                         id="layout-263"
                         name="layout263"
                         type="password"
-                        className="w-full px-3 py-2 border rounded bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
                       />
@@ -350,7 +350,7 @@ const CorporateProfile: React.FC<{
                         aria-label="8+ chars, Upper, Number, Symbol"
                         type="password"
                         placeholder="8+ chars, Upper, Number, Symbol"
-                        className="w-full px-3 py-2 border rounded bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                       />
@@ -364,7 +364,7 @@ const CorporateProfile: React.FC<{
                         name="layout286"
                         aria-label="Confirm Password"
                         type="password"
-                        className="w-full px-3 py-2 border rounded bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                       />
@@ -376,13 +376,13 @@ const CorporateProfile: React.FC<{
             <div className="p-4 border-t border-slate-100 dark:border-neutral-800 flex justify-end gap-2 bg-slate-50 dark:bg-neutral-950">
               <button
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-slate-600 dark:text-neutral-400 hover:bg-slate-200 dark:hover:bg-neutral-800 rounded transition-colors"
+                className="px-4 py-2 text-slate-600 dark:text-neutral-400 hover:bg-slate-200 dark:hover:bg-neutral-800 rounded-sm transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveProfile}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-lg transition-colors font-bold"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm shadow-lg transition-colors font-bold"
               >
                 Save Changes
               </button>
@@ -399,11 +399,11 @@ const CorporateProfile: React.FC<{
           {articlesLoading && articlePosts.length === 0 ? (
             Array.from({ length: 4 }).map((_, index) => (
               <div key={`corporate-profile-skeleton-${index}`} className="animate-pulse flex gap-4">
-                <div className="w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg flex-shrink-0" />
+                <div className="w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg shrink-0" />
                 <div className="flex-1 space-y-3 py-2">
-                  <div className="h-4 rounded bg-slate-200 dark:bg-neutral-800" />
-                  <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-neutral-800" />
-                  <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-neutral-800" />
+                  <div className="h-4 rounded-sm bg-slate-200 dark:bg-neutral-800" />
+                  <div className="h-4 w-2/3 rounded-sm bg-slate-200 dark:bg-neutral-800" />
+                  <div className="h-3 w-1/3 rounded-sm bg-slate-200 dark:bg-neutral-800" />
                 </div>
               </div>
             ))
@@ -414,7 +414,7 @@ const CorporateProfile: React.FC<{
                 onClick={() => onPostClick(post.id)}
                 className="cursor-pointer group flex gap-4"
               >
-                <div className="w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg overflow-hidden flex-shrink-0">
+                <div className="w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg overflow-hidden shrink-0">
                   <img
                     {...getResponsiveImageAttributes(
                       post,
@@ -955,7 +955,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               key={idx}
               className="p-8 rounded-2xl bg-slate-50 dark:bg-neutral-900 border border-slate-100 dark:border-neutral-800 hover:shadow-xl transition-all hover:-translate-y-1 group"
             >
-              <div className="w-14 h-14 bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-slate-100 dark:border-neutral-700 flex items-center justify-center mb-6 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <div className="w-14 h-14 bg-white dark:bg-neutral-800 rounded-xl shadow-xs border border-slate-100 dark:border-neutral-700 flex items-center justify-center mb-6 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                 <IconComponent name={service.icon} size={28} />
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
@@ -990,7 +990,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000'
               }
               alt="About Us"
-              className="rounded-2xl shadow-2xl relative z-10 w-full object-cover aspect-[4/3]"
+              className="rounded-2xl shadow-2xl relative z-10 w-full object-cover aspect-4/3"
             />
           </div>
           <div className="md:w-1/2">
@@ -1263,7 +1263,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                     {/* AI Summary Plugin */}
                     {aiSummaryPos === 'top' && aiSummary}
 
-                    <div className="prose prose-lg prose-slate dark:prose-invert mx-auto prose-a:text-blue-600 hover:prose-a:underline prose-img:rounded-xl dark:prose-blockquote:text-neutral-300 dark:prose-blockquote:border-l-neutral-700 dark:prose-strong:text-white dark:prose-headings:text-white dark:prose-code:text-neutral-200">
+                    <div className="prose prose-lg prose-slate dark:prose-invert mx-auto prose-a:text-blue-600 prose-a:hover:underline prose-img:rounded-xl dark:prose-blockquote:text-neutral-300 dark:prose-blockquote:border-l-neutral-700 dark:prose-strong:text-white dark:prose-headings:text-white dark:prose-code:text-neutral-200">
                       <ContentRenderer html={selectedPost.content} />
                     </div>
 
@@ -1451,7 +1451,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                                   className="group cursor-pointer"
                                   onClick={() => onPostClick(post.id)}
                                 >
-                                  <div className="aspect-[16/10] overflow-hidden rounded-xl mb-6 bg-slate-100 dark:bg-neutral-800 relative">
+                                  <div className="aspect-16/10 overflow-hidden rounded-xl mb-6 bg-slate-100 dark:bg-neutral-800 relative">
                                     <img
                                       {...getResponsiveImageAttributes(
                                         post,
@@ -1467,7 +1467,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                                         event.stopPropagation();
                                         onCategoryClick?.(post.category);
                                       }}
-                                      className="absolute top-4 left-4 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm px-3 py-1 rounded text-xs font-bold uppercase tracking-wider text-slate-800 transition-colors hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-400"
+                                      className="absolute top-4 left-4 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xs px-3 py-1 rounded-sm text-xs font-bold uppercase tracking-wider text-slate-800 transition-colors hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-400"
                                     >
                                       {post.category}
                                     </button>

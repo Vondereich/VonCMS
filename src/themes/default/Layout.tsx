@@ -69,7 +69,7 @@ const UserAvatar: React.FC<{
   return (
     <div
       onClick={onClick}
-      className={`${size} rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 flex-shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      className={`${size} rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
     >
       <SafeImage
         src={url}
@@ -141,7 +141,7 @@ const TrendingTicker: React.FC<{
     >
       <div className="max-w-[1440px] mx-auto px-6 lg:px-12 flex items-center gap-4">
         <span
-          className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded flex-shrink-0 animate-pulse shadow-sm"
+          className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded-sm shrink-0 animate-pulse shadow-xs"
           style={{ background: accentColor, color: contrastText }}
         >
           Latest Stories
@@ -239,7 +239,10 @@ const DefaultLayout: React.FC<
     showUserDropdown
   );
 
-  const publishedPosts = posts.filter((p) => p.status === 'published');
+  const publishedPosts = useMemo(
+    () => posts.filter((post) => post.status === 'published'),
+    [posts]
+  );
 
   // Helpers
   const goHome = () => {
@@ -315,7 +318,7 @@ const DefaultLayout: React.FC<
 
   return (
     <div
-      className={`min-h-screen flex justify-center transition-colors duration-300 ${isDarkMode ? 'dark' : ''} bg-[var(--bg-body)] text-[var(--text-primary)]`}
+      className={`min-h-screen flex justify-center transition-colors duration-300 ${isDarkMode ? 'dark' : ''} bg-(--bg-body) text-(--text-primary)`}
       style={
         {
           '--color-primary': settings.theme.primaryColor || '#0ea5ff',
@@ -358,15 +361,15 @@ const DefaultLayout: React.FC<
             `}</style>
 
       <div
-        className="w-full max-w-[1440px] min-h-screen flex flex-col relative bg-[var(--bg-card)] border-x border-[var(--border-color)]"
+        className="w-full max-w-[1440px] min-h-screen flex flex-col relative bg-(--bg-card) border-x border-(--border-color)"
         style={{ boxShadow: 'var(--card-shadow)' }}
       >
         {/* Navbar */}
-        <nav className="sticky top-0 z-50 w-full bg-[var(--bg-nav)] text-[var(--text-nav)] border-b border-[var(--border-color)] shadow-md transition-colors duration-300">
+        <nav className="sticky top-0 z-50 w-full bg-(--bg-nav) text-(--text-nav) border-b border-(--border-color) shadow-md transition-colors duration-300">
           <div className="w-full px-6 lg:px-12">
             <div className="flex justify-between items-center h-20">
               <div
-                className="flex-shrink-0 flex items-center cursor-pointer group gap-3"
+                className="shrink-0 flex items-center cursor-pointer group gap-3"
                 onClick={goHome}
               >
                 {settings.logoUrl ? (
@@ -740,7 +743,7 @@ const DefaultLayout: React.FC<
           </div>
         )}
 
-        <main className="flex-grow w-full px-6 lg:px-12 py-8 bg-white dark:bg-neutral-950">
+        <main className="grow w-full px-6 lg:px-12 py-8 bg-white dark:bg-neutral-950">
           {currentView === 'home' || currentView === 'category' ? (
             <HomeView
               posts={publishedPosts}
@@ -1098,7 +1101,7 @@ const HomeView: React.FC<{
               setLocalSearchTerm(nextSearch);
               onSearch(nextSearch);
             }}
-            className="w-full px-6 py-4 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl shadow-neutral-200/40 dark:shadow-none focus:ring-2 focus:ring-primary-500 focus:outline-none text-neutral-800 dark:text-white pl-14 transition-all"
+            className="w-full px-6 py-4 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl shadow-neutral-200/40 dark:shadow-none focus:ring-2 focus:ring-primary-500 focus:outline-hidden text-neutral-800 dark:text-white pl-14 transition-all"
           />
           <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400">
             <Search size={20} />
@@ -1168,7 +1171,7 @@ const HomeView: React.FC<{
                           onViewPost(post.id);
                         })
                       }
-                      className="h-64 bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative block"
+                      className="aspect-video bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative block"
                       aria-label={decodeEntities(post.title)}
                     >
                       {post.image && (
@@ -1181,7 +1184,7 @@ const HomeView: React.FC<{
                       )}
                       <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
                     </a>
-                    <div className="p-8 flex flex-col flex-grow">
+                    <div className="p-8 flex flex-col grow">
                       <div className="flex items-center justify-between mb-4">
                         <span
                           className="text-xs font-bold uppercase tracking-wider text-primary-600 bg-primary-50 dark:bg-primary-900/20 px-3 py-1 rounded-full hover:bg-primary-100 dark:hover:bg-primary-900/40 cursor-pointer transition-colors"
@@ -1264,7 +1267,7 @@ const HomeView: React.FC<{
             <PublicDiscoverySkeleton />
           ) : (
             <div className="flex flex-col items-center justify-center py-20 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 animate-fade-in text-center px-4">
-              <div className="bg-white dark:bg-neutral-800 p-4 rounded-full shadow-sm mb-6">
+              <div className="bg-white dark:bg-neutral-800 p-4 rounded-full shadow-xs mb-6">
                 <FileQuestion size={48} className="text-neutral-300 dark:text-neutral-600" />
               </div>
               <h3 className="text-2xl font-bold text-neutral-800 dark:text-white mb-2">
@@ -1362,7 +1365,7 @@ const SinglePostView: React.FC<{
       className={`w-full max-w-7xl mx-auto py-12 animate-fade-in flex flex-col gap-12 ${hasSinglePostSidebar ? 'lg:flex-row' : ''}`}
     >
       <article
-        className={`flex-grow min-w-0 ${hasSinglePostSidebar ? 'lg:max-w-[calc(100%-420px)]' : 'w-full max-w-4xl mx-auto'}`}
+        className={`grow min-w-0 ${hasSinglePostSidebar ? 'lg:max-w-[calc(100%-420px)]' : 'w-full max-w-4xl mx-auto'}`}
       >
         <button
           onClick={onBack}
@@ -1528,7 +1531,7 @@ const SinglePostView: React.FC<{
       </article>
 
       {hasSinglePostSidebar && (
-        <aside className="w-full lg:w-[400px] flex-shrink-0 space-y-8">
+        <aside className="w-full lg:w-[400px] shrink-0 space-y-8">
           {/* Newsletter Widget (Sidebar) */}
           {settings.newsletter?.enabled &&
             (settings.newsletter?.position === 'sidebar' ||

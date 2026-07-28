@@ -40,7 +40,7 @@ const TechAvatar: React.FC<{
 }> = ({ url, name, email, size = 'w-32 h-32', borderColor }) => {
   return (
     <div className={`${size} relative group`}>
-      <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-xl blur opacity-75 group-hover:opacity-100 transition duration-1000"></div>
+      <div className="absolute inset-0 bg-linear-to-tr from-blue-500 to-purple-500 rounded-xl blur-sm opacity-75 group-hover:opacity-100 transition duration-1000"></div>
       <div
         className="relative w-full h-full rounded-xl overflow-hidden border-2 bg-neutral-900"
         style={{ borderColor: borderColor || '#262626' }}
@@ -121,10 +121,10 @@ const TechPressProfile: React.FC<ProfileProps> = ({
     <div className="w-full max-w-6xl mx-auto animate-fade-in font-sans">
       {/* Edit Modal - Tech Style */}
       {isEditing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-          <div className="w-full max-w-lg bg-neutral-900 border border-neutral-700 rounded-sm shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+          <div className="w-full max-w-lg bg-neutral-900 border border-neutral-700 rounded-xs shadow-2xl relative overflow-hidden">
             {/* Decorative header line */}
-            <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+            <div className="h-1 w-full bg-linear-to-r from-blue-500 via-purple-500 to-pink-500"></div>
 
             <div className="p-6">
               <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
@@ -144,7 +144,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                     type="text"
                     value={editDisplayName}
                     onChange={(e) => setEditDisplayName(e.target.value)}
-                    className="w-full bg-neutral-950 border border-neutral-700 text-white px-4 py-3 rounded-sm focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 outline-none font-mono text-sm"
+                    className="w-full bg-neutral-950 border border-neutral-700 text-white px-4 py-3 rounded-xs focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 outline-hidden font-mono text-sm"
                     placeholder="Public author name"
                   />
                 </div>
@@ -160,7 +160,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                       type="text"
                       value={editAvatar}
                       onChange={(e) => setEditAvatar(e.target.value)}
-                      className="w-full bg-neutral-950 border border-neutral-700 text-white px-4 py-3 rounded-sm focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 outline-none font-mono text-sm"
+                      className="w-full bg-neutral-950 border border-neutral-700 text-white px-4 py-3 rounded-xs focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 outline-hidden font-mono text-sm"
                       placeholder="https://..."
                     />
                   </div>
@@ -176,7 +176,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
                     rows={4}
-                    className="w-full bg-neutral-950 border border-neutral-700 text-white px-4 py-3 rounded-sm focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 outline-none font-mono text-sm resize-none"
+                    className="w-full bg-neutral-950 border border-neutral-700 text-white px-4 py-3 rounded-xs focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 outline-hidden font-mono text-sm resize-none"
                     placeholder="System status..."
                   />
                 </div>
@@ -192,7 +192,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                   </button>
 
                   {showPasswordFields && (
-                    <div className="mt-4 space-y-4 animate-fade-in p-4 bg-neutral-950/50 border border-neutral-800 rounded-sm">
+                    <div className="mt-4 space-y-4 animate-fade-in p-4 bg-neutral-950/50 border border-neutral-800 rounded-xs">
                       <div>
                         <span className="block text-[10px] font-mono text-red-400 mb-1 uppercase tracking-widest">
                           Current Password *
@@ -204,7 +204,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                           type="password"
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
-                          className="w-full bg-neutral-900 border border-neutral-700 text-white px-3 py-2 rounded-sm focus:border-red-500 outline-none font-mono text-sm"
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white px-3 py-2 rounded-xs focus:border-red-500 outline-hidden font-mono text-sm"
                           placeholder="******"
                         />
                       </div>
@@ -220,7 +220,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="8+ chars, Upper, Number, Symbol"
-                          className="w-full bg-neutral-900 border border-neutral-700 text-white px-3 py-2 rounded-sm focus:border-green-500 outline-none font-mono text-sm"
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white px-3 py-2 rounded-xs focus:border-green-500 outline-hidden font-mono text-sm"
                         />
                       </div>
                       <div>
@@ -234,7 +234,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                           type="password"
                           value={confirmNewPassword}
                           onChange={(e) => setConfirmNewPassword(e.target.value)}
-                          className="w-full bg-neutral-900 border border-neutral-700 text-white px-3 py-2 rounded-sm focus:border-green-500 outline-none font-mono text-sm"
+                          className="w-full bg-neutral-900 border border-neutral-700 text-white px-3 py-2 rounded-xs focus:border-green-500 outline-hidden font-mono text-sm"
                           placeholder="Repeat new key"
                         />
                       </div>
@@ -247,13 +247,13 @@ const TechPressProfile: React.FC<ProfileProps> = ({
             <div className="p-4 bg-neutral-950/50 border-t border-neutral-800 flex justify-end gap-3">
               <button
                 onClick={() => setIsEditing(false)}
-                className="px-5 py-2 text-neutral-400 hover:text-white font-mono text-xs uppercase tracking-wider hover:bg-neutral-800 transition-colors rounded-sm"
+                className="px-5 py-2 text-neutral-400 hover:text-white font-mono text-xs uppercase tracking-wider hover:bg-neutral-800 transition-colors rounded-xs"
               >
                 [ Cancel ]
               </button>
               <button
                 onClick={handleSaveProfile}
-                className="px-6 py-2 bg-neutral-100 hover:bg-white text-black font-bold text-xs uppercase tracking-wider transition-all rounded-sm shadow-lg shadow-neutral-900/20 flex items-center gap-2"
+                className="px-6 py-2 bg-neutral-100 hover:bg-white text-black font-bold text-xs uppercase tracking-wider transition-all rounded-xs shadow-lg shadow-neutral-900/20 flex items-center gap-2"
               >
                 <Save size={14} /> Save Config
               </button>
@@ -275,7 +275,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
               backgroundSize: '40px 40px',
             }}
           ></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-transparent to-transparent"></div>
+          <div className="absolute inset-0 bg-linear-to-t from-neutral-900 via-transparent to-transparent"></div>
         </div>
 
         <div className="relative pt-20 px-8">
@@ -308,7 +308,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                       {displayUser.display_name || displayUser.username}
                     </h1>
                     <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-bold border ${displayRole === 'Admin' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-700/60 md:bg-purple-500/10 md:text-purple-400 md:border-purple-500/50' : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700 md:bg-neutral-500/10 md:text-neutral-400 md:border-neutral-500/50'}`}
+                      className={`px-2 py-0.5 rounded-sm text-[10px] font-mono uppercase tracking-wider font-bold border ${displayRole === 'Admin' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-700/60 md:bg-purple-500/10 md:text-purple-400 md:border-purple-500/50' : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700 md:bg-neutral-500/10 md:text-neutral-400 md:border-neutral-500/50'}`}
                     >
                       {displayRole}
                     </span>
@@ -327,7 +327,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                   {canAccessAdmin && onNavigateAdmin && (
                     <button
                       onClick={onNavigateAdmin}
-                      className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-white rounded-sm text-xs font-bold uppercase tracking-wider transition-all"
+                      className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-white rounded-xs text-xs font-bold uppercase tracking-wider transition-all"
                     >
                       <LayoutDashboard size={14} /> Dashboard
                     </button>
@@ -400,10 +400,10 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                   >
                     <div className="h-48 bg-slate-100 dark:bg-neutral-800" />
                     <div className="p-5 space-y-4">
-                      <div className="h-5 rounded bg-slate-200 dark:bg-neutral-800" />
-                      <div className="h-5 w-2/3 rounded bg-slate-200 dark:bg-neutral-800" />
+                      <div className="h-5 rounded-sm bg-slate-200 dark:bg-neutral-800" />
+                      <div className="h-5 w-2/3 rounded-sm bg-slate-200 dark:bg-neutral-800" />
                       <div className="border-t border-slate-100 pt-3 dark:border-neutral-800">
-                        <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-neutral-800" />
+                        <div className="h-3 w-1/2 rounded-sm bg-slate-200 dark:bg-neutral-800" />
                       </div>
                     </div>
                   </div>
@@ -425,7 +425,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                           />
                         )}
-                        <div className="absolute top-3 left-3 px-2 py-1 bg-black/50 backdrop-blur-sm rounded text-[10px] font-bold text-white uppercase tracking-wider border border-white/10">
+                        <div className="absolute top-3 left-3 px-2 py-1 bg-black/50 backdrop-blur-xs rounded-sm text-[10px] font-bold text-white uppercase tracking-wider border border-white/10">
                           {post.category}
                         </div>
                       </div>
@@ -472,9 +472,9 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                     key={`comment-skeleton-${index}`}
                     className="animate-pulse bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 p-6 rounded-xl"
                   >
-                    <div className="h-5 rounded bg-slate-200 dark:bg-neutral-800 mb-4" />
-                    <div className="h-5 w-4/5 rounded bg-slate-200 dark:bg-neutral-800 mb-5" />
-                    <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-neutral-800" />
+                    <div className="h-5 rounded-sm bg-slate-200 dark:bg-neutral-800 mb-4" />
+                    <div className="h-5 w-4/5 rounded-sm bg-slate-200 dark:bg-neutral-800 mb-5" />
+                    <div className="h-3 w-1/3 rounded-sm bg-slate-200 dark:bg-neutral-800" />
                   </div>
                 ))
               ) : (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { AlertTriangle, Home, ArrowLeft } from 'lucide-react';
 
 interface NotFoundPageProps {
@@ -13,8 +13,8 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ isDarkMode = false }) => {
     <div
       className={`min-h-screen flex items-center justify-center px-4 ${
         isDarkMode
-          ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'
-          : 'bg-gradient-to-br from-slate-50 via-white to-slate-100'
+          ? 'bg-linear-to-br from-slate-900 via-slate-800 to-slate-900'
+          : 'bg-linear-to-br from-slate-50 via-white to-slate-100'
       }`}
     >
       <div className="text-center max-w-md mx-auto">
@@ -53,7 +53,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ isDarkMode = false }) => {
             className={`inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
               isDarkMode
                 ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
-                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-sm'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-xs'
             }`}
           >
             <ArrowLeft size={18} />
@@ -61,7 +61,7 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ isDarkMode = false }) => {
           </button>
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 bg-linear-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
           >
             <Home size={18} />
             Go to Home

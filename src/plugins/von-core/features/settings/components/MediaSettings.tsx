@@ -312,7 +312,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         </div>
       </div>
 
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
         <div className="flex border-b border-slate-200 dark:border-[#2a2b36] overflow-x-auto">
           <button
             onClick={() => setActiveTab('gallery')}
@@ -371,7 +371,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.optimization.enabled}
                     onChange={(e) => updateMedia('optimization', 'enabled', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
 
@@ -410,7 +410,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.optimization.convertToWebP}
                     onChange={(e) => updateMedia('optimization', 'convertToWebP', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
             </div>
@@ -432,7 +432,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     onChange={(e) =>
                       updateMedia('optimization', 'maxWidth', parseInt(e.target.value))
                     }
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   />
                 </div>
                 <div>
@@ -448,7 +448,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     onChange={(e) =>
                       updateMedia('optimization', 'maxHeight', parseInt(e.target.value))
                     }
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   />
                 </div>
               </div>
@@ -474,7 +474,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     name="mediasettings459"
                     value={media.storage.location}
                     onChange={(e) => updateMedia('storage', 'location', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   >
                     <option value="local">Local Server</option>
                   </select>
@@ -492,7 +492,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     aria-label="Folder Structure"
                     value={media.storage.folderStructure}
                     onChange={(e) => updateMedia('storage', 'folderStructure', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   >
                     <option value="year_month">Year / Month (e.g. 2025/12/image.jpg)</option>
                     <option value="flat">Flat (All in one folder)</option>
@@ -509,7 +509,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     type="url"
                     value={media.storage.cdnUrl || ''}
                     onChange={(e) => updateMedia('storage', 'cdnUrl', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                     placeholder="https://cdn.example.com or https://cdn.example.com/uploads"
                   />
                   <p className="text-xs text-slate-500 mt-1">
@@ -553,7 +553,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   </li>
                 </ul>
                 <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
                   <span>
                     Leave blank for normal local uploads or if the CDN is not configured yet.
                   </span>
@@ -580,7 +580,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.performance.lazyLoadImages}
                     onChange={(e) => updateMedia('performance', 'lazyLoadImages', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
@@ -603,7 +603,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                       updateMedia('performance', 'lazyLoadIframes', e.target.checked)
                     }
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
             </div>
@@ -620,9 +620,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   }`}
                 >
                   {toolResult.type === 'error' ? (
-                    <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
                   ) : (
-                    <CheckCircle size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+                    <CheckCircle size={20} className="text-green-500 shrink-0 mt-0.5" />
                   )}
                   <div className="w-full">
                     <p

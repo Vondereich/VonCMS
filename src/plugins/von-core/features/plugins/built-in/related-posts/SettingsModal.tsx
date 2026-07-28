@@ -49,10 +49,10 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
       <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-[#2a2b36]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-linear-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
           <div>
             <h3 className="text-2xl font-bold text-slate-800 dark:text-white">
               Related Posts Settings
@@ -131,7 +131,7 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
                   orderBy: e.target.value as RelatedPostsConfig['orderBy'],
                 })
               }
-              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500 outline-hidden"
             >
               <option value="relevance">Relevance (Category + Tags)</option>
               <option value="date">Most Recent</option>
@@ -211,7 +211,7 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
               value={config.titleText}
               onChange={(e) => setConfig({ ...config, titleText: e.target.value })}
               placeholder="Related Posts"
-              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500 outline-hidden"
             />
           </div>
         </div>

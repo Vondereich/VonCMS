@@ -49,12 +49,14 @@ try {
   updaterRollbackWrite($livePath . '/api/runtime.txt', 'old-api');
   updaterRollbackWrite($livePath . '/assets/runtime.txt', 'old-assets');
   updaterRollbackWrite($livePath . '/docs/runtime.txt', 'old-docs');
+  updaterRollbackWrite($livePath . '/docs/retired-guide.md', 'retired-doc');
   updaterRollbackWrite($livePath . '/data/runtime.txt', 'live-data');
   updaterRollbackWrite($livePath . '/index.html', 'old-index');
 
   updaterRollbackWrite($sourcePath . '/api/runtime.txt', 'new-api');
   updaterRollbackWrite($sourcePath . '/assets/runtime.txt', 'new-assets');
   updaterRollbackWrite($sourcePath . '/docs/runtime.txt', 'new-docs');
+  updaterRollbackWrite($sourcePath . '/docs/current-guide.md', 'current-doc');
   updaterRollbackWrite($sourcePath . '/data/runtime.txt', 'package-data');
   updaterRollbackWrite($sourcePath . '/index.html', 'new-index');
   updaterRollbackWrite($sourcePath . '/metadata.json', '{"version":"9.9.9"}');
@@ -67,7 +69,7 @@ try {
       'tempPath' => $tempPath,
       'backupPath' => $livePath . '/backups',
       'logFile' => $basePath . '/updater.log',
-      'testFailureAfterActivations' => 2,
+      'testFailureAfterActivations' => 3,
     ]
     as $propertyName => $value
   ) {
@@ -94,7 +96,12 @@ try {
   );
   updaterRollbackAssert(
     file_get_contents($livePath . '/docs/runtime.txt') === 'old-docs',
-    'Untouched release directory changed after activation failure.',
+    'Managed docs directory was not restored after activation failure.',
+  );
+  updaterRollbackAssert(
+    is_file($livePath . '/docs/retired-guide.md') &&
+      !file_exists($livePath . '/docs/current-guide.md'),
+    'Managed docs rollback did not restore the complete previous directory.',
   );
   updaterRollbackAssert(
     file_get_contents($livePath . '/index.html') === 'old-index',
@@ -116,6 +123,11 @@ try {
   updaterRollbackAssert(
     file_get_contents($livePath . '/docs/runtime.txt') === 'new-docs',
     'Release directory did not activate after a normal staged update.',
+  );
+  updaterRollbackAssert(
+    !file_exists($livePath . '/docs/retired-guide.md') &&
+      file_get_contents($livePath . '/docs/current-guide.md') === 'current-doc',
+    'Managed docs replacement retained an obsolete guide or missed the current guide.',
   );
   updaterRollbackAssert(
     file_get_contents($livePath . '/index.html') === 'new-index',

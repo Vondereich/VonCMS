@@ -33,7 +33,7 @@ export const SystemTools: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
           <div>
             <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4">
               <Shield size={24} />
@@ -58,7 +58,7 @@ export const SystemTools: React.FC = () => {
           </button>
         </div>
 
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
           <div>
             <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/30 rounded-lg flex items-center justify-center text-rose-600 dark:text-rose-400 mb-4">
               <Hammer size={24} />
@@ -83,7 +83,7 @@ export const SystemTools: React.FC = () => {
           </button>
         </div>
 
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
           <div>
             <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center text-amber-600 dark:text-amber-400 mb-4">
               <Activity size={24} />
@@ -109,7 +109,7 @@ export const SystemTools: React.FC = () => {
           </button>
         </div>
 
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
+        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 flex flex-col justify-between">
           <div>
             <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
               <Trash2 size={24} />

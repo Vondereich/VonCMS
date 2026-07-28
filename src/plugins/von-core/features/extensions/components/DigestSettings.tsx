@@ -34,7 +34,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
       <div className="bg-white dark:bg-[#1a1b26] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
         <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center sticky top-0 bg-white dark:bg-[#1a1b26] z-10">
@@ -81,7 +81,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
                   onChange={(e) =>
                     setTempSettings((prev) => ({ ...prev, accentColor: e.target.value }))
                   }
-                  className="h-8 w-12 rounded cursor-pointer border-0 p-0"
+                  className="h-8 w-12 rounded-sm cursor-pointer border-0 p-0"
                 />
                 <span className="text-xs font-mono text-slate-500 uppercase">
                   {tempSettings.accentColor}

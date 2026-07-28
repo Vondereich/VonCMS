@@ -171,8 +171,8 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                     <span
                       className={`text-4xl font-black transition-all duration-500 select-none leading-none ${
                         isCurrentPost
-                          ? 'text-[var(--color-primary)]'
-                          : 'text-slate-300 dark:text-slate-800/50 group-hover:text-[var(--color-primary)]'
+                          ? 'text-(--color-primary)'
+                          : 'text-slate-300 dark:text-slate-800/50 group-hover:text-(--color-primary)'
                       }`}
                     >
                       {index + 1}
@@ -196,13 +196,13 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                       <p
                         className={`text-sm font-bold transition-colors leading-relaxed line-clamp-2 ${
                           isCurrentPost
-                            ? 'text-[var(--color-primary)]'
+                            ? 'text-(--color-primary)'
                             : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
                         }`}
                         dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.title) }}
                       />
                       <div
-                        className={`mt-2 h-0.5 bg-[var(--color-primary)] transition-all duration-500 opacity-50 ${
+                        className={`mt-2 h-0.5 bg-(--color-primary) transition-all duration-500 opacity-50 ${
                           isCurrentPost ? 'w-full' : 'w-0 group-hover:w-full'
                         }`}
                       ></div>
@@ -261,7 +261,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
               {profile.email && (
                 <a
                   href={`mailto:${profile.email}`}
-                  className="mt-3 inline-block text-xs font-bold text-[var(--color-primary)] hover:underline"
+                  className="mt-3 inline-block text-xs font-bold text-(--color-primary) hover:underline"
                 >
                   {profile.email}
                 </a>

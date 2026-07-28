@@ -217,7 +217,7 @@ const DiscussionSearchBar: React.FC<SearchBarProps> = ({
         value={searchInput}
         onChange={(e) => onSearchInputChange(e.target.value)}
         placeholder="Search comments across all statuses..."
-        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
       />
     </div>
     {(searchInput || searchQuery) && (
@@ -300,7 +300,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
 
   return (
     <div className="flex gap-4 p-6">
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-[#242633]">
           {comment.userAvatar ? (
             <img
@@ -319,7 +319,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
           )}
         </div>
       </div>
-      <div className="flex-grow">
+      <div className="grow">
         <div className="mb-2 flex items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-slate-900 dark:text-white">{comment.username}</span>
@@ -425,7 +425,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
 }) => {
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-12 shadow-sm dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-12 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
         <Loader2 size={20} className="animate-spin text-primary-600" />
         <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">Loading...</span>
       </div>
@@ -433,7 +433,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   }
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
       {pageItems.length > 0 ? (
         <>
           <div className="divide-y divide-slate-100 dark:divide-slate-700">

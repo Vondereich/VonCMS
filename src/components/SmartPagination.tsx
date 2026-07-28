@@ -93,7 +93,7 @@ const SmartPagination: React.FC<SmartPaginationProps> = ({
                   onClick={() => safePage(page as number)}
                   className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                     currentPage === page
-                      ? 'bg-primary-600 text-white shadow-sm shadow-primary-500/30'
+                      ? 'bg-primary-600 text-white shadow-xs shadow-primary-500/30'
                       : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >

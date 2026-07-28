@@ -5,29 +5,16 @@ import Editor from './Editor';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
-import {
-  Globe,
-  ArrowLeft,
-  Sparkles,
-  X,
-  Activity,
-  CheckCircle,
-  AlertTriangle,
-  AlertCircle,
-  Upload,
-  Images,
-  ChevronLeft,
-  ChevronRight,
-  History,
-  Clock3,
-  User,
-  Search,
-} from 'lucide-react';
+import { Activity, ArrowLeft, CheckCircle, Globe, Images, Sparkles, Upload, X } from 'lucide-react';
 import { sanitizeHTML, trimTrailingHtml } from '../utils/colorSanitizer';
 import { htmlToPlainText, sanitizeEditorHtml } from '../utils/security';
-import { analyzeSEO, SEOAnalysisResult, extractKeywords } from '../utils/seoAnalyzer';
+import { analyzeSEO, SEOAnalysisResult } from '../utils/seoAnalyzer';
 import { SafeImage } from './SafeImage';
 import AiWritingPanel from './editor/AiWritingPanel';
+import FeaturedMediaLibraryModal from './editor/FeaturedMediaLibraryModal';
+import { PostEditorAuditHistoryModal, PostEditorAuditSummary } from './editor/PostEditorAudit';
+import PostEditorSeoPanel from './editor/PostEditorSeoPanel';
+import { getPostEditorCleanText } from './editor/postEditorTextHelpers';
 import { useAiWriting } from '../hooks/useAiWriting';
 import {
   AUTOSAVE_INTERVAL_MS,
@@ -53,6 +40,8 @@ interface PostEditorProps {
 }
 
 const TITLE_MAX_LENGTH = 255;
+const EXCERPT_RECOMMENDED_MAX_LENGTH = 200;
+const EXCERPT_WARNING_LENGTH = 220;
 
 const PostEditor: React.FC<PostEditorProps> = ({
   initialItem,
@@ -84,6 +73,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const featuredImageInputRef = React.useRef<HTMLInputElement>(null);
   const titleLength = item?.title?.length || 0;
   const titleLimitHelpText = `Title is limited to ${TITLE_MAX_LENGTH} characters.`;
+  const excerptLength = item?.excerpt?.length || 0;
 
   const availableCategories: string[] = [];
   for (const rawCategory of [
@@ -567,47 +557,6 @@ const PostEditor: React.FC<PostEditorProps> = ({
     void loadAuditLogs(String(item.id), isPage);
   }, [item?.id, isPage, loadAuditLogs]);
 
-  // Helper for Robust Text Extraction (Double Decode)
-  const getCleanText = (html: string, limit?: number) => {
-    if (!html) return '';
-    // 1. Spacing Fixes
-    const rawHtml = html.replace(/<br\s*\/?>/gi, ' ').replace(/<\/(p|div|h\d|li|tr|ul|ol)>/gi, ' ');
-
-    // 2. Decode Entities (Pass 1)
-    const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
-    let text = doc.body.textContent || '';
-
-    // 3. Double Decode (Pass 2) - Catches stubborn double-encoded entities like &amp;#039;
-    if (text.match(/&[#a-zA-Z0-9]+;/)) {
-      const doc2 = new DOMParser().parseFromString(text, 'text/html');
-      text = doc2.body.textContent || text;
-    }
-
-    // 4. Cleanup Whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-
-    // 5. Truncate if needed (account for ellipsis)
-    if (limit && text.length > limit) {
-      return text.slice(0, limit - 3) + '...';
-    }
-    return text;
-  };
-
-  const formatAuditActor = (log: ContentAuditLog) => {
-    const actorName = (log.actorUsername || '').trim() || 'System';
-    const actorRole = (log.actorRole || '').trim();
-    return actorRole ? `${actorName} (${actorRole})` : actorName;
-  };
-
-  const formatAuditTimestamp = (value?: string) => {
-    if (!value) return '';
-    const parsed = new Date(value.replace(' ', 'T'));
-    if (Number.isNaN(parsed.getTime())) {
-      return value;
-    }
-    return parsed.toLocaleString();
-  };
-
   const loadFeaturedMedia = async (page = 1, search = featuredMediaSearchQuery) => {
     setIsFeaturedLibraryLoading(true);
     try {
@@ -677,8 +626,6 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
   if (!item) return null;
 
-  const latestAuditLog = auditLogs[0] || null;
-  const recentAuditLogs = auditLogs.slice(0, 3);
   const saveStatusLabel = buildSaveStatusLabel(saveStatus, lastSaved, autoSaveCountdown);
   const saveStatusClassName = getSaveStatusClassName(saveStatus);
 
@@ -740,7 +687,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36]">
+          <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36]">
             <input
               id="post-title"
               name="title"
@@ -777,7 +724,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
         <div className="space-y-6">
           <AiWritingPanel
             title={item.title || ''}
-            hasContent={Boolean(getCleanText(item.content || ''))}
+            hasContent={Boolean(getPostEditorCleanText(item.content || ''))}
             mode={aiAssistant.mode}
             writePrompt={aiAssistant.writePrompt}
             pendingResult={aiAssistant.pendingResult}
@@ -792,7 +739,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
             onApplyReplace={handleApplyAiReplace}
             onDiscard={handleDiscardAiResult}
           />
-          <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-sm space-y-4">
+          <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
             <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
             <div>
               <label
@@ -894,7 +841,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       return;
                     }
                     // Use helper for clean text
-                    const cleanTitle = getCleanText(item.title);
+                    const cleanTitle = getPostEditorCleanText(item.title);
                     const slug = cleanTitle
                       .toLowerCase()
                       .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
@@ -978,8 +925,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 <button
                   onClick={() => {
                     if (item.content) {
-                      // Robust Auto Fill with Double Decoding (Excerpt can be longer for UI feeds)
-                      const excerpt = getCleanText(item.content, 250);
+                      const excerpt = getPostEditorCleanText(
+                        item.content,
+                        EXCERPT_RECOMMENDED_MAX_LENGTH
+                      );
                       setItem((prev) => (prev ? { ...prev, excerpt } : null));
                     } else {
                       notify.info('Add content first');
@@ -998,8 +947,22 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 onChange={(e) =>
                   setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
                 }
-                placeholder="Short summary of the post..."
+                placeholder="Short summary (recommended 160-200 characters)..."
+                aria-describedby="post-excerpt-help"
               />
+              <p
+                id="post-excerpt-help"
+                className={`mt-1 text-xs ${
+                  excerptLength > EXCERPT_WARNING_LENGTH
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-slate-400'
+                }`}
+              >
+                {excerptLength}/{EXCERPT_WARNING_LENGTH} characters - recommended 160-200.
+                {excerptLength > EXCERPT_WARNING_LENGTH
+                  ? ' Long excerpts may be shortened in cards and discovery metadata.'
+                  : ''}
+              </p>
             </div>
 
             {/* Featured Image - For Posts Only */}
@@ -1084,7 +1047,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
               <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div
-                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
+                    className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
                   >
                     {addToMenu && <Globe size={12} />}
                   </div>
@@ -1104,418 +1067,44 @@ const PostEditor: React.FC<PostEditorProps> = ({
             )}
           </div>
 
-          <div className="bg-slate-50/50 dark:bg-[#1a1b26]/50 p-5 rounded-xl border border-slate-200 dark:border-[#2a2b36] space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <History size={16} className="text-slate-400" />
-                Edit Log
-              </h3>
-              {!!item.id && auditLogs.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setIsAuditHistoryOpen(true)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
-                >
-                  View Recent History
-                </button>
-              )}
-            </div>
+          <PostEditorAuditSummary
+            itemId={item.id}
+            logs={auditLogs}
+            isLoading={isAuditLogsLoading}
+            onOpenHistory={() => setIsAuditHistoryOpen(true)}
+          />
 
-            {!item.id ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Edit history will start after the first successful save.
-              </p>
-            ) : isAuditLogsLoading ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Loading edit history...</p>
-            ) : latestAuditLog ? (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/60 p-4 space-y-2">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {latestAuditLog.summary || 'Content updated'}
-                  </p>
-                  <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
-                    <p className="flex items-center gap-2">
-                      <User size={14} />
-                      <span>{formatAuditActor(latestAuditLog)}</span>
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Clock3 size={14} />
-                      <span>{formatAuditTimestamp(latestAuditLog.createdAt)}</span>
-                    </p>
-                  </div>
-                </div>
-
-                {recentAuditLogs.length > 1 && (
-                  <div className="space-y-2">
-                    {recentAuditLogs.slice(1).map((log) => (
-                      <div
-                        key={log.id}
-                        className="rounded-lg border border-slate-200 dark:border-[#2a2b36] p-3"
-                      >
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                          {log.summary || 'Content updated'}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {formatAuditActor(log)} - {formatAuditTimestamp(log.createdAt)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                No edit history found yet for this item.
-              </p>
-            )}
-          </div>
-
-          {/* SEO Settings */}
-          <div className="bg-white dark:bg-[#1a1b26] p-5 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="text-blue-500">●</span> SEO Settings
-            </h3>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label
-                  htmlFor="post-meta-desc"
-                  className="block text-sm font-medium text-slate-500"
-                >
-                  Meta Description
-                </label>
-                <button
-                  onClick={() => {
-                    // Always extract directly from content for accurate 160-char SEO limits, avoiding the longer excerpt
-                    const description = item.content ? getCleanText(item.content, 160) : '';
-                    if (description) {
-                      setItem((prev) => (prev ? { ...prev, metaDescription: description } : null));
-                    } else {
-                      notify.info('Add content first');
-                    }
-                  }}
-                  className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
-                >
-                  <Sparkles size={12} /> Auto Fill
-                </button>
-              </div>
-              <textarea
-                id="post-meta-desc"
-                name="metaDescription"
-                className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
-                placeholder="Brief summary for search engines (max 160 chars)..."
-                value={item.metaDescription || ''}
-                onChange={(e) =>
-                  setItem((prev) => (prev ? { ...prev, metaDescription: e.target.value } : null))
-                }
-                maxLength={160}
-              />
-              <p className="text-xs text-slate-400 mt-1">
-                {(item.metaDescription || '').length}/160 characters
-              </p>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="post-keywords" className="block text-sm font-medium text-slate-500">
-                  Keywords
-                </label>
-                <button
-                  onClick={() => {
-                    if (!item.content && !item.title) return;
-                    // Improved keyword extraction from utility (Prioritizes Title)
-                    const plainText = htmlToPlainText(item.content);
-                    const sorted = extractKeywords(plainText, item.title || '').join(', ');
-                    setItem((prev) => (prev ? { ...prev, keywords: sorted } : null));
-                  }}
-                  className="text-xs flex items-center gap-1 text-purple-600 hover:text-purple-700 font-bold bg-purple-50 dark:bg-purple-900/30 px-2 py-1 rounded-full transition-colors"
-                >
-                  <Sparkles size={12} />
-                  Auto-Generate
-                </button>
-              </div>
-              <input
-                id="post-keywords"
-                name="keywords"
-                type="text"
-                placeholder="comma, separated, keywords"
-                className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                value={item.keywords || ''}
-                onChange={(e) =>
-                  setItem((prev) => (prev ? { ...prev, keywords: e.target.value } : null))
-                }
-              />
-            </div>
-
-            {/* Real-time SEO Analysis Panel */}
-            {isSeoRestoring && (
-              <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden animate-fade-in mt-6">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-[#2a2b36] flex items-center gap-2">
-                  <Activity size={16} className="text-blue-500 animate-pulse" />
-                  <h3 className="font-bold text-slate-800 dark:text-white text-sm">SEO Health</h3>
-                </div>
-                <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
-                  Restoring SEO data from the full post content...
-                </div>
-              </div>
-            )}
-            {seoResult && !isSeoRestoring && (
-              <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden animate-fade-in mt-6">
-                {/* Header */}
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center">
-                  <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
-                    <Activity size={16} className="text-blue-500" />
-                    SEO Health
-                  </h3>
-                  <div
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${
-                      seoResult.score >= 80
-                        ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
-                        : seoResult.score >= 50
-                          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
-                          : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
-                    }`}
-                  >
-                    <span className="text-lg">{seoResult.score}</span>
-                    <span className="opacity-60 text-xs font-medium">/ 100</span>
-                  </div>
-                </div>
-
-                <div className="p-5 space-y-4">
-                  {/* Progress Bar */}
-                  <div>
-                    <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                      <span>Optimization</span>
-                      <span>{seoResult.score}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 dark:bg-[#242633] rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          seoResult.score >= 80
-                            ? 'bg-green-500'
-                            : seoResult.score >= 50
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'
-                        }`}
-                        style={{ width: `${seoResult.score}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Checklist */}
-                  <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                    {Object.entries(seoResult.checks).map(([key, check]: [string, any]) => (
-                      <div key={key} className="flex items-start gap-2.5 py-1.5">
-                        <div className="mt-0.5 flex-shrink-0">
-                          {check.status === 'good' ? (
-                            <CheckCircle size={14} className="text-green-500" />
-                          ) : check.status === 'warning' ? (
-                            <AlertTriangle size={14} className="text-amber-500" />
-                          ) : (
-                            <AlertCircle size={14} className="text-red-500" />
-                          )}
-                        </div>
-                        <p
-                          className={`text-xs leading-snug ${
-                            check.status === 'good'
-                              ? 'text-slate-600 dark:text-slate-400'
-                              : check.status === 'warning'
-                                ? 'text-amber-700 dark:text-amber-400'
-                                : 'text-red-600 dark:text-red-400'
-                          }`}
-                        >
-                          {check.message}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <PostEditorSeoPanel
+            item={item}
+            setItem={setItem}
+            isRestoring={isSeoRestoring}
+            result={seoResult}
+          />
         </div>
       </div>
 
-      {isAuditHistoryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2a2b36] px-5 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Recent Edit History
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Latest 50 create, update, and delete entries for this {isPage ? 'page' : 'post'}.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAuditHistoryOpen(false)}
-                className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
-              >
-                <X size={18} />
-              </button>
-            </div>
+      <PostEditorAuditHistoryModal
+        isOpen={isAuditHistoryOpen}
+        isPage={isPage}
+        logs={auditLogs}
+        isLoading={isAuditLogsLoading}
+        onClose={() => setIsAuditHistoryOpen(false)}
+      />
 
-            <div className="max-h-[70vh] overflow-y-auto p-5">
-              {isAuditLogsLoading ? (
-                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
-                  Loading edit history...
-                </div>
-              ) : auditLogs.length === 0 ? (
-                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
-                  No edit history found for this item.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {auditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="rounded-xl border border-slate-200 dark:border-[#2a2b36] p-4"
-                    >
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {log.summary || 'Content updated'}
-                      </p>
-                      <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
-                        <p className="flex items-center gap-2">
-                          <User size={14} />
-                          <span>{formatAuditActor(log)}</span>
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <Clock3 size={14} />
-                          <span>{formatAuditTimestamp(log.createdAt)}</span>
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!isPage && isFeaturedLibraryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in">
-          <div className="w-full max-w-5xl rounded-2xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2a2b36] px-5 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Select Featured Image
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Pick an existing media item from the gallery.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsFeaturedLibraryOpen(false)}
-                className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
-                aria-label="Close media gallery"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleFeaturedMediaSearch}
-              className="flex gap-2 border-b border-slate-200 px-5 py-3 dark:border-[#2a2b36]"
-            >
-              <div className="relative flex-1">
-                <Search
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  id="featured-media-search"
-                  name="featuredMediaSearch"
-                  type="search"
-                  value={featuredMediaSearchInput}
-                  maxLength={120}
-                  aria-label="Search featured images"
-                  onChange={(event) => setFeaturedMediaSearchInput(event.target.value)}
-                  placeholder="Search featured images..."
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
-              >
-                Search
-              </button>
-            </form>
-
-            <div className="max-h-[70vh] overflow-y-auto p-5">
-              {isFeaturedLibraryLoading ? (
-                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
-                  Loading media library...
-                </div>
-              ) : featuredMediaFiles.length === 0 ? (
-                <div className="py-16 text-center text-slate-500 dark:text-slate-400">
-                  No media files found.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                  {featuredMediaFiles.map((file) => {
-                    const previewUrl = file.webpUrl || file.url;
-                    return (
-                      <button
-                        key={file.id}
-                        type="button"
-                        onClick={() => applyFeaturedImage(previewUrl)}
-                        className="group overflow-hidden rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#1a1b26] text-left transition-all hover:border-blue-500 hover:shadow-lg"
-                      >
-                        <div className="aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-[#16161e]">
-                          <img
-                            src={previewUrl}
-                            alt={file.altText || file.name}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className="p-3">
-                          <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
-                            {file.name}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {file.size}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-200 dark:border-[#2a2b36] px-5 py-4">
-              <button
-                type="button"
-                onClick={() =>
-                  void loadFeaturedMedia(featuredMediaPage - 1, featuredMediaSearchQuery)
-                }
-                disabled={isFeaturedLibraryLoading || featuredMediaPage <= 1}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-50"
-              >
-                <ChevronLeft size={16} />
-                Previous
-              </button>
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                Page {featuredMediaPage} of {featuredMediaTotalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  void loadFeaturedMedia(featuredMediaPage + 1, featuredMediaSearchQuery)
-                }
-                disabled={isFeaturedLibraryLoading || featuredMediaPage >= featuredMediaTotalPages}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-50"
-              >
-                Next
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
+      {!isPage && (
+        <FeaturedMediaLibraryModal
+          isOpen={isFeaturedLibraryOpen}
+          files={featuredMediaFiles}
+          isLoading={isFeaturedLibraryLoading}
+          page={featuredMediaPage}
+          totalPages={featuredMediaTotalPages}
+          searchInput={featuredMediaSearchInput}
+          onSearchInputChange={setFeaturedMediaSearchInput}
+          onSearch={handleFeaturedMediaSearch}
+          onSelect={applyFeaturedImage}
+          onPageChange={(page) => void loadFeaturedMedia(page, featuredMediaSearchQuery)}
+          onClose={() => setIsFeaturedLibraryOpen(false)}
+        />
       )}
     </div>
   );

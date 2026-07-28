@@ -91,7 +91,7 @@ const PromoBarComponent: React.FC<{
 
   return (
     <div
-      className="text-xs md:text-sm font-bold py-2 px-4 text-center relative animate-fade-in z-[60]"
+      className="text-xs md:text-sm font-bold py-2 px-4 text-center relative animate-fade-in z-60"
       style={{ backgroundColor, color: textColor }}
     >
       <div className="container mx-auto flex justify-center items-center gap-2">
@@ -110,7 +110,7 @@ const PromoBarComponent: React.FC<{
       {/* Dismiss Button */}
       <button
         onClick={handleDismiss}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded transition-colors"
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-sm transition-colors"
         aria-label="Dismiss announcement"
       >
         <X size={16} />
@@ -123,7 +123,7 @@ export const PromoBarPlugin: PluginDefinition = {
   id: 'vp_promo_bar',
   name: 'Top Announcement Bar',
   description: 'Displays a high-visibility notification bar above the main menu.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   render: (location: PluginLocation, props?: any) => {
     if (location !== 'header_top') return null;

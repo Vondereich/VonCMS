@@ -7,6 +7,7 @@ import { SiteSettings, Page } from '../types';
 import { API, BASE_PATH } from '../config/site.config';
 import { getAuthHeader } from '../config/auth.config';
 import { vonFetch } from '../utils/api';
+import { normalizeArticleSchemaType } from '../utils/articleSchema';
 import toast from 'react-hot-toast';
 
 // Initial Settings
@@ -41,6 +42,9 @@ const INITIAL_SETTINGS: SiteSettings = {
     },
     storage: { location: 'local', folderStructure: 'year_month', cdnUrl: '' },
     performance: { lazyLoadImages: true, lazyLoadIframes: true },
+  },
+  seo: {
+    articleSchemaType: normalizeArticleSchemaType(_s?.seo?.articleSchemaType),
   },
   sidebarLayout: [{ id: 'w1', type: 'trending', title: 'Latest Stories', isVisible: true }],
   navigation: [{ id: 'nav1', label: 'Home', url: 'home', type: 'internal' }],

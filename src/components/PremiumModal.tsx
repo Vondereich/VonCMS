@@ -57,7 +57,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ open, onClose, themeColor, 
         <div className="flex items-start justify-between gap-3">
           <div>
             {cfg.showBadge && (
-              <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-sm">
+              <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-xs">
                 {cfg.badgeText || 'Premium'}
               </span>
             )}
@@ -68,7 +68,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ open, onClose, themeColor, 
           {cfg.showClose && (
             <button
               onClick={onClose}
-              className="ml-4 -mr-2 p-2 rounded-md bg-white/90 hover:bg-white dark:bg-slate-800 shadow-sm"
+              className="ml-4 -mr-2 p-2 rounded-md bg-white/90 hover:bg-white dark:bg-slate-800 shadow-xs"
               aria-label="Close dialog"
             >
               <X size={18} />
@@ -83,12 +83,12 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ open, onClose, themeColor, 
           ) : (
             <div className="flex gap-3">
               <button
-                className="flex-1 text-white py-2 rounded-sm font-semibold"
+                className="flex-1 text-white py-2 rounded-xs font-semibold"
                 style={{ background: themeColor || cfg.themeColor || '#0ea5ff' }}
               >
                 {cfg.buttonLogin}
               </button>
-              <button className="flex-1 border border-slate-200 text-slate-800 py-2 rounded-sm">
+              <button className="flex-1 border border-slate-200 text-slate-800 py-2 rounded-xs">
                 {cfg.buttonRegister}
               </button>
             </div>

@@ -16,8 +16,6 @@ import SmartPagination from '../../../../components/SmartPagination';
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -213,13 +211,16 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
     }));
   }, [stats]);
 
-  const barData = useMemo(() => {
+  const sourceData = useMemo(() => {
     if (!stats?.top_ips) return [];
-    return stats.top_ips.map((item) => ({
-      name: item.ip_address,
-      attempts: item.count,
+    return stats.top_ips.slice(0, 10).map((item, index) => ({
+      rank: index + 1,
+      address: item.ip_address,
+      attempts: Math.max(0, Number(item.count) || 0),
+      isLocalhost: item.ip_address === '::1' || item.ip_address === '127.0.0.1',
     }));
   }, [stats]);
+  const highestSourceCount = Math.max(1, ...sourceData.map((item) => item.attempts));
 
   return (
     <div className="space-y-6 animate-fade-in p-2">
@@ -363,7 +364,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           color="bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
         />
         <StatCard
-          title="Top Attacker IP"
+          title="Most Active Source"
           value={stats?.top_attacker || 'None'}
           icon={<AlertOctagon size={24} />}
           color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
@@ -374,7 +375,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Line Chart - Trends */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm">
+        <div className="lg:col-span-2 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-xs">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
             Threat Trends (Last 7 Days)
           </h3>
@@ -420,7 +421,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         </div>
 
         {/* Pie Chart - Distribution */}
-        <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm">
+        <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-xs">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
             Attack Distribution
           </h3>
@@ -455,35 +456,64 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         </div>
       </div>
 
-      {/* Charts Row 2 - Top Attackers */}
-      <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Top 10 Source IPs</h3>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={barData} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                horizontal={true}
-                vertical={false}
-                strokeOpacity={0.1}
-              />
-              <XAxis type="number" hide />
-              <YAxis
-                dataKey="name"
-                type="category"
-                width={110}
-                tick={{ fontSize: 12 }}
-                stroke="#94a3b8"
-              />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-              <Bar dataKey="attempts" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Top source ranking */}
+      <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-xs">
+        <div className="mb-2 flex items-baseline justify-between gap-4">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-white">Top Source IPs</h3>
+          <span className="text-xs text-slate-400">By recorded security events</span>
         </div>
+        {sourceData.length > 0 ? (
+          <div className="divide-y divide-slate-100 dark:divide-white/10">
+            {sourceData.map((source) => (
+              <div
+                key={`${source.address}-${source.rank}`}
+                className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 py-3"
+              >
+                <span className="text-sm font-semibold text-slate-400 tabular-nums">
+                  {source.rank}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <span
+                      className="truncate font-mono text-sm font-semibold text-slate-700 dark:text-slate-200"
+                      title={source.address}
+                    >
+                      {source.address}
+                    </span>
+                    {source.isLocalhost && (
+                      <span className="shrink-0 text-xs text-slate-400">Localhost</span>
+                    )}
+                  </div>
+                  <div
+                    className="mt-2 h-1.5 w-full max-w-3xl overflow-hidden rounded-full bg-slate-100 dark:bg-white/10"
+                    aria-hidden="true"
+                  >
+                    <div
+                      className="h-full rounded-full bg-red-500"
+                      style={{
+                        width: `${Math.max(6, (source.attempts / highestSourceCount) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="min-w-16 text-right">
+                  <span className="block text-sm font-bold tabular-nums text-slate-800 dark:text-white">
+                    {source.attempts}
+                  </span>
+                  <span className="block text-xs text-slate-400">
+                    {source.attempts === 1 ? 'event' : 'events'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-slate-400">No source data available</div>
+        )}
       </div>
 
       {/* Live Logs Table */}
-      <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-200 dark:border-white/10 flex flex-col md:flex-row justify-between gap-4">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
             <Activity size={18} className="text-blue-500" /> Live Security Event Log
@@ -499,7 +529,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 placeholder="Search IP or endpoint..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg w-full md:w-64 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg w-full md:w-64 focus:ring-2 focus:ring-blue-500 outline-hidden"
               />
               <Search className="absolute left-2.5 top-1.5 text-slate-400" size={14} />
             </div>
@@ -513,7 +543,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 setFilterType(e.target.value);
                 setPage(1);
               }}
-              className="bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg px-3 py-1.5 outline-none"
+              className="bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg px-3 py-1.5 outline-hidden"
             >
               <option value="">All Events</option>
               {Object.keys(COLORS).map((type) => (
@@ -596,11 +626,11 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                     </td>
                     <td className="px-5 py-3">
                       {log.blocked ? (
-                        <span className="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 px-2 py-0.5 rounded text-xs font-bold border border-red-100 dark:border-red-800">
+                        <span className="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 px-2 py-0.5 rounded-sm text-xs font-bold border border-red-100 dark:border-red-800">
                           BLOCKED
                         </span>
                       ) : (
-                        <span className="bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 px-2 py-0.5 rounded text-xs font-bold border border-yellow-100 dark:border-yellow-800">
+                        <span className="bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 px-2 py-0.5 rounded-sm text-xs font-bold border border-yellow-100 dark:border-yellow-800">
                           WARNING
                         </span>
                       )}
@@ -636,7 +666,7 @@ const StatCard: React.FC<{
   isText?: boolean;
   animate?: boolean;
 }> = ({ title, value, icon, color, isText, animate }) => (
-  <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+  <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 p-5 rounded-xl shadow-xs hover:shadow-md transition-shadow">
     <div className="flex justify-between items-start mb-2">
       <div className={`p-2.5 rounded-lg ${color} ${animate ? 'animate-pulse' : ''}`}>{icon}</div>
     </div>

@@ -116,7 +116,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
       <div className="bg-white dark:bg-[#1a1b26] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-white dark:bg-[#1a1b26] z-10">
@@ -204,7 +204,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                         onChange={(e) =>
                           setTempSettings({ ...tempSettings, showServices: e.target.checked })
                         }
-                        className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="w-5 h-5 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Show Services Section
@@ -219,7 +219,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                         onChange={(e) =>
                           setTempSettings({ ...tempSettings, showPosts: e.target.checked })
                         }
-                        className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="w-5 h-5 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Show Latest Posts / Blog Section
@@ -452,7 +452,7 @@ const InputField = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
     />
   </div>
 );
@@ -482,7 +482,7 @@ const TextAreaField = ({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
+      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden resize-none transition-all"
     />
   </div>
 );
@@ -509,9 +509,9 @@ const ImagePickerField = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://..."
-        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
       />
-      <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-100 dark:bg-[#1a1b26] overflow-hidden flex-shrink-0">
+      <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-100 dark:bg-[#1a1b26] overflow-hidden shrink-0">
         <SafeImage
           src={value}
           className="w-full h-full object-cover"

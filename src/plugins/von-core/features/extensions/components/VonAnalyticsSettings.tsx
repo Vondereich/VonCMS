@@ -45,10 +45,10 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
       <div className="bg-white dark:bg-[#16161e] w-full max-w-4xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <BarChart3 className="text-blue-600" size={28} />
@@ -71,7 +71,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
           {/* Native Analytics Info */}
           <div className="p-4 rounded-lg border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
             <div className="flex items-start gap-3">
-              <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+              <CheckCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
               <div>
                 <h3 className="font-bold mb-1 text-blue-900 dark:text-blue-300">
                   Native Tracking Active
@@ -115,7 +115,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                 onChange={(e) =>
                   setTempAnalytics({ ...tempAnalytics, cookieConsent: e.target.checked })
                 }
-                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
               />
               <div className="flex-1">
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">

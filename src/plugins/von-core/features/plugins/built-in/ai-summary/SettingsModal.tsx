@@ -46,10 +46,10 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
       <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-[#2a2b36]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
           <div>
             <h3 className="text-2xl font-bold text-slate-800 dark:text-white">
               AI Summary Settings
@@ -84,7 +84,7 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
                   extractMethod: e.target.value as AISummaryConfig['extractMethod'],
                 })
               }
-              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
             >
               <option value="hybrid">Smart (Hybrid) - Recommended</option>
               <option value="headings">Headings Only (H2, H3)</option>
@@ -175,7 +175,7 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
                 value={config.labelText}
                 onChange={(e) => setConfig({ ...config, labelText: e.target.value })}
                 placeholder="AI Summary"
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
               />
             </div>
           )}

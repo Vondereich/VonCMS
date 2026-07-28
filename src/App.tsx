@@ -8,7 +8,7 @@ import {
   useParams,
   Navigate,
   useSearchParams,
-} from 'react-router-dom';
+} from 'react-router';
 import toast, { Toaster } from 'react-hot-toast';
 import { Post, Page } from './types';
 import { VonProviders } from './plugins/von-core/providers/VonProviders';
@@ -103,6 +103,11 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
     injectedState?.status === 'loaded' && injectedState?.contentType === 'page'
       ? (injectedState.page as Page | null)
       : null;
+  const hintedPageSlug =
+    location.state?.publicContentType === 'page' &&
+    typeof location.state?.publicContentSlug === 'string'
+      ? location.state.publicContentSlug
+      : null;
 
   if (id) {
     currentView = 'single-post';
@@ -124,6 +129,9 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
       } else if (injectedPage?.slug === slug) {
         selectedPage = injectedPage;
         currentView = 'page';
+      } else if (hintedPageSlug === slug) {
+        currentView = 'page';
+        pageSlugToFetch = slug;
       } else {
         // Hydration Logic: Don't assume 404. Check if PHP confirmed Not Found.
         const injectedStatus = injectedState?.status;
@@ -410,7 +418,12 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
             }
 
             if (targetPage?.slug) {
-              navigate(`/${targetPage.slug}`);
+              navigate(`/${targetPage.slug}`, {
+                state: {
+                  publicContentType: 'page',
+                  publicContentSlug: targetPage.slug,
+                },
+              });
               return;
             }
 
@@ -450,7 +463,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
       {isQuickEditOpen && quickEditItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-fade-in">
           <div className="flex h-[95vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   Quick Edit {quickEditIsPage ? 'Page' : 'Post'}

@@ -109,7 +109,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
             >
               {config.showImage && post.image && (
                 <div
-                  className="aspect-[16/9] overflow-hidden"
+                  className="aspect-video overflow-hidden"
                   style={{ backgroundColor: themeColors?.surfaceAlt || undefined }}
                 >
                   <img
@@ -166,7 +166,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
             >
               {config.showImage && post.image && (
                 <div
-                  className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden"
+                  className="w-24 h-24 shrink-0 rounded-lg overflow-hidden"
                   style={{ backgroundColor: themeColors?.surfaceAlt || undefined }}
                 >
                   <img
@@ -220,7 +220,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
             >
               {config.showImage && post.image && (
                 <div
-                  className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden shadow-md"
+                  className="w-32 h-32 shrink-0 rounded-lg overflow-hidden shadow-md"
                   style={{ backgroundColor: themeColors?.surfaceAlt || undefined }}
                 >
                   <img

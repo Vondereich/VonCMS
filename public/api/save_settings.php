@@ -263,6 +263,23 @@ if (array_key_exists('pluginConfig', $settings)) {
   }
 }
 
+if (array_key_exists('seo', $settings)) {
+  if (!is_array($settings['seo'])) {
+    ResponseHelper::sendError('Invalid SEO configuration.', 400);
+  }
+
+  if (array_key_exists('articleSchemaType', $settings['seo'])) {
+    $articleSchemaType = $settings['seo']['articleSchemaType'];
+    $allowedArticleSchemaTypes = ['Article', 'NewsArticle', 'BlogPosting'];
+    if (
+      !is_string($articleSchemaType) ||
+      !in_array($articleSchemaType, $allowedArticleSchemaTypes, true)
+    ) {
+      ResponseHelper::sendError('Invalid article schema type.', 400);
+    }
+  }
+}
+
 // Remove metadata fields
 unset($settings['_source'], $settings['_access_level'], $settings['_warning']);
 

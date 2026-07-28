@@ -226,7 +226,7 @@ const DatabaseManager: React.FC = () => {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header Area */}
-      <div className="flex justify-between items-center bg-white dark:bg-[#1a1b26] p-4 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-sm">
+      <div className="flex justify-between items-center bg-white dark:bg-[#1a1b26] p-4 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs">
         <div className="flex items-center gap-3">
           <div
             className={`p-2 rounded-lg ${isConnected ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
@@ -271,18 +271,18 @@ const DatabaseManager: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-grow flex flex-col lg:flex-row gap-6 h-full min-h-[500px]">
+      <div className="grow flex flex-col lg:flex-row gap-6 h-full min-h-[500px]">
         {/* LEFT SIDEBAR: DB List */}
         <div className="lg:w-1/3 flex flex-col gap-6">
           {/* Database List Box */}
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl border border-slate-200 dark:border-[#2a2b36] flex-grow flex flex-col overflow-hidden shadow-sm">
+          <div className="bg-white dark:bg-[#1a1b26] rounded-xl border border-slate-200 dark:border-[#2a2b36] grow flex flex-col overflow-hidden shadow-xs">
             <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tables</h3>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                 Read-only
               </span>
             </div>
-            <div className="overflow-y-auto flex-grow p-2 space-y-1">
+            <div className="overflow-y-auto grow p-2 space-y-1">
               {databases.map((db) => (
                 <div
                   key={db}
@@ -297,7 +297,7 @@ const DatabaseManager: React.FC = () => {
                     <span className="text-sm font-medium">{db}</span>
                   </div>
                   {selectedDb === db && (
-                    <span className="text-[10px] font-bold bg-blue-200 dark:bg-blue-800 px-1.5 rounded text-blue-800 dark:text-blue-100">
+                    <span className="text-[10px] font-bold bg-blue-200 dark:bg-blue-800 px-1.5 rounded-sm text-blue-800 dark:text-blue-100">
                       SELECTED
                     </span>
                   )}
@@ -332,7 +332,7 @@ const DatabaseManager: React.FC = () => {
                 aria-label="Text Content"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="absolute inset-0 w-full h-full bg-[#101018]/50 text-emerald-400 font-mono p-6 text-sm focus:outline-none resize-none placeholder-slate-700 selection:bg-emerald-500/20"
+                className="absolute inset-0 w-full h-full bg-[#101018]/50 text-emerald-400 font-mono p-6 text-sm focus:outline-hidden resize-none placeholder-slate-700 selection:bg-emerald-500/20"
                 spellCheck={false}
                 placeholder="-- Write your SQL query here..."
               />
@@ -395,7 +395,7 @@ const DatabaseManager: React.FC = () => {
               {result ? (
                 <div className="min-w-full inline-block align-middle">
                   <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-left">
-                    <thead className="bg-white dark:bg-[#101018] sticky top-0 z-10 shadow-sm">
+                    <thead className="bg-white dark:bg-[#101018] sticky top-0 z-10 shadow-xs">
                       <tr>
                         {result.headers?.map((h) => (
                           <th

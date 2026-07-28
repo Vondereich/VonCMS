@@ -43,7 +43,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
   ];
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
+    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
       <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-[#2a2b36] pb-2">
         Permalink Settings
       </h3>
@@ -65,7 +65,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
               onChange={() => onChange('permalinkStructure', opt.id)}
               className="w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300"
             />
-            <div className="ml-4 flex-grow">
+            <div className="ml-4 grow">
               <div className="flex items-center gap-2">
                 <span className="block text-sm font-medium text-slate-900 dark:text-white">
                   {opt.label}
@@ -79,7 +79,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
               <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {opt.description}
               </span>
-              <code className="block text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-slate-100 dark:bg-[#16161e] px-2 py-1 rounded">
+              <code className="block text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-slate-100 dark:bg-[#16161e] px-2 py-1 rounded-sm">
                 {opt.example}
               </code>
             </div>

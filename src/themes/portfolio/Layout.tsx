@@ -53,7 +53,7 @@ const Lightbox: React.FC<{ src: string; alt: string; onClose: () => void }> = ({
   onClose,
 }) => (
   <div
-    className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]"
+    className="fixed inset-0 z-100 bg-black/95 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]"
     onClick={onClose}
   >
     <button
@@ -427,7 +427,7 @@ const HeroSplit = ({
         />
       )}
       {/* Decorative shapes */}
-      <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/20 to-transparent" />
+      <div className="absolute bottom-0 left-0 w-full h-32 bg-linear-to-t from-black/20 to-transparent" />
     </div>
   </section>
 );
@@ -470,7 +470,7 @@ const ProjectCard = ({ project, colors, settings, siteSettings, index, onClick }
       onClick={() => onClick(project.id)}
     >
       {/* Image */}
-      <div className="relative aspect-[4/3] overflow-hidden">
+      <div className="relative aspect-4/3 overflow-hidden">
         {project.image ? (
           <img
             {...getResponsiveImageAttributes(project, 'card')}
@@ -504,7 +504,7 @@ const ProjectCard = ({ project, colors, settings, siteSettings, index, onClick }
 
         {/* View icon on hover */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center">
             <svg
               className="w-6 h-6 text-white"
               fill="none"
@@ -1105,7 +1105,7 @@ const SingleProject = ({
       {/* Back button - Floating */}
       <button
         onClick={onBack}
-        className="fixed top-24 left-6 z-20 flex items-center gap-2 px-4 py-2 rounded-full text-white bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors"
+        className="fixed top-24 left-6 z-20 flex items-center gap-2 px-4 py-2 rounded-full text-white bg-black/30 backdrop-blur-xs hover:bg-black/50 transition-colors"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1274,7 +1274,7 @@ const SinglePage = ({ page, colors, onBack }: any) => (
       {/* Back button */}
       <button
         onClick={onBack}
-        className="absolute top-24 left-6 flex items-center gap-2 px-4 py-2 rounded-full text-white bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-colors z-10"
+        className="absolute top-24 left-6 flex items-center gap-2 px-4 py-2 rounded-full text-white bg-black/30 backdrop-blur-xs hover:bg-black/50 transition-colors z-10"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1428,7 +1428,7 @@ const PortfolioProfile = ({
     <div className="flex-1 py-24 px-6 min-h-screen">
       {/* Edit Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in">
           <div className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden relative">
             <button
               onClick={() => setIsEditing(false)}
@@ -1460,7 +1460,7 @@ const PortfolioProfile = ({
                     type="text"
                     value={editDisplayName}
                     onChange={(e) => setEditDisplayName(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
                     style={{ color: colors.text }}
                     placeholder="Public author name"
                   />
@@ -1480,7 +1480,7 @@ const PortfolioProfile = ({
                       type="text"
                       value={editAvatar}
                       onChange={(e) => setEditAvatar(e.target.value)}
-                      className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
                       style={{ color: colors.text }}
                       placeholder="https://..."
                     />
@@ -1504,7 +1504,7 @@ const PortfolioProfile = ({
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
                     rows={4}
-                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none"
+                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 outline-hidden focus:ring-2 focus:ring-purple-500 transition-all resize-none"
                     style={{ color: colors.text }}
                     placeholder="Write a short bio..."
                   />
@@ -1535,7 +1535,7 @@ const PortfolioProfile = ({
                           id="layout-1449"
                           name="layout1449"
                           type="password"
-                          className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-purple-500 transition-all font-sans"
+                          className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-2 outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-sans"
                           style={{ color: colors.text }}
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
@@ -1553,7 +1553,7 @@ const PortfolioProfile = ({
                           name="8CharsUpperNumberSymbol"
                           aria-label="8+ chars, Upper, Number, Symbol"
                           type="password"
-                          className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-purple-500 transition-all font-sans"
+                          className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-2 outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-sans"
                           placeholder="8+ chars, Upper, Number, Symbol"
                           style={{ color: colors.text }}
                           value={newPassword}
@@ -1572,7 +1572,7 @@ const PortfolioProfile = ({
                           name="layout1480"
                           aria-label="Confirm Password"
                           type="password"
-                          className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-purple-500 transition-all font-sans"
+                          className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-2 outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-sans"
                           style={{ color: colors.text }}
                           value={confirmNewPassword}
                           onChange={(e) => setConfirmNewPassword(e.target.value)}

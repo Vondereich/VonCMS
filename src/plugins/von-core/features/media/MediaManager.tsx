@@ -347,10 +347,10 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       {lightboxIndex !== null &&
         filteredMedia[lightboxIndex] &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] bg-black/80 dark:bg-black/90 backdrop-blur-md flex items-center justify-center animate-fade-in p-4 md:p-8">
+          <div className="fixed inset-0 z-9999 bg-black/80 dark:bg-black/90 backdrop-blur-md flex items-center justify-center animate-fade-in p-4 md:p-8">
             <button
               onClick={() => setLightboxIndex(null)}
-              className="absolute top-6 right-6 text-white/50 hover:text-white p-2 hover:bg-white/10 rounded-full transition-all z-[100] bg-black/20"
+              className="absolute top-6 right-6 text-white/50 hover:text-white p-2 hover:bg-white/10 rounded-full transition-all z-100 bg-black/20"
             >
               <X size={32} />
             </button>
@@ -465,7 +465,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                 </div>
 
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-                  <div className="text-slate-600 dark:text-white/70 text-sm font-medium bg-white/80 dark:bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 dark:border-white/10 shadow-sm">
+                  <div className="text-slate-600 dark:text-white/70 text-sm font-medium bg-white/80 dark:bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 dark:border-white/10 shadow-xs">
                     {lightboxIndex + 1} / {filteredMedia.length}
                   </div>
                 </div>
@@ -514,7 +514,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       type="text"
                       value={editMeta.alt}
                       onChange={(e) => setEditMeta({ ...editMeta, alt: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all placeholder:text-slate-400"
                       placeholder="Alternative text..."
                     />
                   </div>
@@ -531,7 +531,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       rows={3}
                       value={editMeta.caption}
                       onChange={(e) => setEditMeta({ ...editMeta, caption: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none placeholder:text-slate-400"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all resize-none placeholder:text-slate-400"
                       placeholder="Brief description underneath..."
                     />
                   </div>
@@ -548,7 +548,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       rows={4}
                       value={editMeta.desc}
                       onChange={(e) => setEditMeta({ ...editMeta, desc: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none placeholder:text-slate-400"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all resize-none placeholder:text-slate-400"
                       placeholder="Long notes or details..."
                     />
                   </div>
@@ -633,7 +633,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       )}
 
       {/* Toolbar */}
-      <div className="bg-white dark:bg-[#1a1b26] p-4 rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] flex flex-col md:flex-row gap-4 justify-between items-center">
+      <div className="bg-white dark:bg-[#1a1b26] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="flex items-center gap-4 w-full md:w-auto">
           {/* Select All Checkbox */}
           <button
@@ -678,7 +678,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               maxLength={120}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-10 pr-20 py-2 border rounded-lg bg-slate-50 dark:bg-[#16161e] border-slate-200 dark:border-[#2a2b36] text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+              className="w-full pl-10 pr-20 py-2 border rounded-lg bg-slate-50 dark:bg-[#16161e] border-slate-200 dark:border-[#2a2b36] text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
             />
             <button
               type="submit"
@@ -691,13 +691,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#242633] p-1 rounded-lg">
           <button
             onClick={() => setViewMode('grid')}
-            className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`p-2 rounded-sm ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-xs text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Grid size={18} />
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`p-2 rounded ${viewMode === 'list' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`p-2 rounded-sm ${viewMode === 'list' ? 'bg-white dark:bg-slate-600 shadow-xs text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <ListIcon size={18} />
           </button>
@@ -745,7 +745,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                   {/* Checkbox */}
                   <button
                     onClick={(e) => toggleSelection(item.id, e)}
-                    className={`absolute top-2 left-2 z-10 p-1 rounded ${selectedItems.has(item.id) ? 'bg-blue-500 text-white' : 'bg-black/40 text-white opacity-0 group-hover:opacity-100'} transition-all`}
+                    className={`absolute top-2 left-2 z-10 p-1 rounded-sm ${selectedItems.has(item.id) ? 'bg-blue-500 text-white' : 'bg-black/40 text-white opacity-0 group-hover:opacity-100'} transition-all`}
                   >
                     {selectedItems.has(item.id) ? <CheckSquare size={18} /> : <Square size={18} />}
                   </button>
@@ -772,7 +772,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               ))}
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+            <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 dark:bg-[#16161e] border-b border-slate-200 dark:border-[#2a2b36] font-medium text-slate-500">
                   <tr>
@@ -833,7 +833,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                               e.stopPropagation();
                               handleDelete([item.id]);
                             }}
-                            className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded transition mr-2"
+                            className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-sm transition mr-2"
                             title="Delete Selected"
                           >
                             <Trash2 size={16} />
@@ -860,7 +860,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         {/* Sidebar Details */}
         {/* Details Sidebar */}
         {selectedItems.size > 0 ? (
-          <div className="lg:col-span-1 bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 sticky top-6">
+          <div className="lg:col-span-1 bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 sticky top-6">
             <h3 className="font-bold text-lg mb-4 dark:text-white">File Details</h3>
             {selectedItems.size === 1 ? (
               (() => {
@@ -890,7 +890,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         id="alternative-text-for-accessibility"
                         name="alternativeTextForAccessibility"
                         type="text"
-                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
                         placeholder="Alternative text for accessibility"
                         maxLength={255}
                         value={editMeta.alt}
@@ -910,7 +910,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         name="imageCaption"
                         aria-label="Image caption..."
                         rows={2}
-                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
                         placeholder="Image caption..."
                         maxLength={5000}
                         value={editMeta.caption}
@@ -929,7 +929,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         id="long-description"
                         name="longDescription"
                         rows={3}
-                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
                         placeholder="Long description..."
                         maxLength={10000}
                         value={editMeta.desc}
@@ -940,7 +940,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     <button
                       onClick={handleUpdateMeta}
                       disabled={metaLoading}
-                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors disabled:opacity-50"
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm font-medium transition-colors disabled:opacity-50"
                     >
                       {metaLoading ? 'Saving...' : 'Save Meta Info'}
                     </button>
@@ -985,14 +985,14 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                             aria-label="Media URL"
                             readOnly
                             value={item.url}
-                            className="flex-1 bg-slate-100 dark:bg-[#16161e] border border-slate-300 dark:border-[#333544] rounded px-2 py-1 select-all text-slate-600 dark:text-slate-300"
+                            className="flex-1 bg-slate-100 dark:bg-[#16161e] border border-slate-300 dark:border-[#333544] rounded-sm px-2 py-1 select-all text-slate-600 dark:text-slate-300"
                           />
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(item.url);
                               toast.success('Copied!');
                             }}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-[#242633] rounded text-slate-600 dark:text-slate-300"
+                            className="p-1 hover:bg-slate-200 dark:hover:bg-[#242633] rounded-sm text-slate-600 dark:text-slate-300"
                             title="Copy URL"
                           >
                             <Copy size={14} />

@@ -286,9 +286,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   const labelClass =
     'mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400';
   const inputClass =
-    'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-[#1a1b26] focus:ring-4 focus:ring-slate-500/10 dark:border-[#333544] dark:bg-[#101018] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+    'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#1a1b26] focus:ring-4 focus:ring-slate-500/10 dark:border-[#333544] dark:bg-[#101018] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
   const iconInputClass =
-    'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-[#1a1b26] focus:ring-4 focus:ring-slate-500/10 dark:border-[#333544] dark:bg-[#101018] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+    'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#1a1b26] focus:ring-4 focus:ring-slate-500/10 dark:border-[#333544] dark:bg-[#101018] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
   const headerIcon =
     view === 'login' ? (
       <LogIn size={28} />
@@ -434,7 +434,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#1a1b26] focus:ring-slate-500"
+                  className="h-4 w-4 cursor-pointer rounded-sm border-slate-300 text-[#1a1b26] focus:ring-slate-500"
                 />
                 <label
                   htmlFor="remember-me"

@@ -60,7 +60,7 @@ export const THEME_DEFAULT: ThemeDefinition = {
   id: 'theme-default',
   name: 'VonCMS Default',
   description: 'The standard clean and modern theme.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   performance: readThemePerformance(defaultManifest),
   config: {
@@ -107,7 +107,7 @@ export const THEME_PRISM: ThemeDefinition = {
   id: 'theme-prism',
   name: 'Von Prism',
   description: 'Futuristic, vibrant, techy, colorful accents.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   performance: readThemePerformance(prismManifest),
   config: {
@@ -153,7 +153,7 @@ export const THEME_TECHPRESS: ThemeDefinition = {
   id: 'theme-techpress',
   name: 'Von TechPress',
   description: 'Professional tech news portal with breaking news ticker.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   performance: readThemePerformance(techpressManifest),
   config: {
@@ -200,7 +200,7 @@ export const THEME_PORTFOLIO: ThemeDefinition = {
   id: 'theme-portfolio',
   name: 'Von Portfolio',
   description: 'Stunning single-page portfolio showcase for creatives.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   performance: readThemePerformance(portfolioManifest),
   config: {
@@ -247,7 +247,7 @@ export const THEME_DIGEST: ThemeDefinition = {
   id: 'theme-digest',
   name: 'Von Digest',
   description: 'Modern magazine theme with category filtering and hero section.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   performance: readThemePerformance(digestManifest),
   config: {
@@ -294,7 +294,7 @@ export const THEME_CORPORATE_PRO: ThemeDefinition = {
   id: 'theme-corporate-pro',
   name: 'Corporate Pro',
   description: 'Professional business theme with hero, services, and CTA sections.',
-  version: '1.25',
+  version: '1.26',
   author: 'VonCMS Team',
   performance: readThemePerformance(corporateProManifest),
   config: {

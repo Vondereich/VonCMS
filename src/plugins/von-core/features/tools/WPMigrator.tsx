@@ -325,7 +325,7 @@ export const WPMigrator: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] p-6 animate-fade-in max-w-3xl mx-auto">
+    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 animate-fade-in max-w-3xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
           <Upload size={24} />
@@ -403,7 +403,7 @@ export const WPMigrator: React.FC = () => {
                 type="checkbox"
                 checked={safetyChecked}
                 onChange={(e) => setSafetyChecked(e.target.checked)}
-                className="mt-1 w-4 h-4 text-blue-600 rounded border-slate-300"
+                className="mt-1 w-4 h-4 text-blue-600 rounded-sm border-slate-300"
               />
               <span className="text-sm text-slate-700 dark:text-slate-300">
                 I confirm that I have <strong>backed up my current database</strong>. I understand

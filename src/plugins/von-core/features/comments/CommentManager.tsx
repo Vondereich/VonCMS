@@ -88,12 +88,12 @@ const CommentManager: React.FC<CommentManagerProps> = ({
             setSearchQuery(e.target.value);
             setCurrentPage(1);
           }}
-          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-xl focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:text-white"
         />
       </div>
 
       {/* Comments Table */}
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-sm border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-slate-50 dark:bg-[#16161e]/50 text-xs uppercase text-slate-500 font-medium">
             <tr>
@@ -114,7 +114,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       {comment.isReply && <CornerDownRight size={14} className="text-slate-400" />}
-                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden shrink-0">
                         {comment.userAvatar ? (
                           <img
                             src={comment.userAvatar}
@@ -138,7 +138,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
                     </p>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-xs text-slate-500 bg-slate-100 dark:bg-[#242633] px-2 py-1 rounded">
+                    <span className="text-xs text-slate-500 bg-slate-100 dark:bg-[#242633] px-2 py-1 rounded-sm">
                       {comment.postId || 'Unknown'}
                     </span>
                   </td>
@@ -150,7 +150,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
                       {onApproveComment && (
                         <button
                           onClick={() => onApproveComment(comment.id)}
-                          className="p-2 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                          className="p-2 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-sm transition-colors"
                           title="Approve"
                         >
                           <Check size={16} />
@@ -158,7 +158,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
                       )}
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={16} />

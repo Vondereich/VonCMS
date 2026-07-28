@@ -28,6 +28,8 @@ if (!defined('VONCMS_UPDATER_TESTING')) {
 
 class SystemUpdater
 {
+  private const REPLACE_ON_UPDATE_DIRECTORIES = ['docs'];
+
   /** @var string */
   private $rootPath;
 
@@ -833,6 +835,16 @@ class SystemUpdater
         if ($item === '.' || $item === '..') {
           continue;
         }
+        if (in_array($item, self::REPLACE_ON_UPDATE_DIRECTORIES, true)) {
+          $this->activateManagedReleaseDirectory(
+            $stageRoot . '/' . $item,
+            $this->rootPath . '/' . $item,
+            $rollbackRoot,
+            $journal,
+            $activationCount,
+          );
+          continue;
+        }
         $this->activateStagedPath(
           $stageRoot . '/' . $item,
           $this->rootPath . '/' . $item,
@@ -898,6 +910,30 @@ class SystemUpdater
         @rename($previousPath, $destinationPath);
       }
       throw new Exception('Could not activate update file: ' . basename($destinationPath));
+    }
+
+    $this->recordActivation($journal, $destinationPath, $previousPath, $activationCount);
+  }
+
+  private function activateManagedReleaseDirectory(
+    string $stagedPath,
+    string $destinationPath,
+    string $rollbackRoot,
+    array &$journal,
+    int &$activationCount,
+  ): void {
+    if (!is_dir($stagedPath) || is_link($stagedPath)) {
+      throw new Exception('Managed release directory is missing from the update payload.');
+    }
+
+    $previousPath = $this->moveDestinationAside($destinationPath, $rollbackRoot, count($journal));
+    if (!@rename($stagedPath, $destinationPath)) {
+      if ($previousPath !== null && $this->pathExists($previousPath)) {
+        @rename($previousPath, $destinationPath);
+      }
+      throw new Exception(
+        'Could not activate managed release directory: ' . basename($destinationPath),
+      );
     }
 
     $this->recordActivation($journal, $destinationPath, $previousPath, $activationCount);
@@ -1037,6 +1073,7 @@ class SystemUpdater
     if (
       in_array('assets', $filtered, true) &&
       in_array('api', $filtered, true) &&
+      in_array('docs', $filtered, true) &&
       in_array('index.html', $filtered, true) &&
       in_array('metadata.json', $filtered, true)
     ) {

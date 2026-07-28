@@ -30,7 +30,7 @@ export const AISummaryComponent: React.FC<AISummaryComponentProps> = ({ config, 
       <ul className="space-y-4">
         {summaryPoints.map((point, index) => (
           <li key={index} className="flex items-start gap-4">
-            <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-slate-400 dark:bg-slate-500" />
+            <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500" />
             <p className="flex-1 text-[15px] leading-7 text-slate-700 dark:text-slate-200">
               {point.text}
             </p>

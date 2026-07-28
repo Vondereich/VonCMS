@@ -20,6 +20,10 @@ import {
 } from 'lucide-react';
 import { RedirectManager } from './RedirectManager';
 import { vonFetch } from '../../../../../utils/api';
+import {
+  ARTICLE_SCHEMA_TYPES,
+  normalizeArticleSchemaType,
+} from '../../../../../utils/articleSchema';
 
 interface VonSEOSettingsProps {
   settings: SiteSettings;
@@ -125,6 +129,7 @@ Disallow: /`;
 
   const initialSEO = {
     sitemapEnabled: settings.seo?.sitemapEnabled ?? true,
+    articleSchemaType: normalizeArticleSchemaType(settings.seo?.articleSchemaType),
     robotsTxt: normalizeRobotsRules(
       settings.seo?.robotsTxt && !isLegacyVonCmsRobotsPolicy(settings.seo.robotsTxt)
         ? settings.seo.robotsTxt
@@ -234,10 +239,10 @@ Disallow: /`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
       <div className="bg-white dark:bg-[#16161e] w-full max-w-5xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Search className="text-blue-600" size={28} />
@@ -310,7 +315,7 @@ Disallow: /`;
                   type="text"
                   value={settings.siteName || ''}
                   readOnly
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-none transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set this in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
@@ -331,7 +336,7 @@ Disallow: /`;
                   rows={4}
                   value={settings.siteDescription || ''}
                   readOnly
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 resize-none cursor-not-allowed outline-none transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 resize-none cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set this in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
@@ -346,7 +351,7 @@ Disallow: /`;
             <div className="space-y-6">
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                  <CheckCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
                   <div>
                     <h3 className="font-bold text-blue-900 dark:text-blue-300 mb-1">
                       Auto-Generated Social Tags
@@ -397,7 +402,7 @@ Disallow: /`;
                   type="url"
                   value={settings.domainUrl || settings.siteUrl || ''}
                   readOnly
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-none transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set the Domain URL in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
@@ -415,7 +420,7 @@ Disallow: /`;
                     type="checkbox"
                     checked={tempSEO.sitemapEnabled}
                     onChange={(e) => setTempSEO({ ...tempSEO, sitemapEnabled: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
                   />
                   <div>
                     <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
@@ -473,7 +478,7 @@ Disallow: /`;
                       robotsTxt: normalizeRobotsRules(e.target.value, false),
                     })
                   }
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
                   placeholder="User-agent: *&#10;Disallow:"
                 />
                 <div className="flex justify-between items-center">
@@ -487,7 +492,7 @@ Disallow: /`;
                         setTempSEO({ ...tempSEO, robotsTxt: defaultRobots });
                         toast.success('Robots.txt reset to recommended rules!');
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded transition-colors"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-sm transition-colors"
                     >
                       <RefreshCcw size={12} />
                       Reset to Recommended
@@ -496,7 +501,7 @@ Disallow: /`;
                 </div>
                 {basePathPrefix && (
                   <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-lg p-3 flex items-start gap-2">
-                    <AlertCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={14} />
+                    <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={14} />
                     <p className="text-xs text-amber-800 dark:text-amber-400">
                       This is a subfolder install. Search crawlers only recognize the host-root
                       /robots.txt, so configure the parent domain to serve this policy or reference
@@ -506,7 +511,7 @@ Disallow: /`;
                 )}
                 {tempSEO.robotsTxt.trim() === 'User-agent: *\nDisallow:' && (
                   <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-lg p-3 mt-2 flex items-start gap-2">
-                    <AlertCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={14} />
+                    <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={14} />
                     <p className="text-xs text-amber-800 dark:text-amber-400">
                       Legacy robots.txt detected. Reset to the recommended crawl policy to keep
                       crawler groups and protected paths aligned.
@@ -518,13 +523,44 @@ Disallow: /`;
               {/* Schema.org Info */}
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
-                  <div>
+                  <CheckCircle className="text-green-600 shrink-0 mt-0.5" size={20} />
+                  <div className="w-full">
                     <h3 className="font-bold text-green-900 dark:text-green-300 mb-2">
                       Schema.org Structured Data
                     </h3>
                     <p className="text-sm text-green-800 dark:text-green-400 mb-3">
                       VonSEO automatically generates JSON-LD structured data:
+                    </p>
+                    <label
+                      htmlFor="vonseo-article-schema-type"
+                      className="block text-sm font-medium text-green-900 dark:text-green-300 mb-1"
+                    >
+                      Article schema type
+                    </label>
+                    <select
+                      id="vonseo-article-schema-type"
+                      value={tempSEO.articleSchemaType}
+                      onChange={(event) =>
+                        setTempSEO({
+                          ...tempSEO,
+                          articleSchemaType: normalizeArticleSchemaType(event.target.value),
+                        })
+                      }
+                      className="w-full mb-2 px-3 py-2 bg-white dark:bg-[#16161e] border border-green-300 dark:border-green-700 rounded-lg text-sm text-slate-900 dark:text-white"
+                    >
+                      {ARTICLE_SCHEMA_TYPES.map((schemaType) => (
+                        <option key={schemaType} value={schemaType}>
+                          {schemaType === 'Article'
+                            ? 'General Article'
+                            : schemaType === 'NewsArticle'
+                              ? 'News Article'
+                              : 'Blog Posting'}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-green-800 dark:text-green-400 mb-3">
+                      Applies to published post JSON-LD only. Pages, URLs, canonical links, and
+                      permalinks are unchanged.
                     </p>
                     <ul className="text-sm text-green-800 dark:text-green-400 space-y-1">
                       <li>✓ Organization Schema</li>
@@ -543,7 +579,7 @@ Disallow: /`;
             <div className="space-y-6">
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <ArrowRight className="text-emerald-600 flex-shrink-0 mt-0.5" size={20} />
+                  <ArrowRight className="text-emerald-600 shrink-0 mt-0.5" size={20} />
                   <div>
                     <h3 className="font-bold text-emerald-900 dark:text-emerald-300 mb-1">
                       301 Redirect Manager
@@ -588,7 +624,7 @@ Disallow: /`;
                       onChange={(e) => onUpdate({ ...settings, indexnowEnabled: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:inset-s-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                   </label>
                 </div>
 

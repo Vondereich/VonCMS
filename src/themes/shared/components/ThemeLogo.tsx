@@ -23,9 +23,7 @@ export default function ThemeLogo({
   const darkModeInvertClass = invertLogoInDarkMode ? 'dark:brightness-0 dark:invert' : '';
 
   return (
-    <span
-      className={`${slotClass} inline-flex items-center justify-start flex-shrink-0 ${className}`}
-    >
+    <span className={`${slotClass} inline-flex items-center justify-start shrink-0 ${className}`}>
       <img
         src={src}
         alt={alt}

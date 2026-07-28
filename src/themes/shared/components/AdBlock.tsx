@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { AD_ALLOWED_STYLE_PROPS, sanitizeHtml } from '../../../utils/security';
 import { BASE_PATH } from '../../../config/site.config';
 
@@ -185,7 +185,7 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     return (
       <div
         {...wrapperProps}
-        className={`${wrapperProps.className} [&_*]:box-border [&_*]:min-w-0 [&_a]:inline-block [&_a]:max-w-full [&_div]:max-w-full [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:align-middle [&_img]:inline-block [&_img]:h-auto [&_img]:max-w-full [&_ins]:inline-block [&_ins]:w-full [&_ins]:max-w-full`}
+        className={`${wrapperProps.className} **:box-border **:min-w-0 [&_a]:inline-block [&_a]:max-w-full [&_div]:max-w-full [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:align-middle [&_img]:inline-block [&_img]:h-auto [&_img]:max-w-full [&_ins]:inline-block [&_ins]:w-full [&_ins]:max-w-full`}
         style={{
           ...wrapperProps.style,
           textAlign: 'center' as const,
