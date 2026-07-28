@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-VonCMS v1.26.1 "After Hours" is the current open-source release line. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+VonCMS v1.26.1 is the current open-source release in the **v1.26 "After Hours"** series. The series opened with v1.26.0 as a focused modernization of the development toolchain, editor structure, SEO controls, public themes, and admin experience while keeping the established PHP shared-hosting runtime. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -12,7 +12,7 @@ VonCMS v1.26.1 "After Hours" is the current open-source release line. You can in
 
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
-The v1.26.x line modernizes the compiler, styling pipeline, and bundled extension baseline while preserving the shared-hosting PHP runtime established by OpenGate. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
+The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, editor structure, SEO schema controls, and bundled extension baseline while preserving the shared-hosting PHP runtime established by OpenGate. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
 
 > [!IMPORTANT]
 > **Updating an existing site to v1.25.0 through OTA?**
@@ -285,13 +285,24 @@ After a site is already on the fixed updater baseline, the dashboard updater can
 
 Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
 
-v1.26.1 includes:
+### v1.26.1 - Discovery And Schema Maintenance
 
-- Word-safe homepage discovery excerpts plus SSR/hydrated article schema context parity.
+- Word-safe homepage and noscript excerpts that preserve complete words, Unicode, and encoded entities.
+- SSR and hydrated article schema parity for `mainEntityOfPage`, `articleSection`, and validated dynamic language values.
+- Category-specific raw HTML and `CollectionPage` output before React hydration.
+- Fingerprinted asset caching, portable security-header defaults, and rollback-protected OTA documentation replacement.
+- Compatible OpenRouter, TipTap, Node type, rate-limit, and PostCSS patch updates.
+
+### v1.26.0 - After Hours
+
+- Official opening of the v1.26 "After Hours" series.
 - Tailwind CSS 4 with its dedicated PostCSS adapter and CSS-first configuration.
 - TypeScript 7 native compilation with a TypeScript 6 API compatibility alias for current tooling.
-- OpenRouter SDK 1 plus current TipTap, Lucide, Recharts, PostCSS, and filesystem utility releases.
+- React Router 8, OpenRouter SDK 1, TipTap 3, and the Node.js 22.22+ source-development baseline.
+- Focused Post Editor modules for audit history, SEO presentation, featured media, and shared text handling.
+- Selectable `Article`, `NewsArticle`, and `BlogPosting` schema types with a safe `Article` fallback.
 - Canonical Tailwind 4 utility migration across the admin, editor, plugins, and all six bundled themes.
+- Public page navigation, Default theme card/feed stability, Dashboard clarity, and Content Manager narrow-width polish.
 - Bundled themes and built-in plugins aligned to the `1.26` Extensions Manager series label.
 
 The completed v1.25.x OpenGate line remains the runtime foundation, including post ownership hardening, staff protected-content read boundaries, public discovery cleanup, public cache controls, media safety, and release packaging.
