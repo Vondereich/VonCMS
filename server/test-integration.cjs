@@ -1887,7 +1887,8 @@ if (!topReleaseEntry.trim()) {
 const currentReleaseLabel = `v${pkg.version}`;
 const currentSeriesLabel = `v${pkg.version} "After Hours"`;
 const docsVersionChecks = [
-  ['README.md', currentSeriesLabel],
+  ['README.md', currentReleaseLabel],
+  ['README.md', 'v1.26 "After Hours"'],
   ['docs/INSTALL.md', currentSeriesLabel],
   ['docs/MANUAL.md', currentReleaseLabel],
   ['docs/SECURITY.md', currentReleaseLabel],
@@ -7980,14 +7981,15 @@ const legacyOtaBridgeOwnerChecks = (
 ).length;
 if (
   dashboardOtaOwnerParity.includes("currentUser?.role?.toLowerCase() === 'root'") &&
-  dashboardOtaOwnerParity.includes("currentUser?.id === '1'") &&
+  dashboardOtaOwnerParity.includes("String(currentUser?.id || '') === '1'") &&
+  !dashboardOtaOwnerParity.includes("currentUser?.id === '1'") &&
   dashboardSystemOwnerChecks >= 2 &&
   !dashboardOtaOwnerParity.includes("currentUser?.role?.toLowerCase() !== 'admin'") &&
   legacyOtaBridgeOwnerChecks >= 2 &&
   !legacyOtaBridgeOwnerParity.includes("strtolower($_SESSION['user']['role'] ?? '') !== 'admin'")
 ) {
   pass(
-    'OTA Owner Role Parity: Dashboard and legacy bridge allow root or primary-admin ID, matching the updater backend.'
+    'OTA Owner Role Parity: Dashboard normalizes numeric or string primary-admin IDs and the legacy bridge matches the updater backend.'
   );
 } else {
   fail(
@@ -10249,15 +10251,16 @@ const sharedSsrPostQuerySource = sliceBetween(
   'function voncms_fetch_public_post',
   "if (!function_exists('voncms_is_spa_shell_route'))"
 );
+const normalizedPublicSsrSchemaContent = publicIndexContent.replace(/\s+/g, ' ');
 assertIncludes(
   'Shared Public SSR Post Contract',
-  publicIndexContent + '\n' + phpSeoSchemaHelperContent,
+  publicIndexContent + '\n' + phpSeoSchemaHelperContent + '\n' + normalizedPublicSsrSchemaContent,
   [
     'function voncms_fetch_public_post',
     'function voncms_clean_seo_description',
     'function voncms_apply_content_schema',
-    "voncms_apply_content_schema(\n            $schemaData,\n            $post,\n            'post'",
-    'voncms_apply_content_schema(\n            $schemaData,\n            $post,\n            $resolvedContentType',
+    "voncms_apply_content_schema( $schemaData, $post, 'post'",
+    'voncms_apply_content_schema( $schemaData, $post, $resolvedContentType',
   ],
   'Shared Public SSR Post Contract: legacy and permalink routes share published-post lookup, description, and schema helpers.',
   'Shared Public SSR Post Contract: a public post route has drifted away from the shared SSR helpers.'

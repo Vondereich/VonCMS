@@ -138,7 +138,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
     uniqueVisitors: 0,
   });
   const navigate = useNavigate();
-  const canManageSystem = currentUser?.role?.toLowerCase() === 'root' || currentUser?.id === '1';
+  const canManageSystem =
+    currentUser?.role?.toLowerCase() === 'root' || String(currentUser?.id || '') === '1';
 
   // Auto-Update State
   const [showUpdateModal, setShowUpdateModal] = useState(false);
