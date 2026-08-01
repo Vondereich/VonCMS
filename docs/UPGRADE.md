@@ -21,7 +21,7 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 7. After the update, verify the homepage, one single post, and the admin dashboard.
 8. After the site is on a fixed updater package and already passed the `v1.25.0` `.htaccess` repair step, use the admin panel updater for later releases.
 
-The OTA updater treats the shipped `docs/` directory as release-managed content. During activation it replaces that directory as one rollback-protected unit, which removes retired guides instead of leaving them beside newer consolidated documentation. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
+The OTA updater treats the shipped `assets/` and `docs/` directories as release-managed content. During activation it replaces each directory as one rollback-protected unit, which removes retired fingerprinted bundles and guides instead of leaving them beside the current release. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
 
 ## What to verify after updating to v1.26.2
 

@@ -10581,15 +10581,15 @@ assertIncludes(
     'Use the VonCMS Deploy ZIP.',
     'stageReleasePayload',
     'activateStagedPayload',
-    "private const REPLACE_ON_UPDATE_DIRECTORIES = ['docs'];",
+    "private const REPLACE_ON_UPDATE_DIRECTORIES = ['assets', 'docs'];",
     'activateManagedReleaseDirectory',
     'restoreActivationJournal',
     'VONCMS_UPDATER_TESTING',
     "in_array('docs', $filtered, true)",
     "in_array('metadata.json', $filtered, true)",
   ],
-  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed docs, and stage the full release with rollback recovery.',
-  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, retain retired docs, or leave a partial release after activation failure.'
+  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed assets and docs, and stage the full release with rollback recovery.',
+  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, retain retired assets or docs, or leave a partial release after activation failure.'
 );
 assertIncludes(
   'WordPress Import Bounds Contract',

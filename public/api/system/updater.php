@@ -28,7 +28,7 @@ if (!defined('VONCMS_UPDATER_TESTING')) {
 
 class SystemUpdater
 {
-  private const REPLACE_ON_UPDATE_DIRECTORIES = ['docs'];
+  private const REPLACE_ON_UPDATE_DIRECTORIES = ['assets', 'docs'];
 
   /** @var string */
   private $rootPath;

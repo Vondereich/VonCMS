@@ -48,6 +48,7 @@ try {
 
   updaterRollbackWrite($livePath . '/api/runtime.txt', 'old-api');
   updaterRollbackWrite($livePath . '/assets/runtime.txt', 'old-assets');
+  updaterRollbackWrite($livePath . '/assets/index-retired.js', 'retired-asset');
   updaterRollbackWrite($livePath . '/docs/runtime.txt', 'old-docs');
   updaterRollbackWrite($livePath . '/docs/retired-guide.md', 'retired-doc');
   updaterRollbackWrite($livePath . '/data/runtime.txt', 'live-data');
@@ -55,6 +56,7 @@ try {
 
   updaterRollbackWrite($sourcePath . '/api/runtime.txt', 'new-api');
   updaterRollbackWrite($sourcePath . '/assets/runtime.txt', 'new-assets');
+  updaterRollbackWrite($sourcePath . '/assets/index-current.js', 'current-asset');
   updaterRollbackWrite($sourcePath . '/docs/runtime.txt', 'new-docs');
   updaterRollbackWrite($sourcePath . '/docs/current-guide.md', 'current-doc');
   updaterRollbackWrite($sourcePath . '/data/runtime.txt', 'package-data');
@@ -95,6 +97,11 @@ try {
     'Asset file was not restored after activation failure.',
   );
   updaterRollbackAssert(
+    is_file($livePath . '/assets/index-retired.js') &&
+      !file_exists($livePath . '/assets/index-current.js'),
+    'Managed assets rollback did not restore the complete previous directory.',
+  );
+  updaterRollbackAssert(
     file_get_contents($livePath . '/docs/runtime.txt') === 'old-docs',
     'Managed docs directory was not restored after activation failure.',
   );
@@ -119,6 +126,11 @@ try {
   updaterRollbackAssert(
     file_get_contents($livePath . '/assets/runtime.txt') === 'new-assets',
     'Asset file did not activate after a normal staged update.',
+  );
+  updaterRollbackAssert(
+    !file_exists($livePath . '/assets/index-retired.js') &&
+      file_get_contents($livePath . '/assets/index-current.js') === 'current-asset',
+    'Managed assets replacement retained an obsolete bundle or missed the current bundle.',
   );
   updaterRollbackAssert(
     file_get_contents($livePath . '/docs/runtime.txt') === 'new-docs',

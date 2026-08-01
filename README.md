@@ -290,7 +290,7 @@ For sites older than the fixed updater baseline, use the manual Deploy ZIP repla
 5. Visit the site and admin dashboard, then confirm the Dashboard shows the expected release version.
 6. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
 
-After a site is already on the fixed updater baseline, the dashboard updater can be used for later patches when the host allows outbound release downloads.
+After a site is already on the fixed updater baseline, the dashboard updater can be used for later patches when the host allows outbound release downloads. OTA activation replaces the release-managed `assets/` and `docs/` directories as complete rollback-protected units, so retired fingerprinted bundles and guides cannot remain beside the current release.
 
 ## Release History
 
