@@ -51,6 +51,9 @@ class SystemUpdater
   /** @var int|null */
   private $testFailureAfterActivations = null;
 
+  /** @var bool */
+  private $testCleanupFailure = false;
+
   // FILES TO NEVER TOUCH (Files AND Directories)
   /** @var array<int, string> */
   private $protected = [
@@ -175,7 +178,9 @@ class SystemUpdater
         throw new Exception('Invalid update version.');
       }
 
-      $this->cleanup();
+      if (!$this->cleanup()) {
+        throw new Exception('Could not clear previous temporary update files. Please retry.');
+      }
 
       // 1. Pre-flight Checks
       $this->log('Step 1: Pre-flight checks');
@@ -206,7 +211,11 @@ class SystemUpdater
 
       // 6. Cleanup
       $this->log('Step 6: Cleanup');
-      $this->cleanup();
+      if (!$this->cleanup()) {
+        $this->log(
+          'Cleanup deferred: temporary update files could not be removed and will be retried on the next update.',
+        );
+      }
       $this->log('Update Process Finished Successfully');
 
       return [
@@ -217,7 +226,9 @@ class SystemUpdater
       ];
     } catch (Throwable $e) {
       $this->log('CRITICAL ERROR: ' . $e->getMessage());
-      $this->cleanup(); // Always cleanup temp files
+      if (!$this->cleanup()) {
+        $this->log('Cleanup deferred after failure: temporary update files remain.');
+      }
       return [
         'status' => 'error',
         'message' => $e->getMessage(),
@@ -255,7 +266,7 @@ class SystemUpdater
   {
     if (is_resource($this->lockHandle)) {
       @flock($this->lockHandle, LOCK_UN);
-      fclose($this->lockHandle);
+      @fclose($this->lockHandle);
     }
     $this->lockHandle = null;
   }
@@ -1187,22 +1198,6 @@ class SystemUpdater
   }
 
   /**
-   * @param string $dir
-   * @return void
-   */
-  private function recursiveDelete($dir)
-  {
-    if (!is_dir($dir)) {
-      return;
-    }
-    $files = array_diff(scandir($dir), ['.', '..']);
-    foreach ($files as $file) {
-      is_dir("$dir/$file") ? $this->recursiveDelete("$dir/$file") : unlink("$dir/$file");
-    }
-    rmdir($dir);
-  }
-
-  /**
    * @param string $src
    * @param string $dst
    * @param string $relativeBase
@@ -1246,14 +1241,32 @@ class SystemUpdater
     closedir($dir);
   }
 
-  /**
-   * @return void
-   */
-  private function cleanup()
+  private function cleanup(): bool
   {
-    if (is_dir($this->tempPath)) {
-      $this->recursiveDelete($this->tempPath);
+    if (!$this->pathExists($this->tempPath)) {
+      return true;
     }
+
+    if (defined('VONCMS_UPDATER_TESTING') && $this->testCleanupFailure) {
+      return false;
+    }
+
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+      if ($this->removePath($this->tempPath)) {
+        return true;
+      }
+
+      clearstatcache(true, $this->tempPath);
+      if (!$this->pathExists($this->tempPath)) {
+        return true;
+      }
+
+      if ($attempt < 3) {
+        usleep(50000 * $attempt);
+      }
+    }
+
+    return false;
   }
 }
 

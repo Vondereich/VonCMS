@@ -150,6 +150,37 @@ try {
     'Protected runtime data changed during a staged update.',
   );
 
+  $cleanup = $reflection->getMethod('cleanup');
+  $tempProperty = $reflection->getProperty('tempPath');
+  $cleanupFailureProperty = $reflection->getProperty('testCleanupFailure');
+  $cleanupPath = $basePath . '/cleanup-probe';
+
+  updaterRollbackWrite($cleanupPath . '/nested/runtime.txt', 'temporary-data');
+  $tempProperty->setValue($updater, $cleanupPath);
+  ob_start();
+  $cleanupSucceeded = $cleanup->invoke($updater);
+  $cleanupOutput = ob_get_clean();
+  updaterRollbackAssert(
+    $cleanupSucceeded === true && $cleanupOutput === '' && !file_exists($cleanupPath),
+    'Successful updater cleanup did not remove the temporary tree without stray output.',
+  );
+
+  updaterRollbackWrite($cleanupPath . '/nested/runtime.txt', 'locked-test-data');
+  $cleanupFailureProperty->setValue($updater, true);
+  ob_start();
+  $cleanupSucceeded = $cleanup->invoke($updater);
+  $cleanupOutput = ob_get_clean();
+  updaterRollbackAssert(
+    $cleanupSucceeded === false && $cleanupOutput === '' && is_dir($cleanupPath),
+    'Failed updater cleanup emitted output or reported a false success.',
+  );
+
+  $cleanupFailureProperty->setValue($updater, false);
+  updaterRollbackAssert(
+    $cleanup->invoke($updater) === true && !file_exists($cleanupPath),
+    'Updater cleanup did not recover after a deferred failure.',
+  );
+
   echo 'ok';
 } finally {
   updaterRollbackRemove($basePath);

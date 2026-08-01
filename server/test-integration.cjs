@@ -10585,11 +10585,21 @@ assertIncludes(
     'activateManagedReleaseDirectory',
     'restoreActivationJournal',
     'VONCMS_UPDATER_TESTING',
+    'private function cleanup(): bool',
+    '$this->removePath($this->tempPath)',
+    'Cleanup deferred: temporary update files could not be removed',
     "in_array('docs', $filtered, true)",
     "in_array('metadata.json', $filtered, true)",
   ],
-  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed assets and docs, and stage the full release with rollback recovery.',
-  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, retain retired assets or docs, or leave a partial release after activation failure.'
+  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed assets and docs, stage the full release with rollback recovery, and keep cleanup failures warning-free.',
+  'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, retain retired assets or docs, leave a partial release, or emit cleanup warnings into JSON.'
+);
+assertExcludes(
+  'OTA Cleanup Output Contract',
+  read('public/api/system/updater.php'),
+  ['private function recursiveDelete'],
+  'OTA Cleanup Output Contract: raw recursive cleanup cannot emit PHP warning HTML into the API response.',
+  'OTA Cleanup Output Contract: updater still owns a warning-prone recursive cleanup path.'
 );
 assertIncludes(
   'WordPress Import Bounds Contract',
@@ -11439,7 +11449,7 @@ echo 'ok';`,
   );
   if (updaterRollbackProbe.status === 0 && updaterRollbackProbe.stdout.trim() === 'ok') {
     pass(
-      'OTA Rollback Runtime: injected failure restores the old release, normal activation replaces managed docs, and protected data persists.'
+      'OTA Rollback Runtime: activation rollback, managed asset/docs replacement, protected data, and warning-free deferred cleanup pass.'
     );
   } else {
     fail(
