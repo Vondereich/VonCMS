@@ -33,7 +33,7 @@ $action = isset($input['action']) ? (string) $input['action'] : null;
 $commentRateIdentifier = null;
 
 if ($action !== null) {
-  $hasSession = isset($_SESSION['user']);
+  $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
 
   // Moderation actions: Mandatory Session + CSRF
   if (in_array($action, ['delete', 'updateStatus', 'like'], true)) {
@@ -44,7 +44,7 @@ if ($action !== null) {
   // Add Comment: require same-site CSRF for both logged-in and guest writers.
   if ($action === 'add') {
     CSRFProtection::requireToken();
-    $commentRateIdentifier = $hasSession
+    $commentRateIdentifier = $hasValidSession
       ? 'comment:user:' . (string) ($_SESSION['user']['id'] ?? 0)
       : 'comment:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
     RateLimiter::requireNotLimited($commentRateIdentifier);
@@ -144,7 +144,7 @@ try {
 
     // 1.3 Comment impersonation via client-supplied userId (Fix)
     // derive identity from session if logged in, otherwise force null/anonymous
-    $currentUser = $_SESSION['user'] ?? null;
+    $currentUser = $hasValidSession ? $_SESSION['user'] ?? null : null;
     if (!SessionManager::isStaff()) {
       $postStmt = $pdo->prepare(
         "SELECT id FROM posts WHERE id = ? AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?) LIMIT 1",
@@ -207,7 +207,7 @@ try {
     // ============================================
     $status = 'approved'; // Default: Auto-approve
     $spamReasons = [];
-    $isLoggedIn = isset($_SESSION['user']);
+    $isLoggedIn = $hasValidSession;
 
     // 1. Honeypot Check (if field exists and is filled = bot)
     $honeypot = $input['hp_field'] ?? ($input['website'] ?? '');

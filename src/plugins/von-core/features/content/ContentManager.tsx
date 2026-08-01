@@ -314,9 +314,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white capitalize">
               {type === 'post' ? 'Article' : 'Page'} Manager
             </h2>
@@ -324,7 +324,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
               <button
                 onClick={handleBulkDelete}
                 disabled={isProcessing}
-                className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium animate-fade-in disabled:opacity-50 disabled:cursor-wait"
+                className="flex min-h-11 items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition-colors animate-fade-in hover:bg-red-200 disabled:cursor-wait disabled:opacity-50 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
               >
                 {isProcessing ? (
                   <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
@@ -337,7 +337,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           </div>
           {/* Active Filters Display */}
           {(selectedCategory || selectedStatus || searchQuery) && (
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-slate-500 dark:text-slate-400">Filters:</span>
               {searchQuery && (
                 <button
@@ -377,8 +377,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           )}
         </div>
         <button
+          type="button"
           onClick={() => onEdit(null, type === 'page')}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto"
         >
           <Plus size={18} />
           <span>Add New</span>
@@ -386,8 +387,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       </div>
 
       {(type === 'post' || type === 'page') && (
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <div className="relative flex-1 max-w-md">
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
+          <div className="relative min-w-52 flex-1 max-w-md">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               id="contentmanager-318"
@@ -408,7 +409,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           </div>
           <button
             type="submit"
-            className="px-4 py-2 text-sm bg-slate-100 dark:bg-[#242633] text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            className="min-h-11 px-4 py-2 text-sm bg-slate-100 dark:bg-[#242633] text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
           >
             Search
           </button>
@@ -416,7 +417,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
             <button
               type="button"
               onClick={clearSearch}
-              className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              className="min-h-11 px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             >
               Clear
             </button>
@@ -431,7 +432,133 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         </div>
       ) : (
         <>
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-x-auto">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:hidden">
+            {pageItems.length === 0 ? (
+              <div className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+                {searchQuery
+                  ? `No results found for "${searchQuery}"`
+                  : `No ${type === 'post' ? 'articles' : 'pages'} found.`}
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {pageItems.map((item) => {
+                  const isPost = type === 'post';
+                  const itemPost = item as Post;
+                  return (
+                    <article
+                      key={item.id}
+                      className={`space-y-3 p-4 transition-colors ${
+                        selectedItems.has(item.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(item.id)}
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
+                          aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
+                        >
+                          {selectedItems.has(item.id) ? (
+                            <CheckSquare size={20} className="text-primary-600" />
+                          ) : (
+                            <Square size={20} />
+                          )}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <h3
+                            className="font-semibold leading-snug text-slate-900 dark:text-white"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.title) }}
+                          />
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                item.status === 'published'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                              }`}
+                            >
+                              {item.status === 'published'
+                                ? 'Published'
+                                : item.status === 'scheduled'
+                                  ? 'Scheduled'
+                                  : 'Draft'}
+                            </span>
+                            {isPost && itemPost.category && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCategory(itemPost.category)}
+                                className="min-h-8 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              >
+                                {itemPost.category}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <dl className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-xs dark:bg-[#16161e]">
+                        <div className="min-w-0">
+                          <dt className="text-slate-400">Author</dt>
+                          <dd className="truncate font-medium text-slate-700 dark:text-slate-200">
+                            {getAuthorName(item) || '-'}
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-slate-400">Created</dt>
+                          <dd className="font-medium text-slate-700 dark:text-slate-200">
+                            {formatCompactDate(item.createdAt || item.created_at)}
+                          </dd>
+                        </div>
+                        {isPost && item.status !== 'draft' && (
+                          <div className="col-span-2 min-w-0">
+                            <dt className="text-slate-400">Publish at</dt>
+                            <dd className="font-medium text-slate-700 dark:text-slate-200">
+                              {formatDateTime(getPublishDateTime(itemPost))}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(item.id, type === 'page')}
+                          className="min-h-11 flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                        >
+                          Edit
+                        </button>
+                        {type === 'page' && onToggleNav && (
+                          <button
+                            type="button"
+                            onClick={() => onToggleNav(item.id)}
+                            className="min-h-11 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-[#2a2b36]"
+                          >
+                            {navigation &&
+                            navigation.find((navItem: NavItem) => navItem.url === `page:${item.id}`)
+                              ? 'Remove Nav'
+                              : 'Add Nav'}
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm('Delete this item?')) onDelete(item.id, type === 'page');
+                            }}
+                            className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:block">
             <table
               className={`w-full ${
                 type === 'post' ? 'min-w-[1120px]' : 'min-w-[900px]'

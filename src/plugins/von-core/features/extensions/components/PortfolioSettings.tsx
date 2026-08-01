@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SiteSettings } from '../../../../../types';
 import { X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AdminModal from '../../../../../components/admin/AdminModal';
 
 interface PortfolioSettingsProps {
   settings: SiteSettings;
@@ -73,27 +74,37 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
-      <div className="bg-white dark:bg-[#16161e] w-full max-w-2xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="Portfolio theme settings"
+      className="w-full max-w-2xl"
+    >
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-purple-500 to-pink-500">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-purple-500 to-pink-500 p-4 dark:border-white/10 sm:p-6">
           <div>
             <h2 className="text-xl font-bold text-white">Portfolio Settings</h2>
             <p className="text-sm text-white/80">Customize your portfolio showcase</p>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+            aria-label="Close Portfolio theme settings"
+          >
             <X size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* Hero Style */}
           <div className="space-y-2">
             <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Hero Style
             </span>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {(['fullscreen', 'split', 'minimal'] as const).map((style) => (
                 <button
                   key={style}
@@ -344,7 +355,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
             <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Animation Style
             </span>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {(['fade', 'slide', 'none'] as const).map((style) => (
                 <button
                   key={style}
@@ -363,21 +374,21 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-200 dark:border-white/10 flex justify-end gap-3 bg-slate-50 dark:bg-[#16161e]">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors"
+            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-8 py-2 bg-linear-to-r from-purple-600 to-pink-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/30 flex items-center gap-2"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-linear-to-r from-purple-600 to-pink-500 px-8 py-2 font-medium text-white shadow-lg shadow-purple-500/30 transition-opacity hover:opacity-90 sm:w-auto"
           >
             <Save size={18} /> Save Changes
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };

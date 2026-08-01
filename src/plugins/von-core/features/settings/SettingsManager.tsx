@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   Settings,
@@ -21,6 +21,7 @@ import { SiteSettings } from '../../../../types';
 import { sanitizeHtml } from '../../../../utils/security';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
+import { mergeSettingsDraft } from '../../../../utils/settingsDraft';
 
 // Import New Sub-Modules
 import { GoogleSettings } from './components/GoogleSettings';
@@ -75,6 +76,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     | 'bridge'
   >('general');
   const [tempSettings, setTempSettings] = useState<SiteSettings>(settings);
+  const draftBaselineRef = useRef<SiteSettings>(settings);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expiredAiKeyNotice, setExpiredAiKeyNotice] = useState(false);
   const canManageSecrets = Boolean(tempSettings._canManageSecrets);
@@ -92,17 +94,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       if (savedAiKeyExpired) {
         setExpiredAiKeyNotice(true);
         const { aiKeySavedAt, aiKeyExpiresAt, ...apiWithoutExpiredKey } = data.api || {};
-        setTempSettings({
+        const loadedSettings: SiteSettings = {
           ...data,
           api: {
             ...apiWithoutExpiredKey,
             aiApiKey: '',
           },
-        });
+        };
+        draftBaselineRef.current = loadedSettings;
+        setTempSettings(loadedSettings);
         return;
       }
 
       setExpiredAiKeyNotice(false);
+      draftBaselineRef.current = data;
       setTempSettings(data);
     } catch (error) {
       notify('Failed to fetch settings: ' + String(error));
@@ -119,17 +124,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     if (savedAiKeyExpired) {
       setExpiredAiKeyNotice(true);
       const { aiKeySavedAt, aiKeyExpiresAt, ...apiWithoutExpiredKey } = settings.api || {};
-      setTempSettings({
+      const loadedSettings: SiteSettings = {
         ...settings,
         api: {
           ...apiWithoutExpiredKey,
           aiApiKey: '',
         },
-      });
+      };
+      draftBaselineRef.current = loadedSettings;
+      setTempSettings(loadedSettings);
       return;
     }
 
     setExpiredAiKeyNotice(false);
+    draftBaselineRef.current = settings;
     setTempSettings(settings);
   }, [settings]);
 
@@ -170,9 +178,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+      const mergedDraft = mergeSettingsDraft(settings, draftBaselineRef.current, tempSettings);
       const rawAiModel = tempSettings.api?.aiModel?.trim() || '';
       const settingsToSave: SiteSettings = {
-        ...tempSettings,
+        ...mergedDraft,
         api: {
           ...tempSettings.api,
           aiProvider: 'gemini',
@@ -189,6 +198,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         return;
       }
 
+      draftBaselineRef.current = settingsToSave;
       toast.success('Settings saved successfully!');
     } catch (err) {
       notify('Unexpected error: ' + String(err));
@@ -256,8 +266,35 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       <h2 className="text-2xl font-bold text-slate-800 dark:text-white">System Settings</h2>
 
       {/* Tabs */}
+      <div className="mb-6 sm:hidden">
+        <label
+          htmlFor="settings-section"
+          className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200"
+        >
+          Settings section
+        </label>
+        <select
+          id="settings-section"
+          value={activeTab}
+          onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}
+          className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-xs outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+        >
+          <option value="general">General</option>
+          <option value="google">Google</option>
+          <option value="profile">Profile</option>
+          <option value="permalinks">Permalinks</option>
+          <option value="categories">Categories</option>
+          <option value="menu">Menu</option>
+          <option value="ads">Ads</option>
+          {canManageSecrets && <option value="api">API</option>}
+          {canManageSecrets && <option value="media">Media</option>}
+          {canManageSecrets && <option value="bridge">Bridge</option>}
+          {canManageSecrets && <option value="tools">Tools</option>}
+        </select>
+      </div>
+
       {/* Tabs - Pills Design */}
-      <div className="flex flex-wrap gap-2 mb-8 p-1">
+      <div className="settings-tab-strip mb-6 hidden gap-2 py-1 sm:flex sm:flex-wrap sm:p-1 lg:mb-8">
         <button
           onClick={() => setActiveTab('general')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
@@ -425,8 +462,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       )}
 
       {activeTab === 'menu' && (
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             {/* Existing Menu Items */}
             <div>
               <h3 className="font-bold mb-4 dark:text-white flex items-center gap-2">
@@ -480,7 +517,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                   Add Custom Link
                 </h4>
-                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                <div className="flex flex-col items-stretch gap-3 xl:flex-row xl:items-center">
                   <label htmlFor="menu-item-label" className="sr-only">
                     Label
                   </label>
@@ -490,7 +527,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="Label (e.g., About)"
                     value={newMenuItem.label}
                     onChange={(e) => setNewMenuItem({ ...newMenuItem, label: e.target.value })}
-                    className="border border-slate-300 dark:border-[#333544] p-2.5 rounded-lg flex-1 text-sm dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-hidden transition-all"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 p-2.5 text-sm outline-hidden transition-all focus:border-transparent focus:ring-2 focus:ring-primary-500 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-white"
                   />
                   <label htmlFor="menu-item-url" className="sr-only">
                     URL
@@ -502,7 +539,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="URL (e.g., /about or https://...)"
                     value={newMenuItem.url}
                     onChange={(e) => setNewMenuItem({ ...newMenuItem, url: e.target.value })}
-                    className="border border-slate-300 dark:border-[#333544] p-2.5 rounded-lg flex-1 text-sm dark:bg-[#1a1b26] dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-hidden transition-all"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 p-2.5 text-sm outline-hidden transition-all focus:border-transparent focus:ring-2 focus:ring-primary-500 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-white"
                   />
                   <button
                     type="button"
@@ -774,17 +811,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200/30 dark:border-[#2a2b36]/30 sticky bottom-0 bg-white/70 dark:bg-[#16161e]/70 backdrop-blur-xl py-4 -mx-4 px-4 shadow-2xl z-10">
+      <div className="admin-safe-bottom sticky bottom-0 z-10 -mx-3 flex justify-end gap-2 border-t border-slate-200/30 bg-white/90 px-3 pt-3 shadow-2xl backdrop-blur-xl dark:border-[#2a2b36]/30 dark:bg-[#16161e]/90 sm:-mx-4 sm:gap-3 sm:px-4 sm:pt-4">
         <button
           onClick={() => setTempSettings(settings)}
-          className="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-[#1a1b26]/60 rounded-lg font-medium transition-all backdrop-blur-xs border border-slate-200/50 dark:border-[#2a2b36]/50"
+          className="min-h-11 flex-1 rounded-lg border border-slate-200/50 px-4 py-2.5 font-medium text-slate-600 backdrop-blur-xs transition-all hover:bg-white/60 dark:border-[#2a2b36]/50 dark:text-slate-400 dark:hover:bg-[#1a1b26]/60 sm:flex-none sm:px-5"
         >
           Cancel
         </button>
         <button
           onClick={save}
           disabled={isSubmitting}
-          className={`px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105 transition-all flex items-center gap-2 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+          className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-500/40 sm:flex-none sm:px-8 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
         >
           <Save size={18} className={isSubmitting ? 'animate-spin' : ''} />
           {isSubmitting ? 'Saving...' : 'Save Changes'}

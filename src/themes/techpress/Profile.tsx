@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Gravatar from 'react-gravatar';
-import { User, Post, Comment } from '../../types';
+import { User, Post, Comment, SiteSettings } from '../../types';
 import {
   FileText,
   MessageCircle,
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { LoadMoreButton } from '../../components/LoadMoreButton';
 import { SafeImage } from '../../components/SafeImage';
-import { getResponsiveImageAttributes } from '../../utils/siteUtils';
+import { formatDate, getResponsiveImageAttributes } from '../../utils/siteUtils';
 import { useProfileActivity } from '../../hooks/useProfileActivity';
 import { useProfileEditor } from '../../hooks/useProfileEditor';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../utils/profileUtils';
@@ -28,6 +28,7 @@ interface ProfileProps {
   onUpdateUser?: (user: Partial<User>) => void;
   colors: any; // Theme colors passed from parent
   postsPerPage?: number;
+  settings: SiteSettings;
 }
 
 // Utility: Tech Avatar
@@ -76,6 +77,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
   onUpdateUser,
   colors,
   postsPerPage = 6,
+  settings,
 }) => {
   const [activeTab, setActiveTab] = useState<'articles' | 'comments'>('articles');
   const {
@@ -435,7 +437,13 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                         </h3>
                         <div className="mt-auto flex items-center justify-between text-xs text-slate-500 dark:text-neutral-400 border-t border-slate-100 dark:border-neutral-800 pt-3">
                           <span>{post.readTime || '5 min read'}</span>
-                          <span>{post.createdAt || post.updatedAt}</span>
+                          <span>
+                            {formatDate(
+                              post.createdAt || post.updatedAt,
+                              settings.timeZone,
+                              settings.dateFormat
+                            )}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -490,7 +498,10 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                       </p>
                       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
                         <MessageCircle size={14} />
-                        <span>Commented on {comment.createdAt}</span>
+                        <span>
+                          Commented on{' '}
+                          {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
+                        </span>
                         <span className="w-1 h-1 rounded-full bg-neutral-600"></span>
                         <span className="text-purple-500 flex items-center gap-1">
                           <ThumbsUp size={12} /> {comment.likes} Likes

@@ -313,40 +313,65 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
       </div>
 
       <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
-        <div className="flex border-b border-slate-200 dark:border-[#2a2b36] overflow-x-auto">
+        <div className="border-b border-slate-200 p-3 sm:hidden dark:border-[#2a2b36]">
+          <label htmlFor="media-settings-section" className="sr-only">
+            Media section
+          </label>
+          <select
+            id="media-settings-section"
+            value={activeTab}
+            onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-200"
+          >
+            <option value="gallery">Gallery</option>
+            <option value="optimization">Optimization</option>
+            <option value="sizes">Sizes</option>
+            <option value="storage">Storage</option>
+            <option value="performance">Performance</option>
+            <option value="tools">Tools</option>
+          </select>
+        </div>
+
+        <div className="hidden border-b border-slate-200 sm:grid sm:grid-cols-3 lg:flex dark:border-[#2a2b36]">
           <button
+            type="button"
             onClick={() => setActiveTab('gallery')}
-            className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'gallery' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'gallery' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
           >
             <Grid size={16} /> Gallery
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('optimization')}
-            className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'optimization' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'optimization' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
           >
             <Zap size={16} /> Optimization
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('sizes')}
-            className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'sizes' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'sizes' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
           >
             <Image size={16} /> Sizes
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('storage')}
-            className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'storage' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'storage' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
           >
             <HardDrive size={16} /> Storage
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('performance')}
-            className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'performance' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'performance' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
           >
             <Zap size={16} /> Performance
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('tools')}
-            className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'tools' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'tools' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
           >
             <Wrench size={16} /> Tools
           </button>
@@ -379,7 +404,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Compression Level
                 </span>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {['low', 'medium', 'high'].map((level) => (
                     <button
                       key={level}

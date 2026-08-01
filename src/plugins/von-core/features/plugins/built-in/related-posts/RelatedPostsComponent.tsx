@@ -2,7 +2,11 @@ import React, { useMemo } from 'react';
 import { Post, SiteSettings } from '../../../../../../types';
 import { RelatedPostsConfig } from './types';
 import { findRelatedPosts } from './matcher';
-import { getPermalink, getResponsiveImageAttributes } from '../../../../../../utils/siteUtils';
+import {
+  formatDate,
+  getPermalink,
+  getResponsiveImageAttributes,
+} from '../../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides
@@ -133,7 +137,11 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                 )}
                 {config.showDate && (
                   <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                    {new Date(post.createdAt || Date.now()).toLocaleDateString()}
+                    {formatDate(
+                      post.createdAt || new Date().toISOString(),
+                      permalinkSettings.timeZone,
+                      permalinkSettings.dateFormat
+                    )}
                   </p>
                 )}
               </div>
@@ -185,7 +193,11 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                 </h4>
                 {config.showDate && (
                   <p className="text-xs text-slate-500">
-                    {new Date(post.createdAt || Date.now()).toLocaleDateString()}
+                    {formatDate(
+                      post.createdAt || new Date().toISOString(),
+                      permalinkSettings.timeZone,
+                      permalinkSettings.dateFormat
+                    )}
                   </p>
                 )}
               </div>
@@ -239,7 +251,11 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                 </h4>
                 {config.showDate && (
                   <p className="text-xs text-zinc-500 font-medium">
-                    {new Date(post.createdAt || Date.now()).toLocaleDateString()}
+                    {formatDate(
+                      post.createdAt || new Date().toISOString(),
+                      permalinkSettings.timeZone,
+                      permalinkSettings.dateFormat
+                    )}
                   </p>
                 )}
               </div>

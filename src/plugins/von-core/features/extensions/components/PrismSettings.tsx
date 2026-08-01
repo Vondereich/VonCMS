@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../types';
 import { Trash2, Save, Zap, Palette, Monitor } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AdminModal from '../../../../../components/admin/AdminModal';
 
 interface PrismSettingsProps {
   settings: SiteSettings;
@@ -46,8 +47,13 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-4">
-      <div className="bg-[#101018] border border-(--color-primary) w-full max-w-lg rounded-none shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col relative">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="Prism theme settings"
+      className="w-full max-w-lg"
+    >
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-none border border-(--color-primary) bg-[#101018] shadow-[0_0_50px_rgba(0,0,0,0.5)] sm:max-h-[90dvh]">
         {/* Cyberpunk Header */}
         <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-cyan-500 via-purple-500 to-pink-500"></div>
 
@@ -55,12 +61,17 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
           <h2 className="text-xl font-bold text-white font-mono tracking-widest uppercase flex items-center gap-2">
             <Zap className="text-cyan-400" size={20} /> PRISM_CONFIG
           </h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 items-center justify-center text-slate-500 transition-colors hover:text-white"
+            aria-label="Close Prism theme settings"
+          >
             <Trash2 size={20} className="rotate-45" />
           </button>
         </div>
 
-        <div className="p-8 space-y-8 font-mono">
+        <div className="flex-1 space-y-8 overflow-y-auto p-4 font-mono sm:p-8">
           {/* Visual Effects */}
           <div className="space-y-4">
             <label className="flex items-center justify-between text-slate-300 font-bold border-b border-white/10 pb-2">
@@ -84,7 +95,7 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
             <h3 className="text-slate-300 font-bold border-b border-white/10 pb-2 flex items-center gap-2">
               <Palette size={16} /> COLOR_MATRIX
             </h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
               {colorSchemes.map((scheme) => (
                 <button
                   key={scheme.id}
@@ -130,21 +141,21 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
           </div>
         </div>
 
-        <div className="p-6 border-t border-white/10 bg-black/80 flex justify-end gap-3">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-white/10 bg-black/80 p-4 sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-6 py-2 border border-white/20 text-slate-400 hover:text-white hover:border-white transition-all font-mono text-xs tracking-wider"
+            className="min-h-11 w-full px-6 py-2 border border-white/20 text-slate-400 hover:text-white hover:border-white transition-all font-mono text-xs tracking-wider sm:w-auto"
           >
             ABORT
           </button>
           <button
             onClick={handleSave}
-            className="px-8 py-2 bg-cyan-600 text-black font-bold hover:bg-cyan-400 shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all font-mono text-xs tracking-wider flex items-center gap-2 group"
+            className="group flex min-h-11 w-full items-center justify-center gap-2 bg-cyan-600 px-8 py-2 font-mono text-xs font-bold tracking-wider text-black shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all hover:bg-cyan-400 sm:w-auto"
           >
             <Save size={14} className="group-hover:animate-bounce" /> EXECUTE_SAVE
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };

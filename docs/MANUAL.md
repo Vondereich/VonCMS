@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.26.1
+# VonCMS User Manual v1.26.2
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -66,6 +66,19 @@ Good habits:
 - add an excerpt for listing pages
 - use a featured image with sensible dimensions
 - review the public permalink before sharing
+
+### Publishing from a phone or tablet
+
+The admin uses the same permissions and save paths on every viewport, but rearranges the controls for touch:
+
+1. Use the menu button in the admin header to open navigation. Choosing a route closes the drawer automatically.
+2. In the editor, use **Write** for the title and article body. The formatting toolbar stays on one row; swipe it sideways to reach controls that are off-screen.
+3. Open **Publish** to review status, category, excerpt, featured media, SEO details, and scheduling controls.
+4. Open **AI** only when you need the configured writing assistant. Switching panels does not unmount the editor or discard the current draft.
+5. Use the fixed bottom actions to save a draft or run the same Publish, Schedule, or Update action used on desktop.
+6. Use Preview from the editor toolbar before sharing a long or media-heavy article.
+
+Admin dialogs and media lightboxes stay inside the visible viewport and can normally be closed with their Close control, the backdrop, or Escape. Update progress is deliberately protected from accidental backdrop or Escape dismissal while an OTA operation is running.
 
 ## Managing pages
 

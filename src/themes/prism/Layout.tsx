@@ -55,6 +55,7 @@ import {
   AdBlock,
   VonPopupAd,
   getResponsiveImageAttributes,
+  formatDate,
 } from '../shared';
 
 import PrismProfile from './components/PrismProfile';
@@ -853,7 +854,13 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                         {selectedPost.category}
                       </span>
                       <span className="text-slate-500 text-sm font-mono flex items-center gap-2">
-                        <span>{selectedPost.createdAt || ''}</span>
+                        <span>
+                          {formatDate(
+                            selectedPost.createdAt || '',
+                            settings.timeZone,
+                            settings.dateFormat
+                          )}
+                        </span>
                         <span>•</span>
                         <span>{selectedPost.readTime || '5 min read'}</span>
                       </span>
@@ -1019,6 +1026,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               onNavigateAdmin={onNavigateAdmin}
               onUpdateUser={onUpdateUser}
               postsPerPage={settings.postsPerPage || 6}
+              settings={settings}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-64 text-slate-500">

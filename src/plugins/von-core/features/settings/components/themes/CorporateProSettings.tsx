@@ -3,6 +3,7 @@ import { SiteSettings } from '../../../../../../types';
 import { Palette, X, Save, Type, FileText, CheckCircle, Mail, Image } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SafeImage } from '../../../../../../components/SafeImage';
+import AdminModal from '../../../../../../components/admin/AdminModal';
 
 interface CorporateProSettingsProps {
   settings: SiteSettings;
@@ -104,7 +105,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
   }) => (
     <button
       onClick={() => setActiveTab(id)}
-      className={`flex items-center justify-center w-full gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+      className={`flex min-h-11 min-w-36 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${
         activeTab === id
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633]'
@@ -116,12 +117,17 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
-      <div className="bg-white dark:bg-[#1a1b26] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="Corporate Pro theme settings"
+      className="w-full max-w-4xl"
+    >
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1a1b26] sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-white dark:bg-[#1a1b26] z-10">
+        <div className="z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Palette size={24} className="text-blue-600" />
               Corporate Pro Customizer
             </h2>
@@ -130,15 +136,17 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-[#242633] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#242633] dark:hover:text-white"
+            aria-label="Close Corporate Pro settings"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="px-6 py-3 border-b border-slate-100 dark:border-[#2a2b36] grid grid-cols-5 gap-2 bg-slate-50/50 dark:bg-[#16161e]/20">
+        <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-[#2a2b36] dark:bg-[#16161e]/20 sm:px-6">
           <TabButton id="hero" label="Hero" icon={Type} />
           <TabButton id="services" label="Services" icon={CheckCircle} />
           <TabButton id="about" label="About & Stats" icon={FileText} />
@@ -147,7 +155,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <div className="custom-scrollbar flex-1 overflow-y-auto p-4 sm:p-8">
           {/* === HERO SECTION === */}
           {activeTab === 'hero' && (
             <div className="space-y-6 animate-fade-in">
@@ -407,23 +415,23 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-6 border-t border-slate-100 dark:border-[#2a2b36] flex justify-end items-center gap-3 bg-slate-50 dark:bg-[#16161e]/50">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row sm:items-center sm:p-6">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#242633] font-medium transition-colors"
+            className="min-h-11 w-full px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#242633] font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-8 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
           >
             <Save size={18} />
             Save Changes
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };
 

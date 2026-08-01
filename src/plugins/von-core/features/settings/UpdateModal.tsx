@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { RefreshCw, Download, ShieldCheck, AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { BASE_PATH } from '../../../../config/site.config';
 import { getAuthHeader } from '../../../../config/auth.config';
 import { vonFetch } from '../../../../utils/api';
+import AdminModal from '../../../../components/admin/AdminModal';
 
 interface UpdateModalProps {
   currentVersion: string;
@@ -145,9 +145,18 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 w-full h-full bg-black/60 flex items-center justify-center z-9999 animate-fade-in backdrop-blur-xs">
-      <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200 dark:border-[#2a2b36]">
+  const canDismiss = step === 'idle' || step === 'error' || step === 'success';
+
+  return (
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="System update"
+      className="w-full max-w-lg"
+      closeOnBackdrop={false}
+      closeOnEscape={canDismiss}
+    >
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]">
         {/* Header */}
         <div className="bg-orange-600 px-6 py-4 flex items-center justify-between">
           <div className="text-white">
@@ -165,8 +174,10 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           </div>
           {(step === 'idle' || step === 'error' || step === 'success') && (
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 hover:bg-white/20 text-white rounded-full transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/20"
+              aria-label="Close system update"
             >
               <X size={20} />
             </button>
@@ -174,7 +185,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="space-y-4 p-4 sm:p-6">
           {step === 'idle' && (
             <>
               <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-700">
@@ -271,18 +282,19 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-end gap-3">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row">
           {step === 'idle' && (
             <>
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg transition-colors"
+                className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg transition-colors sm:w-auto"
               >
                 Cancel
               </button>
               <button
                 onClick={startUpdate}
-                className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-orange-500/30 transform hover:scale-105 transition-all"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-6 py-2 font-bold text-white shadow-lg shadow-orange-500/30 transition-all hover:bg-orange-700 hover:scale-105 sm:w-auto"
               >
                 <Download size={18} /> Update Now
               </button>
@@ -302,7 +314,6 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           )}
         </div>
       </div>
-    </div>,
-    document.body
+    </AdminModal>
   );
 };

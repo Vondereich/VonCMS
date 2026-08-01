@@ -107,15 +107,15 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
 
         {/* IN-FEED AD */}
         <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-2xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2a2b36] pb-3">
+          <div className="flex flex-col items-start gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between dark:border-[#2a2b36]">
             <div className="flex items-center gap-2">
               <Image className="text-orange-500" size={18} />
               <h3 className="font-bold text-slate-800 dark:text-white">
                 In-Feed Ad (Post Injection)
               </h3>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Frequency:
                 </span>
@@ -125,7 +125,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                   aria-label="Selection"
                   value={settings.ads.inFeedFrequency || 6}
                   onChange={(e) => onChange('inFeedFrequency', parseInt(e.target.value))}
-                  className="bg-slate-50 dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg px-3 py-1 text-xs font-bold text-slate-700 dark:text-slate-300 outline-hidden focus:ring-2 focus:ring-orange-500 transition-all cursor-pointer"
+                  className="min-w-0 grow cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 outline-hidden transition-all focus:ring-2 focus:ring-orange-500 sm:grow-0 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-300"
                 >
                   <option value={6}>Every 6 Posts</option>
                   <option value={8}>Every 8 Posts</option>
@@ -133,7 +133,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                   <option value={12}>Every 12 Posts</option>
                 </select>
               </div>
-              <span className="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+              <span className="self-start rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-600 uppercase sm:self-auto dark:bg-orange-900/30 dark:text-orange-400">
                 Native Placement
               </span>
             </div>

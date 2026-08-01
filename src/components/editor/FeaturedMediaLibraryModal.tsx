@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { MediaItem } from '../../types';
+import AdminModal from '../admin/AdminModal';
 
 interface FeaturedMediaLibraryModalProps {
   isOpen: boolean;
@@ -29,11 +30,14 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
   onPageChange,
   onClose,
 }) => {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in">
-      <div className="w-full max-w-5xl rounded-2xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] shadow-2xl overflow-hidden">
+    <AdminModal
+      isOpen={isOpen}
+      onClose={onClose}
+      ariaLabel="Select featured image"
+      className="w-full max-w-5xl"
+    >
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#16161e] sm:max-h-[90dvh]">
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2a2b36] px-5 py-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -46,7 +50,7 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
             aria-label="Close media gallery"
           >
             <X size={18} />
@@ -55,7 +59,7 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
 
         <form
           onSubmit={onSearch}
-          className="flex gap-2 border-b border-slate-200 px-5 py-3 dark:border-[#2a2b36]"
+          className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 dark:border-[#2a2b36] sm:flex-row sm:px-5"
         >
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -79,7 +83,7 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
           </button>
         </form>
 
-        <div className="max-h-[70vh] overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {isLoading ? (
             <div className="py-16 text-center text-slate-500 dark:text-slate-400">
               Loading media library...
@@ -89,7 +93,7 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
               No media files found.
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 lg:gap-4">
               {files.map((file) => {
                 const previewUrl = file.webpUrl || file.url;
                 return (
@@ -120,12 +124,12 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-200 dark:border-[#2a2b36] px-5 py-4">
+        <div className="admin-safe-bottom flex items-center justify-between gap-2 border-t border-slate-200 px-4 py-4 dark:border-[#2a2b36] sm:px-5">
           <button
             type="button"
             onClick={() => onPageChange(page - 1)}
             disabled={isLoading || page <= 1}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:opacity-50 dark:border-[#2a2b36] dark:text-slate-200 sm:gap-2"
           >
             <ChevronLeft size={16} />
             Previous
@@ -137,14 +141,14 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
             type="button"
             onClick={() => onPageChange(page + 1)}
             disabled={isLoading || page >= totalPages}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] px-3 py-2 text-sm text-slate-700 dark:text-slate-200 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 disabled:opacity-50 dark:border-[#2a2b36] dark:text-slate-200 sm:gap-2"
           >
             Next
             <ChevronRight size={16} />
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };
 

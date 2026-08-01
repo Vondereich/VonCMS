@@ -58,7 +58,7 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
         $displayNameSelect =
           $columnStmt && $columnStmt->rowCount() > 0 ? 'u.display_name' : 'NULL AS display_name';
         $rememberStmt = $pdo->prepare(
-          "SELECT rt.id AS remember_token_id, rt.token_hash, u.id, u.username, $displayNameSelect, u.email, u.role, u.avatar, u.bio, u.created_at AS createdAt
+          "SELECT rt.id AS remember_token_id, rt.token_hash, u.id, u.username, $displayNameSelect, u.email, u.role, u.avatar, u.bio, u.created_at AS createdAt, u.password AS auth_password_hash
            FROM remember_tokens rt
            JOIN users u ON u.id = rt.user_id
            WHERE rt.selector = ? AND rt.expires_at > NOW()
@@ -84,16 +84,16 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
 
           if ($rotateStmt->rowCount() === 1) {
             unset($rememberUser['remember_token_id'], $rememberUser['token_hash']);
+            $authPasswordHash = (string) ($rememberUser['auth_password_hash'] ?? '');
+            unset($rememberUser['auth_password_hash']);
             if (!empty($rememberUser['avatar'])) {
               $rememberUser['avatar'] = ResponseHelper::scrubAvatarUrl($rememberUser['avatar']);
             }
 
             $_SESSION = [];
             session_regenerate_id(true);
-            $_SESSION['user'] = $rememberUser;
-            $_SESSION['ua_bind'] = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? 'unknown');
+            SessionManager::establishAuthenticatedSession($rememberUser, $authPasswordHash);
             $csrfToken = CSRFProtection::generateToken();
-            SessionManager::touch();
 
             $params = session_get_cookie_params();
             setcookie($rememberCookieName, $rememberSelector . ':' . $nextValidator, [

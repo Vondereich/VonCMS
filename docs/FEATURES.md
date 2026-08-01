@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.26.1 feature baseline for the After Hours line.
+> VonCMS v1.26.2 feature baseline for the After Hours line.
 
-## Introduction to VonCMS v1.26.1 "After Hours"
+## Introduction to VonCMS v1.26.2 "After Hours"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,7 +47,7 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.26.1 "After Hours"
+### This is v1.26.2 "After Hours"
 
 _"After Hours" - the maintenance and modernization line, focused on moving the development toolchain forward without changing the practical PHP hosting model._
 
@@ -132,7 +132,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail         | Value                                     |
 | -------------- | ----------------------------------------- |
-| Stable release | `v1.26.1 "After Hours"`                   |
+| Stable release | `v1.26.2 "After Hours"`                   |
 | Minimum PHP    | `8.2+`                                    |
 | Architecture   | React 19 frontend + PHP API backend       |
 | Hosting        | Shared hosting, cPanel, VPS - your choice |
@@ -160,6 +160,10 @@ It's not a starter kit. It's not a boilerplate. It's a **fully working publishin
 
 The admin dashboard is where you'll spend most of your time. It should feel good.
 
+- **Publish anywhere** - phone and tablet editors keep Write, Publish, and AI controls in one workflow with persistent Draft and Publish/Schedule/Update actions.
+- **Responsive administration** - navigation becomes a touch-safe drawer on smaller screens, while content, users, media, newsletter, security, settings, and maintenance tools adapt without dropping actions.
+- **Consistent public dates** - choose one long, short, numeric, or ISO-style display format in General Settings and every bundled homepage, single post, profile activity, comment timestamp, sidebar, and related-post surface follows it without changing feed, schema, permalink, or stored timestamp formats.
+- **Consistent admin dialogs** - editor previews, media lightboxes, extension settings, redirects, users, and updates share a blurred, keyboard-safe, viewport-bounded popup layer.
 - **Post manager** — create, edit, schedule, archive. Full draft workflow.
 - **Page manager** — static pages with the same editor experience.
 - **Media manager** — upload, organize, search, regenerate thumbnails, clean orphaned files. WebP conversion built in.
@@ -339,7 +343,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.26.1` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.26.2` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -347,7 +351,7 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 ### What's behind the posture?
 
-- **82 PHP API files** — current API surface under `public/api/`, with 96 public PHP files covered by the lint gate across the public runtime.
+- **82 PHP API files** — current API surface under `public/api/`, with 97 public PHP files covered by the lint gate across the public runtime.
 - **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** - current local `v1.26.1` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** - current local `v1.26.2` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.

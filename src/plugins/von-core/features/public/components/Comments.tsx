@@ -3,6 +3,7 @@ import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { Comment, User, SiteSettings } from '../../../../../types';
 import { MessageCircle, CornerDownRight, ThumbsUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDate } from '../../../../../utils/siteUtils';
 
 // Utility to render User Avatar locally within component
 const UserAvatar: React.FC<{
@@ -342,7 +343,7 @@ export const VpComments: React.FC<CommentsProps> = ({
                           {comment.username}
                         </span>
                         <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">
-                          {comment.createdAt}
+                          {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
                         </span>
                       </div>
                       <div
@@ -449,7 +450,11 @@ export const VpComments: React.FC<CommentsProps> = ({
                                   {reply.username}
                                 </span>
                                 <span className="text-[10px] text-slate-400 uppercase">
-                                  {reply.createdAt}
+                                  {formatDate(
+                                    reply.createdAt,
+                                    settings.timeZone,
+                                    settings.dateFormat
+                                  )}
                                 </span>
                               </div>
                               <p

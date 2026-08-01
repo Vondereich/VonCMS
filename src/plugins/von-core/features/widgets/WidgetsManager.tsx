@@ -208,8 +208,10 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
           <div className="h-11 w-11 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 flex items-center justify-center">
             <PanelsTopLeft size={22} />
           </div>
-          <div>
-            <h2 className="text-3xl font-bold text-slate-800 dark:text-white">Widgets</h2>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white sm:text-3xl">
+              Widgets
+            </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Manage shared sidebar blocks used by sidebar-capable themes: Default, Digest, and
               TechPress. Themes without a sidebar ignore these blocks.
@@ -219,7 +221,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
       </div>
 
       <div className="mx-auto grid max-w-[1064px] grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)] gap-6 items-start">
-        <section className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-5 animate-fade-in">
+        <section className="animate-fade-in space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
           <div className="space-y-4 border-b border-slate-100 dark:border-[#2a2b36] pb-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -465,7 +467,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
         </section>
 
         <div className="space-y-6">
-          <section className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-5">
+          <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
             <div className="border-b border-slate-100 dark:border-[#2a2b36] pb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Mail size={18} className="text-cyan-500" />

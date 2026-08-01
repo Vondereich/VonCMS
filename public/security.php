@@ -402,15 +402,177 @@ class SessionManager
 {
   /** @var int $timeout */
   private static $timeout = 3600; // 1 hour in seconds
+  /** @var int $absoluteTimeout */
+  private static $absoluteTimeout = 43200; // 12 hours in seconds
   /** @var string $lastActivityKey */
   private static $lastActivityKey = 'last_activity';
+  /** @var string $startedAtKey */
+  private static $startedAtKey = 'auth_started_at';
+  /** @var string $fingerprintKey */
+  private static $fingerprintKey = 'auth_fingerprint';
+  /** @var string $authorizationState */
+  private static $authorizationState = 'unchecked';
+
+  /**
+   * Bind the authenticated identity to the database role and password state.
+   * A password or role change produces a different fingerprint on the next request.
+   *
+   * @param int|string $userId
+   * @param string $role
+   * @param string $passwordHash
+   * @return string
+   */
+  private static function buildAuthFingerprint($userId, $role, $passwordHash)
+  {
+    return hash(
+      'sha256',
+      (string) $userId . "\0" . strtolower((string) $role) . "\0" . (string) $passwordHash,
+    );
+  }
+
+  /**
+   * Resolve the configured database connection for authorization checks.
+   * Protected endpoints do not need to duplicate configuration bootstrap logic.
+   *
+   * @return PDO|null
+   */
+  private static function getDatabaseConnection()
+  {
+    global $pdo;
+
+    if (isset($pdo) && $pdo instanceof PDO) {
+      return $pdo;
+    }
+
+    $configFile = __DIR__ . '/von_config.php';
+    if (!is_file($configFile)) {
+      return null;
+    }
+
+    try {
+      require_once $configFile;
+    } catch (Throwable $e) {
+      return null;
+    }
+
+    return isset($pdo) && $pdo instanceof PDO ? $pdo : null;
+  }
+
+  /**
+   * Establish a fresh authenticated session after password or remember-token verification.
+   *
+   * @param array<string, mixed> $user
+   * @param string $passwordHash
+   * @return void
+   */
+  public static function establishAuthenticatedSession($user, $passwordHash)
+  {
+    $userId = (string) ($user['id'] ?? '');
+    $role = (string) ($user['role'] ?? '');
+    $passwordHash = (string) $passwordHash;
+
+    if ($userId === '' || $role === '' || $passwordHash === '') {
+      throw new InvalidArgumentException('Authenticated session identity is incomplete.');
+    }
+
+    $_SESSION['user'] = $user;
+    $_SESSION['ua_bind'] = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? 'unknown');
+    $_SESSION[self::$fingerprintKey] = self::buildAuthFingerprint($userId, $role, $passwordHash);
+    $_SESSION[self::$startedAtKey] = time();
+    self::$authorizationState = 'valid';
+    self::touch();
+  }
+
+  /**
+   * Remove authenticated state while keeping the PHP session available for a safe remember-token restore.
+   *
+   * @return void
+   */
+  private static function clearAuthenticationState()
+  {
+    unset(
+      $_SESSION['user'],
+      $_SESSION['ua_bind'],
+      $_SESSION[self::$fingerprintKey],
+      $_SESSION[self::$startedAtKey],
+      $_SESSION[self::$lastActivityKey],
+      $_SESSION['csrf_token'],
+    );
+  }
+
+  /**
+   * Revalidate the session identity against the current database record once per request.
+   *
+   * @return bool
+   */
+  private static function hasCurrentDatabaseIdentity()
+  {
+    if (self::$authorizationState !== 'unchecked') {
+      return self::$authorizationState === 'valid';
+    }
+
+    $database = self::getDatabaseConnection();
+    if (!$database) {
+      self::$authorizationState = 'unavailable';
+      return false;
+    }
+
+    $userId = (string) ($_SESSION['user']['id'] ?? '');
+    $sessionFingerprint = (string) ($_SESSION[self::$fingerprintKey] ?? '');
+    if ($userId === '' || $sessionFingerprint === '') {
+      self::$authorizationState = 'revoked';
+      self::clearAuthenticationState();
+      return false;
+    }
+
+    try {
+      $stmt = $database->prepare('SELECT id, role, password FROM users WHERE id = ? LIMIT 1');
+      $stmt->execute([$userId]);
+      $databaseUser = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+      self::$authorizationState = 'unavailable';
+      return false;
+    }
+
+    if (!$databaseUser) {
+      self::$authorizationState = 'revoked';
+      self::clearAuthenticationState();
+      return false;
+    }
+
+    $currentFingerprint = self::buildAuthFingerprint(
+      $databaseUser['id'] ?? '',
+      $databaseUser['role'] ?? '',
+      $databaseUser['password'] ?? '',
+    );
+    if (!hash_equals($sessionFingerprint, $currentFingerprint)) {
+      self::$authorizationState = 'revoked';
+      self::clearAuthenticationState();
+      return false;
+    }
+
+    $_SESSION['user']['role'] = $databaseUser['role'];
+    self::$authorizationState = 'valid';
+    return true;
+  }
 
   /**
    * Check if session is valid (not expired)
    */
   public static function isValid()
   {
-    return !self::isExpired();
+    if (!isset($_SESSION['user'])) {
+      self::$authorizationState = 'anonymous';
+      return false;
+    }
+
+    if (self::isExpired()) {
+      self::$authorizationState = 'revoked';
+      self::clearAuthenticationState();
+      return false;
+    }
+
+    return self::hasCurrentDatabaseIdentity();
   }
 
   /**
@@ -418,6 +580,13 @@ class SessionManager
    */
   public static function isExpired()
   {
+    if (isset($_SESSION['user'])) {
+      $startedAt = (int) ($_SESSION[self::$startedAtKey] ?? 0);
+      if ($startedAt <= 0 || time() - $startedAt > self::$absoluteTimeout) {
+        return true;
+      }
+    }
+
     if (isset($_SESSION[self::$lastActivityKey])) {
       $elapsed = time() - $_SESSION[self::$lastActivityKey];
       return $elapsed > self::$timeout;
@@ -438,18 +607,15 @@ class SessionManager
    */
   public static function requireValidSession()
   {
-    if (self::isExpired()) {
-      self::destroy();
+    if (!self::isValid()) {
       sendApiHeaders();
-      http_response_code(401);
-      echo json_encode(['error' => 'Session expired']);
-      exit();
-    }
-
-    if (!isset($_SESSION['user'])) {
-      sendApiHeaders();
-      http_response_code(401);
-      echo json_encode(['error' => 'Authentication required']);
+      $authorizationUnavailable = self::$authorizationState === 'unavailable';
+      http_response_code($authorizationUnavailable ? 503 : 401);
+      echo json_encode([
+        'error' => $authorizationUnavailable
+          ? 'Authentication service unavailable'
+          : 'Session expired or authorization changed',
+      ]);
       exit();
     }
 
@@ -461,7 +627,7 @@ class SessionManager
    */
   public static function isAdmin()
   {
-    if (!isset($_SESSION['user']['role'])) {
+    if (!self::isValid() || !isset($_SESSION['user']['role'])) {
       return false;
     }
     $role = strtolower($_SESSION['user']['role']);
@@ -473,7 +639,7 @@ class SessionManager
    */
   public static function isPrimaryAdmin()
   {
-    if (!isset($_SESSION['user'])) {
+    if (!self::isValid()) {
       return false;
     }
 
@@ -487,7 +653,7 @@ class SessionManager
    */
   public static function isStaff()
   {
-    if (!isset($_SESSION['user']['role'])) {
+    if (!self::isValid() || !isset($_SESSION['user']['role'])) {
       return false;
     }
     $role = strtolower($_SESSION['user']['role']);
@@ -564,6 +730,7 @@ class SessionManager
   public static function destroy()
   {
     $_SESSION = [];
+    self::$authorizationState = 'unchecked';
     if (ini_get('session.use_cookies')) {
       $params = session_get_cookie_params();
       setcookie(

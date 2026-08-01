@@ -64,6 +64,16 @@ function getBackupMysqlBufferedQueryAttribute(): ?int
   return null;
 }
 
+function quoteDatabaseBackupMysqlIdentifier(string $identifier): string
+{
+  return '`' . str_replace('`', '``', $identifier) . '`';
+}
+
+function sanitizeDatabaseBackupCommentLabel(string $value): string
+{
+  return preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? '';
+}
+
 function setBackupMysqlBufferedQueryMode(PDO $pdo, bool $buffered): void
 {
   $attribute = getBackupMysqlBufferedQueryAttribute();
@@ -153,26 +163,31 @@ try {
   setBackupMysqlBufferedQueryMode($pdo, false);
 
   foreach ($tables as $table) {
+    $table = (string) $table;
+    $quotedTable = quoteDatabaseBackupMysqlIdentifier($table);
+    $tableLabel = sanitizeDatabaseBackupCommentLabel($table);
+
     // Get CREATE TABLE statement
-    $createStmt = $pdo->query("SHOW CREATE TABLE `$table`")->fetch();
+    $createStmt = $pdo->query("SHOW CREATE TABLE {$quotedTable}")->fetch();
 
     writeBackupStream($backupStream, "-- \n");
-    writeBackupStream($backupStream, "-- Table structure: `$table`\n");
+    writeBackupStream($backupStream, "-- Table structure: {$tableLabel}\n");
     writeBackupStream($backupStream, "-- \n");
-    writeBackupStream($backupStream, "DROP TABLE IF EXISTS `$table`;\n");
+    writeBackupStream($backupStream, "DROP TABLE IF EXISTS {$quotedTable};\n");
     writeBackupStream($backupStream, $createStmt['Create Table'] . ";\n\n");
 
     // Get data count for header
-    $rowCount = $pdo->query("SELECT COUNT(*) FROM `$table`")->fetchColumn();
+    $rowCount = $pdo->query("SELECT COUNT(*) FROM {$quotedTable}")->fetchColumn();
 
     if ($rowCount > 0) {
       writeBackupStream($backupStream, "-- \n");
-      writeBackupStream($backupStream, "-- Data for table: `$table` ($rowCount rows)\n");
+      writeBackupStream($backupStream, "-- Data for table: {$tableLabel} ($rowCount rows)\n");
       writeBackupStream($backupStream, "-- \n");
 
-      $stmt = $pdo->query("SELECT * FROM `$table`");
+      $stmt = $pdo->query("SELECT * FROM {$quotedTable}");
       while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $columns = array_keys($row);
+        $quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);
 
         $values = [];
         foreach ($row as $key => $v) {
@@ -185,9 +200,9 @@ try {
 
         writeBackupStream(
           $backupStream,
-          "INSERT INTO `$table` (`" .
-            implode('`, `', $columns) .
-            '`) VALUES (' .
+          "INSERT INTO {$quotedTable} (" .
+            implode(', ', $quotedColumns) .
+            ') VALUES (' .
             implode(', ', $values) .
             ");\n",
         );

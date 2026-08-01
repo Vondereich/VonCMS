@@ -223,9 +223,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
   const highestSourceCount = Math.max(1, ...sourceData.map((item) => item.attempts));
 
   return (
-    <div className="space-y-6 animate-fade-in p-2">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
+    <div className="animate-fade-in space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
             <ShieldCheck className="text-green-500" /> Security Dashboard
           </h1>
@@ -233,9 +233,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             Real-time threat monitoring and block logs
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
           {isPrimaryAdmin && (
-            <div className="flex items-center gap-2 relative">
+            <div className="relative flex items-center gap-2">
               {/* MAINTENANCE BUTTON (PURGE OLD) */}
               <button
                 onClick={async () => {
@@ -260,7 +260,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                     }
                   }
                 }}
-                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1b26] dark:hover:bg-[#242633] text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#1a1b26] dark:text-slate-300 dark:hover:bg-[#242633]"
                 title="Purge logs older than 30 days"
               >
                 <RefreshCw size={14} /> Maintenance
@@ -269,13 +269,14 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
               {/* DANGER ZONE DROPDOWN */}
               <button
                 onClick={() => setShowDangerZone(!showDangerZone)}
-                className={`p-1.5 rounded-lg transition-colors ${showDangerZone ? 'bg-red-500 text-white' : 'hover:bg-slate-100 dark:hover:bg-[#1a1b26] text-slate-400'}`}
+                className={`flex size-11 items-center justify-center rounded-lg transition-colors ${showDangerZone ? 'bg-red-500 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1a1b26]'}`}
+                aria-label="Toggle security danger zone"
               >
                 <Settings size={18} />
               </button>
 
               {showDangerZone && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#16161e] border border-red-200 dark:border-red-900 shadow-xl rounded-xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="animate-in fade-in slide-in-from-top-2 absolute top-full left-0 z-50 mt-2 w-52 rounded-xl border border-red-200 bg-white p-2 shadow-xl dark:border-red-900 dark:bg-[#16161e] sm:right-0 sm:left-auto">
                   <p className="text-[10px] font-bold text-red-500 px-2 py-1 uppercase tracking-wider">
                     Danger Zone
                   </p>
@@ -303,7 +304,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                         }
                       }
                     }}
-                    className="w-full flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 px-2 py-2 rounded-lg text-xs font-bold transition-colors"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <Trash2 size={14} /> Reset All Data
                   </button>
@@ -323,11 +324,11 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
               });
               window.open(`${API.securityLogs}?${queryParams}`, '_blank');
             }}
-            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-[#1a1b26] dark:hover:bg-[#242633] text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+            className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#1a1b26] dark:text-slate-300 dark:hover:bg-[#242633]"
           >
             <Download size={14} /> Export CSV
           </button>
-          <span className="flex items-center gap-2 text-xs font-mono bg-slate-100 dark:bg-[#1a1b26] px-3 py-1.5 rounded-full text-slate-500">
+          <span className="flex min-h-11 items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-mono text-xs text-slate-500 dark:bg-[#1a1b26]">
             <span
               className={`w-2 h-2 rounded-full ${refreshing ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}
             ></span>
@@ -335,7 +336,8 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           </span>
           <button
             onClick={() => fetchData(true)}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-[#1a1b26] rounded-lg transition-colors"
+            className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
+            aria-label="Refresh security data"
           >
             <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
           </button>
@@ -343,7 +345,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       </div>
 
       {/* Top Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Threats Blocked Today"
           value={stats?.blocked_today || 0}
@@ -373,9 +375,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       </div>
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Line Chart - Trends */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-xs">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#16161e] sm:p-5 xl:col-span-2">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
             Threat Trends (Last 7 Days)
           </h3>
@@ -421,7 +423,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         </div>
 
         {/* Pie Chart - Distribution */}
-        <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-xs">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#16161e] sm:p-5">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
             Attack Distribution
           </h3>
@@ -457,8 +459,8 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       </div>
 
       {/* Top source ranking */}
-      <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl p-5 shadow-xs">
-        <div className="mb-2 flex items-baseline justify-between gap-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#16161e] sm:p-5">
+        <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white">Top Source IPs</h3>
           <span className="text-xs text-slate-400">By recorded security events</span>
         </div>
@@ -467,7 +469,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             {sourceData.map((source) => (
               <div
                 key={`${source.address}-${source.rank}`}
-                className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 py-3"
+                className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 py-3 sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:gap-3"
               >
                 <span className="text-sm font-semibold text-slate-400 tabular-nums">
                   {source.rank}
@@ -513,14 +515,17 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       </div>
 
       {/* Live Logs Table */}
-      <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 rounded-xl shadow-xs overflow-hidden">
-        <div className="p-5 border-b border-slate-200 dark:border-white/10 flex flex-col md:flex-row justify-between gap-4">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-[#16161e]">
+        <div className="flex flex-col gap-4 border-b border-slate-200 p-4 dark:border-white/10 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
             <Activity size={18} className="text-blue-500" /> Live Security Event Log
           </h3>
 
-          <form onSubmit={handleSearch} className="flex gap-2 text-sm">
-            <div className="relative">
+          <form
+            onSubmit={handleSearch}
+            className="grid w-full grid-cols-2 gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] xl:w-auto"
+          >
+            <div className="relative col-span-2 min-w-0 sm:col-span-1 sm:w-64">
               <input
                 aria-label="Search IP or endpoint..."
                 id="search-ip-or-endpoint"
@@ -529,7 +534,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 placeholder="Search IP or endpoint..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg w-full md:w-64 focus:ring-2 focus:ring-blue-500 outline-hidden"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26]"
               />
               <Search className="absolute left-2.5 top-1.5 text-slate-400" size={14} />
             </div>
@@ -543,7 +548,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 setFilterType(e.target.value);
                 setPage(1);
               }}
-              className="bg-slate-50 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg px-3 py-1.5 outline-hidden"
+              className="min-h-11 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 outline-hidden dark:border-[#2a2b36] dark:bg-[#1a1b26]"
             >
               <option value="">All Events</option>
               {Object.keys(COLORS).map((type) => (
@@ -553,24 +558,93 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
               ))}
             </select>
 
+            <select
+              id="security-severity"
+              name="securitySeverity"
+              aria-label="Severity"
+              value={filterSeverity}
+              onChange={(e) => {
+                setFilterSeverity(e.target.value);
+                setPage(1);
+              }}
+              className="min-h-11 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 outline-hidden dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+            >
+              <option value="">All Severity</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+
             <button
               type="submit"
-              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+              className="min-h-11 rounded-lg bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
             >
               Search
             </button>
             <button
               type="button"
               onClick={clearFilters}
-              className="text-slate-500 hover:text-slate-700 px-2"
+              className="flex size-11 items-center justify-center rounded-lg px-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5"
+              aria-label="Clear security filters"
             >
               <X size={16} />
             </button>
           </form>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+          {loading && logs.length === 0 ? (
+            <div className="px-4 py-10 text-center text-slate-400">Loading security data...</div>
+          ) : logs.length === 0 ? (
+            <div className="px-4 py-10 text-center text-slate-400">
+              No security events found matching criteria.
+            </div>
+          ) : (
+            logs.map((log) => (
+              <article key={log.id} className="space-y-3 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-xs font-bold">
+                    <span
+                      className="size-2 rounded-full"
+                      style={{
+                        backgroundColor: COLORS[log.event_type as keyof typeof COLORS] || '#888',
+                      }}
+                    />
+                    {log.event_type.replace(/_/g, ' ').toUpperCase()}
+                  </span>
+                  <SeverityBadge level={log.severity} />
+                </div>
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+                  <dt className="text-slate-400">Time</dt>
+                  <dd className="text-right font-mono text-xs text-slate-600 dark:text-slate-300">
+                    {new Date(log.created_at).toLocaleString()}
+                  </dd>
+                  <dt className="text-slate-400">IP</dt>
+                  <dd className="break-all text-right font-mono text-xs text-slate-600 dark:text-slate-300">
+                    {log.ip_address}
+                  </dd>
+                  <dt className="text-slate-400">Endpoint</dt>
+                  <dd className="break-all text-right text-slate-600 dark:text-slate-300">
+                    {log.endpoint}
+                  </dd>
+                </dl>
+                <span
+                  className={`inline-flex rounded-sm border px-2 py-1 text-xs font-bold ${
+                    log.blocked
+                      ? 'border-red-100 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
+                      : 'border-yellow-100 bg-yellow-50 text-yellow-600 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                  }`}
+                >
+                  {log.blocked ? 'BLOCKED' : 'WARNING'}
+                </span>
+              </article>
+            ))
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-220 w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-[#1a1b26]/50 text-slate-500 uppercase font-bold text-xs">
               <tr>
                 <th className="px-5 py-3">Time</th>

@@ -1,7 +1,7 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.26.1",
+  "version": "1.26.2",
   "type": "module",
   "engines": {
     "node": ">=22.22.0"
@@ -21,16 +21,16 @@
     "test:smoke": "node server/test-integration.cjs"
   },
   "dependencies": {
-    "@openrouter/sdk": "^1.1.13",
-    "@tiptap/core": "^3.29.1",
-    "@tiptap/extension-image": "^3.29.1",
-    "@tiptap/extension-link": "^3.29.1",
-    "@tiptap/extension-table": "^3.29.1",
-    "@tiptap/extension-text-align": "^3.29.1",
-    "@tiptap/extension-text-style": "^3.29.1",
-    "@tiptap/pm": "^3.29.1",
-    "@tiptap/react": "^3.29.1",
-    "@tiptap/starter-kit": "^3.29.1",
+    "@openrouter/sdk": "^1.2.4",
+    "@tiptap/core": "^3.29.2",
+    "@tiptap/extension-image": "^3.29.2",
+    "@tiptap/extension-link": "^3.29.2",
+    "@tiptap/extension-table": "^3.29.2",
+    "@tiptap/extension-text-align": "^3.29.2",
+    "@tiptap/extension-text-style": "^3.29.2",
+    "@tiptap/pm": "^3.29.2",
+    "@tiptap/react": "^3.29.2",
+    "@tiptap/starter-kit": "^3.29.2",
     "@types/nprogress": "^0.2.3",
     "adm-zip": "^0.6.0",
     "cors": "^2.8.6",
@@ -38,7 +38,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.1",
     "fs-extra": "^11.4.0",
-    "lucide-react": "^1.27.0",
+    "lucide-react": "^1.28.0",
     "multer": "^2.2.0",
     "nprogress": "^0.2.0",
     "prop-types": "^15.8.1",
@@ -57,16 +57,16 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^26.1.2",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@types/react-gravatar": "^2.6.14",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitejs/plugin-react": "^6.0.4",
-    "postcss": "^8.5.24",
+    "@vitejs/plugin-react": "^6.0.5",
+    "postcss": "^8.5.25",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "^8.1.5"
+    "vite": "^8.2.0"
   },
   "overrides": {
     "rimraf": "^6.0.0"

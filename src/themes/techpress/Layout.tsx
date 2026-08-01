@@ -32,6 +32,7 @@ import {
   PublicDiscoveryRefreshStatus,
   hasActiveSidebarContent,
   getResponsiveImageAttributes,
+  formatDate,
 } from '../shared';
 
 import TechPressProfile from './Profile';
@@ -314,12 +315,8 @@ function HeroArticle({
                 {article.author}
               </p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
-                {new Date(article.createdAt || '').toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}{' '}
-                · {article.readTime || '5 min read'}
+                {formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)} ·{' '}
+                {article.readTime || '5 min read'}
               </p>
             </div>
           </div>
@@ -434,7 +431,13 @@ function NewsCard({
             />
             <span className="font-semibold">{article.author}</span>
             <span>•</span>
-            <span>{new Date(article.createdAt || article.updatedAt).toLocaleDateString()}</span>
+            <span>
+              {formatDate(
+                article.createdAt || article.updatedAt || '',
+                settings.timeZone,
+                settings.dateFormat
+              )}
+            </span>
           </div>
         </div>
       </div>
@@ -502,7 +505,7 @@ function NewsCard({
           />
           <span>{article.author}</span>
           <span>•</span>
-          <span>{new Date(article.createdAt || '').toLocaleDateString()}</span>
+          <span>{formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)}</span>
         </div>
       </div>
     </div>
@@ -1142,9 +1145,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] uppercase tracking-wider opacity-60">
-                            {new Date(
-                              selectedPost.createdAt || selectedPost.updatedAt
-                            ).toLocaleDateString()}
+                            {formatDate(
+                              selectedPost.createdAt || selectedPost.updatedAt || '',
+                              settings.timeZone,
+                              settings.dateFormat
+                            )}
                           </span>
                           <span className="text-[10px] opacity-60">•</span>
                           <span className="text-[10px] uppercase tracking-wider opacity-60">
@@ -1432,6 +1437,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             onUpdateUser={onUpdateUser}
             colors={colors}
             postsPerPage={settings.postsPerPage || 6}
+            settings={settings}
           />
         </main>
         {/* Footer */}

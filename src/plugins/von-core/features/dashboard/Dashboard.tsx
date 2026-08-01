@@ -31,6 +31,7 @@ import { Post, User, Comment, Page, SiteSettings } from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { flattenComments } from '../../../../utils/siteUtils';
+import AdminModal from '../../../../components/admin/AdminModal';
 
 interface DashboardProps {
   posts: Post[];
@@ -641,7 +642,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
         />
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <StatCard
           title="Articles"
           value={contentTotalsLoading.articles ? '...' : contentTotals.articles.toString()}
@@ -865,66 +866,71 @@ const VpDashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Activity History Modal */}
-      {showAuditLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
-          <div className="bg-white dark:bg-[#16161e] w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="p-6 border-b border-slate-100 dark:border-white/10 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Activity className="text-primary-500" /> Activity History
-              </h2>
-              <button
-                onClick={() => setShowAuditLog(false)}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-[#1a1b26] rounded-full transition-colors"
-              >
-                <X size={20} className="text-slate-500" />
-              </button>
-            </div>
-            <div className="overflow-y-auto px-6 py-2">
-              {recentActivity.length > 0 ? (
-                <div className="divide-y divide-slate-100 dark:divide-white/10">
-                  {recentActivity.map((log, i) => (
-                    <div key={i} className="flex gap-4 py-4">
-                      <div
-                        className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${log.color}`}
+      <AdminModal
+        isOpen={showAuditLog}
+        onClose={() => setShowAuditLog(false)}
+        ariaLabel="Activity history"
+        className="w-full max-w-2xl"
+      >
+        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[80dvh]">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-white/10 sm:p-6">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Activity className="text-primary-500" /> Activity History
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowAuditLog(false)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
+              aria-label="Close activity history"
+            >
+              <X size={20} className="text-slate-500" />
+            </button>
+          </div>
+          <div className="overflow-y-auto px-4 py-2 sm:px-6">
+            {recentActivity.length > 0 ? (
+              <div className="divide-y divide-slate-100 dark:divide-white/10">
+                {recentActivity.map((log, i) => (
+                  <div key={i} className="flex gap-4 py-4">
+                    <div
+                      className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${log.color}`}
+                    >
+                      {log.icon}
+                    </div>
+                    <div className="min-w-0 grow">
+                      <p
+                        className="font-semibold text-slate-800 dark:text-slate-200"
+                        title={log.title}
                       >
-                        {log.icon}
-                      </div>
-                      <div className="min-w-0 grow">
-                        <p
-                          className="font-semibold text-slate-800 dark:text-slate-200"
-                          title={log.title}
-                        >
-                          {log.title}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                          <span>{log.description}</span>
-                          <span aria-hidden="true">&bull;</span>
-                          <span className="flex items-center gap-1 font-mono text-xs">
-                            <Clock size={11} /> {log.time}
-                          </span>
-                        </div>
+                        {log.title}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                        <span>{log.description}</span>
+                        <span aria-hidden="true">&bull;</span>
+                        <span className="flex items-center gap-1 font-mono text-xs">
+                          <Clock size={11} /> {log.time}
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-slate-500">
-                  <CheckCircle2 size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>No recent activity found.</p>
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-[#16161e]/50 flex justify-end">
-              <button
-                onClick={() => setShowAuditLog(false)}
-                className="px-4 py-2 bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
-              >
-                Close Viewer
-              </button>
-            </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-500">
+                <CheckCircle2 size={48} className="mx-auto mb-4 opacity-20" />
+                <p>No recent activity found.</p>
+              </div>
+            )}
+          </div>
+          <div className="admin-safe-bottom flex justify-end border-t border-slate-100 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e]/50">
+            <button
+              onClick={() => setShowAuditLog(false)}
+              className="min-h-11 w-full px-4 py-2 bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors sm:w-auto"
+            >
+              Close Viewer
+            </button>
           </div>
         </div>
-      )}
+      </AdminModal>
     </div>
   );
 };

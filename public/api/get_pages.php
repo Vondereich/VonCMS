@@ -47,7 +47,8 @@ try {
   }
 
   // 1.1 Draft pages exposed to unauthenticated users (Fix)
-  $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
+  $currentRole = $hasValidSession ? strtolower((string) ($_SESSION['user']['role'] ?? '')) : '';
   $canReadProtectedPages = in_array($currentRole, ['admin', 'root', 'moderator'], true);
   $isAdmin = $canReadProtectedPages;
   $hasDisplayNameColumn = false;

@@ -24,6 +24,7 @@ import {
   ARTICLE_SCHEMA_TYPES,
   normalizeArticleSchemaType,
 } from '../../../../../utils/articleSchema';
+import AdminModal from '../../../../../components/admin/AdminModal';
 
 interface VonSEOSettingsProps {
   settings: SiteSettings;
@@ -239,12 +240,12 @@ Disallow: /`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
-      <div className="bg-white dark:bg-[#16161e] w-full max-w-5xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <AdminModal isOpen onClose={onClose} ariaLabel="VonSEO settings" className="w-full max-w-5xl">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-blue-50 to-purple-50 p-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-900 sm:p-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Search className="text-blue-600" size={28} />
               VonSEO Settings
             </h2>
@@ -253,46 +254,48 @@ Disallow: /`;
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            aria-label="Close VonSEO settings"
           >
             <X size={24} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#101018]">
+        <div className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#101018]">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex-1 py-4 px-6 text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'general' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'general' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Globe size={18} />
             General SEO
           </button>
           <button
             onClick={() => setActiveTab('social')}
-            className={`flex-1 py-4 px-6 text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'social' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'social' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <FileText size={18} />
             Social Media
           </button>
           <button
             onClick={() => setActiveTab('advanced')}
-            className={`flex-1 py-4 px-6 text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'advanced' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'advanced' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <SettingsIcon size={18} />
             Advanced
           </button>
           <button
             onClick={() => setActiveTab('redirects')}
-            className={`flex-1 py-4 px-6 text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'redirects' ? 'bg-white dark:bg-[#16161e] text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'redirects' ? 'bg-white dark:bg-[#16161e] text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <ArrowRight size={18} />
             Redirects
           </button>
           <button
             onClick={() => setActiveTab('indexnow')}
-            className={`flex-1 py-4 px-6 text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'indexnow' ? 'bg-white dark:bg-[#16161e] text-violet-600 border-b-2 border-violet-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'indexnow' ? 'bg-white dark:bg-[#16161e] text-violet-600 border-b-2 border-violet-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Zap size={18} />
             IndexNow
@@ -300,7 +303,7 @@ Disallow: /`;
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {activeTab === 'general' && (
             <div className="space-y-6">
               {/* Site Title */}
@@ -697,17 +700,17 @@ Disallow: /`;
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-200 dark:border-white/10 flex justify-end gap-3 bg-slate-50 dark:bg-[#16161e]">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className={`px-8 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 flex items-center gap-2 ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
+            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
           >
             {isSaving ? (
               'Saving...'
@@ -722,6 +725,6 @@ Disallow: /`;
       </div>
 
       {showRedirectManager && <RedirectManager onClose={() => setShowRedirectManager(false)} />}
-    </div>
+    </AdminModal>
   );
 };

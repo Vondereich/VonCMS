@@ -152,11 +152,11 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="mx-auto max-w-6xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
+      <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-800 dark:text-white sm:text-3xl">
             <Mail className="text-cyan-500" size={32} />
             Newsletter
           </h1>
@@ -166,12 +166,12 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
         </div>
 
         {/* Stats Cards */}
-        <div className="flex gap-4">
-          <div className="px-4 py-2 rounded-xl bg-linear-to-r from-cyan-500 to-cyan-600 text-white">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
+          <div className="rounded-xl bg-linear-to-r from-cyan-500 to-cyan-600 px-4 py-3 text-white sm:min-w-28">
             <div className="text-2xl font-bold">{stats.active}</div>
             <div className="text-xs opacity-80">Active</div>
           </div>
-          <div className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-[#1a1b26] text-slate-700 dark:text-slate-300">
+          <div className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 dark:bg-[#1a1b26] dark:text-slate-300 sm:min-w-28">
             <div className="text-2xl font-bold">{stats.total}</div>
             <div className="text-xs opacity-80">Total</div>
           </div>
@@ -179,16 +179,16 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 mb-6 border-b border-slate-200 dark:border-[#2a2b36]">
+      <div className="settings-tab-strip mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 dark:border-[#2a2b36] sm:gap-4">
         <button
           onClick={() => setActiveTab('settings')}
-          className={`pb-3 px-4 font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'settings' ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'settings' ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <Settings size={18} /> Settings
         </button>
         <button
           onClick={() => setActiveTab('subscribers')}
-          className={`pb-3 px-4 font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'subscribers' ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'subscribers' ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           <Users size={18} /> Subscribers
         </button>
@@ -196,10 +196,10 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
 
       {/* Settings Tab */}
       {activeTab === 'settings' && (
-        <div className="bg-white dark:bg-[#1a1b26] rounded-2xl border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
+        <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
           {/* Enable Toggle */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
               <span className="font-medium text-slate-800 dark:text-white">Enable Newsletter</span>
               <p className="text-sm text-slate-500">Show subscription widget on public pages</p>
             </div>
@@ -255,7 +255,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
           </div>
 
           {/* Button Text & Success Message */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <span className="block font-medium text-slate-800 dark:text-white mb-2">
                 Button Text
@@ -319,7 +319,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {saving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
               Save Settings
@@ -332,9 +332,9 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       {activeTab === 'subscribers' && (
         <div className="bg-white dark:bg-[#1a1b26] rounded-2xl border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
           {/* Toolbar */}
-          <div className="p-4 border-b border-slate-200 dark:border-[#2a2b36] flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
+          <div className="flex flex-col gap-4 border-b border-slate-200 p-4 dark:border-[#2a2b36] lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
+              <div className="relative min-w-0 flex-1 lg:w-64">
                 <Search
                   size={18}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -349,7 +349,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && loadSubscribers()}
-                  className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-sm w-64"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 bg-white py-2 pr-4 pl-10 text-sm dark:border-[#2a2b36] dark:bg-[#16161e]"
                 />
               </div>
               <select
@@ -360,32 +360,67 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 onChange={(e) =>
                   setStatusFilter(e.target.value as 'all' | 'active' | 'unsubscribed')
                 }
-                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-sm"
+                className="min-h-11 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm dark:border-[#2a2b36] dark:bg-[#16161e]"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
                 <option value="unsubscribed">Unsubscribed</option>
               </select>
             </div>
-            <div className="flex gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
               <button
                 onClick={loadSubscribers}
-                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#242633] flex items-center gap-2"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-[#2a2b36] dark:text-slate-300 dark:hover:bg-[#242633]"
               >
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
               </button>
               <button
                 onClick={handleExport}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 transition-colors shadow-lg shadow-blue-500/30"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700"
               >
                 <Download size={16} /> Export CSV
               </button>
             </div>
           </div>
 
+          {/* Mobile subscriber cards */}
+          <div className="divide-y divide-slate-100 dark:divide-slate-700 md:hidden">
+            {loading ? (
+              <div className="px-4 py-12 text-center text-slate-500">Loading...</div>
+            ) : subscribers.length === 0 ? (
+              <div className="px-4 py-12 text-center text-slate-500">No subscribers yet</div>
+            ) : (
+              subscribers.map((sub) => (
+                <article key={sub.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-all font-medium text-slate-800 dark:text-white">
+                        {sub.email}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {new Date(sub.subscribed_at).toLocaleDateString()} - {sub.source}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-[#242633] dark:text-slate-400'}`}
+                    >
+                      {sub.status}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(sub.id)}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
+                </article>
+              ))
+            )}
+          </div>
+
           {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-180">
               <thead className="bg-slate-50 dark:bg-[#16161e]">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">

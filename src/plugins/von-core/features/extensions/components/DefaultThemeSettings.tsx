@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../types';
 import { Trash2, Save, Plus, Type, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AdminModal from '../../../../../components/admin/AdminModal';
 
 interface DefaultThemeSettingsProps {
   settings: SiteSettings;
@@ -57,11 +58,16 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
-      <div className="bg-white dark:bg-[#1a1b26] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative flex flex-col">
-        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center sticky top-0 bg-white dark:bg-[#1a1b26] z-10">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="Default theme settings"
+      className="w-full max-w-2xl"
+    >
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1a1b26] sm:max-h-[90dvh]">
+        <div className="z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Type size={24} className="text-primary-600" />
               Default Theme Settings
             </h2>
@@ -70,14 +76,16 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-[#242633] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#242633] dark:hover:text-white"
+            aria-label="Close Default theme settings"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-6 space-y-8 overflow-y-auto flex-1">
+        <div className="flex-1 space-y-8 overflow-y-auto p-4 sm:p-6">
           {/* Brand Colors */}
           <section className="space-y-4">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-[#2a2b36]">
@@ -335,22 +343,22 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
           </section>
         </div>
 
-        <div className="p-6 border-t border-slate-100 dark:border-[#2a2b36] flex justify-end gap-3 sticky bottom-0 bg-white dark:bg-[#1a1b26] z-10 rounded-b-2xl">
+        <div className="admin-safe-bottom z-10 flex flex-col-reverse justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] font-medium transition-colors"
+            className="min-h-11 w-full px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 sm:w-auto"
           >
             <Save size={18} />
             Save Changes
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };

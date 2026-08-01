@@ -809,6 +809,7 @@ const DefaultLayout: React.FC<
                 onBack={onBackToHome || goHome}
                 onViewPost={onPostClick || viewPost}
                 postsPerPage={settings.postsPerPage || 6}
+                settings={settings}
                 onNavigateAdmin={onNavigateAdmin}
                 onUpdateUser={onUpdateUser}
               />
@@ -1247,7 +1248,11 @@ const HomeView: React.FC<{
                             {post.author}
                           </span>
                           <span className="text-neutral-400">
-                            {formatDate(post.createdAt || '', settings.timeZone)}
+                            {formatDate(
+                              post.createdAt || '',
+                              settings.timeZone,
+                              settings.dateFormat
+                            )}
                           </span>
                         </div>
                       </div>
@@ -1414,7 +1419,7 @@ const SinglePostView: React.FC<{
             <div className="hidden sm:block h-10 w-px bg-neutral-200 dark:bg-neutral-800"></div>
             <div className="text-left">
               <p className="font-bold text-neutral-900 dark:text-white">
-                {formatDate(post.createdAt || '', settings.timeZone)}
+                {formatDate(post.createdAt || '', settings.timeZone, settings.dateFormat)}
               </p>
               <p className="text-xs text-neutral-500 uppercase tracking-wide">Post Date</p>
             </div>

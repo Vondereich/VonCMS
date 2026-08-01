@@ -1,13 +1,13 @@
 import React from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
-import { User, Post, Comment } from '../../../types';
+import { User, Post, Comment, SiteSettings } from '../../../types';
 import { ArrowLeft, Terminal, Cpu, LayoutDashboard } from 'lucide-react';
 import { API } from '../../../config/site.config';
 import { vonFetch } from '../../../utils/api';
 import { LoadMoreButton } from '../../../components/LoadMoreButton';
 import { SafeImage } from '../../../components/SafeImage';
-import { getResponsiveImageAttributes } from '../../../utils/siteUtils';
+import { formatDate, getResponsiveImageAttributes } from '../../../utils/siteUtils';
 import { useProfileActivity } from '../../../hooks/useProfileActivity';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../../utils/profileUtils';
 
@@ -21,6 +21,7 @@ interface PrismProfileProps {
   onNavigateAdmin?: () => void;
   onUpdateUser?: (user: Partial<User>) => void;
   postsPerPage?: number;
+  settings: SiteSettings;
 }
 
 const GlitchText: React.FC<{ text: string; className?: string }> = ({ text, className }) => (
@@ -45,6 +46,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
   onNavigateAdmin,
   onUpdateUser,
   postsPerPage = 6,
+  settings,
 }) => {
   // --- Edit Profile State ---
   const [isEditing, setIsEditing] = React.useState(false);
@@ -468,7 +470,13 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                           <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mb-2">
                             <span className="text-(--color-secondary)">{post.category}</span>
                             <span>//</span>
-                            <span>{post.createdAt || post.updatedAt}</span>
+                            <span>
+                              {formatDate(
+                                post.createdAt || post.updatedAt,
+                                settings.timeZone,
+                                settings.dateFormat
+                              )}
+                            </span>
                           </div>
                           <h3 className="text-lg font-bold text-white mb-2 group-hover:text-(--color-primary) transition-colors">
                             {post.title}
@@ -505,7 +513,8 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                       <p className="text-slate-300 font-mono text-sm mb-3">"{comment.content}"</p>
                       <div className="flex items-center gap-3 text-xs text-slate-500 font-mono">
                         <span className="text-(--color-secondary)">
-                          TIMESTAMP: {comment.createdAt}
+                          TIMESTAMP:{' '}
+                          {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
                         </span>
                         <span>LIKES: {comment.likes}</span>
                       </div>

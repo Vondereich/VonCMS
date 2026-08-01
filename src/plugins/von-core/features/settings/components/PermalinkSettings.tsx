@@ -43,7 +43,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
   ];
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
+    <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-4 shadow-xs animate-fade-in dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
       <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-[#2a2b36] pb-2">
         Permalink Settings
       </h3>
@@ -55,7 +55,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
         {options.map((opt) => (
           <label
             key={opt.id}
-            className={`flex items-center p-4 rounded-lg border cursor-pointer transition-all ${current === opt.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-[#2a2b36] hover:bg-slate-50 dark:hover:bg-[#242633]/50'}`}
+            className={`flex cursor-pointer items-start rounded-lg border p-3 transition-all sm:p-4 ${current === opt.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-[#2a2b36] hover:bg-slate-50 dark:hover:bg-[#242633]/50'}`}
           >
             <input
               type="radio"
@@ -65,8 +65,8 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
               onChange={() => onChange('permalinkStructure', opt.id)}
               className="w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300"
             />
-            <div className="ml-4 grow">
-              <div className="flex items-center gap-2">
+            <div className="ml-3 min-w-0 grow sm:ml-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="block text-sm font-medium text-slate-900 dark:text-white">
                   {opt.label}
                 </span>
@@ -79,7 +79,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
               <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {opt.description}
               </span>
-              <code className="block text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-slate-100 dark:bg-[#16161e] px-2 py-1 rounded-sm">
+              <code className="mt-1 block break-all whitespace-normal rounded-sm bg-slate-100 px-2 py-1 font-mono text-xs text-blue-600 dark:bg-[#16161e] dark:text-blue-400">
                 {opt.example}
               </code>
             </div>

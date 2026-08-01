@@ -5,6 +5,7 @@ import { SiteSettings } from '../../../../../types';
 import { API } from '../../../../../config/site.config';
 import { getAuthHeader } from '../../../../../config/auth.config';
 import { vonFetch } from '../../../../../utils/api';
+import { DEFAULT_SITE_DATE_FORMAT, SITE_DATE_FORMAT_OPTIONS } from '../../../../../utils/siteUtils';
 import { Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface GeneralSettingsProps {
@@ -502,6 +503,29 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             <option value="America/Sao_Paulo">America/Sao_Paulo (GMT-3/-2)</option>
             <option value="Pacific/Honolulu">Pacific/Honolulu (GMT-10)</option>
           </select>
+        </div>
+        <div>
+          <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+            Date Format
+          </span>
+          <select
+            id="generalsettings-date-format"
+            name="generalsettingsDateFormat"
+            aria-label="Date Format"
+            value={settings.dateFormat || DEFAULT_SITE_DATE_FORMAT}
+            onChange={(e) => onChange('dateFormat', e.target.value)}
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+          >
+            {SITE_DATE_FORMAT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-500 mt-1">
+            Controls human-readable dates across every public theme. Machine-readable dates, feeds,
+            and permalinks keep their required formats.
+          </p>
         </div>
         {/* SMTP Email Configuration */}
         <div className="md:col-span-2 border-t border-slate-200 dark:border-[#2a2b36] pt-6 mt-2">

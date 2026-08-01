@@ -224,18 +224,18 @@ const DatabaseManager: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="flex h-full min-w-0 flex-col space-y-6">
       {/* Header Area */}
-      <div className="flex justify-between items-center bg-white dark:bg-[#1a1b26] p-4 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <div
             className={`p-2 rounded-lg ${isConnected ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
           >
             <Server size={20} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Database Manager</h2>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
               <span
                 className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
               ></span>
@@ -247,42 +247,42 @@ const DatabaseManager: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button
             onClick={handleImportClick}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-[#242633] dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#242633] dark:text-slate-300"
           >
             {isImporting ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}{' '}
             Import SQL
           </button>
           <button
             onClick={handleRepairClick}
-            className="flex items-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400 rounded-lg text-sm font-medium transition-colors"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-yellow-50 px-4 py-2 text-sm font-medium text-yellow-600 transition-colors hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400"
           >
             {isRepairing ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}{' '}
             Schema Repair
           </button>
           <button
             onClick={handleBackupClick}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400"
           >
             <Download size={16} /> Backup
           </button>
         </div>
       </div>
 
-      <div className="grow flex flex-col lg:flex-row gap-6 h-full min-h-[500px]">
+      <div className="flex h-full min-h-[500px] grow flex-col gap-6 xl:flex-row">
         {/* LEFT SIDEBAR: DB List */}
-        <div className="lg:w-1/3 flex flex-col gap-6">
+        <div className="flex min-h-0 flex-col gap-6 xl:w-1/3">
           {/* Database List Box */}
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl border border-slate-200 dark:border-[#2a2b36] grow flex flex-col overflow-hidden shadow-xs">
+          <div className="flex min-h-0 grow flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
             <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tables</h3>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                 Read-only
               </span>
             </div>
-            <div className="overflow-y-auto grow p-2 space-y-1">
+            <div className="max-h-72 grow space-y-1 overflow-y-auto p-2 sm:max-h-96 xl:max-h-none">
               {databases.map((db) => (
                 <div
                   key={db}
@@ -308,37 +308,37 @@ const DatabaseManager: React.FC = () => {
         </div>
 
         {/* RIGHT MAIN: SQL Editor & Results */}
-        <div className="lg:w-2/3 flex flex-col gap-6 min-h-0">
+        <div className="flex min-h-0 min-w-0 flex-col gap-6 xl:w-2/3">
           {/* SQL Editor Card */}
-          <div className="flex-[0.4] min-h-[200px] flex flex-col bg-[#101018] rounded-2xl shadow-xl border border-white/10 overflow-hidden ring-1 ring-white/5">
+          <div className="flex min-h-[380px] flex-[0.4] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#101018] shadow-xl ring-1 ring-white/5 sm:min-h-[320px] xl:min-h-[200px]">
             {/* Editor Toolbar */}
-            <div className="bg-[#101018]/80 backdrop-blur-md px-4 py-3 border-b border-white/10 flex justify-between items-center">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 border-b border-white/10 bg-[#101018]/80 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <span className="min-w-0 break-words text-[10px] font-black tracking-widest text-slate-400 uppercase">
                   SQL Editor <span className="text-slate-600 mx-1">/</span>{' '}
                   <span className="text-yellow-400">{selectedDb}</span>
                 </span>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest flex items-center gap-2 px-3 py-1.5 rounded-full border text-emerald-400 bg-emerald-400/10 border-emerald-400/20">
+              <span className="flex min-h-11 items-center gap-2 self-start rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[9px] font-black tracking-widest text-emerald-400 uppercase sm:min-h-0 sm:self-auto">
                 <Shield size={12} /> Read-only inspection
               </span>
             </div>
 
-            <div className="flex-1 relative group">
+            <div className="group relative min-h-40 flex-1">
               <textarea
                 id="databasemanager-388"
                 name="databasemanager388"
                 aria-label="Text Content"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="absolute inset-0 w-full h-full bg-[#101018]/50 text-emerald-400 font-mono p-6 text-sm focus:outline-hidden resize-none placeholder-slate-700 selection:bg-emerald-500/20"
+                className="absolute inset-0 h-full w-full resize-none bg-[#101018]/50 p-4 font-mono text-sm text-emerald-400 selection:bg-emerald-500/20 placeholder-slate-700 focus:outline-hidden sm:p-6"
                 spellCheck={false}
                 placeholder="-- Write your SQL query here..."
               />
             </div>
 
-            <div className="bg-[#101018]/50 px-6 py-4 flex justify-between items-center border-t border-white/10">
+            <div className="flex flex-col gap-4 border-t border-white/10 bg-[#101018]/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-center gap-4">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                   Ready to execute
@@ -352,7 +352,7 @@ const DatabaseManager: React.FC = () => {
               <button
                 onClick={handleRunQuery}
                 disabled={loading}
-                className="group flex items-center gap-3 px-8 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/40 transition-all transform active:scale-95 disabled:opacity-50 disabled:scale-100"
+                className="group flex min-h-11 w-full transform items-center justify-center gap-3 rounded-xl bg-emerald-600 px-8 py-2.5 text-xs font-black tracking-widest text-white uppercase shadow-lg shadow-emerald-900/40 transition-all hover:bg-emerald-500 active:scale-95 disabled:scale-100 disabled:opacity-50 sm:w-auto"
               >
                 {loading ? (
                   <RefreshCw size={16} className="animate-spin" />
@@ -372,7 +372,7 @@ const DatabaseManager: React.FC = () => {
 
           {/* Results Area */}
           <div className="flex-[0.6] flex flex-col bg-white dark:bg-[#16161e] rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 overflow-hidden min-h-0 ring-1 ring-black/5 dark:ring-white/5">
-            <div className="px-6 py-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-[#101018]/50 flex justify-between items-center">
+            <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-4 dark:border-white/10 dark:bg-[#101018]/50 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-center gap-3">
                 <Search size={16} className="text-slate-400" />
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
@@ -380,7 +380,7 @@ const DatabaseManager: React.FC = () => {
                 </h3>
               </div>
               {result && (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-[10px] font-black uppercase tracking-widest">
                     {result.data?.length || 0} ROWS
                   </div>
@@ -394,7 +394,7 @@ const DatabaseManager: React.FC = () => {
             <div className="flex-1 overflow-auto bg-slate-50/20 dark:bg-[#16161e]/20 custom-scrollbar">
               {result ? (
                 <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-left">
+                  <table className="min-w-full divide-y divide-slate-200 text-left dark:divide-slate-800">
                     <thead className="bg-white dark:bg-[#101018] sticky top-0 z-10 shadow-xs">
                       <tr>
                         {result.headers?.map((h) => (
@@ -433,7 +433,7 @@ const DatabaseManager: React.FC = () => {
                     </tbody>
                   </table>
                   {result.data?.length === 0 && (
-                    <div className="flex flex-col items-center justify-center p-20 text-slate-400 gap-4">
+                    <div className="flex flex-col items-center justify-center gap-4 p-10 text-slate-400 sm:p-20">
                       <Database size={48} className="opacity-10" />
                       <p className="text-xs font-bold uppercase tracking-widest opacity-40">
                         Command executed (Empty Result)
@@ -442,7 +442,7 @@ const DatabaseManager: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-6 p-20">
+                <div className="flex h-full flex-col items-center justify-center gap-6 p-10 text-slate-400 sm:p-20">
                   <div className="relative">
                     <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full"></div>
                     <Search size={64} className="opacity-10 relative z-10" />

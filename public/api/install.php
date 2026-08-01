@@ -387,6 +387,8 @@ try {
     ['general', 'favicon_url', '', 'string'],
     ['general', 'discussion_enabled', 'true', 'boolean'],
     ['general', 'permalink_structure', 'slug', 'string'],
+    ['general', 'time_zone', 'UTC', 'string'],
+    ['general', 'date_format', 'month_day_year_long', 'string'],
     [
       'ads',
       'ads_config',

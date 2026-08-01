@@ -280,6 +280,24 @@ if (array_key_exists('seo', $settings)) {
   }
 }
 
+if (array_key_exists('dateFormat', $settings)) {
+  $allowedDateFormats = [
+    'month_day_year_long',
+    'month_day_year_short',
+    'day_month_year_long',
+    'day_month_year_short',
+    'day_month_year_numeric',
+    'month_day_year_numeric',
+    'iso',
+  ];
+  if (
+    !is_string($settings['dateFormat']) ||
+    !in_array($settings['dateFormat'], $allowedDateFormats, true)
+  ) {
+    ResponseHelper::sendError('Invalid date format.', 400);
+  }
+}
+
 // Remove metadata fields
 unset($settings['_source'], $settings['_access_level'], $settings['_warning']);
 
@@ -405,6 +423,7 @@ try {
     ['spamKeywords', 'general', 'spam_keywords', 'string'],
     ['domainUrl', 'general', 'domain_url', 'string'],
     ['timeZone', 'general', 'time_zone', 'string'],
+    ['dateFormat', 'general', 'date_format', 'string'],
     // SMTP Settings
     ['smtpHost', 'smtp', 'smtpHost', 'string'],
     ['smtpPort', 'smtp', 'smtpPort', 'number'],
@@ -797,7 +816,9 @@ try {
   $settingsFile = __DIR__ . '/../data/site_settings.json';
 
   $settingsForFile = $settings;
-  if (!$isPrimaryAdmin && file_exists($settingsFile)) {
+  // The canonical endpoint accepts changed top-level groups. Merge the compatibility mirror
+  // for every role so a bounded partial write never replaces it with an incomplete snapshot.
+  if (file_exists($settingsFile)) {
     $existingSettingsForFile = json_decode((string) file_get_contents($settingsFile), true);
     if (is_array($existingSettingsForFile)) {
       $settingsForFile = array_replace($existingSettingsForFile, $settingsForFile);

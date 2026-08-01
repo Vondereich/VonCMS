@@ -59,6 +59,7 @@ import {
   decodeEntities,
   getResponsiveImageAttributes,
   hasEmbeddedVideoMarkup,
+  formatDate,
 } from '../shared';
 
 import { API } from '../../config/site.config';
@@ -104,9 +105,10 @@ const CorporateProfile: React.FC<{
   targetUser: User;
   currentUser: User | null;
   posts: Post[];
+  settings: SiteSettings;
   onUpdateUser?: (user: Partial<User>) => void;
   onPostClick: (id: string) => void;
-}> = ({ targetUser, currentUser, posts: _posts, onUpdateUser, onPostClick }) => {
+}> = ({ targetUser, currentUser, posts: _posts, settings, onUpdateUser, onPostClick }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(targetUser.display_name || '');
   const [editBio, setEditBio] = useState(targetUser.bio || '');
@@ -429,7 +431,9 @@ const CorporateProfile: React.FC<{
                   <h4 className="font-bold group-hover:text-blue-600 transition line-clamp-2 text-slate-900 dark:text-white">
                     {decodeEntities(post.title)}
                   </h4>
-                  <span className="text-xs text-slate-500">{post.createdAt || ''}</span>
+                  <span className="text-xs text-slate-500">
+                    {formatDate(post.createdAt || '', settings.timeZone, settings.dateFormat)}
+                  </span>
                 </div>
               </div>
             ))
@@ -1089,7 +1093,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               </div>
             )}
 
-          <div className="grid md:grid-cols-4 gap-12 mb-16">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="col-span-1 md:col-span-1">
               <div className="mb-6">
                 <span className="text-xl font-bold text-slate-900 dark:text-white">
@@ -1149,12 +1153,14 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 </li>
               </ul>
             </div>
-            <div>
+            <div className="min-w-0">
               <h4 className="font-bold text-slate-900 dark:text-white mb-6">Contact</h4>
               <ul className="space-y-4">
-                <li className="flex items-center gap-3 text-slate-600 dark:text-neutral-400">
-                  <Mail size={18} className="text-blue-600" />
-                  {settings.theme?.corporatePro?.contactEmail || 'info@corporatepro.com'}
+                <li className="flex items-start gap-3 text-slate-600 dark:text-neutral-400">
+                  <Mail size={18} className="shrink-0 text-blue-600" />
+                  <span className="min-w-0 break-words">
+                    {settings.theme?.corporatePro?.contactEmail || 'info@corporatepro.com'}
+                  </span>
                 </li>
                 <li className="flex items-center gap-3 text-slate-600 dark:text-neutral-400">
                   <Phone size={18} className="text-blue-600" />
@@ -1230,7 +1236,13 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                         {selectedPost.category}
                       </div>
                       <div className="flex items-center justify-center gap-2 text-sm text-slate-500 mb-6 font-medium">
-                        <span>{new Date(selectedPost.createdAt || '').toLocaleDateString()}</span>
+                        <span>
+                          {formatDate(
+                            selectedPost.createdAt || '',
+                            settings.timeZone,
+                            settings.dateFormat
+                          )}
+                        </span>
                         <span>•</span>
                         <span>{selectedPost.readTime || '5 min read'}</span>
                       </div>
@@ -1363,6 +1375,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                   targetUser={targetProfile}
                   currentUser={user}
                   posts={posts}
+                  settings={settings}
                   onUpdateUser={onUpdateUser}
                   onPostClick={onPostClick}
                 />

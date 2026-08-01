@@ -15,6 +15,7 @@ import {
   Database,
   LogOut,
   Menu,
+  X,
   Sun,
   Moon,
   Search,
@@ -48,6 +49,9 @@ interface AdminMenuItem {
   requiresPrimaryAdmin?: boolean;
 }
 
+const ADMIN_NAV_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
   settings,
@@ -58,6 +62,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
   const { pathname } = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<
     { label: string; path: string; icon: React.ReactNode }[]
@@ -69,6 +74,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsRefreshTick, setAlertsRefreshTick] = useState(0);
   const alertsTrayRef = useRef<HTMLDivElement | null>(null);
+  const mobileSidebarRef = useRef<HTMLElement | null>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const integrityReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const menuItems: AdminMenuItem[] = [
@@ -234,6 +241,65 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     document.title = `${pageName} - ${siteName} Admin`;
   }, [pathname, settings?.siteName]);
 
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : mobileMenuButtonRef.current;
+    document.body.style.overflow = 'hidden';
+
+    const getFocusableElements = () =>
+      Array.from(
+        mobileSidebarRef.current?.querySelectorAll<HTMLElement>(ADMIN_NAV_FOCUSABLE_SELECTOR) ?? []
+      ).filter((element) => element.offsetParent !== null);
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      getFocusableElements()[0]?.focus();
+    });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsMobileSidebarOpen(false);
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusableElements = getFocusableElements();
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements.at(-1);
+      if (!firstFocusable || !lastFocusable) return;
+
+      const activeElement = document.activeElement;
+      const focusIsOutsideDrawer = !mobileSidebarRef.current?.contains(activeElement);
+      if (event.shiftKey && (activeElement === firstFocusable || focusIsOutsideDrawer)) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && (activeElement === lastFocusable || focusIsOutsideDrawer)) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      const focusTarget =
+        previouslyFocused?.isConnected === true ? previouslyFocused : mobileMenuButtonRef.current;
+      focusTarget?.focus();
+    };
+  }, [isMobileSidebarOpen]);
+
   // Proactive Integrity Warning - Admin Layout Only
   useEffect(() => {
     // Role check is redundant (AdminLayout is protected), but good for safety
@@ -398,28 +464,58 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div
-      className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDarkMode ? 'dark bg-[#16161e] text-slate-300' : 'bg-slate-50 text-slate-900'}`}
+      className={`admin-shell flex min-h-0 overflow-hidden font-sans transition-colors duration-300 ${isDarkMode ? 'dark bg-[#16161e] text-slate-300' : 'bg-slate-50 text-slate-900'}`}
     >
+      {isMobileSidebarOpen && (
+        <button
+          type="button"
+          aria-label="Dismiss admin navigation backdrop"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm xl:hidden"
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`${isSidebarOpen ? 'w-64' : 'w-20'} 
-                relative z-20 transition-all duration-300 ease-in-out
-                bg-[#1a1b26] border-r border-white/10 flex flex-col text-slate-300 shadow-2xl`}
+        id="admin-mobile-navigation"
+        ref={mobileSidebarRef}
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-white/10 bg-[#1a1b26] text-slate-300 shadow-2xl transition-[transform,width] duration-300 ease-in-out xl:relative xl:z-20 xl:max-w-none ${
+          isMobileSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full xl:visible'
+        } ${isSidebarOpen ? 'xl:w-64' : 'xl:w-20'} xl:translate-x-0`}
+        aria-label="Admin navigation"
       >
         {/* Logo Area */}
-        <div className="h-16 flex items-center justify-center border-b border-white/10">
-          {isSidebarOpen ? (
-            <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-              <div className="text-white">
-                <VonLogo variant="simple" className="w-8 h-8" />
-              </div>
-              <span className="bg-clip-text text-transparent bg-linear-to-r from-slate-200 to-white">
-                VonCMS Panel
-              </span>
+        <div className="flex h-16 items-center justify-between border-b border-white/10 px-3 xl:justify-center xl:px-0">
+          <div className="xl:hidden flex items-center gap-2 font-bold text-xl tracking-tight">
+            <div className="text-white">
+              <VonLogo variant="simple" className="w-8 h-8" />
             </div>
-          ) : (
-            <VonLogo variant="simple" className="w-7 h-7 text-white" />
-          )}
+            <span className="bg-clip-text text-transparent bg-linear-to-r from-slate-200 to-white">
+              VonCMS Panel
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white xl:hidden"
+            aria-label="Close admin navigation"
+          >
+            <X size={20} />
+          </button>
+          <div className="hidden xl:block">
+            {isSidebarOpen ? (
+              <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
+                <div className="text-white">
+                  <VonLogo variant="simple" className="w-8 h-8" />
+                </div>
+                <span className="bg-clip-text text-transparent bg-linear-to-r from-slate-200 to-white">
+                  VonCMS Panel
+                </span>
+              </div>
+            ) : (
+              <VonLogo variant="simple" className="w-7 h-7 text-white" />
+            )}
+          </div>
         </div>
 
         {/* Nav Items */}
@@ -437,6 +533,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                                         : 'text-slate-400 hover:bg-[#1a1b26] hover:text-white'
                                     }
                                 `}
+                onClick={() => setIsMobileSidebarOpen(false)}
                 title={!isSidebarOpen ? item.label : ''}
               >
                 <div
@@ -446,12 +543,18 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                   {item.icon}
                 </div>
                 <span
-                  className={`whitespace-nowrap transition-opacity duration-200 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 hidden'}`}
+                  className={`whitespace-nowrap transition-opacity duration-200 ${
+                    isSidebarOpen ? 'xl:opacity-100' : 'xl:hidden xl:w-0 xl:opacity-0'
+                  }`}
                 >
                   {item.label}
                 </span>
-                {isActive && isSidebarOpen && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                {isActive && (
+                  <div
+                    className={`ml-auto h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${
+                      !isSidebarOpen ? 'xl:hidden' : ''
+                    }`}
+                  ></div>
                 )}
               </Link>
             );
@@ -462,23 +565,23 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         <div className="p-4 border-t border-white/10 space-y-2">
           <Link
             to="/"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-[#1a1b26] hover:text-white transition-colors text-sm ${!isSidebarOpen && 'justify-center'}`}
+            className={`flex min-h-11 items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-[#1a1b26] hover:text-white transition-colors text-sm ${!isSidebarOpen && 'xl:justify-center'}`}
             title="Visit Site"
           >
             <Globe size={18} />
-            <span className={`${!isSidebarOpen && 'hidden'}`}>Visit Site</span>
+            <span className={`${!isSidebarOpen && 'xl:hidden'}`}>Visit Site</span>
           </Link>
           <button
             onClick={onLogout}
-            className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-red-400 hover:bg-[#1a1b26] hover:text-red-300 transition-colors text-sm ${!isSidebarOpen && 'justify-center'}`}
+            className={`flex min-h-11 items-center gap-3 w-full px-3 py-2 rounded-lg text-red-400 hover:bg-[#1a1b26] hover:text-red-300 transition-colors text-sm ${!isSidebarOpen && 'xl:justify-center'}`}
             title="Logout"
           >
             <LogOut size={18} />
-            <span className={`${!isSidebarOpen && 'hidden'}`}>Logout</span>
+            <span className={`${!isSidebarOpen && 'xl:hidden'}`}>Logout</span>
           </button>
 
           <div
-            className={`flex items-center gap-3 pt-2 mt-2 border-t border-white/10 ${!isSidebarOpen && 'justify-center'}`}
+            className={`flex items-center gap-3 pt-2 mt-2 border-t border-white/10 ${!isSidebarOpen && 'xl:justify-center'}`}
           >
             {user?.avatar ? (
               <img
@@ -494,35 +597,45 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                 className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b26] shadow-md object-cover"
               />
             )}
-            {isSidebarOpen && (
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium text-white truncate">
-                  {user?.username || 'Admin'}
-                </p>
-                <p className="text-xs text-slate-400 truncate">{user?.role || 'Administrator'}</p>
-              </div>
-            )}
+            <div className={`flex-1 overflow-hidden ${!isSidebarOpen ? 'xl:hidden' : ''}`}>
+              <p className="text-sm font-medium text-white truncate">{user?.username || 'Admin'}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.role || 'Administrator'}</p>
+            </div>
           </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative z-10 overflow-hidden">
+      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top Header */}
         <header
-          className="h-16 px-6 flex items-center justify-between 
+          className="h-16 px-3 sm:px-4 lg:px-6 flex items-center justify-between
                     bg-white/90 dark:bg-[#1a1b26]/90 backdrop-blur-md border-b border-slate-200 dark:border-white/10 sticky top-0 z-30 shadow-xs dark:shadow-slate-900/10"
         >
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors"
+              ref={mobileMenuButtonRef}
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors xl:hidden"
+              aria-label="Open admin navigation"
+              aria-expanded={isMobileSidebarOpen}
+              aria-controls="admin-mobile-navigation"
             >
-              {isSidebarOpen ? <Menu size={20} /> : <Menu size={20} />}
+              <Menu size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="hidden h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors xl:flex"
+              aria-label={isSidebarOpen ? 'Collapse admin navigation' : 'Expand admin navigation'}
+              aria-expanded={isSidebarOpen}
+            >
+              <Menu size={20} />
             </button>
 
             {/* Search Bar - Glassy */}
-            <div className="hidden md:flex items-center relative group">
+            <div className="hidden lg:flex items-center relative group">
               <label htmlFor="admin-global-search" className="sr-only">
                 Search admin navigation
               </label>
@@ -564,7 +677,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors"
+              aria-label={isDarkMode ? 'Use light mode' : 'Use dark mode'}
             >
               {isDarkMode ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} />}
             </button>
@@ -572,7 +686,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
             <div ref={alertsTrayRef} className="relative">
               <button
                 onClick={() => setIsAlertsOpen((prev) => !prev)}
-                className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors relative"
+                className="relative flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors"
                 aria-label="Open system alerts"
                 aria-expanded={isAlertsOpen}
               >
@@ -583,7 +697,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
               </button>
 
               {isAlertsOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1a1b26] rounded-xl shadow-xl border border-slate-100 dark:border-[#2a2b36] overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] bg-white dark:bg-[#1a1b26] rounded-xl shadow-xl border border-slate-100 dark:border-[#2a2b36] overflow-hidden z-50">
                   <div className="px-4 py-3 border-b border-slate-100 dark:border-[#2a2b36] flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -649,7 +763,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         </header>
 
         {/* Content Scroller */}
-        <div className="flex-1 overflow-auto p-6 relative">{children}</div>
+        <div className="relative flex-1 overflow-auto overscroll-contain p-3 sm:p-4 lg:p-6">
+          {children}
+        </div>
       </main>
     </div>
   );

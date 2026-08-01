@@ -161,6 +161,8 @@ try {
             'active_theme_id',
             'permalink_structure',
             'site_language',
+            'date_format',
+            'time_zone',
             'domain_url',
             'discussion_enabled',
             'indexnow_enabled',

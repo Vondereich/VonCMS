@@ -8,6 +8,7 @@ import { API, BASE_PATH } from '../config/site.config';
 import { getAuthHeader } from '../config/auth.config';
 import { vonFetch } from '../utils/api';
 import { normalizeArticleSchemaType } from '../utils/articleSchema';
+import { createSettingsPatch } from '../utils/settingsDraft';
 import toast from 'react-hot-toast';
 
 // Initial Settings
@@ -18,6 +19,8 @@ const INITIAL_SETTINGS: SiteSettings = {
   siteName: _s?.siteName || 'My Website',
   siteUrl: _s?.siteUrl || '',
   domainUrl: _s?.domainUrl || '',
+  timeZone: _s?.timeZone || 'UTC',
+  dateFormat: _s?.dateFormat || 'month_day_year_long',
   siteDescription: _s?.siteDescription || 'A modern content management system',
   ...(_s?.activeThemeId ? { activeThemeId: _s.activeThemeId } : {}),
   ...(_s?.permalinkStructure ? { permalinkStructure: _s.permalinkStructure } : {}),
@@ -138,6 +141,10 @@ export function useSettings() {
     async (newSettings: SiteSettings, options: { optimistic?: boolean } = {}): Promise<boolean> => {
       const optimistic = options.optimistic !== false;
       const previousSettings: SiteSettings = settingsRef.current;
+      const settingsPatch = createSettingsPatch(previousSettings, newSettings);
+      if (Object.keys(settingsPatch).length === 0) {
+        return true;
+      }
       const restorePreviousSettings = () => {
         if (optimistic) {
           settingsRef.current = previousSettings;
@@ -157,7 +164,7 @@ export function useSettings() {
             'Content-Type': 'application/json',
             ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
           },
-          body: JSON.stringify(newSettings),
+          body: JSON.stringify(settingsPatch),
         });
 
         if (!res.ok) {
@@ -239,7 +246,7 @@ export function useSettings() {
           'Content-Type': 'application/json',
           ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
         },
-        body: JSON.stringify(nextSettings),
+        body: JSON.stringify({ navigation: newNav }),
       });
       const data = await res.json().catch(() => ({}));
       saved = res.ok && data.success !== false;

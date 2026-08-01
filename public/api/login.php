@@ -79,6 +79,7 @@ try {
   $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
   if ($user && password_verify($password, $user['password'])) {
+    $authPasswordHash = (string) $user['password'];
     try {
       $verificationStmt = $pdo->prepare(
         'SELECT email_verified, verification_token FROM users WHERE id = ? LIMIT 1',
@@ -108,17 +109,13 @@ try {
     // SECURITY: Regenerate session ID to prevent Session Fixation attacks
     session_regenerate_id(true);
 
-    $_SESSION['user'] = $user;
-    $_SESSION['ua_bind'] = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? 'unknown');
+    SessionManager::establishAuthenticatedSession($user, $authPasswordHash);
 
     // Generate CSRF token for this session
     $csrfToken = CSRFProtection::generateToken();
 
     // Reset rate limiter on successful login
     RateLimiter::reset();
-
-    // Touch session timestamp
-    SessionManager::touch();
 
     // HANDLE REMEMBER ME (30 Days)
     $rememberMe = $input['remember_me'] ?? false;

@@ -10,6 +10,9 @@ export const GlobalLightbox: React.FC = () => {
   const [gallery, setGallery] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   // Listen for image clicks in post content
   useEffect(() => {
@@ -45,31 +48,76 @@ export const GlobalLightbox: React.FC = () => {
     return () => document.removeEventListener('click', handleImageClick);
   }, []);
 
+  const close = useCallback(() => setIsOpen(false), []);
+
+  const next = useCallback(() => {
+    setCurrentIndex((previousIndex) => (previousIndex + 1) % gallery.length);
+  }, [gallery.length]);
+
+  const prev = useCallback(() => {
+    setCurrentIndex((previousIndex) => (previousIndex - 1 + gallery.length) % gallery.length);
+  }, [gallery.length]);
+
   // Keyboard Navigation
   useEffect(() => {
     if (!isOpen) return;
 
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusTimer = window.setTimeout(() => {
+      (closeButtonRef.current || dialogRef.current)?.focus();
+    }, 0);
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-      if (e.key === 'ArrowLeft') prev();
-      if (e.key === 'ArrowRight') next();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prev();
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        next();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentIndex, gallery]);
-
-  const close = () => setIsOpen(false);
-
-  const next = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % gallery.length);
-    setCurrentImage(gallery[(currentIndex + 1) % gallery.length]);
-  }, [gallery, currentIndex]);
-
-  const prev = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + gallery.length) % gallery.length);
-    setCurrentImage(gallery[(currentIndex - 1 + gallery.length) % gallery.length]);
-  }, [gallery, currentIndex]);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [close, isOpen, next, prev]);
 
   const handleTouchStart = (event: React.TouchEvent) => {
     if (gallery.length <= 1) return;
@@ -114,14 +162,25 @@ export const GlobalLightbox: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-9999 bg-black/95 backdrop-blur-xs flex items-center justify-center animate-fade-in"
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image lightbox"
+      tabIndex={-1}
+      className="modal-enter fixed inset-0 z-9999 flex items-center justify-center bg-black/95 backdrop-blur-xs"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) close();
+      }}
     >
       {/* Controls */}
       <button
+        ref={closeButtonRef}
+        type="button"
         onClick={close}
         className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full transition-colors z-50"
+        aria-label="Close image lightbox"
       >
         <X size={32} />
       </button>
@@ -130,14 +189,18 @@ export const GlobalLightbox: React.FC = () => {
       {gallery.length > 1 && (
         <>
           <button
+            type="button"
             onClick={prev}
             className="absolute left-4 top-1/2 -translate-y-1/2 text-white p-4 hover:bg-white/10 rounded-full transition-colors z-50 hidden md:block"
+            aria-label="Previous image"
           >
             <ChevronLeft size={48} />
           </button>
           <button
+            type="button"
             onClick={next}
             className="absolute right-4 top-1/2 -translate-y-1/2 text-white p-4 hover:bg-white/10 rounded-full transition-colors z-50 hidden md:block"
+            aria-label="Next image"
           >
             <ChevronRight size={48} />
           </button>
@@ -160,9 +223,6 @@ export const GlobalLightbox: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Overlay Click to Close */}
-      <div className="absolute inset-0 -z-10" onClick={close}></div>
     </div>
   );
 };

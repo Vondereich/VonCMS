@@ -2,23 +2,15 @@ import type { CSSProperties } from 'react';
 import { SiteSettings, Post, Comment } from '../types';
 import { BASE_PATH } from '../config/site.config';
 
+export {
+  DEFAULT_SITE_DATE_FORMAT,
+  SITE_DATE_FORMAT_OPTIONS,
+  formatDate,
+  normalizeSiteDateFormat,
+} from './dateFormat';
+
 export const getBasePathPrefix = (): string =>
   BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
-
-export const formatDate = (dateString: string, timeZone?: string): string => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: timeZone || undefined,
-    }).format(date);
-  } catch (e) {
-    return dateString;
-  }
-};
 
 export const getCategorySlug = (category: string | null | undefined): string => {
   const raw = String(category || '').trim();

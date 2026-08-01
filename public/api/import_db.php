@@ -63,6 +63,16 @@ function getImportMysqlBufferedQueryAttribute(): ?int
   return null;
 }
 
+function quoteImportBackupMysqlIdentifier(string $identifier): string
+{
+  return '`' . str_replace('`', '``', $identifier) . '`';
+}
+
+function sanitizeImportBackupCommentLabel(string $value): string
+{
+  return preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? '';
+}
+
 /**
  * @param string $statement
  * @return string
@@ -463,19 +473,23 @@ function createPreImportSafetyBackup($pdo)
     try {
       $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
       foreach ($tables as $table) {
-        $createStmt = $pdo->query("SHOW CREATE TABLE `$table`");
+        $table = (string) $table;
+        $quotedTable = quoteImportBackupMysqlIdentifier($table);
+        $tableLabel = sanitizeImportBackupCommentLabel($table);
+        $createStmt = $pdo->query("SHOW CREATE TABLE {$quotedTable}");
         $createRow = $createStmt->fetch(PDO::FETCH_ASSOC);
         $createStmt->closeCursor();
 
         writePreImportSafetyBackupData($handle, "-- \n");
-        writePreImportSafetyBackupData($handle, "-- Table structure: `$table`\n");
+        writePreImportSafetyBackupData($handle, "-- Table structure: {$tableLabel}\n");
         writePreImportSafetyBackupData($handle, "-- \n");
-        writePreImportSafetyBackupData($handle, "DROP TABLE IF EXISTS `$table`;\n");
+        writePreImportSafetyBackupData($handle, "DROP TABLE IF EXISTS {$quotedTable};\n");
         writePreImportSafetyBackupData($handle, $createRow['Create Table'] . ";\n\n");
 
-        $stmt = $pdo->query("SELECT * FROM `$table`");
+        $stmt = $pdo->query("SELECT * FROM {$quotedTable}");
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
           $columns = array_keys($row);
+          $quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);
           $values = [];
           foreach ($row as $value) {
             $values[] = $value === null ? 'NULL' : $pdo->quote($value);
@@ -483,9 +497,9 @@ function createPreImportSafetyBackup($pdo)
 
           writePreImportSafetyBackupData(
             $handle,
-            "INSERT INTO `$table` (`" .
-              implode('`, `', $columns) .
-              '`) VALUES (' .
+            "INSERT INTO {$quotedTable} (" .
+              implode(', ', $quotedColumns) .
+              ') VALUES (' .
               implode(', ', $values) .
               ");\n",
           );

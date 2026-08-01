@@ -186,26 +186,26 @@ const ContactManager = () => {
 
   if (view === 'list') {
     return (
-      <div className="p-6 max-w-6xl mx-auto animate-fade-in">
-        <div className="flex justify-between items-center mb-8">
+      <div className="mx-auto max-w-6xl animate-fade-in">
+        <div className="mb-6 flex flex-col justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Contact Forms</h1>
             <p className="text-gray-500 dark:text-gray-400">
               Manage your contact forms (Dedicated Table)
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={handleMigrate}
               disabled={loading}
-              className="bg-slate-100 dark:bg-[#242633] hover:bg-slate-200 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-all border border-slate-200 dark:border-[#333544] dark:hover:bg-[#333544]"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-slate-700 transition-all hover:bg-slate-200 dark:border-[#333544] dark:bg-[#242633] dark:text-slate-200 dark:hover:bg-[#333544] sm:flex-none"
               title="Migrate forms from old settings table"
             >
               <Database size={18} /> Migrate
             </button>
             <button
               onClick={handleCreate}
-              className="bg-[#1a1b26] hover:bg-[#242633] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-slate-900/20 dark:bg-[#242633] dark:hover:bg-[#333544]"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#1a1b26] px-4 py-2 text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-[#242633] dark:bg-[#242633] dark:hover:bg-[#333544] sm:flex-none"
             >
               <Plus size={18} /> Add New
             </button>
@@ -213,76 +213,137 @@ const ContactManager = () => {
         </div>
 
         <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-gray-200 dark:border-[#2a2b36] overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 dark:bg-[#16161e]/70 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-[#2a2b36]">
-              <tr>
-                <th className="p-4 font-semibold">Title</th>
-                <th className="p-4 font-semibold">Shortcode</th>
-                <th className="p-4 font-semibold">Date</th>
-                <th className="p-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-[#2a2b36]">
-              {forms.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-500">
-                    No contact forms found. Create one to get started.
-                  </td>
-                </tr>
-              ) : (
-                forms.map((form) => (
-                  <tr
-                    key={form.id}
-                    className="hover:bg-gray-50 dark:hover:bg-[#242633]/50 transition-colors"
-                  >
-                    <td
-                      className="p-4 font-medium text-slate-800 hover:text-[#1a1b26] dark:text-slate-100 dark:hover:text-white cursor-pointer"
+          <div className="divide-y divide-gray-100 dark:divide-[#2a2b36] md:hidden">
+            {forms.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                No contact forms found. Create one to get started.
+              </div>
+            ) : (
+              forms.map((form) => (
+                <article key={form.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentForm(form);
+                          setView('edit');
+                        }}
+                        className="min-h-11 text-left font-semibold text-slate-800 dark:text-slate-100"
+                      >
+                        {form.title}
+                      </button>
+                      <p className="text-xs text-gray-500">
+                        {new Date(form.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyShortcode(form.id)}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-[#101018] dark:text-gray-300"
+                      aria-label={`Copy shortcode for ${form.title}`}
+                    >
+                      <Copy size={17} />
+                    </button>
+                  </div>
+                  <code className="block break-all rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600 dark:bg-[#101018] dark:text-gray-400">
+                    {`[von-contact id="${form.id}"]`}
+                  </code>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
                       onClick={() => {
                         setCurrentForm(form);
                         setView('edit');
                       }}
+                      className="min-h-11 flex-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700"
                     >
-                      {form.title}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#101018] px-3 py-1 rounded-sm border border-gray-200 dark:border-[#2a2b36] w-fit text-sm font-mono text-gray-600 dark:text-gray-400">
-                        {`[von-contact id="${form.id}"]`}
-                        <button
-                          onClick={() => copyShortcode(form.id)}
-                          className="hover:text-[#1a1b26] dark:hover:text-white ml-2"
-                          title="Copy"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="p-4 text-gray-500 text-sm">
-                      {new Date(form.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setCurrentForm(form);
-                            setView('edit');
-                          }}
-                          className="p-2 text-gray-500 hover:text-[#1a1b26] hover:bg-slate-100 dark:hover:bg-[#242633] dark:hover:text-white rounded-lg transition-colors"
-                        >
-                          <Settings size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(form.id)}
-                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        >
-                          <Trash size={18} />
-                        </button>
-                      </div>
+                      Edit Form
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(form.id)}
+                      className="min-h-11 rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-170 text-left">
+              <thead className="bg-gray-50 dark:bg-[#16161e]/70 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-[#2a2b36]">
+                <tr>
+                  <th className="p-4 font-semibold">Title</th>
+                  <th className="p-4 font-semibold">Shortcode</th>
+                  <th className="p-4 font-semibold">Date</th>
+                  <th className="p-4 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-[#2a2b36]">
+                {forms.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-gray-500">
+                      No contact forms found. Create one to get started.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  forms.map((form) => (
+                    <tr
+                      key={form.id}
+                      className="hover:bg-gray-50 dark:hover:bg-[#242633]/50 transition-colors"
+                    >
+                      <td
+                        className="p-4 font-medium text-slate-800 hover:text-[#1a1b26] dark:text-slate-100 dark:hover:text-white cursor-pointer"
+                        onClick={() => {
+                          setCurrentForm(form);
+                          setView('edit');
+                        }}
+                      >
+                        {form.title}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#101018] px-3 py-1 rounded-sm border border-gray-200 dark:border-[#2a2b36] w-fit text-sm font-mono text-gray-600 dark:text-gray-400">
+                          {`[von-contact id="${form.id}"]`}
+                          <button
+                            onClick={() => copyShortcode(form.id)}
+                            className="hover:text-[#1a1b26] dark:hover:text-white ml-2"
+                            title="Copy"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="p-4 text-gray-500 text-sm">
+                        {new Date(form.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setCurrentForm(form);
+                              setView('edit');
+                            }}
+                            className="p-2 text-gray-500 hover:text-[#1a1b26] hover:bg-slate-100 dark:hover:bg-[#242633] dark:hover:text-white rounded-lg transition-colors"
+                          >
+                            <Settings size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(form.id)}
+                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <Trash size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -292,13 +353,15 @@ const ContactManager = () => {
   if (!currentForm) return null;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto animate-fade-in">
+    <div className="mx-auto max-w-6xl animate-fade-in">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <button
+            type="button"
             onClick={() => setView('list')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-[#242633] rounded-full transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#242633]"
+            aria-label="Back to contact forms"
           >
             <ChevronLeft size={24} className="text-gray-600 dark:text-gray-300" />
           </button>
@@ -309,11 +372,11 @@ const ContactManager = () => {
             type="text"
             value={currentForm.title}
             onChange={(e) => setCurrentForm({ ...currentForm, title: e.target.value })}
-            className="text-2xl font-bold bg-transparent border-none focus:ring-0 text-gray-800 dark:text-white placeholder-gray-400 w-96 p-0"
+            className="min-w-0 w-full bg-transparent p-0 text-xl font-bold text-gray-800 placeholder-gray-400 focus:ring-0 dark:text-white sm:text-2xl"
             placeholder="Enter form title here"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-end gap-3">
           <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-[#16161e] px-4 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#2a2b36]">
             <span className="font-mono selectable select-all">
               {`[von-contact id="${currentForm.id}"]`}
@@ -323,9 +386,10 @@ const ContactManager = () => {
             </button>
           </div>
           <button
+            type="button"
             onClick={handleSave}
             disabled={loading}
-            className="bg-[#1a1b26] hover:bg-[#242633] text-white px-6 py-2 rounded-lg flex items-center gap-2 font-medium shadow-lg shadow-slate-900/20 transition-all disabled:opacity-50 dark:bg-[#242633] dark:hover:bg-[#333544]"
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#1a1b26] px-6 py-2 font-medium text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-[#242633] disabled:opacity-50 dark:bg-[#242633] dark:hover:bg-[#333544] sm:flex-none"
           >
             {loading ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
             Save
@@ -335,28 +399,28 @@ const ContactManager = () => {
 
       {/* Tabs */}
       <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-gray-200 dark:border-[#2a2b36] overflow-hidden min-h-150 flex flex-col">
-        <div className="flex border-b border-gray-200 dark:border-[#2a2b36]">
+        <div className="flex overflow-x-auto border-b border-gray-200 dark:border-[#2a2b36]">
           <button
             onClick={() => setActiveTab('form')}
-            className={`px-6 py-4 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'form' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'form' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
           >
             <Code size={18} /> Form (Template)
           </button>
           <button
             onClick={() => setActiveTab('mail')}
-            className={`px-6 py-4 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'mail' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'mail' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
           >
             <Mail size={18} /> Mail
           </button>
           <button
             onClick={() => setActiveTab('messages')}
-            className={`px-6 py-4 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'messages' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'messages' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
           >
             <MessageSquare size={18} /> Messages
           </button>
         </div>
 
-        <div className="p-6 grow overflow-y-auto">
+        <div className="grow overflow-y-auto p-4 sm:p-6">
           {/* FORM TAB */}
           {activeTab === 'form' && (
             <div className="space-y-4 h-full flex flex-col">

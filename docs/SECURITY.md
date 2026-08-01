@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.26.1
+# VonCMS Security Policy v1.26.2
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 
@@ -59,6 +59,9 @@ What it does:
 - enables the `Secure` flag when HTTPS is active
 - regenerates the session ID on login
 - binds active sessions to the current user agent to reduce session hijacking risk
+- binds authenticated sessions to the current database user ID, role, and password state
+- revalidates that authorization state once per request so role changes, password changes, and user deletion revoke existing session authority
+- limits PHP sessions to one hour of inactivity and a fixed 12-hour absolute lifetime
 - uses a dedicated hashed selector/validator token for remember-me instead of persisting the raw PHP session ID
 - rotates the remember validator when restoring a session and revokes the active token on logout
 

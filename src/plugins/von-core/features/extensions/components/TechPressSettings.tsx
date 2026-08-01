@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../types';
 import { X, Save, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AdminModal from '../../../../../components/admin/AdminModal';
 
 interface TechPressSettingsProps {
   settings: SiteSettings;
@@ -43,10 +44,15 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
-      <div className="bg-white dark:bg-[#16161e] w-full max-w-2xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="TechPress settings"
+      className="w-full max-w-2xl"
+    >
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-slate-50 dark:bg-[#16161e]">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:p-6">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">TechPress Settings</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -54,15 +60,17 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            aria-label="Close TechPress settings"
           >
             <X size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           <div className="space-y-6">
             {/* Primary Color */}
             <div className="space-y-2">
@@ -92,7 +100,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
             </div>
 
             {/* Toggles */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26]">
                 <input
                   id="techpresssettings-136"
@@ -267,21 +275,21 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-200 dark:border-white/10 flex justify-end gap-3 bg-slate-50 dark:bg-[#16161e]">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors"
+            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-8 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 flex items-center gap-2"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto"
           >
             <Save size={18} /> Save Changes
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };

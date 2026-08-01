@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { User, UserRole } from '../../../../types';
@@ -17,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import SmartPagination from '../../../../components/SmartPagination';
+import AdminModal from '../../../../components/admin/AdminModal';
 
 interface UserManagerProps {
   users: User[];
@@ -311,9 +311,60 @@ const UserManager: React.FC<UserManagerProps> = ({
     }
   };
 
+  const renderUserActions = (user: User, mobile = false) => (
+    <div
+      className={`flex flex-wrap items-center gap-2 ${mobile ? 'justify-start' : 'justify-end'}`}
+    >
+      {isPrimaryAdminActor && user.has_pending_verification && (
+        <button
+          type="button"
+          onClick={() => handleApproveEmail(user)}
+          className="min-h-11 rounded-lg px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+          title="Approve Email"
+        >
+          Approve Email
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => openEditModal(user)}
+        className={`flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm ${
+          getEditRestrictionMessage(user)
+            ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-[#242633] dark:text-slate-500'
+            : 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+        }`}
+        title={getEditRestrictionMessage(user) || 'Edit User'}
+      >
+        <Pencil size={14} />
+        Edit
+      </button>
+      {isDeleteBlocked(user) ? (
+        <button
+          type="button"
+          onClick={() => toast.error(getDeleteRestrictionMessage(user))}
+          className="flex min-h-11 cursor-not-allowed items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400 dark:border-[#333544] dark:bg-[#242633] dark:text-slate-500"
+          title={getDeleteRestrictionMessage(user)}
+        >
+          {currentUserId === String(user.id) ? <UserIcon size={12} /> : <Shield size={12} />}
+          {currentUserId === String(user.id) ? 'Yourself' : 'Protected'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setDeleteConfirmUser(user)}
+          className="flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+          title="Delete User"
+        >
+          <Trash2 size={14} />
+          Delete
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">User Management</h2>
           <p className="text-slate-500 text-sm">
@@ -334,8 +385,9 @@ const UserManager: React.FC<UserManagerProps> = ({
           )}
         </div>
         <button
+          type="button"
           onClick={() => setIsFormOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto"
         >
           <Plus size={18} />
           <span>Add User</span>
@@ -473,230 +525,214 @@ const UserManager: React.FC<UserManagerProps> = ({
       )}
 
       {/* Edit User Modal - Portal to body to bypass stacking context */}
-      {editingUser &&
-        createPortal(
-          <div
-            className={
-              document.documentElement.classList.contains('dark') ||
-              document.body.classList.contains('dark') ||
-              document.querySelector('.dark')
-                ? 'dark'
-                : ''
-            }
-          >
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 animate-fade-in">
-              <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-[#2a2b36]">
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
-                  <button
-                    onClick={() => setEditingUser(null)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-                  <div className="flex justify-center mb-4">
-                    <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden border-4 border-white dark:border-[#333544] shadow-lg">
-                      {editForm.avatar ? (
-                        <img
-                          src={editForm.avatar}
-                          alt={editForm.username}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Gravatar
-                          email={editForm.email || editForm.username}
-                          size={100}
-                          className="w-full h-full object-cover"
-                          default="identicon"
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Username
-                    </span>
-                    <input
-                      aria-label="Username"
-                      id="usermanager-455"
-                      name="usermanager455"
-                      type="text"
-                      className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Display name / Pen name
-                    </span>
-                    <input
-                      aria-label="Display name / Pen name"
-                      id="edit-display-name-pen-name"
-                      name="editDisplayNamePenName"
-                      type="text"
-                      placeholder="Optional public byline"
-                      className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
-                      value={editForm.display_name}
-                      onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Email
-                    </span>
-                    <input
-                      id="usermanager-466"
-                      name="usermanager466"
-                      aria-label="Email"
-                      type="email"
-                      className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Role
-                    </span>
-                    <select
-                      aria-label="Role"
-                      className={`w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white ${
-                        currentUser?.id == editingUser?.id || isProtectedAdminUser(editingUser)
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
-                      }`}
-                      value={editForm.role}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, role: e.target.value as UserRole })
-                      }
-                      disabled={
-                        currentUser?.id == editingUser?.id || isProtectedAdminUser(editingUser)
-                      }
-                      title={
-                        currentUser?.id == editingUser?.id
-                          ? 'You cannot change your own role'
-                          : isProtectedAdminUser(editingUser)
-                            ? 'Super Admin role cannot be changed'
-                            : ''
-                      }
-                    >
-                      <option value="Member">Member</option>
-                      <option value="Writer">Writer</option>
-                      <option value="Moderator">Moderator</option>
-                      {(isPrimaryAdminActor || editForm.role === 'Admin') && (
-                        <option value="Admin">Admin</option>
-                      )}
-                    </select>
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      New Password{' '}
-                      <span className="text-slate-400">(leave blank to keep current)</span>
-                    </span>
-                    <input
-                      id="8-chars-a-z-0-9"
-                      name="8CharsAZ09"
-                      aria-label="8+ chars, A-Z, 0-9, !@#"
-                      type="password"
-                      placeholder="8+ chars, A-Z, 0-9, !@#"
-                      className={`w-full p-2.5 rounded-lg border ${editPasswordError ? 'border-red-500' : 'border-slate-300 dark:border-[#333544]'} bg-white dark:bg-[#242633] dark:text-white`}
-                      value={editForm.password}
-                      onChange={(e) => {
-                        setEditForm({ ...editForm, password: e.target.value });
-                        if (e.target.value) setEditPasswordError(validatePassword(e.target.value));
-                        else setEditPasswordError(null);
-                      }}
-                    />
-                    {editPasswordError && (
-                      <p className="text-red-500 text-xs mt-1">{editPasswordError}</p>
-                    )}
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Avatar URL
-                    </span>
-                    <input
-                      id="https"
-                      name="https"
-                      aria-label="https://..."
-                      type="text"
-                      placeholder="https://..."
-                      className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
-                      value={editForm.avatar}
-                      onChange={(e) => setEditForm({ ...editForm, avatar: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
-                    <button
-                      type="button"
-                      onClick={() => setEditingUser(null)}
-                      className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                </form>
-              </div>
+      {editingUser && (
+        <AdminModal
+          isOpen
+          onClose={() => setEditingUser(null)}
+          ariaLabel="Edit user"
+          className="w-full max-w-md"
+        >
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1a1b26] sm:max-h-[90dvh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-[#2a2b36]">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+                aria-label="Close user editor"
+              >
+                <X size={20} />
+              </button>
             </div>
-          </div>,
-          document.body
-        )}
+            <form
+              onSubmit={handleEditSubmit}
+              className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6"
+            >
+              <div className="flex justify-center mb-4">
+                <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden border-4 border-white dark:border-[#333544] shadow-lg">
+                  {editForm.avatar ? (
+                    <img
+                      src={editForm.avatar}
+                      alt={editForm.username}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Gravatar
+                      email={editForm.email || editForm.username}
+                      size={100}
+                      className="w-full h-full object-cover"
+                      default="identicon"
+                    />
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Username
+                </span>
+                <input
+                  aria-label="Username"
+                  id="usermanager-455"
+                  name="usermanager455"
+                  type="text"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  value={editForm.username}
+                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                />
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Display name / Pen name
+                </span>
+                <input
+                  aria-label="Display name / Pen name"
+                  id="edit-display-name-pen-name"
+                  name="editDisplayNamePenName"
+                  type="text"
+                  placeholder="Optional public byline"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  value={editForm.display_name}
+                  onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Email
+                </span>
+                <input
+                  id="usermanager-466"
+                  name="usermanager466"
+                  aria-label="Email"
+                  type="email"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Role
+                </span>
+                <select
+                  aria-label="Role"
+                  className={`w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white ${
+                    currentUser?.id == editingUser?.id || isProtectedAdminUser(editingUser)
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }`}
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
+                  disabled={currentUser?.id == editingUser?.id || isProtectedAdminUser(editingUser)}
+                  title={
+                    currentUser?.id == editingUser?.id
+                      ? 'You cannot change your own role'
+                      : isProtectedAdminUser(editingUser)
+                        ? 'Super Admin role cannot be changed'
+                        : ''
+                  }
+                >
+                  <option value="Member">Member</option>
+                  <option value="Writer">Writer</option>
+                  <option value="Moderator">Moderator</option>
+                  {(isPrimaryAdminActor || editForm.role === 'Admin') && (
+                    <option value="Admin">Admin</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  New Password <span className="text-slate-400">(leave blank to keep current)</span>
+                </span>
+                <input
+                  id="8-chars-a-z-0-9"
+                  name="8CharsAZ09"
+                  aria-label="8+ chars, A-Z, 0-9, !@#"
+                  type="password"
+                  placeholder="8+ chars, A-Z, 0-9, !@#"
+                  className={`w-full p-2.5 rounded-lg border ${editPasswordError ? 'border-red-500' : 'border-slate-300 dark:border-[#333544]'} bg-white dark:bg-[#242633] dark:text-white`}
+                  value={editForm.password}
+                  onChange={(e) => {
+                    setEditForm({ ...editForm, password: e.target.value });
+                    if (e.target.value) setEditPasswordError(validatePassword(e.target.value));
+                    else setEditPasswordError(null);
+                  }}
+                />
+                {editPasswordError && (
+                  <p className="text-red-500 text-xs mt-1">{editPasswordError}</p>
+                )}
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Avatar URL
+                </span>
+                <input
+                  id="https"
+                  name="https"
+                  aria-label="https://..."
+                  type="text"
+                  placeholder="https://..."
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  value={editForm.avatar}
+                  onChange={(e) => setEditForm({ ...editForm, avatar: e.target.value })}
+                />
+              </div>
+              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 dark:border-[#2a2b36] sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg sm:w-auto"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="min-h-11 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </AdminModal>
+      )}
 
       {/* Delete Confirm Modal - Portal to body */}
-      {deleteConfirmUser &&
-        createPortal(
-          <div
-            className={
-              document.documentElement.classList.contains('dark') ||
-              document.body.classList.contains('dark') ||
-              document.querySelector('.dark')
-                ? 'dark'
-                : ''
-            }
-          >
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 animate-fade-in">
-              <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
-                <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle className="text-red-500" size={32} />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">
-                  Delete User?
-                </h3>
-                <p className="text-slate-500 dark:text-slate-400 mb-6">
-                  Are you sure you want to delete{' '}
-                  <strong className="text-slate-800 dark:text-white">
-                    {deleteConfirmUser.username}
-                  </strong>
-                  ? This action cannot be undone.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={() => setDeleteConfirmUser(null)}
-                    className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmDelete}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+      {deleteConfirmUser && (
+        <AdminModal
+          isOpen
+          onClose={() => setDeleteConfirmUser(null)}
+          ariaLabel="Delete user"
+          className="w-full max-w-sm"
+        >
+          <div className="w-full rounded-2xl bg-white p-4 text-center shadow-2xl dark:bg-[#1a1b26] sm:p-6">
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="text-red-500" size={32} />
             </div>
-          </div>,
-          document.body
-        )}
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete User?</h3>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">
+              Are you sure you want to delete{' '}
+              <strong className="text-slate-800 dark:text-white">
+                {deleteConfirmUser.username}
+              </strong>
+              ? This action cannot be undone.
+            </p>
+            <div className="flex flex-col-reverse justify-center gap-3 sm:flex-row">
+              <button
+                onClick={() => setDeleteConfirmUser(null)}
+                className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="min-h-11 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 sm:w-auto"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </AdminModal>
+      )}
 
       {/* Users Table */}
       <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
@@ -706,53 +742,109 @@ const UserManager: React.FC<UserManagerProps> = ({
             <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">Loading...</span>
           </div>
         ) : pageUsers.length > 0 ? (
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 dark:bg-[#16161e]/50 text-xs uppercase text-slate-500 font-medium">
-              <tr>
-                <th className="px-6 py-4">Profile</th>
-                <th className="px-6 py-4">User</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+          <>
+            <div className="divide-y divide-slate-100 dark:divide-slate-700 sm:hidden">
               {pageUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50">
-                  <td className="px-6 py-4 w-16">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden border border-slate-300 dark:border-[#333544]">
+                <article key={user.id} className="space-y-3 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 bg-slate-200 dark:border-[#333544] dark:bg-[#242633]">
                       {user.avatar ? (
                         <img
                           src={user.avatar}
                           alt={user.username}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
                         <Gravatar
                           email={user.email || user.username}
                           size={100}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover"
                           default="identicon"
                         />
                       )}
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-900 dark:text-white">
-                      {user.display_name || user.username}
-                    </div>
-                    {user.display_name && (
-                      <div className="text-xs text-slate-400">@{user.username}</div>
-                    )}
-                    <div className="text-xs text-slate-500">{user.email}</div>
-                    {user.has_pending_verification && (
-                      <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                        Email pending
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate font-semibold text-slate-900 dark:text-white">
+                          {user.display_name || user.username}
+                        </h3>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            user.role === 'Admin'
+                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                              : user.role === 'Moderator'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : user.role === 'Member'
+                                  ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
+                                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          }`}
+                        >
+                          {user.role}
+                        </span>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold
+                      {user.display_name && (
+                        <p className="truncate text-xs text-slate-400">@{user.username}</p>
+                      )}
+                      <p className="break-all text-xs text-slate-500">{user.email}</p>
+                      {user.has_pending_verification && (
+                        <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                          Email pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {renderUserActions(user, true)}
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[720px] text-left">
+                <thead className="bg-slate-50 dark:bg-[#16161e]/50 text-xs uppercase text-slate-500 font-medium">
+                  <tr>
+                    <th className="px-6 py-4">Profile</th>
+                    <th className="px-6 py-4">User</th>
+                    <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {pageUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50">
+                      <td className="px-6 py-4 w-16">
+                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden border border-slate-300 dark:border-[#333544]">
+                          {user.avatar ? (
+                            <img
+                              src={user.avatar}
+                              alt={user.username}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Gravatar
+                              email={user.email || user.username}
+                              size={100}
+                              className="w-full h-full object-cover"
+                              default="identicon"
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-slate-900 dark:text-white">
+                          {user.display_name || user.username}
+                        </div>
+                        {user.display_name && (
+                          <div className="text-xs text-slate-400">@{user.username}</div>
+                        )}
+                        <div className="text-xs text-slate-500">{user.email}</div>
+                        {user.has_pending_verification && (
+                          <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                            Email pending
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold
                                         ${
                                           user.role === 'Admin'
                                             ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
@@ -762,62 +854,17 @@ const UserManager: React.FC<UserManagerProps> = ({
                                                 ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
                                                 : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                         }`}
-                    >
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {isPrimaryAdminActor && user.has_pending_verification && (
-                        <button
-                          onClick={() => handleApproveEmail(user)}
-                          className="px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg"
-                          title="Approve Email"
                         >
-                          Approve Email
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openEditModal(user)}
-                        className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1 ${
-                          getEditRestrictionMessage(user)
-                            ? 'text-slate-400 bg-slate-100 dark:bg-[#242633] dark:text-slate-500 cursor-not-allowed'
-                            : 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                        }`}
-                        title={getEditRestrictionMessage(user) || 'Edit User'}
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
-                      {isDeleteBlocked(user) ? (
-                        <button
-                          onClick={() => toast.error(getDeleteRestrictionMessage(user))}
-                          className="px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-1 bg-slate-100 text-slate-400 dark:bg-[#242633] dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-[#333544]"
-                          title={getDeleteRestrictionMessage(user)}
-                        >
-                          {currentUserId === String(user.id) ? (
-                            <UserIcon size={12} />
-                          ) : (
-                            <Shield size={12} />
-                          )}
-                          {currentUserId === String(user.id) ? 'Yourself' : 'Protected'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setDeleteConfirmUser(user)}
-                          className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg flex items-center gap-1"
-                          title="Delete User"
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">{renderUserActions(user)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="p-12 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-[#242633]">

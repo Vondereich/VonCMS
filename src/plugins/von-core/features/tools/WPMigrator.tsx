@@ -325,7 +325,7 @@ export const WPMigrator: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 animate-fade-in max-w-3xl mx-auto">
+    <div className="animate-fade-in mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
           <Upload size={24} />
@@ -346,7 +346,7 @@ export const WPMigrator: React.FC = () => {
                 {resumeCheckpoint.processedCount} processed items.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <button
                 type="button"
                 onClick={restoreCheckpoint}
@@ -369,7 +369,7 @@ export const WPMigrator: React.FC = () => {
       {step === 'upload' && (
         <div className="space-y-6">
           <div
-            className="border-2 border-dashed border-slate-300 dark:border-[#333544] rounded-xl p-8 text-center hover:border-blue-500 transition-colors cursor-pointer"
+            className="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-5 text-center transition-colors hover:border-blue-500 dark:border-[#333544] sm:p-8"
             onClick={() => fileInputRef.current?.click()}
           >
             <input
@@ -443,7 +443,7 @@ export const WPMigrator: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
             <div className="bg-slate-50 dark:bg-[#16161e] p-4 rounded-lg text-center border border-slate-200 dark:border-[#2a2b36]">
               <div className="text-2xl font-bold dark:text-white">{stats.posts}</div>
               <div className="text-xs text-slate-500 uppercase tracking-wider">Posts</div>
@@ -482,10 +482,10 @@ export const WPMigrator: React.FC = () => {
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
+                <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-3 sm:gap-3">
                   <span>Processed: {processedCount}</span>
-                  <span>Imported: {importedCount}</span>
-                  <span>Skipped: {skippedCount}</span>
+                  <span className="sm:text-center">Imported: {importedCount}</span>
+                  <span className="sm:text-right">Skipped: {skippedCount}</span>
                 </div>
               </div>
 

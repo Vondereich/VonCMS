@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { EditorContent, useEditor } from '@tiptap/react';
+import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import notify from '../utils/toast';
 import {
   Bold,
@@ -26,10 +26,12 @@ import {
   X, // Added X icon
   CheckCircle, // Added CheckCircle
   Sparkles, // Added Sparkles
-  ChevronDown, // Added ChevronDown for dropdown
+  ChevronDown,
   Eye, // Added Eye for Preview
   Braces, // Added Braces for HTML source
   Search,
+  Plus,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import { API } from '../config/site.config';
@@ -37,6 +39,7 @@ import { vonFetch } from '../utils/api';
 import ContentRenderer from './ContentRenderer';
 import { DarkModeStyles } from '../styles/DarkModeStyles';
 import SmartPagination from './SmartPagination';
+import AdminModal from './admin/AdminModal';
 import { sanitizeHTML } from '../utils/colorSanitizer';
 import { sanitizeEditorHtml, sanitizePastedHtml } from '../utils/security';
 import {
@@ -87,7 +90,8 @@ const Editor: React.FC<EditorProps> = ({
   const [previewHtml, setPreviewHtml] = useState('');
   const [isCodeView, setIsCodeView] = useState(false);
   const [htmlContent, setHtmlContent] = useState(initialContent || '');
-  const [isImageMenuOpen, setIsImageMenuOpen] = useState(false); // Dropdown UI state
+  const [isImageMenuOpen, setIsImageMenuOpen] = useState(false);
+  const [compactToolbarPanel, setCompactToolbarPanel] = useState<'insert' | 'more' | null>(null);
   const [isToolbarElevated, setIsToolbarElevated] = useState(false);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,19 +100,30 @@ const Editor: React.FC<EditorProps> = ({
   const lastAppliedInitialContent = useRef<string | null>(null);
   const lastAppliedContentRevision = useRef(contentRevision);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageMenuRef = useRef<HTMLDivElement>(null); // Ref for closing dropdown on outside click
+  const imageMenuRef = useRef<HTMLDivElement>(null);
   const savedSelection = useRef<{ from: number; to: number } | null>(null);
 
-  // Close image dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    if (!isImageMenuOpen) return;
+
+    const closeImageMenu = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === 'Escape') setIsImageMenuOpen(false);
+        return;
+      }
+
       if (imageMenuRef.current && !imageMenuRef.current.contains(event.target as Node)) {
         setIsImageMenuOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+
+    document.addEventListener('mousedown', closeImageMenu);
+    document.addEventListener('keydown', closeImageMenu);
+    return () => {
+      document.removeEventListener('mousedown', closeImageMenu);
+      document.removeEventListener('keydown', closeImageMenu);
+    };
+  }, [isImageMenuOpen]);
 
   useEffect(() => {
     const updateToolbarElevation = () => {
@@ -210,6 +225,18 @@ const Editor: React.FC<EditorProps> = ({
       queueChange(content);
     },
   });
+  const activeBlockStyle =
+    useEditorState({
+      editor,
+      selector: ({ editor: activeEditor }) => {
+        if (!activeEditor) return 'p';
+
+        const activeHeadingLevel = ([1, 2, 3, 4, 5, 6] as const).find((level) =>
+          activeEditor.isActive('heading', { level })
+        );
+        return activeHeadingLevel ? `h${activeHeadingLevel}` : 'p';
+      },
+    }) ?? 'p';
 
   const getEditorRoot = () =>
     (editorRef.current?.querySelector('.tiptap, .ProseMirror') as HTMLDivElement | null) || null;
@@ -702,6 +729,74 @@ const Editor: React.FC<EditorProps> = ({
     execCmd('insertHTML', html);
   };
 
+  const handleImageFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    if (editor) {
+      savedSelection.current = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      };
+    }
+
+    event.target.value = '';
+    const toastId = notify.loading(
+      files.length > 1 ? `Uploading ${files.length} images...` : 'Uploading image...'
+    );
+    const uploadedImages: Array<{
+      url: string;
+      alt?: string;
+      id?: string | number | null;
+    }> = [];
+    let failedCount = 0;
+
+    try {
+      for (const file of files) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const response = await vonFetch(API.uploadFile, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await response.json();
+          if (data.success && data.url) {
+            uploadedImages.push({
+              url: data.webpUrl || data.url,
+              alt: data.filename || file.name,
+              id: data.id || '',
+            });
+          } else {
+            failedCount++;
+          }
+        } catch {
+          failedCount++;
+        }
+      }
+
+      if (uploadedImages.length) {
+        insertEditorImages(uploadedImages);
+        notify.success(
+          uploadedImages.length > 1 ? `${uploadedImages.length} images inserted` : 'Image inserted'
+        );
+      }
+
+      if (failedCount > 0) {
+        notify.error(
+          failedCount === files.length
+            ? 'Upload failed'
+            : `${failedCount} upload${failedCount > 1 ? 's' : ''} failed`
+        );
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown upload error';
+      notify.error('Upload error: ' + message);
+    } finally {
+      notify.dismiss(toastId);
+    }
+  };
+
   const handleMediaSelect = (file: any) => {
     const url = file.webpUrl || file.url; // Prefer WebP URL if available
     if (!url) return;
@@ -1037,10 +1132,6 @@ const Editor: React.FC<EditorProps> = ({
     }));
   };
 
-  const insertHeading = (level: number) => {
-    execCmd('formatBlock', `h${level}`);
-  };
-
   const insertTable = () => openModal('table');
 
   const insertCodeBlock = () => openModal('code');
@@ -1205,7 +1296,6 @@ const Editor: React.FC<EditorProps> = ({
   const selectedVideoAlignment = selectedVideoEmbed
     ? inferVideoAlignment(selectedVideoEmbed)
     : null;
-
   return (
     <div
       ref={editorShellRef}
@@ -1370,158 +1460,189 @@ const Editor: React.FC<EditorProps> = ({
       {/* Main Toolbar - Sticky */}
       <div ref={toolbarSentinelRef} className="h-px" aria-hidden="true" />
       <div
-        className={`sticky top-0 z-20 flex flex-wrap items-center gap-1.5 border-b bg-white/95 px-3 py-2.5 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-200 dark:bg-[#16161e]/95 ${
+        className={`editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap items-center gap-0 overflow-visible border-b bg-slate-100/95 px-0.5 py-2 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-200 dark:bg-[#20212b]/95 sm:gap-0.5 sm:px-3 xl:top-0 xl:flex-nowrap xl:px-2 ${
           isToolbarElevated
             ? 'border-slate-300 shadow-lg shadow-slate-900/10 ring-1 ring-slate-200/70 dark:border-[#333544] dark:shadow-black/30 dark:ring-white/10'
-            : 'border-slate-200 shadow-none ring-0 dark:border-[#2a2b36]'
+            : 'border-slate-300/80 shadow-none ring-0 dark:border-[#333544]'
         }`}
       >
-        <ToolButton icon={<Undo size={16} />} onClick={() => execCmd('undo')} title="Undo" />
-        <ToolButton icon={<Redo size={16} />} onClick={() => execCmd('redo')} title="Redo" />
+        <ToolButton icon={<Undo size={18} />} onClick={() => execCmd('undo')} title="Undo" />
+        <ToolButton icon={<Redo size={18} />} onClick={() => execCmd('redo')} title="Redo" />
         <Divider />
 
-        {/* Headings - Icon Pills */}
-        <div className="flex items-center gap-0.5 bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#333544] p-0.5">
-          {([1, 2, 3, 4, 5, 6] as const).map((level) => (
-            <button
-              key={level}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                insertHeading(level);
-              }}
-              className="px-2 py-1 text-xs font-bold rounded-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
-              title={`Heading ${level}`}
-            >
-              H{level}
-            </button>
-          ))}
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              execCmd('formatBlock', 'p');
-            }}
-            className="px-2 py-1 text-xs font-medium rounded-sm text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
-            title="Normal paragraph"
-          >
-            ¶
-          </button>
-        </div>
+        <label htmlFor="editor-block-style" className="sr-only">
+          Text style
+        </label>
+        <select
+          id="editor-block-style"
+          aria-label="Text style"
+          value={activeBlockStyle}
+          onChange={(event) => execCmd('formatBlock', event.target.value)}
+          className="h-11 w-[70px] shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 shadow-xs outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-slate-200 sm:w-28 xl:h-8 xl:w-16"
+        >
+          <option value="p">Body</option>
+          <option value="h1">H1</option>
+          <option value="h2">H2</option>
+          <option value="h3">H3</option>
+          <option value="h4">H4</option>
+          <option value="h5">H5</option>
+          <option value="h6">H6</option>
+        </select>
         <ToolButton
-          icon={<Bold size={16} />}
+          icon={<Bold size={18} />}
           onClick={() => execCmd('bold')}
           title="Bold (Ctrl+B)"
         />
         <ToolButton
-          icon={<Italic size={16} />}
+          icon={<Italic size={18} />}
           onClick={() => execCmd('italic')}
           title="Italic (Ctrl+I)"
         />
-        <ToolButton
-          icon={<Underline size={16} />}
-          onClick={() => execCmd('underline')}
-          title="Underline (Ctrl+U)"
-        />
-        <div className="relative flex items-center">
+        <div className="hidden xl:block">
           <ToolButton
-            icon={<Palette size={16} className="text-rose-500" />}
+            icon={<Underline size={18} />}
+            onClick={() => execCmd('underline')}
+            title="Underline (Ctrl+U)"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<Palette size={18} className="text-rose-500" />}
             onClick={() => {
               const input = document.getElementById('editor-color-picker') as HTMLInputElement;
-              if (input) input.click();
+              input?.click();
             }}
             title="Text Color"
           />
-          <input
-            aria-label="Editor Color Picker"
-            id="editor-color-picker"
-            type="color"
-            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer pointer-events-none"
-            onChange={(e) => execCmd('foreColor', e.target.value)}
-            style={{ width: '0px', height: '0px', padding: 0 }}
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<List size={18} />}
+            onClick={() => execCmd('insertUnorderedList')}
+            title="Bullet List"
           />
         </div>
-        <Divider />
-        <ToolButton
-          icon={<List size={16} />}
-          onClick={() => execCmd('insertUnorderedList')}
-          title="Bullet List"
-        />
-        <ToolButton
-          icon={<ListOrdered size={16} />}
-          onClick={() => execCmd('insertOrderedList')}
-          title="Numbered List"
-        />
-        <ToolButton
-          icon={<Quote size={16} className="text-blue-500" />}
-          onClick={insertBlockquote}
-          title="Blockquote"
-        />
-        <ToolButton
-          icon={<Minus size={16} />}
-          onClick={() => execCmd('insertHorizontalRule')}
-          title="Horizontal Line"
-        />
-        <Divider />
-        <ToolButton
-          icon={<Link size={16} className="text-sky-500" />}
-          onClick={() => openModal('link')}
-          title="Insert Hyperlink"
-        />
-
-        {/* Insert Image Dropdown UI */}
-        <div className="relative" ref={imageMenuRef}>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<ListOrdered size={18} />}
+            onClick={() => execCmd('insertOrderedList')}
+            title="Numbered List"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<Quote size={18} className="text-blue-500" />}
+            onClick={insertBlockquote}
+            title="Blockquote"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<Link size={18} className="text-sky-500" />}
+            onClick={() => openModal('link')}
+            title="Insert Hyperlink"
+          />
+        </div>
+        <div ref={imageMenuRef} className="relative hidden xl:block">
           <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setIsImageMenuOpen(!isImageMenuOpen);
-            }}
-            className="flex h-9 cursor-pointer shadow-xs transition-colors duration-150 items-center overflow-hidden rounded-lg border border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 hover:shadow-sm dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white"
-            title="Insert Image Options"
             type="button"
+            aria-label="Insert Image Options"
+            aria-haspopup="menu"
+            aria-expanded={isImageMenuOpen}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setIsImageMenuOpen((open) => !open)}
+            className="flex h-8 shrink-0 cursor-pointer items-center justify-center gap-0.5 rounded-lg border border-slate-200/80 bg-white px-2 text-slate-600 shadow-xs transition-colors duration-150 hover:border-slate-300 hover:text-slate-900 hover:shadow-sm dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white"
+            title="Insert Image Options"
           >
-            <span className="flex h-full items-center justify-center px-2.5">
-              <Image size={16} className="text-emerald-500" />
-            </span>
-            <span className="h-5 w-px bg-slate-200 dark:bg-slate-600" />
-            <span className="flex h-full items-center justify-center px-2">
-              <ChevronDown size={13} className="text-slate-400" />
-            </span>
+            <Image size={18} className="text-emerald-500" />
+            <ChevronDown
+              size={13}
+              aria-hidden="true"
+              className={`transition-transform ${isImageMenuOpen ? 'rotate-180' : ''}`}
+            />
           </button>
           {isImageMenuOpen && (
-            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1a1b26] rounded-lg shadow-xl border border-slate-200 dark:border-[#2a2b36] w-48 z-60 overflow-hidden flex flex-col py-1 animate-fade-in">
+            <div
+              role="menu"
+              aria-label="Image insertion options"
+              className="absolute left-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#333544] dark:bg-[#1a1b26]"
+            >
               <button
+                type="button"
+                role="menuitem"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  openModal('image');
                   setIsImageMenuOpen(false);
+                  openModal('image');
                 }}
-                className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633]/50 transition-colors text-left"
+                className="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-emerald-50 dark:text-slate-200 dark:hover:bg-emerald-900/20"
               >
                 <Image size={16} className="text-emerald-500" />
-                Insert via URL
+                Image URL
               </button>
               <button
+                type="button"
+                role="menuitem"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  openModal('mediaLibrary');
                   setIsImageMenuOpen(false);
+                  openModal('mediaLibrary');
                 }}
-                className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633]/50 transition-colors text-left"
+                className="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-900/20"
               >
                 <Images size={16} className="text-indigo-500" />
-                Browse Library
+                Media Library
               </button>
               <button
+                type="button"
+                role="menuitem"
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  fileInputRef.current?.click();
                   setIsImageMenuOpen(false);
+                  fileInputRef.current?.click();
                 }}
-                className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633]/50 transition-colors text-left"
+                className="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-violet-50 dark:text-slate-200 dark:hover:bg-violet-900/20"
               >
                 <Upload size={16} className="text-violet-500" />
-                Upload from Device
+                Upload Device
               </button>
             </div>
           )}
         </div>
-
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<Video size={18} className="text-red-500" />}
+            onClick={insertVideo}
+            title="Insert Video (YouTube/TikTok)"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<Table size={18} className="text-teal-500" />}
+            onClick={insertTable}
+            title="Insert Data Table"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<Minus size={18} />}
+            onClick={() => execCmd('insertHorizontalRule')}
+            title="Horizontal Line"
+          />
+        </div>
+        <Divider />
+        <div className="xl:hidden">
+          <ToolButton
+            icon={<Plus size={18} className="text-emerald-500" />}
+            onClick={() => setCompactToolbarPanel('insert')}
+            title="Insert content"
+          />
+        </div>
+        <ToolButton
+          icon={<MoreHorizontal size={18} />}
+          onClick={() => setCompactToolbarPanel('more')}
+          title="More formatting"
+        />
         <input
           id="editor-878"
           name="editor878"
@@ -1530,133 +1651,269 @@ const Editor: React.FC<EditorProps> = ({
           accept="image/*"
           multiple
           className="hidden"
-          onChange={async (e) => {
-            const files = Array.from(e.target.files || []);
-            if (!files.length) return;
-
-            // Save cursor position before async upload
-            if (editor) {
-              savedSelection.current = {
-                from: editor.state.selection.from,
-                to: editor.state.selection.to,
-              };
-            }
-
-            e.target.value = '';
-            const toastId = notify.loading(
-              files.length > 1 ? `Uploading ${files.length} images...` : 'Uploading image...'
-            );
-            const uploadedImages: Array<{
-              url: string;
-              alt?: string;
-              id?: string | number | null;
-            }> = [];
-            let failedCount = 0;
-
-            try {
-              for (const file of files) {
-                try {
-                  const formData = new FormData();
-                  formData.append('file', file);
-                  const res = await vonFetch(API.uploadFile, {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  const data = await res.json();
-                  if (data.success && data.url) {
-                    uploadedImages.push({
-                      url: data.webpUrl || data.url,
-                      alt: data.filename || file.name,
-                      id: data.id || '',
-                    });
-                  } else {
-                    failedCount++;
-                  }
-                } catch {
-                  failedCount++;
-                }
-              }
-
-              if (uploadedImages.length) {
-                insertEditorImages(uploadedImages);
-                notify.success(
-                  uploadedImages.length > 1
-                    ? `${uploadedImages.length} images inserted`
-                    : 'Image inserted'
-                );
-              }
-
-              if (failedCount > 0) {
-                notify.error(
-                  failedCount === files.length
-                    ? 'Upload failed'
-                    : `${failedCount} upload${failedCount > 1 ? 's' : ''} failed`
-                );
-              }
-            } catch (err: any) {
-              notify.error('Upload error: ' + err.message);
-            } finally {
-              notify.dismiss(toastId);
-            }
+          onChange={handleImageFiles}
+        />
+        <input
+          aria-label="Editor Color Picker"
+          id="editor-color-picker"
+          type="color"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          onChange={(event) => {
+            const selectedColor = event.target.value;
+            execCmd('foreColor', selectedColor);
+            event.target.value = selectedColor.toLowerCase() === '#000000' ? '#ffffff' : '#000000';
           }}
-        />
-        <ToolButton
-          icon={<Video size={16} className="text-red-500" />}
-          onClick={insertVideo}
-          title="Insert Video (YouTube/TikTok)"
-        />
-        <ToolButton
-          icon={<Table size={16} className="text-teal-500" />}
-          onClick={insertTable}
-          title="Insert Data Table"
-        />
-        <Divider />
-        <ToolButton
-          icon={<AlignLeft size={16} />}
-          onClick={() => alignImage('left')}
-          title="Align Left"
-        />
-        <ToolButton
-          icon={<AlignCenter size={16} />}
-          onClick={() => alignImage('center')}
-          title="Align Center"
-        />
-        <ToolButton
-          icon={<AlignRight size={16} />}
-          onClick={() => alignImage('right')}
-          title="Align Right"
-        />
-        <ToolButton
-          icon={<AlignJustify size={16} />}
-          onClick={() => alignImage('justify')}
-          title="Justify Text"
-        />
-        <Divider />
-        <div className="flex items-center bg-white dark:bg-[#1a1b26] rounded-md border border-slate-200 dark:border-[#333544] p-0.5">
-          <ToolButton
-            icon={<Code size={15} className="text-amber-500" />}
-            onClick={insertCodeBlock}
-            title="Code Block"
-          />
-          <div className="w-px h-5 bg-slate-200 dark:bg-slate-600"></div>
-          <ToolButton
-            icon={<Braces size={15} className={isCodeView ? 'text-blue-600' : 'text-cyan-500'} />}
-            onClick={toggleCodeView}
-            title="HTML Source"
-          />
-        </div>
-        <Divider />
-        <ToolButton
-          icon={<Eye size={16} className="text-violet-500" />}
-          onClick={() => {
-            setSelectedImage(null);
-            setSelectedVideoEmbed(null);
-            setPreviewHtml(buildPreviewHtml(isCodeView ? htmlContent : getCurrentEditorHtml()));
-            setIsPreviewOpen(true);
-          }}
-          title="Live Preview"
         />
       </div>
+
+      <AdminModal
+        isOpen={compactToolbarPanel !== null}
+        onClose={() => setCompactToolbarPanel(null)}
+        ariaLabel={compactToolbarPanel === 'insert' ? 'Insert content' : 'More formatting'}
+        className="mx-auto w-[min(92vw,32rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-white/10">
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-white">
+              {compactToolbarPanel === 'insert' ? 'Insert content' : 'More formatting'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {compactToolbarPanel === 'insert'
+                ? 'Add links, media, tables, or dividers.'
+                : 'Formatting, alignment, code, and preview.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCompactToolbarPanel(null)}
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
+            aria-label="Close editor tools"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {compactToolbarPanel === 'insert' ? (
+          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                openModal('link');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-sky-700 dark:hover:bg-sky-900/20"
+            >
+              <Link size={18} className="text-sky-500" />
+              Link
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                openModal('image');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-emerald-700 dark:hover:bg-emerald-900/20"
+            >
+              <Image size={18} className="text-emerald-500" />
+              Image URL
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                openModal('mediaLibrary');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/20"
+            >
+              <Images size={18} className="text-indigo-500" />
+              Library
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                fileInputRef.current?.click();
+                setCompactToolbarPanel(null);
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:border-violet-300 hover:bg-violet-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-violet-700 dark:hover:bg-violet-900/20"
+            >
+              <Upload size={18} className="text-violet-500" />
+              Upload
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                insertVideo();
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:border-red-300 hover:bg-red-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-red-700 dark:hover:bg-red-900/20"
+            >
+              <Video size={18} className="text-red-500" />
+              Video
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                insertTable();
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-teal-700 dark:hover:bg-teal-900/20"
+            >
+              <Table size={18} className="text-teal-500" />
+              Table
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                execCmd('insertHorizontalRule');
+              }}
+              className="col-span-2 flex min-h-12 items-center justify-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 sm:col-span-3"
+            >
+              <Minus size={18} />
+              Horizontal line
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                execCmd('underline');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
+            >
+              <Underline size={18} />
+              Underline
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const input = document.getElementById('editor-color-picker') as HTMLInputElement;
+                input?.click();
+                setCompactToolbarPanel(null);
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
+            >
+              <Palette size={18} className="text-rose-500" />
+              Text color
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                execCmd('insertUnorderedList');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
+            >
+              <List size={18} />
+              Bullet list
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                execCmd('insertOrderedList');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
+            >
+              <ListOrdered size={18} />
+              Numbered list
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                insertBlockquote();
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
+            >
+              <Quote size={18} className="text-blue-500" />
+              Blockquote
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                alignImage('left');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <AlignLeft size={18} />
+              Align left
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                alignImage('center');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <AlignCenter size={18} />
+              Align center
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                alignImage('right');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <AlignRight size={18} />
+              Align right
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                alignImage('justify');
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <AlignJustify size={18} />
+              Justify
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                insertCodeBlock();
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <Code size={18} className="text-amber-500" />
+              Code block
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                toggleCodeView();
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <Braces size={18} className={isCodeView ? 'text-blue-600' : 'text-cyan-500'} />
+              HTML source
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCompactToolbarPanel(null);
+                setSelectedImage(null);
+                setSelectedVideoEmbed(null);
+                setPreviewHtml(buildPreviewHtml(isCodeView ? htmlContent : getCurrentEditorHtml()));
+                setIsPreviewOpen(true);
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+            >
+              <Eye size={18} className="text-violet-500" />
+              Preview
+            </button>
+          </div>
+        )}
+      </AdminModal>
 
       {/* HTML Code View */}
       <textarea
@@ -1696,273 +1953,288 @@ const Editor: React.FC<EditorProps> = ({
       </div>
 
       {/* Preview Modal */}
-      {isPreviewOpen && (
-        <div className="fixed inset-0 bg-black/60 z-80 flex items-center justify-center backdrop-blur-xl p-4">
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] border border-slate-200 dark:border-[#2a2b36] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
-              <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-                <Eye size={18} className="text-blue-500" />
-                Preview Content
-              </h3>
-              <button
-                onClick={() => setIsPreviewOpen(false)}
-                className="rounded-full p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto grow">
-              <ContentRenderer
-                className="prose prose-lg dark:prose-invert max-w-none"
-                html={previewHtml}
-              />
-            </div>
+      <AdminModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        ariaLabel="Preview content"
+        className="w-full max-w-4xl"
+      >
+        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:max-h-[90dvh]">
+          <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
+            <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+              <Eye size={18} className="text-blue-500" />
+              Preview Content
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(false)}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-[#242633]"
+              aria-label="Close content preview"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="grow overflow-y-auto p-4 sm:p-6">
+            <ContentRenderer
+              className="prose prose-lg dark:prose-invert max-w-none"
+              html={previewHtml}
+            />
           </div>
         </div>
-      )}
+      </AdminModal>
 
       {/* Editor Input Modal (Link, Video, Code, Table) */}
-      {activeModal && (
-        <div className="fixed inset-0 bg-black/60 z-80 flex items-center justify-center backdrop-blur-xl p-4 animate-fade-in">
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-[#2a2b36] overflow-hidden transform transition-all scale-100">
-            <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
-              <h3 className="font-bold text-slate-800 dark:text-white capitalize flex items-center gap-2">
-                {activeModal === 'link' && <Link size={18} className="text-blue-500" />}
-                {activeModal === 'image' && <Image size={18} className="text-green-500" />}
-                {activeModal === 'video' && <Video size={18} className="text-red-500" />}
-                {activeModal === 'code' && <Code size={18} className="text-amber-500" />}
-                {activeModal === 'table' && <Table size={18} className="text-indigo-500" />}
-                Insert {activeModal}
-              </h3>
-              <button
-                onClick={closeModal}
-                className="rounded-full p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
+      <AdminModal
+        isOpen={Boolean(activeModal && activeModal !== 'mediaLibrary')}
+        onClose={closeModal}
+        ariaLabel={`Insert ${activeModal || 'content'}`}
+        className="w-full max-w-md"
+      >
+        <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl transition-all dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+          <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
+            <h3 className="font-bold text-slate-800 dark:text-white capitalize flex items-center gap-2">
+              {activeModal === 'link' && <Link size={18} className="text-blue-500" />}
+              {activeModal === 'image' && <Image size={18} className="text-green-500" />}
+              {activeModal === 'video' && <Video size={18} className="text-red-500" />}
+              {activeModal === 'code' && <Code size={18} className="text-amber-500" />}
+              {activeModal === 'table' && <Table size={18} className="text-indigo-500" />}
+              Insert {activeModal}
+            </h3>
+            <button
+              type="button"
+              onClick={closeModal}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+              aria-label="Close insert dialog"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
-            <div className="p-6 space-y-4">
-              {activeModal === 'table' ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Rows
-                    </span>
-                    <input
-                      aria-label="Rows"
-                      id="editor-1288"
-                      name="editor1288"
-                      type="number"
-                      min="1"
-                      value={modalInput}
-                      onChange={(e) => setModalInput(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Columns
-                    </span>
-                    <input
-                      id="editor-1300"
-                      name="editor1300"
-                      aria-label="Columns"
-                      type="number"
-                      min="1"
-                      value={modalInput2}
-                      onChange={(e) => setModalInput2(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                    />
-                  </div>
-                </div>
-              ) : activeModal === 'code' ? (
+          <div className="space-y-4 p-4 sm:p-6">
+            {activeModal === 'table' ? (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Code Content
-                  </span>
-                  <textarea
-                    aria-label="Code Content"
-                    id="editor-1314"
-                    name="editor1314"
-                    autoFocus
-                    rows={6}
-                    value={modalInput}
-                    onChange={(e) => setModalInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm"
-                    placeholder="Paste your code here..."
-                  />
-                </div>
-              ) : (
-                <div>
-                  <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    {activeModal === 'link'
-                      ? 'URL'
-                      : activeModal === 'image'
-                        ? 'Image URL'
-                        : 'Video URL or Embed Code'}
+                    Rows
                   </span>
                   <input
-                    id="editor-1332"
-                    name="editor1332"
-                    aria-label={
-                      activeModal === 'link'
-                        ? 'Link URL'
-                        : activeModal === 'image'
-                          ? 'Image URL'
-                          : 'Video URL or embed code'
-                    }
-                    autoFocus
-                    type="text"
+                    aria-label="Rows"
+                    id="editor-1288"
+                    name="editor1288"
+                    type="number"
+                    min="1"
                     value={modalInput}
                     onChange={(e) => setModalInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleModalConfirm()}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                    placeholder={
-                      activeModal === 'video' ? 'https://youtube.com/...' : 'https://example.com'
-                    }
                   />
-                  {activeModal === 'video' && (
-                    <p className="text-xs text-slate-500 mt-1">
-                      Supports YouTube, TikTok, Facebook or supported iframe embeds.
-                    </p>
-                  )}
                 </div>
-              )}
-            </div>
+                <div>
+                  <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Columns
+                  </span>
+                  <input
+                    id="editor-1300"
+                    name="editor1300"
+                    aria-label="Columns"
+                    type="number"
+                    min="1"
+                    value={modalInput2}
+                    onChange={(e) => setModalInput2(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                  />
+                </div>
+              </div>
+            ) : activeModal === 'code' ? (
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Code Content
+                </span>
+                <textarea
+                  aria-label="Code Content"
+                  id="editor-1314"
+                  name="editor1314"
+                  autoFocus
+                  rows={6}
+                  value={modalInput}
+                  onChange={(e) => setModalInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm"
+                  placeholder="Paste your code here..."
+                />
+              </div>
+            ) : (
+              <div>
+                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  {activeModal === 'link'
+                    ? 'URL'
+                    : activeModal === 'image'
+                      ? 'Image URL'
+                      : 'Video URL or Embed Code'}
+                </span>
+                <input
+                  id="editor-1332"
+                  name="editor1332"
+                  aria-label={
+                    activeModal === 'link'
+                      ? 'Link URL'
+                      : activeModal === 'image'
+                        ? 'Image URL'
+                        : 'Video URL or embed code'
+                  }
+                  autoFocus
+                  type="text"
+                  value={modalInput}
+                  onChange={(e) => setModalInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleModalConfirm()}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                  placeholder={
+                    activeModal === 'video' ? 'https://youtube.com/...' : 'https://example.com'
+                  }
+                />
+                {activeModal === 'video' && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Supports YouTube, TikTok, Facebook or supported iframe embeds.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
-            {/* Modal Footer with Quick Release Button */}
-            <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 border-t border-slate-100 dark:border-[#2a2b36] flex justify-end gap-3">
+          {/* Modal Footer with Quick Release Button */}
+          <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row">
+            <button
+              onClick={closeModal}
+              className="min-h-11 w-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-[#242633] rounded-lg transition-colors sm:w-auto"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleModalConfirm}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 sm:w-auto"
+            >
+              <CheckCircle size={16} />
+              {activeModal === 'link' || activeModal === 'image' || activeModal === 'video'
+                ? 'Insert Object'
+                : activeModal === 'code'
+                  ? 'Insert Code'
+                  : 'Generate Table'}
+            </button>
+          </div>
+        </div>
+      </AdminModal>
+
+      {/* Media Library Modal */}
+      <AdminModal
+        isOpen={activeModal === 'mediaLibrary'}
+        onClose={closeModal}
+        ariaLabel="Media library"
+        className="w-full max-w-4xl"
+      >
+        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:max-h-[85dvh]">
+          <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Images size={18} className="text-blue-500" />
+              Media Library
+            </h3>
+            <button
+              type="button"
+              onClick={closeModal}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+              title="Close"
+              aria-label="Close media library"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <form
+            onSubmit={handleMediaSearch}
+            className="flex flex-col gap-2 border-b border-slate-100 bg-white p-3 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:flex-row"
+          >
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                id="editor-media-search"
+                name="editorMediaSearch"
+                type="search"
+                value={mediaSearchInput}
+                maxLength={120}
+                aria-label="Search media library"
+                onChange={(event) => setMediaSearchInput(event.target.value)}
+                placeholder="Search filename, alt text or caption..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              Search
+            </button>
+          </form>
+
+          <div className="grow overflow-y-auto p-4 bg-slate-100 dark:bg-[#16161e] custom-scrollbar">
+            {loadingMedia ? (
+              <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                Loading library...
+              </div>
+            ) : mediaFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                <Images size={48} className="opacity-20 mb-2" />
+                <p>No images found in library</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 lg:gap-4">
+                {mediaFiles.map((file, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleMediaSelect(file)} // Pass full file object
+                    className="group cursor-pointer bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36] overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-xs"
+                  >
+                    <div className="aspect-square relative bg-slate-100 dark:bg-[#16161e]">
+                      <img
+                        src={file.webpUrl || file.url}
+                        alt={file.altText || file.name || ''}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg">
+                          Select
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-2 text-xs truncate text-slate-600 dark:text-slate-300 font-medium">
+                      {file.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50">
+            <SmartPagination
+              currentPage={mediaPagination.currentPage}
+              totalPages={mediaPagination.totalPages}
+              onPageChange={(page) => fetchMedia(page, mediaSearchQuery)}
+              itemsPerPage={mediaPagination.limit}
+              totalItems={mediaPagination.totalItems}
+            />
+            <div className="flex justify-end mt-4">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-[#242633] rounded-lg transition-colors"
+                className="min-h-11 px-4 py-2 bg-white dark:bg-[#1a1b26] border border-slate-300 dark:border-[#333544] rounded-lg hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-xs font-bold dark:text-slate-300"
               >
                 Cancel
               </button>
-              <button
-                onClick={handleModalConfirm}
-                className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
-              >
-                <CheckCircle size={16} />
-                {activeModal === 'link' || activeModal === 'image' || activeModal === 'video'
-                  ? 'Insert Object'
-                  : activeModal === 'code'
-                    ? 'Insert Code'
-                    : 'Generate Table'}
-              </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Media Library Modal */}
-      {activeModal === 'mediaLibrary' && (
-        <div className="fixed inset-0 bg-black/60 z-80 flex items-center justify-center backdrop-blur-xl p-4 animate-fade-in">
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] border border-slate-200 dark:border-[#2a2b36] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Images size={18} className="text-blue-500" />
-                Media Library
-              </h3>
-              <button
-                onClick={closeModal}
-                className="rounded-full p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] transition-colors"
-                title="Close"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleMediaSearch}
-              className="flex gap-2 border-b border-slate-100 bg-white p-3 dark:border-[#2a2b36] dark:bg-[#1a1b26]"
-            >
-              <div className="relative flex-1">
-                <Search
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  id="editor-media-search"
-                  name="editorMediaSearch"
-                  type="search"
-                  value={mediaSearchInput}
-                  maxLength={120}
-                  aria-label="Search media library"
-                  onChange={(event) => setMediaSearchInput(event.target.value)}
-                  placeholder="Search filename, alt text or caption..."
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
-              >
-                Search
-              </button>
-            </form>
-
-            <div className="grow overflow-y-auto p-4 bg-slate-100 dark:bg-[#16161e] custom-scrollbar">
-              {loadingMedia ? (
-                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
-                  Loading library...
-                </div>
-              ) : mediaFiles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                  <Images size={48} className="opacity-20 mb-2" />
-                  <p>No images found in library</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-                  {mediaFiles.map((file, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handleMediaSelect(file)} // Pass full file object
-                      className="group cursor-pointer bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36] overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-xs"
-                    >
-                      <div className="aspect-square relative bg-slate-100 dark:bg-[#16161e]">
-                        <img
-                          src={file.webpUrl || file.url}
-                          alt={file.altText || file.name || ''}
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg">
-                            Select
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-2 text-xs truncate text-slate-600 dark:text-slate-300 font-medium">
-                        {file.name}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50">
-              <SmartPagination
-                currentPage={mediaPagination.currentPage}
-                totalPages={mediaPagination.totalPages}
-                onPageChange={(page) => fetchMedia(page, mediaSearchQuery)}
-                itemsPerPage={mediaPagination.limit}
-                totalItems={mediaPagination.totalItems}
-              />
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 bg-white dark:bg-[#1a1b26] border border-slate-300 dark:border-[#333544] rounded-lg hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-xs font-bold dark:text-slate-300"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </AdminModal>
 
       {/* Image Bubble Menu */}
       {selectedImage && (
@@ -2146,11 +2418,12 @@ const ToolButton: React.FC<{
 }> = ({ icon, onClick, title, active = false }) => (
   <button
     type="button"
+    aria-label={title}
     onMouseDown={(e) => {
       e.preventDefault();
-      onClick();
     }}
-    className={`flex h-9 w-9 cursor-pointer shadow-xs transition-colors duration-150 items-center justify-center rounded-lg border hover:shadow-sm ${
+    onClick={onClick}
+    className={`flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border shadow-xs transition-colors duration-150 hover:shadow-sm xl:h-8 xl:w-8 ${
       active
         ? 'border-blue-500 bg-blue-600 text-white shadow-blue-500/20 dark:border-blue-400 dark:bg-blue-500 dark:text-white'
         : 'border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white'
@@ -2162,7 +2435,7 @@ const ToolButton: React.FC<{
 );
 
 const Divider = () => (
-  <div className="mx-0.5 h-6 w-px rounded-sm bg-slate-200 dark:bg-[#242633]"></div>
+  <div className="mx-0.5 hidden h-6 w-px rounded-sm bg-slate-200 dark:bg-[#242633] xl:block"></div>
 );
 
 export default React.memo(Editor);

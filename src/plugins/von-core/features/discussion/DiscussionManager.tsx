@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import SmartPagination from '../../../../components/SmartPagination';
+import AdminModal from '../../../../components/admin/AdminModal';
 
 interface DiscussionManagerProps {
   comments: Comment[];
@@ -259,7 +260,7 @@ const DiscussionTabs: React.FC<TabsProps> = ({ activeTab, counts, isSearchMode, 
   ];
 
   return (
-    <div className="flex border-b border-slate-200 dark:border-[#2a2b36]">
+    <div className="flex overflow-x-auto border-b border-slate-200 dark:border-[#2a2b36]">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -267,7 +268,7 @@ const DiscussionTabs: React.FC<TabsProps> = ({ activeTab, counts, isSearchMode, 
             if (!isSearchMode) onTabChange(tab.id);
           }}
           disabled={isSearchMode}
-          className={`flex items-center gap-2 border-b-2 px-6 py-3 text-sm font-medium transition-colors ${isSearchMode ? 'cursor-default border-transparent text-slate-500' : activeTab === tab.id ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors sm:px-6 ${isSearchMode ? 'cursor-default border-transparent text-slate-500' : activeTab === tab.id ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
         >
           {tab.label}
           {!isSearchMode && counts[tab.id] > 0 && (
@@ -299,7 +300,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
   const commentStatus = getCommentStatus(comment);
 
   return (
-    <div className="flex gap-4 p-6">
+    <div className="flex gap-3 p-4 sm:gap-4 sm:p-6">
       <div className="shrink-0">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-[#242633]">
           {comment.userAvatar ? (
@@ -320,7 +321,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
         </div>
       </div>
       <div className="grow">
-        <div className="mb-2 flex items-center justify-between gap-4">
+        <div className="mb-2 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-slate-900 dark:text-white">{comment.username}</span>
             <span className="text-xs text-slate-500">
@@ -332,7 +333,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
               {getStatusLabel(commentStatus)}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {commentStatus === 'pending' && (
               <>
                 <button
@@ -491,8 +492,8 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
   onCancel,
   onConfirm,
 }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101018]/50 p-4">
-    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#16161e]">
+  <AdminModal isOpen onClose={onCancel} ariaLabel="Delete comment" className="w-full max-w-md">
+    <div className="w-full rounded-2xl bg-white p-4 shadow-2xl dark:bg-[#16161e] sm:p-6">
       <div className="mb-4 flex items-start gap-3">
         <div className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/30 dark:text-red-300">
           <AlertTriangle size={18} />
@@ -515,24 +516,24 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
         {decodeHtml(comment.content)}
       </div>
 
-      <div className="mt-6 flex justify-end gap-3">
+      <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-sm text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          className="min-h-11 w-full rounded-lg px-4 py-2 text-sm text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 sm:w-auto"
         >
           Cancel
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+          className="min-h-11 w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 sm:w-auto"
         >
           Delete Comment
         </button>
       </div>
     </div>
-  </div>
+  </AdminModal>
 );
 
 const DiscussionManager: React.FC<DiscussionManagerProps> = ({

@@ -54,6 +54,7 @@ import {
   AdBlock,
   VonPopupAd,
   getResponsiveImageAttributes,
+  formatDate,
 } from '../shared';
 
 import { vonFetch } from '../../utils/api';
@@ -456,11 +457,7 @@ const DigestHero: React.FC<{
               </p>
               <div className="flex items-center gap-2">
                 <p className="text-xs" style={{ color: colors.textMuted }}>
-                  {new Date(article.createdAt || '').toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
+                  {formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)}
                 </p>
                 <span className="text-xs" style={{ color: colors.textMuted }}>
                   &bull;
@@ -541,7 +538,7 @@ const DigestCard: React.FC<{
         <DigestAvatar name={article.author} email={authorEmail} url={authorAvatar} size="w-6 h-6" />
         <span className="font-medium">{article.author}</span>
         <span>&bull;</span>
-        <span>{new Date(article.createdAt || '').toLocaleDateString()}</span>
+        <span>{formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)}</span>
       </div>
     </div>
   </div>
@@ -1141,7 +1138,8 @@ const DigestProfile: React.FC<{
                       style={{ color: colors.textMuted }}
                     >
                       <span className="flex items-center gap-1">
-                        <MessageSquare size={12} /> {comment.createdAt}
+                        <MessageSquare size={12} />{' '}
+                        {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
                       </span>
                       <span>&bull;</span>
                       <span className="flex items-center gap-1" style={{ color: colors.accent }}>
@@ -1627,11 +1625,11 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                         </p>
                         <div className="flex items-center gap-2">
                           <p className="text-sm" style={{ color: colors.textMuted }}>
-                            {new Date(selectedPost.createdAt || '').toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
+                            {formatDate(
+                              selectedPost.createdAt || '',
+                              settings.timeZone,
+                              settings.dateFormat
+                            )}
                           </p>
                           <span className="text-sm" style={{ color: colors.textMuted }}>
                             &bull;

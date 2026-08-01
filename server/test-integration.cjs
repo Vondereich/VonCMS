@@ -56,6 +56,23 @@ function sliceBetween(content, startMarker, endMarker) {
   return endIndex < 0 ? content.slice(startIndex) : content.slice(startIndex, endIndex);
 }
 
+function extractPhpFunctionSource(content, signature) {
+  const functionStart = content.indexOf(signature);
+  if (functionStart === -1) return '';
+
+  const bodyStart = content.indexOf('{', functionStart);
+  if (bodyStart === -1) return '';
+
+  let depth = 0;
+  for (let index = bodyStart; index < content.length; index += 1) {
+    if (content[index] === '{') depth += 1;
+    if (content[index] === '}') depth -= 1;
+    if (depth === 0) return content.slice(functionStart, index + 1);
+  }
+
+  return '';
+}
+
 if (!exists('server/themes-api.js')) {
   pass('CodeQL Source Hygiene: inactive legacy server/themes-api.js duplicate is absent.');
 } else {
@@ -197,6 +214,96 @@ function loadTsModuleForSmoke(file) {
     { filename: file }
   );
   return module.exports;
+}
+
+const dateFormatModule = loadTsModuleForSmoke('src/utils/dateFormat.ts');
+const dateFormatFixture = '2026-07-29T12:00:00.000Z';
+const expectedDateFormats = {
+  month_day_year_long: 'July 29, 2026',
+  month_day_year_short: 'Jul 29, 2026',
+  day_month_year_long: '29 July 2026',
+  day_month_year_short: '29 Jul 2026',
+  day_month_year_numeric: '29/07/2026',
+  month_day_year_numeric: '07/29/2026',
+  iso: '2026-07-29',
+};
+const dateFormatOutputsMatch = Object.entries(expectedDateFormats).every(
+  ([format, expected]) => dateFormatModule.formatDate(dateFormatFixture, 'UTC', format) === expected
+);
+const dateFormatFallbackMatches =
+  dateFormatModule.formatDate(dateFormatFixture, 'UTC', 'unsupported') ===
+    expectedDateFormats.month_day_year_long &&
+  dateFormatModule.formatDate('not-a-date', 'UTC', 'iso') === 'not-a-date';
+const dateFormatTimeZoneMatches =
+  dateFormatModule.formatDate('2026-07-29T23:30:00.000Z', 'Asia/Kuala_Lumpur', 'iso') ===
+  '2026-07-30';
+
+if (dateFormatOutputsMatch && dateFormatFallbackMatches && dateFormatTimeZoneMatches) {
+  pass(
+    'Public Date Format Runtime: all configured formats, legacy fallback, invalid input, and timezone boundaries are deterministic.'
+  );
+} else {
+  fail(
+    'Public Date Format Runtime: configured output, fallback, invalid input, or timezone handling drifted.'
+  );
+}
+
+const settingsDraftModule = loadTsModuleForSmoke('src/utils/settingsDraft.ts');
+const settingsDraftBaseline = {
+  siteName: 'Before',
+  dateFormat: 'month_day_year_long',
+  activeThemeId: 'von-digest',
+  theme: { primaryColor: '#111111' },
+};
+const settingsDraftLatest = {
+  ...settingsDraftBaseline,
+  activeThemeId: 'prism',
+  theme: { primaryColor: '#222222' },
+};
+const settingsDraftEdited = {
+  ...settingsDraftBaseline,
+  dateFormat: 'iso',
+};
+const settingsDraftMerged = settingsDraftModule.mergeSettingsDraft(
+  settingsDraftLatest,
+  settingsDraftBaseline,
+  settingsDraftEdited
+);
+if (
+  settingsDraftMerged.dateFormat === 'iso' &&
+  settingsDraftMerged.activeThemeId === 'prism' &&
+  settingsDraftMerged.theme.primaryColor === '#222222'
+) {
+  pass(
+    'Settings Draft Ownership Runtime: changed form fields merge into current settings without restoring stale theme state.'
+  );
+} else {
+  fail(
+    'Settings Draft Ownership Runtime: an unrelated form save can still restore stale theme or extension state.'
+  );
+}
+const settingsWritePatch = settingsDraftModule.createSettingsPatch(
+  settingsDraftBaseline,
+  settingsDraftEdited
+);
+const unchangedSettingsWritePatch = settingsDraftModule.createSettingsPatch(
+  settingsDraftBaseline,
+  settingsDraftBaseline
+);
+if (
+  Object.keys(settingsWritePatch).length === 1 &&
+  settingsWritePatch.dateFormat === 'iso' &&
+  !Object.hasOwn(settingsWritePatch, 'activeThemeId') &&
+  !Object.hasOwn(settingsWritePatch, 'theme') &&
+  Object.keys(unchangedSettingsWritePatch).length === 0
+) {
+  pass(
+    'Settings Multi-Tab Write Runtime: persistence sends only the changed top-level field instead of replaying a stale tab snapshot.'
+  );
+} else {
+  fail(
+    'Settings Multi-Tab Write Runtime: persistence can still include unrelated stale settings from another tab.'
+  );
 }
 
 function getReleaseEntry(content, version) {
@@ -1246,14 +1353,89 @@ assertIncludes(
   editorContent,
   [
     'overflow-visible rounded-xl',
-    'sticky top-0',
-    'z-20 flex flex-wrap',
+    'editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap',
+    'gap-0 overflow-visible',
+    'px-0.5 py-2',
+    'h-11 w-[70px]',
+    'flex h-11 w-11 shrink-0',
+    'xl:flex-nowrap',
+    'xl:h-8 xl:w-16',
+    'xl:h-8 xl:w-8',
+    'id="editor-block-style"',
+    'value={activeBlockStyle}',
+    '<option value="p">Body</option>',
+    'title="Insert content"',
+    'title="More formatting"',
+    'title="Underline (Ctrl+U)"',
+    'title="Bullet List"',
+    'title="Numbered List"',
+    'title="Insert Hyperlink"',
+    'title="Text Color"',
+    'title="Blockquote"',
+    'title="Insert Image Options"',
+    'aria-haspopup="menu"',
+    'role="menuitem"',
+    'title="Insert Video (YouTube/TikTok)"',
+    'title="Insert Data Table"',
+    'title="Horizontal Line"',
+    'className="hidden xl:block"',
+    'className="xl:hidden"',
+    'icon={<Undo size={18} />}',
+    'icon={<Palette size={18} className="text-rose-500" />}',
+    '<Image size={18} className="text-emerald-500" />',
+    'const [isImageMenuOpen, setIsImageMenuOpen] = useState(false);',
+    "document.addEventListener('keydown', closeImageMenu);",
+    'bg-slate-100/95',
+    'dark:bg-[#20212b]/95',
+    'aria-label={title}',
+    'onClick={onClick}',
     '> figure,',
     '> iframe {',
     'margin: 1.5rem 0;',
   ],
-  'HourGlass Editor Sticky Toolbar: toolbar can stick during page scroll and media blocks keep visible vertical rhythm.',
-  'HourGlass Editor Sticky Toolbar: sticky toolbar or media spacing markers are missing.'
+  'HourGlass Editor Sticky Toolbar: one premium compact toolbar uses Body/H1-H6 on every viewport, exposes direct desktop editorial and media essentials including the guarded image balloon, and keeps advanced actions grouped.',
+  'HourGlass Editor Sticky Toolbar: compact toolbar, direct desktop essentials, guarded image balloon, premium surface, or media spacing markers are missing.'
+);
+
+assertIncludes(
+  'HourGlass Editor Toolbar Trigger Contract',
+  editorContent,
+  [
+    "import { EditorContent, useEditor, useEditorState } from '@tiptap/react';",
+    'selector: ({ editor: activeEditor }) => {',
+    "activeEditor.isActive('heading', { level })",
+    'value={activeBlockStyle}',
+    'onMouseDown={(e) => {',
+    'e.preventDefault();',
+    'onClick={onClick}',
+    'const selectedColor = event.target.value;',
+    "execCmd('foreColor', selectedColor);",
+    "selectedColor.toLowerCase() === '#000000' ? '#ffffff' : '#000000'",
+  ],
+  'HourGlass Editor Toolbar Trigger Contract: block style follows TipTap selection, overlay controls wait for click completion, and repeated colors remain selectable.',
+  'HourGlass Editor Toolbar Trigger Contract: heading, overlay, or repeated-color trigger safety is incomplete.'
+);
+assertExcludes(
+  'HourGlass Editor Toolbar Trigger Contract',
+  editorContent,
+  ['if (e.detail === 0) onClick();', "editor?.isActive('heading', { level })"],
+  'HourGlass Editor Toolbar Trigger Contract: stale selection reads and mousedown action dispatch are absent.',
+  'HourGlass Editor Toolbar Trigger Contract: stale selection reads or mousedown action dispatch remains.'
+);
+
+assertExcludes(
+  'HourGlass Editor Compact Toolbar No-Swipe Guard',
+  sliceBetween(editorContent, '{/* Main Toolbar - Sticky */}', '{/* HTML Code View */}'),
+  [
+    'touch-pan-x flex-nowrap',
+    'overflow-x-auto',
+    'className="hidden xl:contents"',
+    'label="Insert"',
+    'label="Formatting"',
+    "label ? 'xl:w-auto xl:gap-2 xl:px-3' : 'xl:w-9'",
+  ],
+  'HourGlass Editor Compact Toolbar No-Swipe Guard: no viewport depends on horizontal toolbar scrolling, expanded labels, or a hidden duplicate desktop toolbar.',
+  'HourGlass Editor Compact Toolbar No-Swipe Guard: an old swipe, expanded-label, or duplicate desktop toolbar contract is still present.'
 );
 
 assertIncludes(
@@ -1280,7 +1462,7 @@ assertIncludes(
     'href: normalizedUrl',
     '.editor-content .${EDITOR_SURFACE_CLASS} table {',
     'border-collapse: collapse;',
-    'cursor-pointer shadow-xs transition-colors',
+    'cursor-pointer items-center justify-center rounded-lg border shadow-xs transition-colors',
   ],
   'HourGlass Editor Toolbar Repair: link URLs are normalized, tables are visible, and toolbar hitboxes stay stable.',
   'HourGlass Editor Toolbar Repair: link/table/cursor stability markers are missing.'
@@ -1339,13 +1521,15 @@ assertIncludes(
 
 assertIncludes(
   'HourGlass Editor Sticky Toolbar Offset',
-  editorContent,
+  editorContent + '\n' + postEditorContent,
   [
     'const nextElevated = sentinel.getBoundingClientRect().top < 1;',
-    'className={`sticky top-0 z-20',
+    'className="sticky top-0 z-30',
+    'className={`editor-toolbar sticky top-[3.875rem] z-20',
+    'xl:top-0 xl:flex-nowrap',
   ],
-  'HourGlass Editor Sticky Toolbar Offset: floating editor toolbar anchors to the editor top edge while preserving scroll elevation.',
-  'HourGlass Editor Sticky Toolbar Offset: floating editor toolbar still uses an oversized viewport offset.'
+  'HourGlass Editor Sticky Toolbar Offset: phone and tablet formatting stays one exact section-rail height below Write/Publish/AI, while desktop anchors to the editor top edge.',
+  'HourGlass Editor Sticky Toolbar Offset: formatting can still collide with the mobile section rail or retain a mobile offset on desktop.'
 );
 
 if (
@@ -1497,13 +1681,14 @@ assertIncludes(
     'const EXCERPT_RECOMMENDED_MAX_LENGTH = 200;',
     'const EXCERPT_WARNING_LENGTH = 220;',
     'placeholder="Short summary (recommended 160-200 characters)..."',
+    'h-24 text-sm',
     'aria-describedby="post-excerpt-help"',
     'Long excerpts may be shortened in cards and discovery metadata.',
     'const characters = Array.from(text);',
     'let truncatedCharacters = characters.slice(0, contentLimit);',
   ],
-  'PostEditor Excerpt Guidance Boundary: excerpt Auto Fill, counter, warning, and word-safe truncation remain aligned.',
-  'PostEditor Excerpt Guidance Boundary: excerpt guidance or word-safe Auto Fill markers are missing.'
+  'PostEditor Excerpt Guidance Boundary: excerpt typography matches Meta Description while Auto Fill, counter, warning, and word-safe truncation remain aligned.',
+  'PostEditor Excerpt Guidance Boundary: excerpt typography, guidance, or word-safe Auto Fill markers are missing.'
 );
 
 assertIncludes(
@@ -2676,6 +2861,9 @@ assertIncludes(
   read('src/hooks/useSettings.ts'),
   [
     'const previousSettings: SiteSettings = settingsRef.current;',
+    'const settingsPatch = createSettingsPatch(previousSettings, newSettings);',
+    'if (Object.keys(settingsPatch).length === 0)',
+    'body: JSON.stringify(settingsPatch)',
     'restorePreviousSettings',
     'settingsRef.current = previousSettings;',
     'setSettings(previousSettings)',
@@ -2833,6 +3021,9 @@ if (
 
 if (
   settingsManagerContent.includes('const saved = await onUpdate(settingsToSave);') &&
+  settingsManagerContent.includes(
+    'mergeSettingsDraft(settings, draftBaselineRef.current, tempSettings)'
+  ) &&
   !settingsManagerContent.includes("formData.append('action', 'save_settings')") &&
   !settingsManagerContent.includes('vonFetch(API.api')
 ) {
@@ -2845,6 +3036,92 @@ if (
 
 const saveSettingsContent = read('public/api/save_settings.php');
 const getSettingsContent = read('public/api/get_settings.php');
+const dateFormatSettingsContract = [
+  read('src/types.ts'),
+  read('src/hooks/useSettings.ts'),
+  read('src/plugins/von-core/features/settings/components/GeneralSettings.tsx'),
+  read('src/utils/dateFormat.ts'),
+  read('src/utils/siteUtils.ts'),
+  saveSettingsContent,
+  getSettingsContent,
+  installContent,
+  read('public/index.php'),
+].join('\n');
+assertIncludes(
+  'Public Date Format Settings Contract',
+  dateFormatSettingsContract,
+  [
+    'dateFormat?: SiteDateFormat;',
+    "timeZone: _s?.timeZone || 'UTC'",
+    "dateFormat: _s?.dateFormat || 'month_day_year_long'",
+    'aria-label="Date Format"',
+    'SITE_DATE_FORMAT_OPTIONS.map',
+    "['dateFormat', 'general', 'date_format', 'string']",
+    "ResponseHelper::sendError('Invalid date format.', 400);",
+    "'date_format',",
+    "['general', 'date_format', 'month_day_year_long', 'string']",
+    "['general', 'time_zone', 'UTC', 'string']",
+    "'timeZone'              => $timeZoneValue",
+    "'dateFormat'            => $dateFormatValue",
+    "} from './dateFormat';",
+  ],
+  'Public Date Format Settings Contract: UI, defaults, validated persistence, guest loading, installer, timezone, and first-paint bootstrap share one setting.',
+  'Public Date Format Settings Contract: date format or timezone ownership is incomplete across UI, persistence, install, or hydration.'
+);
+
+const publicDateFormatConsumers = [
+  'src/themes/default/Layout.tsx',
+  'src/themes/techpress/Layout.tsx',
+  'src/themes/techpress/Profile.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/corporate-pro/Layout.tsx',
+  'src/themes/portfolio/Layout.tsx',
+  'src/themes/prism/Layout.tsx',
+  'src/themes/prism/components/PrismProfile.tsx',
+  'src/plugins/von-core/features/users/UserProfile.tsx',
+  'src/plugins/von-core/features/public/components/Comments.tsx',
+  'src/plugins/von-core/features/public/components/Sidebar.tsx',
+  'src/plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent.tsx',
+].map((file) => ({ file, content: read(file) }));
+const publicDateFormatConsumersAligned = publicDateFormatConsumers.every(
+  ({ content }) =>
+    content.includes('formatDate(') &&
+    content.includes('dateFormat') &&
+    !content.includes('toLocaleDateString')
+);
+if (publicDateFormatConsumersAligned) {
+  pass(
+    'Public Date Format Consumer Parity: bundled themes, sidebar freshness fallback, and related posts use the shared setting.'
+  );
+} else {
+  fail(
+    `Public Date Format Consumer Parity: direct browser-locale formatting remains in ${publicDateFormatConsumers
+      .filter(
+        ({ content }) =>
+          !content.includes('formatDate(') ||
+          !content.includes('dateFormat') ||
+          content.includes('toLocaleDateString')
+      )
+      .map(({ file }) => file)
+      .join(', ')}.`
+  );
+}
+const directPublicDateRenderPattern =
+  /\{\s*(?:comment|reply|post|selectedPost)\.(?:createdAt|updatedAt)(?:\s*\|\|\s*(?:comment|reply|post|selectedPost)\.(?:createdAt|updatedAt)|\s*\|\|\s*['"]{2})?\s*\}/;
+const directPublicDateConsumers = publicDateFormatConsumers.filter(({ content }) =>
+  directPublicDateRenderPattern.test(content)
+);
+if (directPublicDateConsumers.length === 0) {
+  pass(
+    'Public Date Format Raw Render Guard: bundled homepage, single-post, profile, and comment dates cannot bypass the shared formatter.'
+  );
+} else {
+  fail(
+    `Public Date Format Raw Render Guard: direct date rendering remains in ${directPublicDateConsumers
+      .map(({ file }) => file)
+      .join(', ')}.`
+  );
+}
 assertIncludes(
   'Public Settings Cache Boundary',
   getSettingsContent,
@@ -2932,14 +3209,22 @@ const settingsMirrorFailureIsNonBlocking =
   saveSettingsContent.includes('$mirrorWarning = null;') &&
   saveSettingsContent.includes("error_log('Settings JSON mirror write failed: '") &&
   saveSettingsContent.includes("'warning' => $mirrorWarning,");
+const settingsMirrorPreservesPartialWrites =
+  saveSettingsContent.includes('if (file_exists($settingsFile))') &&
+  saveSettingsContent.includes('array_replace($existingSettingsForFile, $settingsForFile)') &&
+  !saveSettingsContent.includes('if (!$isPrimaryAdmin && file_exists($settingsFile))');
 
-if (settingsMirrorUsesUniqueTemp && settingsMirrorFailureIsNonBlocking) {
+if (
+  settingsMirrorUsesUniqueTemp &&
+  settingsMirrorFailureIsNonBlocking &&
+  settingsMirrorPreservesPartialWrites
+) {
   pass(
-    'Settings JSON Mirror Hardening: save_settings.php uses a unique locked temp file and treats post-commit mirror failures as warnings instead of rolling back the canonical DB save.'
+    'Settings JSON Mirror Hardening: partial writes preserve the compatibility snapshot, use a unique locked temp file, and keep post-commit mirror failures non-blocking.'
   );
 } else {
   fail(
-    'Settings JSON Mirror Hardening: save_settings.php still looks vulnerable to temp-file races or post-commit mirror failures surfacing as save errors.'
+    'Settings JSON Mirror Hardening: partial writes can truncate the compatibility snapshot or mirror activation remains vulnerable to temp-file and post-commit failure drift.'
   );
 }
 
@@ -2964,6 +3249,7 @@ if (
 if (
   useSettingsContent.includes('const onToggleNav = useCallback') &&
   useSettingsContent.includes('const res = await vonFetch(API.saveSettings') &&
+  useSettingsContent.includes('body: JSON.stringify({ navigation: newNav })') &&
   !useSettingsContent.includes('const tryPhp = async') &&
   !useSettingsContent.includes("form.append('action', 'save_settings')") &&
   !useSettingsContent.includes('vonFetch(API.api')
@@ -4082,20 +4368,42 @@ if (
 }
 
 const importDbContent = read('public/api/import_db.php');
-const backupWriteFunctionStart = importDbContent.indexOf('function writePreImportSafetyBackupData');
-let backupWriteFunctionSource = '';
-if (backupWriteFunctionStart !== -1) {
-  const bodyStart = importDbContent.indexOf('{', backupWriteFunctionStart);
-  let depth = 0;
-  for (let index = bodyStart; index < importDbContent.length; index += 1) {
-    if (importDbContent[index] === '{') depth += 1;
-    if (importDbContent[index] === '}') depth -= 1;
-    if (depth === 0) {
-      backupWriteFunctionSource = importDbContent.slice(backupWriteFunctionStart, index + 1);
-      break;
-    }
-  }
-}
+const backupWriteFunctionSource = extractPhpFunctionSource(
+  importDbContent,
+  'function writePreImportSafetyBackupData'
+);
+const importBackupIdentifierFunctionSource = extractPhpFunctionSource(
+  importDbContent,
+  'function quoteImportBackupMysqlIdentifier'
+);
+const importBackupCommentFunctionSource = extractPhpFunctionSource(
+  importDbContent,
+  'function sanitizeImportBackupCommentLabel'
+);
+
+assertIncludes(
+  'Database Import Backup Identifier Guard',
+  importDbContent,
+  [
+    'function quoteImportBackupMysqlIdentifier(string $identifier): string',
+    '$quotedTable = quoteImportBackupMysqlIdentifier($table);',
+    "$quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);",
+    'SHOW CREATE TABLE {$quotedTable}',
+    'SELECT * FROM {$quotedTable}',
+    'DROP TABLE IF EXISTS {$quotedTable}',
+    'function sanitizeImportBackupCommentLabel(string $value): string',
+  ],
+  'Database Import Backup Identifier Guard: metadata-derived table and column names are safely quoted before SQL execution or dump generation.',
+  'Database Import Backup Identifier Guard: safety-backup identifiers can escape their SQL or comment context.'
+);
+
+assertExcludes(
+  'Database Import Backup Raw Identifier Regression',
+  importDbContent,
+  ['SHOW CREATE TABLE `$table`', 'SELECT * FROM `$table`', 'INSERT INTO `$table`'],
+  'Database Import Backup Raw Identifier Regression: raw metadata identifiers are absent from safety-backup SQL.',
+  'Database Import Backup Raw Identifier Regression: raw metadata identifiers still reach safety-backup SQL.'
+);
 if (
   importDbContent.includes('function stripLeadingSqlComments') &&
   importDbContent.includes('function iterateSqlStatementsFromFile') &&
@@ -4508,6 +4816,44 @@ if (
 }
 
 const backupDbContent = read('public/api/backup_db.php');
+const databaseBackupIdentifierFunctionSource = extractPhpFunctionSource(
+  backupDbContent,
+  'function quoteDatabaseBackupMysqlIdentifier'
+);
+const databaseBackupCommentFunctionSource = extractPhpFunctionSource(
+  backupDbContent,
+  'function sanitizeDatabaseBackupCommentLabel'
+);
+
+assertIncludes(
+  'Database Backup Identifier Guard',
+  backupDbContent,
+  [
+    'function quoteDatabaseBackupMysqlIdentifier(string $identifier): string',
+    '$quotedTable = quoteDatabaseBackupMysqlIdentifier($table);',
+    "$quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);",
+    'SHOW CREATE TABLE {$quotedTable}',
+    'SELECT COUNT(*) FROM {$quotedTable}',
+    'SELECT * FROM {$quotedTable}',
+    'DROP TABLE IF EXISTS {$quotedTable}',
+    'function sanitizeDatabaseBackupCommentLabel(string $value): string',
+  ],
+  'Database Backup Identifier Guard: metadata-derived table and column names are safely quoted before SQL execution or dump generation.',
+  'Database Backup Identifier Guard: backup identifiers can escape their SQL or comment context.'
+);
+
+assertExcludes(
+  'Database Backup Raw Identifier Regression',
+  backupDbContent,
+  [
+    'SHOW CREATE TABLE `$table`',
+    'SELECT COUNT(*) FROM `$table`',
+    'SELECT * FROM `$table`',
+    'INSERT INTO `$table`',
+  ],
+  'Database Backup Raw Identifier Regression: raw metadata identifiers are absent from generated SQL.',
+  'Database Backup Raw Identifier Regression: raw metadata identifiers still reach generated SQL.'
+);
 if (
   backupDbContent.includes('function sanitizeBackupFilenamePart') &&
   backupDbContent.includes("setting_key = 'site_name'") &&
@@ -5860,7 +6206,7 @@ assertIncludes(
     'Math.floor(ageMs / hourMs)',
     "'Yesterday'",
     'daysOld <= 2',
-    'toLocaleDateString',
+    'formatDate(dateValue, settings.timeZone, settings.dateFormat)',
   ],
   'Sidebar Freshness Timeline Contract: sidebar latest widgets show bounded recency and fall back to dates for older posts.',
   'Sidebar Freshness Timeline Contract: sidebar latest widgets are missing bounded recency/date fallback markers.'
@@ -6397,6 +6743,23 @@ assertIncludes(
   ],
   'Public Lightbox Mobile Swipe Contract: post-content gallery lightbox supports guarded left/right swipe navigation on mobile.',
   'Public Lightbox Mobile Swipe Contract: global post-content lightbox can still open without touch swipe navigation.'
+);
+assertIncludes(
+  'Public Lightbox Dialog Safety Contract',
+  read('src/components/GlobalLightbox.tsx'),
+  [
+    'role="dialog"',
+    'aria-modal="true"',
+    'aria-label="Image lightbox"',
+    "document.body.style.overflow = 'hidden';",
+    'ref={closeButtonRef}',
+    'aria-label="Close image lightbox"',
+    'aria-label="Previous image"',
+    'aria-label="Next image"',
+    'modal-enter',
+  ],
+  'Public Lightbox Dialog Safety Contract: lightbox locks background scroll, moves focus, exposes dialog semantics, and labels every navigation control.',
+  'Public Lightbox Dialog Safety Contract: lightbox focus, scroll lock, dialog semantics, or navigation labels are incomplete.'
 );
 
 if (exists('ROADMAP.md')) {
@@ -9777,6 +10140,19 @@ assertIncludes(
   'Corporate Profile Identity Alignment: the profile header can still sit under the fixed navbar or overflow beside the avatar.'
 );
 
+assertIncludes(
+  'Corporate Footer Tablet Containment',
+  corporateProfileContent,
+  [
+    'grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16',
+    'className="min-w-0"',
+    'className="shrink-0 text-blue-600"',
+    'className="min-w-0 break-words"',
+  ],
+  'Corporate Footer Tablet Containment: tablet widths use two columns while long contact email values wrap inside the footer.',
+  'Corporate Footer Tablet Containment: the four-column footer or contact email can overflow tablet width.'
+);
+
 const publicSiteProfileTitleContent = read('src/plugins/von-core/features/public/PublicSite.tsx');
 const appProfileTitleContent = read('src/App.tsx');
 assertIncludes(
@@ -9815,6 +10191,96 @@ const rememberAppContent = read('src/App.tsx');
 const rememberResetPasswordContent = read('public/api/reset_password.php');
 const rememberUpdateProfileContent = read('public/api/update_profile.php');
 const rememberSaveUserContent = read('public/api/save_user.php');
+
+assertIncludes(
+  'Active Session Database Revalidation Contract',
+  securityContent,
+  [
+    'private static $absoluteTimeout = 43200;',
+    "private static $startedAtKey = 'auth_started_at';",
+    "private static $fingerprintKey = 'auth_fingerprint';",
+    'establishAuthenticatedSession($user, $passwordHash)',
+    'SELECT id, role, password FROM users WHERE id = ? LIMIT 1',
+    'hash_equals($sessionFingerprint, $currentFingerprint)',
+    'self::clearAuthenticationState();',
+    "self::$authorizationState = 'unavailable';",
+  ],
+  'Active Session Database Revalidation Contract: authenticated requests fail closed when the database user disappears or its role/password state changes, and PHP sessions have an absolute lifetime.',
+  'Active Session Database Revalidation Contract: stale role/password authority or an indefinitely sliding PHP session can remain trusted.'
+);
+
+assertIncludes(
+  'Active Session Central Database Bootstrap',
+  securityContent,
+  [
+    'private static function getDatabaseConnection()',
+    "$configFile = __DIR__ . '/von_config.php';",
+    'require_once $configFile;',
+    '$database = self::getDatabaseConnection();',
+  ],
+  'Active Session Central Database Bootstrap: every authenticated guard can resolve the configured PDO connection without endpoint-specific bootstrap duplication.',
+  'Active Session Central Database Bootstrap: protected endpoints can fail with an unavailable authorization service when they do not load configuration themselves.'
+);
+
+const anonymousSessionBranch = sliceBetween(
+  securityContent,
+  "if (!isset($_SESSION['user'])) {",
+  'if (self::isExpired()) {'
+);
+assertIncludes(
+  'Anonymous Session State Preservation',
+  anonymousSessionBranch,
+  ["self::$authorizationState = 'anonymous';", 'return false;'],
+  'Anonymous Session State Preservation: guest authorization checks remain anonymous without mutating unrelated session state.',
+  'Anonymous Session State Preservation: a guest authorization check does not have an explicit non-destructive branch.'
+);
+assertExcludes(
+  'Anonymous Session State Preservation',
+  anonymousSessionBranch,
+  ['self::clearAuthenticationState();'],
+  'Anonymous Session State Preservation: guest CSRF and rate-limit state are not cleared by role checks.',
+  'Anonymous Session State Preservation: role checks can erase unrelated guest session state.'
+);
+
+assertIncludes(
+  'Active Session Consumer Revalidation Contract',
+  getPagesContent + '\n' + saveCommentsContent,
+  [
+    "$hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();",
+    '$currentRole = $hasValidSession',
+    '$currentUser = $hasValidSession ?',
+    '$isLoggedIn = $hasValidSession;',
+  ],
+  'Active Session Consumer Revalidation Contract: draft-page visibility and comment identity consume current database-backed session authority.',
+  'Active Session Consumer Revalidation Contract: a role-sensitive or identity-sensitive path can still trust stale PHP-session data.'
+);
+
+assertIncludes(
+  'Active Session Maintenance Bypass Contract',
+  indexContent,
+  [
+    '$isAdminUser =',
+    'SessionManager::isValid() && strtolower',
+    "($_SESSION['user']['role'] ?? '')",
+    "=== 'admin';",
+  ],
+  'Active Session Maintenance Bypass Contract: the existing admin-only bypass revalidates database-backed session authority without widening the accepted role.',
+  'Active Session Maintenance Bypass Contract: maintenance mode can trust stale session authority or widen the previous admin-only bypass.'
+);
+
+assertIncludes(
+  'Authenticated Session Fingerprint Establishment',
+  rememberLoginContent + '\n' + rememberCheckAuthContent,
+  [
+    "$authPasswordHash = (string) $user['password'];",
+    'SessionManager::establishAuthenticatedSession($user, $authPasswordHash);',
+    'u.password AS auth_password_hash',
+    "unset($rememberUser['auth_password_hash']);",
+    'SessionManager::establishAuthenticatedSession($rememberUser, $authPasswordHash);',
+  ],
+  'Authenticated Session Fingerprint Establishment: password login and remember-token restore both bind the PHP session to current database authorization state.',
+  'Authenticated Session Fingerprint Establishment: a login path can create a session without the database authorization fingerprint.'
+);
 
 assertIncludes(
   'Remember Token Login Contract',
@@ -10300,11 +10766,515 @@ assertIncludes(
   'Shared Theme Navigation Contract: Portfolio navigation variants can drift independently.'
 );
 
+const responsiveAdminModalContent = read('src/components/admin/AdminModal.tsx');
+const responsiveAdminPostEditorContent = read('src/components/PostEditor.tsx');
+const responsiveAdminCssContent = read('src/index.css');
+assertIncludes(
+  'Responsive Admin Shell Contract',
+  adminLayoutContent,
+  [
+    'const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);',
+    'admin-shell',
+    'xl:translate-x-0',
+    'ADMIN_NAV_FOCUSABLE_SELECTOR',
+    'mobileSidebarRef',
+    'mobileMenuButtonRef',
+    'aria-label="Open admin navigation"',
+    'aria-controls="admin-mobile-navigation"',
+    'aria-label="Close admin navigation"',
+    'isMobileSidebarOpen && (',
+    'backdrop-blur-sm xl:hidden',
+    "event.key !== 'Tab'",
+    'previouslyFocused',
+    'invisible -translate-x-full xl:visible',
+  ],
+  'Responsive Admin Shell Contract: admin navigation uses a viewport-safe mobile/tablet drawer with focus entry, trapping, restoration, and closed tab-order exclusion while retaining the desktop sidebar.',
+  'Responsive Admin Shell Contract: mobile/tablet drawer focus safety or desktop sidebar boundaries are incomplete.'
+);
+assertIncludes(
+  'Shared Admin Modal Safety Contract',
+  responsiveAdminModalContent,
+  [
+    "import { createPortal } from 'react-dom';",
+    "document.body.style.overflow = 'hidden';",
+    "document.querySelectorAll('.admin-modal-layer')",
+    'closeOnEscapeRef.current',
+    'role="dialog"',
+    'aria-modal="true"',
+    'onPointerDown={(event) => {',
+    'document.body',
+  ],
+  'Shared Admin Modal Safety Contract: admin dialogs portal above the shell with blur, scroll lock, focus trapping, top-modal Escape handling, and accessible dialog semantics.',
+  'Shared Admin Modal Safety Contract: shared admin dialog layering, focus, or dismissal behavior is incomplete.'
+);
+assertIncludes(
+  'Admin Modal Presentation Contract',
+  responsiveAdminCssContent,
+  [
+    '@keyframes modalEnter',
+    '.modal-enter',
+    'animation: modalEnter 180ms ease-out both;',
+    '-webkit-backdrop-filter: blur(8px);',
+    '@media (prefers-reduced-motion: reduce)',
+  ],
+  'Admin Modal Presentation Contract: dialogs use a fast dedicated entrance, a bounded shared blur, and reduced-motion fallback.',
+  'Admin Modal Presentation Contract: dialog speed, blur, or reduced-motion behavior can regress.'
+);
+if (
+  responsiveAdminModalContent.includes('className={`min-w-0 outline-hidden ${className}`}') &&
+  !responsiveAdminModalContent.includes('max-w-full')
+) {
+  pass(
+    'Admin Modal Width Contract: each dialog consumer keeps authority over its own centered max-width.'
+  );
+} else {
+  fail(
+    'Admin Modal Width Contract: the shared shell can still override consumer max-width classes.'
+  );
+}
+assertIncludes(
+  'Database Mobile Editor Contract',
+  databaseManagerContent,
+  ['max-h-72', 'sm:max-h-96', 'min-h-[380px]', 'sm:min-h-[320px]', 'min-h-40'],
+  'Database Mobile Editor Contract: the table list is bounded and the phone/tablet SQL canvas retains a usable typing area.',
+  'Database Mobile Editor Contract: the table list or SQL canvas can still collapse the mobile inspection workflow.'
+);
+assertIncludes(
+  'Settings Mobile Tab Contract',
+  settingsManagerContent,
+  [
+    'htmlFor="settings-section"',
+    'id="settings-section"',
+    'setActiveTab(event.target.value as typeof activeTab)',
+    'settings-tab-strip mb-6 hidden',
+    'sm:flex sm:flex-wrap',
+  ],
+  'Settings Mobile Tab Contract: phone settings use one accessible native section dropdown while larger viewports retain naturally wrapping tab buttons.',
+  'Settings Mobile Tab Contract: phone settings can regress to a crowded tab grid or hidden horizontal strip.'
+);
+assertIncludes(
+  'Ads In-Feed Mobile Header Contract',
+  adSettingsContent,
+  [
+    'flex flex-col items-start gap-3',
+    'sm:flex-row sm:items-center sm:justify-between',
+    'flex w-full flex-col items-stretch gap-2',
+    'sm:w-auto sm:flex-row sm:items-center sm:gap-3',
+    'flex min-w-0 items-center justify-between gap-2',
+    'min-w-0 grow',
+    'sm:grow-0',
+    'sm:self-auto',
+  ],
+  'Ads In-Feed Mobile Header Contract: the title, frequency control, and placement badge stack safely on phones before returning to one row.',
+  'Ads In-Feed Mobile Header Contract: the In-Feed header can overflow a phone viewport.'
+);
+assertIncludes(
+  'Media Settings Responsive Navigation Contract',
+  mediaSettingsContent,
+  [
+    'htmlFor="media-settings-section"',
+    'id="media-settings-section"',
+    'setActiveTab(event.target.value as typeof activeTab)',
+    'border-b border-slate-200 p-3 sm:hidden',
+    'sm:grid sm:grid-cols-3 lg:flex',
+    'min-h-12',
+  ],
+  'Media Settings Responsive Navigation Contract: phones use one section dropdown, tablets use a visible 3x2 grid, and desktops retain one row.',
+  'Media Settings Responsive Navigation Contract: Media sections can regress to a hidden horizontal swipe strip.'
+);
+assertExcludes(
+  'Media Settings Responsive Navigation Contract',
+  mediaSettingsContent,
+  ['flex border-b border-slate-200 dark:border-[#2a2b36] overflow-x-auto'],
+  'Media Settings Responsive Navigation Contract: the old horizontal swipe strip is absent.',
+  'Media Settings Responsive Navigation Contract: the old horizontal swipe strip remains.'
+);
+assertIncludes(
+  'TechPress Mobile Toggle Contract',
+  widgetAdminTechPressSettingsContent,
+  ['grid grid-cols-1 gap-4 sm:grid-cols-2'],
+  'TechPress Mobile Toggle Contract: long theme controls stack on phones and return to two columns when space allows.',
+  'TechPress Mobile Toggle Contract: long theme controls can still be compressed into narrow phone columns.'
+);
+assertIncludes(
+  'Mobile Publishing Workflow Contract',
+  responsiveAdminPostEditorContent,
+  [
+    "type MobileEditorPanel = 'write' | 'publish' | 'ai';",
+    "const [mobilePanel, setMobilePanel] = useState<MobileEditorPanel>('write');",
+    'xl:grid-cols-3',
+    'admin-safe-bottom fixed',
+    "mobilePanel === 'publish'",
+    'handlePrimaryPublish',
+  ],
+  'Mobile Publishing Workflow Contract: phone/tablet editing keeps write, publish, AI, and safe-area save actions in one mounted workflow.',
+  'Mobile Publishing Workflow Contract: phone/tablet editor panels or safe-area publishing actions are incomplete.'
+);
+
+const responsiveAdminRouteFiles = [
+  'src/plugins/von-core/features/content/ContentManager.tsx',
+  'src/plugins/von-core/features/users/UserManager.tsx',
+  'src/plugins/von-core/features/newsletter/NewsletterManager.tsx',
+  'src/plugins/von-core/features/security/SecurityDashboard.tsx',
+];
+if (
+  responsiveAdminRouteFiles.every((file) => {
+    const content = read(file);
+    return (
+      content.includes('sm:hidden') ||
+      content.includes('md:hidden') ||
+      content.includes('lg:hidden')
+    );
+  })
+) {
+  pass(
+    'Responsive Admin Data Contract: content, users, newsletter, and security expose mobile card views instead of requiring wide desktop tables.'
+  );
+} else {
+  fail(
+    'Responsive Admin Data Contract: at least one core admin data route still requires a wide desktop table on mobile.'
+  );
+}
+
+const sharedAdminModalConsumerFiles = [
+  'src/components/Editor.tsx',
+  'src/components/editor/FeaturedMediaLibraryModal.tsx',
+  'src/components/editor/PostEditorAudit.tsx',
+  'src/plugins/von-core/features/media/MediaManager.tsx',
+  'src/plugins/von-core/features/extensions/ExtensionsManager.tsx',
+  'src/plugins/von-core/features/extensions/components/RedirectManager.tsx',
+  'src/plugins/von-core/features/settings/UpdateModal.tsx',
+  'src/plugins/von-core/features/discussion/DiscussionManager.tsx',
+  'src/plugins/von-core/features/users/UserManager.tsx',
+  'src/plugins/von-core/features/users/UserProfile.tsx',
+];
+if (sharedAdminModalConsumerFiles.every((file) => read(file).includes('<AdminModal'))) {
+  pass(
+    'Admin Popup Consistency Contract: editor, media, extension, update, discussion, and user dialogs share the guarded blurred admin modal layer.'
+  );
+} else {
+  fail(
+    'Admin Popup Consistency Contract: at least one core admin popup bypasses the shared blurred modal layer.'
+  );
+}
+
+assertIncludes(
+  'OTA Modal Dismissal Contract',
+  read('src/plugins/von-core/features/settings/UpdateModal.tsx'),
+  ['closeOnBackdrop={false}', 'closeOnEscape={canDismiss}'],
+  'OTA Modal Dismissal Contract: update progress cannot be dismissed accidentally through the shared modal backdrop or Escape key.',
+  'OTA Modal Dismissal Contract: update progress can be dismissed through an unsafe shared-modal path.'
+);
+
 const phpBinary = findPhpBinary();
 if (!phpBinary) {
   warn('PHP Lint: no PHP binary found automatically; skipping syntax lint checks.');
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
+
+  const sessionBootstrapProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['PHP_SELF'] = 'session-bootstrap-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/session-bootstrap-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-session-bootstrap-probe';
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+$tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-auth-bootstrap-' . bin2hex(random_bytes(6));
+if (!mkdir($tempDir, 0700, true)) {
+  exit(2);
+}
+if (!mkdir($tempDir . DIRECTORY_SEPARATOR . 'api', 0700, true)) {
+  exit(3);
+}
+register_shutdown_function(static function () use ($tempDir) {
+  @unlink($tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php');
+  @unlink($tempDir . DIRECTORY_SEPARATOR . 'von_config.php');
+  @unlink($tempDir . DIRECTORY_SEPARATOR . 'security.php');
+  @rmdir($tempDir . DIRECTORY_SEPARATOR . 'api');
+  @rmdir($tempDir);
+});
+if (!copy(${JSON.stringify(resolveFromRoot('public/security.php'))}, $tempDir . DIRECTORY_SEPARATOR . 'security.php')) {
+  exit(4);
+}
+if (!copy(${JSON.stringify(resolveFromRoot('public/api/get_storage.php'))}, $tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php')) {
+  exit(5);
+}
+$configContents = <<<'VONCONFIG'
+<?php
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT NOT NULL, password TEXT NOT NULL)');
+$pdo->exec("INSERT INTO users (id, role, password) VALUES (7, 'root', 'stored-hash')");
+VONCONFIG;
+if (file_put_contents($tempDir . DIRECTORY_SEPARATOR . 'von_config.php', $configContents) === false) {
+  exit(6);
+}
+require $tempDir . DIRECTORY_SEPARATOR . 'security.php';
+SessionManager::establishAuthenticatedSession(['id' => 7, 'role' => 'root'], 'stored-hash');
+$reflection = new ReflectionClass(SessionManager::class);
+$state = $reflection->getProperty('authorizationState');
+$state->setValue(null, 'unchecked');
+ob_start();
+require $tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php';
+$payload = json_decode((string) ob_get_clean(), true);
+if (!is_array($payload) || empty($payload['success']) || ($payload['storage']['usedBytes'] ?? null) !== 0) {
+  exit(7);
+}
+SessionManager::destroy();
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (sessionBootstrapProbe.status === 0 && sessionBootstrapProbe.stdout.trim() === 'ok') {
+    pass(
+      'Active Session Central Database Bootstrap Runtime: the real storage endpoint resolves the configured PDO connection without endpoint-specific setup.'
+    );
+  } else if (sessionBootstrapProbe.status === 0 && sessionBootstrapProbe.stdout.trim() === 'skip') {
+    warn('Active Session Central Database Bootstrap Runtime: pdo_sqlite unavailable.');
+  } else {
+    fail(
+      `Active Session Central Database Bootstrap Runtime: protected guards cannot resolve configuration safely. ${(sessionBootstrapProbe.stderr || sessionBootstrapProbe.stdout || '').trim()}`
+    );
+  }
+
+  const sessionRevocationProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['PHP_SELF'] = 'session-revocation-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/session-revocation-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-session-revocation-probe';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT NOT NULL, password TEXT NOT NULL)');
+$passwordA = password_hash('Before1!', PASSWORD_BCRYPT);
+$passwordB = password_hash('After2!', PASSWORD_BCRYPT);
+$pdo->prepare('INSERT INTO users (id, role, password) VALUES (7, ?, ?)')->execute(['root', $passwordA]);
+$resetAuthorizationState = static function () {
+  $reflection = new ReflectionClass(SessionManager::class);
+  $state = $reflection->getProperty('authorizationState');
+  $state->setValue(null, 'unchecked');
+};
+$guestCsrf = CSRFProtection::generateToken();
+$resetAuthorizationState();
+if (SessionManager::isValid() || !isset($_SESSION['csrf_token']) || !hash_equals($guestCsrf, $_SESSION['csrf_token'])) {
+  exit(2);
+}
+SessionManager::establishAuthenticatedSession(['id' => 7, 'role' => 'root'], $passwordA);
+$resetAuthorizationState();
+if (!SessionManager::isPrimaryAdmin()) {
+  exit(3);
+}
+$pdo->exec("UPDATE users SET role = 'member' WHERE id = 7");
+$resetAuthorizationState();
+if (SessionManager::isValid() || isset($_SESSION['user'])) {
+  exit(4);
+}
+$pdo->prepare('UPDATE users SET role = ?, password = ? WHERE id = 7')->execute(['root', $passwordA]);
+SessionManager::establishAuthenticatedSession(['id' => 7, 'role' => 'root'], $passwordA);
+$pdo->prepare('UPDATE users SET password = ? WHERE id = 7')->execute([$passwordB]);
+$resetAuthorizationState();
+if (SessionManager::isValid() || isset($_SESSION['user'])) {
+  exit(5);
+}
+SessionManager::establishAuthenticatedSession(['id' => 7, 'role' => 'root'], $passwordB);
+$pdo->exec('DELETE FROM users WHERE id = 7');
+$resetAuthorizationState();
+if (SessionManager::isValid() || isset($_SESSION['user'])) {
+  exit(6);
+}
+$pdo->prepare('INSERT INTO users (id, role, password) VALUES (7, ?, ?)')->execute(['root', $passwordB]);
+SessionManager::establishAuthenticatedSession(['id' => 7, 'role' => 'root'], $passwordB);
+$_SESSION['auth_started_at'] = time() - 43201;
+$resetAuthorizationState();
+if (!SessionManager::isExpired()) {
+  exit(7);
+}
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (sessionRevocationProbe.status === 0 && sessionRevocationProbe.stdout.trim() === 'ok') {
+    pass(
+      'Active Session Revocation Runtime: guest CSRF survives anonymous checks while role demotion, password change, user deletion, and absolute lifetime invalidate authenticated authority.'
+    );
+  } else if (
+    sessionRevocationProbe.status === 0 &&
+    sessionRevocationProbe.stdout.trim() === 'skip'
+  ) {
+    warn('Active Session Revocation Runtime: pdo_sqlite unavailable; static contract still ran.');
+  } else {
+    fail(
+      `Active Session Revocation Runtime: database-backed session invalidation failed. ${(sessionRevocationProbe.stderr || sessionRevocationProbe.stdout || '').trim()}`
+    );
+  }
+
+  const stalePageSessionProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['PHP_SELF'] = 'get_pages.php';
+$_SERVER['SCRIPT_NAME'] = '/api/get_pages.php';
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-stale-page-session-probe';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL, role TEXT NOT NULL, password TEXT NOT NULL)');
+$pdo->exec('CREATE TABLE pages (id INTEGER PRIMARY KEY, title TEXT, slug TEXT, content TEXT, excerpt TEXT, status TEXT, keywords TEXT, meta_description TEXT, author_id INTEGER, created_at TEXT, updated_at TEXT)');
+$passwordHash = password_hash('Before1!', PASSWORD_BCRYPT);
+$pdo->prepare('INSERT INTO users (id, username, role, password) VALUES (7, ?, ?, ?)')->execute(['revoked-admin', 'root', $passwordHash]);
+$pdo->exec("INSERT INTO pages (id, title, slug, content, excerpt, status, keywords, meta_description, author_id, created_at, updated_at) VALUES (1, 'CONFIDENTIAL-DRAFT-QC', 'confidential-draft-qc', 'private body', '', 'draft', '', '', 7, '2026-08-01 00:00:00', '2026-08-01 00:00:00')");
+SessionManager::establishAuthenticatedSession(['id' => 7, 'username' => 'revoked-admin', 'role' => 'root'], $passwordHash);
+$pdo->exec("UPDATE users SET role = 'member' WHERE id = 7");
+$reflection = new ReflectionClass(SessionManager::class);
+$state = $reflection->getProperty('authorizationState');
+$state->setValue(null, 'unchecked');
+ob_start();
+require ${JSON.stringify(resolveFromRoot('public/api/get_pages.php'))};
+$payload = json_decode((string) ob_get_clean(), true);
+if (!is_array($payload) || !isset($payload['pages']) || !is_array($payload['pages'])) {
+  exit(2);
+}
+if (count($payload['pages']) !== 0 || isset($_SESSION['user'])) {
+  exit(3);
+}
+SessionManager::destroy();
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (stalePageSessionProbe.status === 0 && stalePageSessionProbe.stdout.trim() === 'ok') {
+    pass(
+      'Active Session Draft-Page Boundary Runtime: a demoted stale session is revoked before protected pages are selected.'
+    );
+  } else if (stalePageSessionProbe.status === 0 && stalePageSessionProbe.stdout.trim() === 'skip') {
+    warn('Active Session Draft-Page Boundary Runtime: pdo_sqlite unavailable.');
+  } else {
+    fail(
+      `Active Session Draft-Page Boundary Runtime: stale session authority can still expose protected pages. ${(stalePageSessionProbe.stderr || stalePageSessionProbe.stdout || '').trim()}`
+    );
+  }
+
+  const runCommentSessionProbe = (mode) =>
+    spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `$_SERVER['PHP_SELF'] = 'save_comments.php';
+$_SERVER['SCRIPT_NAME'] = '/api/save_comments.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-comment-session-probe';
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+$rateLimitDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-comment-rate-' . bin2hex(random_bytes(6));
+if (!mkdir($rateLimitDir, 0700, true)) {
+  exit(8);
+}
+$rateLimiterReflection = new ReflectionClass(RateLimiter::class);
+$storageDir = $rateLimiterReflection->getProperty('storageDir');
+$storageDir->setValue(null, $rateLimitDir . DIRECTORY_SEPARATOR);
+register_shutdown_function(static function () use ($rateLimitDir) {
+  foreach (scandir($rateLimitDir) ?: [] as $entry) {
+    if ($entry !== '.' && $entry !== '..') {
+      @unlink($rateLimitDir . DIRECTORY_SEPARATOR . $entry);
+    }
+  }
+  @rmdir($rateLimitDir);
+});
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->sqliteCreateFunction('NOW', static fn() => date('Y-m-d H:i:s'));
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL, role TEXT NOT NULL, password TEXT NOT NULL)');
+$pdo->exec('CREATE TABLE settings (setting_key TEXT PRIMARY KEY, setting_value TEXT)');
+$pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, status TEXT, scheduled_at TEXT)');
+$pdo->exec('CREATE TABLE comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER NOT NULL, user_id INTEGER, parent_id INTEGER, user_name TEXT, user_avatar TEXT, content TEXT, likes INTEGER, status TEXT, created_at TEXT)');
+$pdo->exec("INSERT INTO posts (id, status, scheduled_at) VALUES (1, 'published', NULL)");
+if (($argv[1] ?? '') === 'stale') {
+  $passwordHash = password_hash('Before1!', PASSWORD_BCRYPT);
+  $pdo->prepare('INSERT INTO users (id, username, role, password) VALUES (7, ?, ?, ?)')->execute(['revoked-admin', 'root', $passwordHash]);
+  SessionManager::establishAuthenticatedSession(['id' => 7, 'username' => 'revoked-admin', 'role' => 'root'], $passwordHash);
+  $pdo->exec("UPDATE users SET role = 'member' WHERE id = 7");
+  $reflection = new ReflectionClass(SessionManager::class);
+  $state = $reflection->getProperty('authorizationState');
+  $state->setValue(null, 'unchecked');
+}
+$csrfToken = CSRFProtection::generateToken();
+$_SERVER['HTTP_X_CSRF_TOKEN'] = $csrfToken;
+$csrfReflection = new ReflectionClass(CSRFProtection::class);
+$cachedInput = $csrfReflection->getProperty('cachedInput');
+$cachedInput->setValue(null, json_encode([
+  'action' => 'add',
+  'postId' => 1,
+  'username' => 'QC Guest',
+  'content' => 'Legitimate guest comment for session boundary testing.',
+]));
+require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
+        mode,
+      ],
+      { encoding: 'utf8' }
+    );
+
+  const guestCommentProbe = runCommentSessionProbe('guest');
+  const staleCommentProbe = runCommentSessionProbe('stale');
+  const guestCommentPayload = (() => {
+    try {
+      return JSON.parse(guestCommentProbe.stdout.trim());
+    } catch {
+      return null;
+    }
+  })();
+  const staleCommentPayload = (() => {
+    try {
+      return JSON.parse(staleCommentProbe.stdout.trim());
+    } catch {
+      return null;
+    }
+  })();
+  if (
+    guestCommentProbe.status === 0 &&
+    staleCommentProbe.status === 0 &&
+    guestCommentProbe.stdout.trim() === 'skip' &&
+    staleCommentProbe.stdout.trim() === 'skip'
+  ) {
+    warn('Active Session Comment Identity Runtime: pdo_sqlite unavailable.');
+  } else if (
+    guestCommentProbe.status === 0 &&
+    guestCommentPayload?.success === true &&
+    staleCommentProbe.status === 0 &&
+    staleCommentPayload?.code === 'CSRF_INVALID'
+  ) {
+    pass(
+      'Active Session Comment Identity Runtime: legitimate guest comments remain valid while a revoked session cannot reuse stale account identity.'
+    );
+  } else {
+    fail(
+      `Active Session Comment Identity Runtime: guest or revoked-session behavior drifted. Guest: ${(guestCommentProbe.stderr || guestCommentProbe.stdout || '').trim()} Stale: ${(staleCommentProbe.stderr || staleCommentProbe.stdout || '').trim()}`
+    );
+  }
 
   const seoSchemaHelperProbe = spawnSync(
     phpBinary,
@@ -10372,6 +11342,47 @@ echo 'ok';`,
     fail(
       `SEO Schema Helper Runtime: schema language, entity, Unicode, or category ItemList behavior drifted. ${(seoSchemaHelperProbe.stderr || seoSchemaHelperProbe.stdout || '').trim()}`
     );
+  }
+
+  if (
+    importBackupIdentifierFunctionSource &&
+    importBackupCommentFunctionSource &&
+    databaseBackupIdentifierFunctionSource &&
+    databaseBackupCommentFunctionSource
+  ) {
+    const backupIdentifierProbe = spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `${importBackupIdentifierFunctionSource}
+${importBackupCommentFunctionSource}
+${databaseBackupIdentifierFunctionSource}
+${databaseBackupCommentFunctionSource}
+$identifier = "table" . chr(96) . "name";
+$expectedIdentifier = chr(96) . "table" . chr(96) . chr(96) . "name" . chr(96);
+if (
+  quoteImportBackupMysqlIdentifier($identifier) !== $expectedIdentifier ||
+  quoteDatabaseBackupMysqlIdentifier($identifier) !== $expectedIdentifier ||
+  sanitizeImportBackupCommentLabel("line\r\nname") !== 'line name' ||
+  sanitizeDatabaseBackupCommentLabel("line\r\nname") !== 'line name'
+) {
+  exit(2);
+}
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+    if (backupIdentifierProbe.status === 0 && backupIdentifierProbe.stdout.trim() === 'ok') {
+      pass(
+        'Database Backup Identifier Runtime: embedded identifier delimiters are doubled and control characters cannot escape SQL comments.'
+      );
+    } else {
+      fail(
+        `Database Backup Identifier Runtime: identifier or comment escaping regressed. ${(backupIdentifierProbe.stderr || backupIdentifierProbe.stdout || '').trim()}`
+      );
+    }
+  } else {
+    fail('Database Backup Identifier Runtime: identifier helper source could not be extracted.');
   }
 
   if (backupWriteFunctionSource) {

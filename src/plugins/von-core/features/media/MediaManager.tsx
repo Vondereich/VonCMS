@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
   Upload,
@@ -22,6 +21,7 @@ import { MediaItem, SiteSettings } from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import SmartPagination from '../../../../components/SmartPagination';
+import AdminModal from '../../../../components/admin/AdminModal';
 
 interface MediaManagerProps {
   settings?: SiteSettings;
@@ -344,25 +344,28 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Lightbox Overlay */}
-      {lightboxIndex !== null &&
-        filteredMedia[lightboxIndex] &&
-        createPortal(
-          <div className="fixed inset-0 z-9999 bg-black/80 dark:bg-black/90 backdrop-blur-md flex items-center justify-center animate-fade-in p-4 md:p-8">
+      <AdminModal
+        isOpen={lightboxIndex !== null && Boolean(filteredMedia[lightboxIndex])}
+        onClose={() => setLightboxIndex(null)}
+        ariaLabel="Edit media details"
+        className="h-full w-full max-w-7xl"
+      >
+        {lightboxIndex !== null && filteredMedia[lightboxIndex] && (
+          <>
             <button
+              type="button"
               onClick={() => setLightboxIndex(null)}
-              className="absolute top-6 right-6 text-white/50 hover:text-white p-2 hover:bg-white/10 rounded-full transition-all z-100 bg-black/20"
+              className="absolute right-2 top-2 z-100 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white/80 transition-all hover:bg-black/70 hover:text-white sm:right-4 sm:top-4"
+              aria-label="Close media details"
             >
-              <X size={32} />
+              <X size={24} />
             </button>
 
             {/* Navigation Buttons removed from here to be moved inside Image Column */}
 
-            <div
-              className="w-full h-full max-w-7xl bg-white dark:bg-[#16161e] rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-200 dark:border-white/10"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="flex h-full w-full flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#16161e] md:flex-row md:overflow-hidden">
               {/* IMAGE COLUMN (70%) */}
-              <div className="flex-1 bg-slate-50 dark:bg-black flex flex-col items-center justify-center p-4 relative min-h-0">
+              <div className="relative flex min-h-64 flex-1 flex-col items-center justify-center bg-slate-50 p-4 dark:bg-black md:min-h-0">
                 {/* Desktop Navigation Buttons INSIDE Image Column to prevent overlap */}
                 {filteredMedia.length > 1 && (
                   <>
@@ -427,7 +430,8 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         (lightboxIndex - 1 + filteredMedia.length) % filteredMedia.length
                       )
                     }
-                    className="p-2 bg-slate-200 dark:bg-[#1a1b26] rounded-full text-slate-600 dark:text-white"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-[#1a1b26] dark:text-white"
+                    aria-label="Previous media item"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -446,7 +450,8 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                   </button>
                   <button
                     onClick={() => setLightboxIndex((lightboxIndex + 1) % filteredMedia.length)}
-                    className="p-2 bg-slate-200 dark:bg-[#1a1b26] rounded-full text-slate-600 dark:text-white"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-[#1a1b26] dark:text-white"
+                    aria-label="Next media item"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -472,7 +477,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               </div>
 
               {/* EDITOR COLUMN (30%) */}
-              <div className="w-full md:w-[350px] lg:w-[400px] bg-white dark:bg-[#16161e] border-l border-slate-200 dark:border-white/10 flex flex-col h-full overflow-hidden">
+              <div className="flex h-auto w-full shrink-0 flex-col overflow-hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#16161e] md:h-full md:w-[350px] md:border-l md:border-t-0 lg:w-[400px]">
                 <div className="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50 dark:bg-white/5">
                   <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <FileText className="text-blue-500" size={20} />
@@ -580,21 +585,19 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                 </div>
               </div>
             </div>
-
-            <div className="absolute inset-0 -z-10" onClick={() => setLightboxIndex(null)}></div>
-          </div>,
-          document.body
+          </>
         )}
+      </AdminModal>
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Media Gallery</h2>
           <p className="text-slate-500 text-sm">
-            Manage your site's images and files. Double-click an image to view in Lightbox.{' '}
-            {pagination.totalItems} files
+            Manage your site's images and files. Select files normally or use Edit details to open
+            an image. {pagination.totalItems} files
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => fetchMedia(pagination.currentPage, searchQuery)}
             className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-[#242633] text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition"
@@ -633,8 +636,8 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       )}
 
       {/* Toolbar */}
-      <div className="bg-white dark:bg-[#1a1b26] p-4 rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] flex flex-col md:flex-row gap-4 justify-between items-center">
-        <div className="flex items-center gap-4 w-full md:w-auto">
+      <div className="flex flex-col items-stretch justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:flex-row lg:items-center">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
           {/* Select All Checkbox */}
           <button
             onClick={toggleSelectAll}
@@ -667,7 +670,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             </button>
           )}
 
-          <form onSubmit={handleSearch} className="relative flex flex-1 md:w-80">
+          <form onSubmit={handleSearch} className="relative flex min-w-0 flex-1 sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               id="search-files"
@@ -688,7 +691,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             </button>
           </form>
         </div>
-        <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#242633] p-1 rounded-lg">
+        <div className="flex items-center gap-2 self-end rounded-lg bg-slate-100 p-1 dark:bg-[#242633] lg:self-auto">
           <button
             onClick={() => setViewMode('grid')}
             className={`p-2 rounded-sm ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-xs text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
@@ -749,6 +752,20 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                   >
                     {selectedItems.has(item.id) ? <CheckSquare size={18} /> : <Square size={18} />}
                   </button>
+                  {item.type === 'image' && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDoubleClick(item);
+                      }}
+                      className="absolute bottom-2 right-2 z-10 flex min-h-9 items-center gap-1 rounded-lg bg-black/70 px-2.5 py-1.5 text-xs font-semibold text-white opacity-100 shadow-lg transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                      aria-label={`Edit details for ${item.name}`}
+                    >
+                      <FileText size={14} />
+                      Edit
+                    </button>
+                  )}
 
                   {item.type === 'image' ? (
                     <img
@@ -772,8 +789,8 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               ))}
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
-              <table className="w-full text-sm text-left">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+              <table className="w-full min-w-[680px] text-sm text-left">
                 <thead className="bg-slate-50 dark:bg-[#16161e] border-b border-slate-200 dark:border-[#2a2b36] font-medium text-slate-500">
                   <tr>
                     <th className="p-4 w-12">
@@ -827,6 +844,18 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       <td className="p-4 text-slate-500">{item.size}</td>
                       <td className="p-4 text-slate-500">{item.uploadedAt}</td>
                       <td className="p-4 text-right">
+                        {item.type === 'image' && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDoubleClick(item);
+                            }}
+                            className="mr-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                          >
+                            Edit details
+                          </button>
+                        )}
                         {canManageMediaDestructiveActions && (
                           <button
                             onClick={(e) => {

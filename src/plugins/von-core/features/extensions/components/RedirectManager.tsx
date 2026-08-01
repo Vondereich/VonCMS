@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { API } from '../../../../../config/site.config';
 import { vonFetch } from '../../../../../utils/api';
 import SmartPagination from '../../../../../components/SmartPagination';
+import AdminModal from '../../../../../components/admin/AdminModal';
 import {
   ArrowRight,
   Plus,
@@ -205,12 +206,12 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-[#16161e] w-full max-w-5xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <AdminModal isOpen onClose={onClose} ariaLabel="Redirect Manager" className="w-full max-w-5xl">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-emerald-50 to-teal-50 p-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-900 sm:p-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <ArrowRight className="text-emerald-600" size={28} />
               Redirect Manager
             </h2>
@@ -219,8 +220,10 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            aria-label="Close Redirect Manager"
           >
             <X size={24} />
           </button>
@@ -244,7 +247,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
               className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white text-sm"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={fetchRedirects}
               className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1a1b26] rounded-lg"
@@ -403,84 +406,87 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
       </div>
 
       {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-[#1a1b26] w-full max-w-lg rounded-xl shadow-2xl p-6">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-              {editing ? 'Edit Redirect' : 'Add Redirect'}
-            </h3>
+      <AdminModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        ariaLabel={editing ? 'Edit redirect' : 'Add redirect'}
+        className="w-full max-w-lg"
+      >
+        <div className="w-full rounded-xl bg-white p-4 shadow-2xl dark:bg-[#1a1b26] sm:p-6">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
+            {editing ? 'Edit Redirect' : 'Add Redirect'}
+          </h3>
 
-            <div className="space-y-4">
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Source URL (From)
-                </span>
-                <input
-                  id="redirectmanager-375"
-                  name="redirectmanager375"
-                  aria-label="Source URL (From)"
-                  type="text"
-                  value={sourceUrl}
-                  onChange={(e) => setSourceUrl(e.target.value)}
-                  placeholder="/old-page"
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-[#333544] rounded-lg dark:bg-[#242633] dark:text-white"
-                />
-              </div>
-
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Target URL (To)
-                </span>
-                <input
-                  aria-label="Target URL (To)"
-                  id="redirectmanager-388"
-                  name="redirectmanager388"
-                  type="text"
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                  placeholder="/new-page or https://external.com"
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-[#333544] rounded-lg dark:bg-[#242633] dark:text-white"
-                />
-              </div>
-
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Redirect Type
-                </span>
-                <select
-                  id="redirectmanager-401"
-                  name="redirectmanager401"
-                  aria-label="Redirect Type"
-                  value={redirectType}
-                  onChange={(e) => setRedirectType(Number(e.target.value))}
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-[#333544] rounded-lg dark:bg-[#242633] dark:text-white"
-                >
-                  <option value={301}>301 - Permanent</option>
-                  <option value={302}>302 - Temporary</option>
-                  <option value={307}>307 - Temporary (Preserve Method)</option>
-                  <option value={308}>308 - Permanent (Preserve Method)</option>
-                </select>
-              </div>
+          <div className="space-y-4">
+            <div>
+              <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Source URL (From)
+              </span>
+              <input
+                id="redirectmanager-375"
+                name="redirectmanager375"
+                aria-label="Source URL (From)"
+                type="text"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                placeholder="/old-page"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-[#333544] rounded-lg dark:bg-[#242633] dark:text-white"
+              />
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg"
+            <div>
+              <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Target URL (To)
+              </span>
+              <input
+                aria-label="Target URL (To)"
+                id="redirectmanager-388"
+                name="redirectmanager388"
+                type="text"
+                value={targetUrl}
+                onChange={(e) => setTargetUrl(e.target.value)}
+                placeholder="/new-page or https://external.com"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-[#333544] rounded-lg dark:bg-[#242633] dark:text-white"
+              />
+            </div>
+
+            <div>
+              <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Redirect Type
+              </span>
+              <select
+                id="redirectmanager-401"
+                name="redirectmanager401"
+                aria-label="Redirect Type"
+                value={redirectType}
+                onChange={(e) => setRedirectType(Number(e.target.value))}
+                className="w-full px-4 py-2 border border-slate-200 dark:border-[#333544] rounded-lg dark:bg-[#242633] dark:text-white"
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 flex items-center gap-2"
-              >
-                <Save size={18} />
-                Save
-              </button>
+                <option value={301}>301 - Permanent</option>
+                <option value={302}>302 - Temporary</option>
+                <option value={307}>307 - Temporary (Preserve Method)</option>
+                <option value={308}>308 - Permanent (Preserve Method)</option>
+              </select>
             </div>
           </div>
+
+          <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
+            <button
+              onClick={() => setShowModal(false)}
+              className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg sm:w-auto"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 font-medium text-white hover:bg-emerald-700 sm:w-auto"
+            >
+              <Save size={18} />
+              Save
+            </button>
+          </div>
         </div>
-      )}
-    </div>
+      </AdminModal>
+    </AdminModal>
   );
 };

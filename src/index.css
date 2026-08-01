@@ -163,3 +163,79 @@
   min-height: 90px;
   overflow: hidden;
 }
+
+/* Shared admin shell and overlay contracts. */
+.admin-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.admin-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgb(2 6 23 / 0.72);
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-enter {
+  animation: modalEnter 180ms ease-out both;
+}
+
+.admin-safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.editor-toolbar > * {
+  flex-shrink: 0;
+}
+
+.settings-tab-strip > button {
+  min-height: 2.75rem;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+@media (pointer: coarse) {
+  .editor-toolbar button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .settings-tab-strip > button {
+    justify-content: flex-start;
+  }
+
+  .admin-modal-layer {
+    padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+      max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-enter {
+    animation: none !important;
+  }
+}

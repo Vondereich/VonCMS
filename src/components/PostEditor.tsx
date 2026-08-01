@@ -5,7 +5,17 @@ import Editor from './Editor';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
-import { Activity, ArrowLeft, CheckCircle, Globe, Images, Sparkles, Upload, X } from 'lucide-react';
+import {
+  Activity,
+  ArrowLeft,
+  CheckCircle,
+  FileText,
+  Globe,
+  Images,
+  Sparkles,
+  Upload,
+  X,
+} from 'lucide-react';
 import { sanitizeHTML, trimTrailingHtml } from '../utils/colorSanitizer';
 import { htmlToPlainText, sanitizeEditorHtml } from '../utils/security';
 import { analyzeSEO, SEOAnalysisResult } from '../utils/seoAnalyzer';
@@ -42,6 +52,7 @@ interface PostEditorProps {
 const TITLE_MAX_LENGTH = 255;
 const EXCERPT_RECOMMENDED_MAX_LENGTH = 200;
 const EXCERPT_WARNING_LENGTH = 220;
+type MobileEditorPanel = 'write' | 'publish' | 'ai';
 
 const PostEditor: React.FC<PostEditorProps> = ({
   initialItem,
@@ -70,6 +81,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const [auditLogs, setAuditLogs] = useState<ContentAuditLog[]>([]);
   const [isAuditLogsLoading, setIsAuditLogsLoading] = useState(false);
   const [isAuditHistoryOpen, setIsAuditHistoryOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<MobileEditorPanel>('write');
   const featuredImageInputRef = React.useRef<HTMLInputElement>(null);
   const titleLength = item?.title?.length || 0;
   const titleLimitHelpText = `Title is limited to ${TITLE_MAX_LENGTH} characters.`;
@@ -628,26 +640,48 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
   const saveStatusLabel = buildSaveStatusLabel(saveStatus, lastSaved, autoSaveCountdown);
   const saveStatusClassName = getSaveStatusClassName(saveStatus);
+  const publishingChecks = [
+    { label: 'Title', ready: Boolean(item.title?.trim()) },
+    { label: 'Content', ready: Boolean(getPostEditorCleanText(item.content || '')) },
+    ...(!isPage
+      ? [
+          {
+            label: 'Schedule',
+            ready: item.status !== 'scheduled' || Boolean((item as Post).scheduledAt),
+          },
+        ]
+      : []),
+  ];
+  const completedPublishingChecks = publishingChecks.filter((check) => check.ready).length;
+  const publishActionLabel =
+    item.status === 'scheduled' ? 'Schedule' : item.status === 'published' ? 'Update' : 'Publish';
+  const handlePrimaryPublish = () => {
+    const finalStatus = item.status === 'scheduled' ? 'scheduled' : 'published';
+    void handleSave(finalStatus);
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-4 pb-24 animate-fade-in sm:space-y-6 xl:pb-0">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <button
+            type="button"
             onClick={onBack}
-            className="p-2 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-full transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-200 dark:hover:bg-[#1a1b26]"
+            aria-label={`Back to ${isPage ? 'pages' : 'posts'}`}
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-bold text-slate-800 dark:text-white sm:text-2xl">
               {item.id ? 'Edit' : 'Create'} {isPage ? 'Page' : 'Post'}
             </h2>
-            <p className={saveStatusClassName}>{saveStatusLabel}</p>
+            <p className={`${saveStatusClassName} truncate`}>{saveStatusLabel}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="hidden items-center gap-3 xl:flex">
           <button
+            type="button"
             onClick={() => handleSave('draft')}
             disabled={isSaving}
             className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
@@ -656,7 +690,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
             <span>{isSaving ? 'Saving draft...' : 'Save Draft'}</span>
           </button>
           <button
-            onClick={() => handleSave('draft')}
+            type="button"
+            onClick={() => void handleSave('draft')}
             disabled={isSaving}
             className="sm:hidden p-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
             title={isSaving ? 'Saving draft...' : 'Save Draft'}
@@ -664,30 +699,69 @@ const PostEditor: React.FC<PostEditorProps> = ({
             <CheckCircle size={18} className={isSaving ? 'animate-spin' : ''} />
           </button>
           <button
-            onClick={() => {
-              const finalStatus = item.status === 'scheduled' ? 'scheduled' : 'published';
-              handleSave(finalStatus);
-            }}
+            type="button"
+            onClick={handlePrimaryPublish}
             disabled={isSaving}
             className={`flex items-center gap-2 px-6 py-2 ${item.status === 'scheduled' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'} text-white rounded-lg transition-colors shadow-lg font-medium disabled:opacity-70`}
           >
             <Globe size={18} className={isSaving ? 'animate-spin' : ''} />
-            <span>
-              {isSaving
-                ? 'Saving...'
-                : item.status === 'scheduled'
-                  ? 'Schedule'
-                  : item.status === 'published'
-                    ? 'Update'
-                    : 'Publish'}
-            </span>
+            <span>{isSaving ? 'Saving...' : publishActionLabel}</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36]">
+      <div
+        className="sticky top-0 z-30 -mx-3 flex overflow-x-auto border-y border-slate-200 bg-white/95 px-3 py-2 backdrop-blur-xl dark:border-[#2a2b36] dark:bg-[#16161e]/95 sm:-mx-4 sm:px-4 xl:hidden"
+        aria-label="Editor sections"
+      >
+        {(
+          [
+            { id: 'write', label: 'Write', icon: <FileText size={17} /> },
+            {
+              id: 'publish',
+              label: 'Publish & SEO',
+              icon: <Globe size={17} />,
+              badge:
+                completedPublishingChecks < publishingChecks.length
+                  ? publishingChecks.length - completedPublishingChecks
+                  : undefined,
+            },
+            { id: 'ai', label: 'AI', icon: <Sparkles size={17} /> },
+          ] as const
+        ).map((panel) => (
+          <button
+            key={panel.id}
+            type="button"
+            onClick={() => setMobilePanel(panel.id)}
+            aria-pressed={mobilePanel === panel.id}
+            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${
+              mobilePanel === panel.id
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#242633]'
+            }`}
+          >
+            {panel.icon}
+            {panel.label}
+            {'badge' in panel && panel.badge ? (
+              <span
+                className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] ${
+                  mobilePanel === panel.id
+                    ? 'bg-white/20 text-white'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                }`}
+              >
+                {panel.badge}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-3 xl:gap-8">
+        <div
+          className={`${mobilePanel === 'write' ? 'block' : 'hidden'} min-w-0 space-y-4 sm:space-y-6 xl:col-span-2 xl:block`}
+        >
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
             <input
               id="post-title"
               name="title"
@@ -695,7 +769,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
               type="text"
               maxLength={TITLE_MAX_LENGTH}
               placeholder="Enter title here..."
-              className="w-full text-3xl font-bold bg-transparent border-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-slate-300 dark:placeholder-slate-600 text-slate-900 dark:text-white rounded-lg px-2 py-1 -mx-2 -my-1 transition-all duration-200"
+              className="w-full rounded-lg border-none bg-transparent px-2 py-1 -mx-2 -my-1 text-2xl font-bold text-slate-900 placeholder-slate-300 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white dark:placeholder-slate-600 sm:text-3xl"
               value={item.title || ''}
               onChange={handleTitleChange}
             />
@@ -721,366 +795,427 @@ const PostEditor: React.FC<PostEditorProps> = ({
           </div>
         </div>
 
-        <div className="space-y-6">
-          <AiWritingPanel
-            title={item.title || ''}
-            hasContent={Boolean(getPostEditorCleanText(item.content || ''))}
-            mode={aiAssistant.mode}
-            writePrompt={aiAssistant.writePrompt}
-            pendingResult={aiAssistant.pendingResult}
-            isGenerating={aiAssistant.isGenerating}
-            isChecking={aiAssistant.isChecking}
-            isSaving={isSaving}
-            onModeChange={aiAssistant.setMode}
-            onWritePromptChange={aiAssistant.setWritePrompt}
-            onGenerate={handleAiGenerate}
-            onCheck={handleAiCheckRequest}
-            onApplyAppend={handleApplyAiAppend}
-            onApplyReplace={handleApplyAiReplace}
-            onDiscard={handleDiscardAiResult}
-          />
-          <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
-            <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
-            <div>
-              <label
-                htmlFor="post-status"
-                className="block text-xs font-medium text-slate-500 mb-1.5"
-              >
-                Status
-              </label>
-              <select
-                id="post-status"
-                name="status"
-                className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                value={item.status || 'draft'}
-                onChange={(e) => {
-                  const newStatus = e.target.value as Post['status'];
-                  // Safety: Prevent rescheduling already published posts to protect SEO
-                  if (
-                    initialItem &&
-                    initialItem.status === 'published' &&
-                    newStatus === 'scheduled'
-                  ) {
-                    notify.error('Cannot schedule an already published post (SEO Safety).');
-                    return;
-                  }
-                  setItem((prev) => {
-                    if (!prev) return null;
-                    return isPage
-                      ? ({ ...prev, status: newStatus as Page['status'] } as Page)
-                      : ({ ...prev, status: newStatus } as Post);
-                  });
-                }}
-              >
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-                {!isPage && <option value="scheduled">Scheduled</option>}
-              </select>
-            </div>
-            {!isPage && item.status === 'scheduled' && (
-              <div className="space-y-2">
-                <label
-                  htmlFor="post-publish-date"
-                  className="block text-sm font-medium text-slate-500"
-                >
-                  Publish Date & Time
-                </label>
-                <input
-                  id="post-publish-date"
-                  name="scheduledAt"
-                  type="datetime-local"
-                  className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                  value={normalizeScheduledInputValue((item as Post).scheduledAt)}
-                  onChange={(e) =>
-                    setItem((prev) => (prev ? { ...prev, scheduledAt: e.target.value } : null))
-                  }
-                />
-                <button
-                  onClick={() => {
-                    if (!(item as Post).scheduledAt) {
-                      notify.info('Please pick a date and time first.');
-                      return;
-                    }
-                    handleSave('scheduled');
-                  }}
-                  disabled={isSaving}
-                  className="w-full py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg font-bold border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Activity size={16} />
-                  <span>{isSaving ? 'Locking...' : 'Set Schedule Now'}</span>
-                </button>
-                {(item as Post).scheduledAt && (
-                  <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                    <span className="text-xs text-amber-700 dark:text-amber-300">
-                      Target: {formatScheduledTarget((item as Post).scheduledAt)}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setItem((prev) =>
-                          prev ? { ...prev, status: 'draft', scheduledAt: '' } : null
-                        )
-                      }
-                      className="text-xs text-red-500 hover:text-red-700 font-medium"
+        <div className="min-w-0 space-y-6">
+          <div className={`${mobilePanel === 'ai' ? 'block' : 'hidden'} xl:block`}>
+            <AiWritingPanel
+              title={item.title || ''}
+              hasContent={Boolean(getPostEditorCleanText(item.content || ''))}
+              mode={aiAssistant.mode}
+              writePrompt={aiAssistant.writePrompt}
+              pendingResult={aiAssistant.pendingResult}
+              isGenerating={aiAssistant.isGenerating}
+              isChecking={aiAssistant.isChecking}
+              isSaving={isSaving}
+              onModeChange={aiAssistant.setMode}
+              onWritePromptChange={aiAssistant.setWritePrompt}
+              onGenerate={handleAiGenerate}
+              onCheck={handleAiCheckRequest}
+              onApplyAppend={handleApplyAiAppend}
+              onApplyReplace={handleApplyAiReplace}
+              onDiscard={handleDiscardAiResult}
+            />
+          </div>
+          <div
+            className={`${mobilePanel === 'publish' ? 'space-y-6' : 'hidden'} xl:block xl:space-y-6`}
+          >
+            <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
+              <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-[#2a2b36] dark:bg-[#16161e]">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Publish readiness
+                  </span>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    {completedPublishingChecks}/{publishingChecks.length}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {publishingChecks.map((check) => (
+                    <span
+                      key={check.label}
+                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                        check.ready
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                      }`}
                     >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-                <p className="text-xs text-slate-400">Post will auto-publish at this time</p>
+                      {check.ready ? 'Ready' : 'Needs'} {check.label}
+                    </span>
+                  ))}
+                </div>
               </div>
-            )}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="post-slug" className="block text-sm font-medium text-slate-500">
-                  Slug
-                </label>
-                <button
-                  onClick={() => {
-                    if (!item.title) {
-                      notify.info('Enter a title first');
-                      return;
-                    }
-                    // Use helper for clean text
-                    const cleanTitle = getPostEditorCleanText(item.title);
-                    const slug = cleanTitle
-                      .toLowerCase()
-                      .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
-                      .replace(/\s+/g, '-') // Spaces to hyphens
-                      .replace(/-+/g, '-') // Multiple hyphens to single
-                      .replace(/^-|-$/g, ''); // Trim hyphens
-                    setItem((prev) => (prev ? { ...prev, slug } : null));
-                  }}
-                  className="text-xs flex items-center gap-1 text-green-600 hover:text-green-700 font-bold bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full transition-colors"
-                >
-                  <Sparkles size={12} /> Auto Generate
-                </button>
-              </div>
-              <input
-                id="post-slug"
-                name="slug"
-                type="text"
-                className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                placeholder="url-friendly-slug"
-                value={item.slug || ''}
-                onChange={(e) =>
-                  setItem((prev) => (prev ? { ...prev, slug: e.target.value } : null))
-                }
-              />
-            </div>
-            {!isPage && (
               <div>
                 <label
-                  htmlFor="post-category-select"
-                  className="block text-sm font-medium text-slate-500 mb-1"
+                  htmlFor="post-status"
+                  className="block text-xs font-medium text-slate-500 mb-1.5"
                 >
-                  Category
+                  Status
                 </label>
-                <div className="space-y-2">
-                  <select
-                    id="post-category-select"
-                    name="categoryPreset"
-                    aria-label="Choose existing category"
-                    value={
-                      availableCategories.includes((item as Post).category || '')
-                        ? (item as Post).category || 'Uncategorized'
-                        : '__custom__'
+                <select
+                  id="post-status"
+                  name="status"
+                  className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                  value={item.status || 'draft'}
+                  onChange={(e) => {
+                    const newStatus = e.target.value as Post['status'];
+                    // Safety: Prevent rescheduling already published posts to protect SEO
+                    if (
+                      initialItem &&
+                      initialItem.status === 'published' &&
+                      newStatus === 'scheduled'
+                    ) {
+                      notify.error('Cannot schedule an already published post (SEO Safety).');
+                      return;
                     }
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') return;
-                      setItem((prev) => (prev ? { ...prev, category: e.target.value } : null));
-                    }}
-                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100 text-sm"
+                    setItem((prev) => {
+                      if (!prev) return null;
+                      return isPage
+                        ? ({ ...prev, status: newStatus as Page['status'] } as Page)
+                        : ({ ...prev, status: newStatus } as Post);
+                    });
+                  }}
+                >
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
+                  {!isPage && <option value="scheduled">Scheduled</option>}
+                </select>
+              </div>
+              {!isPage && item.status === 'scheduled' && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="post-publish-date"
+                    className="block text-sm font-medium text-slate-500"
                   >
-                    {availableCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                    <option value="__custom__">Custom category...</option>
-                  </select>
+                    Publish Date & Time
+                  </label>
                   <input
-                    id="post-category"
-                    name="category"
-                    aria-label="Custom category"
-                    type="text"
+                    id="post-publish-date"
+                    name="scheduledAt"
+                    type="datetime-local"
                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                    value={(item as Post).category || ''}
-                    placeholder="Uncategorized"
+                    value={normalizeScheduledInputValue((item as Post).scheduledAt)}
                     onChange={(e) =>
-                      setItem((prev) => (prev ? { ...prev, category: e.target.value } : null))
+                      setItem((prev) => (prev ? { ...prev, scheduledAt: e.target.value } : null))
                     }
                   />
+                  <button
+                    onClick={() => {
+                      if (!(item as Post).scheduledAt) {
+                        notify.info('Please pick a date and time first.');
+                        return;
+                      }
+                      handleSave('scheduled');
+                    }}
+                    disabled={isSaving}
+                    className="w-full py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg font-bold border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Activity size={16} />
+                    <span>{isSaving ? 'Locking...' : 'Set Schedule Now'}</span>
+                  </button>
+                  {(item as Post).scheduledAt && (
+                    <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <span className="text-xs text-amber-700 dark:text-amber-300">
+                        Target: {formatScheduledTarget((item as Post).scheduledAt)}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setItem((prev) =>
+                            prev ? { ...prev, status: 'draft', scheduledAt: '' } : null
+                          )
+                        }
+                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400">Post will auto-publish at this time</p>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">
-                  Pick an existing category or type a new one. Empty values still save as{' '}
-                  Uncategorized.
-                </p>
-              </div>
-            )}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="post-excerpt" className="block text-sm font-medium text-slate-500">
-                  Excerpt
-                </label>
-                <button
-                  onClick={() => {
-                    if (item.content) {
-                      const excerpt = getPostEditorCleanText(
-                        item.content,
-                        EXCERPT_RECOMMENDED_MAX_LENGTH
-                      );
-                      setItem((prev) => (prev ? { ...prev, excerpt } : null));
-                    } else {
-                      notify.info('Add content first');
-                    }
-                  }}
-                  className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
-                >
-                  <Sparkles size={12} /> Auto Fill
-                </button>
-              </div>
-              <textarea
-                id="post-excerpt"
-                name="excerpt"
-                className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24"
-                value={item.excerpt || ''}
-                onChange={(e) =>
-                  setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
-                }
-                placeholder="Short summary (recommended 160-200 characters)..."
-                aria-describedby="post-excerpt-help"
-              />
-              <p
-                id="post-excerpt-help"
-                className={`mt-1 text-xs ${
-                  excerptLength > EXCERPT_WARNING_LENGTH
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-slate-400'
-                }`}
-              >
-                {excerptLength}/{EXCERPT_WARNING_LENGTH} characters - recommended 160-200.
-                {excerptLength > EXCERPT_WARNING_LENGTH
-                  ? ' Long excerpts may be shortened in cards and discovery metadata.'
-                  : ''}
-              </p>
-            </div>
-
-            {/* Featured Image - For Posts Only */}
-            {!isPage && (
+              )}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="post-image" className="block text-sm font-medium text-slate-500">
-                    Featured Image
+                  <label htmlFor="post-slug" className="block text-sm font-medium text-slate-500">
+                    Slug
                   </label>
                   <button
                     onClick={() => {
-                      // Clear image so backend auto-detects from content
-                      setItem((prev) => (prev ? { ...prev, image: '' } : null));
-                      notify.success('Featured image cleared. Will auto-detect on save.');
+                      if (!item.title) {
+                        notify.info('Enter a title first');
+                        return;
+                      }
+                      // Use helper for clean text
+                      const cleanTitle = getPostEditorCleanText(item.title);
+                      const slug = cleanTitle
+                        .toLowerCase()
+                        .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
+                        .replace(/\s+/g, '-') // Spaces to hyphens
+                        .replace(/-+/g, '-') // Multiple hyphens to single
+                        .replace(/^-|-$/g, ''); // Trim hyphens
+                      setItem((prev) => (prev ? { ...prev, slug } : null));
                     }}
-                    className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-full transition-colors"
+                    className="text-xs flex items-center gap-1 text-green-600 hover:text-green-700 font-bold bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full transition-colors"
                   >
-                    <Sparkles size={12} /> Refresh from Content
+                    <Sparkles size={12} /> Auto Generate
                   </button>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => featuredImageInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    <Upload size={16} />
-                    Upload Image
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openFeaturedLibrary}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-sm font-medium"
-                  >
-                    <Images size={16} />
-                    Browse Media Gallery
-                  </button>
-                  <input
-                    ref={featuredImageInputRef}
-                    id="featured-image-upload"
-                    name="featuredImageUpload"
-                    aria-label="Upload featured image"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFeaturedImageUpload}
-                  />
                 </div>
                 <input
-                  id="post-image"
-                  name="image"
-                  aria-label="Featured image URL"
+                  id="post-slug"
+                  name="slug"
                   type="text"
                   className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                  placeholder="Paste image URL if needed..."
-                  value={(item as Post).image || ''}
+                  placeholder="url-friendly-slug"
+                  value={item.slug || ''}
                   onChange={(e) =>
-                    setItem((prev) => (prev ? { ...prev, image: e.target.value } : null))
+                    setItem((prev) => (prev ? { ...prev, slug: e.target.value } : null))
                   }
                 />
-                {(item as Post).image && (
-                  <div className="mt-2 relative group">
-                    <SafeImage
-                      src={(item as Post).image}
-                      alt="Featured"
-                      className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
-                    />
-                    <button
-                      onClick={() => setItem((prev) => (prev ? { ...prev, image: '' } : null))}
-                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove image"
+              </div>
+              {!isPage && (
+                <div>
+                  <label
+                    htmlFor="post-category-select"
+                    className="block text-sm font-medium text-slate-500 mb-1"
+                  >
+                    Category
+                  </label>
+                  <div className="space-y-2">
+                    <select
+                      id="post-category-select"
+                      name="categoryPreset"
+                      aria-label="Choose existing category"
+                      value={
+                        availableCategories.includes((item as Post).category || '')
+                          ? (item as Post).category || 'Uncategorized'
+                          : '__custom__'
+                      }
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') return;
+                        setItem((prev) => (prev ? { ...prev, category: e.target.value } : null));
+                      }}
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100 text-sm"
                     >
-                      <X size={14} />
+                      {availableCategories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                      <option value="__custom__">Custom category...</option>
+                    </select>
+                    <input
+                      id="post-category"
+                      name="category"
+                      aria-label="Custom category"
+                      type="text"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      value={(item as Post).category || ''}
+                      placeholder="Uncategorized"
+                      onChange={(e) =>
+                        setItem((prev) => (prev ? { ...prev, category: e.target.value } : null))
+                      }
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Pick an existing category or type a new one. Empty values still save as{' '}
+                    Uncategorized.
+                  </p>
+                </div>
+              )}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label
+                    htmlFor="post-excerpt"
+                    className="block text-sm font-medium text-slate-500"
+                  >
+                    Excerpt
+                  </label>
+                  <button
+                    onClick={() => {
+                      if (item.content) {
+                        const excerpt = getPostEditorCleanText(
+                          item.content,
+                          EXCERPT_RECOMMENDED_MAX_LENGTH
+                        );
+                        setItem((prev) => (prev ? { ...prev, excerpt } : null));
+                      } else {
+                        notify.info('Add content first');
+                      }
+                    }}
+                    className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
+                  >
+                    <Sparkles size={12} /> Auto Fill
+                  </button>
+                </div>
+                <textarea
+                  id="post-excerpt"
+                  name="excerpt"
+                  className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
+                  value={item.excerpt || ''}
+                  onChange={(e) =>
+                    setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
+                  }
+                  placeholder="Short summary (recommended 160-200 characters)..."
+                  aria-describedby="post-excerpt-help"
+                />
+                <p
+                  id="post-excerpt-help"
+                  className={`mt-1 text-xs ${
+                    excerptLength > EXCERPT_WARNING_LENGTH
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-slate-400'
+                  }`}
+                >
+                  {excerptLength}/{EXCERPT_WARNING_LENGTH} characters - recommended 160-200.
+                  {excerptLength > EXCERPT_WARNING_LENGTH
+                    ? ' Long excerpts may be shortened in cards and discovery metadata.'
+                    : ''}
+                </p>
+              </div>
+
+              {/* Featured Image - For Posts Only */}
+              {!isPage && (
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label
+                      htmlFor="post-image"
+                      className="block text-sm font-medium text-slate-500"
+                    >
+                      Featured Image
+                    </label>
+                    <button
+                      onClick={() => {
+                        // Clear image so backend auto-detects from content
+                        setItem((prev) => (prev ? { ...prev, image: '' } : null));
+                        notify.success('Featured image cleared. Will auto-detect on save.');
+                      }}
+                      className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-full transition-colors"
+                    >
+                      <Sparkles size={12} /> Refresh from Content
                     </button>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* Navigation Toggle */}
-            {isPage && (
-              <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div
-                    className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
-                  >
-                    {addToMenu && <Globe size={12} />}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => featuredImageInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      <Upload size={16} />
+                      Upload Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openFeaturedLibrary}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-sm font-medium"
+                    >
+                      <Images size={16} />
+                      Browse Media Gallery
+                    </button>
+                    <input
+                      ref={featuredImageInputRef}
+                      id="featured-image-upload"
+                      name="featuredImageUpload"
+                      aria-label="Upload featured image"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFeaturedImageUpload}
+                    />
                   </div>
                   <input
-                    id="post-add-menu"
-                    name="addToMenu"
-                    type="checkbox"
-                    checked={addToMenu}
-                    onChange={(e) => setAddToMenu(e.target.checked)}
-                    className="hidden"
+                    id="post-image"
+                    name="image"
+                    aria-label="Featured image URL"
+                    type="text"
+                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                    placeholder="Paste image URL if needed..."
+                    value={(item as Post).image || ''}
+                    onChange={(e) =>
+                      setItem((prev) => (prev ? { ...prev, image: e.target.value } : null))
+                    }
                   />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors">
-                    Add to Navigation Menu
-                  </span>
-                </label>
-              </div>
-            )}
+                  {(item as Post).image && (
+                    <div className="mt-2 relative group">
+                      <SafeImage
+                        src={(item as Post).image}
+                        alt="Featured"
+                        className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
+                      />
+                      <button
+                        onClick={() => setItem((prev) => (prev ? { ...prev, image: '' } : null))}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove image"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Navigation Toggle */}
+              {isPage && (
+                <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div
+                      className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
+                    >
+                      {addToMenu && <Globe size={12} />}
+                    </div>
+                    <input
+                      id="post-add-menu"
+                      name="addToMenu"
+                      type="checkbox"
+                      checked={addToMenu}
+                      onChange={(e) => setAddToMenu(e.target.checked)}
+                      className="hidden"
+                    />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors">
+                      Add to Navigation Menu
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <PostEditorAuditSummary
+              itemId={item.id}
+              logs={auditLogs}
+              isLoading={isAuditLogsLoading}
+              onOpenHistory={() => setIsAuditHistoryOpen(true)}
+            />
+
+            <PostEditorSeoPanel
+              item={item}
+              setItem={setItem}
+              isRestoring={isSeoRestoring}
+              result={seoResult}
+            />
           </div>
-
-          <PostEditorAuditSummary
-            itemId={item.id}
-            logs={auditLogs}
-            isLoading={isAuditLogsLoading}
-            onOpenHistory={() => setIsAuditHistoryOpen(true)}
-          />
-
-          <PostEditorSeoPanel
-            item={item}
-            setItem={setItem}
-            isRestoring={isSeoRestoring}
-            result={seoResult}
-          />
         </div>
+      </div>
+
+      <div className="admin-safe-bottom fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-slate-200 bg-white/95 px-3 pt-3 shadow-[0_-12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-[#2a2b36] dark:bg-[#16161e]/95 xl:hidden">
+        <button
+          type="button"
+          onClick={() => void handleSave('draft')}
+          disabled={isSaving}
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-slate-200 dark:hover:bg-[#242633]"
+        >
+          <CheckCircle size={17} className={isSaving ? 'animate-spin' : ''} />
+          Draft
+        </button>
+        <button
+          type="button"
+          onClick={handlePrimaryPublish}
+          disabled={isSaving}
+          className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white shadow-lg transition-colors disabled:opacity-70 ${
+            item.status === 'scheduled'
+              ? 'bg-amber-500 shadow-amber-500/25 hover:bg-amber-600'
+              : 'bg-blue-600 shadow-blue-500/25 hover:bg-blue-700'
+          }`}
+        >
+          <Globe size={18} className={isSaving ? 'animate-spin' : ''} />
+          {isSaving ? 'Saving...' : publishActionLabel}
+        </button>
       </div>
 
       <PostEditorAuditHistoryModal

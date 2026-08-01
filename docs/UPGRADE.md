@@ -10,22 +10,22 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.26.1
+## Recommended path to v1.26.2
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
-4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.26.1`. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed.
+4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.26.2`. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed. Sites on the affected `v1.25.11` through `v1.26.0` packages or the pre-fix `v1.26.1` package must complete this manual update once because Dashboard release discovery can be skipped.
 5. If you update to `v1.25.0` through OTA, open **System Tools** after the update and run **Repair `.htaccess`** once. The OTA updater protects the live `.htaccess` file, so this manual repair step applies the new v1.25.0 managed routing and sensitive-file rules while preserving host-specific rules outside the VonCMS block.
-6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to `v1.26.1`.
+6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to `v1.26.2`.
 7. After the update, verify the homepage, one single post, and the admin dashboard.
-8. After the site is already on `v1.25.0` with a repaired `.htaccess`, use the admin panel updater for later releases such as `v1.26.1`.
+8. After the site is on a fixed updater package and already passed the `v1.25.0` `.htaccess` repair step, use the admin panel updater for later releases.
 
 The OTA updater treats the shipped `docs/` directory as release-managed content. During activation it replaces that directory as one rollback-protected unit, which removes retired guides instead of leaving them beside newer consolidated documentation. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
 
-## What to verify after updating to v1.26.1
+## What to verify after updating to v1.26.2
 
-After Hours starts the v1.26 line with Tailwind CSS 4, TypeScript 7 native compilation, OpenRouter SDK 1, and refreshed editor/UI dependencies while preserving the OpenGate installer, `.htaccess`, routing, privacy, and admin reliability baseline.
+After Hours keeps the Tailwind CSS 4, TypeScript 7 native compilation, OpenRouter SDK 1, and refreshed editor/UI baseline while v1.26.2 makes publishing and administration responsive across phone, tablet, and desktop. The OpenGate installer, `.htaccess`, routing, privacy, ownership, and admin security baselines remain in place.
 
 Check these items:
 
@@ -33,6 +33,10 @@ Check these items:
 - `/index.html` redirects back to the homepage instead of showing the static shell
 - System Tools **Repair `.htaccess`** has been run once if the site reached `v1.25.0` through OTA
 - `/admin` still opens and login works
+- the admin menu opens as a drawer on phone and tablet, closes after navigation, and does not leave the page locked
+- the editor Write, Publish, and AI panels can be switched without losing the current draft
+- the bottom Draft and Publish/Schedule/Update actions remain visible above the phone safe area
+- an admin settings or media dialog stays inside the viewport with a blurred backdrop and returns focus after closing
 - one single post page loads without layout glitches
 - one public page route resolves correctly
 - the editor opens and saves normally for one draft

@@ -126,9 +126,7 @@ if (file_exists($maintenanceFlag)) {
 
   $isLoginOrAdminPath = preg_match('/^(login|admin)/', $currentPath);
   $isAdminUser =
-    isset($_SESSION['user']) &&
-    isset($_SESSION['user']['role']) &&
-    strtolower($_SESSION['user']['role']) === 'admin';
+    SessionManager::isValid() && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin';
 
   $bypass = $isLoginOrAdminPath || $isAdminUser;
 
@@ -382,6 +380,8 @@ $permalinkStructureValue = 'slug';
 $activeThemeId = '';
 $themeCustomization = null;
 $discussionEnabledValue = true;
+$timeZoneValue = 'UTC';
+$dateFormatValue = 'month_day_year_long';
 $siteName = $seoTitle;
 $siteDescription = $seoDescription;
 $logoUrl = '';
@@ -554,7 +554,7 @@ try {
     if (isset($pdo)) {
       $runtimeSettingsStmt = $pdo->prepare(
         "SELECT setting_group, setting_key, setting_value FROM settings
-         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure'))
+         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure', 'time_zone', 'date_format'))
             OR (setting_group = 'ads' AND setting_key = 'ads_config')
             OR (setting_group = 'seo' AND setting_key = 'site_config')
             OR (setting_group = 'theme' AND setting_key IN ('active_theme_id', 'customization'))",
@@ -567,6 +567,28 @@ try {
 
       $permalinkStructureValue =
         $runtimeSettings['general']['permalink_structure'] ?? 'slug';
+      $storedTimeZone = trim((string) ($runtimeSettings['general']['time_zone'] ?? ''));
+      if (in_array($storedTimeZone, timezone_identifiers_list(), true)) {
+        $timeZoneValue = $storedTimeZone;
+      }
+      $storedDateFormat = $runtimeSettings['general']['date_format'] ?? '';
+      if (
+        in_array(
+          $storedDateFormat,
+          [
+            'month_day_year_long',
+            'month_day_year_short',
+            'day_month_year_long',
+            'day_month_year_short',
+            'day_month_year_numeric',
+            'month_day_year_numeric',
+            'iso',
+          ],
+          true,
+        )
+      ) {
+        $dateFormatValue = $storedDateFormat;
+      }
       $activeThemeId = $runtimeSettings['theme']['active_theme_id'] ?? '';
       $themeCustomizationRaw = $runtimeSettings['theme']['customization'] ?? '';
       if ($themeCustomizationRaw !== '') {
@@ -1380,7 +1402,9 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
                                      'seo'                  => [
                                        'articleSchemaType' => $articleSchemaType,
                                      ],
-                                     'permalinkStructure'   => $permalinkStructureValue,
+                                      'permalinkStructure'   => $permalinkStructureValue,
+                                      'timeZone'              => $timeZoneValue,
+                                      'dateFormat'            => $dateFormatValue,
                                     'discussionEnabled'      => $discussionEnabledValue,
                                   ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
   </script>

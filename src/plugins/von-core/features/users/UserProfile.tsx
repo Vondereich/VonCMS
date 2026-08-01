@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Gravatar from 'react-gravatar';
-import { User, Post, Comment } from '../../../../types';
+import { User, Post, Comment, SiteSettings } from '../../../../types';
 import {
   ArrowLeft,
   MapPin,
@@ -13,13 +13,14 @@ import { sanitizeHtml } from '../../../../utils/security';
 import { LoadMoreButton } from '../../../../components/LoadMoreButton';
 import { useProfileActivity } from '../../../../hooks/useProfileActivity';
 import { useProfileEditor } from '../../../../hooks/useProfileEditor';
-import { getResponsiveImageAttributes } from '../../../../utils/siteUtils';
+import { formatDate, getResponsiveImageAttributes } from '../../../../utils/siteUtils';
 import { SafeImage } from '../../../../components/SafeImage';
 import {
   getProfileDisplayRole,
   isOwnUserProfile,
   isStaffUser,
 } from '../../../../utils/profileUtils';
+import AdminModal from '../../../../components/admin/AdminModal';
 
 interface ProfileProps {
   targetUser: User;
@@ -31,6 +32,7 @@ interface ProfileProps {
   onNavigateAdmin?: () => void;
   onUpdateUser?: (user: Partial<User>) => void;
   postsPerPage?: number;
+  settings: SiteSettings;
 }
 
 // Utility for Avatar (Reused logic for consistency)
@@ -71,6 +73,7 @@ const UserProfile: React.FC<ProfileProps> = ({
   onNavigateAdmin,
   onUpdateUser,
   postsPerPage = 6,
+  settings,
 }) => {
   const [activeTab, setActiveTab] = useState<'articles' | 'comments'>('articles');
 
@@ -125,140 +128,143 @@ const UserProfile: React.FC<ProfileProps> = ({
   return (
     <div className="animate-fade-in w-full max-w-5xl mx-auto pb-20">
       {/* Edit Modal */}
-      {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-neutral-100 dark:border-neutral-800">
-            <div className="p-6 border-b border-neutral-100 dark:border-neutral-800">
-              <h3 className="text-xl font-bold text-neutral-900 dark:text-white">Edit Profile</h3>
+      <AdminModal
+        isOpen={isEditing}
+        onClose={() => setIsEditing(false)}
+        ariaLabel="Edit profile"
+        className="w-full max-w-md"
+      >
+        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:max-h-[90dvh]">
+          <div className="border-b border-neutral-100 p-4 dark:border-neutral-800 sm:p-6">
+            <h3 className="text-xl font-bold text-neutral-900 dark:text-white">Edit Profile</h3>
+          </div>
+          <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+            <div>
+              <span className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Display name / Pen name
+              </span>
+              <input
+                aria-label="Display name / Pen name"
+                id="userprofile-display-name"
+                name="userprofileDisplayName"
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                placeholder="Public author name"
+                className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden"
+              />
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <span className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Display name / Pen name
-                </span>
-                <input
-                  aria-label="Display name / Pen name"
-                  id="userprofile-display-name"
-                  name="userprofileDisplayName"
-                  type="text"
-                  value={editDisplayName}
-                  onChange={(e) => setEditDisplayName(e.target.value)}
-                  placeholder="Public author name"
-                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden"
-                />
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Avatar URL
-                </span>
-                <input
-                  aria-label="Avatar URL"
-                  id="userprofile-216"
-                  name="userprofile216"
-                  type="text"
-                  value={editAvatar}
-                  onChange={(e) => setEditAvatar(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
-                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden"
-                />
-                <p className="text-xs text-neutral-400 mt-1">
-                  Leave empty for auto-generated avatar.
-                </p>
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                  Bio / Message
-                </span>
-                <textarea
-                  id="userprofile-231"
-                  name="userprofile231"
-                  aria-label="Bio / Message"
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  rows={4}
-                  placeholder="Tell us about yourself..."
-                  className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden resize-none"
-                />
-              </div>
+            <div>
+              <span className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Avatar URL
+              </span>
+              <input
+                aria-label="Avatar URL"
+                id="userprofile-216"
+                name="userprofile216"
+                type="text"
+                value={editAvatar}
+                onChange={(e) => setEditAvatar(e.target.value)}
+                placeholder="https://example.com/avatar.jpg"
+                className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden"
+              />
+              <p className="text-xs text-neutral-400 mt-1">
+                Leave empty for auto-generated avatar.
+              </p>
+            </div>
+            <div>
+              <span className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Bio / Message
+              </span>
+              <textarea
+                id="userprofile-231"
+                name="userprofile231"
+                aria-label="Bio / Message"
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                rows={4}
+                placeholder="Tell us about yourself..."
+                className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-hidden resize-none"
+              />
+            </div>
 
-              {/* Password Change Section */}
-              <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordFields(!showPasswordFields)}
-                  className="text-sm font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-2 hover:text-primary-600 dark:hover:text-primary-400"
-                >
-                  {showPasswordFields ? '− Cancel Password Change' : '+ Change Password'}
-                </button>
+            {/* Password Change Section */}
+            <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setShowPasswordFields(!showPasswordFields)}
+                className="text-sm font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-2 hover:text-primary-600 dark:hover:text-primary-400"
+              >
+                {showPasswordFields ? '− Cancel Password Change' : '+ Change Password'}
+              </button>
 
-                {showPasswordFields && (
-                  <div className="mt-4 space-y-4 animate-fade-in p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-200 dark:border-neutral-700">
-                    <div>
-                      <span className="block text-xs font-bold uppercase text-neutral-500 mb-1">
-                        Current Password (Required)
-                      </span>
-                      <input
-                        aria-label="Current Password (Required)"
-                        id="userprofile-256"
-                        name="userprofile256"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
-                      />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold uppercase text-neutral-500 mb-1">
-                        New Password
-                      </span>
-                      <input
-                        id="userprofile-267"
-                        name="userprofile267"
-                        aria-label="New Password"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="8+ chars, Upper, Number, Symbol"
-                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
-                      />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold uppercase text-neutral-500 mb-1">
-                        Confirm New Password
-                      </span>
-                      <input
-                        id="userprofile-279"
-                        name="userprofile279"
-                        aria-label="Confirm New Password"
-                        type="password"
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Repeat new password"
-                        className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
-                      />
-                    </div>
+              {showPasswordFields && (
+                <div className="mt-4 space-y-4 animate-fade-in p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-200 dark:border-neutral-700">
+                  <div>
+                    <span className="block text-xs font-bold uppercase text-neutral-500 mb-1">
+                      Current Password (Required)
+                    </span>
+                    <input
+                      aria-label="Current Password (Required)"
+                      id="userprofile-256"
+                      name="userprofile256"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
+                    />
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 flex justify-end gap-3 cancel-save-actions">
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                className="px-6 py-2 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30"
-              >
-                Save Changes
-              </button>
+                  <div>
+                    <span className="block text-xs font-bold uppercase text-neutral-500 mb-1">
+                      New Password
+                    </span>
+                    <input
+                      id="userprofile-267"
+                      name="userprofile267"
+                      aria-label="New Password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="8+ chars, Upper, Number, Symbol"
+                      className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold uppercase text-neutral-500 mb-1">
+                      Confirm New Password
+                    </span>
+                    <input
+                      id="userprofile-279"
+                      name="userprofile279"
+                      aria-label="Confirm New Password"
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Repeat new password"
+                      className="w-full px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 focus:ring-2 focus:ring-primary-500 outline-hidden"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
+          <div className="admin-safe-bottom cancel-save-actions flex flex-col-reverse justify-end gap-3 border-t border-neutral-100 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-800/50 sm:flex-row sm:p-6">
+            <button
+              onClick={() => setIsEditing(false)}
+              className="min-h-11 w-full px-4 py-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 font-medium transition-colors sm:w-auto"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveProfile}
+              className="min-h-11 w-full px-6 py-2 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 sm:w-auto"
+            >
+              Save Changes
+            </button>
+          </div>
         </div>
-      )}
+      </AdminModal>
 
       {/* Navigation */}
       <div className="flex items-center justify-between mb-6 px-4 lg:px-0">
@@ -446,7 +452,12 @@ const UserProfile: React.FC<ProfileProps> = ({
                         dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.title) }}
                       />
                       <p className="text-xs text-neutral-400">
-                        {post.readTime || '5 min read'} • {post.updatedAt}
+                        {post.readTime || '5 min read'} •{' '}
+                        {formatDate(
+                          post.createdAt || post.updatedAt,
+                          settings.timeZone,
+                          settings.dateFormat
+                        )}
                       </p>
                     </div>
                   </div>
@@ -507,7 +518,9 @@ const UserProfile: React.FC<ProfileProps> = ({
                             Commented on a post
                           </span>
                           <span>•</span>
-                          <span>{comment.createdAt}</span>
+                          <span>
+                            {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
+                          </span>
                           <span className="flex items-center gap-1 ml-2">
                             <ThumbsUp size={12} /> {comment.likes}
                           </span>

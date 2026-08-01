@@ -11,6 +11,7 @@ import {
   Settings,
 } from 'lucide-react';
 import SmartPagination from '../../../../components/SmartPagination';
+import AdminModal from '../../../../components/admin/AdminModal';
 import toast from 'react-hot-toast';
 import { SeoConfig, SiteSettings } from '../../../../types';
 import { useTheme } from '../../providers/VonProviders';
@@ -440,20 +441,27 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         configuringPluginId !== 'vp_analytics' &&
         configuringPluginId !== 'vp_ai_summary' &&
         configuringPluginId !== 'vp_related_posts' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-            <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-[#2a2b36]">
-              <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center">
+          <AdminModal
+            isOpen
+            onClose={() => setConfiguringPluginId(null)}
+            ariaLabel="Extension settings"
+            className="w-full max-w-lg"
+          >
+            <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-[#2a2b36] sm:p-6">
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                   Configure {allItems.find((i) => i.id === configuringPluginId)?.name}
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setConfiguringPluginId(null)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
+                  aria-label="Close extension settings"
                 >
                   <X size={24} />
                 </button>
               </div>
-              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-4 sm:max-h-[60dvh] sm:p-6">
                 {Object.keys(tempConfig).length > 0 ? (
                   Object.entries(tempConfig).map(([key, value]) => {
                     const isColorField = key.toLowerCase().includes('color');
@@ -518,22 +526,22 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                   </div>
                 )}
               </div>
-              <div className="p-6 border-t border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-end gap-3">
+              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row sm:p-6">
                 <button
                   onClick={() => setConfiguringPluginId(null)}
-                  className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors"
+                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveSettings}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+                  className="min-h-11 w-full px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto"
                 >
                   Save Changes
                 </button>
               </div>
             </div>
-          </div>
+          </AdminModal>
         )}
 
       {/* Header */}
@@ -578,7 +586,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       </div>
 
       {/* Grid Content */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 2xl:grid-cols-3">
         {paginatedItems.map((item) => (
           <div
             key={item.id}

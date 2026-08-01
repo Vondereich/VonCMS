@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { SiteSettings } from '../../../../../../types';
 import { RelatedPostsConfig } from './types';
 import toast from 'react-hot-toast';
+import AdminModal from '../../../../../../components/admin/AdminModal';
 
 interface RelatedPostsSettingsProps {
   settings: SiteSettings;
@@ -49,12 +50,17 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
-      <div className="bg-white dark:bg-[#1a1b26] rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-[#2a2b36]">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="Related Posts settings"
+      className="w-full max-w-2xl"
+    >
+      <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-linear-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-linear-to-r from-purple-50 to-pink-50 p-4 dark:border-[#2a2b36] dark:from-purple-900/20 dark:to-pink-900/20 sm:p-6">
           <div>
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white sm:text-2xl">
               Related Posts Settings
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -62,21 +68,23 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
+            aria-label="Close Related Posts settings"
           >
             <X size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[calc(100dvh-12rem)] space-y-6 overflow-y-auto p-4 sm:max-h-[60dvh] sm:p-6">
           {/* Number of Posts */}
           <div className="space-y-2">
             <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Number of Posts
             </span>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {countOptions.map((num) => (
                 <button
                   key={num}
@@ -98,7 +106,7 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
             <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Layout Style
             </span>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {layoutOptions.map((layout) => (
                 <button
                   key={layout.value}
@@ -217,21 +225,21 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-end gap-3">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-6 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/30"
+            className="min-h-11 w-full px-6 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/30 sm:w-auto"
           >
             Save Changes
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };

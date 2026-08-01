@@ -366,6 +366,15 @@ export interface SeoConfig {
   googleSearchConsole?: string; // Verification Code
 }
 
+export type SiteDateFormat =
+  | 'month_day_year_long'
+  | 'month_day_year_short'
+  | 'day_month_year_long'
+  | 'day_month_year_short'
+  | 'day_month_year_numeric'
+  | 'month_day_year_numeric'
+  | 'iso';
+
 export interface SiteSettings {
   siteName: string;
   siteUrl?: string; // Base URL (supports subfolders)
@@ -399,6 +408,7 @@ export interface SiteSettings {
   // Revamp Additions
   domainUrl?: string;
   timeZone?: string;
+  dateFormat?: SiteDateFormat;
   permalinkStructure?:
     'plain' | 'slug' | 'date' | 'day_name' | 'month_name' | 'post_name' | 'category';
   adminProfile?: {

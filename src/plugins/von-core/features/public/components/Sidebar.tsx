@@ -6,7 +6,7 @@ import { vonFetch } from '../../../../../utils/api';
 import SafeImage from '../../../../../components/SafeImage';
 import AdBlock from '../../../../../themes/shared/components/AdBlock';
 import { sanitizeHtml } from '../../../../../utils/security';
-import { getPermalink } from '../../../../../utils/siteUtils';
+import { formatDate, getPermalink } from '../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides (e.g., Digest theme)
@@ -26,7 +26,10 @@ interface SidebarProps {
   themeColors?: ThemeColors; // Optional theme color overrides
 }
 
-const formatSidebarFreshness = (dateValue?: string | null): string | null => {
+const formatSidebarFreshness = (
+  dateValue: string | null | undefined,
+  settings: SiteSettings
+): string | null => {
   if (!dateValue) return null;
 
   const timestamp = new Date(dateValue).getTime();
@@ -38,11 +41,7 @@ const formatSidebarFreshness = (dateValue?: string | null): string | null => {
   const ageMs = Date.now() - timestamp;
 
   if (ageMs < 0) {
-    return new Date(timestamp).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return formatDate(dateValue, settings.timeZone, settings.dateFormat);
   }
 
   if (ageMs < hourMs) {
@@ -59,11 +58,7 @@ const formatSidebarFreshness = (dateValue?: string | null): string | null => {
   if (daysOld === 1) return 'Yesterday';
   if (daysOld <= 2) return `${daysOld} days ago`;
 
-  return new Date(timestamp).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatDate(dateValue, settings.timeZone, settings.dateFormat);
 };
 
 const normalizeSidebarPost = (post: any): Post => ({
@@ -185,7 +180,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                           post.createdAt ||
                           post.created_at ||
                           '';
-                        const freshnessLabel = formatSidebarFreshness(sourceDate);
+                        const freshnessLabel = formatSidebarFreshness(sourceDate, settings);
 
                         return freshnessLabel ? (
                           <span className="text-[10px] uppercase font-bold tracking-wide text-slate-400 dark:text-slate-500 mb-1 block">

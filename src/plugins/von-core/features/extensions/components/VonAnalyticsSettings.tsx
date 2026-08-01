@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SiteSettings } from '../../../../../types';
 import { X, Save, BarChart3, Globe, CheckCircle, AlertCircle, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import AdminModal from '../../../../../components/admin/AdminModal';
 
 interface VonAnalyticsSettingsProps {
   settings: SiteSettings;
@@ -45,12 +46,17 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-4">
-      <div className="bg-white dark:bg-[#16161e] w-full max-w-4xl shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <AdminModal
+      isOpen
+      onClose={onClose}
+      ariaLabel="Analytics and privacy settings"
+      className="w-full max-w-4xl"
+    >
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-linear-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-blue-50 to-purple-50 p-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-900 sm:p-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <BarChart3 className="text-blue-600" size={28} />
               Native Analytics & Privacy
             </h2>
@@ -59,15 +65,17 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            aria-label="Close analytics settings"
           >
             <X size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* Native Analytics Info */}
           <div className="p-4 rounded-lg border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
             <div className="flex items-start gap-3">
@@ -80,7 +88,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                   VonCMS is currently recording visitors, top pages, and unique hits directly to
                   your local database.
                 </p>
-                <div className="mt-3 flex gap-4">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="text-center px-4 py-2 bg-white dark:bg-[#1a1b26] rounded-lg border border-blue-100 dark:border-blue-700">
                     <span className="block text-xs text-slate-500 uppercase font-bold">
                       Data Retention
@@ -144,17 +152,17 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slate-200 dark:border-white/10 flex justify-end gap-3 bg-slate-50 dark:bg-[#16161e]">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className={`px-8 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 flex items-center gap-2 ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
+            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
           >
             {isSaving ? (
               <>Saving...</>
@@ -167,6 +175,6 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </AdminModal>
   );
 };

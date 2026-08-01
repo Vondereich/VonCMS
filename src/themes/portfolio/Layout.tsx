@@ -39,6 +39,7 @@ import {
   VonPopupAd,
   getResponsiveImageAttributes,
   hasEmbeddedVideoMarkup,
+  formatDate,
 } from '../shared';
 
 import { API } from '../../config/site.config';
@@ -1138,7 +1139,7 @@ const SingleProject = ({
             <div>
               <p className="text-sm" style={{ color: colors.textSecondary }}>
                 {project.author} •{' '}
-                {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : ''} •{' '}
+                {formatDate(project.createdAt || '', settings.timeZone, settings.dateFormat)} •{' '}
                 {project.readTime || '5 min read'}
               </p>
             </div>
@@ -1806,7 +1807,9 @@ const PortfolioProfile = ({
                       className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider"
                       style={{ color: colors.textSecondary }}
                     >
-                      <span>{comment.createdAt}</span>
+                      <span>
+                        {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
+                      </span>
                       <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
                       <span style={{ color: colors.accent }}>{comment.likes || 0} Likes</span>
                     </div>
