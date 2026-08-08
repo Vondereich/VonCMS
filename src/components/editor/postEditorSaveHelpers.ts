@@ -9,6 +9,49 @@ export type SaveStatus = 'idle' | 'manual-saving' | 'auto-saving' | 'saved' | 'e
 
 type ContentItem = Post | Page;
 
+const buildEditorDraftSnapshot = (
+  item: ContentItem | null,
+  content: string,
+  addToMenu: boolean
+) => {
+  if (!item) return null;
+
+  return {
+    title: item.title || '',
+    content,
+    excerpt: item.excerpt || '',
+    image: 'image' in item ? item.image || '' : '',
+    status: item.status || 'draft',
+    category: item.category || '',
+    metaDescription: item.metaDescription || '',
+    keywords: item.keywords || '',
+    slug: item.slug || '',
+    scheduledAt:
+      'scheduledAt' in item
+        ? (item.scheduledAt ?? item.scheduled_at ?? '')
+        : 'scheduled_at' in item
+          ? item.scheduled_at || ''
+          : '',
+    addToMenu,
+  };
+};
+
+export const hasUnsavedEditorChanges = (
+  currentItem: ContentItem | null,
+  initialItem: ContentItem | null,
+  currentContent: string,
+  addToMenu: boolean,
+  initialAddToMenu: boolean
+) => {
+  const currentSnapshot = buildEditorDraftSnapshot(currentItem, currentContent, addToMenu);
+  const initialSnapshot = buildEditorDraftSnapshot(
+    initialItem,
+    initialItem?.content || '',
+    initialAddToMenu
+  );
+  return JSON.stringify(currentSnapshot) !== JSON.stringify(initialSnapshot);
+};
+
 export const formatAutoSaveCountdown = (seconds: number) => {
   const safeSeconds = Math.max(0, seconds);
   const minutes = Math.floor(safeSeconds / 60);

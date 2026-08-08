@@ -30,6 +30,7 @@ import {
   AUTOSAVE_INTERVAL_MS,
   SAVE_CONFLICT_MESSAGE,
   buildAutoSaveCandidate,
+  hasUnsavedEditorChanges,
   buildSaveStatusLabel,
   buildSavedSnapshot,
   formatScheduledTarget,
@@ -46,6 +47,7 @@ interface PostEditorProps {
   posts?: Post[];
   onSave: (item: Post | Page, addToMenu: boolean, isAutoSave?: boolean) => Promise<any>;
   onBack: () => void;
+  onDirtyChange?: (isDirty: boolean) => void;
   settings?: any; // Added settings prop
 }
 
@@ -61,6 +63,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   posts = [],
   onSave,
   onBack,
+  onDirtyChange,
   settings,
 }) => {
   const [item, setItem] = useState<Post | Page | null>(initialItem);
@@ -83,6 +86,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const [isAuditHistoryOpen, setIsAuditHistoryOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobileEditorPanel>('write');
   const featuredImageInputRef = React.useRef<HTMLInputElement>(null);
+  const initialAddToMenuRef = React.useRef(false);
   const titleLength = item?.title?.length || 0;
   const titleLimitHelpText = `Title is limited to ${TITLE_MAX_LENGTH} characters.`;
   const excerptLength = item?.excerpt?.length || 0;
@@ -205,7 +209,9 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
     const typePrefix = isPage ? 'page:' : 'post:';
     const url = `${typePrefix}${initialItem.id}`;
-    setAddToMenu(navigation.some((n) => n.url === url));
+    const isInNavigation = navigation.some((n) => n.url === url);
+    initialAddToMenuRef.current = isInNavigation;
+    setAddToMenu(isInNavigation);
   }, [initialItem?.id, isPage, navigation]);
 
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -259,6 +265,18 @@ const PostEditor: React.FC<PostEditorProps> = ({
     return buildAutoSaveCandidate(currentItem, currentInitial, currentContent);
   }, []);
 
+  useEffect(() => {
+    onDirtyChange?.(
+      hasUnsavedEditorChanges(
+        item,
+        initialItemRef.current,
+        contentRef.current,
+        addToMenu,
+        initialAddToMenuRef.current
+      )
+    );
+  }, [addToMenu, item, onDirtyChange]);
+
   // Autosave Timer — uses refs to avoid timer reset on every keystroke
   useEffect(() => {
     refreshAutoSaveCountdown();
@@ -299,12 +317,23 @@ const PostEditor: React.FC<PostEditorProps> = ({
     setItem((prev) => (prev ? { ...prev, content: html } : null));
   }, []);
 
-  const handleEditorImmediateChange = React.useCallback((html: string) => {
-    contentRef.current = html;
-    if (itemRef.current) {
-      itemRef.current = { ...itemRef.current, content: html };
-    }
-  }, []);
+  const handleEditorImmediateChange = React.useCallback(
+    (html: string) => {
+      contentRef.current = html;
+      const liveItem = itemRef.current ? { ...itemRef.current, content: html } : null;
+      itemRef.current = liveItem;
+      onDirtyChange?.(
+        hasUnsavedEditorChanges(
+          liveItem,
+          initialItemRef.current,
+          html,
+          addToMenu,
+          initialAddToMenuRef.current
+        )
+      );
+    },
+    [addToMenu, onDirtyChange]
+  );
 
   const handleTitleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
@@ -379,6 +408,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
       const savedData = await onSave(itemToSave as Post | Page, addToMenu, isAutoSave);
       const savedSnapshot = buildSavedSnapshot(itemToSave as Post | Page, savedData);
       initialItemRef.current = savedSnapshot;
+      initialAddToMenuRef.current = addToMenu;
       itemRef.current = savedSnapshot;
       contentRef.current = savedSnapshot.content || '';
       setItem((prev) => (prev ? { ...prev, ...savedSnapshot } : savedSnapshot));
@@ -404,6 +434,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
       setLastSaved(new Date());
       setSaveStatus('saved');
+      onDirtyChange?.(false);
       if (saveStatusResetRef.current !== null) {
         window.clearTimeout(saveStatusResetRef.current);
       }

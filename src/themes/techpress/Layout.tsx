@@ -1449,7 +1449,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   // Home View OR Category View
   return (
     <div
-      className={`min-h-screen transition-colors duration-300 ${isDark ? 'dark' : ''}`}
+      className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'dark' : ''}`}
       style={{ background: colors.background, color: colors.text }}
     >
       {/* SEO Injector */}
@@ -1476,7 +1476,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
       {selectedCategory && (
         <div
-          className="max-w-7xl mx-auto px-5 py-8 border-b text-center relative"
+          className="max-w-7xl mx-auto w-full px-5 py-8 border-b text-center relative"
           style={{ borderColor: colors.border }}
         >
           <h2 className="text-3xl font-black mb-2" style={{ color: colors.text }}>
@@ -1502,8 +1502,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
       )}
 
       {/* Search Bar Section - Standalone for better performance */}
-      <div className="max-w-7xl mx-auto px-5 py-4 border-b" style={{ borderColor: colors.border }}>
-        <div className="max-w-2xl mx-auto relative">
+      <div
+        className="max-w-7xl mx-auto w-full px-5 py-4 border-b"
+        style={{ borderColor: colors.border }}
+      >
+        <div className="max-w-3xl mx-auto relative">
           <input
             aria-label="Search articles"
             id="techpress-search"
@@ -1513,7 +1516,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             value={activeSearchQuery}
             maxLength={PUBLIC_SEARCH_MAX_LENGTH}
             onChange={(e) => handleSearch(normalizePublicSearchInput(e.target.value))}
-            className="w-full px-5 py-3 rounded-full text-sm outline-hidden transition-all border shadow-xs"
+            className="w-full px-5 py-3.5 rounded-full text-sm outline-hidden transition-all border shadow-xs"
             style={{
               background: colors.surface,
               color: colors.text,
@@ -1568,7 +1571,10 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-5 py-8" aria-busy={isCategoryRefreshing || undefined}>
+      <main
+        className="max-w-7xl mx-auto px-5 py-8 flex-1 w-full"
+        aria-busy={isCategoryRefreshing || undefined}
+      >
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />
         ) : hasNoDiscoveryPosts ? (

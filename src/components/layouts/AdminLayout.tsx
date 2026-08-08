@@ -52,6 +52,9 @@ interface AdminMenuItem {
 const ADMIN_NAV_FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const isAdminMenuPathMatch = (pathname: string, menuPath: string) =>
+  pathname === menuPath || pathname.startsWith(`${menuPath}/`);
+
 const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
   settings,
@@ -235,8 +238,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   // Update document title based on current route
   useEffect(() => {
-    const currentItem = menuItems.find((item) => pathname.startsWith(item.path));
-    const pageName = currentItem?.label || 'Admin';
+    const currentItem = menuItems.find((item) => isAdminMenuPathMatch(pathname, item.path));
+    const pageName = currentItem?.label || (pathname === '/admin' ? 'Admin' : 'Page Not Found');
     const siteName = settings?.siteName || 'Admin';
     document.title = `${pageName} - ${siteName} Admin`;
   }, [pathname, settings?.siteName]);
@@ -521,7 +524,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Nav Items */}
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {filteredMenuItems.map((item) => {
-            const isActive = pathname.startsWith(item.path);
+            const isActive = isAdminMenuPathMatch(pathname, item.path);
             return (
               <Link
                 key={item.path}

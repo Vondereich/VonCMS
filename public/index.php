@@ -11,51 +11,34 @@ if (version_compare(PHP_VERSION, '8.2.0', '<')) {
   exit('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>VonCMS - PHP Version Error</title><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:60px auto;padding:0 20px;line-height:1.6}h1{color:#dc2626}code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head><body><h1>VonCMS Requires PHP 8.2+</h1><p>Your server is running <code>' . htmlspecialchars(PHP_VERSION) . '</code>.</p><p>Please upgrade to <strong>PHP 8.2</strong> or higher via your hosting control panel, then refresh this page.</p></body></html>');
 }
 
-// ============================================
-// ULTRA-EARLY INTERCEPTOR: Robots, Sitemap & RSS
-// ============================================
-// Catch these before any heavy SEO or security logic
-if (isset($_SERVER['REQUEST_URI'])) {
-  $uri = $_SERVER['REQUEST_URI'];
-  // Strip query string for matching
-  $uriPath = parse_url($uri, PHP_URL_PATH) ?? '';
-  if (
-    preg_match(
-      '/(robots\.txt|llms\.txt|sitemap\.xml|rss|rss\.xml|feed|feed\.xml)$/i',
-      $uriPath,
-      $matches,
-    )
-  ) {
-    $file = strtolower($matches[1]);
-    $map = [
-      'robots.txt' => 'robots.php',
-      'llms.txt' => 'llms.php',
-      'sitemap.xml' => 'sitemap.php',
-      'rss' => 'rss.php',
-      'rss.xml' => 'rss.php',
-      'feed' => 'rss.php',
-      'feed.xml' => 'rss.php',
-    ];
-    if (isset($map[$file])) {
-      $target = __DIR__ . '/' . $map[$file];
-      if (file_exists($target)) {
-        header('X-VonCMS-Source: SEO-Engine-Ultra');
-        require_once $target;
-        exit();
-      }
-    }
-  }
-}
-
 $rawDir = dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
 $scriptDir = trim(str_replace('\\', '/', $rawDir), '/.');
 $basePath = $scriptDir === '' ? '/' : '/' . $scriptDir . '/';
+
+require_once __DIR__ . '/seo_route_helper.php';
+require_once __DIR__ . '/seo_response_helper.php';
+
+// ============================================
+// ULTRA-EARLY INTERCEPTOR: Robots, Sitemap & RSS
+// ============================================
+// Catch exact install-root crawler routes before heavy security and SEO logic.
+if (isset($_SERVER['REQUEST_URI'])) {
+  $seoEndpointFile = voncms_match_seo_endpoint($_SERVER['REQUEST_URI'], $basePath);
+  if ($seoEndpointFile !== null) {
+    $seoEndpointTarget = __DIR__ . '/' . $seoEndpointFile;
+    if (file_exists($seoEndpointTarget)) {
+      header('X-VonCMS-Source: SEO-Engine-Ultra');
+      require_once $seoEndpointTarget;
+      exit();
+    }
+  }
+}
 
 // ============================================
 // SECURITY: Block /install if already installed
 // ============================================
 $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-$currentPath = (string)(parse_url($requestUri, PHP_URL_PATH) ?? '');
+$currentPath = voncms_request_path($requestUri);
 if ($basePath !== '/' && stripos($currentPath, $basePath) === 0) {
   $currentPath = substr($currentPath, strlen($basePath));
 }
@@ -63,25 +46,20 @@ $currentPath = trim($currentPath, '/');
 $path = $currentPath;
 
 if (in_array(strtolower($currentPath), ['index.html', 'index.php'], true)) {
-  header('Location: ' . $basePath, true, 301);
-  exit();
+  voncms_send_redirect($basePath);
 }
 
 // ============================================
 // CANONICAL REDIRECT (Trailing Slashes & Double Slashes)
 // ============================================
-$rawPath = parse_url($requestUri, PHP_URL_PATH) ?? '';
-if (strpos($rawPath, '//') !== false || ($rawPath !== '/' && substr($rawPath, -1) === '/')) {
-  // Only redirect if not an API or Assets request to prevent breaking functionality
-  if (!preg_match('/^\/?(api|assets)/i', $currentPath)) {
-    $cleanUrl = $basePath . ltrim($currentPath, '/');
-    // Safety: only redirect if it actually changes the URL path
-    if ($rawPath !== $cleanUrl) {
-      $queryString = isset($_SERVER['QUERY_STRING']) && !empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '';
-      header('Location: ' . $cleanUrl . $queryString, true, 301);
-      exit();
-    }
-  }
+$canonicalRedirectLocation = voncms_canonical_redirect_location(
+  $requestUri,
+  $_SERVER['QUERY_STRING'] ?? '',
+  $basePath,
+  $currentPath,
+);
+if ($canonicalRedirectLocation !== null) {
+  voncms_send_redirect($canonicalRedirectLocation);
 }
 
 // ============================================
@@ -124,7 +102,7 @@ if (file_exists($maintenanceFlag)) {
   // 1. Allow /login and /admin (so you can reach the door)
   // 2. Allow logged-in ADMINS (so you can see the whole house)
 
-  $isLoginOrAdminPath = preg_match('/^(login|admin)/', $currentPath);
+  $isLoginOrAdminPath = preg_match('/^(login|admin)(\/|$)/i', $currentPath);
   $isAdminUser =
     SessionManager::isValid() && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin';
 
@@ -211,7 +189,7 @@ if (strtolower($currentPath) === 'install') {
 // ============================================
 // DATABASE CONNECTION CHECK
 // ============================================
-$isInstallPath = strtolower($currentPath) === 'install' || stripos($currentPath, 'install') === 0;
+$isInstallPath = preg_match('/^install(\/|$)/i', $currentPath) === 1;
 
 // Only check if config exists AND not on install page
 if (file_exists($configFile) && !$isInstallPath) {
@@ -287,70 +265,21 @@ if (file_exists($configFile) && !$isInstallPath) {
   // ============================================
   if (isset($pdo) && $pdo) {
     try {
-      $reqUri = $_SERVER['REQUEST_URI'] ?? '/';
-      $parsed = parse_url($reqUri);
-      $path = $parsed['path'] ?? '/';
-
-      // Normalize subfolder path
-      if (isset($basePath) && $basePath !== '/' && stripos($path, $basePath) === 0) {
-        $path = substr($path, strlen($basePath));
-      }
-      if (empty($path) || $path[0] !== '/') {
-        $path = '/' . $path;
-      }
-      $path = rtrim($path, '/') ?: '/';
-
-      $publicRedirectIgnorePaths = ['/api/', '/assets/', '/uploads/', '/admin'];
-      $skipPublicRedirect = false;
-      foreach ($publicRedirectIgnorePaths as $ignorePath) {
-        if (strpos($path, $ignorePath) === 0) {
-          $skipPublicRedirect = true;
-          break;
-        }
-      }
-      if (!$skipPublicRedirect) {
-        $stmt = $pdo->prepare(
-          'SELECT target_url, redirect_type FROM redirects WHERE source_url = ? LIMIT 1',
+      $publicRedirect = voncms_resolve_public_redirect(
+        $pdo,
+        $_SERVER['REQUEST_URI'] ?? '/',
+        $basePath,
+        $_SERVER['HTTP_HOST'] ?? '',
+      );
+      if ($publicRedirect !== null) {
+        voncms_record_public_redirect_hit($pdo, $publicRedirect['sourcePath']);
+        voncms_send_redirect(
+          $publicRedirect['location'],
+          $publicRedirect['status'],
+          'VonCMS-Public',
         );
-        $stmt->execute([$path]);
-        $redirect = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($redirect) {
-          $pdo
-            ->prepare('UPDATE redirects SET hit_count = hit_count + 1 WHERE source_url = ?')
-            ->execute([$path]);
-          // Security validation for target
-          $target = $redirect['target_url'];
-          $code = (int) ($redirect['redirect_type'] ?? 301);
-          $targetPathNormalized = (string) (parse_url($target, PHP_URL_PATH) ?? '');
-          if (!empty($targetPathNormalized) && $targetPathNormalized[0] !== '/') {
-            $targetPathNormalized = '/' . ltrim($targetPathNormalized, '/');
-          }
-          if ($targetPathNormalized !== '/' && $targetPathNormalized !== '') {
-            $targetPathNormalized = rtrim($targetPathNormalized, '/');
-          }
-
-          // Validate redirect target: block empty, javascript:, data: URIs
-          $targetHostNormalized = parse_url($target, PHP_URL_HOST);
-          $currentHostNormalized = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-          $isSafe = !empty($target) && (
-            $target[0] === '/' ||                                       // Relative path
-            ($targetHostNormalized && strcasecmp($targetHostNormalized, $currentHostNormalized) === 0) || // Same domain
-            filter_var($target, FILTER_VALIDATE_URL)                     // Valid external URL (admin-set)
-          ) && !preg_match('/^(javascript|data|vbscript):/i', $target);
-          $isSamePathLoop =
-            $targetPathNormalized !== '' &&
-            $targetPathNormalized === $path &&
-            (empty($targetHostNormalized) || strcasecmp((string) $targetHostNormalized, $currentHostNormalized) === 0);
-
-          if ($isSafe && !$isSamePathLoop) {
-            header("Location: $target", true, $code);
-            header('X-Redirect-By: VonCMS-Public');
-            exit();
-          }
-        }
       }
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
       /* Silent fail */
     }
   }
@@ -371,10 +300,12 @@ $seoDescription = 'Built with CMS Core';
 $seoImage = '';
 $seoOgType = 'website';
 $seoRobots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+$schemaData = null;
 $homepagePosts = [];
 $categoryLandingPosts = [];
 $htmlLang = 'en'; // Global fallback for site language
 $schemaLanguage = '';
+$openGraphLocale = '';
 $runtimeSettings = [];
 $permalinkStructureValue = 'slug';
 $activeThemeId = '';
@@ -390,15 +321,28 @@ $faviconVersion = '';
 $adsenseVerification = '';
 $seo = [];
 $articleSchemaType = 'Article';
-$selectedCategoryParam = trim((string) ($_GET['category'] ?? ''));
+$rawDiscoveryQueryString = $_SERVER['QUERY_STRING'] ?? '';
+$firstCategoryQueryValue = voncms_first_query_value($rawDiscoveryQueryString, 'category', 100);
+$firstSearchQueryValue = voncms_first_query_value($rawDiscoveryQueryString, 'search', 120);
+$selectedCategoryParam = $firstCategoryQueryValue ??
+  voncms_normalize_discovery_query($_GET['category'] ?? '', 100);
 $isCategoryLanding = $selectedCategoryParam !== '';
 $selectedCategoryName = '';
 $categoryPostCount = 0;
-$homepageDiscoveryCategory = $_GET['category'] ?? '';
-$homepageDiscoverySearch = $_GET['search'] ?? '';
+$homepageDiscoveryCategory = $selectedCategoryParam;
+$homepageDiscoverySearch = $firstSearchQueryValue ??
+  voncms_normalize_discovery_query($_GET['search'] ?? '', 120);
+$hasHomepageDiscoverySearchQuery = voncms_has_nonempty_query_value(
+  $rawDiscoveryQueryString,
+  'search',
+);
 $hasHomepageDiscoveryQuery =
-  (is_string($homepageDiscoveryCategory) && trim($homepageDiscoveryCategory) !== '') ||
-  (is_string($homepageDiscoverySearch) && trim($homepageDiscoverySearch) !== '');
+  $homepageDiscoveryCategory !== '' || $hasHomepageDiscoverySearchQuery;
+if (voncms_is_private_spa_shell_route($path)) {
+  $seoRobots = 'noindex, nofollow';
+} elseif (voncms_is_homepage_path($path) && $hasHomepageDiscoverySearchQuery) {
+  $seoRobots = 'noindex, follow';
+}
 
 // Initialize domain URL with safe default (fallback)
 // This ensures $domainUrl is available even if DB connection fails (fresh install)
@@ -406,143 +350,6 @@ $protocol = is_https() ? 'https://' : 'http://';
 $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
 $domainUrl = rtrim($protocol . $host . $basePath, '/');
 $seoUrl = $domainUrl . '/'; // Homepage is the canonical directory URL.
-
-if (!function_exists('voncms_category_slug')) {
-  /**
-   * @param mixed $category
-   * @return string
-   */
-  function voncms_category_slug($category)
-  {
-    $categorySlug = html_entity_decode(trim((string) $category), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    if ($categorySlug === '') {
-      return 'uncategorized';
-    }
-
-    $categorySlug = function_exists('mb_strtolower')
-      ? mb_strtolower($categorySlug, 'UTF-8')
-      : strtolower($categorySlug);
-    $categorySlug = preg_replace('/[^\p{L}\p{N}\s_-]+/u', '', $categorySlug);
-    $categorySlug = str_replace('_', ' ', $categorySlug ?? '');
-    $categorySlug = preg_replace('/\s+/u', '-', $categorySlug);
-    $categorySlug = preg_replace('/-+/', '-', $categorySlug);
-    $categorySlug = trim((string) $categorySlug, '-');
-
-    return $categorySlug !== '' ? $categorySlug : 'uncategorized';
-  }
-}
-
-if (!function_exists('voncms_is_homepage_path')) {
-  /**
-   * @param mixed $path
-   * @return bool
-   */
-  function voncms_is_homepage_path($path)
-  {
-    return $path === '' || $path === '/';
-  }
-}
-
-if (!function_exists('buildCanonicalContentPath')) {
-  /**
-   * @param array<string, mixed> $content
-   * @param string $permalinkStyle
-   * @param string $contentType
-   * @return string
-   */
-  function buildCanonicalContentPath($content, $permalinkStyle, $contentType = 'post')
-  {
-    if ($contentType !== 'post') {
-      return '/' . ltrim((string) ($content['slug'] ?? ''), '/');
-    }
-
-    $postSlug = $content['slug'] ?: $content['id'];
-    switch ($permalinkStyle) {
-      case 'category':
-        $catSlug = voncms_category_slug($content['category'] ?? 'uncategorized');
-        return '/' . $catSlug . '/' . $postSlug;
-      case 'date':
-      case 'day_name':
-        $postDate = new DateTime(!empty($content['created_at']) ? $content['created_at'] : 'now');
-        return (
-          '/' .
-          $postDate->format('Y') .
-          '/' .
-          $postDate->format('m') .
-          '/' .
-          $postDate->format('d') .
-          '/' .
-          $postSlug
-        );
-      case 'month_name':
-        $postDate = new DateTime(!empty($content['created_at']) ? $content['created_at'] : 'now');
-        return '/' . $postDate->format('Y') . '/' . $postDate->format('m') . '/' . $postSlug;
-      case 'post_name':
-      case 'slug':
-        return '/' . $postSlug;
-      case 'plain':
-        return '/post/' . $content['id'];
-      default:
-        return '/' . $postSlug; // Fallback to slug (safer than /post/{id})
-    }
-  }
-}
-
-if (!function_exists('voncms_fetch_public_post')) {
-  /**
-   * @param PDO $pdo
-   * @param string $slugOrId
-   * @param bool $isId
-   * @param string $currentTime
-   * @param string $authorNameSql
-   * @param string $authorDisplayNameSql
-   * @return array<string, mixed>|null
-   */
-  function voncms_fetch_public_post($pdo, $slugOrId, $isId, $currentTime, $authorNameSql, $authorDisplayNameSql)
-  {
-    $lookupColumn = $isId ? 'p.id' : 'p.slug';
-    $sql =
-      'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, ' .
-      $authorNameSql .
-      ' as author_name, u.username as author_username, ' .
-      $authorDisplayNameSql .
-      ' as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE ' .
-      $lookupColumn .
-      " = ? AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$slugOrId, $currentTime]);
-    $post = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    return is_array($post) ? $post : null;
-  }
-}
-
-if (!function_exists('voncms_is_spa_shell_route')) {
-  /**
-   * Keep PHP fallback aligned with React routes that can render without a
-   * resolved public post/page/profile payload.
-   *
-   * @param mixed $path
-   * @return bool
-   */
-  function voncms_is_spa_shell_route($path): bool
-  {
-    $normalizedPath = strtolower(trim((string) $path, '/'));
-    if ($normalizedPath === '') {
-      return true;
-    }
-
-    if (in_array($normalizedPath, ['login', 'install'], true)) {
-      return true;
-    }
-
-    if (preg_match('#^admin(/|$)#i', $normalizedPath)) {
-      return true;
-    }
-
-    return false;
-  }
-}
 
 // Try to load site settings from database
 try {
@@ -609,6 +416,11 @@ try {
         $schemaLanguage = voncms_normalize_schema_language($siteLanguageValue);
         if ($schemaLanguage !== '') {
           $htmlLang = $schemaLanguage;
+          if ($schemaLanguage === 'ms') {
+            $openGraphLocale = 'ms_MY';
+          } elseif (preg_match('/^[a-z]{2,3}-[A-Z]{2}$/', $schemaLanguage)) {
+            $openGraphLocale = str_replace('-', '_', $schemaLanguage);
+          }
         }
       }
 
@@ -687,54 +499,67 @@ try {
         'url' => $seoUrl,
         'description' => $seoDescription,
       ];
+      if (voncms_is_private_spa_shell_route($path)) {
+        $schemaData = null;
+      }
 
       if ($isCategoryLanding && voncms_is_homepage_path($path)) {
-        $selectedCategoryName = html_entity_decode(
-          strip_tags($selectedCategoryParam),
-          ENT_QUOTES | ENT_HTML5,
-          'UTF-8',
-        );
-        $selectedCategoryName = trim((string) preg_replace('/\s+/u', ' ', $selectedCategoryName));
-        $selectedCategoryName = mb_substr($selectedCategoryName, 0, 100);
+        $selectedCategoryName = $selectedCategoryParam;
         if ($selectedCategoryName === '') {
           $selectedCategoryName = 'Uncategorized';
         }
 
         try {
-          $categoryCountStmt = $pdo->prepare(
-            "SELECT COUNT(*) FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) AND category = :category",
+          $categoryMatch = voncms_fetch_public_category_match(
+            $pdo,
+            $selectedCategoryName,
+            $publicContentCurrentTime,
           );
-          $categoryCountStmt->bindValue(':currentTime', $publicContentCurrentTime);
-          $categoryCountStmt->bindValue(':category', $selectedCategoryName);
-          $categoryCountStmt->execute();
-          $categoryPostCount = (int) $categoryCountStmt->fetchColumn();
+          $storedCategoryName = $categoryMatch['name'] ?? '';
+          $categoryPostCount = $categoryMatch['postCount'] ?? 0;
+          $categoryCaseFolded = $categoryMatch['caseFolded'] ?? false;
+          if ($categoryPostCount > 0) {
+            $canonicalCategoryQuery = voncms_build_category_canonical_query(
+              $rawDiscoveryQueryString,
+              $storedCategoryName,
+            );
+            if (
+              $storedCategoryName !== '' &&
+              ($storedCategoryName !== $selectedCategoryName ||
+                $canonicalCategoryQuery !== $rawDiscoveryQueryString)
+            ) {
+              voncms_send_redirect($domainUrl . '/?' . $canonicalCategoryQuery);
+            }
+            if ($storedCategoryName !== '') {
+              $selectedCategoryName = $storedCategoryName;
+            }
+            $categoryLandingPosts = voncms_fetch_category_landing_posts(
+              $pdo,
+              $selectedCategoryName,
+              $publicContentCurrentTime,
+              $permalinkStructureValue,
+              $categoryCaseFolded,
+            );
+          }
         } catch (Throwable $categorySeoError) {
           $categoryPostCount = 0;
+          $categoryLandingPosts = [];
         }
 
         $seoTitle = $selectedCategoryName . ' - ' . $siteName;
-        $seoDescription =
-          $categoryPostCount > 0
-            ? mb_substr(
-              'Latest ' .
-                $selectedCategoryName .
-                ' articles, news, and updates on ' .
-                $siteName .
-                '.',
-              0,
-              160,
-            )
-            : mb_substr(
-              'Browse ' .
-                $selectedCategoryName .
-                ' articles and updates on ' .
-                $siteName .
-                '.',
-              0,
-              160,
-            );
+        $categoryDescriptionContext = trim((string) $siteDescription) !== ''
+          ? $siteDescription
+          : $siteName;
+        $seoDescription = voncms_truncate_word_safe(
+          $selectedCategoryName . ' - ' . $categoryDescriptionContext,
+          160,
+          '',
+        );
         $seoUrl = $domainUrl . '/?category=' . rawurlencode($selectedCategoryName);
         $seoRobots = $categoryPostCount > 0 ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, follow';
+        if ($hasHomepageDiscoverySearchQuery) {
+          $seoRobots = 'noindex, follow';
+        }
         $schemaData = [
           '@context' => 'https://schema.org',
           '@type' => 'CollectionPage',
@@ -795,15 +620,14 @@ try {
                 isset($_SERVER['QUERY_STRING']) && !empty($_SERVER['QUERY_STRING'])
                   ? '?' . $_SERVER['QUERY_STRING']
                   : '';
-              header('Location: ' . $domainUrl . $targetPath . $queryString, true, 301);
-              exit();
+              voncms_send_redirect($domainUrl . $targetPath . $queryString);
             }
           }
 
           $cleanTitle = html_entity_decode($post['title'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
           $seoTitle = $cleanTitle . ' | ' . $seoTitle;
 
-          $desc = $post['meta_description'] ?: $post['excerpt'] ?: '';
+          $desc = voncms_pick_seo_description($post);
           $cleanDesc = voncms_clean_seo_description($desc);
           if ($cleanDesc !== '') {
             $seoDescription = $cleanDesc;
@@ -833,16 +657,10 @@ try {
             $seoDescription,
             $seoImage,
             $seoUrl,
-            $siteName ?? $seoTitle,
             $domainUrl,
-            $logoUrl,
             $articleSchemaType,
             $schemaLanguage,
           );
-        } else {
-          // SOFT 404 FIX: If URL looks like a post but not found, send 404
-          http_response_code(404);
-          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
         }
       }
 
@@ -893,9 +711,6 @@ try {
             'description' => $profileDescription,
             'mainEntity' => $schemaPerson,
           ];
-        } else {
-          http_response_code(404);
-          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
         }
       }
 
@@ -935,7 +750,7 @@ try {
           $cleanTitle = html_entity_decode($post['title'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
           $seoTitle = $cleanTitle . ' | ' . $seoTitle;
 
-          $desc = $post['meta_description'] ?? ($post['excerpt'] ?? ($post['content'] ?? ''));
+          $desc = voncms_pick_seo_description($post);
           $cleanDesc = voncms_clean_seo_description($desc);
           if ($cleanDesc !== '') {
             $seoDescription = $cleanDesc;
@@ -965,8 +780,7 @@ try {
 
             // Canonical Permalink Redirect: keep fallback slug matching, but always collapse to the official permalink.
             if ($normalizedRequestPath !== $canonicalPath) {
-              header('Location: ' . $domainUrl . $canonicalPath . $canonicalQueryString, true, 301);
-              exit();
+              voncms_send_redirect($domainUrl . $canonicalPath . $canonicalQueryString);
             }
 
             $seoUrl = $domainUrl . $canonicalPath;
@@ -985,16 +799,10 @@ try {
             $seoDescription,
             $seoImage,
             $seoUrl,
-            $siteName ?? $seoTitle,
             $domainUrl,
-            $logoUrl,
             $articleSchemaType,
             $schemaLanguage,
           );
-        } else {
-          // SOFT 404 FIX: If URL looks like a slug but not found in Posts or Pages
-          http_response_code(404);
-          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
         }
       }
 
@@ -1005,8 +813,7 @@ try {
         !voncms_is_spa_shell_route($path);
 
       if ($isPreheadNotFoundRoute) {
-        http_response_code(404);
-        voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
+        voncms_apply_not_found_response($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
       }
 
       // ============================================
@@ -1069,23 +876,6 @@ try {
           $homepagePosts = [];
         }
       }
-
-      if (
-        $isCategoryLanding &&
-        voncms_is_homepage_path($path) &&
-        $categoryPostCount > 0
-      ) {
-        try {
-          $categoryLandingPosts = voncms_fetch_category_landing_posts(
-            $pdo,
-            $selectedCategoryName,
-            $publicContentCurrentTime,
-            $permalinkStructureValue,
-          );
-        } catch (Throwable $categoryLandingError) {
-          $categoryLandingPosts = [];
-        }
-      }
     }
   }
 } catch (Exception $e) {
@@ -1104,10 +894,62 @@ if (empty($seoImage)) {
     $seoImage = $matches[1];
   }
   if ($seoImage === '') {
-    $seoImage = $domainUrl . '/og-default.png';
+    $defaultOgImagePath = __DIR__ . '/og-default.png';
+    if (is_file($defaultOgImagePath)) {
+      $seoImage = $domainUrl . '/og-default.png';
+    } elseif (trim((string) $logoUrl) !== '') {
+      $seoImage = voncms_absolute_public_url($logoUrl, $domainUrl);
+    }
   } else {
     $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
   }
+}
+$seoImageWidth = 0;
+$seoImageHeight = 0;
+$seoImageParts = parse_url($seoImage);
+$domainUrlParts = parse_url($domainUrl);
+if (
+  is_array($seoImageParts) &&
+  is_array($domainUrlParts) &&
+  !empty($seoImageParts['host']) &&
+  !empty($domainUrlParts['host']) &&
+  strcasecmp((string) $seoImageParts['host'], (string) $domainUrlParts['host']) === 0 &&
+  (int) ($seoImageParts['port'] ?? 0) === (int) ($domainUrlParts['port'] ?? 0)
+) {
+  $seoImagePath = rawurldecode((string) ($seoImageParts['path'] ?? ''));
+  $domainBasePath = rtrim((string) ($domainUrlParts['path'] ?? ''), '/');
+  if ($domainBasePath !== '' && str_starts_with($seoImagePath, $domainBasePath . '/')) {
+    $seoImagePath = substr($seoImagePath, strlen($domainBasePath));
+  }
+
+  $publicRootPath = realpath(__DIR__);
+  $localImagePath = realpath(
+    __DIR__ .
+      DIRECTORY_SEPARATOR .
+      ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $seoImagePath), DIRECTORY_SEPARATOR),
+  );
+  if (
+    $publicRootPath !== false &&
+    $localImagePath !== false &&
+    str_starts_with($localImagePath, $publicRootPath . DIRECTORY_SEPARATOR) &&
+    is_file($localImagePath)
+  ) {
+    $imageDimensions = @getimagesize($localImagePath);
+    if (is_array($imageDimensions)) {
+      $seoImageWidth = max(0, (int) ($imageDimensions[0] ?? 0));
+      $seoImageHeight = max(0, (int) ($imageDimensions[1] ?? 0));
+    }
+  }
+}
+if (
+  $seoImageWidth > 0 &&
+  $seoImageHeight > 0 &&
+  is_array($schemaData) &&
+  isset($schemaData['image'][0]) &&
+  is_array($schemaData['image'][0])
+) {
+  $schemaData['image'][0]['width'] = $seoImageWidth;
+  $schemaData['image'][0]['height'] = $seoImageHeight;
 }
 $jsFile = '';
 $cssFile = '';
@@ -1167,6 +1009,10 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   ?>
   <meta property="og:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta property="og:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <?php if ($seoImageWidth > 0 && $seoImageHeight > 0): ?>
+  <meta property="og:image:width" content="<?php echo $seoImageWidth; ?>">
+  <meta property="og:image:height" content="<?php echo $seoImageHeight; ?>">
+  <?php endif; ?>
   <meta property="og:url" content="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
   <link rel="canonical" href="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if (isset($domainUrl) && !empty($domainUrl)): ?>
@@ -1174,10 +1020,16 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <?php endif; ?>
   <meta property="og:site_name" content="<?php echo htmlspecialchars($siteName ?? $seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta property="og:type" content="<?php echo htmlspecialchars($seoOgType, ENT_COMPAT, 'UTF-8', false); ?>">
+  <?php if ($openGraphLocale !== ''): ?>
+  <meta property="og:locale" content="<?php echo htmlspecialchars($openGraphLocale, ENT_COMPAT, 'UTF-8', false); ?>">
+  <?php endif; ?>
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="<?php echo $twitterCard; ?>">
+  <meta name="twitter:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta name="twitter:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta name="twitter:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta name="twitter:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
 
   <!-- Google Search Console Verification -->
   <?php if (!empty($seo['googleSearchConsole'])):
@@ -1219,6 +1071,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
     <!-- Schema.org JSON-LD (VonSEO) -->
     <script type="application/ld+json">
       <?php
+      $additionalSchemaNodes = [];
       if (
         $isCategoryLanding &&
         voncms_is_homepage_path($path) &&
@@ -1262,13 +1115,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
           '@type' => 'ItemList',
           'itemListElement' => $seoItemList
         ];
-        $schemaData = [
-          '@context' => 'https://schema.org',
-          '@graph' => [
-            $schemaData,
-            $homepageCollectionPage
-          ]
-        ];
+        $additionalSchemaNodes[] = $homepageCollectionPage;
       }
 
       if (
@@ -1314,6 +1161,14 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
           $schemaData[$field] = html_entity_decode($schemaData[$field], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
       }
+      $schemaData = voncms_build_site_identity_schema_graph(
+        $schemaData,
+        $siteName ?? $seoTitle,
+        $siteDescription ?? $seoDescription,
+        $domainUrl,
+        $logoUrl,
+        $additionalSchemaNodes,
+      );
       echo json_encode($schemaData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
       ?>
     </script>
@@ -1354,12 +1209,6 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
       break;
     }
   }
-
-  $homepageDiscoveryCategory = $_GET['category'] ?? '';
-  $homepageDiscoverySearch = $_GET['search'] ?? '';
-  $hasHomepageDiscoveryQuery =
-    (is_string($homepageDiscoveryCategory) && trim($homepageDiscoveryCategory) !== '') ||
-    (is_string($homepageDiscoverySearch) && trim($homepageDiscoverySearch) !== '');
 
   $heroPreloadHref = '';
   $heroPreloadSrcSet = '';
@@ -1491,19 +1340,18 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
     // keeping /login/not-a-real-route, /register/*, and /install/* as real 404s.
     $isSpaRoute = voncms_is_spa_shell_route($path);
 
-      if (!$isSpaRoute) {
-        // URL exists but post not found AND not an App route -> It's a real 404
-        http_response_code(404); // SOFT 404 FIX: Force HTTP header
-        if (empty($isPreheadNotFoundRoute)) {
-          voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
-        }
-        $initialState = [
-          'status'      => 'not_found',
-          'contentType' => null,
-          'slug'        => basename($path),
-          'post'        => null,
-          'page'        => null,
-        ];
+    if (!$isSpaRoute) {
+      // URL exists but post not found AND not an App route -> It's a real 404
+      if (empty($isPreheadNotFoundRoute)) {
+        voncms_apply_not_found_response($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);
+      }
+      $initialState = [
+        'status'      => 'not_found',
+        'contentType' => null,
+        'slug'        => basename($path),
+        'post'        => null,
+        'page'        => null,
+      ];
     }
   }
   ?>

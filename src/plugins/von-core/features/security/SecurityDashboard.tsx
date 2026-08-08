@@ -63,12 +63,36 @@ interface SecurityLogQueryOverrides {
   searchQuery?: string;
 }
 
-const COLORS = {
+const COLORS: Record<string, string> = {
   login_failed: '#eab308', // Yellow
   honeypot_caught: '#ef4444', // Red
   rate_limited: '#f97316', // Orange
   csrf_failed: '#a855f7', // Purple
   suspicious: '#3b82f6', // Blue
+  remember_rotation_conflict: '#06b6d4', // Cyan
+};
+
+const FALLBACK_EVENT_COLORS = ['#64748b', '#14b8a6', '#ec4899', '#8b5cf6', '#0ea5e9'];
+
+const formatEventType = (eventType: string) =>
+  eventType
+    .split('_')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+const getEventColor = (eventType: string, index: number) => {
+  if (COLORS[eventType]) return COLORS[eventType];
+  const colorSeed = Array.from(eventType).reduce(
+    (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
+    index
+  );
+  return FALLBACK_EVENT_COLORS[colorSeed % FALLBACK_EVENT_COLORS.length];
+};
+
+const normalizeChartCount = (value: unknown) => {
+  const numericCount = Number(value);
+  return Number.isFinite(numericCount) ? Math.max(0, numericCount) : 0;
 };
 
 const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin }) => {
@@ -185,30 +209,63 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
   };
 
   // Process Chart Data
-  const trendData = useMemo(() => {
-    if (!stats?.trends) return [];
+  const { trendData, trendSeries, trendTotal } = useMemo(() => {
+    const dateRange: string[] = [];
+    for (let dayOffset = 6; dayOffset >= 0; dayOffset -= 1) {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - dayOffset);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      dateRange.push(`${year}-${month}-${day}`);
+    }
 
-    // Group by date
-    const grouped: any = {};
-    stats.trends.forEach((item) => {
-      const date = new Date(item.date).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-      });
-      if (!grouped[date]) grouped[date] = { name: date };
-      grouped[date][item.event_type] = item.count;
+    const series = Array.from(
+      new Set((stats?.trends || []).map((item) => String(item.event_type || '').trim()))
+    ).filter(Boolean);
+    const grouped = new Map<string, Record<string, string | number>>(
+      dateRange.map((dateKey) => {
+        const date = new Date(`${dateKey}T00:00:00`);
+        return [
+          dateKey,
+          {
+            name: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          },
+        ];
+      })
+    );
+
+    let total = 0;
+    (stats?.trends || []).forEach((item) => {
+      const dateKey = String(item.date || '').slice(0, 10);
+      const eventType = String(item.event_type || '').trim();
+      const count = normalizeChartCount(item.count);
+      const row = grouped.get(dateKey);
+      if (!row || !eventType) return;
+      row[eventType] = count;
+      total += count;
     });
 
-    return Object.values(grouped);
+    const data = Array.from(grouped.values()).map((row) => {
+      series.forEach((eventType) => {
+        if (typeof row[eventType] !== 'number') row[eventType] = 0;
+      });
+      return row;
+    });
+
+    return { trendData: data, trendSeries: series, trendTotal: total };
   }, [stats]);
 
   const pieData = useMemo(() => {
     if (!stats?.distribution) return [];
-    return stats.distribution.map((item) => ({
-      name: item.event_type.replace('_', ' ').toUpperCase(),
-      value: item.count,
-      color: COLORS[item.event_type as keyof typeof COLORS] || '#888',
-    }));
+    return stats.distribution
+      .map((item, index) => ({
+        name: formatEventType(item.event_type),
+        value: normalizeChartCount(item.count),
+        color: getEventColor(item.event_type, index),
+      }))
+      .filter((item) => item.value > 0);
   }, [stats]);
 
   const sourceData = useMemo(() => {
@@ -216,7 +273,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
     return stats.top_ips.slice(0, 10).map((item, index) => ({
       rank: index + 1,
       address: item.ip_address,
-      attempts: Math.max(0, Number(item.count) || 0),
+      attempts: normalizeChartCount(item.count),
       isLocalhost: item.ip_address === '::1' || item.ip_address === '127.0.0.1',
     }));
   }, [stats]);
@@ -382,43 +439,39 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             Threat Trends (Last 7 Days)
           </h3>
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  dy={10}
-                  fontSize={12}
-                  stroke="#94a3b8"
-                />
-                <YAxis axisLine={false} tickLine={false} fontSize={12} stroke="#94a3b8" />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-                <Legend iconType="circle" />
-                <Line
-                  type="monotone"
-                  dataKey="login_failed"
-                  stroke={COLORS.login_failed}
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="honeypot_caught"
-                  stroke={COLORS.honeypot_caught}
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="rate_limited"
-                  stroke={COLORS.rate_limited}
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {trendTotal > 0 && trendSeries.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    dy={10}
+                    fontSize={12}
+                    stroke="#94a3b8"
+                  />
+                  <YAxis axisLine={false} tickLine={false} fontSize={12} stroke="#94a3b8" />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                  <Legend iconType="circle" />
+                  {trendSeries.map((eventType, index) => (
+                    <Line
+                      key={eventType}
+                      type="monotone"
+                      dataKey={eventType}
+                      name={formatEventType(eventType)}
+                      stroke={getEventColor(eventType, index)}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
+                No security events recorded in the last 7 days.
+              </div>
+            )}
           </div>
         </div>
 

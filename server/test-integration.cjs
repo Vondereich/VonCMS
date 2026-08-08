@@ -443,6 +443,7 @@ const criticalFiles = [
   'index.php',
   'index.html',
   'public/index.php',
+  'public/seo_route_helper.php',
   'public/media_variants.php',
   'public/api/login.php',
   'public/api/get_settings.php',
@@ -1202,6 +1203,28 @@ assertIncludes(
   'Security Dashboard Source Ranking: source activity can regress to the oversized attacker bar chart or lose localhost and empty-state context.'
 );
 
+assertIncludes(
+  'Security Dashboard Chart Truth',
+  securityDashboardContent,
+  [
+    'remember_rotation_conflict:',
+    'Number.isFinite(numericCount)',
+    'normalizeChartCount(item.count)',
+    'trendSeries.map((eventType, index) =>',
+    'No security events recorded in the last 7 days.',
+    '.filter((item) => item.value > 0)',
+  ],
+  'Security Dashboard Chart Truth: numeric distribution values, dynamic event series, zero-padded dates, and an honest empty trend state are present.',
+  'Security Dashboard Chart Truth: charts can regress to string counts, stale hard-coded series, or a blank no-data surface.'
+);
+assertExcludes(
+  'Security Dashboard Chart Truth',
+  securityDashboardContent,
+  ['dataKey="login_failed"', 'dataKey="honeypot_caught"', 'dataKey="rate_limited"'],
+  'Security Dashboard Chart Truth: stale hard-coded trend series are absent.',
+  'Security Dashboard Chart Truth: trend rendering still hard-codes a partial event list.'
+);
+
 if (
   contentRendererNoSemgrepCount >= 2 &&
   contentRendererContent.includes('sanitizeHtml(part)') &&
@@ -1583,9 +1606,10 @@ assertIncludes(
   [
     'onImmediateChange?: (content: string) => void;',
     'onImmediateChange?.(content);',
-    'const handleEditorImmediateChange = React.useCallback((html: string) => {',
+    'const handleEditorImmediateChange = React.useCallback(',
     'contentRef.current = html;',
-    'itemRef.current = { ...itemRef.current, content: html };',
+    'const liveItem = itemRef.current ? { ...itemRef.current, content: html } : null;',
+    'itemRef.current = liveItem;',
     'const itemForSaveBase = itemOverride || item;',
     'const liveContent = contentRef.current;',
     'const itemForSave = { ...itemForSaveBase, content: liveContent };',
@@ -2327,7 +2351,7 @@ if (
   publicRuntimeIndexContent.includes(
     "in_array(strtolower($currentPath), ['index.html', 'index.php'], true)"
   ) &&
-  publicRuntimeIndexContent.includes("header('Location: ' . $basePath, true, 301);")
+  publicRuntimeIndexContent.includes('voncms_send_redirect($basePath);')
 ) {
   pass(
     'Index Entry Canonical Guard: direct /index.html and /index.php requests are canonically redirected to the homepage instead of serving the static Vite shell or falling through as public 404 routes.'
@@ -2720,6 +2744,21 @@ if (
 
 const adminLayoutContent = read('src/components/layouts/AdminLayout.tsx');
 const widgetAdminAppContent = read('src/App.tsx');
+const adminNotFoundContent = read('src/components/admin/AdminNotFoundPage.tsx');
+assertIncludes(
+  'Admin Nested Route Fallback',
+  `${widgetAdminAppContent}\n${adminLayoutContent}\n${adminNotFoundContent}`,
+  [
+    "import AdminNotFoundPage from './components/admin/AdminNotFoundPage';",
+    '<Route path="*" element={<AdminNotFoundPage />} />',
+    'pathname === menuPath || pathname.startsWith(`${menuPath}/`)',
+    "pathname === '/admin' ? 'Admin' : 'Page Not Found'",
+    'Admin page not found',
+    "navigate('/admin/dashboard')",
+  ],
+  'Admin Nested Route Fallback: invalid admin routes render an in-shell 404 and avoid prefix-collision navigation state.',
+  'Admin Nested Route Fallback: invalid admin routes can still leave a blank content area or mark a prefix-collision menu item active.'
+);
 const widgetAdminDefaultThemeSettingsContent = read(
   'src/plugins/von-core/features/extensions/components/DefaultThemeSettings.tsx'
 );
@@ -3880,9 +3919,25 @@ assertIncludes(
     'const absoluteOgImage = toAbsolute(ogImage);',
     "ensureMeta('og:image', 'property', absoluteOgImage);",
     "ensureMeta('og:image:alt', 'property', absoluteOgImage ? title : '');",
+    "ensureMeta('twitter:title', 'name', title);",
+    "ensureMeta('twitter:description', 'name', description);",
+    "ensureMeta('twitter:image:alt', 'name', twitterImage ? title : '');",
+    "ensureMeta('og:locale', 'property', openGraphLocale);",
+    'const canReuseSocialImageDimensions =',
+    "ensureMeta('og:image:width', 'property', '');",
+    "ensureMeta('og:image:height', 'property', '');",
+    '? { width: currentImageWidth, height: currentImageHeight }',
+    "'@type': 'ImageObject',",
   ],
-  'VonSEO Social Image Contract: large OG fallback is used and square image no longer overwrites the primary image.',
-  'VonSEO Social Image Contract: social image fallback can still ignore large OG image or overwrite og:image.'
+  'VonSEO Social Metadata Contract: large OG fallback, locale, reusable SSR dimensions, ImageObject schema, and explicit Twitter metadata stay aligned after hydration without a new image request.',
+  'VonSEO Social Metadata Contract: hydrated social metadata can omit parity, retain stale dimensions, or fetch an image only to inspect metadata.'
+);
+assertExcludes(
+  'VonSEO Social Image Probe Guard',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+  ['new Image()', 'socialImageProbe'],
+  'VonSEO Social Image Probe Guard: hydration reuses authoritative SSR dimensions without an extra image request.',
+  'VonSEO Social Image Probe Guard: metadata hydration can trigger an unnecessary image request.'
 );
 
 assertExcludes(
@@ -4908,7 +4963,7 @@ if (
 
 const phpStaticAnalysisMetadataContracts = [
   {
-    file: 'public/index.php',
+    file: 'public/seo_route_helper.php',
     markers: [
       '@param array<string, mixed> $content',
       "function buildCanonicalContentPath($content, $permalinkStyle, $contentType = 'post')",
@@ -5657,6 +5712,8 @@ assertIncludes(
 );
 
 const indexContent = read('public/index.php');
+const phpSeoRouteHelperContent = read('public/seo_route_helper.php');
+const phpSeoResponseHelperContent = read('public/seo_response_helper.php');
 const phpSeoSchemaHelperContent = read('public/seo_schema_helper.php');
 
 assertIncludes(
@@ -5709,27 +5766,33 @@ if (
 
 assertIncludes(
   'Homepage Site Name Schema Contract',
-  indexContent,
+  indexContent + '\n' + phpSeoRouteHelperContent + '\n' + phpSeoSchemaHelperContent,
   [
     'function voncms_is_homepage_path($path)',
     '$homepageCollectionPage = [',
-    "'@graph' => [",
-    '$schemaData,',
-    '$homepageCollectionPage',
+    '$additionalSchemaNodes[] = $homepageCollectionPage;',
+    'voncms_build_site_identity_schema_graph(',
     'if (voncms_is_homepage_path($path) && !$hasHomepageDiscoveryQuery && !empty($homepagePosts))',
   ],
-  'Homepage Site Name Schema Contract: SSR homepage keeps WebSite schema for Google site-name signals while adding homepage ItemList as a separate graph node.',
-  'Homepage Site Name Schema Contract: SSR homepage can still replace WebSite schema with CollectionPage and weaken Google site-name signals.'
+  'Homepage Site Name Schema Contract: SSR homepage keeps the stable Organization/WebSite identity graph for Google site-name signals while adding homepage ItemList as a separate graph node.',
+  'Homepage Site Name Schema Contract: SSR homepage can still replace the stable site identity graph with CollectionPage and weaken Google site-name signals.'
 );
 
 assertIncludes(
   'Category SSR SEO Landing Contract',
-  indexContent,
+  indexContent + '\n' + phpSeoRouteHelperContent,
   [
-    "$selectedCategoryParam = trim((string) ($_GET['category'] ?? ''));",
+    "$firstCategoryQueryValue = voncms_first_query_value($rawDiscoveryQueryString, 'category', 100);",
+    '$selectedCategoryParam =',
     "$isCategoryLanding = $selectedCategoryParam !== '';",
     'if ($isCategoryLanding && voncms_is_homepage_path($path))',
     '$categoryPostCount',
+    'voncms_fetch_public_category_match(',
+    'AND category = :category',
+    'AND LOWER(category) = LOWER(:category)',
+    'voncms_build_category_canonical_query(',
+    '$canonicalCategoryQuery !== $rawDiscoveryQueryString',
+    "voncms_send_redirect($domainUrl . '/?' . $canonicalCategoryQuery);",
     "$seoTitle = $selectedCategoryName . ' - ' . $siteName;",
     "$seoUrl = $domainUrl . '/?category=' . rawurlencode($selectedCategoryName);",
     "$seoRobots = $categoryPostCount > 0 ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, follow';",
@@ -5742,7 +5805,7 @@ assertIncludes(
 
 assertIncludes(
   'Category SSR Content Parity Contract',
-  indexContent + '\n' + phpSeoSchemaHelperContent,
+  indexContent + '\n' + phpSeoRouteHelperContent + '\n' + phpSeoSchemaHelperContent,
   [
     '$categoryLandingPosts = [];',
     '$categoryPostCount > 0',
@@ -5773,7 +5836,10 @@ assertIncludes(
     'let hydratedRobots =',
     'hydratedRobots = categoryHasPosts',
     "ensureMeta('robots', 'name', hydratedRobots);",
-    'Browse ${selectedCategory} articles and updates on ${settings.siteName}.',
+    'const categoryDescriptionContext = settings.siteDescription?.trim() || settings.siteName;',
+    'description = `${selectedCategory} - ${categoryDescriptionContext}`;',
+    'Array.from(new URLSearchParams(location.search).entries()).some(',
+    "hydratedRobots = 'noindex, follow';",
   ],
   'VonSEO Hydrated Category Robots Contract: hydrated category metadata preserves empty-category noindex and category-specific descriptions instead of overriding SSR.',
   'VonSEO Hydrated Category Robots Contract: VonSEO can still override empty category noindex or drift category metadata after hydration.'
@@ -5781,7 +5847,13 @@ assertIncludes(
 
 assertIncludes(
   'Public 404 SEO Metadata Contract',
-  indexContent + '\n' + phpSeoSchemaHelperContent,
+  indexContent +
+    '\n' +
+    phpSeoRouteHelperContent +
+    '\n' +
+    phpSeoResponseHelperContent +
+    '\n' +
+    phpSeoSchemaHelperContent,
   [
     'function voncms_is_spa_shell_route($path)',
     "in_array($normalizedPath, ['login', 'install'], true)",
@@ -5789,15 +5861,31 @@ assertIncludes(
     '$isPreheadNotFoundRoute',
     'empty($profileUser)',
     '!voncms_is_spa_shell_route($path)',
-    'function voncms_apply_404_seo_metadata(',
+    'function voncms_apply_not_found_response(',
+    'http_response_code(404);',
     "$seoTitle = 'Page Not Found - ' . $siteName;",
     "$seoRobots = 'noindex, follow';",
     '$schemaData = null;',
-    'voncms_apply_404_seo_metadata($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);',
+    'voncms_apply_not_found_response($seoTitle, $seoDescription, $seoUrl, $seoRobots, $schemaData, $siteName ?? $seoTitle, $domainUrl, $path);',
   ],
   'Public 404 SEO Metadata Contract: missing public routes return HTTP 404 with noindex metadata instead of homepage index/follow hints.',
   'Public 404 SEO Metadata Contract: missing public routes can still inherit homepage metadata despite returning HTTP 404.'
 );
+
+if (
+  !indexContent.includes('http_response_code(404);') &&
+  !indexContent.includes('voncms_apply_404_seo_metadata') &&
+  !phpSeoSchemaHelperContent.includes('voncms_apply_404_seo_metadata') &&
+  indexContent.split('voncms_apply_not_found_response(').length - 1 === 2
+) {
+  pass(
+    'Public 404 Response Boundary: index delegates the pre-head and hydration fallback to one guarded response helper without branch-level status duplication.'
+  );
+} else {
+  fail(
+    'Public 404 Response Boundary: index or schema still owns duplicated 404 response behavior.'
+  );
+}
 
 assertExcludes(
   'Public 404 Stale Shell Route Guard',
@@ -5820,37 +5908,65 @@ const redirectEngineContent = exists('public/redirect_engine.php')
   ? read('public/redirect_engine.php')
   : '';
 assertIncludes(
-  'Integrated Public Redirect Exact-Match Contract',
-  indexContent,
+  'Shared Public Redirect Resolution Contract',
+  phpSeoResponseHelperContent,
   [
     'WHERE source_url = ? LIMIT 1',
-    "$publicRedirectIgnorePaths = ['/api/', '/assets/', '/uploads/', '/admin'];",
-    'foreach ($publicRedirectIgnorePaths as $ignorePath)',
-    'strpos($path, $ignorePath) === 0',
-    '$targetPathNormalized === $path',
+    "preg_match('#^/(api|assets|uploads|admin)(/|$)#i'",
+    'voncms_is_safe_public_redirect_target($target)',
+    "!str_starts_with($target, '//')",
+    "!str_contains($target, '\\\\')",
+    "in_array($scheme, ['http', 'https'], true)",
+    '$targetComparisonPath === $path',
+    'voncms_normalize_redirect_status($redirect',
+    'function voncms_record_public_redirect_hit(',
+    'function voncms_send_redirect(',
   ],
-  'Integrated Public Redirect Exact-Match Contract: public/index.php redirect flow stays exact-match, asset/admin-safe, and loop guarded.',
-  'Integrated Public Redirect Exact-Match Contract: public/index.php redirect flow is missing exact-match, asset/admin bypass, or loop guard markers.'
+  'Shared Public Redirect Resolution Contract: exact matching, protected-route bypass, safe targets, loop rejection, status normalization, hit recording, and response emission share one helper.',
+  'Shared Public Redirect Resolution Contract: redirect resolution is missing an exact-match, target, loop, status, or response boundary.'
 );
 assertIncludes(
-  'Standalone Redirect Engine Exact-Match Contract',
-  redirectEngineContent,
-  [
-    'WHERE source_url = ? LIMIT 1',
-    "$ignorePaths = ['/api/', '/assets/', '/uploads/', '/admin'];",
-    'foreach ($ignorePaths as $ignore)',
-    'strpos($path, $ignore) === 0',
-    '$targetPath === $path',
-  ],
-  'Standalone Redirect Engine Exact-Match Contract: redirect_engine.php stays exact-match, asset/admin-safe, and loop guarded.',
-  'Standalone Redirect Engine Exact-Match Contract: redirect_engine.php is missing exact-match, asset/admin bypass, or loop guard markers.'
-);
-assertExcludes(
-  'Final Redirect Pattern Exclusion',
+  'Public Redirect Consumer Parity Contract',
   indexContent + '\n' + redirectEngineContent,
-  ['LIKE source_url', 'REGEXP', 'preg_match($source', 'source_url LIKE'],
-  'Final Redirect Pattern Exclusion: runtime redirects do not silently wildcard-match stored source paths.',
-  'Final Redirect Pattern Exclusion: redirect runtime still contains pattern/wildcard matching markers.'
+  [
+    "require_once __DIR__ . '/seo_response_helper.php';",
+    'voncms_resolve_public_redirect(',
+    "voncms_record_public_redirect_hit($pdo, $publicRedirect['sourcePath']);",
+    'voncms_send_redirect(',
+  ],
+  'Public Redirect Consumer Parity Contract: index and the compatibility engine use the same resolver, hit counter, and response emitter.',
+  'Public Redirect Consumer Parity Contract: index and the compatibility engine can drift across separate redirect implementations.'
+);
+if (
+  [indexContent, redirectEngineContent].every(
+    (content) =>
+      content.includes("require_once __DIR__ . '/seo_response_helper.php';") &&
+      content.includes('voncms_resolve_public_redirect(') &&
+      content.includes("voncms_record_public_redirect_hit($pdo, $publicRedirect['sourcePath']);") &&
+      content.includes('voncms_send_redirect(')
+  )
+) {
+  pass(
+    'Public Redirect Consumer Ownership: each runtime consumer delegates resolution, hit recording, and emission to the shared helper.'
+  );
+} else {
+  fail(
+    'Public Redirect Consumer Ownership: at least one runtime consumer still owns a private redirect path.'
+  );
+}
+assertExcludes(
+  'Public Redirect Duplication And Pattern Exclusion',
+  indexContent + '\n' + redirectEngineContent,
+  [
+    'LIKE source_url',
+    'REGEXP',
+    'preg_match($source',
+    'source_url LIKE',
+    'SELECT target_url, redirect_type FROM redirects',
+    'filter_var($target, FILTER_VALIDATE_URL)',
+  ],
+  'Public Redirect Duplication And Pattern Exclusion: consumers do not duplicate SQL/target validation or wildcard-match stored source paths.',
+  'Public Redirect Duplication And Pattern Exclusion: a consumer still duplicates redirect logic or wildcard-matches stored source paths.'
 );
 
 const vonSeoContent = read('src/plugins/von-core/features/seo/VonSEO.tsx');
@@ -5968,12 +6084,17 @@ if (
   phpSeoSchemaHelperContent.includes('function voncms_normalize_schema_language') &&
   phpSeoSchemaHelperContent.includes("($_SERVER['SCRIPT_FILENAME'] ?? '')") &&
   phpSeoSchemaHelperContent.includes('http_response_code(403);') &&
-  phpSeoSchemaHelperContent.includes('function voncms_build_schema_publisher') &&
+  phpSeoSchemaHelperContent.includes('function voncms_build_schema_organization') &&
+  phpSeoSchemaHelperContent.includes('function voncms_build_site_identity_schema_graph') &&
+  phpSeoSchemaHelperContent.includes(
+    "'@id' => voncms_schema_entity_id($domainUrl, 'organization')"
+  ) &&
   phpSeoSchemaHelperContent.includes("'@type' => 'Organization'") &&
   phpSeoSchemaHelperContent.includes("'@type' => 'ImageObject'") &&
-  phpSeoSchemaHelperContent.includes("$schemaData['publisher'] = voncms_build_schema_publisher") &&
+  phpSeoSchemaHelperContent.includes("'publisher' => ['@id' => $organizationId]") &&
+  indexContent.includes('voncms_build_site_identity_schema_graph(') &&
   !indexContent.includes('function voncms_apply_content_schema') &&
-  !indexContent.includes('function voncms_apply_404_seo_metadata') &&
+  !indexContent.includes('function voncms_apply_not_found_response') &&
   !indexContent.includes('function voncms_extract_plaintext_for_noscript') &&
   !indexContent.includes('function voncms_absolute_public_url') &&
   !indexContent.includes('function voncms_build_schema_publisher') &&
@@ -5990,6 +6111,9 @@ if (
     'dateModified: normalizeSchemaDate(selectedPost.updatedAt || selectedPost.createdAt),'
   ) &&
   vonSeoContent.includes("publisher: { '@id': `${canonicalBase}/#organization` },") &&
+  vonSeoContent.includes("const organizationLogoUrl = toAbsolute(settings.logoUrl || '');") &&
+  vonSeoContent.includes('...(organizationLogoUrl') &&
+  vonSeoContent.includes('url: canonicalUrl(),') &&
   vonSeoContent.includes(
     "author: { '@type': 'Person', name: selectedPost.author, url: authorProfileUrl },"
   ) &&
@@ -8720,6 +8844,21 @@ if (
 }
 
 assertIncludes(
+  'TechPress Short Discovery Footer Containment',
+  techPressLayoutContent,
+  [
+    "className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'dark' : ''}`}",
+    'className="max-w-7xl mx-auto px-5 py-8 flex-1 w-full"',
+    'className="max-w-7xl mx-auto w-full px-5 py-8 border-b text-center relative"',
+    'className="max-w-7xl mx-auto w-full px-5 py-4 border-b"',
+    'className="max-w-3xl mx-auto relative"',
+    'className="w-full px-5 py-3.5 rounded-full text-sm outline-hidden transition-all border shadow-xs"',
+  ],
+  'TechPress Short Discovery Footer Containment: home, category, and search shells keep the footer at the viewport edge when discovery content is short, while full-width flex children preserve balanced category and search sizing.',
+  'TechPress Short Discovery Footer Containment: short discovery pages can leave the footer floating above unused viewport space or flex auto margins can collapse category/search containers to their content width.'
+);
+
+assertIncludes(
   'Posts API PDO Static Analysis Guard',
   getPostsContent,
   [
@@ -8756,6 +8895,9 @@ if (
 }
 
 const categorySeoPublicIndexContent = exists('public/index.php') ? read('public/index.php') : '';
+const categorySeoRouteHelperContent = exists('public/seo_route_helper.php')
+  ? read('public/seo_route_helper.php')
+  : '';
 const categorySeoSitemapContent = exists('public/sitemap.php') ? read('public/sitemap.php') : '';
 const categorySeoRssContent = exists('public/rss.php') ? read('public/rss.php') : '';
 const categorySeoLlmsContent = exists('public/llms.php') ? read('public/llms.php') : '';
@@ -8768,6 +8910,7 @@ assertIncludes(
   [
     exists('src/utils/siteUtils.ts') ? read('src/utils/siteUtils.ts') : '',
     categorySeoPublicIndexContent,
+    categorySeoRouteHelperContent,
     categorySeoSitemapContent,
     categorySeoRssContent,
     categorySeoLlmsContent,
@@ -9038,7 +9181,7 @@ if (
 
 assertIncludes(
   'Public SSR Visibility Contract',
-  publicIndexContent,
+  publicIndexContent + '\n' + phpSeoRouteHelperContent,
   [
     '$publicContentCurrentTime = date(',
     "AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1",
@@ -9062,13 +9205,19 @@ assertIncludes(
     '$relativeUrl = substr($relativeUrl, strlen($domainPrefix));',
     '$seoImage = voncms_absolute_public_url($seoImage, $domainUrl);',
     "$schemaData['description'] = $seoDescription;",
-    "$schemaData['image'] = [$seoImage];",
+    "$schemaData['image'] = [",
+    "'@type' => 'ImageObject',",
+    "'url' => $seoImage,",
     "$runtimeSettings['general']['og_image_url'] ?? ''",
+    "$defaultOgImagePath = __DIR__ . '/og-default.png';",
+    'if (is_file($defaultOgImagePath)) {',
     "$seoImage = $domainUrl . '/og-default.png';",
+    "} elseif (trim((string) $logoUrl) !== '') {",
+    '$seoImage = voncms_absolute_public_url($logoUrl, $domainUrl);',
     "voncms_absolute_public_url($hp['image_url'], $domainUrl)",
   ],
-  'Public SSR Schema Image Contract: JSON-LD descriptions and image URLs are normalized before schema assignment.',
-  'Public SSR Schema Image Contract: JSON-LD descriptions can drift from meta description, or schema images can still double-prefix subfolder paths.'
+  'Public SSR Schema Image Contract: JSON-LD descriptions and detailed image URLs are normalized before schema assignment, while the default social image must exist or fall back to the configured logo.',
+  'Public SSR Schema Image Contract: JSON-LD descriptions can drift from meta description, detailed schema images can double-prefix subfolder paths, or homepage metadata can publish a missing default image.'
 );
 if (
   analyticsInjectorContent.includes('analytics.enableTracking === false') &&
@@ -9524,6 +9673,18 @@ assertIncludes(
   'Site Name SSR Whitespace Guard: legacy stored site names can still leak whitespace into public metadata.'
 );
 
+assertIncludes(
+  'Public SSR Schema State Initialization',
+  sliceBetween(
+    indexContent,
+    '// Default SEO values (white-label friendly)',
+    '$rawDiscoveryQueryString ='
+  ),
+  ['$schemaData = null;'],
+  'Public SSR Schema State Initialization: schema state is defined before optional database hydration.',
+  'Public SSR Schema State Initialization: database bootstrap or settings failures can leave schema state undefined.'
+);
+
 if (
   indexContent.includes(
     "$twitterCard = !empty($socialImage) ? 'summary_large_image' : 'summary';"
@@ -9538,6 +9699,35 @@ if (
     'Public SSR Twitter Large Card Contract: social images named like og-default can still be downgraded to summary cards.'
   );
 }
+
+assertIncludes(
+  'Public SSR Twitter Metadata Parity',
+  indexContent,
+  [
+    '<meta name="twitter:title" content="<?php echo htmlspecialchars($seoTitle,',
+    '<meta name="twitter:description" content="<?php echo htmlspecialchars($seoDescription,',
+    '<meta name="twitter:image:alt" content="<?php echo htmlspecialchars($seoTitle,',
+  ],
+  'Public SSR Twitter Metadata Parity: title, description, and image alt are available before hydration.',
+  'Public SSR Twitter Metadata Parity: non-JavaScript social crawlers can still miss explicit title, description, or image alt metadata.'
+);
+
+assertIncludes(
+  'Public SSR Social Metadata Detail Contract',
+  indexContent + '\n' + phpSeoSchemaHelperContent,
+  [
+    "$openGraphLocale = 'ms_MY';",
+    "$openGraphLocale = str_replace('-', '_', $schemaLanguage);",
+    '$imageDimensions = @getimagesize($localImagePath);',
+    '<meta property="og:image:width" content="<?php echo $seoImageWidth; ?>">',
+    '<meta property="og:image:height" content="<?php echo $seoImageHeight; ?>">',
+    '<meta property="og:locale" content="<?php echo htmlspecialchars($openGraphLocale,',
+    "'@type' => 'ImageObject',",
+    "'url' => $seoImage,",
+  ],
+  'Public SSR Social Metadata Detail Contract: validated locale, measured local dimensions, and ImageObject schema are available before hydration.',
+  'Public SSR Social Metadata Detail Contract: SSR can emit guessed locale/dimensions or omit detailed image schema.'
+);
 
 assertExcludes(
   'Public Index Dead State Cleanup Guard',
@@ -9584,10 +9774,150 @@ assertExcludes(
 
 assertIncludes(
   'Public SEO Interceptor llms.txt Contract',
-  indexContent,
-  ['llms\\.txt', "'llms.txt' => 'llms.php'"],
+  indexContent + '\n' + phpSeoRouteHelperContent,
+  ['voncms_match_seo_endpoint', "'llms.txt' => 'llms.php'"],
   'Public SEO Interceptor: llms.txt has the same ultra-early fallback route as robots/sitemap/RSS.',
   'Public SEO Interceptor: llms.txt is missing from the ultra-early public index route map.'
+);
+
+const publicSeoHelperConsumers = [
+  indexContent,
+  phpSeoSchemaHelperContent,
+  categorySeoSitemapContent,
+  categorySeoRssContent,
+  categorySeoLlmsContent,
+];
+if (
+  publicSeoHelperConsumers.every((content) =>
+    content.includes("require_once __DIR__ . '/seo_route_helper.php';")
+  ) &&
+  [phpSeoRouteHelperContent, ...publicSeoHelperConsumers]
+    .join('\n')
+    .split('function voncms_category_slug(').length -
+    1 ===
+    1
+) {
+  pass(
+    'Public SEO Route Helper Boundary: index, schema, sitemap, RSS, and llms share one guarded route/permalink helper.'
+  );
+} else {
+  fail(
+    'Public SEO Route Helper Boundary: a public SEO surface is missing the shared helper or still duplicates category permalink logic.'
+  );
+}
+
+if (
+  indexContent.includes("require_once __DIR__ . '/seo_response_helper.php';") &&
+  redirectEngineContent.includes("require_once __DIR__ . '/seo_response_helper.php';") &&
+  phpSeoResponseHelperContent.includes("require_once __DIR__ . '/seo_route_helper.php';") &&
+  phpSeoResponseHelperContent.includes("($_SERVER['SCRIPT_FILENAME'] ?? '')") &&
+  phpSeoResponseHelperContent.includes('http_response_code(403);') &&
+  phpSeoResponseHelperContent.split('function voncms_apply_not_found_response(').length - 1 === 1 &&
+  phpSeoResponseHelperContent.split('function voncms_resolve_public_redirect(').length - 1 === 1
+) {
+  pass(
+    'Public SEO Response Helper Boundary: index and compatibility redirect flow share one guarded 404/redirect response owner.'
+  );
+} else {
+  fail(
+    'Public SEO Response Helper Boundary: 404/redirect response ownership is duplicated, unguarded, or missing a consumer.'
+  );
+}
+
+if (
+  phpSeoRouteHelperContent.includes(
+    'function voncms_match_seo_endpoint($requestUri, $basePath): ?string'
+  ) &&
+  phpSeoRouteHelperContent.includes('function voncms_request_path($requestUri): string') &&
+  phpSeoRouteHelperContent.includes('$relativePath = substr($uriPath, 1);') &&
+  phpSeoRouteHelperContent.includes("str_starts_with($uriPath, $normalizedBasePath . '/')") &&
+  phpSeoRouteHelperContent.includes('$route = strtolower($relativePath);') &&
+  phpSeoRouteHelperContent.includes('return $routes[$route] ?? null;') &&
+  phpSeoRouteHelperContent.includes("($_SERVER['SCRIPT_FILENAME'] ?? '')") &&
+  phpSeoRouteHelperContent.includes('http_response_code(403);') &&
+  !indexContent.includes(
+    '/(robots\\.txt|llms\\.txt|sitemap\\.xml|rss|rss\\.xml|feed|feed\\.xml)$/i'
+  )
+) {
+  pass(
+    'Crawler Endpoint Exact Root Contract: crawler files resolve only by exact install-root route and the helper blocks direct web execution.'
+  );
+} else {
+  fail(
+    'Crawler Endpoint Exact Root Contract: suffix-only matching or an unguarded helper can expose fake nested crawler endpoints.'
+  );
+}
+
+assertIncludes(
+  'Private and Search Indexing Contract',
+  indexContent +
+    '\n' +
+    read('src/plugins/von-core/features/seo/VonSEO.tsx') +
+    '\n' +
+    read('src/App.tsx'),
+  [
+    'voncms_is_private_spa_shell_route($path)',
+    "$seoRobots = 'noindex, nofollow';",
+    'voncms_has_nonempty_query_value(',
+    'voncms_first_query_value(',
+    'voncms_build_category_canonical_query(',
+    'hasNonemptySeoQueryValue(value)',
+    "normalizeDiscoveryQueryValue(searchParams.get('category'), 100)",
+    'voncms_is_homepage_path($path) && $hasHomepageDiscoverySearchQuery',
+    "$seoRobots = 'noindex, follow';",
+    'Array.from(new URLSearchParams(location.search).entries()).some(',
+    "hydratedRobots = 'noindex, follow';",
+  ],
+  'Private and Search Indexing Contract: login/admin/install are noindex,nofollow and public search remains noindex after hydration.',
+  'Private and Search Indexing Contract: utility routes or search can still inherit index,follow metadata.'
+);
+
+assertIncludes(
+  'SEO Description Fallback Contract',
+  indexContent +
+    '\n' +
+    phpSeoRouteHelperContent +
+    '\n' +
+    read('src/plugins/von-core/features/seo/VonSEO.tsx') +
+    '\n' +
+    read('src/utils/security.ts'),
+  [
+    "foreach (['meta_description', 'excerpt', 'content'] as $field)",
+    "function_exists('voncms_clean_seo_description')",
+    '$desc = voncms_pick_seo_description($post);',
+    'const pickHydratedSeoDescription = (',
+    "document.createElement('textarea')",
+    'selectedPost.metaDescription,',
+    'selectedPage.metaDescription,',
+  ],
+  'SEO Description Fallback Contract: empty manual metadata falls through to excerpt/content and hydrated pages preserve manual descriptions.',
+  'SEO Description Fallback Contract: SSR or hydrated metadata can still ignore a valid fallback/manual page description.'
+);
+
+assertExcludes(
+  'SEO Description Pre-truncation Drift',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+  [
+    'selectedPage.metaDescription ||',
+    'selectedPost.metaDescription ||',
+    'htmlToPlainText(selectedPage.content).slice(0, 160)',
+  ],
+  'SEO Description Pre-truncation Drift: hydrated metadata filters semantic emptiness and applies word-safe truncation only once.',
+  'SEO Description Pre-truncation Drift: hydrated metadata can still stop on empty markup or cut content before word-safe truncation.'
+);
+
+assertIncludes(
+  'Double Slash Canonical Contract',
+  indexContent + '\n' + phpSeoRouteHelperContent,
+  [
+    'voncms_canonical_redirect_location(',
+    "$collapsedPath = preg_replace('#/{2,}#', '/', $rawPath);",
+    '$hasDuplicateSlash = $collapsedPath !== $rawPath;',
+    "$normalizedBasePath !== '/' && $collapsedPath === $normalizedBasePath",
+    "$rawQueryString !== '' ? '?' . $rawQueryString : ''",
+  ],
+  'Double Slash Canonical Contract: duplicate internal path separators collapse before the canonical 301 is emitted.',
+  'Double Slash Canonical Contract: duplicate internal path separators can still be detected without being removed.'
 );
 
 const siteUtilsContent = read('src/utils/siteUtils.ts');
@@ -10723,14 +11053,20 @@ if (
 const sharedSsrPostQueryMarker =
   'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category';
 const sharedSsrPostQuerySource = sliceBetween(
-  publicIndexContent,
+  phpSeoRouteHelperContent,
   'function voncms_fetch_public_post',
   "if (!function_exists('voncms_is_spa_shell_route'))"
 );
 const normalizedPublicSsrSchemaContent = publicIndexContent.replace(/\s+/g, ' ');
 assertIncludes(
   'Shared Public SSR Post Contract',
-  publicIndexContent + '\n' + phpSeoSchemaHelperContent + '\n' + normalizedPublicSsrSchemaContent,
+  publicIndexContent +
+    '\n' +
+    phpSeoRouteHelperContent +
+    '\n' +
+    phpSeoSchemaHelperContent +
+    '\n' +
+    normalizedPublicSsrSchemaContent,
   [
     'function voncms_fetch_public_post',
     'function voncms_clean_seo_description',
@@ -10743,7 +11079,8 @@ assertIncludes(
 );
 if (
   sharedSsrPostQuerySource.split(sharedSsrPostQueryMarker).length - 1 === 1 &&
-  publicIndexContent.split('voncms_fetch_public_post(').length - 1 === 3
+  phpSeoRouteHelperContent.split('voncms_fetch_public_post(').length - 1 === 1 &&
+  publicIndexContent.split('voncms_fetch_public_post(').length - 1 === 2
 ) {
   pass('Shared Public SSR Query Contract: the published-post SELECT has one source of truth.');
 } else {
@@ -10947,6 +11284,7 @@ if (
 }
 
 const sharedAdminModalConsumerFiles = [
+  'src/App.tsx',
   'src/components/Editor.tsx',
   'src/components/editor/FeaturedMediaLibraryModal.tsx',
   'src/components/editor/PostEditorAudit.tsx',
@@ -10967,6 +11305,22 @@ if (sharedAdminModalConsumerFiles.every((file) => read(file).includes('<AdminMod
     'Admin Popup Consistency Contract: at least one core admin popup bypasses the shared blurred modal layer.'
   );
 }
+
+assertIncludes(
+  'Quick Editor Unsaved Exit Contract',
+  appContent + '\n' + postEditorContent + '\n' + postEditorSaveHelpersContent,
+  [
+    'const [isQuickEditDirty, setIsQuickEditDirty] = useState(false);',
+    'Discard the unsaved changes in Quick Editor?',
+    'onBack={requestQuickEditorClose}',
+    'onDirtyChange={setIsQuickEditDirty}',
+    'hasUnsavedEditorChanges(',
+    'initialAddToMenuRef.current = addToMenu;',
+    'const liveItem = itemRef.current ? { ...itemRef.current, content: html } : null;',
+  ],
+  'Quick Editor Unsaved Exit Contract: close, Escape, Back, and dashboard handoff preserve dirty drafts behind confirmation while shared modal safety remains active.',
+  'Quick Editor Unsaved Exit Contract: a dirty quick edit can still be dismissed without confirmation or loses its saved baseline.'
+);
 
 assertIncludes(
   'OTA Modal Dismissal Contract',
@@ -11340,17 +11694,512 @@ if (
 ) {
   exit(7);
 }
+$semanticFallback = voncms_pick_seo_description([
+  'meta_description' => '<p>&nbsp;</p>',
+  'excerpt' => '<p>Visible excerpt</p>',
+  'content' => 'Visible content',
+]);
+if (voncms_clean_seo_description($semanticFallback) !== 'Visible excerpt') {
+  exit(8);
+}
+$uppercaseMetaFallback = voncms_pick_seo_description([
+  'meta_description' => '<meta CONTENT="Manual &amp; exact">',
+  'excerpt' => 'Excerpt fallback',
+  'content' => 'Visible content',
+]);
+if (voncms_clean_seo_description($uppercaseMetaFallback) !== 'Manual & exact') {
+  exit(9);
+}
+$quotedDescription = voncms_clean_seo_description('He said "hello" &amp; goodbye');
+$quotedMetaDescription = voncms_clean_seo_description(
+  '<meta content="He said &quot;hello&quot; &amp; goodbye">'
+);
+if (
+  $quotedDescription !== 'He said "hello" & goodbye' ||
+  $quotedMetaDescription !== 'He said "hello" & goodbye'
+) {
+  exit(10);
+}
+foreach (['script', 'style', 'noscript', 'template'] as $forbiddenTag) {
+  $forbiddenFallback = voncms_pick_seo_description([
+    'meta_description' => '<' . $forbiddenTag . '>Hidden payload</' . $forbiddenTag . '>',
+    'excerpt' => 'Visible excerpt',
+    'content' => 'Visible content',
+  ]);
+  if (voncms_clean_seo_description($forbiddenFallback) !== 'Visible excerpt') {
+    exit(11);
+  }
+}
+if (
+  voncms_clean_seo_description(
+    '<script>alert(1)</script><style>.x{color:red}</style><p>Visible body</p>'
+  ) !== 'Visible body'
+) {
+  exit(12);
+}
+$articleImageSchema = [];
+voncms_apply_content_schema(
+  $articleImageSchema,
+  [
+    'title' => 'Detailed Image Story',
+    'created_at' => '2026-08-02 12:00:00',
+    'updated_at' => '2026-08-02 12:05:00',
+  ],
+  'post',
+  'Detailed image description',
+  'https://example.com/uploads/story.webp',
+  'https://example.com/detailed-image-story',
+  'https://example.com',
+  'NewsArticle',
+  'ms'
+);
+$articleImage = $articleImageSchema['image'][0] ?? [];
+if (
+  ($articleImage['@type'] ?? '') !== 'ImageObject' ||
+  ($articleImage['url'] ?? '') !== 'https://example.com/uploads/story.webp' ||
+  ($articleImageSchema['publisher']['@id'] ?? '') !== 'https://example.com/#organization'
+) {
+  exit(13);
+}
+$organizationWithLogo = voncms_build_schema_organization(
+  'Example Site',
+  'https://example.com/blog',
+  '/blog/uploads/logo.png'
+);
+$organizationWithoutLogo = voncms_build_schema_organization(
+  '',
+  'https://example.com/blog',
+  ''
+);
+$siteIdentityGraph = voncms_build_site_identity_schema_graph(
+  ['@context' => 'https://schema.org', '@type' => 'WebSite', 'description' => 'Old description'],
+  'Example Site',
+  'Current description',
+  'https://example.com/blog',
+  '/blog/uploads/logo.png',
+  [['@type' => 'CollectionPage', 'name' => 'Latest stories']]
+);
+$organizationNode = $siteIdentityGraph['@graph'][0] ?? [];
+$websiteNode = $siteIdentityGraph['@graph'][1] ?? [];
+$collectionNode = $siteIdentityGraph['@graph'][2] ?? [];
+if (
+  ($organizationWithLogo['@id'] ?? '') !== 'https://example.com/blog/#organization' ||
+  ($organizationWithLogo['logo']['url'] ?? '') !== 'https://example.com/blog/uploads/logo.png' ||
+  ($organizationWithoutLogo['name'] ?? '') !== 'My Website' ||
+  array_key_exists('logo', $organizationWithoutLogo) ||
+  ($organizationNode['@id'] ?? '') !== 'https://example.com/blog/#organization' ||
+  ($websiteNode['@id'] ?? '') !== 'https://example.com/blog/#website' ||
+  ($websiteNode['url'] ?? '') !== 'https://example.com/blog/' ||
+  ($websiteNode['publisher']['@id'] ?? '') !== 'https://example.com/blog/#organization' ||
+  ($websiteNode['description'] ?? '') !== 'Current description' ||
+  ($collectionNode['@type'] ?? '') !== 'CollectionPage' ||
+  count(array_filter($siteIdentityGraph['@graph'], static fn($node) => ($node['@type'] ?? '') === 'Organization')) !== 1
+) {
+  exit(14);
+}
 echo 'ok';`,
     ],
     { encoding: 'utf8' }
   );
   if (seoSchemaHelperProbe.status === 0 && seoSchemaHelperProbe.stdout.trim() === 'ok') {
     pass(
-      'SEO Schema Helper Runtime: PHP language rejection, entity decoding, Unicode truncation, and category ItemList output match the public SSR contract.'
+      'SEO Schema Helper Runtime: PHP language rejection, entity decoding, Unicode truncation, detailed article image, category ItemList, and stable Organization/WebSite identity output match the public SSR contract.'
     );
   } else {
     fail(
-      `SEO Schema Helper Runtime: schema language, entity, Unicode, or category ItemList behavior drifted. ${(seoSchemaHelperProbe.stderr || seoSchemaHelperProbe.stdout || '').trim()}`
+      `SEO Schema Helper Runtime: schema language, entity, Unicode, detailed article image, category ItemList, or stable site identity behavior drifted. ${(seoSchemaHelperProbe.stderr || seoSchemaHelperProbe.stdout || '').trim()}`
+    );
+  }
+
+  const runSeoRouteHelperProbe = (indexRelativePath, helperRelativePath) =>
+    spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot(indexRelativePath))};
+require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
+if (
+  voncms_request_path('//foo//bar?search=x') !== '//foo//bar' ||
+  voncms_request_path('https://example.test/blog//story?x=1') !== '/blog//story'
+) {
+  exit(2);
+}
+if (voncms_match_seo_endpoint('/robots.txt?refresh=1', '/') !== 'robots.php') {
+  exit(3);
+}
+if (voncms_match_seo_endpoint('/foo/robots.txt', '/') !== null) {
+  exit(4);
+}
+if (
+  voncms_match_seo_endpoint('/robots.txt/', '/') !== null ||
+  voncms_match_seo_endpoint('//robots.txt', '/') !== null
+) {
+  exit(5);
+}
+if (voncms_match_seo_endpoint('/blog/sitemap.xml', '/blog/') !== 'sitemap.php') {
+  exit(6);
+}
+if (
+  voncms_match_seo_endpoint('/sitemap.xml', '/blog/') !== null ||
+  voncms_match_seo_endpoint('/blog/foo/rss.xml', '/blog/') !== null ||
+  voncms_match_seo_endpoint('/blog//rss.xml', '/blog/') !== null ||
+  voncms_match_seo_endpoint('/BLOG/rss.xml', '/blog/') !== null
+) {
+  exit(7);
+}
+if (voncms_normalize_discovery_query(['Sukan'], 100) !== '') {
+  exit(8);
+}
+if (
+  !voncms_has_nonempty_query_value('search=&search=keyword', 'search') ||
+  !voncms_has_nonempty_query_value('search=keyword&search=', 'search') ||
+  !voncms_has_nonempty_query_value('search%5B%5D=keyword', 'search') ||
+  !voncms_has_nonempty_query_value('search=%3Cp%3E%3C%2Fp%3E', 'search') ||
+  !voncms_has_nonempty_query_value('search=%26nbsp%3B', 'search') ||
+  voncms_has_nonempty_query_value('search=%C2%A0', 'search') ||
+  voncms_has_nonempty_query_value('search=%EF%BB%BF', 'search') ||
+  voncms_has_nonempty_query_value('search=%C2%85', 'search') ||
+  !voncms_has_nonempty_query_value('search=;other=x', 'search') ||
+  voncms_has_nonempty_query_value('other=x;search=keyword', 'search') ||
+  voncms_has_nonempty_query_value('search=&other=keyword', 'search')
+) {
+  exit(9);
+}
+if (
+  voncms_first_query_value('category=Sukan&category=', 'category', 100) !== 'Sukan' ||
+  voncms_first_query_value('category=&category=Sukan', 'category', 100) !== '' ||
+  voncms_first_query_value('category=%20&category=Sukan', 'category', 100) !== '' ||
+  voncms_first_query_value('category=%3Cp%3ESukan%3C%2Fp%3E', 'category', 100) !== 'Sukan' ||
+  voncms_first_query_value('other=Sukan', 'category', 100) !== null ||
+  voncms_first_query_value('search=keyword&search=', 'search', 120) !== 'keyword' ||
+  voncms_build_category_canonical_query(
+    'category=sukan&search=keyword&search=',
+    'Sukan'
+  ) !== 'category=Sukan&search=keyword&search=' ||
+  voncms_build_category_canonical_query(
+    'category=Sukan&category=&utm_source=test',
+    'Sukan'
+  ) !== 'category=Sukan&utm_source=test'
+) {
+  exit(16);
+}
+if (
+  voncms_canonical_redirect_location('/blog/', '', '/blog/', '') !== null ||
+  voncms_canonical_redirect_location('/blog//', '', '/blog/', '') !== '/blog/' ||
+  voncms_canonical_redirect_location('/blog/foo/', '', '/blog/', 'foo') !== '/blog/foo' ||
+  voncms_canonical_redirect_location('/foo//bar?0', '0', '/', 'foo//bar') !== '/foo/bar?0' ||
+  voncms_canonical_redirect_location('//blog//foo?x=1', 'x=1', '/blog/', 'blog//foo') !== '/blog/foo?x=1' ||
+  voncms_canonical_redirect_location('/blog/api//posts', '', '/blog/', 'api//posts') !== null ||
+  voncms_canonical_redirect_location('//blog/api//posts', '', '/blog/', 'blog/api//posts') !== null ||
+  voncms_canonical_redirect_location('/apiary//posts', '', '/', 'apiary//posts') !== '/apiary/posts'
+) {
+  exit(15);
+}
+if (
+  voncms_pick_seo_description([
+    'meta_description' => '   ',
+    'excerpt' => 'Excerpt fallback',
+    'content' => 'Content fallback',
+  ]) !== 'Excerpt fallback'
+) {
+  exit(10);
+}
+if (
+  voncms_pick_seo_description([
+    'meta_description' => '<p>&nbsp;</p>',
+    'excerpt' => '<p><br></p>',
+    'content' => 'Content fallback',
+  ]) !== 'Content fallback'
+) {
+  exit(11);
+}
+if (
+  !voncms_is_private_spa_shell_route('/admin/settings') ||
+  !voncms_is_private_spa_shell_route('/login') ||
+  voncms_is_private_spa_shell_route('/administrator')
+) {
+  exit(12);
+}
+$categoryPdo = new PDO('sqlite::memory:');
+$categoryPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$categoryPdo->exec(
+  'CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, slug TEXT, excerpt TEXT, image_url TEXT, category TEXT, status TEXT, scheduled_at TEXT, created_at TEXT)'
+);
+$categoryPdo->exec(
+  "INSERT INTO posts (title, slug, excerpt, image_url, category, status, scheduled_at, created_at) VALUES
+   ('One', 'one', '', '', 'Sukan', 'published', NULL, '2026-08-01 12:00:00'),
+   ('Two', 'two', '', '', 'Sukan', 'published', NULL, '2026-08-01 11:00:00'),
+   ('Three', 'three', '', '', 'sukan', 'published', NULL, '2026-08-01 10:00:00'),
+   ('Four', 'four', '', '', 'SUKAN', 'published', NULL, '2026-08-01 09:00:00'),
+   ('Draft', 'draft', '', '', 'SUKAN', 'draft', NULL, '2026-08-01 08:00:00')"
+);
+foreach (['Sukan', 'sukan', 'SUKAN'] as $categoryInput) {
+  $categoryMatch = voncms_fetch_public_category_match(
+    $categoryPdo,
+    $categoryInput,
+    '2026-08-02 12:00:00'
+  );
+  if (
+    ($categoryMatch['name'] ?? '') !== 'Sukan' ||
+    ($categoryMatch['postCount'] ?? 0) !== 4 ||
+    ($categoryMatch['caseFolded'] ?? false) !== true
+  ) {
+    exit(13);
+  }
+}
+if (!class_exists('ResponseHelper')) {
+  class ResponseHelper {
+    public static function scrubUrl($url) {
+      return (string) $url;
+    }
+  }
+}
+$categoryPosts = voncms_fetch_category_landing_posts(
+  $categoryPdo,
+  'Sukan',
+  '2026-08-02 12:00:00',
+  'slug',
+  true
+);
+if (count($categoryPosts) !== 4) {
+  exit(14);
+}
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+  const seoRouteHelperProbe = runSeoRouteHelperProbe(
+    'public/index.php',
+    'public/seo_route_helper.php'
+  );
+  const seoRouteHelperDistProbe = runSeoRouteHelperProbe(
+    'dist/index.php',
+    'dist/seo_route_helper.php'
+  );
+  if (
+    seoRouteHelperProbe.status === 0 &&
+    seoRouteHelperProbe.stdout.trim() === 'ok' &&
+    seoRouteHelperDistProbe.status === 0 &&
+    seoRouteHelperDistProbe.stdout.trim() === 'ok'
+  ) {
+    pass(
+      'SEO Route Helper Runtime: Source and Deploy root/subfolder crawler matching, nested-route rejection, category-case resolution, query normalization, metadata fallback, and private-route boundaries pass.'
+    );
+  } else {
+    fail(
+      `SEO Route Helper Runtime: Source or Deploy route/metadata behavior drifted. Source: ${(seoRouteHelperProbe.stderr || seoRouteHelperProbe.stdout || '').trim()} Deploy: ${(seoRouteHelperDistProbe.stderr || seoRouteHelperDistProbe.stdout || '').trim()}`
+    );
+  }
+
+  const seoRouteHelperDirectProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/seo_route_helper.php'))};
+require ${JSON.stringify(resolveFromRoot('public/seo_route_helper.php'))};
+echo 'unguarded';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (
+    seoRouteHelperDirectProbe.status === 0 &&
+    seoRouteHelperDirectProbe.stdout.trim() === 'Forbidden'
+  ) {
+    pass('SEO Route Helper Direct Access Runtime: direct execution stops at the 403 guard.');
+  } else {
+    fail(
+      `SEO Route Helper Direct Access Runtime: direct execution can pass the helper guard. ${(seoRouteHelperDirectProbe.stderr || seoRouteHelperDirectProbe.stdout || '').trim()}`
+    );
+  }
+
+  const runSeoResponseHelperProbe = (indexRelativePath, helperRelativePath) =>
+    spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot(indexRelativePath))};
+require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
+if (
+  voncms_normalize_public_redirect_path('/legacy?x=1', '/') !== '/legacy' ||
+  voncms_normalize_public_redirect_path('/blog/legacy/?x=1', '/blog/') !== '/legacy' ||
+  voncms_normalize_public_redirect_path('/blog', '/blog/') !== '/' ||
+  voncms_normalize_public_redirect_path('/blogger/story', '/blog/') !== '/blogger/story'
+) {
+  exit(2);
+}
+if (
+  !voncms_is_public_redirect_ignored_path('/api') ||
+  !voncms_is_public_redirect_ignored_path('/admin/settings') ||
+  !voncms_is_public_redirect_ignored_path('/assets/app.js') ||
+  !voncms_is_public_redirect_ignored_path('/uploads/image.jpg') ||
+  voncms_is_public_redirect_ignored_path('/apiary') ||
+  voncms_is_public_redirect_ignored_path('/administrator')
+) {
+  exit(3);
+}
+if (
+  !voncms_is_safe_public_redirect_target('/new-page') ||
+  !voncms_is_safe_public_redirect_target('https://outside.example/new-page') ||
+  voncms_is_safe_public_redirect_target('//outside.example/new-page') ||
+  voncms_is_safe_public_redirect_target('/\\outside.example/new-page') ||
+  voncms_is_safe_public_redirect_target('javascript:alert(1)') ||
+  voncms_is_safe_public_redirect_target("/new-page\r\nX-Test: injected") ||
+  voncms_normalize_redirect_status(308) !== 308 ||
+  voncms_normalize_redirect_status(999) !== 301 ||
+  voncms_normalize_redirect_host('Example.COM:8443') !== 'example.com:8443' ||
+  voncms_normalize_redirect_host('https://Example.COM:9443/path') !== 'example.com:9443' ||
+  voncms_normalize_redirect_host('https://Example.COM:443/path') !== 'example.com'
+) {
+  exit(4);
+}
+$redirectPdo = new PDO('sqlite::memory:');
+$redirectPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$redirectPdo->exec(
+  'CREATE TABLE redirects (source_url TEXT PRIMARY KEY, target_url TEXT, redirect_type INTEGER, hit_count INTEGER DEFAULT 0)'
+);
+$insertRedirect = $redirectPdo->prepare(
+  'INSERT INTO redirects (source_url, target_url, redirect_type) VALUES (?, ?, ?)'
+);
+$insertRedirect->execute(['/legacy', '/fresh', 302]);
+$insertRedirect->execute(['/loop', '/loop?again=1', 301]);
+$insertRedirect->execute(['/absolute-loop', 'https://example.com/absolute-loop', 301]);
+$insertRedirect->execute(['/default-port-loop', 'https://example.com:443/default-port-loop', 301]);
+$insertRedirect->execute(['/subfolder-loop', 'https://example.com/blog/subfolder-loop', 301]);
+$insertRedirect->execute(['/different-port', 'https://example.com:9443/different-port', 301]);
+$insertRedirect->execute(['/scheme-relative', '//outside.example/path', 301]);
+$insertRedirect->execute(['/external', 'https://outside.example/path', 308]);
+$insertRedirect->execute(['/bad-status', '/safe', 999]);
+$insertRedirect->execute(['/admin/settings', '/unsafe-admin-override', 301]);
+$resolvedRedirect = voncms_resolve_public_redirect(
+  $redirectPdo,
+  '/blog/legacy?campaign=1',
+  '/blog/',
+  'example.com:8443'
+);
+if (
+  ($resolvedRedirect['location'] ?? '') !== '/fresh' ||
+  ($resolvedRedirect['status'] ?? 0) !== 302 ||
+  ($resolvedRedirect['sourcePath'] ?? '') !== '/legacy'
+) {
+  exit(5);
+}
+voncms_record_public_redirect_hit($redirectPdo, $resolvedRedirect['sourcePath']);
+$hitCount = (int) $redirectPdo
+  ->query("SELECT hit_count FROM redirects WHERE source_url = '/legacy'")
+  ->fetchColumn();
+if ($hitCount !== 1) {
+  exit(6);
+}
+if (
+  voncms_resolve_public_redirect($redirectPdo, '/loop', '/', 'example.com') !== null ||
+  voncms_resolve_public_redirect($redirectPdo, '/absolute-loop', '/', 'example.com') !== null ||
+  voncms_resolve_public_redirect($redirectPdo, '/default-port-loop', '/', 'example.com') !== null ||
+  voncms_resolve_public_redirect(
+    $redirectPdo,
+    '/blog/subfolder-loop',
+    '/blog/',
+    'example.com'
+  ) !== null ||
+  voncms_resolve_public_redirect($redirectPdo, '/scheme-relative', '/', 'example.com') !== null ||
+  voncms_resolve_public_redirect($redirectPdo, '/admin/settings', '/', 'example.com') !== null
+) {
+  exit(7);
+}
+$externalRedirect = voncms_resolve_public_redirect(
+  $redirectPdo,
+  '/external',
+  '/',
+  'example.com'
+);
+$differentPortRedirect = voncms_resolve_public_redirect(
+  $redirectPdo,
+  '/different-port',
+  '/',
+  'example.com:8443'
+);
+$normalizedStatusRedirect = voncms_resolve_public_redirect(
+  $redirectPdo,
+  '/bad-status',
+  '/',
+  'example.com'
+);
+if (
+  ($externalRedirect['status'] ?? 0) !== 308 ||
+  ($differentPortRedirect['location'] ?? '') !== 'https://example.com:9443/different-port' ||
+  ($normalizedStatusRedirect['status'] ?? 0) !== 301
+) {
+  exit(8);
+}
+$seoTitle = 'Homepage';
+$seoDescription = 'Homepage description';
+$seoUrl = 'https://example.com/blog/';
+$seoRobots = 'index, follow';
+$schemaData = ['@type' => 'WebSite'];
+http_response_code(200);
+voncms_apply_not_found_response(
+  $seoTitle,
+  $seoDescription,
+  $seoUrl,
+  $seoRobots,
+  $schemaData,
+  'Example Site',
+  'https://example.com/blog',
+  '/missing/page'
+);
+if (
+  http_response_code() !== 404 ||
+  $seoTitle !== 'Page Not Found - Example Site' ||
+  $seoRobots !== 'noindex, follow' ||
+  $schemaData !== null ||
+  $seoUrl !== 'https://example.com/blog/missing/page'
+) {
+  exit(9);
+}
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+  const seoResponseHelperProbe = runSeoResponseHelperProbe(
+    'public/index.php',
+    'public/seo_response_helper.php'
+  );
+  const seoResponseHelperDistProbe = runSeoResponseHelperProbe(
+    'dist/index.php',
+    'dist/seo_response_helper.php'
+  );
+  if (
+    seoResponseHelperProbe.status === 0 &&
+    seoResponseHelperProbe.stdout.trim() === 'ok' &&
+    seoResponseHelperDistProbe.status === 0 &&
+    seoResponseHelperDistProbe.stdout.trim() === 'ok'
+  ) {
+    pass(
+      'SEO Response Helper Runtime: Source and Deploy root/subfolder normalization, protected boundaries, target safety, exact redirects, hit counts, status normalization, and complete 404 metadata pass.'
+    );
+  } else {
+    fail(
+      `SEO Response Helper Runtime: Source or Deploy redirect/404 behavior drifted. Source: ${(seoResponseHelperProbe.stderr || seoResponseHelperProbe.stdout || '').trim()} Deploy: ${(seoResponseHelperDistProbe.stderr || seoResponseHelperDistProbe.stdout || '').trim()}`
+    );
+  }
+
+  const seoResponseHelperDirectProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/seo_response_helper.php'))};
+require ${JSON.stringify(resolveFromRoot('public/seo_response_helper.php'))};
+echo 'unguarded';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (
+    seoResponseHelperDirectProbe.status === 0 &&
+    seoResponseHelperDirectProbe.stdout.trim() === 'Forbidden'
+  ) {
+    pass('SEO Response Helper Direct Access Runtime: direct execution stops at the 403 guard.');
+  } else {
+    fail(
+      `SEO Response Helper Direct Access Runtime: direct execution can pass the helper guard. ${(seoResponseHelperDirectProbe.stderr || seoResponseHelperDirectProbe.stdout || '').trim()}`
     );
   }
 

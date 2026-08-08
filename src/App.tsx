@@ -16,6 +16,7 @@ import { getPermalink } from './utils/siteUtils';
 import { vonFetch } from './utils/api';
 import { BASE_PATH, API } from './config/site.config';
 import { getCachedPublicPost } from './hooks/usePublicPostsQuery';
+import { normalizeDiscoveryQueryValue } from './utils/seoQuery';
 
 const SESSION_VISIBILITY_CHECK_COOLDOWN = 60 * 1000;
 
@@ -70,6 +71,8 @@ const SecurityDashboard = lazy(
 import NotFoundPage from './components/NotFoundPage';
 import MaintenancePage from './components/MaintenancePage';
 import SkeletonLoader from './components/SkeletonLoader';
+import AdminModal from './components/admin/AdminModal';
+import AdminNotFoundPage from './components/admin/AdminNotFoundPage';
 
 // Icons
 import { X, Pencil, LayoutDashboard } from 'lucide-react';
@@ -83,10 +86,11 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isQuickEditOpen, setIsQuickEditOpen] = useState(false);
+  const [isQuickEditDirty, setIsQuickEditDirty] = useState(false);
   const [editedPostOverride, setEditedPostOverride] = useState<Post | null>(null);
   const [editedPageOverride, setEditedPageOverride] = useState<Page | null>(null);
 
-  const categoryParam = searchParams.get('category');
+  const categoryParam = normalizeDiscoveryQueryValue(searchParams.get('category'), 100) || null;
 
   let currentView: 'home' | 'single-post' | 'page' | 'profile' | 'category' = 'home';
   let selectedPost = null;
@@ -272,6 +276,21 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   const quickEditItem = currentView === 'page' ? selectedPage : selectedPost;
   const quickEditIsPage = currentView === 'page';
 
+  const closeQuickEditor = () => {
+    setIsQuickEditOpen(false);
+    setIsQuickEditDirty(false);
+  };
+
+  const requestQuickEditorClose = () => {
+    if (
+      isQuickEditDirty &&
+      !window.confirm('Discard the unsaved changes in Quick Editor? This cannot be undone.')
+    ) {
+      return;
+    }
+    closeQuickEditor();
+  };
+
   const openDashboardEditor = () => {
     if (!props.handleEditContent || !props.user) return;
 
@@ -283,6 +302,17 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
     if (currentView === 'single-post' && selectedPost?.id) {
       props.handleEditContent(selectedPost.id, false, navigate, props.user);
     }
+  };
+
+  const openDashboardEditorFromQuickEdit = () => {
+    if (
+      isQuickEditDirty &&
+      !window.confirm('Open Dashboard Editor and discard the unsaved Quick Editor changes?')
+    ) {
+      return;
+    }
+    closeQuickEditor();
+    openDashboardEditor();
   };
 
   const handleQuickEditSave = async (
@@ -299,6 +329,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
       true,
       quickEditIsPage
     );
+    setIsQuickEditDirty(false);
 
     if (quickEditIsPage) {
       const savedPage = {
@@ -443,7 +474,10 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
         <div className="fixed bottom-5 right-5 z-40 flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => setIsQuickEditOpen(true)}
+            onClick={() => {
+              setIsQuickEditDirty(false);
+              setIsQuickEditOpen(true);
+            }}
             className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-xl shadow-blue-500/30 transition-colors hover:bg-blue-700"
           >
             <Pencil size={16} />
@@ -460,53 +494,61 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
         </div>
       )}
 
-      {isQuickEditOpen && quickEditItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 animate-fade-in">
-          <div className="flex h-[95vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Quick Edit {quickEditIsPage ? 'Page' : 'Post'}
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Save quick fixes without leaving the current page.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={openDashboardEditor}
-                  className="hidden rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:inline-flex sm:items-center sm:gap-2"
-                >
-                  <LayoutDashboard size={16} />
-                  Open Dashboard Editor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsQuickEditOpen(false)}
-                  className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
-                  aria-label="Close quick editor"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+      {quickEditItem && (
+        <AdminModal
+          isOpen={isQuickEditOpen}
+          onClose={requestQuickEditorClose}
+          ariaLabelledBy="quick-editor-title"
+          closeOnBackdrop={false}
+          className="flex h-[95vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950"
+        >
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+            <div>
+              <h3
+                id="quick-editor-title"
+                className="text-lg font-bold text-slate-900 dark:text-white"
+              >
+                Quick Edit {quickEditIsPage ? 'Page' : 'Post'}
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Save quick fixes without leaving the current page.
+              </p>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-4 md:p-6">
-              <Suspense fallback={<SkeletonLoader />}>
-                <PostEditor
-                  initialItem={quickEditItem}
-                  isPage={quickEditIsPage}
-                  navigation={props.settings.navigation}
-                  posts={posts}
-                  settings={props.settings}
-                  onSave={handleQuickEditSave}
-                  onBack={() => setIsQuickEditOpen(false)}
-                />
-              </Suspense>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={openDashboardEditorFromQuickEdit}
+                className="hidden rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:inline-flex sm:items-center sm:gap-2"
+              >
+                <LayoutDashboard size={16} />
+                Open Dashboard Editor
+              </button>
+              <button
+                type="button"
+                onClick={requestQuickEditorClose}
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label="Close quick editor"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
-        </div>
+
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+            <Suspense fallback={<SkeletonLoader />}>
+              <PostEditor
+                initialItem={quickEditItem}
+                isPage={quickEditIsPage}
+                navigation={props.settings.navigation}
+                posts={posts}
+                settings={props.settings}
+                onSave={handleQuickEditSave}
+                onBack={requestQuickEditorClose}
+                onDirtyChange={setIsQuickEditDirty}
+              />
+            </Suspense>
+          </div>
+        </AdminModal>
       )}
     </>
   );
@@ -987,6 +1029,7 @@ const App: React.FC = () => {
                               </ProtectedRoute>
                             }
                           />
+                          <Route path="*" element={<AdminNotFoundPage />} />
                         </Routes>
                       </AdminLayout>
                     </ProtectedRoute>

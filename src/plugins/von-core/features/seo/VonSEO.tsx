@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 import { Post, Page, SiteSettings, User } from '../../../../types';
 import { getPermalink } from '../../../../utils/siteUtils';
 import { API, BASE_PATH } from '../../../../config/site.config';
 import { htmlToPlainText } from '../../../../utils/security';
+import { hasNonemptySeoQueryValue } from '../../../../utils/seoQuery';
 import {
   normalizeArticleSchemaType,
   normalizeSchemaLanguage,
@@ -56,6 +58,25 @@ const normalizeSchemaDate = (value?: string) => {
   return parsed.toISOString();
 };
 
+const normalizeSeoDescriptionCandidate = (value?: string | null): string => {
+  const rawValue = value?.trim() || '';
+  if (!rawValue) return '';
+
+  const contentAttribute = rawValue.match(
+    /^\s*<meta\b[^>]*\bcontent=["']([^"']+)["'][^>]*>\s*$/i
+  )?.[1];
+  return htmlToPlainText(contentAttribute || rawValue);
+};
+
+const pickHydratedSeoDescription = (...values: Array<string | null | undefined>): string => {
+  for (const value of values) {
+    const normalized = normalizeSeoDescriptionCandidate(value);
+    if (normalized) return normalized;
+  }
+
+  return '';
+};
+
 interface VonSEOProps {
   settings: SiteSettings;
   currentView: 'home' | 'single-post' | 'page' | 'profile' | 'category';
@@ -75,6 +96,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
   selectedCategory,
   categoryPostCount,
 }) => {
+  const location = useLocation();
   const [fetchedCategoryPostCount, setFetchedCategoryPostCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -133,7 +155,12 @@ const VonSEO: React.FC<VonSEOProps> = ({
 
     if (currentView === 'single-post' && selectedPost) {
       title = `${selectedPost.title} | ${siteTitle}`;
-      description = selectedPost.metaDescription || selectedPost.excerpt || description;
+      description =
+        pickHydratedSeoDescription(
+          selectedPost.metaDescription,
+          selectedPost.excerpt,
+          selectedPost.content
+        ) || description;
       image = selectedPost.image || settings.ogImageUrl || image;
       type = 'article';
       // Use authoritative permalink for canonical
@@ -144,8 +171,11 @@ const VonSEO: React.FC<VonSEOProps> = ({
     } else if (currentView === 'page' && selectedPage) {
       title = `${selectedPage.title} | ${siteTitle}`;
       description =
-        selectedPage.excerpt ||
-        (selectedPage.content ? htmlToPlainText(selectedPage.content).slice(0, 160) : description);
+        pickHydratedSeoDescription(
+          selectedPage.metaDescription,
+          selectedPage.excerpt,
+          selectedPage.content
+        ) || description;
       type = 'website';
       canonical = canonicalUrl(selectedPage.slug);
     } else if (currentView === 'profile' && selectedProfile) {
@@ -164,13 +194,19 @@ const VonSEO: React.FC<VonSEOProps> = ({
             ? fetchedCategoryPostCount > 0
             : !existingRobots.trim().toLowerCase().startsWith('noindex');
       title = `${selectedCategory} - ${siteTitle}`;
-      description = categoryHasPosts
-        ? `Latest ${selectedCategory} articles, news, and updates on ${settings.siteName}.`
-        : `Browse ${selectedCategory} articles and updates on ${settings.siteName}.`;
+      const categoryDescriptionContext = settings.siteDescription?.trim() || settings.siteName;
+      description = `${selectedCategory} - ${categoryDescriptionContext}`;
       canonical = `${canonicalBase}/?category=${encodeURIComponent(selectedCategory)}`;
       hydratedRobots = categoryHasPosts
         ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1'
         : 'noindex, follow';
+    }
+    const hasPublicSearchQuery = Array.from(new URLSearchParams(location.search).entries()).some(
+      ([key, value]) =>
+        (key === 'search' || key.startsWith('search[')) && hasNonemptySeoQueryValue(value)
+    );
+    if (hasPublicSearchQuery) {
+      hydratedRobots = 'noindex, follow';
     }
     description = truncateSchemaText(description, 160);
 
@@ -206,11 +242,37 @@ const VonSEO: React.FC<VonSEOProps> = ({
     ensureMeta('og:url', 'property', canonical);
     ensureMeta('og:site_name', 'property', settings.siteName);
     ensureMeta('og:type', 'property', type);
+    const schemaLanguage = normalizeSchemaLanguage(settings.site_language);
+    const openGraphLocale =
+      schemaLanguage === 'ms'
+        ? 'ms_MY'
+        : /^[a-z]{2,3}-[A-Z]{2}$/.test(schemaLanguage)
+          ? schemaLanguage.replace('-', '_')
+          : '';
+    ensureMeta('og:locale', 'property', openGraphLocale);
 
     const ogImage = image || settings.ogImageSquareUrl || '';
     const absoluteOgImage = toAbsolute(ogImage);
+    const currentOgImage =
+      document.head.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+    const currentImageWidth = Number(
+      document.head.querySelector('meta[property="og:image:width"]')?.getAttribute('content') || 0
+    );
+    const currentImageHeight = Number(
+      document.head.querySelector('meta[property="og:image:height"]')?.getAttribute('content') || 0
+    );
+    const canReuseSocialImageDimensions =
+      currentOgImage === absoluteOgImage &&
+      Number.isFinite(currentImageWidth) &&
+      currentImageWidth > 0 &&
+      Number.isFinite(currentImageHeight) &&
+      currentImageHeight > 0;
     ensureMeta('og:image', 'property', absoluteOgImage);
     ensureMeta('og:image:alt', 'property', absoluteOgImage ? title : '');
+    if (!canReuseSocialImageDimensions) {
+      ensureMeta('og:image:width', 'property', '');
+      ensureMeta('og:image:height', 'property', '');
+    }
 
     // --- 6. Twitter Cards ---
     // If we have a square image but no large image, use 'summary'. Large image -> 'summary_large_image'
@@ -227,6 +289,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     ensureMeta('twitter:title', 'name', title);
     ensureMeta('twitter:description', 'name', description);
     ensureMeta('twitter:image', 'name', twitterImage);
+    ensureMeta('twitter:image:alt', 'name', twitterImage ? title : '');
 
     // --- 7. JSON-LD (Advanced Schema) ---
     const jsonLd: any = {
@@ -235,24 +298,25 @@ const VonSEO: React.FC<VonSEOProps> = ({
     };
 
     // Organization Node
+    const organizationLogoUrl = toAbsolute(settings.logoUrl || '');
     const orgNode = {
       '@type': 'Organization',
       '@id': `${canonicalBase}/#organization`,
       name: settings.siteName,
       url: canonicalBase,
-      logo: {
-        '@type': 'ImageObject',
-        url: toAbsolute(settings.logoUrl || ''),
-      },
+      ...(organizationLogoUrl
+        ? { logo: { '@type': 'ImageObject', url: organizationLogoUrl } }
+        : {}),
     };
 
     // WebSite Node
     const websiteNode = {
       '@type': 'WebSite',
       '@id': `${canonicalBase}/#website`,
-      url: canonicalBase,
+      url: canonicalUrl(),
       name: settings.siteName,
       publisher: { '@id': `${canonicalBase}/#organization` },
+      ...(settings.siteDescription?.trim() ? { description: settings.siteDescription.trim() } : {}),
     };
 
     jsonLd['@graph'].push(orgNode, websiteNode);
@@ -269,7 +333,17 @@ const VonSEO: React.FC<VonSEOProps> = ({
         '@id': `${canonical}#article`,
         headline: selectedPost.title,
         description: description,
-        image: absoluteOgImage ? [absoluteOgImage] : [],
+        image: absoluteOgImage
+          ? [
+              {
+                '@type': 'ImageObject',
+                url: absoluteOgImage,
+                ...(canReuseSocialImageDimensions
+                  ? { width: currentImageWidth, height: currentImageHeight }
+                  : {}),
+              },
+            ]
+          : [],
         datePublished: normalizeSchemaDate(selectedPost.createdAt || selectedPost.updatedAt),
         dateModified: normalizeSchemaDate(selectedPost.updatedAt || selectedPost.createdAt),
         author: { '@type': 'Person', name: selectedPost.author, url: authorProfileUrl },
@@ -349,6 +423,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     selectedCategory,
     categoryPostCount,
     fetchedCategoryPostCount,
+    location.search,
   ]);
 
   return null;

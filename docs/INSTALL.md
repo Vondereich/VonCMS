@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.26.2 "After Hours"**
+> **VonCMS v1.26.4 "After Hours"**
 
 ---
 
@@ -63,7 +63,7 @@ inspection, but it cannot replace host-root robots configuration.
 
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package. For v1.26.2, the file is `VonCMS_v1.26.2_Deploy.zip`.
+1. Download the latest VonCMS Deploy package. For v1.26.4, the file is `VonCMS_v1.26.4_Deploy.zip`.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -128,4 +128,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.26.2 "After Hours"_
+_VonCMS v1.26.4 "After Hours"_

@@ -12,6 +12,8 @@ if ($seoSchemaHelperPath !== false && $requestedScriptPath === $seoSchemaHelperP
 }
 unset($seoSchemaHelperPath, $requestedScriptPath);
 
+require_once __DIR__ . '/seo_route_helper.php';
+
 if (!function_exists('voncms_truncate_word_safe')) {
   /**
    * @param mixed $value
@@ -61,13 +63,25 @@ if (!function_exists('voncms_clean_seo_description')) {
       return '';
     }
 
-    if (preg_match('/content=["\']([^"\']+)["\']/', $description, $matches)) {
+    $description =
+      preg_replace(
+        '#<(script|style|noscript|template)\b[^>]*>.*?(?:</\1\s*>|$)#is',
+        '',
+        $description,
+      ) ?? $description;
+
+    if (
+      preg_match(
+        '/^\s*<meta\b[^>]*\bcontent=["\']([^"\']+)["\'][^>]*>\s*$/i',
+        $description,
+        $matches,
+      )
+    ) {
       $description = $matches[1];
     }
 
     $description = strip_tags($description);
     $description = html_entity_decode($description, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $description = str_replace('"', "'", $description);
 
     return voncms_truncate_word_safe($description, 160);
   }
@@ -177,30 +191,107 @@ if (!function_exists('voncms_absolute_public_url')) {
   }
 }
 
-if (!function_exists('voncms_build_schema_publisher')) {
+if (!function_exists('voncms_schema_entity_id')) {
+  /**
+   * @param string $domainUrl
+   * @param string $entity
+   * @return string
+   */
+  function voncms_schema_entity_id($domainUrl, $entity): string
+  {
+    $entity = $entity === 'website' ? 'website' : 'organization';
+
+    return rtrim((string) $domainUrl, '/') . '/#' . $entity;
+  }
+}
+
+if (!function_exists('voncms_build_schema_organization')) {
   /**
    * @param string $siteName
    * @param string $domainUrl
    * @param string $logoUrl
    * @return array<string, mixed>
    */
-  function voncms_build_schema_publisher($siteName, $domainUrl, $logoUrl)
+  function voncms_build_schema_organization($siteName, $domainUrl, $logoUrl): array
   {
-    $publisher = [
+    $organization = [
       '@type' => 'Organization',
-      'name' => $siteName,
-      'url' => $domainUrl,
+      '@id' => voncms_schema_entity_id($domainUrl, 'organization'),
+      'name' => trim((string) $siteName) !== '' ? trim((string) $siteName) : 'My Website',
+      'url' => rtrim((string) $domainUrl, '/'),
     ];
 
     $absoluteLogoUrl = voncms_absolute_public_url($logoUrl, $domainUrl);
     if ($absoluteLogoUrl !== '') {
-      $publisher['logo'] = [
+      $organization['logo'] = [
         '@type' => 'ImageObject',
         'url' => $absoluteLogoUrl,
       ];
     }
 
-    return $publisher;
+    return $organization;
+  }
+}
+
+if (!function_exists('voncms_build_site_identity_schema_graph')) {
+  /**
+   * @param array<string, mixed> $schemaData
+   * @param string $siteName
+   * @param string $siteDescription
+   * @param string $domainUrl
+   * @param string $logoUrl
+   * @param array<int, array<string, mixed>> $additionalNodes
+   * @return array<string, mixed>
+   */
+  function voncms_build_site_identity_schema_graph(
+    array $schemaData,
+    $siteName,
+    $siteDescription,
+    $domainUrl,
+    $logoUrl,
+    array $additionalNodes = [],
+  ): array {
+    $normalizedDomainUrl = rtrim((string) $domainUrl, '/');
+    $organizationId = voncms_schema_entity_id($normalizedDomainUrl, 'organization');
+    $websiteNode = [
+      '@type' => 'WebSite',
+      '@id' => voncms_schema_entity_id($normalizedDomainUrl, 'website'),
+      'url' => $normalizedDomainUrl . '/',
+      'name' => trim((string) $siteName) !== '' ? trim((string) $siteName) : 'My Website',
+      'publisher' => ['@id' => $organizationId],
+    ];
+    $normalizedDescription = trim((string) $siteDescription);
+    if ($normalizedDescription !== '') {
+      $websiteNode['description'] = $normalizedDescription;
+    }
+
+    unset($schemaData['@context']);
+    $primaryType = (string) ($schemaData['@type'] ?? '');
+    if ($primaryType === 'WebSite') {
+      $websiteNode = array_merge($schemaData, $websiteNode);
+    } elseif (in_array($primaryType, ['Article', 'NewsArticle', 'BlogPosting'], true)) {
+      $schemaData['publisher'] = ['@id' => $organizationId];
+    }
+
+    $graph = [
+      voncms_build_schema_organization($siteName, $normalizedDomainUrl, $logoUrl),
+      $websiteNode,
+    ];
+    if ($primaryType !== '' && !in_array($primaryType, ['Organization', 'WebSite'], true)) {
+      $graph[] = $schemaData;
+    }
+    foreach ($additionalNodes as $node) {
+      unset($node['@context']);
+      $nodeType = (string) ($node['@type'] ?? '');
+      if ($nodeType !== '' && !in_array($nodeType, ['Organization', 'WebSite'], true)) {
+        $graph[] = $node;
+      }
+    }
+
+    return [
+      '@context' => 'https://schema.org',
+      '@graph' => $graph,
+    ];
   }
 }
 
@@ -212,9 +303,7 @@ if (!function_exists('voncms_apply_content_schema')) {
    * @param string $seoDescription
    * @param string $seoImage
    * @param string $seoUrl
-   * @param string $siteName
    * @param string $domainUrl
-   * @param string $logoUrl
    * @return void
    */
   function voncms_apply_content_schema(
@@ -224,9 +313,7 @@ if (!function_exists('voncms_apply_content_schema')) {
     $seoDescription,
     $seoImage,
     $seoUrl,
-    $siteName,
     $domainUrl,
-    $logoUrl,
     $articleSchemaType = 'Article',
     $schemaLanguage = '',
   ) {
@@ -248,7 +335,12 @@ if (!function_exists('voncms_apply_content_schema')) {
     $schemaData['description'] = $seoDescription;
     $schemaData['url'] = $seoUrl;
     if ($seoImage !== '') {
-      $schemaData['image'] = [$seoImage];
+      $schemaData['image'] = [
+        [
+          '@type' => 'ImageObject',
+          'url' => $seoImage,
+        ],
+      ];
     }
     $schemaData['datePublished'] = !empty($content['created_at'])
       ? date('c', strtotime((string) $content['created_at']))
@@ -266,7 +358,9 @@ if (!function_exists('voncms_apply_content_schema')) {
     }
 
     if ($contentType === 'post') {
-      $schemaData['publisher'] = voncms_build_schema_publisher($siteName, $domainUrl, $logoUrl);
+      $schemaData['publisher'] = [
+        '@id' => voncms_schema_entity_id($domainUrl, 'organization'),
+      ];
       $schemaData['mainEntityOfPage'] = [
         '@type' => 'WebPage',
         '@id' => $seoUrl,
@@ -282,48 +376,6 @@ if (!function_exists('voncms_apply_content_schema')) {
     $schemaData['dateModified'] = !empty($content['updated_at'])
       ? date('c', strtotime((string) $content['updated_at']))
       : $schemaData['datePublished'];
-  }
-}
-
-if (!function_exists('voncms_fetch_category_landing_posts')) {
-  /**
-   * @param PDO $pdo
-   * @param string $category
-   * @param string $currentTime
-   * @param string $permalinkStyle
-   * @return array<int, array<string, mixed>>
-   */
-  function voncms_fetch_category_landing_posts(
-    PDO $pdo,
-    string $category,
-    string $currentTime,
-    string $permalinkStyle,
-  ): array {
-    $statement = $pdo->prepare(
-      "SELECT id, title, slug, excerpt, image_url, category, created_at
-       FROM posts
-       WHERE status = 'published'
-         AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)
-         AND category = :category
-       ORDER BY CASE WHEN scheduled_at IS NOT NULL THEN scheduled_at ELSE created_at END DESC,
-                created_at DESC,
-                id DESC
-       LIMIT 5",
-    );
-    $statement->bindValue(':currentTime', $currentTime);
-    $statement->bindValue(':category', $category);
-    $statement->execute();
-    $posts = $statement->fetchAll(PDO::FETCH_ASSOC);
-
-    foreach ($posts as &$post) {
-      $post['url'] = buildCanonicalContentPath($post, $permalinkStyle, 'post');
-      $post['image_url'] = !empty($post['image_url'])
-        ? ResponseHelper::scrubUrl($post['image_url'])
-        : '';
-    }
-    unset($post);
-
-    return $posts;
   }
 }
 
@@ -373,44 +425,5 @@ if (!function_exists('voncms_apply_category_collection_items')) {
       'numberOfItems' => max(0, $totalPosts),
       'itemListElement' => $itemList,
     ];
-  }
-}
-
-if (!function_exists('voncms_apply_404_seo_metadata')) {
-  /**
-   * @param mixed $seoTitle
-   * @param mixed $seoDescription
-   * @param mixed $seoUrl
-   * @param mixed $seoRobots
-   * @param mixed $schemaData
-   * @param mixed $siteName
-   * @param string $domainUrl
-   * @param string $requestPath
-   * @return void
-   */
-  function voncms_apply_404_seo_metadata(
-    &$seoTitle,
-    &$seoDescription,
-    &$seoUrl,
-    &$seoRobots,
-    &$schemaData,
-    $siteName,
-    $domainUrl,
-    $requestPath,
-  ) {
-    $siteName = trim((string) $siteName);
-    if ($siteName === '') {
-      $siteName = 'Website';
-    }
-
-    $seoTitle = 'Page Not Found - ' . $siteName;
-    $seoDescription = 'The requested page could not be found on ' . $siteName . '.';
-    $seoRobots = 'noindex, follow';
-    $schemaData = null;
-
-    $safePath = trim((string) $requestPath);
-    $safePath = preg_replace('/[\r\n\t]+/', '', $safePath);
-    $safePath = ltrim((string) $safePath, '/');
-    $seoUrl = rtrim((string) $domainUrl, '/') . ($safePath !== '' ? '/' . $safePath : '/');
   }
 }

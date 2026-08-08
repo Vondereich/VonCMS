@@ -13,31 +13,7 @@
 ob_start();
 require_once __DIR__ . '/von_config.php';
 require_once __DIR__ . '/security.php';
-
-if (!function_exists('voncms_category_slug')) {
-  /**
-   * @param mixed $category
-   * @return string
-   */
-  function voncms_category_slug($category)
-  {
-    $categorySlug = html_entity_decode(trim((string) $category), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    if ($categorySlug === '') {
-      return 'uncategorized';
-    }
-
-    $categorySlug = function_exists('mb_strtolower')
-      ? mb_strtolower($categorySlug, 'UTF-8')
-      : strtolower($categorySlug);
-    $categorySlug = preg_replace('/[^\p{L}\p{N}\s_-]+/u', '', $categorySlug);
-    $categorySlug = str_replace('_', ' ', $categorySlug ?? '');
-    $categorySlug = preg_replace('/\s+/u', '-', $categorySlug);
-    $categorySlug = preg_replace('/-+/', '-', $categorySlug);
-    $categorySlug = trim((string) $categorySlug, '-');
-
-    return $categorySlug !== '' ? $categorySlug : 'uncategorized';
-  }
-}
+require_once __DIR__ . '/seo_route_helper.php';
 ob_end_clean();
 
 // Set plain text header

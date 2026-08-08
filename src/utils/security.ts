@@ -586,7 +586,11 @@ export const sanitizePastedHtml = (content: string): string => {
 export const htmlToPlainText = (content?: string | null): string => {
   if (!content) return '';
 
-  return (DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }) as string)
+  const sanitized = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }) as string;
+  const decoder = document.createElement('textarea');
+  decoder.innerHTML = sanitized;
+
+  return decoder.value
     .replace(/\u00A0/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
