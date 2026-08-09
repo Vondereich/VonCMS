@@ -421,7 +421,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                       <div className="h-48 overflow-hidden relative bg-slate-100 dark:bg-neutral-800">
                         {post.image && (
                           <img
-                            {...getResponsiveImageAttributes(post, 'card')}
+                            {...getResponsiveImageAttributes(post, 'gridThreeFromMd')}
                             alt={post.title}
                             loading="lazy"
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"

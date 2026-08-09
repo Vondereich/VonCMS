@@ -486,7 +486,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                         {post.image && (
                           <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 border border-white/10">
                             <img
-                              {...getResponsiveImageAttributes(post, 'card')}
+                              {...getResponsiveImageAttributes(post, 'thumbnail96')}
                               alt={post.title}
                               loading="lazy"
                               className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"

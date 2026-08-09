@@ -3,7 +3,7 @@
  */
 export { useAuth } from './useAuth';
 export { useComments } from './useComments';
-export { useContent } from './useContent';
+export { createEmptyEditorItem, useContent } from './useContent';
 export { useSettings } from './useSettings';
 export { useUsers } from './useUsers';
 

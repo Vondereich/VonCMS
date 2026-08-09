@@ -43,9 +43,6 @@ class SecurityLogger
       $isBlocked = $blocked ? 1 : 0;
 
       $stmt->execute([$eventType, $ip, $userAgent, $endpoint, $severity, $jsonDetails, $isBlocked]);
-
-      // Auto-Purge: Delete data older than 30 days (Reliable: check on every log event)
-      $pdo->exec('DELETE FROM security_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)');
     } catch (Exception $e) {
       // Silently fail to log to DB, but log to error log
       error_log('SecurityLogger Error: ' . $e->getMessage());

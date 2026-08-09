@@ -5,6 +5,7 @@ import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 
 const CHECKPOINT_KEY = 'voncms_wp_import_checkpoint';
+const CHECKPOINT_VERSION = 2;
 const BATCH_LIMIT = 10;
 
 interface ScanStats {
@@ -15,6 +16,7 @@ interface ScanStats {
 }
 
 interface ImportCheckpoint {
+  version: number;
   fileName: string;
   tempFile: string;
   stats: ScanStats;
@@ -55,8 +57,10 @@ export const WPMigrator: React.FC = () => {
       const raw = window.localStorage.getItem(CHECKPOINT_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as ImportCheckpoint;
-      if (parsed?.tempFile && parsed?.stats) {
+      if (parsed?.version === CHECKPOINT_VERSION && parsed?.tempFile && parsed?.stats) {
         setResumeCheckpoint(parsed);
+      } else {
+        window.localStorage.removeItem(CHECKPOINT_KEY);
       }
     } catch (error) {
       // Ignore malformed checkpoints.
@@ -85,6 +89,7 @@ export const WPMigrator: React.FC = () => {
     if (!stats || !tempFile) return null;
 
     return {
+      version: CHECKPOINT_VERSION,
       fileName,
       tempFile,
       stats,
@@ -158,6 +163,7 @@ export const WPMigrator: React.FC = () => {
         setStep('ready');
 
         persistCheckpoint({
+          version: CHECKPOINT_VERSION,
           fileName: file.name,
           tempFile: data.temp_file,
           stats: data.stats,
@@ -313,7 +319,7 @@ export const WPMigrator: React.FC = () => {
     if (!stats || !tempFile) return;
 
     setStep('importing');
-    const total = stats.posts + stats.pages;
+    const total = stats.posts + stats.pages + stats.media;
     const startMessage =
       nextBatchIndex > 0
         ? `Resuming migration from batch ${nextBatchIndex + 1}...`

@@ -17,6 +17,9 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 SessionManager::requireStaff();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
 
 try {
   if (!isset($pdo) || $pdo === null) {

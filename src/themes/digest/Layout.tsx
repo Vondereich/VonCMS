@@ -23,7 +23,7 @@ import {
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPermalink, type ResponsiveImageMode } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 
@@ -392,7 +392,7 @@ const DigestHero: React.FC<{
         >
           {article.image ? (
             <img
-              {...getResponsiveImageAttributes(article, 'hero')}
+              {...getResponsiveImageAttributes(article, 'portalHero')}
               alt={decodeEntities(article.title)}
               fetchPriority="high"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -483,7 +483,17 @@ const DigestCard: React.FC<{
   onCategoryClick?: (category: string) => void;
   authorEmail?: string;
   authorAvatar?: string;
-}> = ({ article, colors, settings, onClick, onCategoryClick, authorEmail, authorAvatar }) => (
+  imageMode?: ResponsiveImageMode;
+}> = ({
+  article,
+  colors,
+  settings,
+  onClick,
+  onCategoryClick,
+  authorEmail,
+  authorAvatar,
+  imageMode = 'gridTwoMd',
+}) => (
   <div
     className="digest-card group cursor-pointer rounded-xl overflow-hidden border"
     onClick={() => onClick(article.id)}
@@ -493,8 +503,9 @@ const DigestCard: React.FC<{
     <div className="aspect-16/10 overflow-hidden relative">
       {article.image ? (
         <img
-          {...getResponsiveImageAttributes(article, 'card')}
+          {...getResponsiveImageAttributes(article, imageMode)}
           alt={decodeEntities(article.title)}
+          loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
       ) : (
@@ -1661,7 +1672,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                   return (
                     <div className="aspect-video rounded-2xl overflow-hidden mb-8">
                       <img
-                        {...getResponsiveImageAttributes(selectedPost, 'hero')}
+                        {...getResponsiveImageAttributes(selectedPost, 'articleHero')}
                         alt={decodeEntities(selectedPost.title)}
                         className="w-full h-full object-cover"
                       />
@@ -2057,6 +2068,13 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                   settings={settings}
                   onClick={onPostClick}
                   onCategoryClick={onCategoryClick}
+                  imageMode={
+                    digestSettings.gridColumns === 4
+                      ? 'gridFourSm'
+                      : digestSettings.gridColumns === 3
+                        ? 'gridThreeSm'
+                        : 'gridTwoSm'
+                  }
                   authorEmail={
                     allUsers.find((u) => u.username === (post.author_data?.username || post.author))
                       ?.email

@@ -376,6 +376,11 @@ const PostEditor: React.FC<PostEditorProps> = ({
       }
     }
 
+    if (status === 'scheduled' && !isPage && !(itemForSave as Post).scheduledAt?.trim()) {
+      if (!isAutoSave) notify.error('Please choose a date and time before scheduling.');
+      return;
+    }
+
     // Safety: Prevent rescheduling already published posts
     if (initialItem && initialItem.status === 'published' && status === 'scheduled') {
       if (!isAutoSave) notify.error('Cannot schedule an already published post.');
@@ -407,6 +412,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
       const savedData = await onSave(itemToSave as Post | Page, addToMenu, isAutoSave);
       const savedSnapshot = buildSavedSnapshot(itemToSave as Post | Page, savedData);
+      const savedStatus = savedSnapshot.status || status;
       initialItemRef.current = savedSnapshot;
       initialAddToMenuRef.current = addToMenu;
       itemRef.current = savedSnapshot;
@@ -423,9 +429,11 @@ const PostEditor: React.FC<PostEditorProps> = ({
         const isUpdate = !!initialItem?.id;
         const contentType = isPage ? 'Page' : 'Post';
         if (manualSaveToastId) notify.dismiss(manualSaveToastId);
-        if (status === 'draft') {
+        if (status === 'scheduled' && savedStatus !== 'scheduled') {
+          notify.error(`${contentType} could not be scheduled and was saved as a draft.`);
+        } else if (savedStatus === 'draft') {
           notify.success(`${contentType} draft saved!`);
-        } else if (status === 'scheduled') {
+        } else if (savedStatus === 'scheduled') {
           notify.success(`${contentType} scheduled successfully!`);
         } else {
           notify.success(isUpdate ? `${contentType} updated!` : `${contentType} published!`);
@@ -674,11 +682,18 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const publishingChecks = [
     { label: 'Title', ready: Boolean(item.title?.trim()) },
     { label: 'Content', ready: Boolean(getPostEditorCleanText(item.content || '')) },
+    { label: 'Slug', ready: Boolean(item.slug?.trim()) },
+    {
+      label: 'Excerpt / Meta',
+      ready: Boolean(item.excerpt?.trim() || item.metaDescription?.trim()),
+    },
     ...(!isPage
       ? [
+          { label: 'Featured Image', ready: Boolean((item as Post).image?.trim()) },
+          { label: 'Category', ready: Boolean((item as Post).category?.trim()) },
           {
             label: 'Schedule',
-            ready: item.status !== 'scheduled' || Boolean((item as Post).scheduledAt),
+            ready: item.status !== 'scheduled' || Boolean((item as Post).scheduledAt?.trim()),
           },
         ]
       : []),

@@ -33,10 +33,15 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
   if (!empty($user['avatar'])) {
     $user['avatar'] = ResponseHelper::scrubAvatarUrl($user['avatar']);
   }
+  $csrfToken = CSRFProtection::generateToken();
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
   echo json_encode([
     'success' => true,
     'authenticated' => true,
     'user' => $user,
+    'csrf_token' => $csrfToken,
   ]);
 } else {
   $rememberCookieName = 'voncms_remember';
@@ -105,6 +110,10 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
               'samesite' => 'Lax',
             ]);
 
+            if (session_status() === PHP_SESSION_ACTIVE) {
+              session_write_close();
+            }
+
             echo json_encode([
               'success' => true,
               'authenticated' => true,
@@ -139,5 +148,8 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
     ]);
   }
 
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
   echo json_encode(['success' => true, 'authenticated' => false, 'user' => null]);
 }

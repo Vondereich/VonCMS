@@ -34,6 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'POST
 // Session already started in security.php
 $isAdmin = SessionManager::isAdmin();
 $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
 $publicSettingsCacheKey = voncms_public_cache_key('settings-public', ['scope' => 'guest']);
 
 if (!$isAdmin) {

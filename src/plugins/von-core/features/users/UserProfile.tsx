@@ -437,7 +437,8 @@ const UserProfile: React.FC<ProfileProps> = ({
                     <div className="w-24 h-24 rounded-xl bg-neutral-200 dark:bg-neutral-800 overflow-hidden shrink-0">
                       {post.image && (
                         <img
-                          {...getResponsiveImageAttributes(post, 'card')}
+                          {...getResponsiveImageAttributes(post, 'thumbnail96')}
+                          loading="lazy"
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           alt={post.title}
                         />

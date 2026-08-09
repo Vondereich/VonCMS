@@ -241,7 +241,7 @@ function HeroArticle({
         >
           {article.image ? (
             <img
-              {...getResponsiveImageAttributes(article, 'hero')}
+              {...getResponsiveImageAttributes(article, 'portalHero')}
               alt={decodeEntities(article.title)}
               fetchPriority="high"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -367,7 +367,7 @@ function NewsCard({
         >
           {article.image && (
             <img
-              {...getResponsiveImageAttributes(article, 'card')}
+              {...getResponsiveImageAttributes(article, 'gridFourMd')}
               alt={decodeEntities(article.title)}
               loading="lazy"
               className="absolute inset-0 w-full h-full object-cover"
@@ -460,7 +460,7 @@ function NewsCard({
       >
         {article.image && (
           <img
-            {...getResponsiveImageAttributes(article, 'card')}
+            {...getResponsiveImageAttributes(article, 'listCard')}
             alt={decodeEntities(article.title)}
             loading="lazy"
             className="absolute inset-0 w-full h-full object-cover"
@@ -1179,7 +1179,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       style={{ borderColor: colors.border }}
                     >
                       <img
-                        {...getResponsiveImageAttributes(selectedPost, 'hero')}
+                        {...getResponsiveImageAttributes(selectedPost, 'articleHero')}
                         alt={decodeEntities(selectedPost.title)}
                         className="w-full h-full object-cover"
                       />

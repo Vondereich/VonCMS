@@ -76,6 +76,7 @@ const INITIAL_SETTINGS: SiteSettings = {
 export function useSettings() {
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
   const settingsRef = useRef<SiteSettings>(INITIAL_SETTINGS);
+  const loadSettingsInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -103,8 +104,7 @@ export function useSettings() {
     };
   }, []);
 
-  // Load settings from database
-  const loadSettings = useCallback(async () => {
+  const executeSettingsRequest = useCallback(async (): Promise<void> => {
     try {
       const res = await vonFetch(API.settings);
       if (res.ok) {
@@ -135,6 +135,31 @@ export function useSettings() {
       console.error('Failed to load settings from database:', e);
     }
   }, []);
+
+  // Load settings from database. Same-scope callers share one request, while login can queue a
+  // protected refresh after a guest request that was already in flight.
+  const loadSettings = useCallback(
+    async (forceRefresh = false): Promise<void> => {
+      const activeRequest = loadSettingsInFlightRef.current;
+      if (activeRequest) {
+        await activeRequest;
+        if (!forceRefresh) {
+          return;
+        }
+      }
+
+      const request = executeSettingsRequest();
+      loadSettingsInFlightRef.current = request;
+      try {
+        await request;
+      } finally {
+        if (loadSettingsInFlightRef.current === request) {
+          loadSettingsInFlightRef.current = null;
+        }
+      }
+    },
+    [executeSettingsRequest]
+  );
 
   // Update settings
   const handleUpdateSettings = useCallback(

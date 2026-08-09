@@ -420,10 +420,11 @@ const CorporateProfile: React.FC<{
                   <img
                     {...getResponsiveImageAttributes(
                       post,
-                      'card',
+                      'thumbnail96',
                       'https://via.placeholder.com/150'
                     )}
                     alt={decodeEntities(post.title)}
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-110 transition"
                   />
                 </div>
@@ -994,6 +995,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000'
               }
               alt="About Us"
+              loading="lazy"
               className="rounded-2xl shadow-2xl relative z-10 w-full object-cover aspect-4/3"
             />
           </div>
@@ -1265,7 +1267,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
 
                       return (
                         <img
-                          {...getResponsiveImageAttributes(selectedPost, 'hero')}
+                          {...getResponsiveImageAttributes(selectedPost, 'articleHero')}
                           alt={decodeEntities(selectedPost.title)}
                           className="w-full h-auto rounded-2xl shadow-lg mt-8 mb-8"
                         />
@@ -1468,10 +1470,11 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                                     <img
                                       {...getResponsiveImageAttributes(
                                         post,
-                                        'card',
+                                        'gridThreeFromMd',
                                         'https://via.placeholder.com/800x600'
                                       )}
                                       alt={decodeEntities(post.title)}
+                                      loading="lazy"
                                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                     />
                                     <button

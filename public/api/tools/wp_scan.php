@@ -54,8 +54,10 @@ debug_log('Script accessed. Server Req Method: ' . $_SERVER['REQUEST_METHOD']);
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$userRole = strtolower($_SESSION['user']['role'] ?? '');
 SessionManager::requirePrimaryAdmin();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
 
 debug_log('Config loaded + Auth verified.');
 debug_log('Starting scan process... (Phase 2)');

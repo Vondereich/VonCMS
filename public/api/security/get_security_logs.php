@@ -27,8 +27,11 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 }
 
 SessionManager::requireAdmin();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
 
-// Session already started in security.php (by SessionManager::requireValidSession() or security.php)
+// Authorization is captured above; database work no longer holds the PHP session lock.
 
 // Admin only access
 
@@ -161,27 +164,23 @@ try {
   // Get Aggregates (if requesting page 1)
   $stats = [];
   if (!isset($_GET['page']) || $_GET['page'] == 1) {
-    // Today's blocked threats
-    $todaySql =
-      'SELECT COUNT(*) as count FROM security_logs WHERE DATE(created_at) = CURDATE() AND blocked = 1';
-    $stmt = $pdo->query($todaySql);
-    $stats['blocked_today'] = $stmt->fetch()['count'];
-
-    // Active threats (last hour)
-    $hourSql =
-      'SELECT COUNT(*) as count FROM security_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)';
-    $stmt = $pdo->query($hourSql);
-    $stats['active_last_hour'] = $stmt->fetch()['count'];
-
-    // High severity today
-    $highSql =
-      "SELECT COUNT(*) as count FROM security_logs WHERE (severity = 'high' OR severity = 'critical') AND DATE(created_at) = CURDATE()";
-    $stmt = $pdo->query($highSql);
-    $stats['high_severity_today'] = $stmt->fetch()['count'];
+    // One indexed-friendly aggregate replaces three separate COUNT queries.
+    $summarySql = "
+            SELECT
+                SUM(created_at >= CURDATE() AND blocked = 1) AS blocked_today,
+                SUM(created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)) AS active_last_hour,
+                SUM(created_at >= CURDATE() AND severity IN ('high', 'critical')) AS high_severity_today
+            FROM security_logs
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        ";
+    $summary = $pdo->query($summarySql)->fetch(PDO::FETCH_ASSOC) ?: [];
+    $stats['blocked_today'] = (int) ($summary['blocked_today'] ?? 0);
+    $stats['active_last_hour'] = (int) ($summary['active_last_hour'] ?? 0);
+    $stats['high_severity_today'] = (int) ($summary['high_severity_today'] ?? 0);
 
     // Top attacker today
     $topSql =
-      'SELECT ip_address, COUNT(*) as count FROM security_logs WHERE DATE(created_at) = CURDATE() GROUP BY ip_address ORDER BY count DESC LIMIT 1';
+      'SELECT ip_address, COUNT(*) as count FROM security_logs WHERE created_at >= CURDATE() GROUP BY ip_address ORDER BY count DESC LIMIT 1';
     $stmt = $pdo->query($topSql);
     $topAttacker = $stmt->fetch(PDO::FETCH_ASSOC);
     $stats['top_attacker'] = $topAttacker ? $topAttacker['ip_address'] : 'None';

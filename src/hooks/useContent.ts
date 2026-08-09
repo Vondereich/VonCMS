@@ -50,6 +50,33 @@ const normalizePage = (p: any): Page => ({
 const INITIAL_POSTS: Post[] = getInitialPosts();
 const INITIAL_PAGES: Page[] = contentSeed.pages.map(normalizePage);
 
+export const createEmptyEditorItem = (
+  isPage: boolean,
+  currentUser: Pick<User, 'username' | 'avatar'> | null
+): Post | Page => {
+  const timestamp = new Date().toISOString();
+  const authorData = currentUser
+    ? { username: currentUser.username, avatar: currentUser.avatar || '' }
+    : { username: '', avatar: '' };
+  const draft = {
+    id: '',
+    title: '',
+    content: '',
+    excerpt: '',
+    status: 'draft' as const,
+    author: currentUser?.username || '',
+    author_data: authorData,
+    created_at: timestamp,
+    updatedAt: timestamp,
+    updated_at: timestamp,
+    slug: '',
+  };
+
+  return isPage
+    ? ({ ...draft, category: 'Page' } as Page)
+    : ({ ...draft, category: 'Uncategorized' } as Post);
+};
+
 export function useContent() {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [pages, setPages] = useState<Page[]>(INITIAL_PAGES);
@@ -58,46 +85,52 @@ export function useContent() {
 
   // Load content from API
   const loadContent = useCallback(async () => {
-    // Posts — backend caps at 200, so match it (no point asking for more)
-    try {
-      const res = await vonFetch(`${API.getPosts}?limit=200`);
-      if (res.ok) {
-        const data = await res.json();
-        // Handle new envelope format { posts, meta } OR legacy array format
-        const rawPosts = Array.isArray(data) ? data : data.posts || [];
-        const normalizedPosts = rawPosts.map((p: any) => ({
-          ...p,
-          image: p.image || p.image_url || '',
-          imageSrcSet: p.imageSrcSet || p.image_srcset || '',
-          createdAt: p.created_at || p.createdAt || '',
-          updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
-          scheduledAt: p.scheduled_at || p.scheduledAt || '',
-          author_data: p.author_data || { username: p.author || '', avatar: '' },
-          readTime: p.readTime || '',
-        }));
-        setPosts(normalizedPosts);
-      }
-    } catch (e) {
-      console.warn('Failed to load posts from API, using seed data:', e);
-    }
-
-    // Pages — backend caps at 200, match it
-    try {
-      const res = await vonFetch(`${API.getPages}?limit=200`);
-      if (res.ok) {
-        const data = await res.json();
-        // Handle envelope or array format
-        if (Array.isArray(data)) {
-          const normalizedPages = data.map(normalizePage);
-          setPages(normalizedPages);
-        } else if (data.pages && Array.isArray(data.pages)) {
-          const normalizedPages = data.pages.map(normalizePage);
-          setPages(normalizedPages);
+    const loadPosts = async () => {
+      // Backend caps at 200, so match it (no point asking for more).
+      try {
+        const res = await vonFetch(`${API.getPosts}?limit=200`);
+        if (res.ok) {
+          const data = await res.json();
+          // Handle new envelope format { posts, meta } OR legacy array format
+          const rawPosts = Array.isArray(data) ? data : data.posts || [];
+          const normalizedPosts = rawPosts.map((p: any) => ({
+            ...p,
+            image: p.image || p.image_url || '',
+            imageSrcSet: p.imageSrcSet || p.image_srcset || '',
+            createdAt: p.created_at || p.createdAt || '',
+            updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
+            scheduledAt: p.scheduled_at || p.scheduledAt || '',
+            author_data: p.author_data || { username: p.author || '', avatar: '' },
+            readTime: p.readTime || '',
+          }));
+          setPosts(normalizedPosts);
         }
+      } catch (e) {
+        console.warn('Failed to load posts from API, using seed data:', e);
       }
-    } catch (e) {
-      console.warn('Failed to load pages from API, using seed data:', e);
-    }
+    };
+
+    const loadPages = async () => {
+      // Backend caps at 200, so match it.
+      try {
+        const res = await vonFetch(`${API.getPages}?limit=200`);
+        if (res.ok) {
+          const data = await res.json();
+          // Handle envelope or array format
+          if (Array.isArray(data)) {
+            const normalizedPages = data.map(normalizePage);
+            setPages(normalizedPages);
+          } else if (data.pages && Array.isArray(data.pages)) {
+            const normalizedPages = data.pages.map(normalizePage);
+            setPages(normalizedPages);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load pages from API, using seed data:', e);
+      }
+    };
+
+    await Promise.all([loadPosts(), loadPages()]);
   }, []);
 
   // Handle edit - prepare item for editor
@@ -113,42 +146,7 @@ export function useContent() {
         const item = isPage ? pages.find((p) => p.id === id) : posts.find((p) => p.id === id);
         setEditingItem(item || null);
       } else {
-        // Create new
-        const timestamp = new Date().toISOString();
-        const authorData = currentUser
-          ? { username: currentUser.username, avatar: currentUser.avatar || '' }
-          : { username: '', avatar: '' };
-        setEditingItem(
-          isPage
-            ? {
-                id: '',
-                title: '',
-                content: '',
-                excerpt: '',
-                status: 'draft',
-                author: currentUser?.username || '',
-                author_data: authorData,
-                created_at: timestamp,
-                updatedAt: timestamp,
-                updated_at: timestamp,
-                category: 'Page',
-                slug: '',
-              }
-            : {
-                id: '',
-                title: '',
-                content: '',
-                excerpt: '',
-                status: 'draft',
-                author: currentUser?.username || '',
-                author_data: authorData,
-                created_at: timestamp,
-                updatedAt: timestamp,
-                updated_at: timestamp,
-                category: 'Uncategorized',
-                slug: '',
-              }
-        );
+        setEditingItem(createEmptyEditorItem(isPage, currentUser));
       }
       // Include type/id so hard refresh can recover the active editor item.
       const editorParams = new URLSearchParams();

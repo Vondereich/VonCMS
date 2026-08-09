@@ -71,6 +71,9 @@ try {
   $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
   $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentTimestamp = date('Y-m-d H:i:s');
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
 
   // Keep dashboard behavior practical: when admin opens post manager, due scheduled posts are advanced.
   if ($canReadProtectedPosts) {

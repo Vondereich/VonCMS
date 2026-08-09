@@ -420,7 +420,7 @@ const HeroSplit = ({
         <img
           {...getResponsiveImageAttributes(
             { image: featuredImage, imageSrcSet: featuredImageSrcSet },
-            'hero'
+            'splitHero'
           )}
           alt="Featured"
           fetchPriority="high"
@@ -454,7 +454,15 @@ const HeroMinimal = ({ settings, name, tagline, colors }: any) => (
 );
 
 // ===== PROJECT CARD =====
-const ProjectCard = ({ project, colors, settings, siteSettings, index, onClick }: any) => {
+const ProjectCard = ({
+  project,
+  colors,
+  settings,
+  siteSettings,
+  index,
+  onClick,
+  imageMode = 'gridThreeMd',
+}: any) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -474,8 +482,9 @@ const ProjectCard = ({ project, colors, settings, siteSettings, index, onClick }
       <div className="relative aspect-4/3 overflow-hidden">
         {project.image ? (
           <img
-            {...getResponsiveImageAttributes(project, 'card')}
+            {...getResponsiveImageAttributes(project, imageMode)}
             alt={decodeEntities(project.title)}
+            loading="lazy"
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           />
         ) : (
@@ -680,6 +689,13 @@ const ProjectsSection = ({
                   siteSettings={siteSettings}
                   index={index}
                   onClick={onProjectClick}
+                  imageMode={
+                    settings.projectColumns === 4
+                      ? 'gridFourMd'
+                      : settings.projectColumns === 3
+                        ? 'gridThreeMd'
+                        : 'gridTwoMd'
+                  }
                 />
               ))}
             </div>
@@ -1168,7 +1184,7 @@ const SingleProject = ({
           <div className="max-w-6xl mx-auto px-6 -mt-16 mb-16 relative z-10">
             <div className="rounded-2xl overflow-hidden shadow-2xl">
               <img
-                {...getResponsiveImageAttributes(project, 'hero')}
+                {...getResponsiveImageAttributes(project, 'wideArticleHero')}
                 alt={decodeEntities(project.title)}
                 className="w-full h-auto max-h-[600px] object-cover cursor-zoom-in"
                 onClick={() => setLightboxOpen(true)}
@@ -1759,6 +1775,7 @@ const PortfolioProfile = ({
                       siteSettings={settings}
                       index={index}
                       onClick={onPostClick}
+                      imageMode="gridThreeMd"
                     />
                   ))}
                 </div>

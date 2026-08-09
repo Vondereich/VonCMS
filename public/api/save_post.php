@@ -462,6 +462,9 @@ try {
     'slug' => $input['slug'],
     'image' => ResponseHelper::scrubUrl($featuredImage),
     'category' => $category,
+    'status' => $status,
+    'scheduled_at' => $scheduledAt,
+    'scheduledAt' => $scheduledAt,
     'updated_at' => $savedUpdatedAt,
     'updatedAt' => $savedUpdatedAt,
   ]);

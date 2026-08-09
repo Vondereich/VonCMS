@@ -1,8 +1,8 @@
 <?php
 /**
  * VonCMS - Cron Publish
- * Recommended: Set up a Cron Job to calls this URL every minute
- * e.g. curl https://yoursite.com/api/cron_publish.php
+ * Optional: shared-hosting cron can call this endpoint for quiet sites.
+ * Normal public traffic already runs the shared scheduler.
  */
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../scheduler_helper.php';

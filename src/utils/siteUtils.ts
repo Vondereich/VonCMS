@@ -222,6 +222,28 @@ export const extractVideoThumbnail = (content: string): string | null => {
 const RESPONSIVE_IMAGE_SIZES = {
   card: '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 480px',
   hero: '100vw',
+  portalHero:
+    '(max-width: 1023px) calc(100vw - 40px), (max-width: 1280px) calc(60vw - 24px), 744px',
+  splitHero: '(max-width: 767px) 100vw, 50vw',
+  articleHero: '(max-width: 1023px) calc(100vw - 40px), 960px',
+  wideArticleHero: '(max-width: 1199px) calc(100vw - 48px), 1152px',
+  gridTwoMd: '(max-width: 767px) calc(100vw - 40px), (max-width: 1279px) calc(50vw - 32px), 600px',
+  gridThreeMd:
+    '(max-width: 767px) calc(100vw - 40px), (max-width: 1023px) calc(50vw - 32px), (max-width: 1279px) calc(33.333vw - 32px), 400px',
+  gridThreeFromMd:
+    '(max-width: 767px) calc(100vw - 40px), (max-width: 1279px) calc(33.333vw - 32px), 400px',
+  gridFourMd:
+    '(max-width: 767px) calc(100vw - 40px), (max-width: 1023px) calc(50vw - 32px), (max-width: 1279px) calc(25vw - 30px), 300px',
+  gridTwoSm: '(max-width: 639px) calc(100vw - 40px), (max-width: 1279px) calc(50vw - 32px), 600px',
+  gridThreeSm:
+    '(max-width: 639px) calc(100vw - 40px), (max-width: 1023px) calc(50vw - 32px), (max-width: 1279px) calc(33.333vw - 32px), 400px',
+  gridThreeSmMd:
+    '(max-width: 639px) calc(100vw - 40px), (max-width: 767px) calc(50vw - 32px), (max-width: 1279px) calc(33.333vw - 32px), 400px',
+  gridFourSm:
+    '(max-width: 639px) calc(100vw - 40px), (max-width: 1023px) calc(50vw - 32px), (max-width: 1279px) calc(25vw - 30px), 300px',
+  listCard: '(max-width: 639px) calc(100vw - 40px), 320px',
+  thumbnail96: '96px',
+  thumbnail128: '128px',
   content: '(max-width: 768px) 100vw, 960px',
 } as const;
 
@@ -233,6 +255,21 @@ const RESPONSIVE_IMAGE_OBJECT_POSITION: Record<
 > = {
   card: 'center 38%',
   hero: 'center center',
+  portalHero: 'center center',
+  splitHero: 'center center',
+  articleHero: 'center center',
+  wideArticleHero: 'center center',
+  gridTwoMd: 'center 38%',
+  gridThreeMd: 'center 38%',
+  gridThreeFromMd: 'center 38%',
+  gridFourMd: 'center 38%',
+  gridTwoSm: 'center 38%',
+  gridThreeSm: 'center 38%',
+  gridThreeSmMd: 'center 38%',
+  gridFourSm: 'center 38%',
+  listCard: 'center 38%',
+  thumbnail96: 'center 38%',
+  thumbnail128: 'center 38%',
   content: 'center center',
 };
 

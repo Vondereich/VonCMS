@@ -49,11 +49,37 @@ interface AdminMenuItem {
   requiresPrimaryAdmin?: boolean;
 }
 
+interface AdminEditorRouteContext {
+  menuPath: '/admin/posts' | '/admin/pages' | null;
+  pageName: string;
+}
+
 const ADMIN_NAV_FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const isAdminMenuPathMatch = (pathname: string, menuPath: string) =>
   pathname === menuPath || pathname.startsWith(`${menuPath}/`);
+
+const resolveAdminEditorRouteContext = (
+  pathname: string,
+  search: string
+): AdminEditorRouteContext | null => {
+  if (pathname !== '/admin/editor') return null;
+
+  const searchParams = new URLSearchParams(search);
+  const contentType = searchParams.get('type');
+  const action = searchParams.get('id')?.trim() ? 'Edit' : 'New';
+
+  if (contentType === 'post') {
+    return { menuPath: '/admin/posts', pageName: `${action} Post` };
+  }
+
+  if (contentType === 'page') {
+    return { menuPath: '/admin/pages', pageName: `${action} Page` };
+  }
+
+  return { menuPath: null, pageName: 'Content Editor' };
+};
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
@@ -63,7 +89,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   toggleDarkMode,
   user,
 }) => {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -227,6 +253,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       : []),
   ];
   const hasActiveAlerts = alertItems.length > 0;
+  const editorRouteContext = resolveAdminEditorRouteContext(pathname, search);
+  const adminMenuMatchPath = editorRouteContext?.menuPath || pathname;
+  const currentMenuItem = menuItems.find((item) =>
+    isAdminMenuPathMatch(adminMenuMatchPath, item.path)
+  );
+  const adminPageName =
+    editorRouteContext?.pageName ||
+    currentMenuItem?.label ||
+    (pathname === '/admin' ? 'Admin' : 'Page Not Found');
   const alertsCheckedLabel =
     alertsCheckedAt === null
       ? userRole === 'admin'
@@ -238,11 +273,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   // Update document title based on current route
   useEffect(() => {
-    const currentItem = menuItems.find((item) => isAdminMenuPathMatch(pathname, item.path));
-    const pageName = currentItem?.label || (pathname === '/admin' ? 'Admin' : 'Page Not Found');
     const siteName = settings?.siteName || 'Admin';
-    document.title = `${pageName} - ${siteName} Admin`;
-  }, [pathname, settings?.siteName]);
+    document.title = `${adminPageName} - ${siteName} Admin`;
+  }, [adminPageName, settings?.siteName]);
 
   useEffect(() => {
     setIsMobileSidebarOpen(false);
@@ -524,7 +557,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Nav Items */}
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           {filteredMenuItems.map((item) => {
-            const isActive = isAdminMenuPathMatch(pathname, item.path);
+            const isActive = isAdminMenuPathMatch(adminMenuMatchPath, item.path);
             return (
               <Link
                 key={item.path}

@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.26.4`
+Version: `1.26.5`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -103,7 +103,30 @@ When remember-me is enabled, `login.php` issues a dedicated selector/validator c
 - `backup_db.php` - admin-only SQL export of the configured database tables
 - `import_db.php` - admin-only SQL restore into the configured database; intended for VonCMS backup files
 - `db_query.php` - admin-only read-only database inspection helper
-- `cron_publish.php`
+- `cron_publish.php` - optional authenticated scheduled-publishing trigger for quiet sites
+
+#### Scheduled publishing endpoint
+
+`GET /api/cron_publish.php` publishes posts whose scheduled time has arrived. Normal site traffic already runs the shared scheduler at most once per minute, so this endpoint is only needed when an idle site requires more predictable timing.
+
+For unattended calls, define `CRON_KEY` in the installed `von_config.php` and send the same value in the `X-Cron-Key` request header. A configured but incorrect key returns `401`. If no key is configured, the endpoint requires a current admin session and returns `403` to anonymous calls.
+
+```bash
+/usr/bin/curl --fail --silent --show-error --max-time 30 -H 'X-Cron-Key: your-random-secret' 'https://example.com/api/cron_publish.php'
+```
+
+Successful responses include the number of posts published by that request:
+
+```json
+{
+  "success": true,
+  "message": "Publish job completed",
+  "published_count": 1,
+  "timestamp": "2026-08-09 21:30:00"
+}
+```
+
+Use the header instead of `?key=...` so the secret is not copied into normal URL access logs. See [Installation Guide](INSTALL.md#optional-cpanel-cron-for-quiet-sites) for cPanel setup.
 
 ### Redirects
 

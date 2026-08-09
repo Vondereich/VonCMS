@@ -720,9 +720,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                             <div className="absolute inset-0 bg-linear-to-t from-[#0a0a1f] to-transparent z-10 opacity-60"></div>
                             {post.image ? (
                               <img
-                                {...getResponsiveImageAttributes(post, 'card')}
+                                {...getResponsiveImageAttributes(post, 'gridThreeMd')}
                                 alt={decodeEntities(post.title)}
-                                loading="lazy"
+                                loading={idx === 0 ? 'eager' : 'lazy'}
+                                fetchPriority={idx === 0 ? 'high' : 'auto'}
                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                               />
                             ) : (
@@ -911,7 +912,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       <div className="w-full h-[400px] rounded-2xl overflow-hidden mb-12 border border-white/10 relative group">
                         <div className="absolute inset-0 bg-linear-to-t from-[#0a0a1f] via-transparent to-transparent opacity-50"></div>
                         <img
-                          {...getResponsiveImageAttributes(selectedPost, 'hero')}
+                          {...getResponsiveImageAttributes(selectedPost, 'articleHero')}
                           alt={decodeEntities(selectedPost.title)}
                           className="w-full h-full object-cover"
                         />

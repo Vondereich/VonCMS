@@ -1,4 +1,4 @@
-# VonCMS Extension Development Guide v1.26.4
+# VonCMS Extension Development Guide v1.26.5
 
 This guide is the public source of truth for VonCMS theme and plugin development in the After Hours line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 
@@ -85,7 +85,7 @@ Themes normally should not create mutating API calls at all. If a theme or plugi
 
 ## RBAC and Private Data Boundaries
 
-VonCMS v1.26.4 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
+VonCMS v1.26.5 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
 
 Current rules:
 
@@ -100,7 +100,7 @@ For comments, appointed Admin/Moderator/Writer payloads may expose only `hasEmai
 
 Public theme props and public plugin payloads are already shaped by PHP response helpers before they reach React. Do not rebuild public privacy rules inside an extension.
 
-The v1.26.4 public contract is:
+The v1.26.5 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -257,7 +257,19 @@ Import shared behavior from `src/themes/shared/index.ts` before creating local c
 | Related posts               | `useRelatedPosts`                          |
 | Profile articles/comments   | `useProfileActivity(targetUser, limit)`    |
 
-Supported responsive image modes are `card`, `hero`, and `content`.
+Choose the responsive image mode that matches the rendered slot, not the source file width:
+
+- `portalHero` for the TechPress/Digest 60 percent desktop lead image
+- `splitHero` for a full-width mobile image that becomes half of the viewport on desktop
+- `articleHero` or `wideArticleHero` for single-content headers
+- `gridTwoMd`, `gridThreeMd`, and `gridFourMd` when a grid starts at the `md` breakpoint
+- `gridTwoSm`, `gridThreeSm`, and `gridFourSm` when a grid starts at the `sm` breakpoint
+- `gridThreeFromMd` when the layout changes directly from one to three columns at `md`
+- `gridThreeSmMd` when a grid changes from one to two columns at `sm` and three at `md`
+- `listCard`, `thumbnail96`, and `thumbnail128` for fixed or compact slots
+- `card`, `hero`, and `content` remain available for backward-compatible custom-theme usage
+
+The helper never upscales an original. A 740-pixel upload stays at 740 pixels; larger uploads can expose 480, 768, 960, and original-width candidates as available.
 
 Use `ThemeLogo` for uploaded site logos instead of hand-rolled `<img>` sizing. The shared logo slot keeps normal uploaded logos inside a 112x38 mobile box and 140x45 desktop box, while logo-as-title mode uses a 150x48 mobile box and 180x56 desktop box without resizing the original file. Pass `settings.useLogoAsTitle` and `settings.invertLogoInDarkMode` through to `ThemeLogo` so the General Settings logo title and dark-mode invert toggles work consistently across bundled and custom themes.
 
@@ -310,7 +322,10 @@ const SinglePostView: React.FC<{
       <article>
         <h1>{decodeEntities(post.title)}</h1>
         {post.image && (
-          <img {...getResponsiveImageAttributes(post, 'hero')} alt={decodeEntities(post.title)} />
+          <img
+            {...getResponsiveImageAttributes(post, 'articleHero')}
+            alt={decodeEntities(post.title)}
+          />
         )}
         <ContentRenderer content={post.content || ''} />
       </article>
@@ -363,18 +378,19 @@ The theme id in the registry must match the id in `PublicSite.tsx`.
 
 ### Homepage Hero Performance Metadata
 
-Themes whose homepage hero renders the first post image should set `homepageHero: 'first-post-image'` in their `theme.json` performance metadata:
+Themes whose homepage hero always renders the first post image should set `homepageHero: 'first-post-image'` and publish the exact same `sizes` string used by the React hero:
 
 ```json
 {
   "id": "theme-my-theme",
   "performance": {
-    "homepageHero": "first-post-image"
+    "homepageHero": "first-post-image",
+    "homepageHeroSizes": "(max-width: 1023px) calc(100vw - 40px), 960px"
   }
 }
 ```
 
-The build copies each `theme.json` into the matching Deploy theme folder. PHP SSR reads only the active theme manifest, while React imports the same file into its theme definition. Omit `homepageHero` for themes without that exact hero contract; preloading a normal card image can waste bandwidth and compete with the real LCP resource.
+The build copies each `theme.json` into the matching Deploy theme folder. PHP SSR reads only the active theme manifest, while React imports the same file into its theme definition. The preload and rendered image must use identical `sizes` values so the browser reuses the selected candidate instead of downloading two files. Omit `homepageHero` for conditional hero-image modes or themes without that exact first-post contract; preloading an unused image or a normal card can waste bandwidth and compete with the real LCP resource.
 
 ### Theme Verification
 
@@ -527,7 +543,7 @@ src/plugins/von-core/features/plugins/built-in/[plugin]/SettingsModal.tsx
 
 Then wire the modal from `ExtensionsManager.tsx`.
 
-Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.26.4 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
+Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.26.5 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
 
 Secret-bearing configuration does not belong in public plugin config. Store it in a protected settings group or dedicated backend path, let `get_settings.php` mask it for non-primary admins, and make save paths ignore protected secret keys from non-primary admins.
 

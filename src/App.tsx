@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -25,6 +25,7 @@ import {
   useAuth,
   useComments,
   useContent,
+  createEmptyEditorItem,
   useSettings,
   useUsers,
   useSinglePage,
@@ -632,13 +633,6 @@ const App: React.FC = () => {
     }
   }, [settings.faviconUrl]);
 
-  // CSRF Token Initialization
-  useEffect(() => {
-    import('./utils/security').then(({ getCsrfToken }) => {
-      getCsrfToken().catch((err) => console.warn('Failed to initialize CSRF token:', err));
-    });
-  }, []);
-
   // Global Session Expiry Listener
   useEffect(() => {
     const handleSessionExpiry = () => {
@@ -724,7 +718,8 @@ const App: React.FC = () => {
         loadUsers();
       }
       loadContent();
-      loadSettings();
+      // A guest settings request may have started before session restoration or interactive login.
+      loadSettings(true);
     }
   }, [user]);
 
@@ -1151,7 +1146,12 @@ const PostEditorWrapper: React.FC<any> = ({
   const [recoveredEditorItem, setRecoveredEditorItem] = useState<Post | Page | null>(null);
   const [isRecoveringEditorItem, setIsRecoveringEditorItem] = useState(false);
   const [hasTriedEditorRecovery, setHasTriedEditorRecovery] = useState(false);
-  const effectiveEditingItem = editingItem || recoveredEditorItem;
+  const newEditorItem = useMemo(
+    () =>
+      hasEditorType && !editorItemId ? createEmptyEditorItem(effectiveIsPage, user || null) : null,
+    [editorItemId, effectiveIsPage, hasEditorType, user?.avatar, user?.username]
+  );
+  const effectiveEditingItem = editingItem || recoveredEditorItem || newEditorItem;
   const normalizedUserRole = String(user?.role || '').toLowerCase();
   const canManagePages = ['admin', 'root', 'moderator'].includes(normalizedUserRole);
 

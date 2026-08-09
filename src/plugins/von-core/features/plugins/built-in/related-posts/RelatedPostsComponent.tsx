@@ -117,8 +117,12 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   style={{ backgroundColor: themeColors?.surfaceAlt || undefined }}
                 >
                   <img
-                    {...getResponsiveImageAttributes(post, 'card')}
+                    {...getResponsiveImageAttributes(
+                      post,
+                      [4, 8].includes(relatedPosts.length) ? 'gridFourSm' : 'gridThreeSmMd'
+                    )}
                     alt={post.title}
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
@@ -178,8 +182,9 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   style={{ backgroundColor: themeColors?.surfaceAlt || undefined }}
                 >
                   <img
-                    {...getResponsiveImageAttributes(post, 'card')}
+                    {...getResponsiveImageAttributes(post, 'thumbnail96')}
                     alt={post.title}
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                   />
                 </div>
@@ -236,8 +241,9 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                   style={{ backgroundColor: themeColors?.surfaceAlt || undefined }}
                 >
                   <img
-                    {...getResponsiveImageAttributes(post, 'card')}
+                    {...getResponsiveImageAttributes(post, 'thumbnail128')}
                     alt={post.title}
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                   />
                 </div>

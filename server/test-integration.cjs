@@ -888,6 +888,9 @@ const securityDashboardContent = read(
   'src/plugins/von-core/features/security/SecurityDashboard.tsx'
 );
 const securityLogsContent = read('public/api/security/get_security_logs.php');
+const securityLoggerContent = read('public/api/security/SecurityLogger.php');
+const clearSecurityLogsContent = read('public/api/security/clear_all_logs.php');
+const securityRetentionSchedulerContent = read('public/scheduler_helper.php');
 const appShellContent = read('src/App.tsx');
 if (
   appShellContent.includes('await loadSettings();') &&
@@ -1187,6 +1190,107 @@ assertIncludes(
 );
 
 assertIncludes(
+  'Security Log Retention Scheduling',
+  securityRetentionSchedulerContent + '\n' + clearSecurityLogsContent,
+  [
+    'function voncms_purge_expired_security_logs',
+    'function voncms_run_security_retention_if_due',
+    "$lockFile . '.security-retention'",
+    'int $intervalSeconds = 86400',
+    '$deleted = voncms_purge_expired_security_logs($pdo, 30);',
+    "'deleted' => $deleted",
+    'No security logs are older than 30 days yet.',
+  ],
+  'Security Log Retention Scheduling: traffic-driven daily retention and honest manual deletion reporting are wired.',
+  'Security Log Retention Scheduling: daily retention scheduling or manual deletion reporting is incomplete.'
+);
+assertExcludes(
+  'Security Logger Write Amplification Guard',
+  securityLoggerContent,
+  ['DELETE FROM security_logs'],
+  'Security Logger Write Amplification Guard: recording an attack no longer runs a retention DELETE.',
+  'Security Logger Write Amplification Guard: every recorded attack can still trigger a retention DELETE.'
+);
+
+assertIncludes(
+  'Security Dashboard Request Budget',
+  securityDashboardContent + '\n' + securityLogsContent,
+  [
+    'pendingFetchRef',
+    "document.visibilityState === 'visible'",
+    '}, 30000);',
+    'SUM(created_at >= CURDATE() AND blocked = 1) AS blocked_today',
+    "SUM(created_at >= CURDATE() AND severity IN ('high', 'critical')) AS high_severity_today",
+    'WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)',
+    "toast.success(data.message || 'Security log maintenance completed.');",
+  ],
+  'Security Dashboard Request Budget: refreshes are serialized, hidden-tab aware, slower, and use one summary aggregate.',
+  'Security Dashboard Request Budget: polling or summary-query amplification can regress.'
+);
+assertExcludes(
+  'Security Dashboard Legacy Query Budget',
+  securityDashboardContent + '\n' + securityLogsContent,
+  [
+    '}, 10000);',
+    'WHERE DATE(created_at) = CURDATE() AND blocked = 1',
+    "(severity = 'high' OR severity = 'critical') AND DATE(created_at) = CURDATE()",
+  ],
+  'Security Dashboard Legacy Query Budget: old 10-second polling and duplicate summary queries are absent.',
+  'Security Dashboard Legacy Query Budget: old polling or duplicate summary query patterns remain.'
+);
+
+const authenticatedReadEndpoints = [
+  'public/api/get_posts.php',
+  'public/api/get_pages.php',
+  'public/api/get_settings.php',
+  'public/api/get_users.php',
+  'public/api/get_user_stats.php',
+  'public/api/security/get_security_logs.php',
+];
+const authenticatedReadLockGaps = authenticatedReadEndpoints.filter(
+  (file) => !read(file).includes('session_write_close();')
+);
+const contentLoadPerformanceContent = read('src/hooks/useContent.ts');
+const settingsLoadPerformanceContent = read('src/hooks/useSettings.ts');
+if (
+  authenticatedReadLockGaps.length === 0 &&
+  contentLoadPerformanceContent.includes('await Promise.all([loadPosts(), loadPages()]);') &&
+  settingsLoadPerformanceContent.includes('loadSettingsInFlightRef') &&
+  settingsLoadPerformanceContent.includes('if (!forceRefresh)') &&
+  appShellContent.includes('loadSettings(true);') &&
+  !editorContent.includes("from '../hooks/useSettings'") &&
+  !editorContent.includes('loadSettings()')
+) {
+  pass(
+    'Authenticated Read Concurrency: read endpoints release the session lock, content loads in parallel, App settings requests coalesce, and Editor avoids a redundant settings fetch.'
+  );
+} else {
+  fail(
+    `Authenticated Read Concurrency: session release, parallel content loading, App settings coalescing, or Editor fetch ownership is incomplete. Lock gaps: ${authenticatedReadLockGaps.join(', ')}`
+  );
+}
+
+const authBootContent = read('public/api/check_auth.php');
+const publicIndexPerformanceContent = read('public/index.php');
+const publicTimezoneApplyCount = (
+  publicIndexPerformanceContent.match(/voncms_apply_site_timezone\(/g) || []
+).length;
+if (
+  authBootContent.includes('$csrfToken = CSRFProtection::generateToken();') &&
+  authBootContent.includes("'csrf_token' => $csrfToken") &&
+  !appShellContent.includes('Failed to initialize CSRF token:') &&
+  publicTimezoneApplyCount === 1
+) {
+  pass(
+    'Boot Request Coalescing: check-auth supplies the existing-session CSRF token and public bootstrap applies timezone once.'
+  );
+} else {
+  fail(
+    'Boot Request Coalescing: eager CSRF fetching or duplicate public timezone application can return.'
+  );
+}
+
+assertIncludes(
   'Security Dashboard Source Ranking',
   securityDashboardContent,
   [
@@ -1320,10 +1424,25 @@ assertIncludes(
     'navigate(`/admin/editor?${editorParams.toString()}`);',
     "const editorItemId = searchParams.get('id') || '';",
     'const [recoveredEditorItem, setRecoveredEditorItem] = useState<Post | Page | null>(null);',
-    'const effectiveEditingItem = editingItem || recoveredEditorItem;',
+    'const effectiveEditingItem = editingItem || recoveredEditorItem || newEditorItem;',
   ],
   'HourGlass Editor URL Persistence: editor routes preserve type/id and can recover the active item after hard refresh.',
   'HourGlass Editor URL Persistence: editor route state is still volatile across reloads.'
+);
+
+assertIncludes(
+  'HourGlass New Editor Hard Reload Recovery',
+  useContentRoutingContent + '\n' + appShellContent,
+  [
+    'export const createEmptyEditorItem =',
+    'setEditingItem(createEmptyEditorItem(isPage, currentUser));',
+    'const newEditorItem = useMemo(',
+    'hasEditorType && !editorItemId',
+    'createEmptyEditorItem(effectiveIsPage, user || null)',
+    'editingItem || recoveredEditorItem || newEditorItem',
+  ],
+  'HourGlass New Editor Hard Reload Recovery: valid new post/page URLs rebuild the same empty draft model after direct load or hard refresh.',
+  'HourGlass New Editor Hard Reload Recovery: new post/page routes still depend on volatile in-memory editor state.'
 );
 
 assertIncludes(
@@ -1381,7 +1500,7 @@ assertIncludes(
     'px-0.5 py-2',
     'h-11 w-[70px]',
     'flex h-11 w-11 shrink-0',
-    'xl:flex-nowrap',
+    'xl:top-0 xl:flex-wrap xl:px-2',
     'xl:h-8 xl:w-16',
     'xl:h-8 xl:w-8',
     'id="editor-block-style"',
@@ -1416,7 +1535,7 @@ assertIncludes(
     '> iframe {',
     'margin: 1.5rem 0;',
   ],
-  'HourGlass Editor Sticky Toolbar: one premium compact toolbar uses Body/H1-H6 on every viewport, exposes direct desktop editorial and media essentials including the guarded image balloon, and keeps advanced actions grouped.',
+  'HourGlass Editor Sticky Toolbar: the compact toolbar uses Body/H1-H6 on every viewport, exposes direct desktop essentials, and wraps only when its available card width requires it.',
   'HourGlass Editor Sticky Toolbar: compact toolbar, direct desktop essentials, guarded image balloon, premium surface, or media spacing markers are missing.'
 );
 
@@ -1549,9 +1668,9 @@ assertIncludes(
     'const nextElevated = sentinel.getBoundingClientRect().top < 1;',
     'className="sticky top-0 z-30',
     'className={`editor-toolbar sticky top-[3.875rem] z-20',
-    'xl:top-0 xl:flex-nowrap',
+    'xl:top-0 xl:flex-wrap xl:px-2',
   ],
-  'HourGlass Editor Sticky Toolbar Offset: phone and tablet formatting stays one exact section-rail height below Write/Publish/AI, while desktop anchors to the editor top edge.',
+  'HourGlass Editor Sticky Toolbar Offset: phone and tablet formatting stays one exact section-rail height below Write/Publish/AI, while the dynamically wrapping desktop toolbar anchors to the editor top edge.',
   'HourGlass Editor Sticky Toolbar Offset: formatting can still collide with the mobile section rail or retain a mobile offset on desktop.'
 );
 
@@ -2752,13 +2871,140 @@ assertIncludes(
     "import AdminNotFoundPage from './components/admin/AdminNotFoundPage';",
     '<Route path="*" element={<AdminNotFoundPage />} />',
     'pathname === menuPath || pathname.startsWith(`${menuPath}/`)',
-    "pathname === '/admin' ? 'Admin' : 'Page Not Found'",
+    "(pathname === '/admin' ? 'Admin' : 'Page Not Found')",
     'Admin page not found',
     "navigate('/admin/dashboard')",
   ],
   'Admin Nested Route Fallback: invalid admin routes render an in-shell 404 and avoid prefix-collision navigation state.',
   'Admin Nested Route Fallback: invalid admin routes can still leave a blank content area or mark a prefix-collision menu item active.'
 );
+assertIncludes(
+  'Admin Editor Route Title And Ownership',
+  adminLayoutContent,
+  [
+    'resolveAdminEditorRouteContext',
+    "pathname !== '/admin/editor'",
+    "menuPath: '/admin/posts'",
+    "menuPath: '/admin/pages'",
+    'pageName: `${action} Post`',
+    'pageName: `${action} Page`',
+    "pageName: 'Content Editor'",
+    'const adminMenuMatchPath = editorRouteContext?.menuPath || pathname;',
+    'document.title = `${adminPageName} - ${siteName} Admin`;',
+    '[adminPageName, settings?.siteName]',
+  ],
+  'Admin Editor Route Title And Ownership: valid new/edit post and page routes receive accurate browser titles and keep their owning menu active.',
+  'Admin Editor Route Title And Ownership: valid editor routes can still inherit the 404 title or lose Posts/Pages navigation ownership.'
+);
+const postEditorReadinessContent = read('src/components/PostEditor.tsx');
+assertIncludes(
+  'Publish Readiness Checklist',
+  postEditorReadinessContent,
+  [
+    "label: 'Title'",
+    "label: 'Content'",
+    "label: 'Slug'",
+    "label: 'Excerpt / Meta'",
+    "label: 'Featured Image'",
+    "label: 'Category'",
+    "label: 'Schedule'",
+    "if (status !== 'draft')",
+    "notify.error('Please enter a title before publishing.')",
+    "notify.error('Please add some content before publishing.')",
+    "if (status === 'scheduled' && !isPage",
+    "notify.error('Please choose a date and time before scheduling.')",
+  ],
+  'Publish Readiness Checklist: editor surfaces the planned editorial checks and blocks a scheduled save until its date and time are present.',
+  'Publish Readiness Checklist: editorial readiness markers or the required title, content, and scheduled-date guards are incomplete.'
+);
+const savePostResponseContent = read('public/api/save_post.php');
+assertIncludes(
+  'Scheduled Post Save Truth',
+  `${postEditorContent}\n${savePostResponseContent}`,
+  [
+    "'status' => $status",
+    "'scheduled_at' => $scheduledAt",
+    "'scheduledAt' => $scheduledAt",
+    'const savedStatus = savedSnapshot.status || status;',
+    "if (status === 'scheduled' && savedStatus !== 'scheduled')",
+    'could not be scheduled and was saved as a draft.',
+  ],
+  'Scheduled Post Save Truth: the API returns its canonical persisted status and schedule, and the editor reports that server-confirmed result.',
+  'Scheduled Post Save Truth: the editor can still retain or announce a requested schedule that the server did not persist.'
+);
+const editorToolbarStart = editorContent.indexOf('{/* Main Toolbar - Sticky */}');
+const editorCompactToolsStart = editorContent.indexOf('<AdminModal', editorToolbarStart);
+const editorCompactToolsEnd = editorContent.indexOf(
+  '{/* HTML Code View */}',
+  editorCompactToolsStart
+);
+const editorPrimaryToolbarContent = editorContent.slice(
+  editorToolbarStart,
+  editorCompactToolsStart
+);
+const editorCompactToolsContent = editorContent.slice(
+  editorCompactToolsStart,
+  editorCompactToolsEnd
+);
+const editorImageMenuStart = editorPrimaryToolbarContent.indexOf('<div ref={imageMenuRef}');
+const editorImageMenuEnd = editorPrimaryToolbarContent.indexOf(
+  '<div className="hidden xl:block">',
+  editorImageMenuStart + 1
+);
+const editorImageMenuContent = editorPrimaryToolbarContent.slice(
+  editorImageMenuStart,
+  editorImageMenuEnd
+);
+if (
+  editorToolbarStart >= 0 &&
+  editorCompactToolsStart > editorToolbarStart &&
+  editorCompactToolsEnd > editorCompactToolsStart &&
+  editorContent.includes('const openContentPreview = () => {') &&
+  editorPrimaryToolbarContent.includes('onClick={openContentPreview}') &&
+  editorPrimaryToolbarContent.includes('title="Preview content"') &&
+  !editorCompactToolsContent.includes('Preview')
+) {
+  pass(
+    'Editor Preview Toolbar Access: content preview is a first-level responsive toolbar action and is absent from More Formatting.'
+  );
+} else {
+  fail(
+    'Editor Preview Toolbar Access: content preview is missing from the primary toolbar or remains duplicated inside More Formatting.'
+  );
+}
+if (
+  ['Align Left', 'Align Center', 'Align Right', 'Justify'].every((label) =>
+    editorPrimaryToolbarContent.includes(`title="${label}"`)
+  ) &&
+  [
+    "alignImage('left')",
+    "alignImage('center')",
+    "alignImage('right')",
+    "alignImage('justify')",
+  ].every((action) => {
+    const actionIndex = editorCompactToolsContent.indexOf(action);
+    const classIndex = editorCompactToolsContent.indexOf('xl:hidden', actionIndex);
+    return actionIndex >= 0 && classIndex > actionIndex && classIndex - actionIndex < 700;
+  }) &&
+  editorPrimaryToolbarContent.includes('xl:top-0 xl:flex-wrap xl:px-2') &&
+  !editorPrimaryToolbarContent.includes('xl:flex-nowrap') &&
+  editorImageMenuStart >= 0 &&
+  editorImageMenuEnd > editorImageMenuStart &&
+  editorImageMenuContent.includes('aria-label="Image insertion options"') &&
+  editorImageMenuContent.includes('absolute right-0 top-full') &&
+  !editorImageMenuContent.includes('absolute left-0 top-full') &&
+  editorCompactToolsContent.includes(
+    '<span className="hidden xl:inline">HTML source and code block tools.</span>'
+  )
+) {
+  pass(
+    'Desktop Editor Essentials: the desktop toolbar wraps only when needed, keeps its image menu inside the writing card, keeps alignment first-level, and leaves only code tools in More.'
+  );
+} else {
+  fail(
+    'Desktop Editor Essentials: dynamic desktop wrapping, image-menu containment, alignment controls, or compact More-panel ownership have regressed.'
+  );
+}
 const widgetAdminDefaultThemeSettingsContent = read(
   'src/plugins/von-core/features/extensions/components/DefaultThemeSettings.tsx'
 );
@@ -4574,7 +4820,10 @@ if (remainingLegacyDatabaseSqlFiles.length === 0 && missingActiveSchemaOwnerMark
   );
 }
 
+const wpScanContent = read('public/api/tools/wp_scan.php');
 const wpImportContent = read('public/api/tools/wp_import.php');
+const wpWxrReaderHelperContent = read('public/api/tools/wp_wxr_reader_helper.php');
+const wpMigratorContent = read('src/plugins/von-core/features/tools/WPMigrator.tsx');
 assertIncludes(
   'WordPress Importer Remote Fetch Guard',
   wpImportContent,
@@ -4606,7 +4855,7 @@ if (
 }
 assertIncludes(
   'WordPress Importer Temp File Boundary',
-  read('public/api/tools/wp_scan.php') + '\n' + wpImportContent,
+  wpScanContent + '\n' + wpImportContent,
   [
     "bin2hex(random_bytes(16)) . '.xml'",
     "$tempShield = $uploadDir . '.htaccess';",
@@ -4617,6 +4866,38 @@ assertIncludes(
   ],
   'WordPress Importer Temp File Boundary: scan temp XML uses random names, web-deny shielding, and final-batch cleanup.',
   'WordPress Importer Temp File Boundary: temp XML predictability, direct web access, or cleanup guard is missing.'
+);
+assertIncludes(
+  'WordPress Importer Batch Consistency',
+  wpScanContent +
+    '\n' +
+    wpImportContent +
+    '\n' +
+    wpWxrReaderHelperContent +
+    '\n' +
+    wpMigratorContent,
+  [
+    "preg_match('/\\Awp_import_[a-f0-9]{32}\\.xml\\z/'",
+    "if (!in_array($postType, ['post', 'page', 'attachment'], true))",
+    'stats.posts + stats.pages + stats.media',
+    '$importUserId =',
+    '$importUsername =',
+    'session_write_close();',
+    'const CHECKPOINT_VERSION = 2;',
+    'parsed?.version === CHECKPOINT_VERSION',
+    'function voncms_wp_read_next_item(XMLReader $reader): ?DOMNode',
+    'while (($node = voncms_wp_read_next_item($reader)) !== null)',
+    'while (($preScanNode = voncms_wp_read_next_item($preScanReader)) !== null)',
+  ],
+  'WordPress Importer Batch Consistency: supported WXR items share one offset/progress model, temp filenames stay scoped, and long requests release the admin session lock.',
+  'WordPress Importer Batch Consistency: batching, progress, temp-file scope, or session concurrency markers are incomplete.'
+);
+assertExcludes(
+  'WordPress Importer Cursor Ownership',
+  wpImportContent,
+  ['$reader->next()', '$preScanReader->next()'],
+  'WordPress Importer Cursor Ownership: nested importer loops do not advance XMLReader twice.',
+  'WordPress Importer Cursor Ownership: branch-local XMLReader advancement can skip adjacent WXR items.'
 );
 
 assertIncludes(
@@ -7057,7 +7338,7 @@ assertIncludes(
   mediaVariantsContent,
   [
     'function voncms_get_responsive_widths',
-    '[480, 960, 1920]',
+    '[480, 768, 960, 1920]',
     'function voncms_build_responsive_image_data',
     "'srcSet' => implode(', ', $parts)",
   ],
@@ -7067,6 +7348,18 @@ assertIncludes(
 
 const uploadFileContent = read('public/api/upload_file.php');
 const imageProcessorContent = read('public/api/ImageProcessor.php');
+if (
+  mediaVariantsContent.includes('[480, 768, 960, 1920]') &&
+  imageProcessorContent.includes("'responsiveWidths' => [480, 768, 960, 1920]")
+) {
+  pass(
+    'Responsive Media Candidate Parity: shared helper and upload processor expose 480, 768, 960, and 1920 candidates.'
+  );
+} else {
+  fail(
+    'Responsive Media Candidate Parity: shared helper and upload processor candidate widths have drifted.'
+  );
+}
 assertIncludes(
   'Upload Pipeline Variants',
   uploadFileContent,
@@ -8906,6 +9199,21 @@ const categorySeoVonSeoContent = exists('src/plugins/von-core/features/seo/VonSE
   : '';
 
 assertIncludes(
+  'Hydrated JSON-LD Single Owner Contract',
+  categorySeoPublicIndexContent + '\n' + categorySeoVonSeoContent,
+  [
+    'class="vp-seo" data-voncms-schema-source="ssr" data-voncms-schema-url=',
+    "el.getAttribute('data-voncms-schema-source') === 'ssr'",
+    "el.getAttribute('data-voncms-schema-url') === schemaUrl",
+    "el.removeAttribute('data-voncms-schema-source');",
+    "el.removeAttribute('data-voncms-schema-url');",
+    'setJsonLd(jsonLd, canonical);',
+  ],
+  'Hydrated JSON-LD Single Owner Contract: initial SSR schema remains the sole graph owner until SPA navigation reuses that same script element.',
+  'Hydrated JSON-LD Single Owner Contract: hydration can still append a second Organization/WebSite/Article graph beside the SSR schema.'
+);
+
+assertIncludes(
   'Category Permalink Slug Contract',
   [
     exists('src/utils/siteUtils.ts') ? read('src/utils/siteUtils.ts') : '',
@@ -8930,13 +9238,22 @@ assertIncludes(
   'Post Breadcrumb Category Contract',
   categorySeoPublicIndexContent + '\n' + categorySeoVonSeoContent,
   [
+    '$additionalSchemaNodes[] = [',
     "'@type' => 'BreadcrumbList'",
     "'name' => \$breadcrumbCategoryName",
     'name: selectedPost.category',
     'position: 3',
   ],
-  'Post Breadcrumb Category Contract: SSR and React SEO breadcrumbs expose Home > Category > Post for multi-word categories.',
-  'Post Breadcrumb Category Contract: Google can still infer two-word category breadcrumbs from URL segments instead of structured data.'
+  'Post Breadcrumb Category Contract: SSR and React expose Home > Category > Post as a standalone BreadcrumbList graph node for multi-word categories.',
+  'Post Breadcrumb Category Contract: SSR or React can still nest BreadcrumbList under Article or make Google infer two-word categories from URL segments.'
+);
+
+assertExcludes(
+  'Post Breadcrumb Schema Domain Contract',
+  categorySeoPublicIndexContent,
+  ["\$schemaData['breadcrumb'] = ["],
+  'Post Breadcrumb Schema Domain Contract: SSR keeps BreadcrumbList outside Article properties.',
+  'Post Breadcrumb Schema Domain Contract: SSR still assigns BreadcrumbList to the Article breadcrumb property instead of emitting a standalone graph node.'
 );
 
 assertIncludes(
@@ -9084,9 +9401,15 @@ const publicIndexContent = read('public/index.php');
 assertIncludes(
   'Scheduler Helper Centralization',
   schedulerHelperContent,
-  ['function voncms_publish_scheduled_posts', 'function voncms_run_scheduler_if_due'],
-  'Scheduler Helper Centralization: shared publish helper exists.',
-  'Scheduler Helper Centralization: shared scheduler helper is missing expected functions.'
+  [
+    'function voncms_publish_scheduled_posts',
+    'function voncms_run_scheduler_if_due',
+    '$schedulerHelperPath = realpath(__FILE__);',
+    "$fp = @fopen($lockFile, 'x+');",
+    'if (!$lockCreated)',
+  ],
+  'Scheduler Helper Centralization: guarded shared publish helper owns an atomic first-run lock path.',
+  'Scheduler Helper Centralization: shared scheduler functions, direct-access guard, or atomic first-run lock path are incomplete.'
 );
 
 const hasInlineSchedulerSql =
@@ -9540,10 +9863,6 @@ const themeManifestPaths = [
   'src/themes/corporate-pro/theme.json',
 ];
 const missingThemeManifests = themeManifestPaths.filter((file) => !exists(file));
-const themeManifestContents = themeManifestPaths
-  .filter((file) => exists(file))
-  .map((file) => read(file))
-  .join('\n');
 const themeManifestDefinitions = themeManifestPaths
   .filter((file) => exists(file))
   .map((file) => JSON.parse(read(file)));
@@ -9555,14 +9874,28 @@ const copyThemeManifestsContent = exists('server/copy-theme-manifests.cjs')
   ? read('server/copy-theme-manifests.cjs')
   : '';
 
+const portalHeroSizes =
+  '(max-width: 1023px) calc(100vw - 40px), (max-width: 1280px) calc(60vw - 24px), 744px';
+const heroManifestDefinitions = themeManifestDefinitions.filter(
+  (manifest) => manifest.performance?.homepageHero === 'first-post-image'
+);
+const portfolioManifestDefinition = themeManifestDefinitions.find(
+  (manifest) => manifest.id === 'theme-portfolio'
+);
 if (
   missingThemeManifests.length === 0 &&
   new Set(themeManifestIds).size === themeManifestPaths.length &&
   themeManifestIds.every((id) => /^theme-[a-z0-9][a-z0-9-]*$/.test(id)) &&
-  (themeManifestContents.match(/"homepageHero": "first-post-image"/g) || []).length === 3
+  heroManifestDefinitions.length === 2 &&
+  heroManifestDefinitions.every(
+    (manifest) =>
+      ['theme-techpress', 'theme-digest'].includes(manifest.id) &&
+      manifest.performance.homepageHeroSizes === portalHeroSizes
+  ) &&
+  !portfolioManifestDefinition?.performance?.homepageHero
 ) {
   pass(
-    'Theme Hero Manifest Contract: every bundled theme owns a manifest and exactly three opt into first-post hero preload.'
+    'Theme Hero Manifest Contract: every bundled theme owns a manifest, TechPress and Digest publish the exact portal-hero sizes, and conditional Portfolio modes do not opt into unconditional preload.'
   );
 } else {
   fail(
@@ -9599,6 +9932,7 @@ assertIncludes(
   indexContent,
   [
     '$homepageHeroStrategy',
+    '$homepageHeroSizes',
     '$themeManifestPaths',
     "glob(dirname(__DIR__) . '/src/themes/*/theme.json')",
     "'/theme.json'",
@@ -9611,7 +9945,7 @@ assertIncludes(
     'rel="preload"',
     'as="image"',
     'imagesrcset=',
-    'imagesizes="100vw"',
+    'imagesizes="<?php echo htmlspecialchars($homepageHeroSizes, ENT_QUOTES, \'UTF-8\'); ?>"',
   ],
   'Homepage Hero Preload Contract: hero themes preload the first homepage image and advertise responsive candidates when available.',
   'Homepage Hero Preload Contract: SSR head is missing the guarded responsive hero-image preload.'
@@ -9928,10 +10262,30 @@ assertIncludes(
     'export const getResponsiveImageAttributes = (',
     'const srcSet = item?.imageSrcSet || undefined;',
     'sizes: srcSet ? RESPONSIVE_IMAGE_SIZES[mode] : undefined,',
+    'portalHero:',
+    'gridThreeMd:',
+    'gridFourSm:',
+    "thumbnail96: '96px'",
+    "thumbnail128: '128px'",
   ],
   'Frontend Responsive Helper: srcSet fallback and sizes gating detected.',
   'Frontend Responsive Helper: responsive attribute fallback logic is incomplete.'
 );
+if (
+  siteUtilsContent.includes(portalHeroSizes) &&
+  heroManifestDefinitions.every(
+    (manifest) => manifest.performance.homepageHeroSizes === portalHeroSizes
+  ) &&
+  indexContent.includes('$homepageHeroSizes')
+) {
+  pass(
+    'Homepage Hero Sizes Parity: React, bundled hero manifests, and PHP SSR share one exact portal-hero sizes contract.'
+  );
+} else {
+  fail(
+    'Homepage Hero Sizes Parity: React, bundled hero manifests, or PHP SSR has drifted from the shared portal-hero sizes contract.'
+  );
+}
 
 const hookFiles = [
   'src/hooks/useContent.ts',
@@ -10159,25 +10513,70 @@ if (
   );
 }
 
-const themeResponsiveFiles = [
-  'src/themes/techpress/Layout.tsx',
-  'src/themes/digest/Layout.tsx',
-  'src/themes/default/Layout.tsx',
-  'src/themes/prism/Layout.tsx',
-  'src/themes/corporate-pro/Layout.tsx',
-  'src/themes/portfolio/Layout.tsx',
-  'src/themes/techpress/Profile.tsx',
-  'src/themes/prism/components/PrismProfile.tsx',
-  'src/plugins/von-core/features/users/UserProfile.tsx',
-  'src/plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent.tsx',
-];
-if (themeResponsiveFiles.every((file) => read(file).includes('getResponsiveImageAttributes'))) {
+const themeResponsiveContracts = {
+  'src/themes/techpress/Layout.tsx': [
+    "'portalHero'",
+    "'gridFourMd'",
+    "'listCard'",
+    "'articleHero'",
+    'loading="lazy"',
+  ],
+  'src/themes/digest/Layout.tsx': [
+    "'portalHero'",
+    "imageMode = 'gridTwoMd'",
+    "'gridTwoSm'",
+    "'gridThreeSm'",
+    "'gridFourSm'",
+    "'articleHero'",
+    'loading="lazy"',
+  ],
+  'src/themes/default/Layout.tsx': [
+    "'gridThreeMd'",
+    "'articleHero'",
+    "loading={index === 0 ? 'eager' : 'lazy'}",
+    "fetchPriority={index === 0 ? 'high' : 'auto'}",
+  ],
+  'src/themes/prism/Layout.tsx': [
+    "'gridThreeMd'",
+    "'articleHero'",
+    "loading={idx === 0 ? 'eager' : 'lazy'}",
+    "fetchPriority={idx === 0 ? 'high' : 'auto'}",
+  ],
+  'src/themes/corporate-pro/Layout.tsx': [
+    "'thumbnail96'",
+    "'gridThreeFromMd'",
+    "'articleHero'",
+    'loading="lazy"',
+  ],
+  'src/themes/portfolio/Layout.tsx': [
+    "'splitHero'",
+    "'gridTwoMd'",
+    "'gridThreeMd'",
+    "'gridFourMd'",
+    "'wideArticleHero'",
+    'loading="lazy"',
+  ],
+  'src/themes/techpress/Profile.tsx': ["'gridThreeFromMd'", 'loading="lazy"'],
+  'src/themes/prism/components/PrismProfile.tsx': ["'thumbnail96'", 'loading="lazy"'],
+  'src/plugins/von-core/features/users/UserProfile.tsx': ["'thumbnail96'", 'loading="lazy"'],
+  'src/plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent.tsx': [
+    "'gridFourSm'",
+    "'gridThreeSmMd'",
+    "'thumbnail96'",
+    "'thumbnail128'",
+    'loading="lazy"',
+  ],
+};
+const incompleteThemeResponsiveContracts = Object.entries(themeResponsiveContracts).filter(
+  ([file, markers]) => markers.some((marker) => !read(file).includes(marker))
+);
+if (incompleteThemeResponsiveContracts.length === 0) {
   pass(
-    'Theme Coverage: responsive image helper is wired across bundled public themes and profile/related views.'
+    'Theme Coverage: bundled themes use layout-specific responsive modes, preserve first-card LCP priority, and lazy-load below-fold/profile/related images.'
   );
 } else {
   fail(
-    'Theme Coverage: one or more bundled public theme files are missing the responsive image helper.'
+    `Theme Coverage: responsive mode or loading-priority contract is incomplete in ${incompleteThemeResponsiveContracts.map(([file]) => file).join(', ')}.`
   );
 }
 
@@ -10933,7 +11332,7 @@ assertExcludes(
 );
 assertIncludes(
   'WordPress Import Bounds Contract',
-  read('public/api/tools/wp_scan.php') + '\n' + read('public/api/tools/wp_import.php'),
+  wpScanContent + '\n' + wpImportContent,
   [
     'VONCMS_WP_IMPORT_MAX_XML_BYTES',
     'VONCMS_WP_IMPORT_MAX_IMAGE_BYTES',
@@ -11521,7 +11920,9 @@ if (!is_array($payload) || !isset($payload['pages']) || !is_array($payload['page
 if (count($payload['pages']) !== 0 || isset($_SESSION['user'])) {
   exit(3);
 }
-SessionManager::destroy();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  SessionManager::destroy();
+}
 echo 'ok';`,
     ],
     { encoding: 'utf8' }
@@ -12200,6 +12601,274 @@ echo 'unguarded';`,
   } else {
     fail(
       `SEO Response Helper Direct Access Runtime: direct execution can pass the helper guard. ${(seoResponseHelperDirectProbe.stderr || seoResponseHelperDirectProbe.stdout || '').trim()}`
+    );
+  }
+
+  const runSchedulerHelperProbe = (indexRelativePath, helperRelativePath) =>
+    spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot(indexRelativePath))};
+$cacheClears = 0;
+function voncms_public_cache_clear(): array {
+  global $cacheClears;
+  $cacheClears++;
+  return ['removed' => 0, 'errors' => []];
+}
+require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, status TEXT, scheduled_at TEXT, updated_at TEXT)');
+$pdo->exec('CREATE TABLE security_logs (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL)');
+$pdo->exec("INSERT INTO posts (id, status, scheduled_at, updated_at) VALUES (1, 'scheduled', '2026-08-08 00:00:00', NULL)");
+$securityInsert = $pdo->prepare('INSERT INTO security_logs (id, created_at) VALUES (?, ?)');
+$securityInsert->execute([1, date('Y-m-d H:i:s', time() - (31 * 86400))]);
+$securityInsert->execute([2, date('Y-m-d H:i:s', time() - (10 * 86400))]);
+$lockFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-scheduler-' . bin2hex(random_bytes(6)) . '.lock';
+$retentionLockFile = $lockFile . '.security-retention';
+register_shutdown_function(static function () use ($lockFile, $retentionLockFile) {
+  @unlink($lockFile);
+  @unlink($retentionLockFile);
+});
+$firstCount = voncms_run_scheduler_if_due($pdo, $lockFile, 60);
+$firstStatus = (string) $pdo->query('SELECT status FROM posts WHERE id = 1')->fetchColumn();
+$firstSecurityCount = (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn();
+$pdo->exec("INSERT INTO posts (id, status, scheduled_at, updated_at) VALUES (2, 'scheduled', '2026-08-08 00:00:00', NULL)");
+$securityInsert->execute([3, date('Y-m-d H:i:s', time() - (31 * 86400))]);
+$freshCount = voncms_run_scheduler_if_due($pdo, $lockFile, 60);
+$freshStatus = (string) $pdo->query('SELECT status FROM posts WHERE id = 2')->fetchColumn();
+$freshSecurityCount = (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn();
+touch($lockFile, time() - 61);
+touch($retentionLockFile, time() - 86401);
+$staleCount = voncms_run_scheduler_if_due($pdo, $lockFile, 60);
+$staleStatus = (string) $pdo->query('SELECT status FROM posts WHERE id = 2')->fetchColumn();
+$staleSecurityCount = (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn();
+if (
+  $firstCount !== 1 ||
+  $firstStatus !== 'published' ||
+  $firstSecurityCount !== 1 ||
+  $freshCount !== 0 ||
+  $freshStatus !== 'scheduled' ||
+  $freshSecurityCount !== 2 ||
+  $staleCount !== 1 ||
+  $staleStatus !== 'published' ||
+  $staleSecurityCount !== 1 ||
+  $cacheClears !== 2
+) {
+  exit(2);
+}
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+  const schedulerHelperProbe = runSchedulerHelperProbe(
+    'public/index.php',
+    'public/scheduler_helper.php'
+  );
+  const schedulerHelperDistProbe = runSchedulerHelperProbe(
+    'dist/index.php',
+    'dist/scheduler_helper.php'
+  );
+  if (
+    schedulerHelperProbe.status === 0 &&
+    ['ok', 'skip'].includes(schedulerHelperProbe.stdout.trim()) &&
+    schedulerHelperDistProbe.status === 0 &&
+    ['ok', 'skip'].includes(schedulerHelperDistProbe.stdout.trim())
+  ) {
+    pass(
+      schedulerHelperProbe.stdout.trim() === 'skip'
+        ? 'Scheduler Helper Runtime: SQLite unavailable; direct runtime publishing probe skipped cleanly.'
+        : 'Scheduler Helper Runtime: Source and Deploy publish immediately on a missing lock, throttle fresh locks, resume after stale locks, and run daily security retention.'
+    );
+  } else {
+    fail(
+      `Scheduler Helper Runtime: publishing or daily security-retention lock behavior drifted. Source: ${(schedulerHelperProbe.stderr || schedulerHelperProbe.stdout || '').trim()} Deploy: ${(schedulerHelperDistProbe.stderr || schedulerHelperDistProbe.stdout || '').trim()}`
+    );
+  }
+
+  const runSchedulerRetryProbe = (indexRelativePath, helperRelativePath) =>
+    spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot(indexRelativePath))};
+$cacheClears = 0;
+function voncms_public_cache_clear(): array {
+  global $cacheClears;
+  $cacheClears++;
+  return ['removed' => 0, 'errors' => []];
+}
+require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$lockFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-scheduler-retry-' . bin2hex(random_bytes(6)) . '.lock';
+$retentionLockFile = $lockFile . '.retention-retry';
+register_shutdown_function(static function () use ($lockFile, $retentionLockFile) {
+  @unlink($lockFile);
+  @unlink($lockFile . '.security-retention');
+  @unlink($retentionLockFile);
+});
+$failedPublishCount = voncms_run_scheduler_if_due($pdo, $lockFile, 60);
+clearstatcache(true, $lockFile);
+$publishRetryReady = file_exists($lockFile) && time() - filemtime($lockFile) > 60;
+$pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, status TEXT, scheduled_at TEXT, updated_at TEXT)');
+$pdo->exec('CREATE TABLE security_logs (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL)');
+$pdo->exec("INSERT INTO posts (id, status, scheduled_at, updated_at) VALUES (1, 'scheduled', '2026-08-08 00:00:00', NULL)");
+$retryPublishCount = voncms_run_scheduler_if_due($pdo, $lockFile, 60);
+$retryStatus = (string) $pdo->query('SELECT status FROM posts WHERE id = 1')->fetchColumn();
+$pdo->exec('DROP TABLE security_logs');
+$failedRetentionCount = voncms_run_security_retention_if_due($pdo, $retentionLockFile, 86400, 30);
+clearstatcache(true, $retentionLockFile);
+$retentionRetryReady = file_exists($retentionLockFile) && time() - filemtime($retentionLockFile) > 86400;
+$pdo->exec('CREATE TABLE security_logs (id INTEGER PRIMARY KEY, created_at TEXT NOT NULL)');
+$securityInsert = $pdo->prepare('INSERT INTO security_logs (id, created_at) VALUES (?, ?)');
+$securityInsert->execute([1, date('Y-m-d H:i:s', time() - (31 * 86400))]);
+$retryRetentionCount = voncms_run_security_retention_if_due($pdo, $retentionLockFile, 86400, 30);
+if (
+  $failedPublishCount !== 0 ||
+  !$publishRetryReady ||
+  $retryPublishCount !== 1 ||
+  $retryStatus !== 'published' ||
+  $failedRetentionCount !== 0 ||
+  !$retentionRetryReady ||
+  $retryRetentionCount !== 1 ||
+  $cacheClears !== 1
+) {
+  exit(2);
+}
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+  const schedulerRetryProbe = runSchedulerRetryProbe(
+    'public/index.php',
+    'public/scheduler_helper.php'
+  );
+  const schedulerRetryDistProbe = runSchedulerRetryProbe(
+    'dist/index.php',
+    'dist/scheduler_helper.php'
+  );
+  if (
+    schedulerRetryProbe.status === 0 &&
+    ['ok', 'skip'].includes(schedulerRetryProbe.stdout.trim()) &&
+    schedulerRetryDistProbe.status === 0 &&
+    ['ok', 'skip'].includes(schedulerRetryDistProbe.stdout.trim())
+  ) {
+    pass(
+      schedulerRetryProbe.stdout.trim() === 'skip'
+        ? 'Scheduler Retry Runtime: SQLite unavailable; retry probe skipped cleanly.'
+        : 'Scheduler Retry Runtime: transient publish and retention failures stay fail-open and remain immediately retryable in Source and Deploy.'
+    );
+  } else {
+    fail(
+      `Scheduler Retry Runtime: transient failure retry behavior drifted. Source: ${(schedulerRetryProbe.stderr || schedulerRetryProbe.stdout || '').trim()} Deploy: ${(schedulerRetryDistProbe.stderr || schedulerRetryDistProbe.stdout || '').trim()}`
+    );
+  }
+
+  const runWpWxrReaderProbe = (helperRelativePath) =>
+    spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `define('VONCMS_WP_IMPORT_CONTEXT', true);
+require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
+$reader = new XMLReader();
+$reader->XML('<rss><channel><item><title>1</title></item><item><title>2</title></item><item><title>3</title></item></channel></rss>', null, LIBXML_NONET | LIBXML_COMPACT);
+$seen = [];
+while (($node = voncms_wp_read_next_item($reader)) !== null) {
+  $dom = new DOMDocument();
+  $copy = $dom->importNode($node, true);
+  $dom->appendChild($copy);
+  $titleNode = $dom->getElementsByTagName('title')->item(0);
+  $seen[] = $titleNode ? $titleNode->textContent : '';
+}
+$reader->close();
+echo implode(',', $seen);`,
+      ],
+      { encoding: 'utf8' }
+    );
+  const wpWxrReaderProbe = runWpWxrReaderProbe('public/api/tools/wp_wxr_reader_helper.php');
+  const wpWxrReaderDistProbe = runWpWxrReaderProbe('dist/api/tools/wp_wxr_reader_helper.php');
+  if (
+    wpWxrReaderProbe.status === 0 &&
+    wpWxrReaderProbe.stdout.trim() === '1,2,3' &&
+    wpWxrReaderDistProbe.status === 0 &&
+    wpWxrReaderDistProbe.stdout.trim() === '1,2,3'
+  ) {
+    pass(
+      'WordPress WXR Reader Runtime: Source and Deploy process every adjacent sibling item exactly once.'
+    );
+  } else {
+    fail(
+      `WordPress WXR Reader Runtime: adjacent sibling iteration drifted. Source: ${(wpWxrReaderProbe.stderr || wpWxrReaderProbe.stdout || '').trim()} Deploy: ${(wpWxrReaderDistProbe.stderr || wpWxrReaderDistProbe.stdout || '').trim()}`
+    );
+  }
+
+  const wpWxrReaderDirectProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `require ${JSON.stringify(resolveFromRoot('public/api/tools/wp_wxr_reader_helper.php'))};
+echo 'unguarded';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (wpWxrReaderDirectProbe.status === 0 && wpWxrReaderDirectProbe.stdout.trim() === 'Forbidden') {
+    pass('WordPress WXR Reader Direct Access Runtime: direct execution stops at the 403 guard.');
+  } else {
+    fail(
+      `WordPress WXR Reader Direct Access Runtime: direct execution can pass the helper guard. ${(wpWxrReaderDirectProbe.stderr || wpWxrReaderDirectProbe.stdout || '').trim()}`
+    );
+  }
+
+  const schedulerHelperDirectProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/scheduler_helper.php'))};
+require ${JSON.stringify(resolveFromRoot('public/scheduler_helper.php'))};
+echo 'unguarded';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (
+    schedulerHelperDirectProbe.status === 0 &&
+    schedulerHelperDirectProbe.stdout.trim() === 'Forbidden'
+  ) {
+    pass('Scheduler Helper Direct Access Runtime: direct execution stops at the 403 guard.');
+  } else {
+    fail(
+      `Scheduler Helper Direct Access Runtime: direct execution can pass the helper guard. ${(schedulerHelperDirectProbe.stderr || schedulerHelperDirectProbe.stdout || '').trim()}`
+    );
+  }
+
+  const schedulerSourceText = fs.readFileSync(
+    resolveFromRoot('public/scheduler_helper.php'),
+    'utf8'
+  );
+  const schedulerDeployText = fs.readFileSync(resolveFromRoot('dist/scheduler_helper.php'), 'utf8');
+  const php84OnlyDateChain = /new\s+DateTimeImmutable\([^\r\n]*\)\s*\r?\n\s*->/;
+  if (
+    !php84OnlyDateChain.test(schedulerSourceText) &&
+    !php84OnlyDateChain.test(schedulerDeployText) &&
+    schedulerSourceText.includes("$cutoffDate = new DateTimeImmutable('now');") &&
+    schedulerDeployText.includes("$cutoffDate = new DateTimeImmutable('now');")
+  ) {
+    pass(
+      'PHP 8.2 Scheduler Compatibility: Source and Deploy separate DateTime creation from method chaining.'
+    );
+  } else {
+    fail(
+      'PHP 8.2 Scheduler Compatibility: scheduler helper uses PHP 8.4-only object dereferencing.'
     );
   }
 

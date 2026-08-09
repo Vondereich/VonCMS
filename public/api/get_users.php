@@ -18,6 +18,9 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 // Authenticate and Authorize (Admin only)
 SessionManager::requireAdmin();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
 
 try {
   // Check if database connection exists

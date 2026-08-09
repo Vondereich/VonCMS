@@ -14,6 +14,7 @@ export interface ThemeDefinition {
   author: string;
   performance: {
     homepageHero?: 'first-post-image';
+    homepageHeroSizes?: string;
   };
   config: ThemeConfig; // Re-use existing type for compatibility
   extendedConfig: {
@@ -49,11 +50,18 @@ export interface ThemeDefinition {
 }
 
 const readThemePerformance = (manifest: {
-  performance?: { homepageHero?: unknown };
-}): ThemeDefinition['performance'] =>
-  manifest.performance?.homepageHero === 'first-post-image'
-    ? { homepageHero: 'first-post-image' }
-    : {};
+  performance?: { homepageHero?: unknown; homepageHeroSizes?: unknown };
+}): ThemeDefinition['performance'] => {
+  if (manifest.performance?.homepageHero !== 'first-post-image') return {};
+
+  const homepageHeroSizes = manifest.performance.homepageHeroSizes;
+  return {
+    homepageHero: 'first-post-image',
+    ...(typeof homepageHeroSizes === 'string' && homepageHeroSizes.length <= 256
+      ? { homepageHeroSizes }
+      : {}),
+  };
+};
 
 // --- THEME: DEFAULT ---
 export const THEME_DEFAULT: ThemeDefinition = {

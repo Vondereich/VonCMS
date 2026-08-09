@@ -51,6 +51,9 @@ try {
   $currentRole = $hasValidSession ? strtolower((string) ($_SESSION['user']['role'] ?? '')) : '';
   $canReadProtectedPages = in_array($currentRole, ['admin', 'root', 'moderator'], true);
   $isAdmin = $canReadProtectedPages;
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
   $hasDisplayNameColumn = false;
   try {
     $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");

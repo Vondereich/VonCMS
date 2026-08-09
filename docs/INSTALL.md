@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.26.4 "After Hours"**
+> **VonCMS v1.26.5 "After Hours"**
 
 ---
 
@@ -63,7 +63,7 @@ inspection, but it cannot replace host-root robots configuration.
 
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package. For v1.26.4, the file is `VonCMS_v1.26.4_Deploy.zip`.
+1. Download the latest VonCMS Deploy package. For v1.26.5, the file is `VonCMS_v1.26.5_Deploy.zip`.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -103,6 +103,34 @@ This guide is for fresh installs. For OTA updates, manual Deploy ZIP replacement
 
 ---
 
+## Optional cPanel cron for quiet sites
+
+VonCMS already checks for due scheduled posts during normal public traffic. The check is lock-protected and runs at most once per minute, so most sites do not need a separate cron job.
+
+An external cron is optional when a site can remain completely idle around a scheduled publish time. It improves timing on a quiet site, but it does not replace the built-in scheduler.
+
+1. Edit the installed `von_config.php` and add a long random secret:
+
+   ```php
+   define('CRON_KEY', 'replace-with-a-long-random-secret');
+   ```
+
+2. In cPanel, open **Advanced > Cron Jobs**.
+3. Choose every five minutes for normal shared hosting, or every minute only when the host permits it and near-exact publishing is required.
+4. Use this command after replacing the secret and domain:
+
+   ```bash
+   /usr/bin/curl --fail --silent --show-error --max-time 30 -H 'X-Cron-Key: replace-with-a-long-random-secret' 'https://example.com/api/cron_publish.php' >/dev/null 2>&1
+   ```
+
+For a subfolder install, include the subfolder in the URL, for example `https://example.com/news/api/cron_publish.php`. Some hosts place `curl` elsewhere, so use the path shown by the hosting provider if `/usr/bin/curl` is unavailable.
+
+Keep the key in the `X-Cron-Key` header. Do not place it in the query string because URLs are commonly stored in access logs. If you do not configure cPanel cron, leave `CRON_KEY` undefined and continue using VonCMS normally.
+
+The endpoint contract and response fields are documented in [API Guide](API.md#scheduled-publishing-endpoint).
+
+---
+
 ## Troubleshooting
 
 | Problem                                     | Solution                                         |
@@ -128,4 +156,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.26.4 "After Hours"_
+_VonCMS v1.26.5 "After Hours"_

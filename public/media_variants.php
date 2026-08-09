@@ -6,7 +6,7 @@
 function voncms_get_responsive_widths(int $maxWidth = 1920): array
 {
   $maxWidth = max(1, $maxWidth);
-  $candidates = [480, 960, 1920];
+  $candidates = [480, 768, 960, 1920];
   $widths = [];
 
   foreach ($candidates as $candidate) {

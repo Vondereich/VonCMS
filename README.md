@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-VonCMS v1.26.4 is the current open-source release in the **v1.26 "After Hours"** series. The series opened with v1.26.0 as a focused modernization of the development toolchain, editor structure, SEO controls, public themes, and admin experience while keeping the established PHP shared-hosting runtime. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+VonCMS v1.26.5 is the current release in the **v1.26 "After Hours"** series. The series opened with v1.26.0 as a focused modernization of the development toolchain, editor structure, SEO controls, public themes, and admin experience while keeping the established PHP shared-hosting runtime. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -18,7 +18,7 @@ The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, edit
 >
 > ## Manual Update Required For Affected Builds
 >
-> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the current `v1.26.4` Deploy ZIP manually once. Those builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
+> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the current published `v1.26.4` Deploy ZIP manually once. Those builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
 >
 > Follow [Updating Existing Sites](#updating-existing-sites) and keep `von_config.php`, `data/`, `uploads/`, `backups/`, and the live `.htaccess` file protected. After the refreshed build is installed, primary-owner OTA discovery works normally for later releases.
 
@@ -76,19 +76,19 @@ On Windows, Laragon is the easiest PHP/MySQL stack for local checks. XAMPP, WAMP
 
 ## Choose Your Path
 
-| Goal                                         | Start here                                                                                          |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Install VonCMS on shared hosting             | Download `VonCMS_v1.26.4_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases) |
-| Study the code or build custom features      | Fork or clone the repository                                                                        |
-| Build a custom theme, plugin, or extension   | Read [Extension Development](docs/EXTENSION_DEVELOPMENT.md)                                         |
-| Work on APIs, installer, routing, or updater | Read [API](docs/API.md), [Security](docs/SECURITY.md), and [Routing](docs/ROUTING.md)               |
-| Upgrade an existing website                  | Read [Upgrade](docs/UPGRADE.md)                                                                     |
+| Goal                                         | Start here                                                                                               |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Install VonCMS on shared hosting             | Download the current published Deploy ZIP from [Releases](https://github.com/Vondereich/VonCMS/releases) |
+| Study the code or build custom features      | Fork or clone the repository                                                                             |
+| Build a custom theme, plugin, or extension   | Read [Extension Development](docs/EXTENSION_DEVELOPMENT.md)                                              |
+| Work on APIs, installer, routing, or updater | Read [API](docs/API.md), [Security](docs/SECURITY.md), and [Routing](docs/ROUTING.md)                    |
+| Upgrade an existing website                  | Read [Upgrade](docs/UPGRADE.md)                                                                          |
 
 ## Install A Website From Deploy ZIP
 
 Use this path for normal site owners and shared-hosting installs.
 
-1. Download `VonCMS_v1.26.4_Deploy.zip` from [Releases](https://github.com/Vondereich/VonCMS/releases).
+1. Download the current published Deploy ZIP from [Releases](https://github.com/Vondereich/VonCMS/releases).
 2. Extract it into your hosting web root.
 3. Create a MySQL database and database user.
 4. Open `https://yourdomain.com/install`.
@@ -245,8 +245,8 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.26.4_Deploy.zip`
-- `VonCMS_v1.26.4_Source.zip`
+- `VonCMS_v1.26.5_Deploy.zip`
+- `VonCMS_v1.26.5_Source.zip`
 
 No checksum sidecar files are generated by the release script.
 
@@ -295,6 +295,12 @@ After a site is already on the fixed updater baseline, the dashboard updater can
 ## Release History
 
 Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
+
+### v1.26.5 - Admin Editor Context And Publish Readiness
+
+- New and existing post/page editor routes use accurate browser titles and retain their owning admin navigation state.
+- Publish readiness now covers slug, excerpt or meta description, featured image, category, and scheduling alongside title and content.
+- Readiness remains advisory except for the established title and content publish requirements and the required date and time for Schedule; the editor now keeps its saved state aligned with the canonical status returned by the server.
 
 ### v1.26.4 - Security Dashboard And Quick Editor Safety
 

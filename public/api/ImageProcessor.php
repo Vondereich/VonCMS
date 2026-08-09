@@ -45,7 +45,7 @@ class ImageProcessor
         'quality' => 85,
         'convertToWebP' => false,
         'generateResponsiveVariants' => true,
-        'responsiveWidths' => [480, 960, 1920],
+        'responsiveWidths' => [480, 768, 960, 1920],
       ],
       $settings,
     );

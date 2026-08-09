@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -63,6 +63,11 @@ interface SecurityLogQueryOverrides {
   searchQuery?: string;
 }
 
+interface PendingSecurityFetch {
+  isRefresh: boolean;
+  overrides: SecurityLogQueryOverrides;
+}
+
 const COLORS: Record<string, string> = {
   login_failed: '#eab308', // Yellow
   honeypot_caught: '#ef4444', // Red
@@ -109,8 +114,15 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
   const [filterSeverity, setFilterSeverity] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showDangerZone, setShowDangerZone] = useState(false);
+  const fetchInFlightRef = useRef(false);
+  const pendingFetchRef = useRef<PendingSecurityFetch | null>(null);
 
   const fetchData = async (isRefresh = false, overrides: SecurityLogQueryOverrides = {}) => {
+    if (fetchInFlightRef.current) {
+      pendingFetchRef.current = { isRefresh, overrides };
+      return;
+    }
+    fetchInFlightRef.current = true;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
@@ -167,20 +179,28 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       console.error('Security fetch error:', error);
       toast.error('Failed to connect to security server');
     } finally {
+      fetchInFlightRef.current = false;
       setLoading(false);
       setRefreshing(false);
+      const pendingFetch = pendingFetchRef.current;
+      if (pendingFetch) {
+        pendingFetchRef.current = null;
+        void fetchData(pendingFetch.isRefresh, pendingFetch.overrides);
+      }
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(false, { page, filterType, filterSeverity, searchQuery });
   }, [page, filterType, filterSeverity]); // Search triggered manually or debounced (manual for now)
 
-  // Auto-refresh live logs every 10 seconds
+  // Keep the monitor fresh without stacking requests or polling a hidden tab.
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchData(true);
-    }, 10000);
+      if (document.visibilityState === 'visible') {
+        fetchData(true, { page, filterType, filterSeverity, searchQuery });
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, [page, filterType, filterSeverity, searchQuery]);
 
@@ -188,7 +208,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
     e.preventDefault();
     setPage(1);
     if (page === 1) {
-      fetchData(false, { page: 1, searchQuery });
+      fetchData(false, { page: 1, filterType, filterSeverity, searchQuery });
     }
   };
 
@@ -307,7 +327,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                       });
                       const data = await res.json();
                       if (data.success) {
-                        toast.success('Old logs purged!');
+                        toast.success(data.message || 'Security log maintenance completed.');
                         fetchData(true);
                       } else {
                         toast.error(data.message || 'Failed to purge logs');

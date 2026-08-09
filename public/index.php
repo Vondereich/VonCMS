@@ -63,9 +63,9 @@ if ($canonicalRedirectLocation !== null) {
 }
 
 // ============================================
-// MAINTENANCE MODE (File-based Check)
+// CORE RUNTIME HELPERS
 // ============================================
-// 1. Initialise Security Layer (Handles Session & Headers)
+// Initialise the security layer before installation and maintenance checks.
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/media_variants.php';
 require_once __DIR__ . '/scheduler_helper.php';
@@ -97,6 +97,9 @@ if (!file_exists($configFile)) {
     exit();
   }
 }
+// ============================================
+// MAINTENANCE MODE (File-based Check)
+// ============================================
 if (file_exists($maintenanceFlag)) {
   // SECURITY BYPASS:
   // 1. Allow /login and /admin (so you can reach the door)
@@ -355,7 +358,6 @@ $seoUrl = $domainUrl . '/'; // Homepage is the canonical directory URL.
 try {
   if (file_exists($configFile)) {
     require_once $configFile;
-    voncms_apply_site_timezone($pdo ?? null);
     $publicContentCurrentTime = date('Y-m-d H:i:s');
 
     if (isset($pdo)) {
@@ -1069,7 +1071,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
 
   <?php if (!empty($schemaData)): ?>
     <!-- Schema.org JSON-LD (VonSEO) -->
-    <script type="application/ld+json">
+    <script type="application/ld+json" class="vp-seo" data-voncms-schema-source="ssr" data-voncms-schema-url="<?php echo htmlspecialchars($seoUrl, ENT_QUOTES, 'UTF-8'); ?>">
       <?php
       $additionalSchemaNodes = [];
       if (
@@ -1130,7 +1132,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         }
         $breadcrumbCategorySlug = voncms_category_slug($breadcrumbCategoryName);
         $breadcrumbPostName = html_entity_decode($post['title'] ?? $seoTitle, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $schemaData['breadcrumb'] = [
+        $additionalSchemaNodes[] = [
           '@type' => 'BreadcrumbList',
           'itemListElement' => [
             [
@@ -1181,6 +1183,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <?php
   // 1.20.0 FIX: Settings Hydration to prevent default fallbacks in bot crawls
   $homepageHeroStrategy = '';
+  $homepageHeroSizes = '100vw';
 
   $themeManifestPaths = [__DIR__ . '/themes/' . $activeThemeId . '/theme.json'];
   $sourceThemeManifestPaths = glob(dirname(__DIR__) . '/src/themes/*/theme.json');
@@ -1206,6 +1209,16 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
       $homepageHeroStrategy = $manifestHeroStrategy === 'first-post-image'
         ? 'first-post-image'
         : '';
+      $manifestHeroSizes = $themeManifest['performance']['homepageHeroSizes'] ?? null;
+      if (
+        $homepageHeroStrategy === 'first-post-image' &&
+        is_string($manifestHeroSizes) &&
+        $manifestHeroSizes !== '' &&
+        strlen($manifestHeroSizes) <= 256 &&
+        !preg_match('/[\x00-\x1F\x7F<>"\']/', $manifestHeroSizes)
+      ) {
+        $homepageHeroSizes = $manifestHeroSizes;
+      }
       break;
     }
   }
@@ -1235,7 +1248,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   }
   ?>
   <?php if ($heroPreloadHref !== ''): ?>
-    <link rel="preload" as="image" href="<?php echo htmlspecialchars($heroPreloadHref, ENT_QUOTES, 'UTF-8'); ?>"<?php if ($heroPreloadSrcSet !== ''): ?> imagesrcset="<?php echo htmlspecialchars($heroPreloadSrcSet, ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> imagesizes="100vw" fetchpriority="high">
+    <link rel="preload" as="image" href="<?php echo htmlspecialchars($heroPreloadHref, ENT_QUOTES, 'UTF-8'); ?>"<?php if ($heroPreloadSrcSet !== ''): ?> imagesrcset="<?php echo htmlspecialchars($heroPreloadSrcSet, ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> imagesizes="<?php echo htmlspecialchars($homepageHeroSizes, ENT_QUOTES, 'UTF-8'); ?>" fetchpriority="high">
   <?php endif; ?>
   <script>
     window.__INITIAL_SETTINGS__ = <?php echo json_encode([

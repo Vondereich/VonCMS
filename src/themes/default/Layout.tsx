@@ -1177,9 +1177,10 @@ const HomeView: React.FC<{
                     >
                       {post.image && (
                         <img
-                          {...getResponsiveImageAttributes(post, 'card')}
+                          {...getResponsiveImageAttributes(post, 'gridThreeMd')}
                           alt={decodeEntities(post.title)}
-                          loading="lazy"
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                          fetchPriority={index === 0 ? 'high' : 'auto'}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                         />
                       )}
@@ -1455,7 +1456,7 @@ const SinglePostView: React.FC<{
           return (
             <div className="w-full mb-10 rounded-2xl overflow-hidden shadow-lg">
               <img
-                {...getResponsiveImageAttributes(post, 'hero')}
+                {...getResponsiveImageAttributes(post, 'articleHero')}
                 alt={decodeEntities(post.title)}
                 className="w-full h-auto max-h-[600px] object-cover"
               />

@@ -36,7 +36,7 @@ const setLinkCanonical = (href: string) => {
   el.setAttribute('href', href);
 };
 
-const setJsonLd = (obj: any) => {
+const setJsonLd = (obj: any, schemaUrl: string) => {
   let el = document.head.querySelector('script[type="application/ld+json"].vp-seo');
   if (!el) {
     el = document.createElement('script');
@@ -44,7 +44,17 @@ const setJsonLd = (obj: any) => {
     el.classList.add('vp-seo');
     document.head.appendChild(el);
   }
+
+  if (
+    el.getAttribute('data-voncms-schema-source') === 'ssr' &&
+    el.getAttribute('data-voncms-schema-url') === schemaUrl
+  ) {
+    return;
+  }
+
   el.textContent = JSON.stringify(obj);
+  el.removeAttribute('data-voncms-schema-source');
+  el.removeAttribute('data-voncms-schema-url');
 };
 
 const normalizeSchemaDate = (value?: string) => {
@@ -410,7 +420,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     };
     jsonLd['@graph'].push(breadcrumbNode);
 
-    setJsonLd(jsonLd);
+    setJsonLd(jsonLd, canonical);
 
     // Temporary maintenance is signalled server-side with HTTP 503, not persistent noindex metadata.
     ensureMeta('robots', 'name', hydratedRobots);
@@ -423,6 +433,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     selectedCategory,
     categoryPostCount,
     fetchedCategoryPostCount,
+    location.pathname,
     location.search,
   ]);
 

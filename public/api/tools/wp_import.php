@@ -2,6 +2,8 @@
 // Suppress PHP error output that breaks JSON
 require_once __DIR__ . '/../../security.php';
 require_once __DIR__ . '/../public_cache_helper.php';
+define('VONCMS_WP_IMPORT_CONTEXT', true);
+require_once __DIR__ . '/wp_wxr_reader_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -1349,6 +1351,12 @@ SessionManager::requireValidSession();
 SessionManager::requirePrimaryAdmin();
 CSRFProtection::requireToken();
 
+$importUserId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+$importUsername = trim((string) ($_SESSION['user']['username'] ?? '')) ?: 'Admin';
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
+
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
@@ -1380,7 +1388,7 @@ function rollback_imported_media_since(PDO $conn, int $checkpoint): void
 
   $GLOBALS['voncms_wp_import_created_media'] = array_slice($createdMedia, 0, $checkpoint);
 }
-$filename = $input['temp_file'] ?? '';
+$filename = is_string($input['temp_file'] ?? null) ? trim($input['temp_file']) : '';
 $batchIndex = filter_var($input['batch_index'] ?? 0, FILTER_VALIDATE_INT);
 $limit = filter_var($input['limit'] ?? 10, FILTER_VALIDATE_INT);
 $batchIndex = $batchIndex === false ? -1 : $batchIndex;
@@ -1388,15 +1396,15 @@ $limit = $limit === false ? 0 : $limit;
 $sourceSiteUrl = normalize_import_url($input['source_site_url'] ?? '');
 $sourceBlogUrl = normalize_import_url($input['source_blog_url'] ?? '');
 
-if (empty($filename)) {
-  ResponseHelper::sendError('Filename required', 400);
+if (!preg_match('/\Awp_import_[a-f0-9]{32}\.xml\z/', $filename)) {
+  ResponseHelper::sendError('Invalid temporary import filename', 400);
 }
 
 if ($batchIndex < 0 || $batchIndex > 100000 || $limit < 1 || $limit > 50) {
   ResponseHelper::sendError('Invalid import batch parameters', 400);
 }
 
-$filePath = __DIR__ . '/../../uploads/temp/' . basename($filename);
+$filePath = __DIR__ . '/../../uploads/temp/' . $filename;
 if (!file_exists($filePath)) {
   ResponseHelper::sendError('Temp file not found', 404);
 }
@@ -1457,34 +1465,23 @@ try {
   $attachmentMap = [];
   $preScanReader = new XMLReader();
   if ($preScanReader->open($filePath, null, LIBXML_NONET | LIBXML_COMPACT)) {
-    while ($preScanReader->read()) {
+    while (($preScanNode = voncms_wp_read_next_item($preScanReader)) !== null) {
+      $preScanDom = new DOMDocument();
+      $preScanN = $preScanDom->importNode($preScanNode, true);
+      $preScanDom->appendChild($preScanN);
+      $preScanSxe = simplexml_import_dom($preScanN);
+      $preScanNs = $preScanSxe->getNamespaces(true);
+      $preScanWp = isset($preScanNs['wp']) ? $preScanSxe->children($preScanNs['wp']) : null;
       if (
-        $preScanReader->nodeType == XMLReader::ELEMENT &&
-        ($preScanReader->name == 'item' || $preScanReader->name == 'post')
+        $preScanWp &&
+        isset($preScanWp->post_type) &&
+        (string) $preScanWp->post_type === 'attachment'
       ) {
-        $preScanNode = $preScanReader->expand();
-        if (!$preScanNode) {
-          $preScanReader->next();
-          continue;
+        $attachId = (string) ($preScanWp->post_id ?? '');
+        $attachUrl = (string) ($preScanWp->attachment_url ?? '');
+        if ($attachId !== '' && $attachUrl !== '') {
+          $attachmentMap[$attachId] = $attachUrl;
         }
-        $preScanDom = new DOMDocument();
-        $preScanN = $preScanDom->importNode($preScanNode, true);
-        $preScanDom->appendChild($preScanN);
-        $preScanSxe = simplexml_import_dom($preScanN);
-        $preScanNs = $preScanSxe->getNamespaces(true);
-        $preScanWp = isset($preScanNs['wp']) ? $preScanSxe->children($preScanNs['wp']) : null;
-        if (
-          $preScanWp &&
-          isset($preScanWp->post_type) &&
-          (string) $preScanWp->post_type === 'attachment'
-        ) {
-          $attachId = (string) ($preScanWp->post_id ?? '');
-          $attachUrl = (string) ($preScanWp->attachment_url ?? '');
-          if ($attachId !== '' && $attachUrl !== '') {
-            $attachmentMap[$attachId] = $attachUrl;
-          }
-        }
-        $preScanReader->next();
       }
     }
     $preScanReader->close();
@@ -1501,258 +1498,223 @@ try {
   $count = 0;
   $startIndex = $batchIndex * $limit;
 
-  while ($reader->read()) {
-    if (
-      $reader->nodeType == XMLReader::ELEMENT &&
-      ($reader->name == 'item' || $reader->name == 'post')
-    ) {
-      // Process Item
-      $node = $reader->expand();
-      if (!$node) {
-        debug_log("Node expand failed at index $count");
-        $reader->next();
-        continue;
+  while (($node = voncms_wp_read_next_item($reader)) !== null) {
+    // Process Item
+    $dom = new DOMDocument();
+    $n = $dom->importNode($node, true);
+    $dom->appendChild($n);
+    $sxe = simplexml_import_dom($n);
+
+    $namespaces = $sxe->getNamespaces(true);
+
+    // Safety: Check if namespaces exist
+    $wp = isset($namespaces['wp']) ? $sxe->children($namespaces['wp']) : null;
+    $content = isset($namespaces['content']) ? $sxe->children($namespaces['content']) : null;
+
+    $postType = '';
+    $postStatus = 'publish';
+    $slug = '';
+    $date = '';
+
+    // 1. Try WP Format (Namespace)
+    if ($wp) {
+      $postType = (string) $wp->post_type;
+      $postStatus = (string) $wp->status;
+      $slug = (string) $wp->post_name;
+      $date = (string) $wp->post_date;
+    }
+
+    // 2. Try Generic Format (Flat tags)
+    if (empty($postType)) {
+      if (isset($sxe->post_type)) {
+        $postType = (string) $sxe->post_type;
+      } elseif ($node->nodeName === 'post') {
+        $postType = 'post'; // Implicit
       }
 
-      $dom = new DOMDocument();
-      $n = $dom->importNode($node, true);
-      $dom->appendChild($n);
-      $sxe = simplexml_import_dom($n);
-
-      $namespaces = $sxe->getNamespaces(true);
-
-      // Safety: Check if namespaces exist
-      $wp = isset($namespaces['wp']) ? $sxe->children($namespaces['wp']) : null;
-      $content = isset($namespaces['content']) ? $sxe->children($namespaces['content']) : null;
-
-      $postType = '';
-      $postStatus = 'publish';
-      $slug = '';
-      $date = '';
-
-      // 1. Try WP Format (Namespace)
-      if ($wp) {
-        $postType = (string) $wp->post_type;
-        $postStatus = (string) $wp->status;
-        $slug = (string) $wp->post_name;
-        $date = (string) $wp->post_date;
-      }
-
-      // 2. Try Generic Format (Flat tags)
+      // Fallback defaults
       if (empty($postType)) {
-        if (isset($sxe->post_type)) {
-          $postType = (string) $sxe->post_type;
-        } elseif ($reader->name == 'post') {
-          $postType = 'post'; // Implicit
-        }
-
-        // Fallback defaults
-        if (empty($postType)) {
-          $postType = 'post';
-        }
-        $postStatus = 'publish';
-        $slug = sanitize_title((string) $sxe->title);
-
-        // Try parsing date
-        $date = (string) $sxe->date;
-        if (empty($date)) {
-          $date = date('Y-m-d H:i:s');
-        }
+        $postType = 'post';
       }
+      $postStatus = 'publish';
+      $slug = sanitize_title((string) $sxe->title);
 
-      // Fallback for date if empty
+      // Try parsing date
+      $date = (string) $sxe->date;
       if (empty($date)) {
         $date = date('Y-m-d H:i:s');
       }
+    }
 
-      if ($count < $startIndex) {
+    // Fallback for date if empty
+    if (empty($date)) {
+      $date = date('Y-m-d H:i:s');
+    }
+
+    if (!in_array($postType, ['post', 'page', 'attachment'], true)) {
+      continue;
+    }
+
+    if ($count < $startIndex) {
+      $count++;
+      continue;
+    }
+
+    if ($processed >= $limit) {
+      break;
+    }
+
+    // Handle WordPress attachment items (media library entries)
+    if ($postType === 'attachment') {
+      $count++;
+      if ($wp && isset($wp->attachment_url)) {
+        $attachmentUrl = (string) $wp->attachment_url;
+        // Infer source base URLs from attachment URL if not yet set
+        if (empty($sourceBaseUrls) && preg_match('~^https?://~i', $attachmentUrl)) {
+          $inferredOrigin = get_url_origin($attachmentUrl);
+          if ($inferredOrigin !== '') {
+            $sourceBaseUrls = collect_source_base_urls($inferredOrigin, '');
+            debug_log("Inferred source base URLs from attachment: $inferredOrigin");
+          }
+        }
+        $uploadBy = $importUserId;
+        $localized = rehost_import_image_url(
+          $attachmentUrl,
+          $sourceBaseUrls,
+          $targetSiteUrl,
+          $conn,
+          $uploadBy,
+        );
+        if ($localized) {
+          $localizedMedia++;
+          debug_log("Localized attachment: $attachmentUrl -> $localized");
+        } else {
+          debug_log("Skipped attachment: $attachmentUrl");
+        }
+      }
+      $processed++;
+      continue;
+    }
+
+    if (empty($sourceBaseUrls) && isset($sxe->link)) {
+      $inferredSourceUrl = normalize_import_url((string) $sxe->link);
+      $sourceBaseUrls = collect_source_base_urls($inferredSourceUrl, '');
+      if ($sourceSiteUrl === '') {
+        $sourceSiteUrl = get_url_origin($inferredSourceUrl) ?: $inferredSourceUrl;
+      }
+    }
+
+    if ($postType === 'post' || $postType === 'page') {
+      $title = mb_substr(trim((string) $sxe->title), 0, 255);
+      if (empty($slug)) {
+        $slug = sanitize_title($title);
+      }
+      $slug = mb_substr(trim(sanitize_title($slug), '-'), 0, 255);
+      if ($title === '' || $slug === '') {
+        $skipped++;
+        $processed++;
         $count++;
-        $reader->next();
         continue;
       }
 
-      if ($processed >= $limit) {
-        break;
-      }
+      $targetStatus = $postStatus === 'publish' ? 'published' : 'draft';
+      $parsedDate = strtotime($date);
+      $date = $parsedDate === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $parsedDate);
 
-      // Handle WordPress attachment items (media library entries)
-      if ($postType === 'attachment') {
-        $count++;
-        if ($wp && isset($wp->attachment_url)) {
-          $attachmentUrl = (string) $wp->attachment_url;
-          // Infer source base URLs from attachment URL if not yet set
-          if (empty($sourceBaseUrls) && preg_match('~^https?://~i', $attachmentUrl)) {
-            $inferredOrigin = get_url_origin($attachmentUrl);
-            if ($inferredOrigin !== '') {
-              $sourceBaseUrls = collect_source_base_urls($inferredOrigin, '');
-              debug_log("Inferred source base URLs from attachment: $inferredOrigin");
-            }
+      $table = $postType === 'post' ? 'posts' : 'pages';
+      $stmt = $conn->prepare("SELECT id FROM $table WHERE slug = ?");
+      $stmt->execute([$slug]);
+      $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      // Normalize author logic
+      $authorName = $importUsername;
+      $authorId = $importUserId;
+
+      if ($existing) {
+        $skipped++;
+        debug_log("Skipped duplicate (Check): $slug");
+
+        // Self-Healing: Fix invisible posts from previous partial imports
+        if ($postType === 'post') {
+          $fix = $conn->prepare(
+            'UPDATE posts SET author_id = ? WHERE id = ? AND author_id IS NULL',
+          );
+          $fix->execute([$authorId, $existing['id']]);
+          if ($fix->rowCount() > 0) {
+            debug_log("Fixed missing author for: $slug");
           }
-          $uploadBy = $_SESSION['user']['id'] ?? null;
-          $localized = rehost_import_image_url(
-            $attachmentUrl,
+        } elseif ($postType === 'page') {
+          $fix = $conn->prepare(
+            'UPDATE pages SET author_id = ? WHERE id = ? AND author_id IS NULL',
+          );
+          $fix->execute([$authorId, $existing['id']]);
+          if ($fix->rowCount() > 0) {
+            debug_log("Fixed missing author for: $slug");
+          }
+        }
+      } else {
+        $mediaCheckpoint = count($GLOBALS['voncms_wp_import_created_media']);
+        // Try INSERT. If it fails with duplicate, handle it.
+        try {
+          // Content fallback: encoded -> content (generic) -> description -> empty
+          if ($content && isset($content->encoded)) {
+            $rawContent = (string) $content->encoded;
+          } elseif (isset($sxe->content)) {
+            $rawContent = (string) $sxe->content;
+          } else {
+            $rawContent = (string) $sxe->description;
+          }
+
+          $rawContent = substr($rawContent, 0, 1048576);
+          $localizedContent = localize_imported_media_references(
+            $rawContent,
             $sourceBaseUrls,
             $targetSiteUrl,
             $conn,
-            $uploadBy,
+            $authorId,
           );
-          if ($localized) {
-            $localizedMedia++;
-            debug_log("Localized attachment: $attachmentUrl -> $localized");
-          } else {
-            debug_log("Skipped attachment: $attachmentUrl");
-          }
-        }
-        $processed++;
-        $reader->next();
-        continue;
-      }
+          $encodedContent = normalize_imported_content(
+            $localizedContent['html'] ?? $rawContent,
+            $sourceBaseUrls,
+            $targetSiteUrl,
+          );
+          $localizedMedia += (int) ($localizedContent['localized'] ?? 0);
 
-      if ($postType !== 'post' && $postType !== 'page') {
-        $count++;
-        $reader->next();
-        continue;
-      }
-
-      if (empty($sourceBaseUrls) && isset($sxe->link)) {
-        $inferredSourceUrl = normalize_import_url((string) $sxe->link);
-        $sourceBaseUrls = collect_source_base_urls($inferredSourceUrl, '');
-        if ($sourceSiteUrl === '') {
-          $sourceSiteUrl = get_url_origin($inferredSourceUrl) ?: $inferredSourceUrl;
-        }
-      }
-
-      if ($postType === 'post' || $postType === 'page') {
-        $title = mb_substr(trim((string) $sxe->title), 0, 255);
-        if (empty($slug)) {
-          $slug = sanitize_title($title);
-        }
-        $slug = mb_substr(trim(sanitize_title($slug), '-'), 0, 255);
-        if ($title === '' || $slug === '') {
-          $skipped++;
-          $processed++;
-          $count++;
-          $reader->next();
-          continue;
-        }
-
-        $targetStatus = $postStatus === 'publish' ? 'published' : 'draft';
-        $parsedDate = strtotime($date);
-        $date = $parsedDate === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $parsedDate);
-
-        $table = $postType === 'post' ? 'posts' : 'pages';
-        $stmt = $conn->prepare("SELECT id FROM $table WHERE slug = ?");
-        $stmt->execute([$slug]);
-        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // Normalize author logic
-        $authorName = $_SESSION['user']['username'] ?? 'Admin';
-        $authorId = $_SESSION['user']['id'] ?? null;
-
-        if ($existing) {
-          $skipped++;
-          debug_log("Skipped duplicate (Check): $slug");
-
-          // Self-Healing: Fix invisible posts from previous partial imports
+          $category = 'Uncategorized';
           if ($postType === 'post') {
-            $fix = $conn->prepare(
-              'UPDATE posts SET author_id = ? WHERE id = ? AND author_id IS NULL',
-            );
-            $fix->execute([$authorId, $existing['id']]);
-            if ($fix->rowCount() > 0) {
-              debug_log("Fixed missing author for: $slug");
-            }
-          } elseif ($postType === 'page') {
-            $fix = $conn->prepare(
-              'UPDATE pages SET author_id = ? WHERE id = ? AND author_id IS NULL',
-            );
-            $fix->execute([$authorId, $existing['id']]);
-            if ($fix->rowCount() > 0) {
-              debug_log("Fixed missing author for: $slug");
-            }
-          }
-        } else {
-          $mediaCheckpoint = count($GLOBALS['voncms_wp_import_created_media']);
-          // Try INSERT. If it fails with duplicate, handle it.
-          try {
-            // Content fallback: encoded -> content (generic) -> description -> empty
-            if ($content && isset($content->encoded)) {
-              $rawContent = (string) $content->encoded;
-            } elseif (isset($sxe->content)) {
-              $rawContent = (string) $sxe->content;
-            } else {
-              $rawContent = (string) $sxe->description;
-            }
-
-            $rawContent = substr($rawContent, 0, 1048576);
-            $localizedContent = localize_imported_media_references(
-              $rawContent,
-              $sourceBaseUrls,
-              $targetSiteUrl,
-              $conn,
-              $authorId,
-            );
-            $encodedContent = normalize_imported_content(
-              $localizedContent['html'] ?? $rawContent,
-              $sourceBaseUrls,
-              $targetSiteUrl,
-            );
-            $localizedMedia += (int) ($localizedContent['localized'] ?? 0);
-
-            $category = 'Uncategorized';
-            if ($postType === 'post') {
-              // Handle Category
-              if (isset($sxe->category)) {
-                foreach ($sxe->category as $c) {
-                  // 1. WP Style: Check for domain="category"
-                  if (isset($c['domain']) && (string) $c['domain'] === 'category') {
-                    $category = mb_substr(trim((string) $c), 0, 100);
-                    break;
-                  }
-                  // 2. Generic Style: Just take the first <category> tag found if it has no attributes or domain isn't 'post_tag'
-                  // We wait to see if we find a better one, but keep this as fallback
-                  if (!isset($c['domain']) && $category === 'Uncategorized') {
-                    $category = mb_substr(trim((string) $c), 0, 100);
-                  }
+            // Handle Category
+            if (isset($sxe->category)) {
+              foreach ($sxe->category as $c) {
+                // 1. WP Style: Check for domain="category"
+                if (isset($c['domain']) && (string) $c['domain'] === 'category') {
+                  $category = mb_substr(trim((string) $c), 0, 100);
+                  break;
                 }
-                // If still 'Uncategorized' but we found a fallback, use it (logic simplified above)
-              }
-
-              // Image Strategy: 1. _thumbnail_id postmeta (WordPress), 2. <image> Tag, 3. Content Regex
-              $imageUrl = '';
-
-              // Strategy 1: Resolve _thumbnail_id from WordPress postmeta
-              if (empty($imageUrl) && $wp && isset($wp->postmeta) && !empty($attachmentMap)) {
-                $thumbnailId = '';
-                foreach ($wp->postmeta as $pm) {
-                  if (isset($pm->meta_key) && (string) $pm->meta_key === '_thumbnail_id') {
-                    $thumbnailId = trim((string) $pm->meta_value);
-                    break;
-                  }
-                }
-                if ($thumbnailId !== '' && isset($attachmentMap[$thumbnailId])) {
-                  $featuredImageUrl = $attachmentMap[$thumbnailId];
-                  $localizedFeaturedImage = rehost_import_image_url(
-                    $featuredImageUrl,
-                    $sourceBaseUrls,
-                    $targetSiteUrl,
-                    $conn,
-                    $authorId,
-                  );
-                  if ($localizedFeaturedImage !== null) {
-                    $imageUrl = $localizedFeaturedImage;
-                    $localizedMedia++;
-                    debug_log(
-                      "Featured image resolved via _thumbnail_id $thumbnailId -> $imageUrl",
-                    );
-                  }
+                // 2. Generic Style: Just take the first <category> tag found if it has no attributes or domain isn't 'post_tag'
+                // We wait to see if we find a better one, but keep this as fallback
+                if (!isset($c['domain']) && $category === 'Uncategorized') {
+                  $category = mb_substr(trim((string) $c), 0, 100);
                 }
               }
+              // If still 'Uncategorized' but we found a fallback, use it (logic simplified above)
+            }
 
-              // Strategy 2: Explicit <image> Tag (Generic XML)
-              if (empty($imageUrl) && isset($sxe->image) && !empty($sxe->image)) {
+            // Image Strategy: 1. _thumbnail_id postmeta (WordPress), 2. <image> Tag, 3. Content Regex
+            $imageUrl = '';
+
+            // Strategy 1: Resolve _thumbnail_id from WordPress postmeta
+            if (empty($imageUrl) && $wp && isset($wp->postmeta) && !empty($attachmentMap)) {
+              $thumbnailId = '';
+              foreach ($wp->postmeta as $pm) {
+                if (isset($pm->meta_key) && (string) $pm->meta_key === '_thumbnail_id') {
+                  $thumbnailId = trim((string) $pm->meta_value);
+                  break;
+                }
+              }
+              if ($thumbnailId !== '' && isset($attachmentMap[$thumbnailId])) {
+                $featuredImageUrl = $attachmentMap[$thumbnailId];
                 $localizedFeaturedImage = rehost_import_image_url(
-                  (string) $sxe->image,
+                  $featuredImageUrl,
                   $sourceBaseUrls,
                   $targetSiteUrl,
                   $conn,
@@ -1761,134 +1723,149 @@ try {
                 if ($localizedFeaturedImage !== null) {
                   $imageUrl = $localizedFeaturedImage;
                   $localizedMedia++;
-                } else {
-                  $imageUrl = (string) $sxe->image;
+                  debug_log("Featured image resolved via _thumbnail_id $thumbnailId -> $imageUrl");
                 }
               }
-
-              // Strategy 3: First <img> in content fallback
-              if (
-                empty($imageUrl) &&
-                preg_match('/<img.+src=[\'"](?P<src>.+?)[\'"].*>/i', $encodedContent, $imageMatch)
-              ) {
-                $imageUrl = $imageMatch['src'];
-              }
-
-              // Insert with author_id AND image_url
-              $insert = $conn->prepare(
-                'INSERT INTO posts (title, slug, content, status, author, author_id, category, created_at, updated_at, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-              );
-              $insert->execute([
-                $title,
-                $slug,
-                $encodedContent,
-                $targetStatus,
-                $authorName,
-                $authorId,
-                $category,
-                $date,
-                $date,
-                $imageUrl,
-              ]);
-              $insertedId = (string) $conn->lastInsertId();
-              $imported++;
-              debug_log("Imported Post: $title" . ($imageUrl ? ' [Has Image]' : ''));
-            } elseif ($postType === 'page') {
-              // Insert with author_id
-              $insert = $conn->prepare(
-                'INSERT INTO pages (title, slug, content, status, author, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-              );
-              $insert->execute([
-                $title,
-                $slug,
-                $encodedContent,
-                $targetStatus,
-                $authorName,
-                $authorId,
-                $date,
-                $date,
-              ]);
-              $insertedId = (string) $conn->lastInsertId();
-              $imported++;
-              debug_log("Imported Page: $title");
             }
 
-            // --- AUTO-REDIRECT GENERATOR (WP Bridge) ---
-            // If post/page imported successfully, map old WP permalink to the configured canonical path
-            try {
-              // Standard WP Permalink: /yyyy/mm/slug/ or /slug/
-              // We support both by default 301 rules
-
-              $sourceUrl = '';
-              if ($postType === 'post') {
-                $year = date('Y', strtotime($date));
-                $month = date('m', strtotime($date));
-                $sourceUrl = "/$year/$month/$slug"; // Typical WP structure
+            // Strategy 2: Explicit <image> Tag (Generic XML)
+            if (empty($imageUrl) && isset($sxe->image) && !empty($sxe->image)) {
+              $localizedFeaturedImage = rehost_import_image_url(
+                (string) $sxe->image,
+                $sourceBaseUrls,
+                $targetSiteUrl,
+                $conn,
+                $authorId,
+              );
+              if ($localizedFeaturedImage !== null) {
+                $imageUrl = $localizedFeaturedImage;
+                $localizedMedia++;
               } else {
-                $sourceUrl = "/$slug"; // Pages are usually root
+                $imageUrl = (string) $sxe->image;
               }
-
-              // 1. Check if redirect already exists
-              $chkRed = $conn->prepare('SELECT id FROM redirects WHERE source_url = ?');
-              $chkRed->execute([$sourceUrl]);
-
-              if ($chkRed->rowCount() === 0 && !empty($sourceUrl)) {
-                $targetUrl = build_import_target_path(
-                  $postType,
-                  $insertedId ?? '',
-                  $slug,
-                  $date,
-                  $category,
-                  $permalinkStructure,
-                );
-
-                // Skip self-redirects - source and target are the same path
-                $normalizedSource = '/' . ltrim($sourceUrl, '/');
-                $normalizedTarget = '/' . ltrim($targetUrl, '/');
-                if ($normalizedSource === $normalizedTarget) {
-                  debug_log(" -> Skipped self-redirect: $sourceUrl === $targetUrl");
-                } else {
-                  $addRed = $conn->prepare(
-                    "INSERT INTO redirects (source_url, target_url, redirect_type, created_at) VALUES (?, ?, '301', NOW())",
-                  );
-                  $addRed->execute([$sourceUrl, $targetUrl]);
-                  debug_log(" -> Auto-Redirect created: $sourceUrl -> $targetUrl");
-                }
-              }
-            } catch (Exception $e) {
-              // Silent fail: Don't stop import if redirect fails
-              debug_log(' -> Redirect Error: ' . $e->getMessage());
             }
-            // -------------------------------------------
-          } catch (Throwable $e) {
-            rollback_imported_media_since($conn, $mediaCheckpoint);
-            if ($e instanceof PDOException && $e->getCode() == '23000') {
-              // Duplicate detected during INSERT (race condition or check failed)
-              $skipped++;
-              debug_log("Skipped duplicate (Insert Catch): $slug");
 
-              // Run Self-Healing here too
-              $table = $postType === 'post' ? 'posts' : 'pages';
-              $fix = $conn->prepare(
-                "UPDATE $table SET author_id = ? WHERE slug = ? AND author_id IS NULL",
-              );
-              $fix->execute([$authorId, $slug]);
-              if ($fix->rowCount() > 0) {
-                debug_log("Fixed missing author for: $slug");
-              }
+            // Strategy 3: First <img> in content fallback
+            if (
+              empty($imageUrl) &&
+              preg_match('/<img.+src=[\'"](?P<src>.+?)[\'"].*>/i', $encodedContent, $imageMatch)
+            ) {
+              $imageUrl = $imageMatch['src'];
+            }
+
+            // Insert with author_id AND image_url
+            $insert = $conn->prepare(
+              'INSERT INTO posts (title, slug, content, status, author, author_id, category, created_at, updated_at, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            );
+            $insert->execute([
+              $title,
+              $slug,
+              $encodedContent,
+              $targetStatus,
+              $authorName,
+              $authorId,
+              $category,
+              $date,
+              $date,
+              $imageUrl,
+            ]);
+            $insertedId = (string) $conn->lastInsertId();
+            $imported++;
+            debug_log("Imported Post: $title" . ($imageUrl ? ' [Has Image]' : ''));
+          } elseif ($postType === 'page') {
+            // Insert with author_id
+            $insert = $conn->prepare(
+              'INSERT INTO pages (title, slug, content, status, author, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            );
+            $insert->execute([
+              $title,
+              $slug,
+              $encodedContent,
+              $targetStatus,
+              $authorName,
+              $authorId,
+              $date,
+              $date,
+            ]);
+            $insertedId = (string) $conn->lastInsertId();
+            $imported++;
+            debug_log("Imported Page: $title");
+          }
+
+          // --- AUTO-REDIRECT GENERATOR (WP Bridge) ---
+          // If post/page imported successfully, map old WP permalink to the configured canonical path
+          try {
+            // Standard WP Permalink: /yyyy/mm/slug/ or /slug/
+            // We support both by default 301 rules
+
+            $sourceUrl = '';
+            if ($postType === 'post') {
+              $year = date('Y', strtotime($date));
+              $month = date('m', strtotime($date));
+              $sourceUrl = "/$year/$month/$slug"; // Typical WP structure
             } else {
-              // Actual error
-              $errors[] = "Failed to insert $postType: $title. Error: " . $e->getMessage();
-              debug_log('Insert Error: ' . $e->getMessage());
+              $sourceUrl = "/$slug"; // Pages are usually root
             }
+
+            // 1. Check if redirect already exists
+            $chkRed = $conn->prepare('SELECT id FROM redirects WHERE source_url = ?');
+            $chkRed->execute([$sourceUrl]);
+
+            if ($chkRed->rowCount() === 0 && !empty($sourceUrl)) {
+              $targetUrl = build_import_target_path(
+                $postType,
+                $insertedId ?? '',
+                $slug,
+                $date,
+                $category,
+                $permalinkStructure,
+              );
+
+              // Skip self-redirects - source and target are the same path
+              $normalizedSource = '/' . ltrim($sourceUrl, '/');
+              $normalizedTarget = '/' . ltrim($targetUrl, '/');
+              if ($normalizedSource === $normalizedTarget) {
+                debug_log(" -> Skipped self-redirect: $sourceUrl === $targetUrl");
+              } else {
+                $addRed = $conn->prepare(
+                  "INSERT INTO redirects (source_url, target_url, redirect_type, created_at) VALUES (?, ?, '301', NOW())",
+                );
+                $addRed->execute([$sourceUrl, $targetUrl]);
+                debug_log(" -> Auto-Redirect created: $sourceUrl -> $targetUrl");
+              }
+            }
+          } catch (Exception $e) {
+            // Silent fail: Don't stop import if redirect fails
+            debug_log(' -> Redirect Error: ' . $e->getMessage());
+          }
+          // -------------------------------------------
+        } catch (Throwable $e) {
+          rollback_imported_media_since($conn, $mediaCheckpoint);
+          if ($e instanceof PDOException && $e->getCode() == '23000') {
+            // Duplicate detected during INSERT (race condition or check failed)
+            $skipped++;
+            debug_log("Skipped duplicate (Insert Catch): $slug");
+
+            // Run Self-Healing here too
+            $table = $postType === 'post' ? 'posts' : 'pages';
+            $fix = $conn->prepare(
+              "UPDATE $table SET author_id = ? WHERE slug = ? AND author_id IS NULL",
+            );
+            $fix->execute([$authorId, $slug]);
+            if ($fix->rowCount() > 0) {
+              debug_log("Fixed missing author for: $slug");
+            }
+          } else {
+            // Actual error
+            $errors[] = "Failed to insert $postType: $title. Error: " . $e->getMessage();
+            debug_log('Insert Error: ' . $e->getMessage());
           }
         }
       }
-
-      $processed++;
-      $count++;
-      $reader->next();
     }
+
+    $processed++;
+    $count++;
   }
   $reader->close();
 

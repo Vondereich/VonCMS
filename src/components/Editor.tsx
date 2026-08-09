@@ -33,7 +33,6 @@ import {
   Plus,
   MoreHorizontal,
 } from 'lucide-react';
-import { useSettings } from '../hooks/useSettings';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import ContentRenderer from './ContentRenderer';
@@ -76,15 +75,9 @@ const Editor: React.FC<EditorProps> = ({
   onImmediateChange,
   onImageClick,
 }) => {
-  const { loadSettings } = useSettings();
   const editorShellRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const toolbarSentinelRef = useRef<HTMLDivElement>(null);
-
-  // Load settings on mount to ensure we know active plugins
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
@@ -574,6 +567,13 @@ const Editor: React.FC<EditorProps> = ({
 
   const buildPreviewHtml = (html: string) =>
     html.replace(/<iframe\s+(?![^>]*loading=)/gi, '<iframe loading="eager" ');
+
+  const openContentPreview = () => {
+    setSelectedImage(null);
+    setSelectedVideoEmbed(null);
+    setPreviewHtml(buildPreviewHtml(isCodeView ? htmlContent : getCurrentEditorHtml()));
+    setIsPreviewOpen(true);
+  };
 
   const restoreSavedSelection = () => {
     if (!editor) return;
@@ -1460,7 +1460,7 @@ const Editor: React.FC<EditorProps> = ({
       {/* Main Toolbar - Sticky */}
       <div ref={toolbarSentinelRef} className="h-px" aria-hidden="true" />
       <div
-        className={`editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap items-center gap-0 overflow-visible border-b bg-slate-100/95 px-0.5 py-2 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-200 dark:bg-[#20212b]/95 sm:gap-0.5 sm:px-3 xl:top-0 xl:flex-nowrap xl:px-2 ${
+        className={`editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap items-center gap-0 overflow-visible border-b bg-slate-100/95 px-0.5 py-2 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-200 dark:bg-[#20212b]/95 sm:gap-0.5 sm:px-3 xl:top-0 xl:flex-wrap xl:px-2 ${
           isToolbarElevated
             ? 'border-slate-300 shadow-lg shadow-slate-900/10 ring-1 ring-slate-200/70 dark:border-[#333544] dark:shadow-black/30 dark:ring-white/10'
             : 'border-slate-300/80 shadow-none ring-0 dark:border-[#333544]'
@@ -1538,6 +1538,34 @@ const Editor: React.FC<EditorProps> = ({
         </div>
         <div className="hidden xl:block">
           <ToolButton
+            icon={<AlignLeft size={18} />}
+            onClick={() => alignImage('left')}
+            title="Align Left"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<AlignCenter size={18} />}
+            onClick={() => alignImage('center')}
+            title="Align Center"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<AlignRight size={18} />}
+            onClick={() => alignImage('right')}
+            title="Align Right"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
+            icon={<AlignJustify size={18} />}
+            onClick={() => alignImage('justify')}
+            title="Justify"
+          />
+        </div>
+        <div className="hidden xl:block">
+          <ToolButton
             icon={<Link size={18} className="text-sky-500" />}
             onClick={() => openModal('link')}
             title="Insert Hyperlink"
@@ -1565,7 +1593,7 @@ const Editor: React.FC<EditorProps> = ({
             <div
               role="menu"
               aria-label="Image insertion options"
-              className="absolute left-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#333544] dark:bg-[#1a1b26]"
+              className="absolute right-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#333544] dark:bg-[#1a1b26]"
             >
               <button
                 type="button"
@@ -1639,6 +1667,11 @@ const Editor: React.FC<EditorProps> = ({
           />
         </div>
         <ToolButton
+          icon={<Eye size={18} className="text-violet-500" />}
+          onClick={openContentPreview}
+          title="Preview content"
+        />
+        <ToolButton
           icon={<MoreHorizontal size={18} />}
           onClick={() => setCompactToolbarPanel('more')}
           title="More formatting"
@@ -1678,9 +1711,13 @@ const Editor: React.FC<EditorProps> = ({
               {compactToolbarPanel === 'insert' ? 'Insert content' : 'More formatting'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {compactToolbarPanel === 'insert'
-                ? 'Add links, media, tables, or dividers.'
-                : 'Formatting, alignment, code, and preview.'}
+              {compactToolbarPanel === 'insert' ? 'Add links, media, tables, or dividers.' : null}
+              {compactToolbarPanel === 'more' && (
+                <>
+                  <span className="xl:hidden">Formatting, alignment, and code tools.</span>
+                  <span className="hidden xl:inline">HTML source and code block tools.</span>
+                </>
+              )}
             </p>
           </div>
           <button
@@ -1837,7 +1874,7 @@ const Editor: React.FC<EditorProps> = ({
                 setCompactToolbarPanel(null);
                 alignImage('left');
               }}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
             >
               <AlignLeft size={18} />
               Align left
@@ -1848,7 +1885,7 @@ const Editor: React.FC<EditorProps> = ({
                 setCompactToolbarPanel(null);
                 alignImage('center');
               }}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
             >
               <AlignCenter size={18} />
               Align center
@@ -1859,7 +1896,7 @@ const Editor: React.FC<EditorProps> = ({
                 setCompactToolbarPanel(null);
                 alignImage('right');
               }}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
             >
               <AlignRight size={18} />
               Align right
@@ -1870,7 +1907,7 @@ const Editor: React.FC<EditorProps> = ({
                 setCompactToolbarPanel(null);
                 alignImage('justify');
               }}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 xl:hidden"
             >
               <AlignJustify size={18} />
               Justify
@@ -1896,20 +1933,6 @@ const Editor: React.FC<EditorProps> = ({
             >
               <Braces size={18} className={isCodeView ? 'text-blue-600' : 'text-cyan-500'} />
               HTML source
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCompactToolbarPanel(null);
-                setSelectedImage(null);
-                setSelectedVideoEmbed(null);
-                setPreviewHtml(buildPreviewHtml(isCodeView ? htmlContent : getCurrentEditorHtml()));
-                setIsPreviewOpen(true);
-              }}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
-            >
-              <Eye size={18} className="text-violet-500" />
-              Preview
             </button>
           </div>
         )}
