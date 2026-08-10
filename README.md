@@ -12,13 +12,16 @@ VonCMS v1.26.6 is the current release in the **v1.26 "After Hours"** series. The
 
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
+> [!NOTE]
+> Development is taking a short one-to-two-week break after v1.26.6 for stability monitoring and maintainer rest. Critical bug reports remain welcome, and regular feature development will resume afterward.
+
 The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, editor structure, SEO schema controls, and bundled extension baseline while preserving the shared-hosting PHP runtime established by OpenGate. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
 
 > [!WARNING]
 >
 > ## Manual Update Required For Affected Builds
 >
-> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the current published `v1.26.4` Deploy ZIP manually once. Those builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
+> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the current published `v1.26.6` Deploy ZIP manually once. Those builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
 >
 > Follow [Updating Existing Sites](#updating-existing-sites) and keep `von_config.php`, `data/`, `uploads/`, `backups/`, and the live `.htaccess` file protected. After the refreshed build is installed, primary-owner OTA discovery works normally for later releases.
 
