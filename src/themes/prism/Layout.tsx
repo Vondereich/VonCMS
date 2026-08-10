@@ -55,11 +55,16 @@ import {
   AdBlock,
   VonPopupAd,
   getResponsiveImageAttributes,
-  formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
 } from '../shared';
 
 import PrismProfile from './components/PrismProfile';
-import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
+import {
+  getHeaderIdentityState,
+  getSameSiteCategoryNavigation,
+  normalizeSiteUrl,
+} from '../../utils/siteUtils';
 
 // Utility for rendering ads safely (Raw HTML)
 
@@ -263,6 +268,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
     `;
 
   const rssPath = `${getBasePathPrefix()}/rss`;
+  const headerIdentity = getHeaderIdentityState(settings);
 
   return (
     <div
@@ -303,21 +309,21 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               className="flex items-center gap-3 cursor-pointer group"
               onClick={handleReturnHome}
             >
-              {settings.logoUrl ? (
+              {headerIdentity.showUploadedLogo ? (
                 <ThemeLogo
-                  src={settings.logoUrl}
+                  src={settings.logoUrl || ''}
                   alt={settings.siteName}
-                  useLogoAsTitle={settings.useLogoAsTitle}
+                  useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                   invertLogoInDarkMode={settings.invertLogoInDarkMode}
                   className="transition-all"
                 />
-              ) : (
+              ) : headerIdentity.showFallbackMark ? (
                 <VonLogo
                   variant="default"
                   className="w-10! h-10! shadow-[0_0_15px_rgba(245,158,11,0.5)] group-hover:shadow-[0_0_25px_rgba(245,158,11,0.8)] transition-all"
                 />
-              )}
-              {!settings.useLogoAsTitle && (
+              ) : null}
+              {headerIdentity.showTitle && (
                 <div className="max-w-[200px] lg:max-w-[280px]">
                   <span
                     className="text-2xl font-bold tracking-tighter text-white block truncate"
@@ -854,16 +860,18 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       >
                         {selectedPost.category}
                       </span>
-                      <span className="text-slate-500 text-sm font-mono flex items-center gap-2">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-mono text-slate-500">
                         <span>
-                          {formatDate(
-                            selectedPost.createdAt || '',
+                          {formatDateTime(
+                            getPostPublishTimestamp(selectedPost),
                             settings.timeZone,
                             settings.dateFormat
                           )}
                         </span>
-                        <span>•</span>
-                        <span>{selectedPost.readTime || '5 min read'}</span>
+                        <span className="inline-flex items-center gap-2">
+                          <span aria-hidden="true">•</span>
+                          <span>{selectedPost.readTime || '5 min read'}</span>
+                        </span>
                       </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-8 leading-tight tracking-tight">

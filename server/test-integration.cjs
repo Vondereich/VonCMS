@@ -237,14 +237,178 @@ const dateFormatFallbackMatches =
 const dateFormatTimeZoneMatches =
   dateFormatModule.formatDate('2026-07-29T23:30:00.000Z', 'Asia/Kuala_Lumpur', 'iso') ===
   '2026-07-30';
+const dateTimeFormatMatches =
+  dateFormatModule.formatDateTime(dateFormatFixture, 'UTC', 'month_day_year_long') ===
+    'July 29, 2026, 12:00 PM' &&
+  dateFormatModule.formatDateTime('2026-07-29T23:30:00.000Z', 'Asia/Kuala_Lumpur', 'iso') ===
+    '2026-07-30, 7:30 AM' &&
+  dateFormatModule.formatDateTime('not-a-date', 'UTC', 'iso') === 'not-a-date';
+const originalProcessTimeZone = process.env.TZ;
+const sqlDateTimeOutputs = ['UTC', 'America/New_York'].map((browserTimeZone) => {
+  process.env.TZ = browserTimeZone;
+  return dateFormatModule.formatDateTime(
+    '2026-08-09 19:20:00',
+    'Asia/Kuala_Lumpur',
+    'day_month_year_long'
+  );
+});
+if (originalProcessTimeZone === undefined) {
+  delete process.env.TZ;
+} else {
+  process.env.TZ = originalProcessTimeZone;
+}
+const sqlDateTimeIsBrowserIndependent =
+  sqlDateTimeOutputs.every((output) => output === '9 August 2026, 7:20 PM') &&
+  dateFormatModule.formatDateTime(
+    '2026-02-31 19:20:00',
+    'Asia/Kuala_Lumpur',
+    'day_month_year_long'
+  ) === '2026-02-31 19:20:00';
+const publishTimestampSelectionMatches =
+  dateFormatModule.getPostPublishTimestamp({
+    scheduledAt: '2026-08-09T22:30:00.000Z',
+    createdAt: '2026-08-01T09:00:00.000Z',
+  }) === '2026-08-09T22:30:00.000Z' &&
+  dateFormatModule.getPostPublishTimestamp({
+    scheduled_at: '2026-08-10T01:15:00.000Z',
+    created_at: '2026-08-02T09:00:00.000Z',
+  }) === '2026-08-10T01:15:00.000Z' &&
+  dateFormatModule.getPostPublishTimestamp({
+    createdAt: '2026-08-03T09:00:00.000Z',
+  }) === '2026-08-03T09:00:00.000Z';
 
-if (dateFormatOutputsMatch && dateFormatFallbackMatches && dateFormatTimeZoneMatches) {
+if (
+  dateFormatOutputsMatch &&
+  dateFormatFallbackMatches &&
+  dateFormatTimeZoneMatches &&
+  dateTimeFormatMatches &&
+  sqlDateTimeIsBrowserIndependent &&
+  publishTimestampSelectionMatches
+) {
   pass(
-    'Public Date Format Runtime: all configured formats, legacy fallback, invalid input, and timezone boundaries are deterministic.'
+    'Public Date Format Runtime: configured dates and fixed AM/PM publish times preserve fallback, invalid-input, CMS-local SQL timestamps, and timezone boundaries.'
   );
 } else {
   fail(
-    'Public Date Format Runtime: configured output, fallback, invalid input, or timezone handling drifted.'
+    'Public Date Format Runtime: configured date/time output, fallback, invalid input, or timezone handling drifted.'
+  );
+}
+
+const headerIdentityModule = loadTsModuleForSmoke('src/utils/headerIdentity.ts');
+const headerIdentityCases = [
+  {
+    settings: { logoUrl: '/logo.webp', headerIdentityMode: 'logo_and_text' },
+    expected: [true, false, true, false],
+  },
+  {
+    settings: { logoUrl: '/logo.webp', headerIdentityMode: 'logo_only' },
+    expected: [true, false, false, true],
+  },
+  {
+    settings: { logoUrl: '/logo.webp', headerIdentityMode: 'text_only' },
+    expected: [false, false, true, false],
+  },
+  {
+    settings: { logoUrl: '', headerIdentityMode: 'logo_and_text' },
+    expected: [false, true, true, false],
+  },
+  {
+    settings: { logoUrl: '', headerIdentityMode: 'logo_only' },
+    expected: [false, false, true, false],
+  },
+  {
+    settings: { logoUrl: '', headerIdentityMode: 'text_only' },
+    expected: [false, false, true, false],
+  },
+  {
+    settings: { logoUrl: '/legacy.webp', useLogoAsTitle: true },
+    expected: [true, false, false, true],
+  },
+  {
+    settings: { logoUrl: '/legacy.webp', useLogoAsTitle: false },
+    expected: [true, false, true, false],
+  },
+  {
+    settings: {
+      logoUrl: '/legacy.webp',
+      headerIdentityMode: 'invalid',
+      useLogoAsTitle: true,
+    },
+    expected: [true, false, false, true],
+  },
+];
+const headerIdentityRuntimeMatches = headerIdentityCases.every(({ settings, expected }) => {
+  const state = headerIdentityModule.getHeaderIdentityState(settings);
+  return (
+    state.showUploadedLogo === expected[0] &&
+    state.showFallbackMark === expected[1] &&
+    state.showTitle === expected[2] &&
+    state.logoUsesTitleSlot === expected[3]
+  );
+});
+
+if (headerIdentityRuntimeMatches) {
+  pass(
+    'Header Identity Runtime: three explicit modes, missing-logo fallbacks, and legacy boolean upgrades share one truth table.'
+  );
+} else {
+  fail('Header Identity Runtime: a mode, missing-logo fallback, or legacy upgrade case drifted.');
+}
+
+const singlePostPublishTimeFiles = [
+  'src/themes/default/Layout.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/techpress/Layout.tsx',
+  'src/themes/prism/Layout.tsx',
+  'src/themes/portfolio/Layout.tsx',
+  'src/themes/corporate-pro/Layout.tsx',
+];
+const singlePostPublishTimeIssues = singlePostPublishTimeFiles.filter((file) => {
+  const content = read(file);
+  return !content.includes('formatDateTime(') || !content.includes('getPostPublishTimestamp(');
+});
+if (singlePostPublishTimeIssues.length === 0) {
+  pass(
+    'Public Post Publish Time Contract: all bundled single-post views show one timezone-aware fixed AM/PM time from the scheduled-or-created publish timestamp.'
+  );
+} else {
+  fail(
+    `Public Post Publish Time Contract: missing effective publish date-time presentation in ${singlePostPublishTimeIssues.join(', ')}.`
+  );
+}
+
+const publishTimeWrapMarkersByFile = {
+  'src/themes/digest/Layout.tsx': [
+    'className="min-w-0"',
+    'className="flex flex-wrap items-center gap-x-2 gap-y-1"',
+    'className="inline-flex items-center gap-2 text-sm"',
+  ],
+  'src/themes/techpress/Layout.tsx': [
+    'className="flex min-w-0 flex-col"',
+    'className="flex flex-wrap items-center gap-x-2 gap-y-1"',
+    'className="inline-flex items-center gap-2 text-[10px] opacity-60"',
+  ],
+  'src/themes/prism/Layout.tsx': [
+    'className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-mono text-slate-500"',
+    'className="inline-flex items-center gap-2"',
+  ],
+  'src/themes/corporate-pro/Layout.tsx': [
+    'className="mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-slate-500"',
+    'className="inline-flex items-center gap-2"',
+  ],
+};
+const publishTimeWrapIssues = Object.entries(publishTimeWrapMarkersByFile).filter(
+  ([file, markers]) => markers.some((marker) => !read(file).includes(marker))
+);
+if (publishTimeWrapIssues.length === 0) {
+  pass(
+    'Public Post Publish Time Responsive Contract: compact metadata rows wrap without clipping.'
+  );
+} else {
+  fail(
+    `Public Post Publish Time Responsive Contract: compact metadata wrapping drifted in ${publishTimeWrapIssues
+      .map(([file]) => file)
+      .join(', ')}.`
   );
 }
 
@@ -1498,10 +1662,10 @@ assertIncludes(
     'editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap',
     'gap-0 overflow-visible',
     'px-0.5 py-2',
-    'h-11 w-[70px]',
+    'h-11 w-auto min-w-max',
     'flex h-11 w-11 shrink-0',
     'xl:top-0 xl:flex-wrap xl:px-2',
-    'xl:h-8 xl:w-16',
+    'text-slate-200 xl:h-8',
     'xl:h-8 xl:w-8',
     'id="editor-block-style"',
     'value={activeBlockStyle}',
@@ -1537,6 +1701,44 @@ assertIncludes(
   ],
   'HourGlass Editor Sticky Toolbar: the compact toolbar uses Body/H1-H6 on every viewport, exposes direct desktop essentials, and wraps only when its available card width requires it.',
   'HourGlass Editor Sticky Toolbar: compact toolbar, direct desktop essentials, guarded image balloon, premium surface, or media spacing markers are missing.'
+);
+
+const editorBlockStyleMarkup = sliceBetween(editorContent, 'id="editor-block-style"', '</select>');
+assertExcludes(
+  'HourGlass Editor Block Style Intrinsic Width',
+  editorBlockStyleMarkup,
+  ['xl:w-16', 'xl:w-20', 'xl:pr-7', 'w-[70px]', 'sm:w-28'],
+  'HourGlass Editor Block Style Intrinsic Width: the native select sizes from its complete label instead of a clipped breakpoint width.',
+  'HourGlass Editor Block Style Intrinsic Width: a fixed width or duplicate native-arrow clearance can clip Body again.'
+);
+
+const compactToolCloseMarkup = sliceBetween(
+  editorContent,
+  '<span className="hidden xl:inline">HTML source and code block tools.</span>',
+  '</button>'
+);
+const imageToolCloseMarkup = sliceBetween(editorContent, '>Image Tools</span>', '</button>');
+const videoToolCloseMarkup = sliceBetween(editorContent, '>Video Tools</span>', '</button>');
+assertIncludes(
+  'HourGlass Editor Tool Dismissal Labels',
+  compactToolCloseMarkup,
+  ['type="button"', 'aria-label="Close editor tools"', 'title="Close editor tools"'],
+  'HourGlass Editor Tool Dismissal Labels: compact tools expose matching accessible and hover labels.',
+  'HourGlass Editor Tool Dismissal Labels: compact tool close control lost its button semantics or matching labels.'
+);
+assertIncludes(
+  'HourGlass Editor Image Tool Dismissal Labels',
+  imageToolCloseMarkup,
+  ['type="button"', 'h-11 w-11', 'aria-label="Close image tools"', 'title="Close image tools"'],
+  'HourGlass Editor Image Tool Dismissal Labels: image tools expose a usable target, explicit button semantics, and matching labels.',
+  'HourGlass Editor Image Tool Dismissal Labels: image tool close control lost its usable target, button semantics, or matching labels.'
+);
+assertIncludes(
+  'HourGlass Editor Video Tool Dismissal Labels',
+  videoToolCloseMarkup,
+  ['type="button"', 'h-11 w-11', 'aria-label="Close video tools"', 'title="Close video tools"'],
+  'HourGlass Editor Video Tool Dismissal Labels: video tools expose a usable target, explicit button semantics, and matching labels.',
+  'HourGlass Editor Video Tool Dismissal Labels: video tool close control lost its usable target, button semantics, or matching labels.'
 );
 
 assertIncludes(
@@ -3368,9 +3570,11 @@ const publicDateFormatConsumers = [
   'src/plugins/von-core/features/public/components/Sidebar.tsx',
   'src/plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent.tsx',
 ].map((file) => ({ file, content: read(file) }));
+const usesSharedPublicDateFormatter = (content) =>
+  content.includes('formatDate(') || content.includes('formatDateTime(');
 const publicDateFormatConsumersAligned = publicDateFormatConsumers.every(
   ({ content }) =>
-    content.includes('formatDate(') &&
+    usesSharedPublicDateFormatter(content) &&
     content.includes('dateFormat') &&
     !content.includes('toLocaleDateString')
 );
@@ -3383,7 +3587,7 @@ if (publicDateFormatConsumersAligned) {
     `Public Date Format Consumer Parity: direct browser-locale formatting remains in ${publicDateFormatConsumers
       .filter(
         ({ content }) =>
-          !content.includes('formatDate(') ||
+          !usesSharedPublicDateFormatter(content) ||
           !content.includes('dateFormat') ||
           content.includes('toLocaleDateString')
       )
@@ -5752,7 +5956,6 @@ assertIncludes(
     read('public/sitemap.php'),
   [
     'ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC',
-    'ORDER BY p.created_at DESC, p.id DESC',
     'ORDER BY updated_at DESC, id DESC',
   ],
   'Post Discovery Deterministic Pagination Contract: post lists, RSS, and sitemap use stable ID tie-breakers.',
@@ -9351,18 +9554,42 @@ const listReadTimeUsesBoundedContent =
   !/\n\s*p\.content,\s*\n/.test(getPostsContent) &&
   getPostsContent.includes('CHAR_LENGTH(p.content) AS content_chars') &&
   getPostsContent.includes("$chars = (int) ($row['content_chars'] ?? 0);") &&
-  !getPostsContent.includes("strlen(strip_tags($row['content']))");
-const singleReadTimeUsesPlainText = getPostContent.includes(
-  "strlen(strip_tags($normalized['content']))"
+  getPostsContent.includes('voncms_format_read_time($chars)');
+const publicIndexReadTimeContent = read('public/index.php');
+const homepageReadTimeBlock = sliceBetween(
+  publicIndexReadTimeContent,
+  '$hpStmt = $pdo->prepare(',
+  'unset($hp);'
 );
+const homepageReadTimeUsesBoundedContent =
+  homepageReadTimeBlock.includes('CHAR_LENGTH(p.content) AS content_chars') &&
+  !homepageReadTimeBlock.includes('p.slug, p.content,') &&
+  homepageReadTimeBlock.includes("voncms_format_read_time((int) ($hp['content_chars'] ?? 0))") &&
+  homepageReadTimeBlock.includes("unset($hp['content_chars'])");
+const contentMetricsHelperContent = read('public/content_metrics_helper.php');
+const sharedReadTimeContract =
+  contentMetricsHelperContent.includes("($_SERVER['SCRIPT_FILENAME'] ?? '')") &&
+  contentMetricsHelperContent.includes("exit('Forbidden')") &&
+  contentMetricsHelperContent.includes('function voncms_content_character_count') &&
+  contentMetricsHelperContent.includes("mb_strlen($content, 'UTF-8')") &&
+  contentMetricsHelperContent.includes('function voncms_format_read_time') &&
+  contentMetricsHelperContent.includes('/ 1000') &&
+  getPostContent.includes("voncms_calculate_read_time((string) ($normalized['content'] ?? ''))") &&
+  publicIndexReadTimeContent.includes(
+    "voncms_calculate_read_time((string) ($post['content'] ?? ''))"
+  );
 
-if (listReadTimeUsesBoundedContent && singleReadTimeUsesPlainText) {
+if (
+  listReadTimeUsesBoundedContent &&
+  homepageReadTimeUsesBoundedContent &&
+  sharedReadTimeContract
+) {
   pass(
-    'Read Time Contract: list API avoids transferring full article bodies while single-post API keeps precise stripped-text readTime.'
+    'Read Time Contract: list, homepage SSR, and single-post payloads share one character contract while discovery queries avoid transferring full article bodies.'
   );
 } else {
   fail(
-    'Read Time Contract: get_posts.php can still select full article bodies for list readTime calculation.'
+    'Read Time Contract: read-time output can drift between list, homepage SSR, and single-post payloads or discovery queries can transfer full article bodies.'
   );
 }
 
@@ -9398,6 +9625,35 @@ assertIncludes(
 );
 const schedulerHelperContent = read('public/scheduler_helper.php');
 const publicIndexContent = read('public/index.php');
+const publicPostLookupBlock = sliceBetween(
+  phpSeoRouteHelperContent,
+  'function voncms_fetch_public_post(',
+  'return is_array($post) ? $post : null;'
+);
+const initialPostPayloadBlock = sliceBetween(
+  publicIndexContent,
+  '$initialPostPayload = [',
+  '$initialState = ['
+);
+const useSinglePostContent = read('src/hooks/useSinglePost.ts');
+const injectedPostBuilderBlock = sliceBetween(
+  useSinglePostContent,
+  'const buildPostFromInjected = ()',
+  'const [fullPost, setFullPost]'
+);
+if (
+  publicPostLookupBlock.includes('p.updated_at, p.scheduled_at,') &&
+  initialPostPayloadBlock.includes("'scheduled_at'     => $post['scheduled_at']     ?? null") &&
+  injectedPostBuilderBlock.includes("scheduledAt: p.scheduled_at || p.scheduledAt || ''")
+) {
+  pass(
+    'Scheduled Publish Hydration Contract: direct-load lookup, SSR seed, and injected React state preserve the scheduled publication timestamp.'
+  );
+} else {
+  fail(
+    'Scheduled Publish Hydration Contract: a direct load can lose scheduled_at before React consumes the SSR post seed.'
+  );
+}
 assertIncludes(
   'Scheduler Helper Centralization',
   schedulerHelperContent,
@@ -9460,6 +9716,22 @@ if (
 
 const sitemapContent = read('public/sitemap.php');
 const llmsContent = read('public/llms.php');
+const rssContent = read('public/rss.php');
+if (
+  rssContent.includes(
+    'CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at'
+  ) &&
+  rssContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC') &&
+  rssContent.includes("$post['effective_publish_at'] ?? $post['created_at']")
+) {
+  pass(
+    'Scheduled RSS Publish Time: feed ordering and item pubDate use scheduled time with a created-time fallback.'
+  );
+} else {
+  fail(
+    'Scheduled RSS Publish Time: a scheduled post can still be ordered or dated by its older creation time.'
+  );
+}
 if (
   sitemapContent.includes('voncms_apply_site_timezone($pdo);') &&
   sitemapContent.includes('scheduled_at IS NULL OR scheduled_at <= :currentTime') &&
@@ -10603,12 +10875,34 @@ const themeLogoIssues = themeNavigationFiles.flatMap((file) => {
     missing.push('ThemeLogo usage');
   }
 
+  if (!content.includes('getHeaderIdentityState')) {
+    missing.push('shared header identity resolver');
+  }
+
+  if (!content.includes('headerIdentity.showUploadedLogo')) {
+    missing.push('uploaded-logo visibility state');
+  }
+
+  if (!content.includes('headerIdentity.showTitle')) {
+    missing.push('title visibility state');
+  }
+
+  if (!content.includes('useLogoAsTitle={headerIdentity.logoUsesTitleSlot}')) {
+    missing.push('logo slot state');
+  }
+
   if (
-    /settings\.useLogoAsTitle \? 'h-|className="h-\d+ w-auto|className="\$\{settings\.useLogoAsTitle/.test(
-      content
-    )
+    file !== 'src/themes/portfolio/Layout.tsx' &&
+    !content.includes('headerIdentity.showFallbackMark')
   ) {
-    missing.push('legacy hardcoded logo sizing');
+    missing.push('theme fallback mark state');
+  }
+
+  if (
+    content.includes('(!settings.logoUrl || !settings.useLogoAsTitle)') ||
+    content.includes(') : !settings.useLogoAsTitle ? (')
+  ) {
+    missing.push('legacy render condition remains');
   }
 
   return missing.length ? [`${file}: ${missing.join(', ')}`] : [];
@@ -10622,15 +10916,62 @@ if (
   themeLogoIssues.length === 0
 ) {
   pass(
-    'Theme Logo Slot Contract: bundled themes use one shared object-contain logo slot, with smaller mobile sizing and the existing desktop caps.'
+    'Theme Logo Slot Contract: bundled themes share one object-contain logo slot and one three-mode identity resolver.'
   );
 } else {
   fail(
-    `Theme Logo Slot Contract: missing helper markers or theme wiring: ${
+    `Theme Logo Slot Contract: missing helper, three-mode identity, or theme wiring markers: ${
       themeLogoIssues.length
         ? themeLogoIssues.join('; ')
         : 'src/themes/shared/components/ThemeLogo.tsx'
     }`
+  );
+}
+
+const generalSettingsContent = read(
+  'src/plugins/von-core/features/settings/components/GeneralSettings.tsx'
+);
+const installApiContent = read('public/api/install.php');
+const installSqlContent = read('public/install.sql');
+const headerIdentityPersistenceMarkers = [
+  generalSettingsContent.includes('<option value="logo_and_text">Logo + Text</option>'),
+  generalSettingsContent.includes('<option value="logo_only">Logo Only</option>'),
+  generalSettingsContent.includes('<option value="text_only">Text Only</option>'),
+  generalSettingsContent.includes("onChange('useLogoAsTitle', mode === 'logo_only')"),
+  saveSettingsContent.includes("['logo_and_text', 'logo_only', 'text_only']"),
+  saveSettingsContent.includes(
+    "['headerIdentityMode', 'general', 'header_identity_mode', 'string']"
+  ),
+  saveSettingsContent.includes(
+    "$settings['headerIdentityMode'] = $legacyLogoAsTitle ? 'logo_only' : 'logo_and_text';"
+  ),
+  getSettingsContent.includes("'header_identity_mode'"),
+  getSettingsContent.includes("'use_logo_as_title'"),
+  installApiContent.includes("['general', 'header_identity_mode', 'logo_and_text', 'string']"),
+  installSqlContent.includes("('general', 'header_identity_mode', 'logo_and_text', 'string'"),
+  publicIndexContent.includes("'headerIdentityMode'   => $headerIdentityMode"),
+  publicIndexContent.includes("'useLogoAsTitle'       => $useLogoAsTitle"),
+  publicIndexContent.includes(
+    "$headerIdentityMode = $useLogoAsTitle ? 'logo_only' : 'logo_and_text';"
+  ),
+  !repairDbContent.includes('header_identity_mode'),
+];
+const digestIdentityContent = read('src/themes/digest/Layout.tsx');
+const digestMobileIdentityMatches =
+  digestIdentityContent.includes(
+    'className="min-w-0 max-w-[128px] sm:max-w-[200px] lg:max-w-[260px]"'
+  ) &&
+  !digestIdentityContent.includes(
+    "!settings.logoUrl && settings.useLogoAsTitle ? 'block' : 'hidden sm:block'"
+  );
+
+if (headerIdentityPersistenceMarkers.every(Boolean) && digestMobileIdentityMatches) {
+  pass(
+    'Header Identity Persistence: UI, enum validation, legacy synchronization, installer seeds, public fallback, SSR hydration, and Digest mobile remain aligned without forcing an upgrade migration.'
+  );
+} else {
+  fail(
+    'Header Identity Persistence: UI, persistence, install, upgrade fallback, SSR, or Digest mobile wiring is incomplete.'
   );
 }
 
@@ -12321,6 +12662,29 @@ if (
 ) {
   exit(12);
 }
+$postPdo = new PDO('sqlite::memory:');
+$postPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$postPdo->exec(
+  'CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, avatar TEXT)'
+);
+$postPdo->exec(
+  'CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, slug TEXT, content TEXT, excerpt TEXT, author TEXT, author_id INTEGER, meta_description TEXT, keywords TEXT, image_url TEXT, category TEXT, created_at TEXT, updated_at TEXT, scheduled_at TEXT, status TEXT)'
+);
+$postPdo->exec("INSERT INTO users (id, username, display_name, avatar) VALUES (1, 'editor', 'Editor', '')");
+$postPdo->exec(
+  "INSERT INTO posts (id, title, slug, content, excerpt, author, author_id, meta_description, keywords, image_url, category, created_at, updated_at, scheduled_at, status) VALUES (1, 'Scheduled', 'scheduled', 'Body', '', 'editor', 1, '', '', '', 'News', '2026-08-01 09:00:00', '2026-08-09 19:20:00', '2026-08-09 19:20:00', 'published')"
+);
+$scheduledPost = voncms_fetch_public_post(
+  $postPdo,
+  'scheduled',
+  false,
+  '2026-08-10 00:00:00',
+  'COALESCE(u.display_name, u.username, p.author)',
+  'u.display_name'
+);
+if (($scheduledPost['scheduled_at'] ?? '') !== '2026-08-09 19:20:00') {
+  exit(17);
+}
 $categoryPdo = new PDO('sqlite::memory:');
 $categoryPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $categoryPdo->exec(
@@ -12384,7 +12748,7 @@ echo 'ok';`,
     seoRouteHelperDistProbe.stdout.trim() === 'ok'
   ) {
     pass(
-      'SEO Route Helper Runtime: Source and Deploy root/subfolder crawler matching, nested-route rejection, category-case resolution, query normalization, metadata fallback, and private-route boundaries pass.'
+      'SEO Route Helper Runtime: Source and Deploy scheduled-post fields, root/subfolder crawler matching, nested-route rejection, category-case resolution, query normalization, metadata fallback, and private-route boundaries pass.'
     );
   } else {
     fail(
@@ -12848,6 +13212,27 @@ echo 'unguarded';`,
   } else {
     fail(
       `Scheduler Helper Direct Access Runtime: direct execution can pass the helper guard. ${(schedulerHelperDirectProbe.stderr || schedulerHelperDirectProbe.stdout || '').trim()}`
+    );
+  }
+
+  const contentMetricsHelperDirectProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/content_metrics_helper.php'))};
+require ${JSON.stringify(resolveFromRoot('public/content_metrics_helper.php'))};
+echo 'unguarded';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (
+    contentMetricsHelperDirectProbe.status === 0 &&
+    contentMetricsHelperDirectProbe.stdout.trim() === 'Forbidden'
+  ) {
+    pass('Content Metrics Helper Direct Access Runtime: direct execution stops at the 403 guard.');
+  } else {
+    fail(
+      `Content Metrics Helper Direct Access Runtime: direct execution can pass the helper guard. ${(contentMetricsHelperDirectProbe.stderr || contentMetricsHelperDirectProbe.stdout || '').trim()}`
     );
   }
 

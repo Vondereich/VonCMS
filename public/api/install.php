@@ -383,6 +383,8 @@ try {
     ['general', 'maintenance_mode', 'false', 'boolean'],
     ['general', 'email_smtp', '', 'string'],
     ['general', 'logo_url', '', 'string'],
+    ['general', 'header_identity_mode', 'logo_and_text', 'string'],
+    ['general', 'use_logo_as_title', 'false', 'boolean'],
     ['general', 'invert_logo_in_dark_mode', 'false', 'boolean'],
     ['general', 'favicon_url', '', 'string'],
     ['general', 'discussion_enabled', 'true', 'boolean'],

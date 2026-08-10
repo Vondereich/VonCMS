@@ -6,6 +6,7 @@ import { Edit2, Save, X, Camera, Menu, Moon, Sun, Rss } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
 import {
   getBasePathPrefix,
+  getHeaderIdentityState,
   getPermalink,
   getSameSiteCategoryNavigation,
   normalizeSiteUrl,
@@ -40,6 +41,8 @@ import {
   getResponsiveImageAttributes,
   hasEmbeddedVideoMarkup,
   formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
 } from '../shared';
 
 import { API } from '../../config/site.config';
@@ -805,6 +808,7 @@ const PortfolioNav = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigationItems = settings?.navigation || [];
+  const headerIdentity = getHeaderIdentityState(settings);
   const visibleNavigationItems = getVisibleNavigationItems(navigationItems);
   const overflowNavigationItems = getOverflowNavigationItems(navigationItems);
   const useTabletBurgerMenu = shouldUseTabletBurgerMenu(navigationItems);
@@ -853,15 +857,15 @@ const PortfolioNav = ({
           className="flex items-center gap-3 bg-transparent border-none cursor-pointer"
           title={siteName || 'Portfolio'}
         >
-          {settings?.logoUrl && (
+          {headerIdentity.showUploadedLogo && (
             <ThemeLogo
-              src={settings.logoUrl}
+              src={settings.logoUrl || ''}
               alt={siteName}
-              useLogoAsTitle={settings.useLogoAsTitle}
+              useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
               invertLogoInDarkMode={settings?.invertLogoInDarkMode}
             />
           )}
-          {(!settings?.logoUrl || !settings?.useLogoAsTitle) && (
+          {headerIdentity.showTitle && (
             <span
               className="text-xl font-bold max-w-[200px] truncate"
               style={{
@@ -1155,8 +1159,12 @@ const SingleProject = ({
             <div>
               <p className="text-sm" style={{ color: colors.textSecondary }}>
                 {project.author} •{' '}
-                {formatDate(project.createdAt || '', settings.timeZone, settings.dateFormat)} •{' '}
-                {project.readTime || '5 min read'}
+                {formatDateTime(
+                  getPostPublishTimestamp(project),
+                  settings.timeZone,
+                  settings.dateFormat
+                )}{' '}
+                • {project.readTime || '5 min read'}
               </p>
             </div>
           </div>

@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { SiteSettings } from '../../../../../types';
+import { HeaderIdentityMode, SiteSettings } from '../../../../../types';
 import { API } from '../../../../../config/site.config';
 import { getAuthHeader } from '../../../../../config/auth.config';
 import { vonFetch } from '../../../../../utils/api';
-import { DEFAULT_SITE_DATE_FORMAT, SITE_DATE_FORMAT_OPTIONS } from '../../../../../utils/siteUtils';
+import {
+  DEFAULT_SITE_DATE_FORMAT,
+  SITE_DATE_FORMAT_OPTIONS,
+  resolveHeaderIdentityMode,
+} from '../../../../../utils/siteUtils';
 import { Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 interface GeneralSettingsProps {
@@ -22,6 +26,14 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   const [uploading, setUploading] = useState<
     'logo' | 'favicon' | 'ogImage' | 'ogImageSquare' | null
   >(null);
+
+  const headerIdentityMode = resolveHeaderIdentityMode(settings);
+
+  const handleHeaderIdentityModeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const mode = event.target.value as HeaderIdentityMode;
+    onChange('headerIdentityMode', mode);
+    onChange('useLogoAsTitle', mode === 'logo_only');
+  };
 
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -230,32 +242,27 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 </span>
               </p>
 
-              {/* Logo Options */}
-              {/* Logo Options - NOW ALWAYS VISIBLE (UX Fix) */}
-              <div
-                className={`mt-3 flex items-start gap-2 ${!settings.logoUrl ? 'opacity-50' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  id="useLogoAsTitle"
-                  checked={settings.useLogoAsTitle || false}
-                  onChange={(e) => onChange('useLogoAsTitle', e.target.checked)}
-                  disabled={!settings.logoUrl}
-                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
-                />
-                <div>
-                  <label
-                    htmlFor="useLogoAsTitle"
-                    className={`text-xs font-bold text-slate-700 dark:text-slate-300 ${settings.logoUrl ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                  >
-                    Replace Text Title with Logo
-                  </label>
-                  {!settings.logoUrl && (
-                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
-                      Upload a logo first to enable this option.
-                    </p>
-                  )}
-                </div>
+              <div className="mt-3">
+                <label
+                  htmlFor="headerIdentityMode"
+                  className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300"
+                >
+                  Header Identity
+                </label>
+                <select
+                  id="headerIdentityMode"
+                  value={headerIdentityMode}
+                  onChange={handleHeaderIdentityModeChange}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-slate-200"
+                >
+                  <option value="logo_and_text">Logo + Text</option>
+                  <option value="logo_only">Logo Only</option>
+                  <option value="text_only">Text Only</option>
+                </select>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+                  Text Only hides the uploaded logo without deleting it. Logo Only falls back to the
+                  website name until a logo is uploaded.
+                </p>
               </div>
               <div
                 className={`mt-3 flex items-start gap-2 ${!settings.logoUrl ? 'opacity-50' : ''}`}

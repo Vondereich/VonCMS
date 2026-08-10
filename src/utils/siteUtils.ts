@@ -1,13 +1,21 @@
 import type { CSSProperties } from 'react';
-import { SiteSettings, Post, Comment } from '../types';
+import type { SiteSettings, Post, Comment } from '../types';
 import { BASE_PATH } from '../config/site.config';
 
 export {
   DEFAULT_SITE_DATE_FORMAT,
   SITE_DATE_FORMAT_OPTIONS,
   formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
   normalizeSiteDateFormat,
 } from './dateFormat';
+
+export {
+  getHeaderIdentityState,
+  HEADER_IDENTITY_MODES,
+  resolveHeaderIdentityMode,
+} from './headerIdentity';
 
 export const getBasePathPrefix = (): string =>
   BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;

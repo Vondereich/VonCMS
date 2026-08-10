@@ -385,7 +385,7 @@ if (!function_exists('voncms_fetch_public_post')) {
   ) {
     $lookupColumn = $isId ? 'p.id' : 'p.slug';
     $sql =
-      'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, ' .
+      'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, ' .
       $authorNameSql .
       ' as author_name, u.username as author_username, ' .
       $authorDisplayNameSql .

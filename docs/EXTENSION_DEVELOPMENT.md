@@ -1,4 +1,4 @@
-# VonCMS Extension Development Guide v1.26.5
+# VonCMS Extension Development Guide v1.26.6
 
 This guide is the public source of truth for VonCMS theme and plugin development in the After Hours line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 
@@ -85,7 +85,7 @@ Themes normally should not create mutating API calls at all. If a theme or plugi
 
 ## RBAC and Private Data Boundaries
 
-VonCMS v1.26.5 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
+VonCMS v1.26.6 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
 
 Current rules:
 
@@ -100,7 +100,7 @@ For comments, appointed Admin/Moderator/Writer payloads may expose only `hasEmai
 
 Public theme props and public plugin payloads are already shaped by PHP response helpers before they reach React. Do not rebuild public privacy rules inside an extension.
 
-The v1.26.5 public contract is:
+The v1.26.6 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -271,7 +271,9 @@ Choose the responsive image mode that matches the rendered slot, not the source 
 
 The helper never upscales an original. A 740-pixel upload stays at 740 pixels; larger uploads can expose 480, 768, 960, and original-width candidates as available.
 
-Use `ThemeLogo` for uploaded site logos instead of hand-rolled `<img>` sizing. The shared logo slot keeps normal uploaded logos inside a 112x38 mobile box and 140x45 desktop box, while logo-as-title mode uses a 150x48 mobile box and 180x56 desktop box without resizing the original file. Pass `settings.useLogoAsTitle` and `settings.invertLogoInDarkMode` through to `ThemeLogo` so the General Settings logo title and dark-mode invert toggles work consistently across bundled and custom themes.
+Use `getHeaderIdentityState(settings)` before rendering a custom theme header. Its `showUploadedLogo`, `showFallbackMark`, `showTitle`, and `logoUsesTitleSlot` values implement Logo + Text, Logo Only, Text Only, missing-logo fallback, and legacy-setting compatibility in one place. Then use `ThemeLogo` for an uploaded logo instead of a hand-rolled `<img>`. The shared logo slot keeps normal uploaded logos inside a 112x38 mobile box and 140x45 desktop box, while logo-only mode uses a 150x48 mobile box and 180x56 desktop box without resizing the original file. Pass `logoUsesTitleSlot` and `settings.invertLogoInDarkMode` through to `ThemeLogo`.
+
+The legacy `settings.useLogoAsTitle` boolean remains synchronized for older extensions, but it only represents the older Logo + Text and Logo Only states. A custom theme that reads only that boolean cannot hide a stored logo for Text Only. Use the shared resolver to support all three modes.
 
 Profile views must use `useProfileActivity` for author article totals, article pagination, comment totals, and comment pagination. Do not derive profile activity from the theme's local `posts` or `comments` props, because those props can be capped for public discovery and may not contain the user's complete contribution history.
 
@@ -414,7 +416,7 @@ Manual checks:
 - desktop, tablet, and mobile nav do not overlap
 - disabling VonSEO stops theme-level `VonSEO`
 - disabling VonAnalytics stops cookie banner and native tracking
-- uploaded logos respect `useLogoAsTitle` and `invertLogoInDarkMode` through `ThemeLogo`
+- uploaded logos respect `getHeaderIdentityState`, `logoUsesTitleSlot`, and `invertLogoInDarkMode` through `ThemeLogo`
 - image, video, table, quote, and code block content survives public rendering
 
 ### Common Theme Mistakes
@@ -543,7 +545,7 @@ src/plugins/von-core/features/plugins/built-in/[plugin]/SettingsModal.tsx
 
 Then wire the modal from `ExtensionsManager.tsx`.
 
-Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.26.5 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
+Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.26.6 baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
 
 Secret-bearing configuration does not belong in public plugin config. Store it in a protected settings group or dedicated backend path, let `get_settings.php` mask it for non-primary admins, and make save paths ignore protected secret keys from non-primary admins.
 

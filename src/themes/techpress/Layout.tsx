@@ -33,6 +33,8 @@ import {
   hasActiveSidebarContent,
   getResponsiveImageAttributes,
   formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
 } from '../shared';
 
 import TechPressProfile from './Profile';
@@ -45,6 +47,7 @@ import {
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
 import {
+  getHeaderIdentityState,
   getPermalink,
   getSameSiteCategoryNavigation,
   normalizeSiteUrl,
@@ -667,6 +670,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   };
 
   // Header Logic (wrapped in useMemo to prevent re-creation and input focus loss)
+  const headerIdentity = useMemo(
+    () => getHeaderIdentityState(settings),
+    [settings.headerIdentityMode, settings.logoUrl, settings.useLogoAsTitle]
+  );
+
   const Header = useMemo(
     () => () => (
       <header
@@ -683,21 +691,21 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               className="min-w-0 max-w-[58%] md:max-w-[320px] flex items-center gap-3 cursor-pointer"
               onClick={handleReturnHome}
             >
-              {settings.logoUrl ? (
+              {headerIdentity.showUploadedLogo ? (
                 <ThemeLogo
-                  src={settings.logoUrl}
+                  src={settings.logoUrl || ''}
                   alt={settings.siteName}
-                  useLogoAsTitle={settings.useLogoAsTitle}
+                  useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                   invertLogoInDarkMode={settings.invertLogoInDarkMode}
                   className="transition-all"
                 />
-              ) : (
+              ) : headerIdentity.showFallbackMark ? (
                 <VonLogo
                   variant="default"
                   className="w-10! h-10! md:w-12! md:h-12! mr-0! shrink-0"
                 />
-              )}
-              {!settings.useLogoAsTitle && (
+              ) : null}
+              {headerIdentity.showTitle && (
                 <div className="min-w-0 flex-1">
                   <h1
                     className="text-base sm:text-lg md:text-xl lg:text-2xl font-black leading-none tracking-tight truncate"
@@ -999,6 +1007,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     ),
     [
       colors,
+      headerIdentity,
       settings,
       user,
       isDark,
@@ -1139,21 +1148,23 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                         }
                         size="w-12 h-12"
                       />
-                      <div className="flex flex-col">
+                      <div className="flex min-w-0 flex-col">
                         <span className="font-black text-base" style={{ color: colors.text }}>
                           {selectedPost.author}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-[10px] uppercase tracking-wider opacity-60">
-                            {formatDate(
-                              selectedPost.createdAt || selectedPost.updatedAt || '',
+                            {formatDateTime(
+                              getPostPublishTimestamp(selectedPost),
                               settings.timeZone,
                               settings.dateFormat
                             )}
                           </span>
-                          <span className="text-[10px] opacity-60">•</span>
-                          <span className="text-[10px] uppercase tracking-wider opacity-60">
-                            {selectedPost.readTime || '5 min read'}
+                          <span className="inline-flex items-center gap-2 text-[10px] opacity-60">
+                            <span aria-hidden="true">•</span>
+                            <span className="uppercase tracking-wider">
+                              {selectedPost.readTime || '5 min read'}
+                            </span>
                           </span>
                         </div>
                       </div>

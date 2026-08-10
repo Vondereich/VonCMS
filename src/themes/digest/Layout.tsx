@@ -55,12 +55,18 @@ import {
   VonPopupAd,
   getResponsiveImageAttributes,
   formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
 } from '../shared';
 
 import { vonFetch } from '../../utils/api';
 import { API } from '../../config/site.config';
 import { DarkModeStyles } from '../../styles/DarkModeStyles';
-import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
+import {
+  getHeaderIdentityState,
+  getSameSiteCategoryNavigation,
+  normalizeSiteUrl,
+} from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
 
@@ -1315,6 +1321,8 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     }
   };
 
+  const headerIdentity = getHeaderIdentityState(settings);
+
   // ===== HEADER =====
   const Header = () => (
     <header
@@ -1328,18 +1336,18 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
         <div className="flex items-center justify-between">
           {/* Logo & Site Info */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={handleReturnHome}>
-            {settings.logoUrl ? (
+            {headerIdentity.showUploadedLogo ? (
               <ThemeLogo
-                src={settings.logoUrl}
+                src={settings.logoUrl || ''}
                 alt={settings.siteName}
-                useLogoAsTitle={settings.useLogoAsTitle}
+                useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                 invertLogoInDarkMode={settings.invertLogoInDarkMode}
               />
-            ) : (
+            ) : headerIdentity.showFallbackMark ? (
               <VonLogo variant="default" className="w-10! h-10! mr-0!" />
-            )}
-            {!settings.useLogoAsTitle && (
-              <div className="hidden sm:block max-w-[200px] lg:max-w-[260px]">
+            ) : null}
+            {headerIdentity.showTitle && (
+              <div className="min-w-0 max-w-[128px] sm:max-w-[200px] lg:max-w-[260px]">
                 <span
                   className="text-xl font-black tracking-tight block truncate"
                   style={{ color: colors.text }}
@@ -1630,23 +1638,26 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                         url={authorAvatar}
                         size="w-12 h-12"
                       />
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-bold" style={{ color: colors.text }}>
                           {selectedPost.author}
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <p className="text-sm" style={{ color: colors.textMuted }}>
-                            {formatDate(
-                              selectedPost.createdAt || '',
+                            {formatDateTime(
+                              getPostPublishTimestamp(selectedPost),
                               settings.timeZone,
                               settings.dateFormat
                             )}
                           </p>
-                          <span className="text-sm" style={{ color: colors.textMuted }}>
-                            &bull;
-                          </span>
-                          <span className="text-sm font-medium" style={{ color: colors.textMuted }}>
-                            {selectedPost.readTime || '5 min read'}
+                          <span
+                            className="inline-flex items-center gap-2 text-sm"
+                            style={{ color: colors.textMuted }}
+                          >
+                            <span aria-hidden="true">&bull;</span>
+                            <span className="font-medium">
+                              {selectedPost.readTime || '5 min read'}
+                            </span>
                           </span>
                         </div>
                       </div>

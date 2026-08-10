@@ -46,6 +46,8 @@ import {
   useAISummary,
   useRelatedPosts,
   formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
   decodeEntities,
   ProseDarkModeStyles,
   UserProfile,
@@ -55,7 +57,11 @@ import {
   hasEmbeddedVideoMarkup,
   getResponsiveImageAttributes,
 } from '../shared';
-import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
+import {
+  getHeaderIdentityState,
+  getSameSiteCategoryNavigation,
+  normalizeSiteUrl,
+} from '../../utils/siteUtils';
 
 // Utility to render User Avatar
 const UserAvatar: React.FC<{
@@ -281,6 +287,7 @@ const DefaultLayout: React.FC<
   const compactNavigationClassName = useTabletBurgerMenu ? 'lg:hidden' : 'md:hidden';
 
   const rssPath = `${getBasePathPrefix()}/rss`;
+  const headerIdentity = getHeaderIdentityState(settings);
 
   const resolveNavigationLabel = (nav: NavItem): string => {
     if (nav.label) return nav.label;
@@ -372,18 +379,18 @@ const DefaultLayout: React.FC<
                 className="shrink-0 flex items-center cursor-pointer group gap-3"
                 onClick={goHome}
               >
-                {settings.logoUrl ? (
+                {headerIdentity.showUploadedLogo ? (
                   <ThemeLogo
-                    src={settings.logoUrl}
+                    src={settings.logoUrl || ''}
                     alt={settings.siteName}
-                    useLogoAsTitle={settings.useLogoAsTitle}
+                    useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                     invertLogoInDarkMode={settings.invertLogoInDarkMode}
                     className="transition-all"
                   />
-                ) : (
+                ) : headerIdentity.showFallbackMark ? (
                   <VonLogo variant="default" />
-                )}
-                {!settings.useLogoAsTitle && (
+                ) : null}
+                {headerIdentity.showTitle && (
                   <div className="max-w-[200px] lg:max-w-[260px]">
                     <span
                       className="font-extrabold text-2xl tracking-tight block leading-none truncate"
@@ -1420,7 +1427,11 @@ const SinglePostView: React.FC<{
             <div className="hidden sm:block h-10 w-px bg-neutral-200 dark:bg-neutral-800"></div>
             <div className="text-left">
               <p className="font-bold text-neutral-900 dark:text-white">
-                {formatDate(post.createdAt || '', settings.timeZone, settings.dateFormat)}
+                {formatDateTime(
+                  getPostPublishTimestamp(post),
+                  settings.timeZone,
+                  settings.dateFormat
+                )}
               </p>
               <p className="text-xs text-neutral-500 uppercase tracking-wide">Post Date</p>
             </div>

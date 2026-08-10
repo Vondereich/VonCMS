@@ -22,6 +22,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 require_once __DIR__ . '/../media_variants.php';
+require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
 
 $id = isset($_GET['id']) ? trim((string) $_GET['id']) : null;
@@ -143,9 +144,7 @@ try {
   $updatedAt = $normalized['updated_at'] ?? ($normalized['updatedat'] ?? $createdAt);
   $scheduledAt = $normalized['scheduled_at'] ?? ($normalized['scheduledat'] ?? null);
 
-  $chars = isset($normalized['content']) ? strlen(strip_tags($normalized['content'])) : 0;
-  $readTimeMins = max(1, ceil($chars / 1000));
-  $readTime = $readTimeMins . ' min read';
+  $readTime = voncms_calculate_read_time((string) ($normalized['content'] ?? ''));
 
   $imagePath = $normalized['image_url'] ?? '';
   $responsiveImage = voncms_build_responsive_image_data($imagePath, dirname(__DIR__) . '/uploads/');

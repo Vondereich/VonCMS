@@ -21,6 +21,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 require_once __DIR__ . '/../media_variants.php';
+require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 
@@ -302,10 +303,9 @@ try {
     $updatedAt = $row['updated_at'] ?? $createdAt;
     $scheduledAt = $row['scheduled_at'] ?? null;
 
-    // Accurate Reading Time calculation
+    // Match the shared raw-content character contract without fetching full bodies.
     $chars = (int) ($row['content_chars'] ?? 0);
-    $readTimeMins = max(1, ceil($chars / 1000));
-    $readTime = $readTimeMins . ' min read';
+    $readTime = voncms_format_read_time($chars);
 
     $imagePath = $row['image_url'] ?? '';
     $responsiveImage = voncms_build_responsive_image_data(

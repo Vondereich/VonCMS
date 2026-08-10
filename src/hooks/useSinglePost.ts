@@ -48,6 +48,7 @@ export const useSinglePost = (
       author_id: p.author_id ?? null,
       createdAt: p.created_at || '',
       updatedAt: p.updated_at || p.created_at || '',
+      scheduledAt: p.scheduled_at || p.scheduledAt || '',
       keywords: p.keywords || '',
       metaDescription: p.meta_description || '',
       readTime: p.readTime || '',

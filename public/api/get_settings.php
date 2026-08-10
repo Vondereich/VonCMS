@@ -159,6 +159,8 @@ try {
             'site_logo',
             'site_icon',
             'logo_url',
+            'header_identity_mode',
+            'use_logo_as_title',
             'invert_logo_in_dark_mode',
             'favicon_url',
             'active_theme_id',

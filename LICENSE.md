@@ -2,7 +2,7 @@
 
 SPDX-License-Identifier: GPL-3.0-only
 
-Version: `1.26.5`
+Version: `1.26.6`
 Software: `VonCMS`
 Publisher: `Vondereich`
 

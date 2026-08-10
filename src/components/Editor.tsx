@@ -1478,7 +1478,7 @@ const Editor: React.FC<EditorProps> = ({
           aria-label="Text style"
           value={activeBlockStyle}
           onChange={(event) => execCmd('formatBlock', event.target.value)}
-          className="h-11 w-[70px] shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 shadow-xs outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-slate-200 sm:w-28 xl:h-8 xl:w-16"
+          className="h-11 w-auto min-w-max shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 shadow-xs outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-slate-200 xl:h-8"
         >
           <option value="p">Body</option>
           <option value="h1">H1</option>
@@ -1725,6 +1725,7 @@ const Editor: React.FC<EditorProps> = ({
             onClick={() => setCompactToolbarPanel(null)}
             className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-white"
             aria-label="Close editor tools"
+            title="Close editor tools"
           >
             <X size={20} />
           </button>
@@ -2268,8 +2269,11 @@ const Editor: React.FC<EditorProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold text-slate-500 uppercase">Image Tools</span>
             <button
+              type="button"
               onClick={() => setSelectedImage(null)}
-              className="ml-auto text-slate-400 hover:text-red-500"
+              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
+              aria-label="Close image tools"
+              title="Close image tools"
             >
               <X size={14} />
             </button>
@@ -2376,8 +2380,11 @@ const Editor: React.FC<EditorProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold text-slate-500 uppercase">Video Tools</span>
             <button
+              type="button"
               onClick={() => setSelectedVideoEmbed(null)}
-              className="ml-auto text-slate-400 hover:text-red-500"
+              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
+              aria-label="Close video tools"
+              title="Close video tools"
             >
               <X size={14} />
             </button>

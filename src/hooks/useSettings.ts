@@ -67,6 +67,8 @@ const INITIAL_SETTINGS: SiteSettings = {
   },
   discussionEnabled: _s?.discussionEnabled ?? true,
   logoUrl: _s?.logoUrl || '',
+  headerIdentityMode: _s?.headerIdentityMode,
+  useLogoAsTitle: _s?.useLogoAsTitle ?? false,
   invertLogoInDarkMode: _s?.invertLogoInDarkMode ?? false,
   faviconUrl: _s?.faviconUrl || '',
   footerLinks: [],

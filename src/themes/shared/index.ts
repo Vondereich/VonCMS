@@ -26,7 +26,15 @@ export {
 export { default as VonSEO } from '../../plugins/von-core/features/seo/VonSEO';
 export { hasEmbeddedVideoMarkup, sanitizeHtml } from '../../utils/security';
 export { decodeEntities } from '../../utils/textUtils';
-export { formatDate, getResponsiveImageAttributes } from '../../utils/siteUtils';
+export {
+  formatDate,
+  formatDateTime,
+  getHeaderIdentityState,
+  getPostPublishTimestamp,
+  getResponsiveImageAttributes,
+  HEADER_IDENTITY_MODES,
+  resolveHeaderIdentityMode,
+} from '../../utils/siteUtils';
 
 // 3. Plugin Components
 export { VpComments } from '../../plugins/von-core/features/public/components/Comments';

@@ -151,11 +151,11 @@ try {
   $countStmt->execute();
   $total = (int) $countStmt->fetchColumn();
 
-  $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.category, p.author, p.author_id, p.keywords, p.image_url, p.created_at, p.updated_at, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name
+  $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.category, p.author, p.author_id, p.keywords, p.image_url, p.created_at, p.updated_at, p.scheduled_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name
     FROM posts p
     LEFT JOIN users u ON p.author_id = u.id
     $where
-    ORDER BY p.created_at DESC, p.id DESC
+    ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC
     LIMIT :limit OFFSET :offset";
 
   $stmt = $pdo->prepare($sql);
@@ -220,7 +220,7 @@ try {
       ? mb_substr(strip_tags($renderedContent), 0, 300)
       : '');
   $author = $post['author_name'] ?? ($post['author'] ?? 'Unknown');
-  $pubDate = date('r', strtotime($post['created_at']));
+  $pubDate = date('r', strtotime($post['effective_publish_at'] ?? $post['created_at']));
   ?>
     <item>
       <title><?php echo htmlspecialchars($post['title'], ENT_XML1, 'UTF-8'); ?></title>

@@ -2,6 +2,8 @@ import type { ArticleSchemaType } from './utils/articleSchema';
 
 export type UserRole = 'Admin' | 'Root' | 'Moderator' | 'Writer' | 'Member';
 
+export type HeaderIdentityMode = 'logo_and_text' | 'logo_only' | 'text_only';
+
 export interface User {
   id: string;
   username: string;
@@ -419,7 +421,8 @@ export interface SiteSettings {
   };
   discussionEnabled?: boolean;
   logoUrl?: string;
-  useLogoAsTitle?: boolean; // New: Replace text with logo
+  headerIdentityMode?: HeaderIdentityMode;
+  useLogoAsTitle?: boolean; // Legacy compatibility for sites saved before v1.26.6
   invertLogoInDarkMode?: boolean;
   faviconUrl?: string;
   ogImageUrl?: string; // Social Share Image (Large)

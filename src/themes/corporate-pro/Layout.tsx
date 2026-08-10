@@ -60,11 +60,17 @@ import {
   getResponsiveImageAttributes,
   hasEmbeddedVideoMarkup,
   formatDate,
+  formatDateTime,
+  getPostPublishTimestamp,
 } from '../shared';
 
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
-import { getSameSiteCategoryNavigation, normalizeSiteUrl } from '../../utils/siteUtils';
+import {
+  getHeaderIdentityState,
+  getSameSiteCategoryNavigation,
+  normalizeSiteUrl,
+} from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
 
@@ -637,6 +643,8 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
 
   // --- Components ---
 
+  const headerIdentity = getHeaderIdentityState(settings);
+
   const Header = () => (
     <header
       className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-md py-2 dark:bg-neutral-900/90' : 'bg-transparent py-4'}`}
@@ -645,21 +653,21 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
         {/* Logo */}
         {/* Logo */}
         <button onClick={onBackToHome} className="flex items-center gap-2 group">
-          {settings.logoUrl ? (
+          {headerIdentity.showUploadedLogo ? (
             <ThemeLogo
-              src={settings.logoUrl}
+              src={settings.logoUrl || ''}
               alt={settings.siteName}
-              useLogoAsTitle={settings.useLogoAsTitle}
+              useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
               invertLogoInDarkMode={settings.invertLogoInDarkMode}
               className="transition-all duration-300"
             />
-          ) : (
+          ) : headerIdentity.showFallbackMark ? (
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:bg-blue-700 transition-colors">
               {settings.siteName.charAt(0)}
             </div>
-          )}
+          ) : null}
 
-          {(!settings.logoUrl || !settings.useLogoAsTitle) && (
+          {headerIdentity.showTitle && (
             <span
               className={`text-xl font-bold tracking-tight transition-colors group-hover:text-blue-600 ${
                 currentView === 'home' && !scrolled && !isDarkMode
@@ -1237,16 +1245,18 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-400 text-sm font-medium mb-6">
                         {selectedPost.category}
                       </div>
-                      <div className="flex items-center justify-center gap-2 text-sm text-slate-500 mb-6 font-medium">
+                      <div className="mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-medium text-slate-500">
                         <span>
-                          {formatDate(
-                            selectedPost.createdAt || '',
+                          {formatDateTime(
+                            getPostPublishTimestamp(selectedPost),
                             settings.timeZone,
                             settings.dateFormat
                           )}
                         </span>
-                        <span>•</span>
-                        <span>{selectedPost.readTime || '5 min read'}</span>
+                        <span className="inline-flex items-center gap-2">
+                          <span aria-hidden="true">•</span>
+                          <span>{selectedPost.readTime || '5 min read'}</span>
+                        </span>
                       </div>
                       <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 leading-tight text-slate-900 dark:text-white">
                         {decodeEntities(selectedPost.title)}

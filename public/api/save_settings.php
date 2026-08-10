@@ -298,6 +298,31 @@ if (array_key_exists('dateFormat', $settings)) {
   }
 }
 
+if (array_key_exists('headerIdentityMode', $settings)) {
+  $allowedHeaderIdentityModes = ['logo_and_text', 'logo_only', 'text_only'];
+  if (
+    !is_string($settings['headerIdentityMode']) ||
+    !in_array($settings['headerIdentityMode'], $allowedHeaderIdentityModes, true)
+  ) {
+    ResponseHelper::sendError('Invalid header identity mode.', 400);
+  }
+
+  // Keep the pre-v1.26.6 boolean deterministic for older themes and extensions.
+  $settings['useLogoAsTitle'] = $settings['headerIdentityMode'] === 'logo_only';
+} elseif (array_key_exists('useLogoAsTitle', $settings)) {
+  $legacyLogoAsTitle = filter_var(
+    $settings['useLogoAsTitle'],
+    FILTER_VALIDATE_BOOLEAN,
+    FILTER_NULL_ON_FAILURE,
+  );
+  if ($legacyLogoAsTitle === null) {
+    ResponseHelper::sendError('Invalid legacy logo title setting.', 400);
+  }
+
+  $settings['useLogoAsTitle'] = $legacyLogoAsTitle;
+  $settings['headerIdentityMode'] = $legacyLogoAsTitle ? 'logo_only' : 'logo_and_text';
+}
+
 // Remove metadata fields
 unset($settings['_source'], $settings['_access_level'], $settings['_warning']);
 
@@ -412,7 +437,8 @@ try {
     ['maintenanceMode', 'general', 'maintenance_mode', 'boolean'],
     ['emailSmtp', 'general', 'email_smtp', 'string'],
     ['logoUrl', 'general', 'logo_url', 'string'],
-    ['useLogoAsTitle', 'general', 'use_logo_as_title', 'boolean'], // New: Replace text with logo
+    ['headerIdentityMode', 'general', 'header_identity_mode', 'string'],
+    ['useLogoAsTitle', 'general', 'use_logo_as_title', 'boolean'],
     ['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean'],
     ['faviconUrl', 'general', 'favicon_url', 'string'],
     ['ogImageUrl', 'general', 'og_image_url', 'string'], // Social Share Image

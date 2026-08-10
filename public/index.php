@@ -68,6 +68,7 @@ if ($canonicalRedirectLocation !== null) {
 // Initialise the security layer before installation and maintenance checks.
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/media_variants.php';
+require_once __DIR__ . '/content_metrics_helper.php';
 require_once __DIR__ . '/scheduler_helper.php';
 require_once __DIR__ . '/seo_schema_helper.php';
 
@@ -319,6 +320,8 @@ $dateFormatValue = 'month_day_year_long';
 $siteName = $seoTitle;
 $siteDescription = $seoDescription;
 $logoUrl = '';
+$headerIdentityMode = 'logo_and_text';
+$useLogoAsTitle = false;
 $faviconUrl = '';
 $faviconVersion = '';
 $adsenseVerification = '';
@@ -363,7 +366,7 @@ try {
     if (isset($pdo)) {
       $runtimeSettingsStmt = $pdo->prepare(
         "SELECT setting_group, setting_key, setting_value FROM settings
-         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure', 'time_zone', 'date_format'))
+         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'header_identity_mode', 'use_logo_as_title', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure', 'time_zone', 'date_format'))
             OR (setting_group = 'ads' AND setting_key = 'ads_config')
             OR (setting_group = 'seo' AND setting_key = 'site_config')
             OR (setting_group = 'theme' AND setting_key IN ('active_theme_id', 'customization'))",
@@ -455,6 +458,21 @@ try {
       }
 
       $logoUrl = $runtimeSettings['general']['logo_url'] ?? '';
+      $useLogoAsTitle = filter_var(
+        $runtimeSettings['general']['use_logo_as_title'] ?? false,
+        FILTER_VALIDATE_BOOLEAN,
+      );
+      $storedHeaderIdentityMode = trim(
+        (string) ($runtimeSettings['general']['header_identity_mode'] ?? ''),
+      );
+      if (
+        in_array($storedHeaderIdentityMode, ['logo_and_text', 'logo_only', 'text_only'], true)
+      ) {
+        $headerIdentityMode = $storedHeaderIdentityMode;
+        $useLogoAsTitle = $headerIdentityMode === 'logo_only';
+      } else {
+        $headerIdentityMode = $useLogoAsTitle ? 'logo_only' : 'logo_and_text';
+      }
       $invertLogoInDarkMode = filter_var(
         $runtimeSettings['general']['invert_logo_in_dark_mode'] ?? false,
         FILTER_VALIDATE_BOOLEAN,
@@ -823,7 +841,7 @@ try {
       // ============================================
       if (empty($path)) {
         try {
-          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 5");
+          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 5");
           $hpStmt->execute([$publicContentCurrentTime]);
           $homepagePosts = $hpStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -840,9 +858,8 @@ try {
               'avatar'   => ResponseHelper::scrubAvatarUrl($hp['author_avatar'] ?? '')
             ];
 
-            $chars = isset($hp['content']) ? strlen(strip_tags($hp['content'])) : 0;
-            $hp['readTime'] = max(1, ceil($chars / 1000)) . ' min read';
-            unset($hp['content']); // Remove from payload to save memory and frontend size
+            $hp['readTime'] = voncms_format_read_time((int) ($hp['content_chars'] ?? 0));
+            unset($hp['content_chars']);
             $hpSlug = $hp['slug'] ?: $hp['id'];
             $hp['url'] = ''; // Wait for switch statement
             switch ($permalinkStructureValue) {
@@ -1258,8 +1275,10 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
                                      'siteUrl'              => $domainUrl ?? '',
                                      'activeThemeId'        => $activeThemeId ?: '',
                                      'faviconUrl'           => $faviconUrl ?? '',
-                                    'logoUrl'              => $logoUrl ?? '',
-                                    'invertLogoInDarkMode' => $invertLogoInDarkMode ?? false,
+                                     'logoUrl'              => $logoUrl ?? '',
+                                     'headerIdentityMode'   => $headerIdentityMode ?? 'logo_and_text',
+                                     'useLogoAsTitle'       => $useLogoAsTitle ?? false,
+                                     'invertLogoInDarkMode' => $invertLogoInDarkMode ?? false,
                                      'theme'                => $themeCustomization ?? (object)[],
                                      'seo'                  => [
                                        'articleSchemaType' => $articleSchemaType,
@@ -1322,7 +1341,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         'slug'             => $post['slug']             ?? '',
         'content'          => $post['content']          ?? '',
         'excerpt'          => $post['excerpt']          ?? '',
-        'readTime'         => max(1, ceil((strlen(strip_tags($post['content'] ?? ''))) / 1000)) . ' min read',
+        'readTime'         => voncms_calculate_read_time((string) ($post['content'] ?? '')),
         'meta_description' => $post['meta_description'] ?? '',
         'image_url'        => $post['image_url']        ?? '',
         'imageSrcSet'      => $initialResponsiveImage['srcSet'],
@@ -1336,6 +1355,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         'author_id'        => isset($post['author_id']) ? (string) $post['author_id'] : null,
         'created_at'       => $post['created_at']       ?? '',
         'updated_at'       => $post['updated_at']       ?? '',
+        'scheduled_at'     => $post['scheduled_at']     ?? null,
         'keywords'         => $post['keywords']         ?? '',
       ];
       $initialState = [
@@ -1429,6 +1449,8 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <?php
   $categoryNoscriptLanding = $isCategoryLanding && voncms_is_homepage_path($path);
   $noscriptListingPosts = $categoryNoscriptLanding ? $categoryLandingPosts : $homepagePosts;
+  $showNoscriptLogo = !empty($logoUrl) && $headerIdentityMode !== 'text_only';
+  $showNoscriptTitle = $headerIdentityMode !== 'logo_only' || empty($logoUrl);
   ?>
   <?php if (isset($post) && !empty($post)): ?>
     <?php $noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? ''); ?>
@@ -1443,10 +1465,14 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <?php elseif ($categoryNoscriptLanding || !empty($noscriptListingPosts)): ?>
     <noscript>
       <header>
-        <?php if (!empty($logoUrl)): ?>
+        <?php if ($showNoscriptLogo): ?>
           <img src="<?php echo htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 140px; max-height: 45px; width: auto; height: auto; object-fit: contain;">
         <?php endif; ?>
-        <h1><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
+        <?php if ($showNoscriptTitle): ?>
+          <h1><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
+        <?php else: ?>
+          <h1 style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;"><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
+        <?php endif; ?>
         <p><?php echo htmlspecialchars($seoDescription, ENT_QUOTES, 'UTF-8'); ?></p>
       </header>
       <main>

@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.26.5
+# VonCMS User Manual v1.26.6
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -24,7 +24,7 @@ Before you start publishing, check these basics:
 1. Confirm `Site Name`, `Site URL`, and tagline.
 2. Set your main theme in the Appearance section.
 3. Review SEO defaults, sitemap, and robots.txt.
-4. Upload your logo and favicon.
+4. Upload your logo and favicon, then choose Logo + Text, Logo Only, or Text Only under Header Identity.
 5. Create at least one category and one navigation item.
 6. Make a backup once the site is configured.
 
