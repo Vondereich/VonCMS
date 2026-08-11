@@ -18,7 +18,8 @@ VonCMS runs on a standard **LAMP** stack:
 | MySQL       | 5.7+    |
 | Storage     | 50MB    |
 
-**Server:** Apache (required for `.htaccess` routing)
+**Server:** Apache or LiteSpeed Enterprise with `.htaccess` support
+
 **Hosting:** cPanel (Apache), DirectAdmin (Apache), WAMP, XAMPP, Laragon
 
 > **Important:** VonCMS uses `.htaccess` for normal shared-hosting routing. This requires **Apache**, **LiteSpeed**, or **Apache behind an Nginx proxy** (common on cPanel/DirectAdmin). If your hosting runs **Nginx-only** with no Apache/LiteSpeed layer, `.htaccess` rules are ignored and routing/protection rules must be added manually. Ask your host which stack they use, or refer to the [VPS Guide](VPS.md) for Nginx config parity.
