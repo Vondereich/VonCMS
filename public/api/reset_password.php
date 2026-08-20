@@ -11,25 +11,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  header('Allow: POST, OPTIONS');
+  ResponseHelper::sendError('Method Not Allowed', 405);
+}
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 require_once __DIR__ . '/mail_helper.php';
 
-// Rate limit check
-RateLimiter::requireNotLimited();
 CSRFProtection::requireToken();
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
-$action = $input['action'] ?? 'request'; // 'request' or 'reset'
-$honeypot = $input['hp_field'] ?? '';
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid request body', 400);
+}
+
+$actionValue = $input['action'] ?? 'request';
+$action = is_string($actionValue) ? $actionValue : '';
+$honeypotValue = $input['hp_field'] ?? '';
+$honeypot = is_scalar($honeypotValue) ? (string) $honeypotValue : '';
+$clientIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+$recoveryTrapIdentifier = 'password-recovery-trap:' . $clientIp;
 
 // Honeypot check
 if (!empty($honeypot)) {
-  RateLimiter::recordAttempt();
-  error_log(
-    'Honeypot triggered during password reset from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
-  );
+  $shouldLogTrap = RateLimiter::consumeFixedWindow($recoveryTrapIdentifier, 20, 900);
+  if ($shouldLogTrap) {
+    error_log(
+      'Honeypot triggered during password reset from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+    );
+  }
   // Return fake success to not alert the bot (matching request-success pattern)
   echo json_encode([
     'success' => true,
@@ -58,10 +71,22 @@ try {
 
 if ($action === 'request') {
   // REQUEST PASSWORD RESET
-  $email = trim($input['email'] ?? '');
+  $emailValue = $input['email'] ?? '';
+  $email = is_string($emailValue) ? trim($emailValue) : '';
 
-  if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+  if (strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     ResponseHelper::sendError('Valid email required', 400);
+  }
+
+  $normalizedEmail = strtolower($email);
+  $recoveryPairIdentifier =
+    'password-recovery-pair:' . hash('sha256', $clientIp . "\0" . $normalizedEmail);
+  $recoveryEmailIdentifier = 'password-recovery-email:' . hash('sha256', $normalizedEmail);
+  if (
+    !RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900) ||
+    !RateLimiter::consumeFixedWindow($recoveryEmailIdentifier, 5, 900)
+  ) {
+    ResponseHelper::sendError('Too many requests. Please try again later.', 429);
   }
 
   try {
@@ -113,7 +138,7 @@ if ($action === 'request') {
     }
 
     if ($domainUrl) {
-      $resetUrl = "$domainUrl/?reset_token=$token";
+      $resetUrl = "$domainUrl/login?reset_token=$token";
     } else {
       // Fallback: derive from request (only when domain_url is not configured)
       $host = preg_replace(
@@ -124,7 +149,7 @@ if ($action === 'request') {
       $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
       $basePath = preg_replace('#/api(/.*)?$#i', '', (string) $scriptName);
       $basePath = $basePath === '/' || $basePath === '\\' ? '' : rtrim($basePath, '/');
-      $resetUrl = "$protocol://$host$basePath/?reset_token=$token";
+      $resetUrl = "$protocol://$host$basePath/login?reset_token=$token";
     }
 
     // Send email
@@ -172,8 +197,10 @@ if ($action === 'request') {
   }
 } elseif ($action === 'reset') {
   // RESET PASSWORD WITH TOKEN
-  $token = $input['token'] ?? '';
-  $newPassword = $input['password'] ?? '';
+  $tokenValue = $input['token'] ?? '';
+  $passwordValue = $input['password'] ?? '';
+  $token = is_string($tokenValue) ? $tokenValue : '';
+  $newPassword = is_string($passwordValue) ? $passwordValue : '';
 
   if (strlen($token) !== 64) {
     ResponseHelper::sendError('Invalid token', 400);

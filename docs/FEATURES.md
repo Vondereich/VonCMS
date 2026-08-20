@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.26.6 feature baseline for the After Hours line.
+> VonCMS v1.26.7 feature baseline for the After Hours line.
 
-## Introduction to VonCMS v1.26.6 "After Hours"
+## Introduction to VonCMS v1.26.7 "After Hours"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,7 +47,7 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.26.6 "After Hours"
+### This is v1.26.7 "After Hours"
 
 _"After Hours" - the maintenance and modernization line, focused on moving the development toolchain forward without changing the practical PHP hosting model._
 
@@ -132,7 +132,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Current release | `v1.26.6 "After Hours"`                   |
+| Current release | `v1.26.7 "After Hours"`                   |
 | Minimum PHP     | `8.2+`                                    |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |
@@ -164,16 +164,16 @@ The admin dashboard is where you'll spend most of your time. It should feel good
 - **Responsive administration** - navigation becomes a touch-safe drawer on smaller screens, while content, users, media, newsletter, security, settings, and maintenance tools adapt without dropping actions.
 - **Consistent public dates** - choose one long, short, numeric, or ISO-style display format in General Settings and every bundled homepage, single post, profile activity, comment timestamp, sidebar, and related-post surface follows it without changing feed, schema, permalink, or stored timestamp formats.
 - **Consistent admin dialogs** - editor previews, media lightboxes, extension settings, redirects, users, and updates share a blurred, keyboard-safe, viewport-bounded popup layer.
-- **Post manager** — create, edit, schedule, archive. Full draft workflow.
-- **Page manager** — static pages with the same editor experience.
-- **Media manager** — upload, organize, search, regenerate thumbnails, clean orphaned files. WebP conversion built in.
-- **User manager** — admins, moderators, writers, subscribers. Role-based permissions that actually work.
-- **Comment moderation** — approve, reject, reply, track spam. Staff see pending comments, guests see only approved.
-- **Database manager** — inspect, export, import, and repair the active VonCMS database. See [Database Manager](DATABASE_MANAGER.md).
-- **Security dashboard** — login logs, session monitoring, security health at a glance.
-- **Contact forms manager** — build forms, manage submissions, no third-party service needed.
-- **Newsletter manager** — subscriber lists, export CSV, manage subscriptions.
-- **Extensions manager** — toggle plugins, configure settings, all from one place.
+- **Post manager** - create, edit, schedule, archive. Full draft workflow.
+- **Page manager** - static pages with the same editor experience.
+- **Media manager** - upload, organize, search, regenerate thumbnails, clean orphaned files. WebP conversion built in.
+- **User manager** - admins, moderators, writers, subscribers. Role-based permissions that actually work.
+- **Comment moderation** - approve, reject, reply, track spam. Staff see pending comments, guests see only approved.
+- **Database manager** - inspect, export, import, and repair the active VonCMS database. See [Database Manager](DATABASE_MANAGER.md).
+- **Security dashboard** - login logs, session monitoring, security health at a glance.
+- **Contact forms manager** - build forms, manage submissions, no third-party service needed.
+- **Newsletter manager** - subscriber lists, export CSV, manage subscriptions.
+- **Extensions manager** - toggle plugins, configure settings, all from one place.
 
 **Why this matters:** Every single one of these would be a separate plugin in WordPress. Here, they're just... tabs in the sidebar.
 
@@ -185,16 +185,16 @@ The admin dashboard is where you'll spend most of your time. It should feel good
 
 You shouldn't need an SEO degree to make your site visible. VonCMS handles the technical SEO automatically so you can focus on writing good content.
 
-- **Dynamic sitemap.xml** — updates automatically when you publish.
-- **Dynamic robots.txt** — generated crawl-policy defaults discourage indexing of internal paths; server access controls remain authoritative.
-- **Dynamic llms.txt** — publishes a concise Markdown content index for compatible AI/LLM clients.
-- **Canonical URL handling** — no duplicate content penalties.
-- **SEO-aware permalinks** — slug-based, date-based, category-based — your choice.
-- **Redirect manager** — 301 redirects with loop detection. No broken links.
-- **Open Graph & social meta** — your links look good when shared on Facebook, Twitter, WhatsApp.
-- **JSON-LD schema output** — structured data for Google rich results.
-- **IndexNow support** — submits the canonical post URL when content is published; indexing remains controlled by each participating search engine.
-- **RSS feed** — full content, images, author metadata. `?limit`, `?category`, `?offset` support.
+- **Dynamic sitemap.xml** - updates automatically when you publish.
+- **Dynamic robots.txt** - generated crawl-policy defaults discourage indexing of internal paths; server access controls remain authoritative.
+- **Dynamic llms.txt** - publishes a concise Markdown content index for compatible AI/LLM clients.
+- **Canonical URL handling** - no duplicate content penalties.
+- **SEO-aware permalinks:** choose slug-based, date-based, or category-based URLs.
+- **Redirect manager** - 301 redirects with loop detection. No broken links.
+- **Open Graph & social meta** - your links look good when shared on Facebook, Twitter, WhatsApp.
+- **JSON-LD schema output** - structured data for Google rich results.
+- **IndexNow support** - submits the canonical post URL when content is published; indexing remains controlled by each participating search engine.
+- **RSS feed** - full content, images, author metadata. `?limit`, `?category`, `?offset` support.
 
 **Why this matters:** In WordPress, this is Yoast + RankMath + Redirection + IndexNow plugin + RSS customizer. Five plugins. Five update cycles. Five things that can break. In VonCMS, it's just how the system works.
 
@@ -204,20 +204,20 @@ You shouldn't need an SEO degree to make your site visible. VonCMS handles the t
 
 ### Your media library should work as hard as you do.
 
-- **Image upload pipeline** — drag and drop, multi-upload, progress tracking.
-- **WebP support** — smaller files, faster pages, automatic conversion.
-- **Responsive image variants** — auto-generates widths for srcset. Mobile gets small images, desktop gets large ones.
-- **Thumbnail regeneration** — fix aspect ratios across your entire library in one click.
-- **Orphan media cleanup** — find and delete files no post references.
-- **CDN URL support** — point uploads to your CDN without changing upload workflow.
-- **Media sync tool** — scans the `uploads/` folder and indexes FTP/file manager uploads into the database.
-- **OTA updater** — one-click updates from the dashboard. No FTP. No manual file replacement.
-- **Integrity Check** — verifies core files haven't been corrupted or tampered with.
-- **Repair .htaccess** — one-click fix for broken rewrite rules.
-- **Database repair utility** — fixes missing schema columns, auto-heals common issues.
-- **WordPress XML migrator** — import from WordPress with auto media re-hosting, Gutenberg cleanup, embed conversion, and checkpoint resume.
+- **Image upload pipeline** - drag and drop, multi-upload, progress tracking.
+- **WebP support** - smaller files, faster pages, automatic conversion.
+- **Responsive image variants** - auto-generates widths for srcset. Mobile gets small images, desktop gets large ones.
+- **Thumbnail regeneration** - fix aspect ratios across your entire library in one click.
+- **Orphan media cleanup** - find and delete files no post references.
+- **CDN URL support** - point uploads to your CDN without changing upload workflow.
+- **Media sync tool** - scans the `uploads/` folder and indexes FTP/file manager uploads into the database.
+- **OTA updater** - one-click updates from the dashboard. No FTP. No manual file replacement.
+- **Integrity Check** - verifies core files haven't been corrupted or tampered with.
+- **Repair .htaccess** - one-click fix for broken rewrite rules.
+- **Database repair utility** - fixes missing schema columns, auto-heals common issues.
+- **WordPress XML migrator** - import from WordPress with auto media re-hosting, Gutenberg cleanup, embed conversion, and checkpoint resume.
 
-**Why this matters:** Your media library shouldn't be a black hole. VonCMS gives you tools to manage it, clean it, and optimize it — without touching a single plugin.
+**Why this matters:** Your media library shouldn't be a black hole. VonCMS gives you tools to manage it, clean it, and optimize it without touching a single plugin.
 
 ---
 
@@ -225,13 +225,13 @@ You shouldn't need an SEO degree to make your site visible. VonCMS handles the t
 
 ### Your audience should stay, not bounce.
 
-- **Native comments system** — nested replies, likes, moderation queue, no Disqus dependency.
-- **Newsletter subscribe widget** — capture emails from any page.
-- **Newsletter subscriber manager** — view, export, manage your list. No Mailchimp tax.
-- **Contact form submission** — built-in forms with validation, spam protection, email delivery.
-- **Ad slots** — header, in-feed, popup placements. Built for AdSense and custom ad networks.
-- **Promo bar** — announcement bar at the top of your site.
-- **Floating gift widget** — seasonal promotions, floating action button.
+- **Native comments system** - nested replies, likes, moderation queue, no Disqus dependency.
+- **Newsletter subscribe widget** - capture emails from any page.
+- **Newsletter subscriber manager** - view, export, manage your list. No Mailchimp tax.
+- **Contact form submission** - built-in forms with validation, spam protection, email delivery.
+- **Ad slots** - header, in-feed, popup placements. Built for AdSense and custom ad networks.
+- **Promo bar** - announcement bar at the top of your site.
+- **Floating gift widget** - seasonal promotions, floating action button.
 
 **Why this matters:** Every engagement feature ships with the system. You're not installing "comments plugin v3.2.1" and hoping it doesn't conflict with your theme.
 
@@ -243,10 +243,10 @@ You shouldn't need an SEO degree to make your site visible. VonCMS handles the t
 
 VonCMS includes AI-oriented tooling without the marketing noise:
 
-- **AI Write endpoint** — optional draft generation from prompts when the AI backend is configured.
-- **AI Check endpoint** — optional content review workflow when the AI backend is configured.
-- **AI Summary plugin** — auto-extract article summaries without external API calls. Fast and free.
-- **AI-ready site language settings** — configure how AI interacts with your content.
+- **AI Write endpoint** - optional draft generation from prompts when the AI backend is configured.
+- **AI Check endpoint** - optional content review workflow when the AI backend is configured.
+- **AI Summary plugin** - auto-extract article summaries without external API calls. Fast and free.
+- **AI-ready site language settings** - configure how AI interacts with your content.
 
 **Why this matters:** The local AI Summary flow works without API billing, while editor AI drafting and checking can be enabled when you actually want an external AI provider in the workflow.
 
@@ -260,12 +260,12 @@ These plugins ship with every install. No marketplace. No purchase. No "premium 
 
 | Plugin                  | What it does                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------------ |
-| **VonSEO**              | Full SEO system — Schema.org, OpenGraph, meta tags, sitemap, IndexNow, RSS feed link |
+| **VonSEO**              | Full SEO system - Schema.org, OpenGraph, meta tags, sitemap, IndexNow, RSS feed link |
 | **VonAnalytics**        | Privacy-focused visitor tracking dashboard. No Google dependency.                    |
 | **Related Posts**       | Auto-show related articles after each post based on category and tags.               |
-| **Promo Bar**           | Top announcement bar — display notifications above the main menu.                    |
-| **Holiday Gift Widget** | Floating gift icon at bottom right — seasonal promotions and campaigns.              |
-| **AI Summary**          | Auto-extract article summaries — no API, no cost, no delay.                          |
+| **Promo Bar**           | Top announcement bar - display notifications above the main menu.                    |
+| **Holiday Gift Widget** | Floating gift icon at bottom right - seasonal promotions and campaigns.              |
+| **AI Summary**          | Auto-extract article summaries - no API, no cost, no delay.                          |
 
 ---
 
@@ -284,7 +284,7 @@ Every theme ships with dark mode, responsive design, and modern styling out of t
 | **Portfolio**     | Creatives & freelancers     | Stunning single-page showcase                  |
 | **Corporate Pro** | Business & enterprise       | Professional, structured, service-oriented     |
 
-**Why this matters:** Most CMS platforms give you one theme and call it a day. VonCMS gives you six — each designed for a different type of site. Pick the one that matches your vision and start publishing.
+**Why this matters:** Most CMS platforms give you one theme and call it a day. VonCMS gives you six, each designed for a different type of site. Pick the one that matches your vision and start publishing.
 
 Developer note: extension work is documented in [Extension Development](EXTENSION_DEVELOPMENT.md).
 
@@ -300,7 +300,7 @@ VonCMS is not for everyone. And that's intentional.
 - Are a small agency delivering client sites on budget hosting
 - Want a modern admin experience without Node.js complexity
 - Are tired of managing 20+ WordPress plugins and hoping they don't conflict
-- Need SEO, analytics, newsletter, comments, and media tools — all working on day one
+- Need SEO, analytics, newsletter, comments, and media tools working on day one
 - Want to host on shared hosting (cPanel, $3/month) and still have a React-powered site
 
 **It's probably not for you if you:**
@@ -326,12 +326,12 @@ Install it. Pick a theme. Start publishing.
 
 **VonCMS is built for users, not developers.**
 
-This isn't a subtle distinction — it's the core design principle behind every feature, every UI decision, every default setting:
+This isn't a subtle distinction. It's the core design principle behind every feature, every UI decision, and every default setting:
 
 - The admin dashboard is designed for the person who publishes content daily, not the engineer who configured the server.
 - The editor feels like writing in a document, not coding in an IDE.
 - Settings are explained in plain language, not technical jargon.
-- OTA updates work with one click — no SSH, no Git pull, no "clear your cache and pray."
+- OTA updates work with one click: no SSH, no Git pull, and no "clear your cache and pray."
 
 If a feature makes life easier for a non-technical user, it ships. If it only impresses developers, it doesn't.
 
@@ -343,7 +343,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The current `v1.26.6` release line keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The current `v1.26.7` release keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -352,6 +352,6 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 ### What's behind the posture?
 
 - **83 PHP API files** - current API surface under `public/api/`, with 101 public PHP files covered by the lint gate across the public runtime.
-- **Release audit coverage** — routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** - current local `v1.26.6` release artifacts stay small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
-- **Direct API calls** — React talks to PHP. PHP talks to MySQL. Done.
+- **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
+- **Light package surface** - the `v1.26.7` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Direct API calls** - React talks to PHP. PHP talks to MySQL. Done.

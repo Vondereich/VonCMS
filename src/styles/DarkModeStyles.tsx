@@ -2,7 +2,7 @@
  * VonCMS Dark Mode Styles Component
  * Minimal CSS for dark mode content - just link/code styling
  *
- * Note: Color sanitization is now handled by colorSanitizer.ts on save.
+ * Note: Foreign paste color cleanup is handled by colorSanitizer.ts in the editor.
  * This file only provides accent colors for links and code blocks.
  */
 

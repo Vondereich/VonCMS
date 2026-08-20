@@ -47,7 +47,7 @@ if (!$isAdmin) {
   }
 }
 
-function voncms_project_public_admin_profile($profile): ?array
+function voncms_project_public_admin_profile(mixed $profile): ?array
 {
   if (!is_array($profile)) {
     return null;
@@ -72,7 +72,50 @@ function voncms_project_public_admin_profile($profile): ?array
   return $publicProfile;
 }
 
-function voncms_normalize_plugin_settings_value(string $key, $value)
+/**
+ * @param mixed $categories
+ * @return array<int, string>
+ */
+function voncms_normalize_public_categories($categories): array
+{
+  if (!is_array($categories)) {
+    return [];
+  }
+
+  $normalized = [];
+  foreach ($categories as $rawCategory) {
+    $category = trim((string) $rawCategory);
+    if ($category === '') {
+      continue;
+    }
+
+    if (function_exists('mb_substr')) {
+      $category = mb_substr($category, 0, 100, 'UTF-8');
+    } else {
+      $category = substr($category, 0, 100);
+    }
+
+    $exists = false;
+    foreach ($normalized as $existing) {
+      if (strcasecmp($existing, $category) === 0) {
+        $exists = true;
+        break;
+      }
+    }
+
+    if (!$exists) {
+      $normalized[] = $category;
+    }
+
+    if (count($normalized) >= 200) {
+      break;
+    }
+  }
+
+  return $normalized;
+}
+
+function voncms_normalize_plugin_settings_value(string $key, mixed $value): array
 {
   if ($key === 'active_plugins') {
     if (!is_array($value)) {
@@ -383,6 +426,26 @@ try {
     $categoryStmt->execute();
     $dbCategories = $categoryStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
+    if ($isAdmin) {
+      $publicCategoryRows = [];
+      try {
+        $publicCategoryStmt = $pdo->prepare(
+          "SELECT DISTINCT category FROM posts WHERE (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) AND category IS NOT NULL AND TRIM(category) <> '' ORDER BY category ASC",
+        );
+        $publicCategoryStmt->bindValue(':currentTime', date('Y-m-d H:i:s'));
+        $publicCategoryStmt->execute();
+        $publicCategoryRows = $publicCategoryStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+      } catch (Throwable $e) {
+        // Keep the public projection fail-closed without discarding the editor's
+        // successfully loaded historical categories below.
+        $publicCategoryRows = [];
+      }
+    } else {
+      // Guests can reuse the public-only query above without another database round trip.
+      $publicCategoryRows = $dbCategories;
+    }
+    $settings['publicCategories'] = voncms_normalize_public_categories($publicCategoryRows);
+
     $mergedCategories = ['Uncategorized'];
     foreach (array_merge($settings['categories'] ?? [], $dbCategories) as $rawCategory) {
       $category = trim((string) $rawCategory);
@@ -404,6 +467,7 @@ try {
     }
     $settings['categories'] = $mergedCategories;
   } catch (Throwable $e) {
+    $settings['publicCategories'] = [];
     if (!isset($settings['categories']) || !is_array($settings['categories'])) {
       $settings['categories'] = ['Uncategorized'];
     }

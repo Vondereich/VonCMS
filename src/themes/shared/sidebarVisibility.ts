@@ -6,10 +6,17 @@ interface SidebarContentOptions {
 
 const renderableSidebarWidgetTypes = new Set(['trending', 'profile', 'custom']);
 
-export const hasVisibleSidebarWidgets = (settings: Pick<SiteSettings, 'sidebarLayout'>): boolean =>
+export const hasVisibleSidebarWidgets = (
+  settings: Pick<SiteSettings, 'sidebarLayout' | 'publicCategories'>
+): boolean =>
   (settings.sidebarLayout || []).some(
     (widget) =>
-      widget.isVisible !== false && renderableSidebarWidgetTypes.has(widget.type as string)
+      widget.isVisible !== false &&
+      (renderableSidebarWidgetTypes.has(widget.type as string) ||
+        (widget.type === 'categories' &&
+          (settings.publicCategories || []).some(
+            (category) => typeof category === 'string' && category.trim() !== ''
+          )))
   );
 
 export const hasSidebarNewsletter = (settings: Pick<SiteSettings, 'newsletter'>): boolean =>
@@ -19,7 +26,7 @@ export const hasSidebarNewsletter = (settings: Pick<SiteSettings, 'newsletter'>)
   );
 
 export const hasActiveSidebarContent = (
-  settings: Pick<SiteSettings, 'newsletter' | 'sidebarLayout'>,
+  settings: Pick<SiteSettings, 'newsletter' | 'sidebarLayout' | 'publicCategories'>,
   { includeNewsletter = true }: SidebarContentOptions = {}
 ): boolean =>
   hasVisibleSidebarWidgets(settings) || (includeNewsletter && hasSidebarNewsletter(settings));

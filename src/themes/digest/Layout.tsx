@@ -1226,6 +1226,14 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   // Theme settings
   const digestSettings: DigestSettings = { ...defaultDigestSettings, ...settings.theme?.digest };
   const colors = getColors(isDarkMode, digestSettings.accentColor);
+  const digestRootStyle = {
+    background: colors.background,
+    '--color-primary': colors.accent,
+    '--digest-accent': colors.accent,
+  } as React.CSSProperties & {
+    '--color-primary': string;
+    '--digest-accent': string;
+  };
   const shouldRenderVonSEO = isSystemPluginActive(settings, 'vp_von_seo');
 
   // State
@@ -1576,7 +1584,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     return (
       <div
         className={`min-h-screen flex flex-col transition-colors ${isDarkMode ? 'dark' : ''}`}
-        style={{ background: colors.background }}
+        style={digestRootStyle}
       >
         <DigestThemeStyles />
         {shouldRenderVonSEO && (
@@ -1807,6 +1815,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                       settings={settings}
                       posts={posts}
                       onPostClick={onPostClick}
+                      onCategoryClick={onCategoryClick}
                       currentPostId={selectedPost?.id}
                       themeColors={{
                         surface: colors.surface,
@@ -1831,7 +1840,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     return (
       <div
         className={`min-h-screen flex flex-col ${isDarkMode ? 'dark' : ''}`}
-        style={{ background: colors.background }}
+        style={digestRootStyle}
       >
         <DigestThemeStyles />
         {shouldRenderVonSEO && (
@@ -1881,7 +1890,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     return (
       <div
         className={`min-h-screen flex flex-col ${isDarkMode ? 'dark' : ''}`}
-        style={{ background: colors.background }}
+        style={digestRootStyle}
       >
         <DigestThemeStyles />
         {shouldRenderVonSEO && (
@@ -1923,12 +1932,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   return (
     <div
       className={`min-h-screen flex flex-col ${isDarkMode ? 'dark' : ''}`}
-      style={
-        {
-          background: colors.background,
-          '--digest-accent': colors.accent,
-        } as React.CSSProperties & { '--digest-accent': string }
-      }
+      style={digestRootStyle}
     >
       <DigestThemeStyles />
       {shouldRenderVonSEO && (

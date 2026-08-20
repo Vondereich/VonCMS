@@ -5,10 +5,22 @@ ob_start(); // Buffer output to prevent warnings from corrupting JSON
  * Handles new user registration with spam protection
  */
 
+$requestMethod = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+
+if ($requestMethod !== 'POST' && $requestMethod !== 'OPTIONS') {
+  header('Content-Type: application/json');
+  header('Allow: POST, OPTIONS');
+  header('Access-Control-Allow-Methods: POST, OPTIONS');
+  header('X-Content-Type-Options: nosniff');
+  http_response_code(405);
+  echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
+  exit();
+}
+
 require_once __DIR__ . '/../security.php';
 sendApiHeaders('POST, OPTIONS');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if ($requestMethod === 'OPTIONS') {
   exit(0);
 }
 

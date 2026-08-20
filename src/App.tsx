@@ -1,4 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react';
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
+  lazy,
+} from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -10,7 +18,7 @@ import {
   useSearchParams,
 } from 'react-router';
 import toast, { Toaster } from 'react-hot-toast';
-import { Post, Page } from './types';
+import { Post, Page, User } from './types';
 import { VonProviders } from './plugins/von-core/providers/VonProviders';
 import { getPermalink } from './utils/siteUtils';
 import { vonFetch } from './utils/api';
@@ -79,6 +87,72 @@ import AdminNotFoundPage from './components/admin/AdminNotFoundPage';
 import { X, Pencil, LayoutDashboard } from 'lucide-react';
 
 import ScrollToTop from './components/ScrollToTop';
+
+interface AdminContentRouteLoaderProps {
+  user: User | null;
+  loadPosts: (limit?: number) => Promise<boolean>;
+  loadPages: (limit?: number) => Promise<boolean>;
+  resetContentLoadCoverage: () => void;
+}
+
+const AdminContentRouteLoader: React.FC<AdminContentRouteLoaderProps> = ({
+  user,
+  loadPosts,
+  loadPages,
+  resetContentLoadCoverage,
+}) => {
+  const location = useLocation();
+  const userKey = user ? `${String(user.id)}:${String(user.role || '').toLowerCase()}` : '';
+  const previousUserKeyRef = useRef(userKey);
+
+  useLayoutEffect(() => {
+    if (previousUserKeyRef.current === userKey) return;
+    previousUserKeyRef.current = userKey;
+    resetContentLoadCoverage();
+  }, [resetContentLoadCoverage, userKey]);
+
+  useEffect(() => {
+    if (!userKey) return;
+
+    const routePath = (location.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+    const normalizedRole = String(user?.role || '').toLowerCase();
+    const canAccessAdmin = ['admin', 'root', 'moderator', 'writer'].includes(normalizedRole);
+    const canManageEditorialContent = ['admin', 'root', 'moderator'].includes(normalizedRole);
+    if (!canAccessAdmin) return;
+
+    let retryTimeout: number | null = null;
+    let cancelled = false;
+
+    const loadWithOneRetry = async (
+      loader: (limit?: number) => Promise<boolean>,
+      limit: number
+    ) => {
+      const loaded = await loader(limit);
+      if (!loaded && !cancelled) {
+        retryTimeout = window.setTimeout(() => {
+          if (!cancelled) void loader(limit);
+        }, 2000);
+      }
+    };
+
+    if (routePath === '/admin' || routePath === '/admin/dashboard') {
+      void loadWithOneRetry(loadPosts, 5);
+    } else if (routePath === '/admin/posts') {
+      void loadWithOneRetry(loadPosts, 200);
+    } else if (routePath === '/admin/discussion' && canManageEditorialContent) {
+      void loadWithOneRetry(loadPosts, 200);
+    } else if (routePath === '/admin/pages' && canManageEditorialContent) {
+      void loadWithOneRetry(loadPages, 200);
+    }
+
+    return () => {
+      cancelled = true;
+      if (retryTimeout !== null) window.clearTimeout(retryTimeout);
+    };
+  }, [loadPages, loadPosts, location.pathname, user?.role, userKey]);
+
+  return null;
+};
 
 // Public Site Wrapper to handle Params
 const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
@@ -370,6 +444,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
     window.location.pathname === '/' || window.location.pathname === BASE_PATH;
 
   const handleCategoryNavigation = (cat: string) => {
+    window.scrollTo({ top: 0, left: 0 });
     if (isCurrentHomePath()) {
       setSearchParams(cat ? { category: cat } : {}, { state: location.state });
       return;
@@ -571,7 +646,10 @@ const App: React.FC = () => {
     setPages,
     editingItem,
     isEditingPage,
-    loadContent,
+    loadPosts,
+    loadPages,
+    resetContentLoadCoverage,
+    invalidateContentLoadCoverage,
     handleEdit,
     handleSaveContent,
   } = useContent();
@@ -717,7 +795,6 @@ const App: React.FC = () => {
       if (isPrimaryAdmin) {
         loadUsers();
       }
-      loadContent();
       // A guest settings request may have started before session restoration or interactive login.
       loadSettings(true);
     }
@@ -782,6 +859,12 @@ const App: React.FC = () => {
       <BrowserRouter basename={routerBasename}>
         <RouteProgressBar />
         <ScrollToTop />
+        <AdminContentRouteLoader
+          user={user}
+          loadPosts={loadPosts}
+          loadPages={loadPages}
+          resetContentLoadCoverage={resetContentLoadCoverage}
+        />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -862,6 +945,7 @@ const App: React.FC = () => {
                                 pages={pages}
                                 currentUser={user}
                                 serverInfo={settings._serverInfo}
+                                timeZone={settings.timeZone}
                               />
                             }
                           />
@@ -882,6 +966,7 @@ const App: React.FC = () => {
                                 posts={posts}
                                 setPosts={setPosts}
                                 handleEdit={handleEdit}
+                                invalidateContentLoadCoverage={invalidateContentLoadCoverage}
                                 user={user}
                               />
                             }
@@ -897,6 +982,7 @@ const App: React.FC = () => {
                                   navigation={settings.navigation}
                                   onToggleNav={(pageId: string) => onToggleNav(pageId, pages)}
                                   handleEdit={handleEdit}
+                                  invalidateContentLoadCoverage={invalidateContentLoadCoverage}
                                   user={user}
                                 />
                               </ProtectedRoute>
@@ -906,6 +992,7 @@ const App: React.FC = () => {
                             path="editor"
                             element={
                               <PostEditorWrapper
+                                key={`post-editor-${String(user?.id || '')}:${String(user?.role || '').toLowerCase()}`}
                                 editingItem={editingItem}
                                 isPage={isEditingPage}
                                 navigation={settings.navigation}
@@ -1074,6 +1161,7 @@ const ContentManagerWrapper: React.FC<any> = ({
   navigation,
   onToggleNav,
   user,
+  invalidateContentLoadCoverage,
 }) => {
   const navigate = useNavigate();
   const [refreshKey, setRefreshKey] = React.useState(0);
@@ -1106,10 +1194,12 @@ const ContentManagerWrapper: React.FC<any> = ({
           const data = await res.json();
 
           if (data.success) {
+            invalidateContentLoadCoverage(isPage ? 'page' : 'post');
             if (isPage) {
               setPages((prev: any) => prev.filter((p: any) => p.id !== id));
             } else {
               setPosts((prev: any) => prev.filter((p: any) => p.id !== id));
+              window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
             }
             triggerRefresh(); // Re-fetch current page in ContentManager
           } else {
@@ -1144,6 +1234,7 @@ const PostEditorWrapper: React.FC<any> = ({
   const hasEditorType = editorType === 'post' || editorType === 'page';
   const effectiveIsPage = hasEditorType ? editorType === 'page' : isPage;
   const [recoveredEditorItem, setRecoveredEditorItem] = useState<Post | Page | null>(null);
+  const [recoveredEditorItemIsComplete, setRecoveredEditorItemIsComplete] = useState(false);
   const [isRecoveringEditorItem, setIsRecoveringEditorItem] = useState(false);
   const [hasTriedEditorRecovery, setHasTriedEditorRecovery] = useState(false);
   const newEditorItem = useMemo(
@@ -1164,6 +1255,7 @@ const PostEditorWrapper: React.FC<any> = ({
 
     if (editingItem) {
       setRecoveredEditorItem(null);
+      setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(false);
       setHasTriedEditorRecovery(false);
       return;
@@ -1171,6 +1263,7 @@ const PostEditorWrapper: React.FC<any> = ({
 
     if (!editorItemId) {
       setRecoveredEditorItem(null);
+      setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(false);
       setHasTriedEditorRecovery(false);
       return;
@@ -1182,12 +1275,15 @@ const PostEditorWrapper: React.FC<any> = ({
     );
     if (localMatch) {
       setRecoveredEditorItem(localMatch as Post | Page);
+      setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(false);
       setHasTriedEditorRecovery(true);
       return;
     }
 
     const recoverEditorItem = async () => {
+      setRecoveredEditorItem(null);
+      setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(true);
       setHasTriedEditorRecovery(false);
 
@@ -1198,6 +1294,7 @@ const PostEditorWrapper: React.FC<any> = ({
           const page = data?.pages?.[0];
 
           if (!cancelled && data?.success && page) {
+            setRecoveredEditorItemIsComplete(true);
             setRecoveredEditorItem({
               id: String(page.id || ''),
               title: page.title || '',
@@ -1226,6 +1323,7 @@ const PostEditorWrapper: React.FC<any> = ({
         const post = data?.post;
 
         if (!cancelled && data?.success && post) {
+          setRecoveredEditorItemIsComplete(true);
           setRecoveredEditorItem({
             id: String(post.id || ''),
             title: post.title || '',
@@ -1295,6 +1393,11 @@ const PostEditorWrapper: React.FC<any> = ({
   return (
     <PostEditor
       initialItem={effectiveEditingItem}
+      initialItemIsComplete={Boolean(
+        recoveredEditorItem &&
+        recoveredEditorItemIsComplete &&
+        effectiveEditingItem === recoveredEditorItem
+      )}
       isPage={effectiveIsPage}
       navigation={navigation}
       posts={posts}

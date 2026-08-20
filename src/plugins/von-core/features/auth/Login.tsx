@@ -23,7 +23,7 @@ interface LoginProps {
   settings?: SiteSettings;
 }
 
-type AuthView = 'login' | 'register' | 'forgot' | 'reset';
+type AuthView = 'login' | 'register' | 'register-success' | 'forgot' | 'reset';
 
 const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) => {
   const [view, setView] = useState<AuthView>('login');
@@ -40,6 +40,10 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [registrationResult, setRegistrationResult] = useState<{
+    message: string;
+    emailSent: boolean;
+  } | null>(null);
 
   // Rate Limiting State
   const [attempts, setAttempts] = useState(0);
@@ -70,7 +74,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
     setEmail('');
     setPassword('');
     setConfirmPassword('');
+    setHoneypot('');
     setMessage(null);
+    setRegistrationResult(null);
   };
 
   // === LOGIN HANDLER ===
@@ -191,11 +197,23 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
       const data = await response.json();
 
       if (data.success) {
+        setUsername('');
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+        setHoneypot('');
         if (data.user) {
           onLogin(data.user);
+        } else {
+          setRegistrationResult({
+            message: data.message || 'Your account has been created.',
+            emailSent: data.emailSent === true,
+          });
+          setMessage(null);
+          setView('register-success');
         }
-        setMessage({ type: 'success', text: data.message || 'Welcome!' });
       } else {
+        // Registration failures intentionally retain the submitted fields for correction.
         setMessage({ type: 'error', text: data.error || data.message || 'Registration failed.' });
       }
     } catch (error) {
@@ -213,7 +231,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
       const response = await vonFetch(API.resetPassword, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'request', email }),
+        body: JSON.stringify({ action: 'request', email, hp_field: honeypot }),
       });
 
       const data = await response.json();
@@ -294,6 +312,8 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
       <LogIn size={28} />
     ) : view === 'register' ? (
       <UserPlus size={28} />
+    ) : view === 'register-success' ? (
+      <ShieldCheck size={28} />
     ) : view === 'forgot' ? (
       <Mail size={28} />
     ) : (
@@ -313,9 +333,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               ? 'Welcome Back'
               : view === 'register'
                 ? 'Create Account'
-                : view === 'forgot'
-                  ? 'Reset Password'
-                  : 'New Password'}
+                : view === 'register-success'
+                  ? 'Account Created'
+                  : view === 'forgot'
+                    ? 'Reset Password'
+                    : 'New Password'}
           </h2>
           <p className="text-sm text-slate-300">
             {view === 'login'
@@ -324,7 +346,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 ? registrationEnabled
                   ? 'Create your free account'
                   : 'Registration Closed'
-                : 'Recover your access'}
+                : view === 'register-success'
+                  ? 'Registration complete'
+                  : 'Recover your access'}
           </p>
         </div>
 
@@ -523,7 +547,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <span className={labelClass}>Password</span>
                     <input
@@ -606,6 +630,38 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 </button>
               </div>
             ))}
+
+          {/* === REGISTRATION SUCCESS VIEW === */}
+          {view === 'register-success' && registrationResult && (
+            <div className="space-y-5 py-3 text-center" aria-live="polite">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <ShieldCheck size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                  {registrationResult.emailSent ? 'Check Your Email' : 'Account Created'}
+                </h3>
+                <p className="mx-auto max-w-sm text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  {registrationResult.message}
+                </p>
+                {registrationResult.emailSent && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Check your inbox and spam folder before signing in.
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  clearForm();
+                  setView('login');
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a1b26] py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-[#242633] dark:bg-[#16161e] dark:hover:bg-[#242633]"
+              >
+                <ArrowLeft size={18} /> Back to Sign In
+              </button>
+            </div>
+          )}
 
           {/* === FORGOT VIEW === */}
           {view === 'forgot' && (

@@ -23,8 +23,16 @@ if (file_exists($publicPath . '/von_config.php')) {
 }
 
 $projectRoot = $publicPath;
-if (strcasecmp(basename($publicPath), 'public') === 0) {
-  $projectRoot = dirname($publicPath);
+$sourceRootCandidate = dirname($publicPath);
+$sourcePublicPath = realpath($sourceRootCandidate . '/public');
+$isSourceLayout =
+  strcasecmp(basename($publicPath), 'public') === 0 &&
+  $sourcePublicPath !== false &&
+  strcasecmp($sourcePublicPath, $publicPath) === 0 &&
+  file_exists($sourceRootCandidate . '/package.json') &&
+  is_dir($sourceRootCandidate . '/src');
+if ($isSourceLayout) {
+  $projectRoot = $sourceRootCandidate;
 }
 
 sendApiHeaders('POST, OPTIONS');
@@ -110,6 +118,7 @@ function analyzeHtaccessState($filePath, $label)
   $state['endMarkers'] = preg_match_all('/^[ \t]*# END VonCMS\r?$/m', $content);
   $state['legacyTemplate'] = strpos($content, '## VonCMS Universal .htaccess') !== false;
   $state['corruptedManagedFragment'] = hasManagedFragmentNoise($content);
+  $hasRequiredDirectives = SecurityHelper::hasRequiredHtaccessDirectives($content);
 
   if ($state['beginMarkers'] === 0 || $state['endMarkers'] === 0) {
     $state['issues'][] = 'Managed VonCMS block is missing.';
@@ -125,6 +134,9 @@ function analyzeHtaccessState($filePath, $label)
   }
   if ($state['corruptedManagedFragment']) {
     $state['issues'][] = 'Corrupted managed fragment detected before the first VonCMS block.';
+  }
+  if (!$hasRequiredDirectives) {
+    $state['issues'][] = 'Managed VonCMS block is missing required routing or security directives.';
   }
 
   $state['healthy'] = empty($state['issues']);

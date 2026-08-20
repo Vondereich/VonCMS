@@ -1,5 +1,6 @@
 import type { Page, Post } from '../../types';
 import { htmlToPlainText } from '../../utils/security';
+import { canAutoSaveEditorDraft } from './editorAutosaveUtils';
 
 export const AUTOSAVE_INTERVAL_MS = 60000;
 export const SAVE_CONFLICT_MESSAGE =
@@ -96,7 +97,7 @@ export const buildAutoSaveCandidate = (
     currentItem: currentItemWithLiveContent,
     isChanged: currentContent !== initialContent || currentTitle !== initialTitle,
     hasMeaningfulData: currentTitle !== '' || !isEffectivelyEmpty(currentContent),
-    canAutoSave: (currentItem?.status || 'draft') === 'draft',
+    canAutoSave: canAutoSaveEditorDraft(currentItem?.status, currentTitle),
   };
 };
 

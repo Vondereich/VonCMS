@@ -6,7 +6,7 @@ import { vonFetch } from '../../../../../utils/api';
 import SafeImage from '../../../../../components/SafeImage';
 import AdBlock from '../../../../../themes/shared/components/AdBlock';
 import { sanitizeHtml } from '../../../../../utils/security';
-import { formatDate, getPermalink } from '../../../../../utils/siteUtils';
+import { formatDate, getPermalink, normalizeSiteUrl } from '../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides (e.g., Digest theme)
@@ -22,6 +22,7 @@ interface SidebarProps {
   settings: SiteSettings;
   posts?: Post[];
   onPostClick?: (id: string) => void;
+  onCategoryClick?: (category: string) => void;
   currentPostId?: string | number;
   themeColors?: ThemeColors; // Optional theme color overrides
 }
@@ -72,11 +73,30 @@ const normalizeSidebarPost = (post: any): Post => ({
   readTime: post.readTime || '',
 });
 
+const normalizePublicCategories = (categories: SiteSettings['publicCategories']): string[] => {
+  if (!Array.isArray(categories)) return [];
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const rawCategory of categories) {
+    if (typeof rawCategory !== 'string') continue;
+    const category = rawCategory.trim().slice(0, 100);
+    const key = category.toLocaleLowerCase();
+    if (!category || seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(category);
+    if (normalized.length >= 200) break;
+  }
+
+  return normalized;
+};
+
 export const VpSidebarWidget: React.FC<SidebarProps> = ({
   widget,
   settings,
   posts = [],
   onPostClick,
+  onCategoryClick,
   currentPostId,
   themeColors,
 }) => {
@@ -209,6 +229,58 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
           </ul>
         </div>
       );
+
+    case 'categories': {
+      const categories = normalizePublicCategories(settings.publicCategories);
+      if (categories.length === 0) return null;
+
+      const visibleCount = Math.max(1, Math.min(20, Number(widget.itemCount) || 10));
+      const visibleCategories = categories.slice(0, visibleCount);
+      const remainingCategories = categories.slice(visibleCount);
+      const renderCategoryLink = (category: string) => (
+        <a
+          href={normalizeSiteUrl(`/?category=${encodeURIComponent(category)}`)}
+          onClick={(event) => {
+            if (!onCategoryClick) return;
+            handleCrawlableLinkClick(event, () => onCategoryClick(category));
+          }}
+          className="block rounded-md px-3 py-2 -mx-3 text-sm font-bold text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-100/70 hover:text-(--color-primary) dark:hover:bg-slate-800/60 dark:hover:text-white"
+        >
+          {category}
+        </a>
+      );
+
+      return (
+        <div className={boxClass} style={boxStyle}>
+          <h4
+            className="font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left"
+            style={{ borderColor: themeColors?.border || 'rgba(0,0,0,0.1)' }}
+          >
+            {widget.title}
+          </h4>
+          <ul className="space-y-1">
+            {visibleCategories.map((category) => (
+              <li key={category.toLocaleLowerCase()}>{renderCategoryLink(category)}</li>
+            ))}
+          </ul>
+          {remainingCategories.length > 0 && (
+            <details
+              className="group mt-3 border-t pt-3"
+              style={{ borderColor: themeColors?.border }}
+            >
+              <summary className="cursor-pointer text-sm font-bold text-(--color-primary) hover:underline">
+                Show more ({remainingCategories.length})
+              </summary>
+              <ul className="mt-3 space-y-1">
+                {remainingCategories.map((category) => (
+                  <li key={category.toLocaleLowerCase()}>{renderCategoryLink(category)}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      );
+    }
 
     case 'profile':
       const profile = settings.adminProfile;

@@ -111,6 +111,13 @@
   --card-shadow: none;
 }
 
+/* Preserve an editor-selected text color through nested typography marks. */
+.voncms-content span[style^='color:'] *,
+.voncms-content span[style*=';color:'] *,
+.voncms-content span[style*='; color:'] * {
+  color: inherit;
+}
+
 /* NProgress Customization (Mesra Mata) */
 #nprogress .bar {
   background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%) !important;

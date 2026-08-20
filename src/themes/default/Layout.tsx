@@ -1576,6 +1576,7 @@ const SinglePostView: React.FC<{
                 settings={settings}
                 posts={posts}
                 onPostClick={onPostClick}
+                onCategoryClick={onCategoryClick}
                 currentPostId={post.id}
                 themeColors={{
                   surface: isDarkMode ? '#121212' : '#ffffff',

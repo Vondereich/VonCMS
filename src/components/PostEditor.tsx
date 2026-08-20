@@ -16,7 +16,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { sanitizeHTML, trimTrailingHtml } from '../utils/colorSanitizer';
+import { trimTrailingHtml } from '../utils/colorSanitizer';
 import { htmlToPlainText, sanitizeEditorHtml } from '../utils/security';
 import { analyzeSEO, SEOAnalysisResult } from '../utils/seoAnalyzer';
 import { SafeImage } from './SafeImage';
@@ -42,6 +42,7 @@ import {
 
 interface PostEditorProps {
   initialItem: Post | Page | null;
+  initialItemIsComplete?: boolean;
   isPage: boolean;
   navigation: { url: string }[];
   posts?: Post[];
@@ -58,6 +59,7 @@ type MobileEditorPanel = 'write' | 'publish' | 'ai';
 
 const PostEditor: React.FC<PostEditorProps> = ({
   initialItem,
+  initialItemIsComplete = false,
   isPage,
   navigation = [],
   posts = [],
@@ -72,7 +74,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [seoResult, setSeoResult] = useState<SEOAnalysisResult | null>(null);
   const [isSeoRestoring, setIsSeoRestoring] = useState(
-    Boolean(initialItem?.id && !isPage && !initialItem.content)
+    Boolean(initialItem?.id && !isPage && !initialItemIsComplete)
   );
   const [isFeaturedLibraryOpen, setIsFeaturedLibraryOpen] = useState(false);
   const [featuredMediaFiles, setFeaturedMediaFiles] = useState<MediaItem[]>([]);
@@ -134,7 +136,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
     setItem(initialItem);
     setEditorContentRevision((revision) => revision + 1);
 
-    const needsFullContentRestore = Boolean(initialItem?.id && !isPage);
+    const needsFullContentRestore = Boolean(initialItem?.id && !isPage && !initialItemIsComplete);
     const restoreItemId = initialItem?.id;
     setIsSeoRestoring(needsFullContentRestore);
 
@@ -199,7 +201,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [initialItem, isPage]);
+  }, [initialItem, initialItemIsComplete, isPage]);
 
   useEffect(() => {
     if (!initialItem?.id) {
@@ -395,10 +397,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
       : undefined;
 
     try {
-      // Sanitize content colors (Clean "dirty" blacks/whites for Dark Mode)
-      let contentToSave = itemForSave.content
-        ? sanitizeEditorHtml(sanitizeHTML(itemForSave.content).cleanedHTML)
-        : '';
+      // Preserve author-selected colors while enforcing the editor HTML allowlist.
+      let contentToSave = itemForSave.content ? sanitizeEditorHtml(itemForSave.content) : '';
 
       // Auto-Trimmer: Remove ghost spaces at the end
       if (contentToSave) {

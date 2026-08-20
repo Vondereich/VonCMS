@@ -22,8 +22,16 @@ if (file_exists($publicPath . '/von_config.php')) {
 }
 
 $projectRoot = $publicPath;
-if (strcasecmp(basename($publicPath), 'public') === 0) {
-  $projectRoot = dirname($publicPath);
+$sourceRootCandidate = dirname($publicPath);
+$sourcePublicPath = realpath($sourceRootCandidate . '/public');
+$isSourceLayout =
+  strcasecmp(basename($publicPath), 'public') === 0 &&
+  $sourcePublicPath !== false &&
+  strcasecmp($sourcePublicPath, $publicPath) === 0 &&
+  file_exists($sourceRootCandidate . '/package.json') &&
+  is_dir($sourceRootCandidate . '/src');
+if ($isSourceLayout) {
+  $projectRoot = $sourceRootCandidate;
 }
 
 sendApiHeaders('POST, OPTIONS');

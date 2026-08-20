@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.26.6 "After Hours"**
+> **VonCMS v1.26.7 "After Hours"**
 
 ---
 
@@ -30,7 +30,7 @@ VonCMS runs on a standard **LAMP** stack:
 
 ### XAMPP / WAMP (Recommended)
 
-- **XAMPP** is the easiest baseline — phpMyAdmin included out of the box.
+- **XAMPP** is the easiest baseline, with phpMyAdmin included out of the box.
 - **WAMP** offers easier PHP version switching for `8.4+` testing.
 
 ### Laragon
@@ -64,7 +64,7 @@ inspection, but it cannot replace host-root robots configuration.
 
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package. For v1.26.6, the file is `VonCMS_v1.26.6_Deploy.zip`.
+1. Download the latest VonCMS Deploy package: `VonCMS_v1.26.7_Deploy.zip`.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -140,7 +140,7 @@ The endpoint contract and response fields are documented in [API Guide](API.md#s
 | Permission error                            | Folders: `755`, Files: `644`                     |
 | DB connection failed                        | Check credentials in phpMyAdmin                  |
 | Old version showing                         | Delete `assets/` folder, re-upload, hard refresh |
-| Images broken on frontend but work in admin | File permission is `600` — change to `644`       |
+| Images broken on frontend but work in admin | File permission is `600`; change it to `644`     |
 
 ### File Permissions
 
@@ -157,4 +157,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.26.6 "After Hours"_
+_VonCMS v1.26.7 "After Hours"_

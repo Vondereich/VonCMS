@@ -2,7 +2,7 @@
  * VonCMS Content Hook
  * Handles posts and pages CRUD operations
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Post, Page, SiteSettings, User } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
@@ -49,6 +49,13 @@ const normalizePage = (p: any): Page => ({
 
 const INITIAL_POSTS: Post[] = getInitialPosts();
 const INITIAL_PAGES: Page[] = contentSeed.pages.map(normalizePage);
+const MAX_ADMIN_CONTENT_LIMIT = 200;
+
+const normalizeAdminContentLimit = (requestedLimit: number): number => {
+  const numericLimit = Number(requestedLimit);
+  if (!Number.isFinite(numericLimit)) return MAX_ADMIN_CONTENT_LIMIT;
+  return Math.max(1, Math.min(MAX_ADMIN_CONTENT_LIMIT, Math.floor(numericLimit)));
+};
 
 export const createEmptyEditorItem = (
   isPage: boolean,
@@ -82,55 +89,133 @@ export function useContent() {
   const [pages, setPages] = useState<Page[]>(INITIAL_PAGES);
   const [editingItem, setEditingItem] = useState<Post | Page | null>(null);
   const [isEditingPage, setIsEditingPage] = useState(false);
+  const postLoadCoverageRef = useRef(0);
+  const pageLoadCoverageRef = useRef(0);
+  const postLoadInFlightRef = useRef<Promise<boolean> | null>(null);
+  const pageLoadInFlightRef = useRef<Promise<boolean> | null>(null);
+  const postLoadGenerationRef = useRef(0);
+  const pageLoadGenerationRef = useRef(0);
 
-  // Load content from API
-  const loadContent = useCallback(async () => {
-    const loadPosts = async () => {
-      // Backend caps at 200, so match it (no point asking for more).
+  const loadPosts = useCallback(async (requestedLimit: number = MAX_ADMIN_CONTENT_LIMIT) => {
+    const limit = normalizeAdminContentLimit(requestedLimit);
+    const generation = postLoadGenerationRef.current;
+    if (postLoadCoverageRef.current >= limit) return true;
+
+    while (postLoadInFlightRef.current) {
+      await postLoadInFlightRef.current;
+      if (postLoadGenerationRef.current !== generation) return false;
+      if (postLoadCoverageRef.current >= limit) return true;
+    }
+
+    let request: Promise<boolean>;
+    request = (async () => {
       try {
-        const res = await vonFetch(`${API.getPosts}?limit=200`);
-        if (res.ok) {
-          const data = await res.json();
-          // Handle new envelope format { posts, meta } OR legacy array format
-          const rawPosts = Array.isArray(data) ? data : data.posts || [];
-          const normalizedPosts = rawPosts.map((p: any) => ({
-            ...p,
-            image: p.image || p.image_url || '',
-            imageSrcSet: p.imageSrcSet || p.image_srcset || '',
-            createdAt: p.created_at || p.createdAt || '',
-            updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
-            scheduledAt: p.scheduled_at || p.scheduledAt || '',
-            author_data: p.author_data || { username: p.author || '', avatar: '' },
-            readTime: p.readTime || '',
-          }));
-          setPosts(normalizedPosts);
-        }
-      } catch (e) {
-        console.warn('Failed to load posts from API, using seed data:', e);
-      }
-    };
+        const res = await vonFetch(`${API.getPosts}?limit=${limit}`);
+        if (!res.ok) return false;
 
-    const loadPages = async () => {
-      // Backend caps at 200, so match it.
+        const data = await res.json();
+        // Handle new envelope format { posts, meta } OR legacy array format
+        const rawPosts = Array.isArray(data) ? data : data.posts || [];
+        const normalizedPosts = rawPosts.map((p: any) => ({
+          ...p,
+          image: p.image || p.image_url || '',
+          imageSrcSet: p.imageSrcSet || p.image_srcset || '',
+          createdAt: p.created_at || p.createdAt || '',
+          updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
+          scheduledAt: p.scheduled_at || p.scheduledAt || '',
+          author_data: p.author_data || { username: p.author || '', avatar: '' },
+          readTime: p.readTime || '',
+        }));
+        if (postLoadGenerationRef.current !== generation) return false;
+
+        setPosts(normalizedPosts);
+        postLoadCoverageRef.current = Math.max(postLoadCoverageRef.current, limit);
+        return true;
+      } catch (e) {
+        if (postLoadGenerationRef.current === generation) {
+          console.warn('Failed to load posts from API, using seed data:', e);
+        }
+        return false;
+      }
+    })().finally(() => {
+      if (postLoadInFlightRef.current === request) {
+        postLoadInFlightRef.current = null;
+      }
+    });
+
+    postLoadInFlightRef.current = request;
+    return request;
+  }, []);
+
+  const loadPages = useCallback(async (requestedLimit: number = MAX_ADMIN_CONTENT_LIMIT) => {
+    const limit = normalizeAdminContentLimit(requestedLimit);
+    const generation = pageLoadGenerationRef.current;
+    if (pageLoadCoverageRef.current >= limit) return true;
+
+    while (pageLoadInFlightRef.current) {
+      await pageLoadInFlightRef.current;
+      if (pageLoadGenerationRef.current !== generation) return false;
+      if (pageLoadCoverageRef.current >= limit) return true;
+    }
+
+    let request: Promise<boolean>;
+    request = (async () => {
       try {
-        const res = await vonFetch(`${API.getPages}?limit=200`);
-        if (res.ok) {
-          const data = await res.json();
-          // Handle envelope or array format
-          if (Array.isArray(data)) {
-            const normalizedPages = data.map(normalizePage);
-            setPages(normalizedPages);
-          } else if (data.pages && Array.isArray(data.pages)) {
-            const normalizedPages = data.pages.map(normalizePage);
-            setPages(normalizedPages);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load pages from API, using seed data:', e);
-      }
-    };
+        const res = await vonFetch(`${API.getPages}?limit=${limit}`);
+        if (!res.ok) return false;
 
-    await Promise.all([loadPosts(), loadPages()]);
+        const data = await res.json();
+        // Handle envelope or array format
+        let normalizedPages: Page[] | null = null;
+        if (Array.isArray(data)) {
+          normalizedPages = data.map(normalizePage);
+        } else if (data.pages && Array.isArray(data.pages)) {
+          normalizedPages = data.pages.map(normalizePage);
+        }
+        if (!normalizedPages || pageLoadGenerationRef.current !== generation) return false;
+
+        setPages(normalizedPages);
+        pageLoadCoverageRef.current = Math.max(pageLoadCoverageRef.current, limit);
+        return true;
+      } catch (e) {
+        if (pageLoadGenerationRef.current === generation) {
+          console.warn('Failed to load pages from API, using seed data:', e);
+        }
+        return false;
+      }
+    })().finally(() => {
+      if (pageLoadInFlightRef.current === request) {
+        pageLoadInFlightRef.current = null;
+      }
+    });
+
+    pageLoadInFlightRef.current = request;
+    return request;
+  }, []);
+
+  const resetContentLoadCoverage = useCallback(() => {
+    postLoadGenerationRef.current += 1;
+    pageLoadGenerationRef.current += 1;
+    postLoadCoverageRef.current = 0;
+    pageLoadCoverageRef.current = 0;
+    postLoadInFlightRef.current = null;
+    pageLoadInFlightRef.current = null;
+    setPosts(INITIAL_POSTS);
+    setPages(INITIAL_PAGES);
+    setEditingItem(null);
+    setIsEditingPage(false);
+  }, []);
+
+  const invalidateContentLoadCoverage = useCallback((contentType: 'post' | 'page') => {
+    if (contentType === 'page') {
+      pageLoadGenerationRef.current += 1;
+      pageLoadCoverageRef.current = 0;
+      pageLoadInFlightRef.current = null;
+    } else {
+      postLoadGenerationRef.current += 1;
+      postLoadCoverageRef.current = 0;
+      postLoadInFlightRef.current = null;
+    }
   }, []);
 
   // Handle edit - prepare item for editor
@@ -172,6 +257,7 @@ export function useContent() {
     ) => {
       const effectiveIsPage = typeof isPageOverride === 'boolean' ? isPageOverride : isEditingPage;
       const now = new Date().toISOString();
+      const wasNewItem = !item.id;
       const baseUpdatedAt = item.updated_at || item.updatedAt || '';
       const newItem = { ...item, baseUpdatedAt, updatedAt: now };
       const normalizedCategory =
@@ -259,6 +345,7 @@ export function useContent() {
           const realId = data.id;
 
           if (effectiveIsPage) {
+            invalidateContentLoadCoverage('page');
             setPages((prev) => {
               const exists = prev.find((p) => p.id === realId || p.id === newItem.id); // Check both real and temp/old ID
               if (exists) {
@@ -295,6 +382,7 @@ export function useContent() {
               onUpdateSettings({ ...settings, navigation: newNav });
             }
           } else {
+            invalidateContentLoadCoverage('post');
             setPosts((prev) => {
               const exists = prev.find((p) => p.id === realId || p.id === newItem.id);
               if (exists) {
@@ -318,6 +406,21 @@ export function useContent() {
                 });
               }
             }
+
+            const previousCategory = String((item as Post).category || 'Uncategorized')
+              .trim()
+              .replace(/\s+/g, ' ');
+            const previousStatus = String((item as Post).status || '');
+            const savedStatus = String(data.status || (newItem as Post).status || '');
+            const publicCategoriesChanged =
+              typeof data.public_categories_changed === 'boolean'
+                ? data.public_categories_changed
+                : wasNewItem ||
+                  normalizedCategory !== previousCategory ||
+                  savedStatus !== previousStatus;
+            if (publicCategoriesChanged) {
+              window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
+            }
           }
 
           // ONLY Navigate on Success if not auto-saving
@@ -335,7 +438,7 @@ export function useContent() {
         throw err;
       }
     },
-    [isEditingPage]
+    [invalidateContentLoadCoverage, isEditingPage]
   );
 
   return {
@@ -347,7 +450,10 @@ export function useContent() {
     setEditingItem,
     isEditingPage,
     setIsEditingPage,
-    loadContent,
+    loadPosts,
+    loadPages,
+    resetContentLoadCoverage,
+    invalidateContentLoadCoverage,
     handleEdit,
     handleSaveContent,
   };

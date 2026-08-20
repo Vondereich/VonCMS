@@ -54,6 +54,11 @@ try {
   // Security: Only staff can see pending/spam comments
   $isStaff = SessionManager::isStaff();
   $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
+
+  // Authorization is captured above; count and list queries no longer hold the session lock.
   if (!$isStaff) {
     $where[] = "c.status = 'approved'";
     $where[] =

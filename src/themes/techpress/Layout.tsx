@@ -144,6 +144,32 @@ const getColors = (isDark: boolean, primaryColor: string) => {
   };
 };
 
+const getReadableForeground = (color: string): string => {
+  const compactHex = color.trim().replace(/^#/, '');
+  const normalizedHex =
+    compactHex.length === 3
+      ? compactHex
+          .split('')
+          .map((character) => `${character}${character}`)
+          .join('')
+      : compactHex;
+
+  if (!/^[0-9a-f]{6}$/i.test(normalizedHex)) {
+    return '#ffffff';
+  }
+
+  const channels = [0, 2, 4].map((offset) => parseInt(normalizedHex.slice(offset, offset + 2), 16));
+  const [red, green, blue] = channels.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  const darkContrast = (luminance + 0.05) / 0.055;
+
+  return whiteContrast >= darkContrast ? '#ffffff' : '#111827';
+};
+
 // ===== COMPONENTS =====
 
 function LatestTickerBanner({
@@ -554,6 +580,16 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   const isDark = globalDarkMode;
   const colors = getColors(isDark, config.primaryColor);
   const footerColors = getColors(true, config.primaryColor); // Premium Dark Footer
+  const techPressRootStyle = {
+    background: colors.background,
+    color: colors.text,
+    '--color-primary': colors.primary,
+    '--techpress-focus-outline': colors.text,
+  } as React.CSSProperties & {
+    '--color-primary': string;
+    '--techpress-focus-outline': string;
+  };
+  const searchControlForeground = getReadableForeground(colors.primary);
 
   // Search State
   const [activeSearchQuery, setActiveSearchQuery] = useState('');
@@ -1054,7 +1090,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     return (
       <div
         className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'dark' : ''}`}
-        style={{ background: colors.background, color: colors.text }}
+        style={techPressRootStyle}
       >
         {shouldRenderVonSEO && (
           <VonSEO
@@ -1329,6 +1365,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       settings={settings}
                       posts={posts}
                       onPostClick={onPostClick}
+                      onCategoryClick={onCategoryClick}
                       currentPostId={selectedPost?.id}
                       themeColors={{
                         surface: colors.surface,
@@ -1354,7 +1391,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     return (
       <div
         className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'dark' : ''}`}
-        style={{ background: colors.background, color: colors.text }}
+        style={techPressRootStyle}
       >
         {shouldRenderVonSEO && (
           <VonSEO
@@ -1416,7 +1453,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     return (
       <div
         className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'dark' : ''}`}
-        style={{ background: colors.background, color: colors.text }}
+        style={techPressRootStyle}
       >
         {shouldRenderVonSEO && (
           <VonSEO
@@ -1461,7 +1498,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   return (
     <div
       className={`min-h-screen flex flex-col transition-colors duration-300 ${isDark ? 'dark' : ''}`}
-      style={{ background: colors.background, color: colors.text }}
+      style={techPressRootStyle}
     >
       {/* SEO Injector */}
       {shouldRenderVonSEO && (
@@ -1517,52 +1554,56 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         className="max-w-7xl mx-auto w-full px-5 py-4 border-b"
         style={{ borderColor: colors.border }}
       >
-        <div className="max-w-3xl mx-auto relative">
-          <input
-            aria-label="Search articles"
-            id="techpress-search"
-            name="search"
-            type="text"
-            placeholder="Search articles by title, content, or category..."
-            value={activeSearchQuery}
-            maxLength={PUBLIC_SEARCH_MAX_LENGTH}
-            onChange={(e) => handleSearch(normalizePublicSearchInput(e.target.value))}
-            className="w-full px-5 py-3.5 rounded-full text-sm outline-hidden transition-all border shadow-xs"
-            style={{
-              background: colors.surface,
-              color: colors.text,
-              borderColor: colors.border,
-            }}
-          />
+        <div className="max-w-3xl mx-auto">
+          <div className="relative">
+            <input
+              aria-label="Search articles"
+              id="techpress-search"
+              name="search"
+              type="text"
+              placeholder="Search articles by title, content, or category..."
+              value={activeSearchQuery}
+              maxLength={PUBLIC_SEARCH_MAX_LENGTH}
+              onChange={(e) => handleSearch(normalizePublicSearchInput(e.target.value))}
+              className="w-full rounded-full border py-3.5 pr-16 pl-5 text-sm shadow-xs outline-hidden transition-all focus-visible:border-(--color-primary) focus-visible:ring-2 focus-visible:ring-(--color-primary)/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--techpress-focus-outline)"
+              style={{
+                background: colors.surface,
+                color: colors.text,
+                borderColor: colors.border,
+              }}
+            />
+            {activeSearchQuery ? (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute inset-y-0 right-0 flex w-14 items-center justify-center rounded-r-full transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
+                style={{ background: colors.primary, color: searchControlForeground }}
+                title="Clear Search"
+                aria-label="Clear search"
+              >
+                <X size={20} />
+              </button>
+            ) : (
+              <span
+                className="pointer-events-none absolute inset-y-0 right-0 flex w-14 items-center justify-center rounded-r-full"
+                style={{ background: colors.primary, color: searchControlForeground }}
+                aria-hidden="true"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </span>
+            )}
+          </div>
           {activeSearchQuery.length >= PUBLIC_SEARCH_MAX_LENGTH && (
             <p className="mt-2 text-center text-xs font-semibold" style={{ color: colors.accent }}>
               Search is limited to {PUBLIC_SEARCH_MAX_LENGTH} characters.
             </p>
-          )}
-          {activeSearchQuery ? (
-            <button
-              onClick={handleClearSearch}
-              className="absolute right-5 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
-              style={{ color: colors.text }}
-              title="Clear Search"
-            >
-              <X size={20} />
-            </button>
-          ) : (
-            <svg
-              className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
-              style={{ color: colors.textSecondary }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
           )}
         </div>
       </div>
@@ -1740,6 +1781,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                         settings={settings}
                         posts={posts}
                         onPostClick={onPostClick}
+                        onCategoryClick={onCategoryClick}
                         currentPostId={selectedPost?.id}
                         themeColors={{
                           surface: colors.surface,

@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.26.6
+# VonCMS Security Policy v1.26.7
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 
@@ -222,9 +222,9 @@ VonCMS sets `644` on uploaded files automatically. If you upload files manually 
 | -------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Files** (`uploads/*`, `.htaccess`, `.php`) | `644`          | Owner read/write, everyone else read-only. Apache needs read access to serve images, CSS, JS.                       |
 | **Directories** (`uploads/`, subfolders)     | `755`          | Owner read/write/execute (traverse), everyone else read/execute. Apache needs traverse access to enter directories. |
-| **Config** (`von_config.php`)                | `644` or `600` | `600` is more restrictive — only owner can read. Use `600` if your host supports it.                                |
+| **Config** (`von_config.php`)                | `644` or `600` | `600` is more restrictive; only the owner can read. Use `600` if your host supports it.                             |
 
-**If images appear broken on the frontend but work in the admin gallery:** Check file permissions. Permission `600` means only the file owner can read — Apache (`www-data`/`nobody`) cannot serve the file to visitors. Change to `644` to fix.
+**If images appear broken on the frontend but work in the admin gallery:** Check file permissions. Permission `600` means only the file owner can read, so Apache (`www-data`/`nobody`) cannot serve the file to visitors. Change to `644` to fix.
 
 If you are on shared hosting, also be aware that your panel may add PHP handler rules to `.htaccess`. VonCMS Integrity Fix now repairs only the VonCMS-managed routing block and creates a `.bak` backup first.
 

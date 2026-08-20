@@ -53,7 +53,7 @@ const ContentRenderer: React.FC<ContentRendererProps> = ({ html, className, styl
           return (
             <div
               key={index}
-              className="text-slate-900 dark:text-slate-200 [&>p]:mb-3 [&>*:last-child]:mb-0 [&_a]:font-semibold [&_a]:text-blue-600 [&_a]:underline [&_a]:underline-offset-4 dark:[&_a]:text-blue-400"
+              className="voncms-content text-slate-900 dark:text-slate-200 [&>p]:mb-3 [&>*:last-child]:mb-0 [&_a]:font-semibold [&_a]:text-blue-600 [&_a]:underline [&_a]:underline-offset-4 dark:[&_a]:text-blue-400"
               // nosemgrep: react-dangerouslysetinnerhtml -- content fragments are sanitized via sanitizeHtml before rendering.
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(part) }}
             />

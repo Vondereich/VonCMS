@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const AdmZip = require('adm-zip');
@@ -210,6 +211,35 @@ function loadTsModuleForSmoke(file) {
       module,
       exports: module.exports,
       console,
+    },
+    { filename: file }
+  );
+  return module.exports;
+}
+
+function loadTsModuleForSmokeWithMocks(file, mocks, globals = {}) {
+  const source = read(file);
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const module = { exports: {} };
+  const smokeRequire = (specifier) => {
+    if (Object.prototype.hasOwnProperty.call(mocks, specifier)) {
+      return mocks[specifier];
+    }
+    throw new Error(`Unexpected smoke-test import ${specifier} from ${file}`);
+  };
+  vm.runInNewContext(
+    compiled,
+    {
+      module,
+      exports: module.exports,
+      require: smokeRequire,
+      console,
+      ...globals,
     },
     { filename: file }
   );
@@ -702,6 +732,7 @@ if (legacyTailwindOpacityUtilities.length === 0) {
 }
 
 const createReleaseContent = read('create_release.cjs');
+const packageManifestContent = read('package.json');
 if (
   createReleaseContent.includes('const buildEnv = { ...process.env };') &&
   createReleaseContent.includes('delete buildEnv.DEBUG;') &&
@@ -714,6 +745,57 @@ if (
   fail(
     'Clean Release Build Log Guard: release packaging can inherit DEBUG flags and print noisy Rolldown/Vite diagnostics.'
   );
+}
+
+if (
+  packageManifestContent.includes("const runtimeConfig=path.resolve('public/von_config.php');") &&
+  packageManifestContent.includes('path.resolve(src) !== runtimeConfig') &&
+  !packageManifestContent.includes("renameSync('dist/von_config.php'")
+) {
+  pass(
+    'Release Runtime Config Isolation: production build excludes the live config before copying public files and retains the safe sample.'
+  );
+} else {
+  fail(
+    'Release Runtime Config Isolation: a configured checkout can still overwrite the distributable sample with live credentials.'
+  );
+}
+
+const postbuildCommand = JSON.parse(packageManifestContent).scripts?.postbuild || '';
+const postbuildInlineMatch = postbuildCommand.match(/^node -e "([\s\S]+)" && node /);
+const configIsolationFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-config-isolation-'));
+try {
+  const fixturePublic = path.join(configIsolationFixture, 'public');
+  fs.mkdirSync(fixturePublic, { recursive: true });
+  fs.writeFileSync(path.join(fixturePublic, 'von_config.php'), 'LIVE_CONFIG_SENTINEL');
+  fs.writeFileSync(path.join(fixturePublic, 'von_config.sample.php'), 'SAFE_SAMPLE_SENTINEL');
+  const postbuildProbe = postbuildInlineMatch
+    ? spawnSync(process.execPath, ['-e', postbuildInlineMatch[1]], {
+        cwd: configIsolationFixture,
+        encoding: 'utf8',
+        env: { ...process.env, NODE_PATH: resolveFromRoot('node_modules') },
+      })
+    : { status: 1, stderr: 'Unable to isolate the inline postbuild command.' };
+  const builtSamplePath = path.join(configIsolationFixture, 'dist', 'von_config.sample.php');
+  const builtRuntimePath = path.join(configIsolationFixture, 'dist', 'von_config.php');
+  const builtSample = fs.existsSync(builtSamplePath)
+    ? fs.readFileSync(builtSamplePath, 'utf8')
+    : '';
+  if (
+    postbuildProbe.status === 0 &&
+    builtSample === 'SAFE_SAMPLE_SENTINEL' &&
+    !fs.existsSync(builtRuntimePath)
+  ) {
+    pass(
+      'Release Runtime Config Isolation Runtime: a configured fixture keeps the safe sample and excludes the live config.'
+    );
+  } else {
+    fail(
+      `Release Runtime Config Isolation Runtime: postbuild leaked or replaced config data. ${(postbuildProbe.stderr || postbuildProbe.stdout || '').trim()}`
+    );
+  }
+} finally {
+  fs.rmSync(configIsolationFixture, { recursive: true, force: true });
 }
 
 if (
@@ -776,6 +858,7 @@ const sourcePackagePrivateDenylist = [
   '.agents',
   '.codex',
   '.cursorrules',
+  '.vscode',
   'MASTERPLAN_2.0.md',
   'ROADMAP.md',
 ];
@@ -1063,7 +1146,8 @@ if (
   appShellContent.includes('void props.loadPublicComments(publicCommentPostId);') &&
   !appShellContent.includes('void loadComments();') &&
   appShellContent.includes('if (user) {') &&
-  appShellContent.includes('loadContent();') &&
+  !appShellContent.includes('loadContent();') &&
+  appShellContent.includes('<AdminContentRouteLoader') &&
   !appShellContent.includes('loadComments();') &&
   appShellContent.includes('loadSettings();')
 ) {
@@ -1078,6 +1162,13 @@ if (
 const adSettingsContent = read('src/plugins/von-core/features/settings/components/AdSettings.tsx');
 const publicProfileHookContent = read('src/hooks/usePublicProfile.ts');
 const editorContent = read('src/components/Editor.tsx');
+const editorTableUtilsContent = read('src/components/editor/editorTableUtils.ts');
+const editorToolbarPrimitivesContent = read('src/components/editor/EditorToolbarPrimitives.tsx');
+const editorImageUtilsContent = read('src/components/editor/editorImageUtils.ts');
+const editorVideoContractsContent = read('src/components/editor/editorVideoContracts.ts');
+const editorVideoUtilsContent = read('src/components/editor/editorVideoUtils.ts');
+const editorPreviewModalContent = read('src/components/editor/EditorPreviewModal.tsx');
+const editorAutosaveUtilsContent = read('src/components/editor/editorAutosaveUtils.ts');
 const editorExtensionsPath = 'src/components/editor/editorExtensions.ts';
 const editorExtensionsContent = exists(editorExtensionsPath) ? read(editorExtensionsPath) : '';
 const postEditorContent = read('src/components/PostEditor.tsx');
@@ -1383,13 +1474,20 @@ assertIncludes(
     'pendingFetchRef',
     "document.visibilityState === 'visible'",
     '}, 30000);',
+    'const SECURITY_STATS_TTL_MS = 60000;',
+    "include_stats: shouldIncludeStats ? '1' : '0'",
+    'Date.now() - statsFetchedAtRef.current >= SECURITY_STATS_TTL_MS',
+    'fetchData(true, { includeStats: true })',
+    'overrides.includeStats === true ||',
+    "$includeStats = isset($_GET['include_stats']) ? $_GET['include_stats'] === '1' : $page === 1;",
+    'if ($includeStats)',
     'SUM(created_at >= CURDATE() AND blocked = 1) AS blocked_today',
     "SUM(created_at >= CURDATE() AND severity IN ('high', 'critical')) AS high_severity_today",
     'WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)',
     "toast.success(data.message || 'Security log maintenance completed.');",
   ],
-  'Security Dashboard Request Budget: refreshes are serialized, hidden-tab aware, slower, and use one summary aggregate.',
-  'Security Dashboard Request Budget: polling or summary-query amplification can regress.'
+  'Security Dashboard Request Budget: refreshes are serialized, hidden-tab aware, slower, reuse aggregates for one minute, and use one summary query.',
+  'Security Dashboard Request Budget: polling, aggregate freshness, or summary-query amplification can regress.'
 );
 assertExcludes(
   'Security Dashboard Legacy Query Budget',
@@ -1410,6 +1508,9 @@ const authenticatedReadEndpoints = [
   'public/api/get_users.php',
   'public/api/get_user_stats.php',
   'public/api/security/get_security_logs.php',
+  'public/api/get_storage.php',
+  'public/api/get_comments.php',
+  'public/api/track_visit.php',
 ];
 const authenticatedReadLockGaps = authenticatedReadEndpoints.filter(
   (file) => !read(file).includes('session_write_close();')
@@ -1418,7 +1519,8 @@ const contentLoadPerformanceContent = read('src/hooks/useContent.ts');
 const settingsLoadPerformanceContent = read('src/hooks/useSettings.ts');
 if (
   authenticatedReadLockGaps.length === 0 &&
-  contentLoadPerformanceContent.includes('await Promise.all([loadPosts(), loadPages()]);') &&
+  contentLoadPerformanceContent.includes('postLoadInFlightRef') &&
+  contentLoadPerformanceContent.includes('pageLoadInFlightRef') &&
   settingsLoadPerformanceContent.includes('loadSettingsInFlightRef') &&
   settingsLoadPerformanceContent.includes('if (!forceRefresh)') &&
   appShellContent.includes('loadSettings(true);') &&
@@ -1426,11 +1528,91 @@ if (
   !editorContent.includes('loadSettings()')
 ) {
   pass(
-    'Authenticated Read Concurrency: read endpoints release the session lock, content loads in parallel, App settings requests coalesce, and Editor avoids a redundant settings fetch.'
+    'Authenticated Read Concurrency: read endpoints release the session lock, route content requests coalesce independently, App settings requests coalesce, and Editor avoids a redundant settings fetch.'
   );
 } else {
   fail(
-    `Authenticated Read Concurrency: session release, parallel content loading, App settings coalescing, or Editor fetch ownership is incomplete. Lock gaps: ${authenticatedReadLockGaps.join(', ')}`
+    `Authenticated Read Concurrency: session release, content request coalescing, App settings coalescing, or Editor fetch ownership is incomplete. Lock gaps: ${authenticatedReadLockGaps.join(', ')}`
+  );
+}
+
+const adminContentRouteLoaderBlock = sliceBetween(
+  appShellContent,
+  'const AdminContentRouteLoader:',
+  '// Public Site Wrapper to handle Params'
+);
+const authenticatedBootBlock = sliceBetween(
+  appShellContent,
+  '// Re-fetch protected data when user logs in',
+  '// Notification helper'
+);
+const postRouteLoaderBlock = sliceBetween(
+  contentLoadPerformanceContent,
+  'const loadPosts = useCallback',
+  'const loadPages = useCallback'
+);
+const pageRouteLoaderBlock = sliceBetween(
+  contentLoadPerformanceContent,
+  'const loadPages = useCallback',
+  'const resetContentLoadCoverage = useCallback'
+);
+const contentCoverageInvalidationBlock = sliceBetween(
+  contentLoadPerformanceContent,
+  'const invalidateContentLoadCoverage = useCallback',
+  '// Handle edit - prepare item for editor'
+);
+if (
+  adminContentRouteLoaderBlock.includes("routePath === '/admin/dashboard'") &&
+  adminContentRouteLoaderBlock.includes('void loadWithOneRetry(loadPosts, 5);') &&
+  adminContentRouteLoaderBlock.includes("routePath === '/admin/posts'") &&
+  adminContentRouteLoaderBlock.includes("routePath === '/admin/discussion'") &&
+  adminContentRouteLoaderBlock.includes('void loadWithOneRetry(loadPosts, 200);') &&
+  adminContentRouteLoaderBlock.includes("routePath === '/admin/pages'") &&
+  adminContentRouteLoaderBlock.includes('void loadWithOneRetry(loadPages, 200);') &&
+  !adminContentRouteLoaderBlock.includes("routePath === '/admin/editor'") &&
+  adminContentRouteLoaderBlock.includes(
+    "const canAccessAdmin = ['admin', 'root', 'moderator', 'writer'].includes(normalizedRole);"
+  ) &&
+  adminContentRouteLoaderBlock.includes('if (!canAccessAdmin) return;') &&
+  adminContentRouteLoaderBlock.includes('canManageEditorialContent') &&
+  adminContentRouteLoaderBlock.includes('retryTimeout = window.setTimeout') &&
+  adminContentRouteLoaderBlock.includes('window.clearTimeout(retryTimeout)') &&
+  adminContentRouteLoaderBlock.includes('useLayoutEffect(() => {') &&
+  adminContentRouteLoaderBlock.includes('resetContentLoadCoverage();') &&
+  contentLoadPerformanceContent.includes('postLoadCoverageRef.current >= limit') &&
+  contentLoadPerformanceContent.includes('pageLoadCoverageRef.current >= limit') &&
+  postRouteLoaderBlock.includes('const generation = postLoadGenerationRef.current;') &&
+  postRouteLoaderBlock.includes('while (postLoadInFlightRef.current)') &&
+  postRouteLoaderBlock.indexOf('const generation = postLoadGenerationRef.current;') <
+    postRouteLoaderBlock.indexOf('while (postLoadInFlightRef.current)') &&
+  pageRouteLoaderBlock.includes('const generation = pageLoadGenerationRef.current;') &&
+  pageRouteLoaderBlock.includes('while (pageLoadInFlightRef.current)') &&
+  pageRouteLoaderBlock.indexOf('const generation = pageLoadGenerationRef.current;') <
+    pageRouteLoaderBlock.indexOf('while (pageLoadInFlightRef.current)') &&
+  postRouteLoaderBlock.includes('postLoadGenerationRef.current !== generation') &&
+  pageRouteLoaderBlock.includes('pageLoadGenerationRef.current !== generation') &&
+  contentLoadPerformanceContent.includes('setPosts(INITIAL_POSTS);') &&
+  contentLoadPerformanceContent.includes('setPages(INITIAL_PAGES);') &&
+  contentLoadPerformanceContent.includes('setEditingItem(null);') &&
+  contentLoadPerformanceContent.includes('invalidateContentLoadCoverage = useCallback') &&
+  contentCoverageInvalidationBlock.includes('postLoadGenerationRef.current += 1;') &&
+  contentCoverageInvalidationBlock.includes('pageLoadGenerationRef.current += 1;') &&
+  contentCoverageInvalidationBlock.includes('postLoadInFlightRef.current = null;') &&
+  contentCoverageInvalidationBlock.includes('pageLoadInFlightRef.current = null;') &&
+  contentLoadPerformanceContent.includes("invalidateContentLoadCoverage('post');") &&
+  contentLoadPerformanceContent.includes("invalidateContentLoadCoverage('page');") &&
+  appShellContent.includes("invalidateContentLoadCoverage(isPage ? 'page' : 'post');") &&
+  appShellContent.includes("key={`post-editor-${String(user?.id || '')}:") &&
+  !authenticatedBootBlock.includes('loadPosts(') &&
+  !authenticatedBootBlock.includes('loadPages(') &&
+  !authenticatedBootBlock.includes('loadContent(')
+) {
+  pass(
+    'Admin Route-Aware Content Budget: route and role scopes are bounded, Editor uses exact recovery, transient failures retry once, mutations invalidate coverage, and identity changes reject stale work and protected state.'
+  );
+} else {
+  fail(
+    'Admin Route-Aware Content Budget: route/role budgets, exact Editor recovery, retry cleanup, mutation freshness, or identity race protection is incomplete.'
   );
 }
 
@@ -1507,7 +1689,7 @@ if (
 
 assertIncludes(
   'HourGlass Editor Extraction Boundary',
-  editorContent + '\n' + editorExtensionsContent,
+  editorContent + '\n' + editorExtensionsContent + '\n' + editorVideoContractsContent,
   [
     "from './editor/editorExtensions'",
     'export const EDITOR_EXTENSIONS',
@@ -1524,7 +1706,7 @@ assertIncludes(
 
 assertExcludes(
   'HourGlass Editor Extraction Boundary Parent Cleanliness',
-  editorContent,
+  editorContent + '\n' + editorToolbarPrimitivesContent,
   [
     "from '@tiptap/starter-kit'",
     "from '@tiptap/extension-text-align'",
@@ -1656,7 +1838,7 @@ assertIncludes(
 
 assertIncludes(
   'HourGlass Editor Sticky Toolbar',
-  editorContent,
+  editorContent + '\n' + editorToolbarPrimitivesContent,
   [
     'overflow-visible rounded-xl',
     'editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap',
@@ -1681,7 +1863,7 @@ assertIncludes(
     'title="Insert Image Options"',
     'aria-haspopup="menu"',
     'role="menuitem"',
-    'title="Insert Video (YouTube/TikTok)"',
+    'title="Insert Video (YouTube/TikTok/Instagram/Facebook)"',
     'title="Insert Data Table"',
     'title="Horizontal Line"',
     'className="hidden xl:block"',
@@ -1743,14 +1925,13 @@ assertIncludes(
 
 assertIncludes(
   'HourGlass Editor Toolbar Trigger Contract',
-  editorContent,
+  editorContent + '\n' + editorToolbarPrimitivesContent,
   [
     "import { EditorContent, useEditor, useEditorState } from '@tiptap/react';",
     'selector: ({ editor: activeEditor }) => {',
     "activeEditor.isActive('heading', { level })",
     'value={activeBlockStyle}',
-    'onMouseDown={(e) => {',
-    'e.preventDefault();',
+    'onMouseDown={(event) => event.preventDefault()}',
     'onClick={onClick}',
     'const selectedColor = event.target.value;',
     "execCmd('foreColor', selectedColor);",
@@ -1798,7 +1979,11 @@ assertIncludes(
 
 assertIncludes(
   'HourGlass Editor Toolbar Repair',
-  editorContent + '\n' + read('src/components/editor/editorLinkUtils.ts'),
+  editorContent +
+    '\n' +
+    editorToolbarPrimitivesContent +
+    '\n' +
+    read('src/components/editor/editorLinkUtils.ts'),
   [
     'export const normalizeEditorUrl = (value: string) => {',
     "import { buildEditorLinkAttrs, normalizeEditorUrl } from './editor/editorLinkUtils';",
@@ -1811,6 +1996,137 @@ assertIncludes(
   'HourGlass Editor Toolbar Repair: link URLs are normalized, tables are visible, and toolbar hitboxes stay stable.',
   'HourGlass Editor Toolbar Repair: link/table/cursor stability markers are missing.'
 );
+
+assertIncludes(
+  'HourGlass Table Lifecycle Contract',
+  editorContent + '\n' + editorTableUtilsContent,
+  [
+    'export const TABLE_MIN_DIMENSION = 1;',
+    'export const TABLE_MAX_DIMENSION = 20;',
+    'Number.isInteger(rows)',
+    'rows <= TABLE_MAX_DIMENSION',
+    'cols <= TABLE_MAX_DIMENSION',
+    'max={TABLE_MAX_DIMENSION}',
+    'const [selectedTable, setSelectedTable] = useState<HTMLTableElement | null>(null);',
+    "'addRowBefore'",
+    'editor.chain().focus().addRowBefore().run()',
+    'editor.chain().focus().addRowAfter().run()',
+    'editor.chain().focus().deleteRow().run()',
+    'editor.chain().focus().addColumnBefore().run()',
+    'editor.chain().focus().addColumnAfter().run()',
+    'editor.chain().focus().deleteColumn().run()',
+    'editor.chain().focus().deleteTable().run()',
+    'selectedTable.rows.length',
+    'getEditorTableColumnCount(selectedTable)',
+    '!canGrowEditorTableDimension(currentDimension)',
+    '>Table Tools</span>',
+    'Delete table',
+  ],
+  'HourGlass Table Lifecycle Contract: table dimensions are bounded and a selected table exposes row, column, and whole-table controls.',
+  'HourGlass Table Lifecycle Contract: table generation or post-insert lifecycle controls are incomplete.'
+);
+
+const editorTableUtils = loadTsModuleForSmoke('src/components/editor/editorTableUtils.ts');
+if (
+  editorTableUtils.canGrowEditorTableDimension(19) === true &&
+  editorTableUtils.canGrowEditorTableDimension(20) === false &&
+  editorTableUtils.canGrowEditorTableDimension(21) === false &&
+  editorTableUtils.canGrowEditorTableDimension(19.5) === false
+) {
+  pass(
+    'HourGlass Table Growth Runtime: dimension 19 can grow while 20, larger, and fractional sizes are rejected.'
+  );
+} else {
+  fail(
+    'HourGlass Table Growth Runtime: command-level table growth can exceed the 20-row or 20-column boundary.'
+  );
+}
+
+const editorMediaCardMarkup = sliceBetween(
+  editorContent,
+  '{mediaFiles.map((file, idx) => (',
+  '))}'
+);
+assertIncludes(
+  'HourGlass Editor Media Keyboard Contract',
+  editorMediaCardMarkup,
+  [
+    '<button',
+    'type="button"',
+    "aria-label={`Insert ${file.altText || file.name || 'image'}`}",
+    'focus-visible:ring-2',
+  ],
+  'HourGlass Editor Media Keyboard Contract: every media card is a named keyboard-focusable button.',
+  'HourGlass Editor Media Keyboard Contract: editor media choices cannot be reached or identified from the keyboard.'
+);
+
+assertIncludes(
+  'HourGlass Editor Object Lifecycle Contract',
+  editorContent,
+  [
+    "extendMarkRange('link').unsetLink().run()",
+    'Remove link',
+    'const removeSelectedImage = () => {',
+    '.setNodeSelection(match.pos).deleteSelection().run()',
+    'Remove image',
+    'const removeSelectedVideo = () => {',
+    'syncEditorFromDom({ closeVideo: true });',
+    'Remove video',
+  ],
+  'HourGlass Editor Object Lifecycle Contract: links, images, and videos expose explicit removal paths without selecting the entire article.',
+  'HourGlass Editor Object Lifecycle Contract: an inserted link or media object can still lack an explicit removal path.'
+);
+
+assertIncludes(
+  'HourGlass Editor Exact Recovery Ownership',
+  appShellContent + '\n' + postEditorContent,
+  [
+    'const [recoveredEditorItemIsComplete, setRecoveredEditorItemIsComplete] = useState(false);',
+    'setRecoveredEditorItem(null);',
+    'setRecoveredEditorItemIsComplete(false);',
+    'setRecoveredEditorItemIsComplete(true);',
+    'initialItemIsComplete={Boolean(',
+    'initialItemIsComplete?: boolean;',
+    'initialItemIsComplete = false,',
+    'initialItem?.id && !isPage && !initialItemIsComplete',
+  ],
+  'HourGlass Editor Exact Recovery Ownership: a hard-load exact response is marked complete so PostEditor does not download the same post twice.',
+  'HourGlass Editor Exact Recovery Ownership: wrapper recovery and PostEditor restoration can still duplicate the exact post request.'
+);
+
+assertIncludes(
+  'HourGlass Editor Modal Validation And Media Race Guard',
+  editorContent,
+  [
+    "const [modalError, setModalError] = useState('');",
+    'role="alert"',
+    'disabled={!modalCanSubmit}',
+    "maxLength={activeModal === 'video' ? 12000 : 2048}",
+    'const requestId = ++mediaRequestIdRef.current;',
+    'requestId === mediaRequestIdRef.current',
+    'if (!response.ok || !data.success)',
+  ],
+  'HourGlass Editor Modal Validation And Media Race Guard: invalid inserts stay open with feedback, stale media responses are ignored, and gallery metadata failures are not reported as success.',
+  'HourGlass Editor Modal Validation And Media Race Guard: insert validation, media response ordering, or metadata feedback remains unsafe.'
+);
+
+const editorVideoModalBranch = sliceBetween(
+  editorContent,
+  "} else if (activeModal === 'video') {",
+  'closeModal();'
+);
+if (
+  editorVideoModalBranch.includes('if (!processVideoInput(modalInput)) {') &&
+  !editorVideoModalBranch.includes('restoreSavedSelection();')
+) {
+  pass(
+    'HourGlass Video Modal Focus Contract: unsupported URLs keep focus inside the open modal while successful insertion retains editor focus through the insertion command.'
+  );
+} else {
+  fail(
+    'HourGlass Video Modal Focus Contract: failed video validation can still move focus behind the open modal.'
+  );
+}
 
 assertIncludes(
   'HourGlass Editor List and Quote Visibility',
@@ -2440,6 +2756,22 @@ if (staleDocs.length === 0) {
   fail(`Docs Version Alignment: stale release label in ${staleDocs.join(', ')}.`);
 }
 
+const maintainedMarkdownFiles = [
+  resolveFromRoot('README.md'),
+  resolveFromRoot('CHANGELOG.md'),
+  ...walkFiles(resolveFromRoot('docs'), (file) => file.endsWith('.md')),
+];
+const nonAsciiDashDocs = maintainedMarkdownFiles
+  .filter((file) => /[\u2013\u2014]/u.test(fs.readFileSync(file, 'utf8')))
+  .map((file) => path.relative(root, file).replace(/\\/g, '/'));
+if (nonAsciiDashDocs.length === 0) {
+  pass(
+    'Public Docs Punctuation: maintained Markdown uses plain punctuation without en or em dashes.'
+  );
+} else {
+  fail(`Public Docs Punctuation: non-ASCII dashes remain in ${nonAsciiDashDocs.join(', ')}.`);
+}
+
 const readmeContent = read('README.md');
 if (readmeContent.includes('](LICENSE.md)')) {
   pass('README License Link: packaged README points at the canonical root LICENSE.md.');
@@ -2713,6 +3045,45 @@ assertIncludes(
   '.htaccess Repair: dedicated repair endpoint is incomplete.'
 );
 
+const sourceLayoutEvidence = [
+  '$sourceRootCandidate = dirname($publicPath);',
+  "$sourcePublicPath = realpath($sourceRootCandidate . '/public');",
+  "file_exists($sourceRootCandidate . '/package.json')",
+  "is_dir($sourceRootCandidate . '/src')",
+  'if ($isSourceLayout) {',
+];
+if (
+  sourceLayoutEvidence.every(
+    (marker) => fixIntegrityContent.includes(marker) && repairHtaccessContent.includes(marker)
+  )
+) {
+  pass(
+    'Integrity Layout Detection: a directory basename of public is not treated as Source layout without Source-only evidence.'
+  );
+} else {
+  fail(
+    'Integrity Layout Detection: a flat Deploy directory named public can still redirect integrity checks or repairs to its parent.'
+  );
+}
+
+assertIncludes(
+  'Integrity Required Directive Contract',
+  securityContent + '\n' + fixIntegrityContent,
+  [
+    'public static function hasRequiredHtaccessDirectives(mixed $content): bool',
+    "preg_match_all('/^[ \\t]*# BEGIN VonCMS\\r?$/m', $content)",
+    '$requiredDirectiveGroups = [',
+    "'RewriteRule ^von_config\\\\.php$ - [F,L]'",
+    "'RewriteRule ^api/(.*)$ api/$1 [L]'",
+    "'RewriteRule ^ index.php [L,QSA]'",
+    "preg_quote($directive, '/')",
+    'SecurityHelper::hasRequiredHtaccessDirectives($content)',
+    '!self::hasRequiredHtaccessDirectives($content)',
+  ],
+  'Integrity Required Directive Contract: balanced markers and essential routing/security directives are required before a managed block is healthy.',
+  'Integrity Required Directive Contract: marker-only or incomplete managed blocks can still pass the integrity check.'
+);
+
 const installContent = read('public/api/install.php');
 const configSampleContent = read('public/von_config.sample.php');
 const runtimeStoragePathsAreInstallLocal =
@@ -2950,6 +3321,7 @@ assertIncludes(
 );
 
 const authLoginContent = read('src/plugins/von-core/features/auth/Login.tsx');
+const registerApiContent = read('public/api/register.php');
 if (
   authLoginContent.includes("data.error || data.message || 'Invalid username or password.'") &&
   authLoginContent.includes("data.error || data.message || 'Registration failed.'") &&
@@ -2964,6 +3336,251 @@ if (
     'Auth Form API Error Display: auth forms can still hide backend validation errors such as duplicate email or invalid reset token.'
   );
 }
+
+const registrationHandlerContent = sliceBetween(
+  authLoginContent,
+  'const handleRegisterSubmit',
+  '// === FORGOT PASSWORD HANDLER ==='
+);
+const registrationFailureMarker =
+  '// Registration failures intentionally retain the submitted fields for correction.';
+const registrationSuccessBranch = sliceBetween(
+  registrationHandlerContent,
+  'if (data.success) {',
+  registrationFailureMarker
+);
+const registrationFailureBranch = sliceBetween(
+  registrationHandlerContent,
+  registrationFailureMarker,
+  '} catch (error) {'
+);
+const registrationCatchBranch = sliceBetween(
+  registrationHandlerContent,
+  '} catch (error) {',
+  '} finally {'
+);
+const registrationView = sliceBetween(
+  authLoginContent,
+  '{/* === REGISTER VIEW === */}',
+  '{/* === REGISTRATION SUCCESS VIEW === */}'
+);
+const registrationSuccessView = sliceBetween(
+  authLoginContent,
+  '{/* === REGISTRATION SUCCESS VIEW === */}',
+  '{/* === FORGOT VIEW === */}'
+);
+assertIncludes(
+  'Registration Credential Cleanup Contract',
+  registrationSuccessBranch,
+  ["setUsername('');", "setEmail('');", "setPassword('');", "setConfirmPassword('');"],
+  'Registration Credential Cleanup Contract: successful registration clears every controlled credential field without discarding retry input after a failure.',
+  'Registration Credential Cleanup Contract: a successful registration can leave submitted credentials mounted in the auth form.'
+);
+assertExcludes(
+  'Registration Retry Input Preservation Contract',
+  registrationFailureBranch + '\n' + registrationCatchBranch,
+  [
+    "setUsername('');",
+    "setEmail('');",
+    "setPassword('');",
+    "setConfirmPassword('');",
+    "setView('register-success');",
+  ],
+  'Registration Retry Input Preservation Contract: failed registration keeps the submitted fields available for correction.',
+  'Registration Retry Input Preservation Contract: a failed registration can erase retry input or enter the success state.'
+);
+
+assertIncludes(
+  'Registration Mobile Password Layout Contract',
+  registrationView,
+  ['className="grid grid-cols-1 gap-3 sm:grid-cols-2"'],
+  'Registration Mobile Password Layout Contract: password confirmation stacks on narrow phones and returns to two columns at the small breakpoint.',
+  'Registration Mobile Password Layout Contract: password fields can become cramped side by side on narrow phones.'
+);
+
+assertIncludes(
+  'Registration Success State Contract',
+  registrationSuccessBranch + '\n' + registrationSuccessView,
+  [
+    "'register-success'",
+    'setRegistrationResult({',
+    "setView('register-success');",
+    "view === 'register-success'",
+    'Account Created',
+    'Back to Sign In',
+    'aria-live="polite"',
+  ],
+  'Registration Success State Contract: successful registration replaces the credential form with a dedicated accessible confirmation state.',
+  'Registration Success State Contract: successful registration can leave the credential form visible or omit a clear route back to sign in.'
+);
+
+const registerOptionsIndex = registerApiContent.indexOf("if ($requestMethod === 'OPTIONS') {");
+const registerMethodGuardIndex = registerApiContent.indexOf(
+  "if ($requestMethod !== 'POST' && $requestMethod !== 'OPTIONS') {"
+);
+const registerMethodErrorIndex = registerApiContent.indexOf('http_response_code(405);');
+const registerSecurityBootstrapIndex = registerApiContent.indexOf(
+  "require_once __DIR__ . '/../security.php';"
+);
+const registerLimiterIndex = registerApiContent.indexOf('RateLimiter::requireNotLimited();');
+const registerCsrfIndex = registerApiContent.indexOf('CSRFProtection::requireToken();');
+if (
+  registerApiContent.includes("sendApiHeaders('POST, OPTIONS');") &&
+  registerOptionsIndex !== -1 &&
+  registerMethodGuardIndex !== -1 &&
+  registerMethodErrorIndex > registerMethodGuardIndex &&
+  registerSecurityBootstrapIndex > registerMethodErrorIndex &&
+  registerOptionsIndex > registerSecurityBootstrapIndex &&
+  registerLimiterIndex > registerMethodErrorIndex &&
+  registerCsrfIndex > registerMethodErrorIndex &&
+  registerApiContent.includes("header('Allow: POST, OPTIONS');") &&
+  registerApiContent.includes("'error' => 'Method Not Allowed'")
+) {
+  pass(
+    'Registration Method Contract: OPTIONS remains available while unsupported methods receive 405 before limiter or CSRF work.'
+  );
+} else {
+  fail(
+    'Registration Method Contract: an unsupported method can still enter registration limiter or CSRF handling instead of receiving 405.'
+  );
+}
+const registrationUnsupportedMethodBranch = sliceBetween(
+  registerApiContent,
+  "if ($requestMethod !== 'POST' && $requestMethod !== 'OPTIONS') {",
+  "require_once __DIR__ . '/../security.php';"
+);
+assertExcludes(
+  'Registration Early Method Error Isolation',
+  registrationUnsupportedMethodBranch,
+  ['ResponseHelper::sendError', 'SessionManager::', 'RateLimiter::', 'CSRFProtection::'],
+  'Registration Early Method Error Isolation: unsupported methods return bounded JSON without session, database, limiter, or CSRF work.',
+  'Registration Early Method Error Isolation: unsupported methods can still enter session-aware error shaping or security state.'
+);
+
+const forgotPasswordHandlerContent = sliceBetween(
+  authLoginContent,
+  'const handleResetSubmit',
+  '// === NEW PASSWORD HANDLER'
+);
+assertIncludes(
+  'Password Recovery Honeypot Payload Contract',
+  forgotPasswordHandlerContent,
+  ["body: JSON.stringify({ action: 'request', email, hp_field: honeypot })"],
+  'Password Recovery Honeypot Payload Contract: the shared hidden field reaches the recovery endpoint through its JSON request.',
+  'Password Recovery Honeypot Payload Contract: the forgot-password form still drops its honeypot value before the server can inspect it.'
+);
+
+const passwordResetContent = read('public/api/reset_password.php');
+const passwordResetRequestBranch = sliceBetween(
+  passwordResetContent,
+  "if ($action === 'request') {",
+  "} elseif ($action === 'reset') {"
+);
+const passwordResetActionBranch = sliceBetween(
+  passwordResetContent,
+  "} elseif ($action === 'reset') {",
+  '} else {'
+);
+assertIncludes(
+  'Password Reset Method And Route Contract',
+  passwordResetContent,
+  [
+    "sendApiHeaders('POST, OPTIONS');",
+    "if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {",
+    "if ($_SERVER['REQUEST_METHOD'] !== 'POST') {",
+    "header('Allow: POST, OPTIONS');",
+    "ResponseHelper::sendError('Method Not Allowed', 405);",
+    '$resetUrl = "$domainUrl/login?reset_token=$token";',
+    '$resetUrl = "$protocol://$host$basePath/login?reset_token=$token";',
+  ],
+  'Password Reset Method And Route Contract: reset mail links target the real login route for root/subfolder installs and the endpoint rejects unsupported methods.',
+  'Password Reset Method And Route Contract: reset links can still target the homepage or unsupported HTTP methods can enter the endpoint.'
+);
+assertExcludes(
+  'Password Reset Homepage Link Exclusion',
+  passwordResetContent,
+  [
+    '$resetUrl = "$domainUrl/?reset_token=$token";',
+    '$resetUrl = "$protocol://$host$basePath/?reset_token=$token";',
+  ],
+  'Password Reset Homepage Link Exclusion: legacy homepage reset-token URLs are absent.',
+  'Password Reset Homepage Link Exclusion: a reset email branch still targets the homepage.'
+);
+assertIncludes(
+  'Password Recovery Dedicated Throttle Contract',
+  securityContent + '\n' + passwordResetRequestBranch,
+  [
+    'public static function consumeFixedWindow($identifier, $maxAttempts, $windowSeconds)',
+    'flock($handle, LOCK_EX)',
+    "'password-recovery-pair:'",
+    "'password-recovery-email:'",
+    '$normalizedEmail = strtolower($email);',
+    'RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900)',
+    'RateLimiter::consumeFixedWindow($recoveryEmailIdentifier, 5, 900)',
+    'Too many requests. Please try again later.',
+  ],
+  'Password Recovery Dedicated Throttle Contract: accepted known/unknown requests consume bounded IP-email pair and normalized-email windows without using the login bucket.',
+  'Password Recovery Dedicated Throttle Contract: recovery requests are not protected by isolated bounded pair and normalized-email quotas.'
+);
+assertExcludes(
+  'Password Recovery Login Limiter Isolation',
+  passwordResetContent,
+  ['RateLimiter::requireNotLimited();', 'RateLimiter::recordAttempt();'],
+  'Password Recovery Login Limiter Isolation: password recovery does not consume the bare login limiter.',
+  'Password Recovery Login Limiter Isolation: reset handling still shares the bare login limiter.'
+);
+assertExcludes(
+  'Password Reset Submission Quota Isolation',
+  passwordResetActionBranch,
+  ['consumeFixedWindow('],
+  'Password Reset Submission Quota Isolation: token submission remains outside the mail-request quotas.',
+  'Password Reset Submission Quota Isolation: a valid token submission can be blocked by the recovery-mail quota.'
+);
+const recoveryPairConsumePosition = passwordResetRequestBranch.indexOf(
+  'RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900)'
+);
+const recoveryEmailConsumePosition = passwordResetRequestBranch.indexOf(
+  'RateLimiter::consumeFixedWindow($recoveryEmailIdentifier, 5, 900)'
+);
+const recoveryUserLookupPosition = passwordResetRequestBranch.indexOf(
+  'SELECT id, username, email FROM users WHERE email = ?'
+);
+if (
+  recoveryPairConsumePosition !== -1 &&
+  recoveryEmailConsumePosition > recoveryPairConsumePosition &&
+  recoveryUserLookupPosition > recoveryEmailConsumePosition
+) {
+  pass(
+    'Password Recovery Enumeration Budget Order: both dedicated quotas are consumed before account existence is queried.'
+  );
+} else {
+  fail(
+    'Password Recovery Enumeration Budget Order: known and unknown addresses can still follow different throttle accounting paths.'
+  );
+}
+const genericRecoveryResponseCount = (
+  passwordResetRequestBranch.match(/If this email exists, a reset link has been sent\./g) || []
+).length;
+if (genericRecoveryResponseCount === 2) {
+  pass(
+    'Password Recovery Enumeration Response Parity: known and unknown addresses retain the same public success message.'
+  );
+} else {
+  fail(
+    `Password Recovery Enumeration Response Parity: expected two identical generic success branches, found ${genericRecoveryResponseCount}.`
+  );
+}
+assertIncludes(
+  'Password Recovery Honeypot Log Budget',
+  passwordResetContent,
+  [
+    '$shouldLogTrap = RateLimiter::consumeFixedWindow($recoveryTrapIdentifier, 20, 900);',
+    'if ($shouldLogTrap) {',
+    'If this email exists, a reset link has been sent.',
+  ],
+  'Password Recovery Honeypot Log Budget: trap responses remain generic while repeated bot hits stop amplifying the error log.',
+  'Password Recovery Honeypot Log Budget: the trap can reveal itself or keep amplifying logs after its bounded window closes.'
+);
 
 const systemToolsContent = read('src/plugins/von-core/features/tools/SystemTools.tsx');
 if (
@@ -3291,6 +3908,140 @@ assertIncludes(
   'Sidebar Widget Manager Ownership: shared manager owns global sidebarLayout editing and bounded widget saves.',
   'Sidebar Widget Manager Ownership: shared manager is missing global sidebarLayout ownership or save guards.'
 );
+
+const categoryWidgetManagerContent = read(
+  'src/plugins/von-core/features/widgets/WidgetsManager.tsx'
+);
+const categoryWidgetRendererContent = read(
+  'src/plugins/von-core/features/public/components/Sidebar.tsx'
+);
+const publicSettingsCategoryContent = read('public/api/get_settings.php');
+const savePostCategoryMutationContent = read('public/api/save_post.php');
+assertIncludes(
+  'Categories Sidebar Widget Contract',
+  categoryWidgetManagerContent + '\n' + categoryWidgetRendererContent + '\n' + read('src/types.ts'),
+  [
+    "'trending' | 'categories' | 'profile' | 'custom'",
+    "type: 'categories'",
+    "defaultTitle: 'Browse Categories'",
+    "option.type === 'categories' ? { itemCount: 10 }",
+    "type === 'trending' || type === 'categories'",
+    "option.type !== 'custom' && widgets.some((widget) => widget.type === option.type)",
+    "selectedWidgetType !== 'custom'",
+    "{alreadyAdded ? ' (Added)' : ''}",
+    'disabled={selectedWidgetAlreadyAdded}',
+    "case 'categories':",
+    'normalizePublicCategories(settings.publicCategories)',
+    'Math.max(1, Math.min(20, Number(widget.itemCount) || 10))',
+    '<details',
+    'Show more ({remainingCategories.length})',
+    'normalizeSiteUrl(`/?category=${encodeURIComponent(category)}`)',
+    'if (!onCategoryClick) return;',
+    'handleCrawlableLinkClick(event, () => onCategoryClick(category))',
+  ],
+  'Categories Sidebar Widget Contract: the shared manager and renderer expose singleton supplied widgets plus repeatable custom blocks and a bounded crawlable category list with an honest Show more limit.',
+  'Categories Sidebar Widget Contract: singleton controls, manager defaults, bounded overflow, or crawlable category navigation are incomplete.'
+);
+
+const categoryNavigationBlock = sliceBetween(
+  read('src/App.tsx'),
+  'const handleCategoryNavigation = (cat: string) => {',
+  'const handleBackToHome = () => {'
+);
+assertIncludes(
+  'Public Category Navigation Scroll Reset',
+  categoryNavigationBlock,
+  [
+    'window.scrollTo({ top: 0, left: 0 });',
+    'setSearchParams(cat ? { category: cat } : {}, { state: location.state });',
+    "navigate(cat ? `/?category=${encodeURIComponent(cat)}` : '/', {",
+  ],
+  'Public Category Navigation Scroll Reset: query-only and cross-route category navigation return the public view to the top.',
+  'Public Category Navigation Scroll Reset: category navigation can preserve a stale scroll position.'
+);
+
+assertIncludes(
+  'Public Categories Projection Contract',
+  publicSettingsCategoryContent,
+  [
+    'function voncms_normalize_public_categories($categories): array',
+    "(status = 'published' OR status IS NULL)",
+    'scheduled_at IS NULL OR scheduled_at <= :currentTime',
+    '$publicCategoryRows = $dbCategories;',
+    "$settings['publicCategories'] = voncms_normalize_public_categories($publicCategoryRows);",
+    "$settings['publicCategories'] = [];",
+    "array_merge($settings['categories'] ?? [], $dbCategories)",
+  ],
+  'Public Categories Projection Contract: public category links are derived from currently visible posts while the editor category contract remains separate.',
+  'Public Categories Projection Contract: public category links can include draft/future labels or overwrite editor categories.'
+);
+
+if (!read('public/api/save_settings.php').includes('publicCategories')) {
+  pass(
+    'Public Categories Persistence Guard: the derived public projection is absent from the settings save contract.'
+  );
+} else {
+  fail(
+    'Public Categories Persistence Guard: the derived public projection can be persisted as ordinary settings.'
+  );
+}
+
+const categoryWidgetThemeCallSites = [
+  ['src/themes/default/Layout.tsx', 1],
+  ['src/themes/digest/Layout.tsx', 1],
+  ['src/themes/techpress/Layout.tsx', 2],
+];
+const categoryWidgetThemeIssues = categoryWidgetThemeCallSites.flatMap(([file, expected]) => {
+  const blocks = read(file).match(/<VpSidebarWidget[\s\S]*?\/>/g) || [];
+  const wired = blocks.filter((block) =>
+    block.includes('onCategoryClick={onCategoryClick}')
+  ).length;
+  return blocks.length === expected && wired === expected
+    ? []
+    : [`${file}: expected ${expected}, found ${blocks.length}, wired ${wired}`];
+});
+
+if (categoryWidgetThemeIssues.length === 0) {
+  pass(
+    'Categories Sidebar Theme Wiring: Default, Digest, and both TechPress sidebar locations share the category callback.'
+  );
+} else {
+  fail(`Categories Sidebar Theme Wiring: ${categoryWidgetThemeIssues.join('; ')}`);
+}
+
+assertIncludes(
+  'Public Categories Mutation Refresh Contract',
+  read('src/hooks/useSettings.ts') +
+    read('src/hooks/useContent.ts') +
+    savePostCategoryMutationContent +
+    read('src/plugins/von-core/features/settings/components/CategorySettings.tsx') +
+    read('src/App.tsx'),
+  [
+    "'voncms:public-categories-invalidated'",
+    'const handlePublicCategoriesInvalidated = () => {',
+    'void loadSettings(true);',
+    "'SELECT status, slug, category, scheduled_at, updated_at FROM posts WHERE id = ? FOR UPDATE'",
+    '$previousScheduledAt !== $savedScheduledAt',
+    "'public_categories_changed' => $publicCategoriesChanged",
+    "typeof data.public_categories_changed === 'boolean'",
+    "window.dispatchEvent(new Event('voncms:public-categories-invalidated'))",
+  ],
+  'Public Categories Mutation Refresh Contract: successful category, status, schedule, and post mutations refresh the server-derived projection in the active SPA session.',
+  'Public Categories Mutation Refresh Contract: category links can stay stale after rename, delete, publish, schedule, or post deletion.'
+);
+if (
+  /window\.removeEventListener\(\s*'voncms:public-categories-invalidated'\s*,\s*handlePublicCategoriesInvalidated\s*\)/.test(
+    read('src/hooks/useSettings.ts')
+  )
+) {
+  pass(
+    'Public Categories Mutation Listener Cleanup: the SPA refresh listener is removed on unmount.'
+  );
+} else {
+  fail(
+    'Public Categories Mutation Listener Cleanup: the SPA refresh listener can leak after unmount.'
+  );
+}
 
 if (
   /case 'profile':(?:(?!case 'custom':)[\s\S])*?className="font-bold text-slate-900 dark:text-white mb-6 border-b pb-4 text-left"/.test(
@@ -3892,7 +4643,7 @@ assertIncludes(
 
 if (
   (postEditorContent + '\n' + postEditorSaveHelpersContent).includes(
-    "canAutoSave: (currentItem?.status || 'draft') === 'draft'"
+    'canAutoSave: canAutoSaveEditorDraft(currentItem?.status, currentTitle)'
   ) &&
   postEditorContent.includes('handleSave(undefined, true, currentItem)') &&
   (postEditorContent + '\n' + postEditorSaveHelpersContent).includes('scheduledAt:') &&
@@ -3907,6 +4658,122 @@ if (
   );
 } else {
   fail('Post Scheduling Editor: scheduling normalization/autosave guards are incomplete.');
+}
+
+const editorAutosaveUtils = loadTsModuleForSmoke('src/components/editor/editorAutosaveUtils.ts');
+if (
+  editorAutosaveUtils.canAutoSaveEditorDraft('draft', 'Titled draft') === true &&
+  editorAutosaveUtils.canAutoSaveEditorDraft(undefined, 'Titled draft') === true &&
+  editorAutosaveUtils.canAutoSaveEditorDraft('draft', '') === false &&
+  editorAutosaveUtils.canAutoSaveEditorDraft('draft', '   ') === false &&
+  editorAutosaveUtils.canAutoSaveEditorDraft('published', 'Published post') === false &&
+  editorAutosaveUtils.canAutoSaveEditorDraft('scheduled', 'Scheduled post') === false
+) {
+  pass(
+    'PostEditor Untitled Autosave Runtime: only titled drafts can reach the periodic autosave request.'
+  );
+} else {
+  fail(
+    'PostEditor Untitled Autosave Runtime: an untitled or non-draft item can still reach periodic autosave.'
+  );
+}
+
+assertIncludes(
+  'HourGlass Editor Parent Echo History Guard',
+  editorContent,
+  [
+    'const currentEditorHtml = getCurrentEditorHtml();',
+    'const currentCleanContent = cleanContent(currentEditorHtml);',
+    'if (!revisionChanged && nextInitialContent === currentCleanContent)',
+    'lastAppliedInitialContent.current = nextInitialContent;',
+    'editor.commands.setContent(nextInitialContent, { emitUpdate: false });',
+  ],
+  'HourGlass Editor Parent Echo History Guard: semantically identical parent echoes, including TipTap empty paragraphs normalized to empty HTML, update the baseline without replaying content while revision restores remain authoritative.',
+  'HourGlass Editor Parent Echo History Guard: semantic empty echoes can still add a redundant TipTap transaction to Undo history.'
+);
+
+assertIncludes(
+  'HourGlass Editor Leaf Extraction Boundary',
+  editorContent +
+    '\n' +
+    editorToolbarPrimitivesContent +
+    '\n' +
+    editorImageUtilsContent +
+    '\n' +
+    editorVideoContractsContent +
+    '\n' +
+    editorVideoUtilsContent +
+    '\n' +
+    editorPreviewModalContent,
+  [
+    "from './editor/EditorToolbarPrimitives'",
+    "from './editor/editorImageUtils'",
+    "from './editor/editorVideoUtils'",
+    "from './editor/editorVideoContracts'",
+    "from './editor/EditorPreviewModal'",
+    'export const ToolButton',
+    'onMouseDown={(event) => event.preventDefault()}',
+    'export const buildEditorImageHtml',
+    'export const buildEditorVideoEmbedHtml',
+    'const sanitizedEmbed = embedHtml ? sanitizeEditorHtml(embedHtml) :',
+    'export const EditorPreviewModal',
+    'aria-label="Close content preview"',
+    'title="Close content preview"',
+  ],
+  'HourGlass Editor Leaf Extraction Boundary: toolbar primitives, serializers, video parsing, and preview UI are isolated while sanitization and state ownership stay in Editor.',
+  'HourGlass Editor Leaf Extraction Boundary: behavior-neutral leaf extraction or its selection/security/accessibility boundaries are incomplete.'
+);
+
+const editorImageUtils = loadTsModuleForSmoke('src/components/editor/editorImageUtils.ts');
+const editorVideoContracts = loadTsModuleForSmoke('src/components/editor/editorVideoContracts.ts');
+const editorVideoUtils = loadTsModuleForSmokeWithMocks(
+  'src/components/editor/editorVideoUtils.ts',
+  { './editorVideoContracts': editorVideoContracts },
+  { URL }
+);
+const editorImageRuntimeHtml = editorImageUtils.buildEditorImageHtml({
+  url: 'https://cdn.example.test/image.webp?x=1&y="2"',
+  alt: 'A & "B"',
+  id: 42,
+});
+const editorYouTubeRuntimeHtml = editorVideoUtils.buildEditorVideoEmbedHtml(
+  'https://www.youtube.com/shorts/dQw4w9WgXcQ'
+);
+const editorInstagramRuntimeHtml = editorVideoUtils.buildEditorVideoEmbedHtml(
+  'https://www.instagram.com/reel/Abc_123-/'
+);
+const expectedEditorImageRuntimeHtml =
+  '<img src="https://cdn.example.test/image.webp?x=1&amp;y=&quot;2&quot;" alt="A &amp; &quot;B&quot;" data-id="42" class="rounded-lg shadow-xs" style="max-width: 100%; height: auto;" />';
+const expectedEditorYouTubeRuntimeHtml = `<iframe width="100%" height="676" src="https://www.youtube.com/embed/dQw4w9WgXcQ?playsinline=1&von_vertical=shorts" frameborder="0" allow="${editorVideoContracts.DEFAULT_VIDEO_ALLOW}" allowfullscreen data-von-video-aspect="portrait" style="${editorVideoContracts.VIDEO_ASPECT_STYLES.portrait}" title="YouTube Shorts embed"></iframe>`;
+const expectedEditorInstagramRuntimeHtml = `<iframe width="100%" height="676" src="https://www.instagram.com/reel/Abc_123-/embed" frameborder="0" scrolling="no" allowfullscreen title="Instagram Reel embed" data-von-video-aspect="portrait" style="${editorVideoContracts.VIDEO_ASPECT_STYLES.portrait}"></iframe>`;
+if (
+  editorImageRuntimeHtml === expectedEditorImageRuntimeHtml &&
+  editorYouTubeRuntimeHtml === expectedEditorYouTubeRuntimeHtml &&
+  editorInstagramRuntimeHtml === expectedEditorInstagramRuntimeHtml &&
+  editorVideoUtils.buildEditorVideoEmbedHtml('javascript:alert(1)') === ''
+) {
+  pass(
+    'HourGlass Editor Media Helper Runtime: image escaping and supported video serializers match their complete expected HTML output.'
+  );
+} else {
+  fail(
+    'HourGlass Editor Media Helper Runtime: extracted image or video serialization behavior drifted.'
+  );
+}
+
+if (
+  editorVideoUtilsContent.includes("from './editorVideoContracts'") &&
+  !editorVideoUtilsContent.includes("from './editorExtensions'") &&
+  editorVideoContractsContent.includes("export type VideoAspectMode = 'auto'") &&
+  !editorVideoContractsContent.includes('@tiptap/')
+) {
+  pass(
+    'HourGlass Editor Video Contract Boundary: pure video helpers share neutral constants without importing the TipTap extension graph.'
+  );
+} else {
+  fail(
+    'HourGlass Editor Video Contract Boundary: pure video helpers remain coupled to the TipTap extension graph.'
+  );
 }
 
 assertIncludes(
@@ -4693,7 +5560,7 @@ const widgetsManagerContentForCount = read(
 );
 if (
   widgetsManagerContentForCount.includes('<option value={10}>10</option>') &&
-  widgetsManagerContentForCount.includes('Math.max(1, Math.min(20') &&
+  widgetsManagerContentForCount.includes('Math.min(20') &&
   widgetsManagerContentForCount.includes('Trending widget item count')
 ) {
   pass('Sidebar Trending Count: global Widgets manager exposes bounded 10-item sidebar counts.');
@@ -5108,6 +5975,10 @@ assertIncludes(
   'Vertical Video Aspect Contract',
   editorContent +
     '\n' +
+    editorVideoUtilsContent +
+    '\n' +
+    editorVideoContractsContent +
+    '\n' +
     contentRendererContent +
     '\n' +
     editorSecurityContent +
@@ -5128,7 +5999,13 @@ assertIncludes(
 );
 assertIncludes(
   'Editor Video Alignment and Preview Stability',
-  editorContent + '\n' + postEditorContent + '\n' + contentRendererContent,
+  editorContent +
+    '\n' +
+    editorPreviewModalContent +
+    '\n' +
+    postEditorContent +
+    '\n' +
+    contentRendererContent,
   [
     'selectedVideoEmbed',
     'getVideoEmbedTarget',
@@ -5149,7 +6026,7 @@ assertIncludes(
   'Editor Video Alignment and Preview Stability: selectable video alignment or preview snapshot markers are missing.'
 );
 if (
-  editorContent.includes("execCmd('insertHTML', embedHtml)") &&
+  editorContent.includes("execCmd('insertHTML', sanitizedEmbed)") &&
   !editorContent.includes('`${embedHtml}<p><br/></p>`')
 ) {
   pass(
@@ -5196,7 +6073,7 @@ const imageBubbleSection = (() => {
 })();
 const videoBubbleSection = (() => {
   const start = editorContent.indexOf('{/* Video Bubble Menu */}');
-  const end = editorContent.indexOf('const ToolButton: React.FC', start);
+  const end = editorContent.indexOf('{/* Table Bubble Menu */}', start);
   return start >= 0 && end > start ? editorContent.slice(start, end) : '';
 })();
 assertIncludes(
@@ -6957,9 +7834,12 @@ assertIncludes(
   'Shared Empty Sidebar Visibility Guard',
   sidebarVisibilityContent + '\n' + read('src/themes/shared/index.ts'),
   [
-    "Pick<SiteSettings, 'newsletter' | 'sidebarLayout'>",
+    "Pick<SiteSettings, 'newsletter' | 'sidebarLayout' | 'publicCategories'>",
+    "Pick<SiteSettings, 'sidebarLayout' | 'publicCategories'>",
     "new Set(['trending', 'profile', 'custom'])",
     'renderableSidebarWidgetTypes.has(widget.type as string)',
+    "widget.type === 'categories'",
+    'settings.publicCategories || []',
     'settings.newsletter?.enabled',
     "settings.newsletter.position === 'sidebar'",
     "settings.newsletter.position === 'both'",
@@ -6983,6 +7863,16 @@ try {
     newsletter: newsletterDisabled,
     sidebarLayout: [{ id: 'custom', type: 'custom', isVisible: true }],
   };
+  const emptyCategoriesWidget = {
+    newsletter: newsletterDisabled,
+    sidebarLayout: [{ id: 'categories', type: 'categories', isVisible: true }],
+    publicCategories: [],
+  };
+  const populatedCategoriesWidget = {
+    newsletter: newsletterDisabled,
+    sidebarLayout: [{ id: 'categories', type: 'categories', isVisible: true }],
+    publicCategories: ['News'],
+  };
   const sidebarNewsletterOnly = {
     newsletter: { enabled: true, position: 'sidebar' },
     sidebarLayout: [],
@@ -6993,14 +7883,18 @@ try {
     hasActiveSidebarContent(legacySearchOnly) === false &&
     hasVisibleSidebarWidgets(supportedWidget) === true &&
     hasActiveSidebarContent(supportedWidget) === true &&
+    hasVisibleSidebarWidgets(emptyCategoriesWidget) === false &&
+    hasActiveSidebarContent(emptyCategoriesWidget) === false &&
+    hasVisibleSidebarWidgets(populatedCategoriesWidget) === true &&
+    hasActiveSidebarContent(populatedCategoriesWidget) === true &&
     hasActiveSidebarContent(sidebarNewsletterOnly) === true
   ) {
     pass(
-      'Shared Empty Sidebar Runtime Guard: unsupported legacy widgets cannot reserve an empty sidebar column while supported widgets and sidebar newsletters remain active.'
+      'Shared Empty Sidebar Runtime Guard: unsupported and empty category widgets cannot reserve a blank column while populated widgets and sidebar newsletters remain active.'
     );
   } else {
     fail(
-      'Shared Empty Sidebar Runtime Guard: sidebar visibility behavior drifted for unsupported legacy widgets or supported sidebar content.'
+      'Shared Empty Sidebar Runtime Guard: sidebar visibility behavior drifted for unsupported, empty category, or supported sidebar content.'
     );
   }
 } catch (error) {
@@ -8813,26 +9707,29 @@ assertIncludes(
   'Settings Audit Secret Retention Boundary: old credentials can still persist or return through settings audit/rollback flows.'
 );
 
-const honeypotRateFiles = [
-  'public/api/login.php',
-  'public/api/register.php',
-  'public/api/reset_password.php',
-  'public/api/newsletter_subscribe.php',
+const honeypotRateContracts = [
+  ['public/api/login.php', /RateLimiter::recordAttempt\([^)]*\);/],
+  ['public/api/register.php', /RateLimiter::recordAttempt\([^)]*\);/],
+  [
+    'public/api/reset_password.php',
+    /RateLimiter::consumeFixedWindow\(\$recoveryTrapIdentifier, 20, 900\)/,
+  ],
+  ['public/api/newsletter_subscribe.php', /RateLimiter::recordAttempt\([^)]*\);/],
 ];
-const honeypotRateGaps = honeypotRateFiles.filter(
-  (file) => !/RateLimiter::recordAttempt\([^)]*\);/.test(read(file))
-);
+const honeypotRateGaps = honeypotRateContracts
+  .filter(([file, contract]) => !contract.test(read(file)))
+  .map(([file]) => file);
 if (
   honeypotRateGaps.length === 0 &&
   submitContactContent.includes("'value_length' => strlen((string) $honeypot)") &&
   !submitContactContent.includes("'value' => $honeypot")
 ) {
   pass(
-    'Honeypot Rate And Log Boundary: bot hits count toward throttling and contact logs keep metadata instead of raw trap input.'
+    'Honeypot Attempt And Log Boundary: bot traps use bounded accounting and contact logs keep metadata instead of raw trap input.'
   );
 } else {
   fail(
-    `Honeypot Rate And Log Boundary: attempt accounting or raw-value logging regressed. Missing: ${honeypotRateGaps.join(', ')}`
+    `Honeypot Attempt And Log Boundary: attempt accounting or raw-value logging regressed. Missing: ${honeypotRateGaps.join(', ')}`
   );
 }
 
@@ -9160,6 +10057,52 @@ assertIncludes(
   'Profile Update Primary Admin Boundary: appointed admins can still mutate admin 1/root profiles or update_profile.php lacks an explicit POST guard.'
 );
 
+const profilePasswordTransaction = sliceBetween(
+  updateProfileContent,
+  "$newPasswordValue = $input['new_password'] ?? '';",
+  'if ($result) {'
+);
+assertIncludes(
+  'Profile Password Input Boundary',
+  profilePasswordTransaction,
+  [
+    "array_key_exists('new_password', $input)",
+    '!is_string($currentPasswordValue)',
+    '!is_string($newPasswordValue)',
+    'strlen($currentPasswordValue) > 4096',
+    'strlen($newPasswordValue) > 4096',
+    "ResponseHelper::sendError('Invalid password input', 400);",
+    '$result = false;',
+  ],
+  'Profile Password Input Boundary: password changes reject non-string and oversized direct API payloads before password functions run.',
+  'Profile Password Input Boundary: malformed password payloads can still reach password_verify, strlen, or password_hash.'
+);
+const profileTransactionOrder = [
+  '$pdo->beginTransaction();',
+  'SELECT password FROM users WHERE id = ? FOR UPDATE',
+  'password_verify($currentPasswordValue',
+  'UPDATE users SET password = ? WHERE id = ?',
+  'DELETE FROM remember_tokens WHERE user_id = ?',
+  'UPDATE users SET display_name = ?, bio = ?, avatar = ? WHERE id = ?',
+  '$pdo->commit();',
+].map((marker) => profilePasswordTransaction.indexOf(marker));
+if (
+  profileTransactionOrder.every((position) => position >= 0) &&
+  profileTransactionOrder.every(
+    (position, index) => index === 0 || position > profileTransactionOrder[index - 1]
+  ) &&
+  profilePasswordTransaction.includes('$transactionStarted && $pdo->inTransaction()') &&
+  profilePasswordTransaction.includes('$pdo->rollBack();')
+) {
+  pass(
+    'Profile Password Full Transaction Contract: credential locking, password update, remember-token revocation, and profile fields commit or roll back together.'
+  );
+} else {
+  fail(
+    'Profile Password Full Transaction Contract: a profile save can report failure after committing a requested password change, or concurrent password changes are not serialized.'
+  );
+}
+
 const techPressProfileContent = read('src/themes/techpress/Profile.tsx');
 assertExcludes(
   'Public Profile Joined Date Privacy Boundary',
@@ -9215,11 +10158,17 @@ if (
 
 const editorContentForLink = read('src/components/Editor.tsx');
 const contentRendererForLink = read('src/components/ContentRenderer.tsx');
+const globalStylesForEditor = read('src/index.css');
+const editorInsertSafeLinkBlock = sliceBetween(
+  editorContentForLink,
+  'const insertSafeLink =',
+  'const refreshSelectedImage ='
+);
 if (
   editorContentForLink.includes('insertSafeLink') &&
   editorContentForLink.includes("type: 'text'") &&
   editorContentForLink.includes("type: 'link'") &&
-  !editorContentForLink.includes(".extendMarkRange('link')") &&
+  !editorInsertSafeLinkBlock.includes(".extendMarkRange('link')") &&
   contentRendererForLink.includes('.prose a, .voncms-content a') &&
   contentRendererForLink.includes('color: #2563eb')
 ) {
@@ -9229,6 +10178,26 @@ if (
 } else {
   fail(
     'Editor Hyperlink Contract: link insertion or public link styling can still drop/truncate links or blend into light text.'
+  );
+}
+
+if (
+  editorContentForLink.includes('chain.setColor(finalValue).run()') &&
+  postEditorContent.includes('sanitizeEditorHtml(itemForSave.content)') &&
+  !postEditorContent.includes('sanitizeHTML(itemForSave.content)') &&
+  editorContentForLink.includes('sanitizePastedHtml(sanitizeHTML(html).cleanedHTML)') &&
+  contentRendererForLink.includes('className="voncms-content') &&
+  globalStylesForEditor.includes(".voncms-content span[style^='color:'] *") &&
+  globalStylesForEditor.includes(".voncms-content span[style*=';color:'] *") &&
+  globalStylesForEditor.includes(".voncms-content span[style*='; color:'] *") &&
+  globalStylesForEditor.includes('color: inherit;')
+) {
+  pass(
+    'Editor Text Color Rendering Contract: authored neutral colors survive save, paste cleanup stays isolated, and nested typography marks inherit the selected color in every ContentRenderer path.'
+  );
+} else {
+  fail(
+    'Editor Text Color Rendering Contract: save can strip an authored color, paste cleanup can escape its boundary, or public typography can override the selected inline color.'
   );
 }
 
@@ -9347,8 +10316,8 @@ assertIncludes(
     'className="max-w-7xl mx-auto px-5 py-8 flex-1 w-full"',
     'className="max-w-7xl mx-auto w-full px-5 py-8 border-b text-center relative"',
     'className="max-w-7xl mx-auto w-full px-5 py-4 border-b"',
-    'className="max-w-3xl mx-auto relative"',
-    'className="w-full px-5 py-3.5 rounded-full text-sm outline-hidden transition-all border shadow-xs"',
+    'className="max-w-3xl mx-auto"',
+    'className="w-full rounded-full border py-3.5 pr-16 pl-5 text-sm shadow-xs outline-hidden transition-all',
   ],
   'TechPress Short Discovery Footer Containment: home, category, and search shells keep the footer at the viewport edge when discovery content is short, while full-width flex children preserve balanced category and search sizing.',
   'TechPress Short Discovery Footer Containment: short discovery pages can leave the footer floating above unused viewport space or flex auto margins can collapse category/search containers to their content width.'
@@ -9947,7 +10916,7 @@ const postOwnerGuardIndex = savePostContent.indexOf(
   'SELECT id, author_id, status, slug FROM posts WHERE id = ?'
 );
 const postRowLockIndex = savePostContent.indexOf(
-  'SELECT status, slug, updated_at FROM posts WHERE id = ? FOR UPDATE'
+  'SELECT status, slug, category, scheduled_at, updated_at FROM posts WHERE id = ? FOR UPDATE'
 );
 const postConflictIndex = savePostContent.indexOf(
   'Content changed in another tab. Reload before saving again.'
@@ -9988,10 +10957,11 @@ assertIncludes(
   postEditorContent,
   [
     'let cancelled = false;',
-    'const needsFullContentRestore = Boolean(initialItem?.id && !isPage);',
+    'const needsFullContentRestore = Boolean(',
+    'initialItem?.id && !isPage && !initialItemIsComplete',
     'if (!needsFullContentRestore || !restoreItemId) {',
     '!cancelled && data.success && data.post',
-    '}, [initialItem, isPage]);',
+    '}, [initialItem, initialItemIsComplete, isPage]);',
     '}, [initialItem?.id, isPage, navigation]);',
   ],
   'Admin Editor SEO Single Source Sync: navigation/add-to-menu updates can no longer reset restored full post content.',
@@ -10600,6 +11570,91 @@ if (
 
 const dashboardContent = read('src/plugins/von-core/features/dashboard/Dashboard.tsx');
 const updateModalContent = read('src/plugins/von-core/features/settings/UpdateModal.tsx');
+assertIncludes(
+  'Public Theme Customization Fallback',
+  useSettingsContent + '\n' + publicIndexContent,
+  ['...(_s?.theme || {})', "'theme'                => $themeCustomization ?? (object)[]"],
+  'Public Theme Customization Fallback: the client retains the complete server-injected theme when the settings request is unavailable.',
+  'Public Theme Customization Fallback: the client can discard server-injected theme customization during a settings failure.'
+);
+
+const techPressRootStyleUses =
+  techPressLayoutContent.split('style={techPressRootStyle}').length - 1;
+const digestRootStyleUses = digestLayoutContent.split('style={digestRootStyle}').length - 1;
+if (
+  techPressLayoutContent.includes("'--color-primary': colors.primary") &&
+  techPressRootStyleUses === 4 &&
+  digestLayoutContent.includes("'--color-primary': colors.accent") &&
+  digestLayoutContent.includes("'--digest-accent': colors.accent") &&
+  digestRootStyleUses === 4
+) {
+  pass(
+    'Public Theme Scoped Color Contract: TechPress and Digest propagate saved colors through every public route root.'
+  );
+} else {
+  fail(
+    'Public Theme Scoped Color Contract: TechPress or Digest can expose a registry fallback on one or more public route roots.'
+  );
+}
+
+assertIncludes(
+  'TechPress Search Accent Control',
+  techPressLayoutContent,
+  [
+    'const getReadableForeground = (color: string): string =>',
+    'pr-16 pl-5',
+    'flex w-14 items-center justify-center',
+    'style={{ background: colors.primary, color: searchControlForeground }}',
+    'type="button"',
+    'aria-label="Clear search"',
+    'aria-hidden="true"',
+    'focus-visible:border-(--color-primary)',
+    'focus-visible:outline-(--techpress-focus-outline)',
+    'focus-visible:outline-offset-[-4px]',
+  ],
+  'TechPress Search Accent Control: the fixed theme-color end control remains contrast-aware, keyboard-visible, and clearable without input overlap.',
+  'TechPress Search Accent Control: the search end control can lose contrast, semantics, focus visibility, or input clearance.'
+);
+
+assertIncludes(
+  'Dashboard Timezone Clock',
+  dashboardContent + '\n' + appContent,
+  [
+    'timeZone?: string;',
+    'timeZone={settings.timeZone}',
+    "new Intl.DateTimeFormat('en-GB', { timeZone: requestedTimeZone })",
+    "return 'UTC';",
+    "hourCycle: 'h23'",
+    'const DashboardClock: React.FC',
+    'React.memo(',
+    '<DashboardClock timeZone={timeZone} canChangeTimeZone={canChangeTimeZone} />',
+    'window.clearInterval(clockInterval);',
+    'clearClockTimers();',
+    "document.addEventListener('visibilitychange', startClock);",
+    "document.removeEventListener('visibilitychange', startClock);",
+    'dateTime={clockNow.toISOString()}',
+    "onClick={() => navigate('/admin/settings')}",
+    'canChangeTimeZone &&',
+    'className="min-w-0"',
+    'gap-x-2 gap-y-1 text-sm',
+    'w-full pl-[52px] text-left sm:w-auto sm:pl-0 sm:text-right',
+  ],
+  'Dashboard Timezone Clock: the memoized leaf uses the saved zone, fails soft, pauses off-screen, cleans up its timer, separates readiness metadata, and keeps Settings access role-aware.',
+  'Dashboard Timezone Clock: leaf ownership, timezone formatting, timer cleanup, readiness placement, or the role-aware Settings shortcut is incomplete.'
+);
+
+assertIncludes(
+  'Dashboard Media Scan Budget',
+  dashboardContent,
+  [
+    'Storage scans the upload tree, so keep it independent from analytics period changes.',
+    '}, [currentUser?.role]);',
+    'Fetch analytics when the selected reporting period changes.',
+    '}, [days]);',
+  ],
+  'Dashboard Media Scan Budget: upload traversal is independent from traffic-period changes.',
+  'Dashboard Media Scan Budget: changing analytics periods can trigger another upload traversal.'
+);
 if (
   updaterContent.includes("'.htaccess',") &&
   updaterContent.includes("basename($normalized) === '.htaccess'") &&
@@ -12076,6 +13131,274 @@ if (!phpBinary) {
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
 
+  const profilePasswordRuntimeCases = [
+    {
+      name: 'non-string-current',
+      payload: {
+        id: 7,
+        display_name: 'Changed Name',
+        bio: 'Changed bio',
+        avatar: '',
+        current_password: ['Before1!'],
+        new_password: 'After2!',
+      },
+      failProfileWrite: false,
+    },
+    {
+      name: 'non-string-new',
+      payload: {
+        id: 7,
+        display_name: 'Changed Name',
+        bio: 'Changed bio',
+        avatar: '',
+        current_password: 'Before1!',
+        new_password: ['After2!'],
+      },
+      failProfileWrite: false,
+    },
+    {
+      name: 'oversized',
+      payload: {
+        id: 7,
+        display_name: 'Changed Name',
+        bio: 'Changed bio',
+        avatar: '',
+        current_password: 'Before1!',
+        new_password: `A1!${'x'.repeat(4094)}`,
+      },
+      failProfileWrite: false,
+    },
+    {
+      name: 'profile-write-failure',
+      payload: {
+        id: 7,
+        display_name: 'Changed Name',
+        bio: 'Changed bio',
+        avatar: '',
+        current_password: 'Before1!',
+        new_password: 'After2!',
+      },
+      failProfileWrite: true,
+    },
+  ];
+  let profilePasswordRuntimeFailure = '';
+  for (const runtimeCase of profilePasswordRuntimeCases) {
+    const encodedPayload = Buffer.from(JSON.stringify(runtimeCase.payload)).toString('base64');
+    const profilePasswordProbe = spawnSync(
+      phpBinary,
+      [
+        '-r',
+        `$_SERVER['PHP_SELF'] = 'profile-password-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/profile-password-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-profile-password-probe';
+$_SERVER['HTTP_X_CSRF_TOKEN'] = 'profile-password-probe-token';
+if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+  echo 'skip';
+  exit(0);
+}
+class VonCmsProfileProbePdo extends PDO {
+  public function __construct() {
+    parent::__construct('sqlite::memory:');
+    $this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  }
+  public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false {
+    if (str_starts_with($query, "SHOW COLUMNS FROM users LIKE 'display_name'")) {
+      return parent::query('UPDATE users SET role = role WHERE id = 7');
+    }
+    return $fetchMode === null
+      ? parent::query($query)
+      : parent::query($query, $fetchMode, ...$fetchModeArgs);
+  }
+  public function prepare(string $query, array $options = []): PDOStatement|false {
+    return parent::prepare(str_replace(' FOR UPDATE', '', $query), $options);
+  }
+}
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+$pdo = new VonCmsProfileProbePdo();
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT NOT NULL, password TEXT NOT NULL, display_name TEXT, bio TEXT, avatar TEXT)');
+$pdo->exec('CREATE TABLE remember_tokens (user_id INTEGER NOT NULL, token TEXT NOT NULL)');
+$oldHash = password_hash('Before1!', PASSWORD_BCRYPT);
+$pdo->prepare('INSERT INTO users (id, role, password, display_name, bio, avatar) VALUES (7, ?, ?, ?, ?, ?)')->execute(['root', $oldHash, 'Original Name', 'Original bio', '']);
+$pdo->prepare('INSERT INTO remember_tokens (user_id, token) VALUES (7, ?)')->execute(['remember-me']);
+if (${runtimeCase.failProfileWrite ? 'true' : 'false'}) {
+  $pdo->exec("CREATE TRIGGER fail_profile_write BEFORE UPDATE OF display_name, bio, avatar ON users BEGIN SELECT RAISE(ABORT, 'profile write failed'); END");
+}
+SessionManager::establishAuthenticatedSession(['id' => 7, 'role' => 'root'], $oldHash);
+$_SESSION['csrf_token'] = 'profile-password-probe-token';
+$csrfReflection = new ReflectionClass(CSRFProtection::class);
+$cachedInput = $csrfReflection->getProperty('cachedInput');
+$cachedInput->setValue(null, base64_decode('${encodedPayload}'));
+register_shutdown_function(static function () use ($pdo) {
+  $user = $pdo->query('SELECT password, display_name, bio FROM users WHERE id = 7')->fetch(PDO::FETCH_ASSOC);
+  $state = [
+    'oldPassword' => is_array($user) && password_verify('Before1!', (string) ($user['password'] ?? '')),
+    'newPassword' => is_array($user) && password_verify('After2!', (string) ($user['password'] ?? '')),
+    'displayName' => is_array($user) ? ($user['display_name'] ?? null) : null,
+    'bio' => is_array($user) ? ($user['bio'] ?? null) : null,
+    'rememberTokens' => (int) $pdo->query('SELECT COUNT(*) FROM remember_tokens WHERE user_id = 7')->fetchColumn(),
+    'inTransaction' => $pdo->inTransaction(),
+  ];
+  echo "\nPROFILE_PASSWORD_STATE:" . json_encode($state);
+});
+require ${JSON.stringify(resolveFromRoot('public/api/update_profile.php'))};`,
+      ],
+      { encoding: 'utf8' }
+    );
+    if (profilePasswordProbe.status === 0 && profilePasswordProbe.stdout.trim() === 'skip') {
+      profilePasswordRuntimeFailure = 'skip';
+      break;
+    }
+    const stateMatch = profilePasswordProbe.stdout.match(/PROFILE_PASSWORD_STATE:(\{[^\r\n]+\})/);
+    let state = null;
+    try {
+      state = stateMatch ? JSON.parse(stateMatch[1]) : null;
+    } catch {
+      state = null;
+    }
+    if (
+      profilePasswordProbe.status !== 0 ||
+      !state ||
+      state.oldPassword !== true ||
+      state.newPassword !== false ||
+      state.displayName !== 'Original Name' ||
+      state.bio !== 'Original bio' ||
+      state.rememberTokens !== 1 ||
+      state.inTransaction !== false
+    ) {
+      profilePasswordRuntimeFailure = `${runtimeCase.name}: ${(profilePasswordProbe.stderr || profilePasswordProbe.stdout || '').trim()}`;
+      break;
+    }
+  }
+  if (profilePasswordRuntimeFailure === '') {
+    pass(
+      'Profile Password Transaction Runtime: malformed and oversized values stop before mutation while a failed profile write rolls back the password hash and remember-token deletion.'
+    );
+  } else if (profilePasswordRuntimeFailure === 'skip') {
+    warn(
+      'Profile Password Transaction Runtime: pdo_sqlite unavailable; static contract still ran.'
+    );
+  } else {
+    fail(
+      `Profile Password Transaction Runtime: malformed input or a failed profile write can leave partial credential state. ${profilePasswordRuntimeFailure}`
+    );
+  }
+
+  const fixedWindowRateProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['PHP_SELF'] = 'fixed-window-rate-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/fixed-window-rate-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-fixed-window-rate-probe';
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+$rateLimitDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-fixed-window-rate-' . bin2hex(random_bytes(6));
+if (!mkdir($rateLimitDir, 0700, true)) {
+  exit(2);
+}
+$rateLimiterReflection = new ReflectionClass(RateLimiter::class);
+$storageDir = $rateLimiterReflection->getProperty('storageDir');
+$storageDir->setValue(null, $rateLimitDir . DIRECTORY_SEPARATOR);
+register_shutdown_function(static function () use ($rateLimitDir) {
+  foreach (scandir($rateLimitDir) ?: [] as $entry) {
+    if ($entry !== '.' && $entry !== '..') {
+      @unlink($rateLimitDir . DIRECTORY_SEPARATOR . $entry);
+    }
+  }
+  @rmdir($rateLimitDir);
+});
+for ($attempt = 0; $attempt < 5; $attempt++) {
+  if (!RateLimiter::consumeFixedWindow('password-recovery-email:a', 5, 900)) {
+    exit(3);
+  }
+}
+if (RateLimiter::consumeFixedWindow('password-recovery-email:a', 5, 900)) {
+  exit(4);
+}
+if (!RateLimiter::consumeFixedWindow('password-recovery-email:b', 5, 900)) {
+  exit(5);
+}
+for ($attempt = 0; $attempt < 3; $attempt++) {
+  if (!RateLimiter::consumeFixedWindow('password-recovery-pair:ip-a-email-a', 3, 900)) {
+    exit(6);
+  }
+}
+if (RateLimiter::consumeFixedWindow('password-recovery-pair:ip-a-email-a', 3, 900)) {
+  exit(7);
+}
+if (!RateLimiter::consumeFixedWindow('password-recovery-pair:ip-a-email-b', 3, 900)) {
+  exit(8);
+}
+if (RateLimiter::isLimited('127.0.0.1')) {
+  exit(9);
+}
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (fixedWindowRateProbe.status === 0 && fixedWindowRateProbe.stdout.trim() === 'ok') {
+    pass(
+      'Dedicated Fixed-Window Rate Runtime: address and IP-address pair quotas close independently while another address and the bare login bucket remain available.'
+    );
+  } else {
+    fail(
+      `Dedicated Fixed-Window Rate Runtime: bounded recovery windows or login-bucket isolation regressed. ${(fixedWindowRateProbe.stderr || fixedWindowRateProbe.stdout || '').trim()}`
+    );
+  }
+
+  const htaccessIntegrityProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['PHP_SELF'] = 'htaccess-integrity-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/htaccess-integrity-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+$valid = file_get_contents(${JSON.stringify(resolveFromRoot('public/.htaccess'))});
+if ($valid === false || !SecurityHelper::hasRequiredHtaccessDirectives($valid)) {
+  exit(2);
+}
+$markerOnly = "# BEGIN VonCMS\\n# END VonCMS\\n";
+if (SecurityHelper::hasRequiredHtaccessDirectives($markerOnly)) {
+  exit(3);
+}
+$duplicate = $valid . "\\n" . $valid;
+if (SecurityHelper::hasRequiredHtaccessDirectives($duplicate)) {
+  exit(4);
+}
+$commented = "# BEGIN VonCMS\\n"
+  . "# DirectoryIndex index.php index.html\\n"
+  . "# RewriteEngine On\\n"
+  . "# RewriteRule ^von_config\\.php$ - [F,L]\\n"
+  . "# RewriteRule ^api/(.*)$ api/$1 [L]\\n"
+  . "# RewriteRule ^robots\\.txt$ robots.php [L]\\n"
+  . "# RewriteRule ^sitemap\\.xml$ sitemap.php [L]\\n"
+  . "# RewriteRule ^rss\\.xml$ rss.php [L]\\n"
+  . "# RewriteRule ^ index.php [L,QSA]\\n"
+  . "# Header set X-Content-Type-Options \\"nosniff\\"\\n"
+  . "# END VonCMS\\n";
+if (SecurityHelper::hasRequiredHtaccessDirectives($commented)) {
+  exit(5);
+}
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (htaccessIntegrityProbe.status === 0 && htaccessIntegrityProbe.stdout.trim() === 'ok') {
+    pass(
+      'Managed .htaccess Integrity Runtime: the canonical block passes while marker-only, duplicate, and commented-out blocks fail.'
+    );
+  } else {
+    fail(
+      `Managed .htaccess Integrity Runtime: required-directive or balanced-marker validation regressed. ${(htaccessIntegrityProbe.stderr || htaccessIntegrityProbe.stdout || '').trim()}`
+    );
+  }
+
   const sessionBootstrapProbe = spawnSync(
     phpBinary,
     [
@@ -12129,6 +13452,9 @@ require $tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_stor
 $payload = json_decode((string) ob_get_clean(), true);
 if (!is_array($payload) || empty($payload['success']) || ($payload['storage']['usedBytes'] ?? null) !== 0) {
   exit(7);
+}
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_start();
 }
 SessionManager::destroy();
 echo 'ok';`,

@@ -22,7 +22,16 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 // Enforce CSRF for recording visits
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   CSRFProtection::requireToken();
+} else {
+  // Analytics statistics are staff-only.
+  SessionManager::requireStaff();
 }
+
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
+
+// CSRF and authorization state are captured above; database work must not serialize the session.
 
 if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured', 503);
@@ -100,9 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ResponseHelper::sendError($e);
   }
 } else {
-  // SECURITY: Stats are for staff only
-  SessionManager::requireStaff();
-
   try {
     $days = isset($_GET['days']) ? (int) $_GET['days'] : 7;
     $days = max(1, min(365, $days));

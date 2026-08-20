@@ -248,7 +248,7 @@ export interface ThemeConfig {
   };
 }
 
-export type WidgetType = 'trending' | 'profile' | 'custom';
+export type WidgetType = 'trending' | 'categories' | 'profile' | 'custom';
 
 export interface SidebarWidget {
   id: string;
@@ -256,7 +256,7 @@ export interface SidebarWidget {
   title: string;
   content?: string; // For custom widgets HTML/Text
   isVisible: boolean;
-  itemCount?: number; // Limit items for trending/recent
+  itemCount?: number; // Bounded visible-item limit for list widgets
 }
 
 export interface NavItem {
@@ -402,6 +402,7 @@ export interface SiteSettings {
   sidebarLayout: SidebarWidget[];
   navigation: NavItem[]; // New Navigation Settings
   categories: string[]; // New Dynamic Categories
+  publicCategories?: string[]; // Runtime-only categories backed by currently public posts
   activePlugins: string[]; // List of enabled SYSTEM plugin IDs
   customPlugins: CustomPluginDefinition[]; // List of USER IMPORTED plugins
   pluginConfig?: Record<string, any>;

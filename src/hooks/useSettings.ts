@@ -33,6 +33,7 @@ const INITIAL_SETTINGS: SiteSettings = {
     fontFamily: 'Inter, sans-serif',
     borderRadius: '0.5rem',
     customCss: '',
+    ...(_s?.theme || {}),
   },
   api: { mapsApiKey: '' },
   media: {
@@ -52,6 +53,7 @@ const INITIAL_SETTINGS: SiteSettings = {
   sidebarLayout: [{ id: 'w1', type: 'trending', title: 'Latest Stories', isVisible: true }],
   navigation: [{ id: 'nav1', label: 'Home', url: 'home', type: 'internal' }],
   categories: ['Uncategorized', 'News', 'Updates'],
+  publicCategories: [],
   activePlugins: [],
   customPlugins: [],
   pluginConfig: {
@@ -83,28 +85,6 @@ export function useSettings() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const handleCategoriesUpdated = (event: Event) => {
-      const detail = (event as CustomEvent<string[]>).detail;
-      if (!Array.isArray(detail)) {
-        return;
-      }
-      setSettings((prev) => ({ ...prev, categories: detail }));
-    };
-
-    window.addEventListener('voncms:categories-updated', handleCategoriesUpdated as EventListener);
-    return () => {
-      window.removeEventListener(
-        'voncms:categories-updated',
-        handleCategoriesUpdated as EventListener
-      );
-    };
-  }, []);
 
   const executeSettingsRequest = useCallback(async (): Promise<void> => {
     try {
@@ -162,6 +142,43 @@ export function useSettings() {
     },
     [executeSettingsRequest]
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleCategoriesUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<string[]>).detail;
+      if (!Array.isArray(detail)) {
+        return;
+      }
+
+      setSettings((prev) => ({ ...prev, categories: detail }));
+    };
+
+    const handlePublicCategoriesInvalidated = () => {
+      // Public categories remain server-derived because the admin list can include draft-only
+      // labels. Refresh only after a successful category or post mutation signals invalidation.
+      void loadSettings(true);
+    };
+
+    window.addEventListener('voncms:categories-updated', handleCategoriesUpdated as EventListener);
+    window.addEventListener(
+      'voncms:public-categories-invalidated',
+      handlePublicCategoriesInvalidated
+    );
+    return () => {
+      window.removeEventListener(
+        'voncms:categories-updated',
+        handleCategoriesUpdated as EventListener
+      );
+      window.removeEventListener(
+        'voncms:public-categories-invalidated',
+        handlePublicCategoriesInvalidated
+      );
+    };
+  }, [loadSettings]);
 
   // Update settings
   const handleUpdateSettings = useCallback(

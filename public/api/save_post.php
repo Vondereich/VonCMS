@@ -257,10 +257,22 @@ try {
   // We check for collision right before write to minimize race condition window
   // Also fetch current status for SEO Safety check
   $checkExisting = $db->prepare(
-    'SELECT status, slug, updated_at FROM posts WHERE id = ? FOR UPDATE',
+    'SELECT status, slug, category, scheduled_at, updated_at FROM posts WHERE id = ? FOR UPDATE',
   );
   $checkExisting->execute([$postId ?? 0]);
   $dbPost = $checkExisting->fetch();
+
+  $publicCategoriesChanged = !$isUpdate;
+  if ($isUpdate && $dbPost) {
+    $previousCategory = trim((string) ($dbPost['category'] ?? 'Uncategorized'));
+    $previousStatus = strtolower(trim((string) ($dbPost['status'] ?? '')));
+    $previousScheduledAt = trim((string) ($dbPost['scheduled_at'] ?? ''));
+    $savedScheduledAt = $scheduledAt === null ? '' : trim((string) $scheduledAt);
+    $publicCategoriesChanged =
+      $previousCategory !== $category ||
+      $previousStatus !== strtolower((string) $status) ||
+      $previousScheduledAt !== $savedScheduledAt;
+  }
 
   if ($isUpdate && $dbPost && $clientUpdatedAt !== '' && !empty($dbPost['updated_at'])) {
     $clientTimestamp = strtotime($clientUpdatedAt);
@@ -465,6 +477,7 @@ try {
     'status' => $status,
     'scheduled_at' => $scheduledAt,
     'scheduledAt' => $scheduledAt,
+    'public_categories_changed' => $publicCategoriesChanged,
     'updated_at' => $savedUpdatedAt,
     'updatedAt' => $savedUpdatedAt,
   ]);

@@ -18,6 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 SessionManager::requireStaff();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
+
+// Authorization is captured above; the recursive scan must not block the admin session.
 
 /**
  * Calculate folder size and file count recursively

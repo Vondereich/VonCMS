@@ -16,6 +16,7 @@ const sourcePackageExcludedRootItems = new Set([
   '.agents',
   '.codex',
   '.cursorrules',
+  '.vscode',
   'MASTERPLAN_2.0.md',
   'ROADMAP.md',
 ]);

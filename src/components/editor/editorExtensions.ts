@@ -4,9 +4,9 @@ import TiptapLink from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { TableKit } from '@tiptap/extension-table';
 import { TextStyleKit } from '@tiptap/extension-text-style';
+import { DEFAULT_VIDEO_ALLOW, VIDEO_ASPECT_STYLES } from './editorVideoContracts';
 
 export type MediaAlignment = 'left' | 'center' | 'right' | 'justify';
-export type VideoAspectMode = 'auto' | 'portrait' | 'landscape';
 export type ImageSize = '25' | '50' | '75' | '100';
 export type LegacyImageAttrs = {
   src?: string | null;
@@ -25,16 +25,7 @@ const DEFAULT_IMAGE_STYLE = 'max-width: 100%; height: auto;';
 const DEFAULT_FIGURE_STYLE = 'margin: 1rem 0; text-align: center;';
 const DEFAULT_FIGCAPTION_STYLE =
   'font-size: 0.75rem; color: #94a3b8; font-style: italic; margin-top: 0.25rem;';
-export const DEFAULT_VIDEO_ALLOW =
-  'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
 export const EDITOR_SURFACE_CLASS = 'hourglass-editor-surface';
-
-export const VIDEO_ASPECT_STYLES: Record<Exclude<VideoAspectMode, 'auto'>, string> = {
-  portrait:
-    'width:100%; max-width:380px; aspect-ratio: 9 / 16; height:auto; border:none; overflow:hidden; margin-left:auto; margin-right:auto; display:block;',
-  landscape:
-    'width:100%; max-width:100%; aspect-ratio: 16 / 9; height:auto; border:none; overflow:hidden; margin-left:auto; margin-right:auto; display:block;',
-};
 
 const readHtmlAttr = (value: string | null) => {
   const normalized = value?.trim() || '';

@@ -12,6 +12,7 @@ import {
   Plus,
   Save,
   ShieldCheck,
+  Tags,
   Trash2,
   Type,
   UserRound,
@@ -36,6 +37,13 @@ const SUPPORTED_WIDGET_TYPES: WidgetTypeOption[] = [
     label: 'Trending / Latest Posts',
     defaultTitle: 'Latest Stories',
     description: 'Shows a bounded list of published posts in themes that expose a sidebar.',
+  },
+  {
+    type: 'categories',
+    label: 'Categories',
+    defaultTitle: 'Browse Categories',
+    description:
+      'Shows categories that currently contain public posts, with overflow behind Show more.',
   },
   {
     type: 'profile',
@@ -81,8 +89,9 @@ const sanitizeWidgetForSave = (widget: SidebarWidget): SidebarWidget => {
     isVisible: widget.isVisible !== false,
   };
 
-  if (type === 'trending') {
-    sanitized.itemCount = Math.max(1, Math.min(20, Number(widget.itemCount) || 5));
+  if (type === 'trending' || type === 'categories') {
+    const defaultItemCount = type === 'categories' ? 10 : 5;
+    sanitized.itemCount = Math.max(1, Math.min(20, Number(widget.itemCount) || defaultItemCount));
   }
 
   if (type === 'custom') {
@@ -121,17 +130,24 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
       ...settings.newsletter,
     })
   );
+  const selectedWidgetAlreadyAdded =
+    selectedWidgetType !== 'custom' && widgets.some((widget) => widget.type === selectedWidgetType);
 
   const addWidget = (type: WidgetType) => {
     const option =
       SUPPORTED_WIDGET_TYPES.find((widgetType) => widgetType.type === type) ||
       SUPPORTED_WIDGET_TYPES[0];
+    if (option.type !== 'custom' && widgets.some((widget) => widget.type === option.type)) {
+      return;
+    }
+
     const nextWidget: SidebarWidget = {
       id: `widget-${option.type}-${Date.now()}`,
       type: option.type,
       title: option.defaultTitle,
       isVisible: true,
       ...(option.type === 'trending' ? { itemCount: 5 } : {}),
+      ...(option.type === 'categories' ? { itemCount: 10 } : {}),
       ...(option.type === 'custom' ? { content: '' } : {}),
     };
 
@@ -244,18 +260,30 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                 onChange={(event) => setSelectedWidgetType(event.target.value as WidgetType)}
                 className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
               >
-                {SUPPORTED_WIDGET_TYPES.map((option) => (
-                  <option key={option.type} value={option.type}>
-                    {option.label}
-                  </option>
-                ))}
+                {SUPPORTED_WIDGET_TYPES.map((option) => {
+                  const alreadyAdded =
+                    option.type !== 'custom' &&
+                    widgets.some((widget) => widget.type === option.type);
+                  return (
+                    <option key={option.type} value={option.type} disabled={alreadyAdded}>
+                      {option.label}
+                      {alreadyAdded ? ' (Added)' : ''}
+                    </option>
+                  );
+                })}
               </select>
               <button
                 type="button"
                 onClick={() => addWidget(selectedWidgetType)}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors whitespace-nowrap"
+                disabled={selectedWidgetAlreadyAdded}
+                title={
+                  selectedWidgetAlreadyAdded
+                    ? 'Remove the existing widget before adding this type again'
+                    : 'Add widget'
+                }
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors whitespace-nowrap"
               >
-                <Plus size={16} /> Add Widget
+                <Plus size={16} /> {selectedWidgetAlreadyAdded ? 'Already Added' : 'Add Widget'}
               </button>
             </div>
           </div>
@@ -263,7 +291,8 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
           <div className="space-y-3">
             {widgets.length === 0 ? (
               <div className="text-center py-8 border border-dashed border-slate-300 dark:border-[#333544] rounded-lg text-slate-500 dark:text-slate-400">
-                No sidebar blocks configured. Add a latest-posts, profile, or custom block.
+                No sidebar blocks configured. Add a latest-posts, categories, profile, or custom
+                block.
               </div>
             ) : (
               widgets.map((widget, index) => {
@@ -302,6 +331,8 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                       <div className="h-8 w-8 rounded-md bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] flex items-center justify-center text-blue-600 dark:text-blue-300">
                         {widget.type === 'trending' ? (
                           <PanelsTopLeft size={15} />
+                        ) : widget.type === 'categories' ? (
+                          <Tags size={15} />
                         ) : widget.type === 'profile' ? (
                           <UserRound size={15} />
                         ) : (
@@ -394,29 +425,46 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           />
                         </div>
 
-                        {widget.type === 'trending' && (
+                        {(widget.type === 'trending' || widget.type === 'categories') && (
                           <div className="space-y-2">
                             <label
                               htmlFor={`widgets-count-${widget.id}`}
                               className="text-xs font-bold uppercase tracking-wider text-slate-500"
                             >
-                              Item Count
+                              {widget.type === 'categories'
+                                ? 'Visible before Show more'
+                                : 'Item Count'}
                             </label>
                             <select
                               id={`widgets-count-${widget.id}`}
                               name={`widgetsCount${widget.id}`}
-                              aria-label="Trending widget item count"
-                              value={widget.itemCount || 5}
+                              aria-label={
+                                widget.type === 'categories'
+                                  ? 'Categories visible before Show more'
+                                  : 'Trending widget item count'
+                              }
+                              value={widget.itemCount || (widget.type === 'categories' ? 10 : 5)}
                               onChange={(event) =>
                                 updateWidget(widget.id, { itemCount: Number(event.target.value) })
                               }
                               className="w-full sm:w-32 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#101018] text-sm text-slate-800 dark:text-white"
                             >
-                              <option value={3}>3</option>
-                              <option value={5}>5</option>
-                              <option value={7}>7</option>
-                              <option value={10}>10</option>
-                              <option value={20}>20</option>
+                              {widget.type === 'trending' ? (
+                                <>
+                                  <option value={3}>3</option>
+                                  <option value={5}>5</option>
+                                  <option value={7}>7</option>
+                                  <option value={10}>10</option>
+                                  <option value={20}>20</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value={5}>5</option>
+                                  <option value={10}>10</option>
+                                  <option value={15}>15</option>
+                                  <option value={20}>20</option>
+                                </>
+                              )}
                             </select>
                           </div>
                         )}

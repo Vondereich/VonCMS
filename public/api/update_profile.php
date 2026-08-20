@@ -97,34 +97,52 @@ try {
   $avatar = $input['avatar'] ?? '';
   $avatar = ResponseHelper::scrubAvatarUrl($avatar);
 
-  // Handle Password Change
-  if (!empty($input['new_password'])) {
-    $currentPassword = $input['current_password'] ?? '';
-    $newPassword = $input['new_password'];
+  $newPasswordValue = $input['new_password'] ?? '';
+  $currentPasswordValue = $input['current_password'] ?? '';
+  $passwordChangeRequested = array_key_exists('new_password', $input) && $newPasswordValue !== '';
 
-    // 1. Verify Current Password
-    $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ?');
-    $stmt->execute([$userId]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$user || !password_verify($currentPassword, $user['password'])) {
-      ResponseHelper::sendError('Incorrect current password', 400);
+  if ($passwordChangeRequested) {
+    if (!is_string($currentPasswordValue) || !is_string($newPasswordValue)) {
+      ResponseHelper::sendError('Invalid password input', 400);
     }
 
-    // 2. Enforce Strong Password Policy (8 chars, 1 Upper, 1 Number, 1 Symbol)
+    if (strlen($currentPasswordValue) > 4096 || strlen($newPasswordValue) > 4096) {
+      ResponseHelper::sendError('Password input is too long', 400);
+    }
+
     if (
-      strlen($newPassword) < 8 ||
-      !preg_match('/[A-Z]/', $newPassword) ||
-      !preg_match('/[0-9]/', $newPassword) ||
-      !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $newPassword)
+      strlen($newPasswordValue) < 8 ||
+      !preg_match('/[A-Z]/', $newPasswordValue) ||
+      !preg_match('/[0-9]/', $newPasswordValue) ||
+      !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $newPasswordValue)
     ) {
       ResponseHelper::sendError('Password must be 8+ chars with uppercase, number & symbol', 400);
     }
+  }
 
-    $pdo->beginTransaction();
-    try {
-      // 3. Update Password
-      $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+  $result = false;
+  $transactionStarted = false;
+  try {
+    if ($passwordChangeRequested) {
+      $pdo->beginTransaction();
+      $transactionStarted = true;
+
+      // Lock the credential row so two concurrent password changes cannot overwrite each other.
+      $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ? FOR UPDATE');
+      $stmt->execute([$userId]);
+      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$user || !password_verify($currentPasswordValue, $user['password'])) {
+        $pdo->rollBack();
+        $transactionStarted = false;
+        ResponseHelper::sendError('Incorrect current password', 400);
+      }
+
+      $newHash = password_hash($newPasswordValue, PASSWORD_BCRYPT);
+      if (!is_string($newHash) || $newHash === '') {
+        throw new Exception('Failed to hash password');
+      }
+
       $stmt = $pdo->prepare('UPDATE users SET password = ? WHERE id = ?');
       if (!$stmt->execute([$newHash, $userId])) {
         throw new Exception('Failed to update password');
@@ -138,19 +156,32 @@ try {
           throw $e;
         }
       }
-
-      $pdo->commit();
-    } catch (Throwable $e) {
-      if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-      }
-      throw $e;
     }
-  }
 
-  // Update Profile Fields
-  $stmt = $pdo->prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ? WHERE id = ?');
-  $result = $stmt->execute([$displayName !== '' ? $displayName : null, $bio, $avatar, $userId]);
+    // Keep profile fields and a requested password change in one transaction.
+    $stmt = $pdo->prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ? WHERE id = ?');
+    $result = $stmt->execute([$displayName !== '' ? $displayName : null, $bio, $avatar, $userId]);
+
+    if (!$result) {
+      throw new Exception('Failed to update database');
+    }
+
+    if ($transactionStarted) {
+      $pdo->commit();
+      $transactionStarted = false;
+    }
+  } catch (Throwable $e) {
+    if ($transactionStarted && $pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+
+    if ($e instanceof Exception) {
+      ResponseHelper::sendError($e);
+    }
+
+    error_log('VonCMS profile update error: ' . $e->getMessage());
+    ResponseHelper::sendError('Failed to update profile');
+  }
 
   if ($result) {
     voncms_public_cache_clear();
@@ -171,9 +202,12 @@ try {
         'avatar' => ResponseHelper::scrubAvatarUrl($avatar),
       ],
     ]);
-  } else {
-    ResponseHelper::sendError('Failed to update database', 500);
   }
-} catch (Exception $e) {
-  ResponseHelper::sendError($e);
+} catch (Throwable $e) {
+  if ($e instanceof Exception) {
+    ResponseHelper::sendError($e);
+  }
+
+  error_log('VonCMS profile update error: ' . $e->getMessage());
+  ResponseHelper::sendError('Failed to update profile');
 }

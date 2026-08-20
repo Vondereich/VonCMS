@@ -92,6 +92,9 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
           ? payload['replacement_category'] || 'Uncategorized'
           : payload['new_category'] || payload['category'] || selectedCategory;
       await refreshCategories(preserveSelection);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
+      }
       if (action === 'add') {
         setNewCategory('');
       }

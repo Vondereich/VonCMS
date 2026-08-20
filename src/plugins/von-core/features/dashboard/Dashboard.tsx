@@ -40,6 +40,7 @@ interface DashboardProps {
   pages: Page[];
   currentUser?: User | null;
   serverInfo?: SiteSettings['_serverInfo'];
+  timeZone?: string;
 }
 
 interface DashboardActivity {
@@ -114,6 +115,92 @@ const formatActivityTime = (value?: string) => {
   });
 };
 
+const DashboardClock: React.FC<{ timeZone: string; canChangeTimeZone: boolean }> = React.memo(
+  ({ timeZone, canChangeTimeZone }) => {
+    const [clockNow, setClockNow] = useState(() => new Date());
+    const navigate = useNavigate();
+    const effectiveTimeZone = useMemo(() => {
+      const requestedTimeZone = timeZone.trim() || 'UTC';
+
+      try {
+        new Intl.DateTimeFormat('en-GB', { timeZone: requestedTimeZone }).format(new Date(0));
+        return requestedTimeZone;
+      } catch {
+        return 'UTC';
+      }
+    }, [timeZone]);
+    const clockFormatter = useMemo(
+      () =>
+        new Intl.DateTimeFormat('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hourCycle: 'h23',
+          timeZone: effectiveTimeZone,
+        }),
+      [effectiveTimeZone]
+    );
+    const formattedClockTime = clockFormatter.format(clockNow);
+
+    useEffect(() => {
+      let alignmentTimeout: number | undefined;
+      let clockInterval: number | undefined;
+
+      const clearClockTimers = () => {
+        if (alignmentTimeout !== undefined) window.clearTimeout(alignmentTimeout);
+        if (clockInterval !== undefined) window.clearInterval(clockInterval);
+        alignmentTimeout = undefined;
+        clockInterval = undefined;
+      };
+      const updateClock = () => setClockNow(new Date());
+      const startClock = () => {
+        clearClockTimers();
+        if (document.hidden) return;
+
+        updateClock();
+        const delayUntilNextSecond = 1000 - (Date.now() % 1000);
+        alignmentTimeout = window.setTimeout(() => {
+          updateClock();
+          clockInterval = window.setInterval(updateClock, 1000);
+        }, delayUntilNextSecond);
+      };
+
+      startClock();
+      document.addEventListener('visibilitychange', startClock);
+      return () => {
+        document.removeEventListener('visibilitychange', startClock);
+        clearClockTimers();
+      };
+    }, []);
+
+    return (
+      <div className="w-full pl-[52px] text-left sm:w-auto sm:pl-0 sm:text-right">
+        <time
+          dateTime={clockNow.toISOString()}
+          className="block font-mono text-lg font-bold tabular-nums text-slate-800 dark:text-white"
+          aria-label={`Current time in ${effectiveTimeZone}: ${formattedClockTime}`}
+        >
+          {formattedClockTime}
+        </time>
+        <div className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500 dark:text-slate-400 sm:justify-end">
+          <span>{effectiveTimeZone}</span>
+          {canChangeTimeZone && (
+            <button
+              type="button"
+              onClick={() => navigate('/admin/settings')}
+              className="font-semibold text-primary-600 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400"
+            >
+              Change timezone
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
+DashboardClock.displayName = 'DashboardClock';
+
 const VpDashboard: React.FC<DashboardProps> = ({
   posts = [],
   users = [],
@@ -121,6 +208,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
   pages = [],
   currentUser,
   serverInfo,
+  timeZone = 'UTC',
 }) => {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [storageData, setStorageData] = useState({ used: '0 MB' });
@@ -141,6 +229,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
   const navigate = useNavigate();
   const canManageSystem =
     currentUser?.role?.toLowerCase() === 'root' || String(currentUser?.id || '') === '1';
+  const currentUserRole = currentUser?.role?.toLowerCase();
+  const canChangeTimeZone = currentUserRole === 'admin' || currentUserRole === 'root';
 
   // Auto-Update State
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -385,9 +475,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
     };
   }, [currentUser?.role, fallbackCommentTotal]);
 
-  // Fetch real storage and analytics data
+  // Storage scans the upload tree, so keep it independent from analytics period changes.
   useEffect(() => {
-    // Fetch storage (Staff only)
     const role = currentUser?.role?.toLowerCase();
     if (['admin', 'root', 'moderator', 'writer'].includes(role || '')) {
       vonFetch(API.getStorage)
@@ -401,8 +490,10 @@ const VpDashboard: React.FC<DashboardProps> = ({
         })
         .catch(() => setStorageData({ used: '0 MB' }));
     }
+  }, [currentUser?.role]);
 
-    // Fetch analytics
+  // Fetch analytics when the selected reporting period changes.
+  useEffect(() => {
     vonFetch(`${API.trackVisit}?days=${days}`)
       .then((res) => res.json())
       .then((data) => {
@@ -538,21 +629,29 @@ const VpDashboard: React.FC<DashboardProps> = ({
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400">
             <Server size={20} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              <span className="font-semibold text-slate-700 dark:text-slate-200">VonCMS</span>{' '}
-              <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">
-                v{pkg.version}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-x-1.5">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">VonCMS</span>
+                <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">
+                  v{pkg.version}
+                </span>
+                {serverInfo?.phpVersion && (
+                  <>
+                    <span aria-hidden="true">&bull;</span>
+                    <span>PHP {serverInfo.phpVersion}</span>
+                  </>
+                )}
               </span>
-              {serverInfo?.phpVersion && <>&nbsp;&bull;&nbsp; PHP {serverInfo.phpVersion}</>}
-            </p>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-slate-600 dark:text-slate-300">
+                <span className="size-2 rounded-full bg-green-500" aria-hidden="true" />
+                System ready
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-          <span className="size-2 rounded-full bg-green-500" aria-hidden="true" />
-          System ready
-        </div>
+        <DashboardClock timeZone={timeZone} canChangeTimeZone={canChangeTimeZone} />
       </div>
 
       {/* Update Available Banner - Shows when new version detected */}

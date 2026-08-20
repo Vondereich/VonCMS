@@ -23,29 +23,27 @@ import {
   Video,
   AlignJustify,
   Images,
-  X, // Added X icon
-  CheckCircle, // Added CheckCircle
-  Sparkles, // Added Sparkles
+  X,
+  CheckCircle,
+  Sparkles,
   ChevronDown,
-  Eye, // Added Eye for Preview
-  Braces, // Added Braces for HTML source
+  Eye,
+  Braces,
   Search,
   Plus,
   MoreHorizontal,
 } from 'lucide-react';
+import type { MediaItem } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
-import ContentRenderer from './ContentRenderer';
 import { DarkModeStyles } from '../styles/DarkModeStyles';
 import SmartPagination from './SmartPagination';
 import AdminModal from './admin/AdminModal';
 import { sanitizeHTML } from '../utils/colorSanitizer';
 import { sanitizeEditorHtml, sanitizePastedHtml } from '../utils/security';
 import {
-  DEFAULT_VIDEO_ALLOW,
   EDITOR_EXTENSIONS,
   EDITOR_SURFACE_CLASS,
-  VIDEO_ASPECT_STYLES,
   buildFigureAlignmentStyle,
   buildImageAlignmentStyle,
   buildImageUpdateBaseStyle,
@@ -56,9 +54,21 @@ import {
   type LegacyImageAttrs,
   type LegacyImageMatch,
   type MediaAlignment,
-  type VideoAspectMode,
 } from './editor/editorExtensions';
 import { buildEditorLinkAttrs, normalizeEditorUrl } from './editor/editorLinkUtils';
+import { normalizeImageSource } from '../utils/siteUtils';
+import {
+  TABLE_MAX_DIMENSION,
+  TABLE_MIN_DIMENSION,
+  canGrowEditorTableDimension,
+  getEditorTableColumnCount,
+  type TableCommand,
+} from './editor/editorTableUtils';
+import { Divider, ToolButton } from './editor/EditorToolbarPrimitives';
+import { buildEditorImageHtml, type EditorImageInput } from './editor/editorImageUtils';
+import { buildEditorVideoEmbedHtml, inferVideoAspectMode } from './editor/editorVideoUtils';
+import type { VideoAspectMode } from './editor/editorVideoContracts';
+import { EditorPreviewModal } from './editor/EditorPreviewModal';
 
 interface EditorProps {
   initialContent: string;
@@ -137,7 +147,7 @@ const Editor: React.FC<EditorProps> = ({
   }, []);
 
   // Media Library State
-  const [mediaFiles, setMediaFiles] = useState<any[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<MediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [mediaPagination, setMediaPagination] = useState({
     currentPage: 1,
@@ -154,8 +164,10 @@ const Editor: React.FC<EditorProps> = ({
   >(null);
   const [modalInput, setModalInput] = useState('');
   const [modalInput2, setModalInput2] = useState('');
+  const [modalError, setModalError] = useState('');
+  const mediaRequestIdRef = useRef(0);
 
-  // Sanitize and clean content - now simplified since colorSanitizer handles on save
+  // Keep authored editor HTML inside the shared content allowlist.
   const cleanContent = (html: string) => {
     if (!html) return '';
     // SECURITY: Always sanitize content before it touches innerHTML
@@ -432,8 +444,7 @@ const Editor: React.FC<EditorProps> = ({
     const text = e.clipboardData.getData('text/plain');
 
     if (html) {
-      // 1. Clean HTML via colorSanitizer (merges UX and baseline security)
-      // This preserves alignment and colors while removing dangerous alien styles
+      // Clean foreign paste colors and background residue before the stricter paste allowlist.
       const pastedHtml = sanitizePastedHtml(sanitizeHTML(html).cleanedHTML);
       execCmd('insertHTML', pastedHtml);
     } else if (text) {
@@ -457,11 +468,18 @@ const Editor: React.FC<EditorProps> = ({
     const revisionChanged = contentRevision !== lastAppliedContentRevision.current;
     if (nextInitialContent === lastAppliedInitialContent.current && !revisionChanged) return;
 
+    const currentEditorHtml = getCurrentEditorHtml();
+    const currentCleanContent = cleanContent(currentEditorHtml);
+    if (!revisionChanged && nextInitialContent === currentCleanContent) {
+      lastAppliedInitialContent.current = nextInitialContent;
+      return;
+    }
+
     if (
       revisionChanged ||
       editor.isEmpty ||
-      !getCurrentEditorHtml().trim() ||
-      getCurrentEditorHtml() === '<p></p>'
+      !currentEditorHtml.trim() ||
+      currentEditorHtml === '<p></p>'
     ) {
       cancelPendingEditorChange();
       editor.commands.setContent(nextInitialContent, { emitUpdate: false });
@@ -483,6 +501,7 @@ const Editor: React.FC<EditorProps> = ({
     if (isCodeView) {
       setSelectedImage(null);
       setSelectedVideoEmbed(null);
+      setSelectedTable(null);
     }
   }, [editor, isCodeView]);
 
@@ -609,39 +628,71 @@ const Editor: React.FC<EditorProps> = ({
   const handleModalConfirm = () => {
     if (!activeModal) return;
 
+    setModalError('');
+
     if (activeModal === 'link') {
-      if (modalInput) {
-        restoreSavedSelection();
-        execCmd('createLink', modalInput);
+      const normalizedUrl = normalizeEditorUrl(modalInput);
+      if (!normalizedUrl) {
+        setModalError('Enter a valid HTTP(S), email, phone, anchor, or site URL.');
+        return;
       }
-    } else if (activeModal === 'image') {
-      if (modalInput) {
-        insertEditorImages([{ url: modalInput, alt: 'Image' }]);
-      }
-    } else if (activeModal === 'code') {
-      if (modalInput) {
-        restoreSavedSelection();
-        insertStructuredCodeBlock(modalInput);
-      }
-    } else if (activeModal === 'table') {
-      const rows = parseInt(modalInput || '3');
-      const cols = parseInt(modalInput2 || '3');
-      if (rows > 0 && cols > 0 && editor) {
-        restoreSavedSelection();
-        editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
-      }
-    } else if (activeModal === 'video') {
       restoreSavedSelection();
-      processVideoInput(modalInput);
+      insertSafeLink(normalizedUrl);
+    } else if (activeModal === 'image') {
+      const normalizedImageUrl = normalizeImageSource(modalInput);
+      if (!normalizedImageUrl) {
+        setModalError('Enter a valid image URL or managed site path.');
+        return;
+      }
+      insertEditorImages([{ url: normalizedImageUrl, alt: 'Image' }]);
+    } else if (activeModal === 'code') {
+      if (!modalInput.trim()) {
+        setModalError('Enter code before inserting the block.');
+        return;
+      }
+      restoreSavedSelection();
+      insertStructuredCodeBlock(modalInput);
+    } else if (activeModal === 'table') {
+      const rows = Number(modalInput);
+      const cols = Number(modalInput2);
+      const validDimensions =
+        Number.isInteger(rows) &&
+        Number.isInteger(cols) &&
+        rows >= TABLE_MIN_DIMENSION &&
+        rows <= TABLE_MAX_DIMENSION &&
+        cols >= TABLE_MIN_DIMENSION &&
+        cols <= TABLE_MAX_DIMENSION;
+      if (!validDimensions || !editor) {
+        setModalError(
+          `Rows and columns must be whole numbers from ${TABLE_MIN_DIMENSION} to ${TABLE_MAX_DIMENSION}.`
+        );
+        return;
+      }
+      restoreSavedSelection();
+      editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+    } else if (activeModal === 'video') {
+      if (!processVideoInput(modalInput)) {
+        setModalError('Enter a supported YouTube, TikTok, Instagram, or Facebook video.');
+        return;
+      }
     }
 
     closeModal();
   };
 
+  const removeSelectedLink = () => {
+    if (!editor) return;
+    restoreSavedSelection();
+    editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    closeModal();
+  };
+
   const closeModal = () => {
+    mediaRequestIdRef.current += 1;
     setActiveModal(null);
     setModalInput('');
     setModalInput2('');
+    setModalError('');
   };
 
   const openModal = (type: 'link' | 'image' | 'video' | 'code' | 'table' | 'mediaLibrary') => {
@@ -654,9 +705,11 @@ const Editor: React.FC<EditorProps> = ({
 
     setSelectedImage(null);
     setSelectedVideoEmbed(null);
+    setSelectedTable(null);
     setActiveModal(type);
-    setModalInput('');
+    setModalInput(type === 'link' ? String(editor?.getAttributes('link')['href'] || '') : '');
     setModalInput2('');
+    setModalError('');
 
     // Fetch media if opening library
     if (type === 'mediaLibrary') {
@@ -671,6 +724,7 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const fetchMedia = async (page = 1, search = mediaSearchQuery) => {
+    const requestId = ++mediaRequestIdRef.current;
     setLoadingMedia(true);
     try {
       const params = new URLSearchParams({
@@ -680,7 +734,7 @@ const Editor: React.FC<EditorProps> = ({
       if (search) params.set('search', search);
       const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
       const data = await res.json();
-      if (data.success) {
+      if (requestId === mediaRequestIdRef.current && data.success) {
         setMediaFiles(data.files || []);
         setMediaPagination((current) => ({
           ...current,
@@ -690,9 +744,13 @@ const Editor: React.FC<EditorProps> = ({
         }));
       }
     } catch (error) {
-      notify.error('Failed to load media library');
+      if (requestId === mediaRequestIdRef.current) {
+        notify.error('Failed to load media library');
+      }
     } finally {
-      setLoadingMedia(false);
+      if (requestId === mediaRequestIdRef.current) {
+        setLoadingMedia(false);
+      }
     }
   };
 
@@ -703,24 +761,7 @@ const Editor: React.FC<EditorProps> = ({
     void fetchMedia(1, normalizedSearch);
   };
 
-  const escapeImageAttr = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-
-  const buildEditorImageHtml = (image: {
-    url: string;
-    alt?: string;
-    id?: string | number | null;
-  }) => {
-    const alt = escapeImageAttr(image.alt || '');
-    const dataId =
-      image.id !== undefined && image.id !== null && image.id !== ''
-        ? ` data-id="${escapeImageAttr(String(image.id))}"`
-        : '';
-    return `<img src="${escapeImageAttr(image.url)}" alt="${alt}"${dataId} class="rounded-lg shadow-xs" style="max-width: 100%; height: auto;" />`;
-  };
-
-  const insertEditorImages = (
-    images: Array<{ url: string; alt?: string; id?: string | number | null }>
-  ) => {
+  const insertEditorImages = (images: EditorImageInput[]) => {
     const validImages = images.filter((image) => image.url);
     if (!validImages.length) return;
 
@@ -797,7 +838,7 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  const handleMediaSelect = (file: any) => {
+  const handleMediaSelect = (file: MediaItem) => {
     const url = file.webpUrl || file.url; // Prefer WebP URL if available
     if (!url) return;
     insertEditorImages([{ url, alt: file.altText || file.name || '', id: file.id }]);
@@ -829,6 +870,7 @@ const Editor: React.FC<EditorProps> = ({
   // Bubble Menu State
   const [selectedImage, setSelectedImage] = useState<HTMLImageElement | null>(null);
   const [selectedVideoEmbed, setSelectedVideoEmbed] = useState<HTMLElement | null>(null);
+  const [selectedTable, setSelectedTable] = useState<HTMLTableElement | null>(null);
   const [selectedVideoAspect, setSelectedVideoAspect] = useState<VideoAspectMode>('auto');
   const [bubblePosition, setBubblePosition] = useState({ top: 0, left: 0 });
   const [bubbleAlt, setBubbleAlt] = useState('');
@@ -843,19 +885,26 @@ const Editor: React.FC<EditorProps> = ({
       bubbleTargetRef.current = null;
       setSelectedImage(null);
       setSelectedVideoEmbed(null);
+      setSelectedTable(null);
       return;
     }
 
     const rect = target.getBoundingClientRect();
     const shellRect = editorShellRef.current.getBoundingClientRect();
+    const bubbleWidth = 288;
+    const horizontalMargin = 10;
+    const idealLeft = rect.left - shellRect.left + rect.width / 2 - bubbleWidth / 2;
     setBubblePosition({
       top: rect.bottom - shellRect.top + 10,
-      left: rect.left - shellRect.left + rect.width / 2 - 150,
+      left: Math.min(
+        Math.max(horizontalMargin, idealLeft),
+        Math.max(horizontalMargin, shellRect.width - bubbleWidth - horizontalMargin)
+      ),
     });
   }, []);
 
   useEffect(() => {
-    if (!selectedImage && !selectedVideoEmbed) return;
+    if (!selectedImage && !selectedVideoEmbed && !selectedTable) return;
 
     updateBubblePosition();
     window.addEventListener('scroll', updateBubblePosition, true);
@@ -865,7 +914,7 @@ const Editor: React.FC<EditorProps> = ({
       window.removeEventListener('scroll', updateBubblePosition, true);
       window.removeEventListener('resize', updateBubblePosition);
     };
-  }, [selectedImage, selectedVideoEmbed, updateBubblePosition]);
+  }, [selectedImage, selectedTable, selectedVideoEmbed, updateBubblePosition]);
 
   const onImageClickInternal = (img: HTMLImageElement) => {
     if (editorRef.current) {
@@ -873,6 +922,7 @@ const Editor: React.FC<EditorProps> = ({
       updateBubblePosition();
       setSelectedImage(img);
       setSelectedVideoEmbed(null);
+      setSelectedTable(null);
       setBubbleAlt(img.alt || '');
 
       // Extract existing credit from figcaption if present
@@ -886,6 +936,7 @@ const Editor: React.FC<EditorProps> = ({
     if (selectedImage) {
       const mediaId = selectedImage.dataset['id'];
       const imageSrc = selectedImage.src;
+      let gallerySyncFailed = false;
 
       // Sync Back to Media Gallery if ID exists OR use Smart Lookup (Path)
       if ((mediaId && !isNaN(Number(mediaId))) || imageSrc) {
@@ -897,12 +948,17 @@ const Editor: React.FC<EditorProps> = ({
             payload['path'] = imageSrc;
           }
 
-          await vonFetch(API.updateMedia, {
+          const response = await vonFetch(API.updateMedia, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
+          const data = await response.json();
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || data.error || `HTTP ${response.status}`);
+          }
         } catch (e) {
+          gallerySyncFailed = true;
           console.error('Failed to sync alt text to gallery:', e);
         }
       }
@@ -912,7 +968,13 @@ const Editor: React.FC<EditorProps> = ({
           closeImage: true,
         })
       ) {
-        if (typeof notify !== 'undefined') notify.success('Image updated');
+        if (typeof notify !== 'undefined') {
+          if (gallerySyncFailed) {
+            notify.error('Image updated in the post, but gallery alt text was not synced');
+          } else {
+            notify.success('Image updated');
+          }
+        }
       }
     }
   };
@@ -954,43 +1016,6 @@ const Editor: React.FC<EditorProps> = ({
     return mode === 'portrait' || mode === 'landscape' ? mode : 'auto';
   };
 
-  const parseVideoUrl = (value: string): URL | null => {
-    try {
-      const parsed = new URL(value.trim());
-      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const normalizeVideoHost = (value: string): string => value.toLowerCase().replace(/^www\./, '');
-  const isVideoHost = (host: string, domain: string): boolean =>
-    host === domain || host.endsWith(`.${domain}`);
-
-  const inferVideoAspectMode = (iframe: HTMLIFrameElement): Exclude<VideoAspectMode, 'auto'> => {
-    const src = iframe.getAttribute('src') || '';
-    const parsed = parseVideoUrl(src);
-    const host = parsed ? normalizeVideoHost(parsed.hostname) : '';
-    const path = parsed?.pathname || '';
-    if (parsed?.searchParams.get('von_vertical') === 'shorts') {
-      return 'portrait';
-    }
-    if (isVideoHost(host, 'tiktok.com') && path.startsWith('/player/')) {
-      return 'portrait';
-    }
-    if (isVideoHost(host, 'instagram.com') && path.startsWith('/reel/')) {
-      return 'portrait';
-    }
-    if (
-      isVideoHost(host, 'facebook.com') &&
-      path === '/plugins/video.php' &&
-      parsed?.searchParams.get('width') === '380'
-    ) {
-      return 'portrait';
-    }
-    return 'landscape';
-  };
-
   const applyIframeAspectStyles = (
     iframe: HTMLIFrameElement,
     mode: Exclude<VideoAspectMode, 'auto'>
@@ -1026,6 +1051,7 @@ const Editor: React.FC<EditorProps> = ({
     updateBubblePosition();
     setSelectedImage(null);
     setSelectedVideoEmbed(embed);
+    setSelectedTable(null);
     setSelectedVideoAspect(getManualVideoAspectMode(embed));
   };
 
@@ -1132,6 +1158,80 @@ const Editor: React.FC<EditorProps> = ({
     }));
   };
 
+  const removeSelectedImage = () => {
+    if (!editor || !selectedImage) return;
+    const match = findLegacyImageMatch(selectedImage);
+    if (!match) {
+      setSelectedImage(null);
+      return;
+    }
+
+    editor.chain().focus().setNodeSelection(match.pos).deleteSelection().run();
+    bubbleTargetRef.current = null;
+    setSelectedImage(null);
+  };
+
+  const removeSelectedVideo = () => {
+    if (!selectedVideoEmbed) return;
+    selectedVideoEmbed.remove();
+    bubbleTargetRef.current = null;
+    syncEditorFromDom({ closeVideo: true });
+  };
+
+  const runTableCommand = (command: TableCommand) => {
+    if (!editor || !selectedTable) return;
+
+    const isRowGrowth = command === 'addRowBefore' || command === 'addRowAfter';
+    const isColumnGrowth = command === 'addColumnBefore' || command === 'addColumnAfter';
+    const currentDimension = isRowGrowth
+      ? selectedTable.rows.length
+      : isColumnGrowth
+        ? getEditorTableColumnCount(selectedTable)
+        : 0;
+    if ((isRowGrowth || isColumnGrowth) && !canGrowEditorTableDimension(currentDimension)) {
+      notify.error(`Tables are limited to ${TABLE_MAX_DIMENSION} rows and columns`);
+      return;
+    }
+
+    let succeeded = false;
+    switch (command) {
+      case 'addRowBefore':
+        succeeded = editor.chain().focus().addRowBefore().run();
+        break;
+      case 'addRowAfter':
+        succeeded = editor.chain().focus().addRowAfter().run();
+        break;
+      case 'deleteRow':
+        succeeded = editor.chain().focus().deleteRow().run();
+        break;
+      case 'addColumnBefore':
+        succeeded = editor.chain().focus().addColumnBefore().run();
+        break;
+      case 'addColumnAfter':
+        succeeded = editor.chain().focus().addColumnAfter().run();
+        break;
+      case 'deleteColumn':
+        succeeded = editor.chain().focus().deleteColumn().run();
+        break;
+      case 'deleteTable':
+        succeeded = editor.chain().focus().deleteTable().run();
+        break;
+    }
+
+    if (!succeeded) {
+      notify.error('Place the cursor inside a table cell and try again');
+      return;
+    }
+
+    if (command === 'deleteTable') {
+      bubbleTargetRef.current = null;
+      setSelectedTable(null);
+      return;
+    }
+
+    requestAnimationFrame(updateBubblePosition);
+  };
+
   const insertTable = () => openModal('table');
 
   const insertCodeBlock = () => openModal('code');
@@ -1143,116 +1243,13 @@ const Editor: React.FC<EditorProps> = ({
 
   const insertVideo = () => openModal('video');
 
-  const getVideoPathParts = (url: URL): string[] => url.pathname.split('/').filter(Boolean);
+  const processVideoInput = (input: string): boolean => {
+    const embedHtml = buildEditorVideoEmbedHtml(input);
+    const sanitizedEmbed = embedHtml ? sanitizeEditorHtml(embedHtml) : '';
+    if (!sanitizedEmbed || !/<iframe\b/i.test(sanitizedEmbed)) return false;
 
-  const extractTikTokVideoId = (input: string) => {
-    const parsed = parseVideoUrl(input);
-    if (!parsed || !isVideoHost(normalizeVideoHost(parsed.hostname), 'tiktok.com')) return null;
-
-    const parts = getVideoPathParts(parsed);
-    if (parts[0] === 'player' && parts[1] === 'v1' && /^\d+$/.test(parts[2] || '')) {
-      return parts[2];
-    }
-
-    const videoIndex = parts.indexOf('video');
-    const candidate = videoIndex >= 0 ? parts[videoIndex + 1] : '';
-    return /^\d+$/.test(candidate || '') ? candidate : null;
-  };
-
-  const extractInstagramReelId = (input: string) => {
-    const parsed = parseVideoUrl(input);
-    if (!parsed || !isVideoHost(normalizeVideoHost(parsed.hostname), 'instagram.com')) return null;
-
-    const parts = getVideoPathParts(parsed);
-    return (parts[0] === 'reel' || parts[0] === 'reels') && /^[a-zA-Z0-9_-]+$/.test(parts[1] || '')
-      ? parts[1]
-      : null;
-  };
-
-  const extractYouTubeVideo = (input: string): { id: string; isShorts: boolean } | null => {
-    const parsed = parseVideoUrl(input);
-    if (!parsed) return null;
-
-    const host = normalizeVideoHost(parsed.hostname);
-    const parts = getVideoPathParts(parsed);
-    const isValidId = (value?: string | null) =>
-      Boolean(value && /^[a-zA-Z0-9_-]{11}$/.test(value));
-
-    if (host === 'youtu.be' && isValidId(parts[0])) {
-      return { id: parts[0], isShorts: false };
-    }
-
-    if (!isVideoHost(host, 'youtube.com') && !isVideoHost(host, 'youtube-nocookie.com')) {
-      return null;
-    }
-
-    if (parts[0] === 'shorts' && isValidId(parts[1])) {
-      return { id: parts[1], isShorts: true };
-    }
-
-    const embeddedId =
-      (parts[0] === 'embed' || parts[0] === 'v' || parts[0] === 'e') && isValidId(parts[1])
-        ? parts[1]
-        : null;
-    if (embeddedId) {
-      return { id: embeddedId, isShorts: false };
-    }
-
-    const watchId = parsed.searchParams.get('v');
-    return isValidId(watchId) ? { id: watchId as string, isShorts: false } : null;
-  };
-
-  const isFacebookVideoUrl = (input: string): boolean => {
-    const parsed = parseVideoUrl(input);
-    if (!parsed) return false;
-    const host = normalizeVideoHost(parsed.hostname);
-    return isVideoHost(host, 'facebook.com') || host === 'fb.watch';
-  };
-
-  const isFacebookReelUrl = (input: string): boolean => {
-    const parsed = parseVideoUrl(input);
-    if (!parsed || !isVideoHost(normalizeVideoHost(parsed.hostname), 'facebook.com')) return false;
-    return parsed.pathname.startsWith('/reel/') || parsed.pathname.startsWith('/reels/');
-  };
-
-  const processVideoInput = (input: string) => {
-    if (!input) return;
-
-    let embedHtml = '';
-    const portraitVideoStyle = VIDEO_ASPECT_STYLES.portrait;
-    const landscapeVideoStyle = VIDEO_ASPECT_STYLES.landscape;
-
-    if (input.trim().startsWith('<')) {
-      embedHtml = input;
-    } else {
-      const youtubeVideo = extractYouTubeVideo(input);
-      if (youtubeVideo) {
-        const src = `https://www.youtube.com/embed/${youtubeVideo.id}${youtubeVideo.isShorts ? '?playsinline=1&von_vertical=shorts' : ''}`;
-        embedHtml = youtubeVideo.isShorts
-          ? `<iframe width="100%" height="676" src="${src}" frameborder="0" allow="${DEFAULT_VIDEO_ALLOW}" allowfullscreen data-von-video-aspect="portrait" style="${portraitVideoStyle}" title="YouTube Shorts embed"></iframe>`
-          : `<iframe width="100%" height="400" src="${src}" frameborder="0" allow="${DEFAULT_VIDEO_ALLOW}" allowfullscreen style="${landscapeVideoStyle}" title="YouTube video embed"></iframe>`;
-      } else if (extractTikTokVideoId(input)) {
-        const videoId = extractTikTokVideoId(input);
-        if (videoId) {
-          embedHtml = `<iframe width="100%" height="676" src="https://www.tiktok.com/player/v1/${videoId}" frameborder="0" scrolling="no" allowfullscreen title="TikTok video embed" data-von-video-aspect="portrait" style="${portraitVideoStyle}"></iframe>`;
-        }
-      } else if (extractInstagramReelId(input)) {
-        const reelId = extractInstagramReelId(input);
-        if (reelId) {
-          embedHtml = `<iframe width="100%" height="676" src="https://www.instagram.com/reel/${reelId}/embed" frameborder="0" scrolling="no" allowfullscreen title="Instagram Reel embed" data-von-video-aspect="portrait" style="${portraitVideoStyle}"></iframe>`;
-        }
-      } else if (isFacebookVideoUrl(input)) {
-        const encodedUrl = encodeURIComponent(input);
-        const isFacebookReel = isFacebookReelUrl(input);
-        embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodedUrl}&show_text=false&width=${isFacebookReel ? '380' : '560'}" width="100%" height="${isFacebookReel ? '676' : '400'}" style="${isFacebookReel ? portraitVideoStyle : landscapeVideoStyle}" scrolling="no" frameborder="0" allowfullscreen="true" ${isFacebookReel ? 'data-von-video-aspect="portrait"' : ''} allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true" title="Facebook video embed"></iframe>`;
-      }
-    }
-
-    if (embedHtml) {
-      execCmd('insertHTML', embedHtml);
-    } else {
-      notify.error('Could not recognize video URL');
-    }
+    execCmd('insertHTML', sanitizedEmbed);
+    return true;
   };
 
   const handleEditorSurfaceMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -1287,8 +1284,19 @@ const Editor: React.FC<EditorProps> = ({
       return;
     }
 
+    const table = target.closest('table');
+    if (table && editorRef.current?.contains(table)) {
+      bubbleTargetRef.current = table;
+      updateBubblePosition();
+      setSelectedImage(null);
+      setSelectedVideoEmbed(null);
+      setSelectedTable(table);
+      return;
+    }
+
     setSelectedImage(null);
     setSelectedVideoEmbed(null);
+    setSelectedTable(null);
   };
 
   const selectedImageAlignment = selectedImage ? inferImageAlignment(selectedImage) : null;
@@ -1296,6 +1304,18 @@ const Editor: React.FC<EditorProps> = ({
   const selectedVideoAlignment = selectedVideoEmbed
     ? inferVideoAlignment(selectedVideoEmbed)
     : null;
+  const tableRowsDraft = Number(modalInput);
+  const tableColumnsDraft = Number(modalInput2);
+  const tableDimensionsAreValid =
+    Number.isInteger(tableRowsDraft) &&
+    Number.isInteger(tableColumnsDraft) &&
+    tableRowsDraft >= TABLE_MIN_DIMENSION &&
+    tableRowsDraft <= TABLE_MAX_DIMENSION &&
+    tableColumnsDraft >= TABLE_MIN_DIMENSION &&
+    tableColumnsDraft <= TABLE_MAX_DIMENSION;
+  const modalCanSubmit =
+    activeModal === 'table' ? tableDimensionsAreValid : Boolean(modalInput.trim());
+  const selectedLinkIsActive = activeModal === 'link' && Boolean(editor?.isActive('link'));
   return (
     <div
       ref={editorShellRef}
@@ -1641,7 +1661,7 @@ const Editor: React.FC<EditorProps> = ({
           <ToolButton
             icon={<Video size={18} className="text-red-500" />}
             onClick={insertVideo}
-            title="Insert Video (YouTube/TikTok)"
+            title="Insert Video (YouTube/TikTok/Instagram/Facebook)"
           />
         </div>
         <div className="hidden xl:block">
@@ -1976,36 +1996,11 @@ const Editor: React.FC<EditorProps> = ({
         </span>
       </div>
 
-      {/* Preview Modal */}
-      <AdminModal
+      <EditorPreviewModal
         isOpen={isPreviewOpen}
+        html={previewHtml}
         onClose={() => setIsPreviewOpen(false)}
-        ariaLabel="Preview content"
-        className="w-full max-w-4xl"
-      >
-        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:max-h-[90dvh]">
-          <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/50 flex justify-between items-center">
-            <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-              <Eye size={18} className="text-blue-500" />
-              Preview Content
-            </h3>
-            <button
-              type="button"
-              onClick={() => setIsPreviewOpen(false)}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-[#242633]"
-              aria-label="Close content preview"
-            >
-              <X size={18} />
-            </button>
-          </div>
-          <div className="grow overflow-y-auto p-4 sm:p-6">
-            <ContentRenderer
-              className="prose prose-lg dark:prose-invert max-w-none"
-              html={previewHtml}
-            />
-          </div>
-        </div>
-      </AdminModal>
+      />
 
       {/* Editor Input Modal (Link, Video, Code, Table) */}
       <AdminModal
@@ -2029,6 +2024,7 @@ const Editor: React.FC<EditorProps> = ({
               onClick={closeModal}
               className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
               aria-label="Close insert dialog"
+              title="Close insert dialog"
             >
               <X size={18} />
             </button>
@@ -2036,37 +2032,52 @@ const Editor: React.FC<EditorProps> = ({
 
           <div className="space-y-4 p-4 sm:p-6">
             {activeModal === 'table' ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Rows
-                  </span>
-                  <input
-                    aria-label="Rows"
-                    id="editor-1288"
-                    name="editor1288"
-                    type="number"
-                    min="1"
-                    value={modalInput}
-                    onChange={(e) => setModalInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                  />
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Rows
+                    </span>
+                    <input
+                      aria-label="Rows"
+                      id="editor-1288"
+                      name="editor1288"
+                      type="number"
+                      min={TABLE_MIN_DIMENSION}
+                      max={TABLE_MAX_DIMENSION}
+                      required
+                      value={modalInput}
+                      onChange={(e) => {
+                        setModalInput(e.target.value);
+                        setModalError('');
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Columns
+                    </span>
+                    <input
+                      id="editor-1300"
+                      name="editor1300"
+                      aria-label="Columns"
+                      type="number"
+                      min={TABLE_MIN_DIMENSION}
+                      max={TABLE_MAX_DIMENSION}
+                      required
+                      value={modalInput2}
+                      onChange={(e) => {
+                        setModalInput2(e.target.value);
+                        setModalError('');
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Columns
-                  </span>
-                  <input
-                    id="editor-1300"
-                    name="editor1300"
-                    aria-label="Columns"
-                    type="number"
-                    min="1"
-                    value={modalInput2}
-                    onChange={(e) => setModalInput2(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                  />
-                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Use {TABLE_MIN_DIMENSION} to {TABLE_MAX_DIMENSION} rows and columns.
+                </p>
               </div>
             ) : activeModal === 'code' ? (
               <div>
@@ -2079,8 +2090,13 @@ const Editor: React.FC<EditorProps> = ({
                   name="editor1314"
                   autoFocus
                   rows={6}
+                  required
+                  maxLength={100000}
                   value={modalInput}
-                  onChange={(e) => setModalInput(e.target.value)}
+                  onChange={(e) => {
+                    setModalInput(e.target.value);
+                    setModalError('');
+                  }}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm"
                   placeholder="Paste your code here..."
                 />
@@ -2106,8 +2122,13 @@ const Editor: React.FC<EditorProps> = ({
                   }
                   autoFocus
                   type="text"
+                  required
+                  maxLength={activeModal === 'video' ? 12000 : 2048}
                   value={modalInput}
-                  onChange={(e) => setModalInput(e.target.value)}
+                  onChange={(e) => {
+                    setModalInput(e.target.value);
+                    setModalError('');
+                  }}
                   onKeyDown={(e) => e.key === 'Enter' && handleModalConfirm()}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-[#333544] rounded-lg bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                   placeholder={
@@ -2116,24 +2137,41 @@ const Editor: React.FC<EditorProps> = ({
                 />
                 {activeModal === 'video' && (
                   <p className="text-xs text-slate-500 mt-1">
-                    Supports YouTube, TikTok, Facebook or supported iframe embeds.
+                    Supports YouTube, TikTok, Instagram, Facebook or supported iframe embeds.
                   </p>
                 )}
               </div>
+            )}
+            {modalError && (
+              <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
+                {modalError}
+              </p>
             )}
           </div>
 
           {/* Modal Footer with Quick Release Button */}
           <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row">
             <button
+              type="button"
               onClick={closeModal}
               className="min-h-11 w-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-[#242633] rounded-lg transition-colors sm:w-auto"
             >
               Cancel
             </button>
+            {selectedLinkIsActive && (
+              <button
+                type="button"
+                onClick={removeSelectedLink}
+                className="min-h-11 w-full rounded-lg px-4 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 sm:w-auto"
+              >
+                Remove link
+              </button>
+            )}
             <button
+              type="button"
               onClick={handleModalConfirm}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 sm:w-auto"
+              disabled={!modalCanSubmit}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               <CheckCircle size={16} />
               {activeModal === 'link' || activeModal === 'image' || activeModal === 'video'
@@ -2213,10 +2251,12 @@ const Editor: React.FC<EditorProps> = ({
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 lg:gap-4">
                 {mediaFiles.map((file, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => handleMediaSelect(file)} // Pass full file object
-                    className="group cursor-pointer bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36] overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-xs"
+                  <button
+                    type="button"
+                    key={file.id || file.url || idx}
+                    onClick={() => handleMediaSelect(file)}
+                    aria-label={`Insert ${file.altText || file.name || 'image'}`}
+                    className="group cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-xs transition-all hover:ring-2 hover:ring-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26]"
                   >
                     <div className="aspect-square relative bg-slate-100 dark:bg-[#16161e]">
                       <img
@@ -2225,7 +2265,7 @@ const Editor: React.FC<EditorProps> = ({
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                         loading="lazy"
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-colors group-hover:bg-black/20 group-hover:opacity-100 group-focus-visible:bg-black/20 group-focus-visible:opacity-100">
                         <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg">
                           Select
                         </span>
@@ -2234,7 +2274,7 @@ const Editor: React.FC<EditorProps> = ({
                     <div className="p-2 text-xs truncate text-slate-600 dark:text-slate-300 font-medium">
                       {file.name}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -2250,6 +2290,7 @@ const Editor: React.FC<EditorProps> = ({
             />
             <div className="flex justify-end mt-4">
               <button
+                type="button"
                 onClick={closeModal}
                 className="min-h-11 px-4 py-2 bg-white dark:bg-[#1a1b26] border border-slate-300 dark:border-[#333544] rounded-lg hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-xs font-bold dark:text-slate-300"
               >
@@ -2305,6 +2346,7 @@ const Editor: React.FC<EditorProps> = ({
             {(['25', '50', '75', '100'] as const).map((size) => (
               <button
                 key={size}
+                type="button"
                 onClick={() => resizeImage(size)}
                 className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
                   selectedImageSize === size
@@ -2331,6 +2373,7 @@ const Editor: React.FC<EditorProps> = ({
                 placeholder="Describe image..."
               />
               <button
+                type="button"
                 onClick={updateImageAlt}
                 className="bg-blue-600 text-white p-1.5 rounded-sm hover:bg-blue-700"
                 title="Save Alt Text"
@@ -2353,6 +2396,7 @@ const Editor: React.FC<EditorProps> = ({
                 placeholder="e.g. Bernama, Reuters, AP, AFP..."
               />
               <button
+                type="button"
                 onClick={updateImageCredit}
                 className="bg-cyan-600 text-white p-1.5 rounded-sm hover:bg-cyan-700"
                 title="Save Credit"
@@ -2363,10 +2407,19 @@ const Editor: React.FC<EditorProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={setAsFeaturedIndex}
             className="text-xs p-1.5 bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-100 flex items-center justify-center gap-1 font-medium mt-1"
           >
             <Sparkles size={14} /> Set as Featured Image
+          </button>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={removeSelectedImage}
+            className="flex min-h-10 items-center justify-center rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/35"
+          >
+            Remove image
           </button>
         </div>
       )}
@@ -2422,6 +2475,7 @@ const Editor: React.FC<EditorProps> = ({
             ).map(([mode, label]) => (
               <button
                 key={mode}
+                type="button"
                 onClick={() => applyVideoAspectMode(mode)}
                 className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
                   selectedVideoAspect === mode
@@ -2434,38 +2488,69 @@ const Editor: React.FC<EditorProps> = ({
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={removeSelectedVideo}
+            className="flex min-h-10 items-center justify-center rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/35"
+          >
+            Remove video
+          </button>
+        </div>
+      )}
+
+      {/* Table Bubble Menu */}
+      {selectedTable && (
+        <div
+          className="absolute z-70 flex w-72 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-xl animate-fade-in dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+          style={{ top: bubblePosition.top, left: bubblePosition.left }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase text-slate-500">Table Tools</span>
+            <button
+              type="button"
+              onClick={() => setSelectedTable(null)}
+              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
+              aria-label="Close table tools"
+              title="Close table tools"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(
+              [
+                ['addRowBefore', 'Add row above'],
+                ['addRowAfter', 'Add row below'],
+                ['deleteRow', 'Delete row'],
+                ['addColumnBefore', 'Add column left'],
+                ['addColumnAfter', 'Add column right'],
+                ['deleteColumn', 'Delete column'],
+              ] as const
+            ).map(([command, label]) => (
+              <button
+                key={command}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => runTableCommand(command)}
+                className="min-h-10 rounded-lg bg-slate-100 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#16161e] dark:text-slate-200 dark:hover:bg-white/10"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => runTableCommand('deleteTable')}
+            className="min-h-10 rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/35"
+          >
+            Delete table
+          </button>
         </div>
       )}
     </div>
   );
 };
-
-const ToolButton: React.FC<{
-  icon: React.ReactNode;
-  onClick: () => void;
-  title: string;
-  active?: boolean;
-}> = ({ icon, onClick, title, active = false }) => (
-  <button
-    type="button"
-    aria-label={title}
-    onMouseDown={(e) => {
-      e.preventDefault();
-    }}
-    onClick={onClick}
-    className={`flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border shadow-xs transition-colors duration-150 hover:shadow-sm xl:h-8 xl:w-8 ${
-      active
-        ? 'border-blue-500 bg-blue-600 text-white shadow-blue-500/20 dark:border-blue-400 dark:bg-blue-500 dark:text-white'
-        : 'border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-[#2a2b36] dark:bg-[#1a1b26]/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-[#242633] dark:hover:text-white'
-    }`}
-    title={title}
-  >
-    {icon}
-  </button>
-);
-
-const Divider = () => (
-  <div className="mx-0.5 hidden h-6 w-px rounded-sm bg-slate-200 dark:bg-[#242633] xl:block"></div>
-);
 
 export default React.memo(Editor);

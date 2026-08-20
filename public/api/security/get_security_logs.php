@@ -35,7 +35,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
 // Admin only access
 
-function sanitizeSecurityCsvCell($value)
+function sanitizeSecurityCsvCell(mixed $value): string
 {
   $text = $value === null ? '' : (string) $value;
   if (preg_match('/^[\t\r\n]/', $text) || preg_match('/^[\x00-\x20]*[=+\-@]/', $text)) {
@@ -65,7 +65,6 @@ try {
     $params[] = $_GET['severity'];
   }
 
-  // Date range (YYYY-MM-DD)
   // Date range (YYYY-MM-DD)
   if (isset($_GET['start_date']) && !empty($_GET['start_date'])) {
     $where[] = 'DATE(created_at) >= ?';
@@ -163,7 +162,8 @@ try {
 
   // Get Aggregates (if requesting page 1)
   $stats = [];
-  if (!isset($_GET['page']) || $_GET['page'] == 1) {
+  $includeStats = isset($_GET['include_stats']) ? $_GET['include_stats'] === '1' : $page === 1;
+  if ($includeStats) {
     // One indexed-friendly aggregate replaces three separate COUNT queries.
     $summarySql = "
             SELECT

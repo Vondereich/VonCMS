@@ -61,6 +61,7 @@ interface SecurityLogQueryOverrides {
   filterType?: string;
   filterSeverity?: string;
   searchQuery?: string;
+  includeStats?: boolean;
 }
 
 interface PendingSecurityFetch {
@@ -78,6 +79,7 @@ const COLORS: Record<string, string> = {
 };
 
 const FALLBACK_EVENT_COLORS = ['#64748b', '#14b8a6', '#ec4899', '#8b5cf6', '#0ea5e9'];
+const SECURITY_STATS_TTL_MS = 60000;
 
 const formatEventType = (eventType: string) =>
   eventType
@@ -116,6 +118,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
   const [showDangerZone, setShowDangerZone] = useState(false);
   const fetchInFlightRef = useRef(false);
   const pendingFetchRef = useRef<PendingSecurityFetch | null>(null);
+  const statsFetchedAtRef = useRef(0);
 
   const fetchData = async (isRefresh = false, overrides: SecurityLogQueryOverrides = {}) => {
     if (fetchInFlightRef.current) {
@@ -131,9 +134,15 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       const requestedType = overrides.filterType ?? filterType;
       const requestedSeverity = overrides.filterSeverity ?? filterSeverity;
       const requestedSearch = overrides.searchQuery ?? searchQuery;
+      const shouldIncludeStats =
+        overrides.includeStats === true ||
+        (requestedPage === 1 &&
+          (statsFetchedAtRef.current === 0 ||
+            Date.now() - statsFetchedAtRef.current >= SECURITY_STATS_TTL_MS));
       const queryParams = new URLSearchParams({
         page: requestedPage.toString(),
         limit: '20',
+        include_stats: shouldIncludeStats ? '1' : '0',
         ...(requestedType && { event_type: requestedType }),
         ...(requestedSeverity && { severity: requestedSeverity }),
         ...(requestedSearch && { search: requestedSearch }),
@@ -147,6 +156,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         setTotalPages(data.pagination.total_pages);
         setTotalItems(data.pagination.total_items);
         if (data.stats && Object.keys(data.stats).length > 0) {
+          statsFetchedAtRef.current = Date.now();
           setStats(data.stats);
         }
       } else {
@@ -328,7 +338,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                       const data = await res.json();
                       if (data.success) {
                         toast.success(data.message || 'Security log maintenance completed.');
-                        fetchData(true);
+                        fetchData(true, { includeStats: true });
                       } else {
                         toast.error(data.message || 'Failed to purge logs');
                       }
@@ -372,7 +382,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                           if (data.success) {
                             toast.success('Full reset complete!');
                             setShowDangerZone(false);
-                            fetchData(true);
+                            fetchData(true, { includeStats: true });
                           } else {
                             toast.error(data.message || 'Failed to reset logs');
                           }
@@ -412,7 +422,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             {refreshing ? 'LIVE' : 'AUTO-UPDATE'}
           </span>
           <button
-            onClick={() => fetchData(true)}
+            onClick={() => fetchData(true, { includeStats: true })}
             className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
             aria-label="Refresh security data"
           >

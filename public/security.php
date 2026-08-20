@@ -790,6 +790,66 @@ class RateLimiter
   }
 
   /**
+   * Consume one attempt from an isolated fixed-window quota.
+   * Storage failures stay fail-open so account recovery is not taken offline.
+   *
+   * @param string $identifier
+   * @param int $maxAttempts
+   * @param int $windowSeconds
+   * @return bool
+   */
+  public static function consumeFixedWindow($identifier, $maxAttempts, $windowSeconds)
+  {
+    $maxAttempts = max(1, (int) $maxAttempts);
+    $windowSeconds = max(1, (int) $windowSeconds);
+    $file = self::getFilePath('fixed-window:' . (string) $identifier);
+    $handle = @fopen($file, 'c+');
+
+    if ($handle === false) {
+      return true;
+    }
+
+    if (!@flock($handle, LOCK_EX)) {
+      @fclose($handle);
+      return true;
+    }
+
+    $accepted = true;
+    try {
+      rewind($handle);
+      $raw = stream_get_contents($handle);
+      $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+      $now = time();
+      $windowStartedAt = is_array($data) ? (int) ($data['window_started_at'] ?? 0) : 0;
+      $attempts = is_array($data) ? (int) ($data['attempts'] ?? 0) : 0;
+
+      if ($windowStartedAt <= 0 || $windowStartedAt + $windowSeconds <= $now) {
+        $windowStartedAt = $now;
+        $attempts = 0;
+      }
+
+      if ($attempts >= $maxAttempts) {
+        $accepted = false;
+      } else {
+        $payload = json_encode([
+          'attempts' => $attempts + 1,
+          'window_started_at' => $windowStartedAt,
+        ]);
+        rewind($handle);
+        if (@ftruncate($handle, 0) && is_string($payload)) {
+          @fwrite($handle, $payload);
+          @fflush($handle);
+        }
+      }
+    } finally {
+      @flock($handle, LOCK_UN);
+      @fclose($handle);
+    }
+
+    return $accepted;
+  }
+
+  /**
    * Check if IP is rate limited
    * @param string|null $identifier
    * @return bool
@@ -1007,6 +1067,53 @@ class SecurityHelper
    * System Integrity Check (Mandala series)
    * Detects if the Universal .htaccess or Uploads Shield is missing.
    */
+  public static function hasRequiredHtaccessDirectives(mixed $content): bool
+  {
+    if (!is_string($content)) {
+      return false;
+    }
+
+    $beginMarkers = preg_match_all('/^[ \t]*# BEGIN VonCMS\r?$/m', $content);
+    $endMarkers = preg_match_all('/^[ \t]*# END VonCMS\r?$/m', $content);
+    if ($beginMarkers !== 1 || $endMarkers !== 1) {
+      return false;
+    }
+
+    $requiredDirectiveGroups = [
+      ['DirectoryIndex index.php index.html'],
+      ['RewriteEngine On'],
+      ['RewriteRule ^von_config\\.php$ - [F,L]'],
+      ['RewriteRule ^api/(.*)$ api/$1 [L]', 'RewriteRule ^api/(.*)$ public/api/$1 [L]'],
+      [
+        'RewriteRule ^robots\\.txt$ robots.php [L]',
+        'RewriteRule ^robots\\.txt$ public/robots.php [L]',
+      ],
+      [
+        'RewriteRule ^sitemap\\.xml$ sitemap.php [L]',
+        'RewriteRule ^sitemap\\.xml$ public/sitemap.php [L]',
+      ],
+      ['RewriteRule ^rss\\.xml$ rss.php [L]', 'RewriteRule ^rss\\.xml$ public/rss.php [L]'],
+      ['RewriteRule ^ index.php [L,QSA]'],
+      ['Header set X-Content-Type-Options "nosniff"'],
+    ];
+
+    foreach ($requiredDirectiveGroups as $alternatives) {
+      $hasActiveDirective = false;
+      foreach ($alternatives as $directive) {
+        $pattern = '/^[ \t]*' . preg_quote($directive, '/') . '[ \t]*\r?$/mi';
+        if (preg_match($pattern, $content) === 1) {
+          $hasActiveDirective = true;
+          break;
+        }
+      }
+      if (!$hasActiveDirective) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   public static function isIntegrityCompromised()
   {
     // Robust Root Detection (Works in both /public and root)
@@ -1024,7 +1131,7 @@ class SecurityHelper
     }
 
     $content = @file_get_contents($rootHtaccess);
-    if ($content === false || strpos($content, '# BEGIN VonCMS') === false) {
+    if ($content === false || !self::hasRequiredHtaccessDirectives($content)) {
       return true;
     }
 
