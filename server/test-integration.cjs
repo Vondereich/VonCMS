@@ -773,7 +773,7 @@ try {
     ? spawnSync(process.execPath, ['-e', postbuildInlineMatch[1]], {
         cwd: configIsolationFixture,
         encoding: 'utf8',
-        env: { ...process.env, NODE_PATH: resolveFromRoot('node_modules') },
+        env: { NODE_PATH: resolveFromRoot('node_modules') },
       })
     : { status: 1, stderr: 'Unable to isolate the inline postbuild command.' };
   const builtSamplePath = path.join(configIsolationFixture, 'dist', 'von_config.sample.php');
