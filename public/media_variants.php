@@ -93,10 +93,11 @@ function voncms_resolve_upload_relative_path(?string $imagePath): ?string
     return null;
   }
 
-  $pathPart = preg_match('~^https?://~i', $imagePath)
-    ? (parse_url($imagePath, PHP_URL_PATH) ?:
-    '')
-    : $imagePath;
+  $parsedPath = parse_url($imagePath, PHP_URL_PATH);
+  if (!is_string($parsedPath)) {
+    return null;
+  }
+  $pathPart = $parsedPath;
 
   $pathPart = str_replace('\\', '/', $pathPart);
 
@@ -109,7 +110,16 @@ function voncms_resolve_upload_relative_path(?string $imagePath): ?string
     return null;
   }
 
-  return ltrim($pathPart, '/');
+  $relativePath = ltrim($pathPart, '/');
+  return voncms_is_safe_upload_relative_path($relativePath) ? $relativePath : null;
+}
+
+function voncms_is_safe_upload_relative_path(string $relativePath): bool
+{
+  $decodedPath = str_replace('\\', '/', rawurldecode(trim($relativePath)));
+  return $decodedPath !== '' &&
+    preg_match('/[\x00-\x1F\x7F]/', $decodedPath) !== 1 &&
+    preg_match('#(?:^|/)\.{1,2}(?:/|$)#', $decodedPath) !== 1;
 }
 
 function voncms_normalize_generated_media_variant_uploads_dir(?string $uploadsDir = null): string
@@ -175,7 +185,7 @@ function voncms_normalize_generated_media_variant_relative_path(?string $path): 
   }
 
   $path = ltrim(str_replace('\\', '/', trim((string) $path)), '/');
-  return $path !== '' ? $path : null;
+  return $path !== '' && voncms_is_safe_upload_relative_path($path) ? $path : null;
 }
 
 function voncms_normalize_generated_media_variant_registry(array $registry): array

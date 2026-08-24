@@ -35,6 +35,7 @@ export interface Comment {
   status?: 'approved' | 'pending' | 'spam';
   emailHash?: string;
   hasEmail?: boolean;
+  hasProfile?: boolean;
 }
 
 export interface Post {
@@ -264,6 +265,7 @@ export interface NavItem {
   label: string;
   url: string; // Internal path ID or External URL
   type: 'internal' | 'external';
+  resolvedHref?: string; // Runtime-only public projection for synthetic targets such as page:id
 }
 
 // --- CONTACT MANAGER TYPES ---

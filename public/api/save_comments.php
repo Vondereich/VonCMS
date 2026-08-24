@@ -23,14 +23,36 @@ voncms_apply_site_timezone($pdo ?? null);
 // Get input data FIRST (before CSRF checks that use $input)
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 
-if (!$input) {
+if (!is_array($input) || $input === []) {
   ResponseHelper::sendError('Invalid JSON input', 400);
+}
+
+foreach (
+  [
+    'action',
+    'postId',
+    'username',
+    'userAvatar',
+    'parentId',
+    'content',
+    'hp_field',
+    'website',
+    'commentId',
+    'delta',
+    'status',
+  ]
+  as $field
+) {
+  if (array_key_exists($field, $input) && $input[$field] !== null && !is_scalar($input[$field])) {
+    ResponseHelper::sendError('Invalid comment payload', 400);
+  }
 }
 
 // Enforce Security for Moderation Actions
 // Normalize action early so only known routes stay public.
 $action = isset($input['action']) ? (string) $input['action'] : null;
 $commentRateIdentifier = null;
+$hasValidSession = false;
 
 if ($action !== null) {
   $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
@@ -58,9 +80,63 @@ if ($action !== null && !in_array($action, $allowedActions, true)) {
 }
 
 $isLegacyBulkMigration = isset($input['comments']) && is_array($input['comments']);
+if (array_key_exists('comments', $input) && !$isLegacyBulkMigration) {
+  ResponseHelper::sendError('Invalid comments migration payload', 400);
+}
 if ($action === null && $isLegacyBulkMigration) {
   SessionManager::requireAdmin();
   CSRFProtection::requireToken();
+
+  if (count($input['comments']) > 10000) {
+    ResponseHelper::sendError('Comments migration payload is too large', 400);
+  }
+
+  $legacyScalarFields = [
+    'postId',
+    'userId',
+    'username',
+    'userAvatar',
+    'content',
+    'likes',
+    'createdAt',
+  ];
+  $legacyReplyCount = 0;
+  foreach ($input['comments'] as $comment) {
+    if (!is_array($comment)) {
+      ResponseHelper::sendError('Invalid comments migration payload', 400);
+    }
+
+    foreach ($legacyScalarFields as $field) {
+      if (
+        array_key_exists($field, $comment) &&
+        $comment[$field] !== null &&
+        !is_scalar($comment[$field])
+      ) {
+        ResponseHelper::sendError('Invalid comments migration payload', 400);
+      }
+    }
+
+    if (array_key_exists('replies', $comment) && !is_array($comment['replies'])) {
+      ResponseHelper::sendError('Invalid comments migration payload', 400);
+    }
+
+    foreach ($comment['replies'] ?? [] as $reply) {
+      $legacyReplyCount++;
+      if ($legacyReplyCount > 50000 || !is_array($reply)) {
+        ResponseHelper::sendError('Comments migration payload is too large or malformed', 400);
+      }
+
+      foreach ($legacyScalarFields as $field) {
+        if (
+          array_key_exists($field, $reply) &&
+          $reply[$field] !== null &&
+          !is_scalar($reply[$field])
+        ) {
+          ResponseHelper::sendError('Invalid comments migration payload', 400);
+        }
+      }
+    }
+  }
 }
 // Check database connection
 if (!isset($pdo) || $pdo === null) {
@@ -171,7 +247,7 @@ try {
     }
 
     // Flexible parentId handling (strips 'c-' or 'r-' prefixes)
-    $parentIdRaw = isset($input['parentId']) ? $input['parentId'] : null;
+    $parentIdRaw = isset($input['parentId']) ? (string) $input['parentId'] : null;
     $parentId = $parentIdRaw ? intval(preg_replace('/[^0-9]/', '', $parentIdRaw)) : null;
     if ($parentId) {
       $parentStmt = $pdo->prepare('SELECT post_id FROM comments WHERE id = ?');
@@ -188,7 +264,7 @@ try {
     }
 
     $content = isset($input['content'])
-      ? htmlspecialchars($input['content'], ENT_QUOTES, 'UTF-8')
+      ? htmlspecialchars((string) $input['content'], ENT_QUOTES, 'UTF-8')
       : '';
     if (empty($content)) {
       ResponseHelper::sendError('Comment content is required', 400);
@@ -305,7 +381,7 @@ try {
     }
 
     $commentId = isset($input['commentId'])
-      ? intval(preg_replace('/[^0-9]/', '', $input['commentId']))
+      ? intval(preg_replace('/[^0-9]/', '', (string) $input['commentId']))
       : 0;
     $delta = isset($input['delta']) ? intval($input['delta']) : 1;
     if (!in_array($delta, [1, -1], true)) {
@@ -361,7 +437,7 @@ try {
   // Handle delete
   if ($action === 'delete') {
     $commentId = isset($input['commentId'])
-      ? intval(preg_replace('/[^0-9]/', '', $input['commentId']))
+      ? intval(preg_replace('/[^0-9]/', '', (string) $input['commentId']))
       : 0;
 
     // SECURITY: Check ownership or staff status before delete
@@ -396,7 +472,7 @@ try {
     SessionManager::requireStaff();
 
     $commentId = isset($input['commentId'])
-      ? intval(preg_replace('/[^0-9]/', '', $input['commentId']))
+      ? intval(preg_replace('/[^0-9]/', '', (string) $input['commentId']))
       : 0;
     $status = isset($input['status']) ? $input['status'] : 'approved';
 
@@ -420,18 +496,20 @@ try {
     $count = 0;
     foreach ($input['comments'] as $comment) {
       $postId = isset($comment['postId'])
-        ? intval(preg_replace('/[^0-9]/', '', $comment['postId']))
+        ? intval(preg_replace('/[^0-9]/', '', (string) $comment['postId']))
         : 0;
       $userId = isset($comment['userId']) ? $comment['userId'] : null;
       $username = isset($comment['username'])
-        ? htmlspecialchars($comment['username'], ENT_QUOTES, 'UTF-8')
+        ? htmlspecialchars((string) $comment['username'], ENT_QUOTES, 'UTF-8')
         : 'Anonymous';
-      $userAvatar = ResponseHelper::scrubAvatarUrl($comment['userAvatar'] ?? '');
+      $userAvatar = ResponseHelper::scrubAvatarUrl((string) ($comment['userAvatar'] ?? ''));
       $content = isset($comment['content'])
-        ? htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8')
+        ? htmlspecialchars((string) $comment['content'], ENT_QUOTES, 'UTF-8')
         : '';
       $likes = isset($comment['likes']) ? intval($comment['likes']) : 0;
-      $createdAt = isset($comment['createdAt']) ? $comment['createdAt'] : date('Y-m-d H:i:s');
+      $createdAt = isset($comment['createdAt'])
+        ? (string) $comment['createdAt']
+        : date('Y-m-d H:i:s');
 
       $stmt = $pdo->prepare("INSERT INTO comments (post_id, user_id, user_name, user_avatar, content, likes, status, created_at) 
                                    VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)");
@@ -443,18 +521,20 @@ try {
         $parentId = $pdo->lastInsertId();
         foreach ($comment['replies'] as $reply) {
           $rPostId = isset($reply['postId'])
-            ? intval(preg_replace('/[^0-9]/', '', $reply['postId']))
+            ? intval(preg_replace('/[^0-9]/', '', (string) $reply['postId']))
             : $postId;
           $rUserId = isset($reply['userId']) ? $reply['userId'] : null;
           $rUsername = isset($reply['username'])
-            ? htmlspecialchars($reply['username'], ENT_QUOTES, 'UTF-8')
+            ? htmlspecialchars((string) $reply['username'], ENT_QUOTES, 'UTF-8')
             : 'Anonymous';
-          $rUserAvatar = ResponseHelper::scrubAvatarUrl($reply['userAvatar'] ?? '');
+          $rUserAvatar = ResponseHelper::scrubAvatarUrl((string) ($reply['userAvatar'] ?? ''));
           $rContent = isset($reply['content'])
-            ? htmlspecialchars($reply['content'], ENT_QUOTES, 'UTF-8')
+            ? htmlspecialchars((string) $reply['content'], ENT_QUOTES, 'UTF-8')
             : '';
           $rLikes = isset($reply['likes']) ? intval($reply['likes']) : 0;
-          $rCreatedAt = isset($reply['createdAt']) ? $reply['createdAt'] : date('Y-m-d H:i:s');
+          $rCreatedAt = isset($reply['createdAt'])
+            ? (string) $reply['createdAt']
+            : date('Y-m-d H:i:s');
 
           $stmt = $pdo->prepare("INSERT INTO comments (post_id, user_id, parent_id, user_name, user_avatar, content, likes, status, created_at) 
                                            VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
@@ -483,7 +563,7 @@ try {
 
   // Handle other actions? No.
   ResponseHelper::sendError('Unknown action or invalid input', 400);
-} catch (Exception $e) {
+} catch (Throwable $e) {
   if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
     $pdo->rollBack();
   }

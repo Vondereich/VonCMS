@@ -7,7 +7,14 @@ import { API } from '../../../config/site.config';
 import { vonFetch } from '../../../utils/api';
 import { LoadMoreButton } from '../../../components/LoadMoreButton';
 import { SafeImage } from '../../../components/SafeImage';
-import { formatDate, getResponsiveImageAttributes } from '../../../utils/siteUtils';
+import {
+  formatDate,
+  getPermalink,
+  getPostPublishTimestamp,
+  getPublicHomeHref,
+  getResponsiveImageAttributes,
+} from '../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../utils/linkEvents';
 import { useProfileActivity } from '../../../hooks/useProfileActivity';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../../utils/profileUtils';
 
@@ -307,12 +314,13 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
       )}
 
       <div className="flex items-center justify-between mb-8">
-        <button
-          onClick={onBack}
+        <a
+          href={getPublicHomeHref()}
+          onClick={(event) => handleCrawlableLinkClick(event, onBack)}
           className="flex items-center gap-2 text-slate-400 hover:text-(--color-primary) transition-colors font-mono text-sm"
         >
           <ArrowLeft size={16} /> SYSTEM.RETURN()
-        </button>
+        </a>
 
         <div className="flex gap-3">
           {isOwnProfile && (
@@ -460,10 +468,13 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
               <>
                 {articlePosts.length > 0 ? (
                   articlePosts.map((post) => (
-                    <div
+                    <a
                       key={post.id}
-                      onClick={() => onViewPost(post.id)}
-                      className="bg-[#0a0a1f]/30 border border-white/5 rounded-xl p-5 hover:border-(--color-primary)/30 hover:bg-[#0a0a1f]/60 transition-all cursor-pointer group"
+                      href={getPermalink(post, settings)}
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () => onViewPost(post.id))
+                      }
+                      className="block bg-[#0a0a1f]/30 border border-white/5 rounded-xl p-5 hover:border-(--color-primary)/30 hover:bg-[#0a0a1f]/60 transition-all cursor-pointer group"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -472,7 +483,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                             <span>//</span>
                             <span>
                               {formatDate(
-                                post.createdAt || post.updatedAt,
+                                getPostPublishTimestamp(post),
                                 settings.timeZone,
                                 settings.dateFormat
                               )}
@@ -494,7 +505,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                           </div>
                         )}
                       </div>
-                    </div>
+                    </a>
                   ))
                 ) : (
                   <div className="text-center py-12 border border-dashed border-white/10 rounded-xl">

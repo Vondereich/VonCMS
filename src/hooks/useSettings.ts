@@ -73,6 +73,8 @@ const INITIAL_SETTINGS: SiteSettings = {
   useLogoAsTitle: _s?.useLogoAsTitle ?? false,
   invertLogoInDarkMode: _s?.invertLogoInDarkMode ?? false,
   faviconUrl: _s?.faviconUrl || '',
+  ogImageUrl: _s?.ogImageUrl || '',
+  ogImageSquareUrl: _s?.ogImageSquareUrl || '',
   footerLinks: [],
   footerCopyright: '',
 };

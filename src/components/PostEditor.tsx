@@ -3,6 +3,7 @@ import notify from '../utils/toast';
 import { Post, Page, MediaItem, ContentAuditLog } from '../types';
 import Editor from './Editor';
 import { API } from '../config/site.config';
+import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
 import {
@@ -82,12 +83,14 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const [featuredMediaPage, setFeaturedMediaPage] = useState(1);
   const [featuredMediaTotalPages, setFeaturedMediaTotalPages] = useState(1);
   const [featuredMediaSearchInput, setFeaturedMediaSearchInput] = useState('');
-  const [featuredMediaSearchQuery, setFeaturedMediaSearchQuery] = useState('');
+  const { query: featuredMediaSearchQuery, commit: commitFeaturedMediaSearch } =
+    useDebouncedSearchQuery(featuredMediaSearchInput);
   const [auditLogs, setAuditLogs] = useState<ContentAuditLog[]>([]);
   const [isAuditLogsLoading, setIsAuditLogsLoading] = useState(false);
   const [isAuditHistoryOpen, setIsAuditHistoryOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobileEditorPanel>('write');
   const featuredImageInputRef = React.useRef<HTMLInputElement>(null);
+  const featuredMediaRequestIdRef = React.useRef(0);
   const initialAddToMenuRef = React.useRef(false);
   const titleLength = item?.title?.length || 0;
   const titleLimitHelpText = `Title is limited to ${TITLE_MAX_LENGTH} characters.`;
@@ -608,44 +611,65 @@ const PostEditor: React.FC<PostEditorProps> = ({
     void loadAuditLogs(String(item.id), isPage);
   }, [item?.id, isPage, loadAuditLogs]);
 
-  const loadFeaturedMedia = async (page = 1, search = featuredMediaSearchQuery) => {
-    setIsFeaturedLibraryLoading(true);
-    try {
-      const params = new URLSearchParams({ page: String(page), limit: '18' });
-      if (search) params.set('search', search);
-      const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
-      const data = await res.json();
+  const loadFeaturedMedia = React.useCallback(
+    async (page = 1, search = featuredMediaSearchQuery) => {
+      const requestId = ++featuredMediaRequestIdRef.current;
+      setIsFeaturedLibraryLoading(true);
+      try {
+        const params = new URLSearchParams({ page: String(page), limit: '18' });
+        if (search) params.set('search', search);
+        const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
+        const data = await res.json();
 
-      if (data.success) {
-        setFeaturedMediaFiles(data.files || []);
-        setFeaturedMediaPage(data.currentPage || page);
-        setFeaturedMediaTotalPages(data.totalPages || 1);
-      } else {
-        notify.error(data.message || 'Failed to load media library');
+        if (requestId !== featuredMediaRequestIdRef.current) return;
+        if (data.success) {
+          setFeaturedMediaFiles(data.files || []);
+          setFeaturedMediaPage(data.currentPage || page);
+          setFeaturedMediaTotalPages(data.totalPages || 1);
+        } else {
+          notify.error(data.message || 'Failed to load media library');
+        }
+      } catch (error: any) {
+        if (requestId === featuredMediaRequestIdRef.current) {
+          notify.error('Failed to load media library');
+        }
+      } finally {
+        if (requestId === featuredMediaRequestIdRef.current) {
+          setIsFeaturedLibraryLoading(false);
+        }
       }
-    } catch (error: any) {
-      notify.error('Failed to load media library');
-    } finally {
-      setIsFeaturedLibraryLoading(false);
+    },
+    [featuredMediaSearchQuery]
+  );
+
+  useEffect(() => {
+    if (isFeaturedLibraryOpen) {
+      void loadFeaturedMedia(1, featuredMediaSearchQuery);
     }
-  };
+  }, [featuredMediaSearchQuery, isFeaturedLibraryOpen, loadFeaturedMedia]);
 
   const openFeaturedLibrary = () => {
     setIsFeaturedLibraryOpen(true);
-    void loadFeaturedMedia(1, featuredMediaSearchQuery);
+  };
+
+  const closeFeaturedLibrary = () => {
+    featuredMediaRequestIdRef.current += 1;
+    setIsFeaturedLibraryLoading(false);
+    setIsFeaturedLibraryOpen(false);
   };
 
   const handleFeaturedMediaSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedSearch = featuredMediaSearchInput.trim().slice(0, 120);
-    setFeaturedMediaSearchQuery(normalizedSearch);
-    void loadFeaturedMedia(1, normalizedSearch);
+    const normalizedSearch = commitFeaturedMediaSearch();
+    if (normalizedSearch === featuredMediaSearchQuery) {
+      void loadFeaturedMedia(1, normalizedSearch);
+    }
   };
 
   const applyFeaturedImage = (url?: string) => {
     if (!url) return;
     setItem((prev) => (prev ? { ...prev, image: url } : null));
-    setIsFeaturedLibraryOpen(false);
+    closeFeaturedLibrary();
     notify.success('Featured image updated!');
   };
 
@@ -1284,7 +1308,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
           onSearch={handleFeaturedMediaSearch}
           onSelect={applyFeaturedImage}
           onPageChange={(page) => void loadFeaturedMedia(page, featuredMediaSearchQuery)}
-          onClose={() => setIsFeaturedLibraryOpen(false)}
+          onClose={closeFeaturedLibrary}
         />
       )}
     </div>

@@ -10,24 +10,39 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.26.7
+## Recommended path to v1.26.9
 
-VonCMS v1.26.7 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.26.9 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
-4. If your current site is on an older version, use the manual Deploy ZIP flow to upgrade to `v1.26.7`. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed. Sites on the affected `v1.25.11` through `v1.26.0` packages or the pre-fix `v1.26.1` package must complete this manual update once because Dashboard release discovery can be skipped.
+4. If your current site is on an older version, use the latest published Deploy ZIP for the manual upgrade flow. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed. Sites on the affected `v1.25.11` through `v1.26.0` packages or the pre-fix `v1.26.1` package must complete this manual update once because Dashboard release discovery can be skipped.
 5. If you update to `v1.25.0` through OTA, open **System Tools** after the update and run **Repair `.htaccess`** once. The OTA updater protects the live `.htaccess` file, so this manual repair step applies the new v1.25.0 managed routing and sensitive-file rules while preserving host-specific rules outside the VonCMS block.
-6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to `v1.26.7`.
+6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to the latest published release.
 7. After the update, verify the homepage, one single post, and the admin dashboard.
 8. After the site is on a fixed updater package and already passed the `v1.25.0` `.htaccess` repair step, use the admin panel updater for later releases.
 
 The OTA updater treats the shipped `assets/` and `docs/` directories as release-managed content. During activation it replaces each directory as one rollback-protected unit, which removes retired fingerprinted bundles and guides instead of leaving them beside the current release. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
 
-## What to verify after updating to v1.26.7
+## Optional `von_config.php` feature migration for v1.26.9
 
-After Hours keeps the Tailwind CSS 4, TypeScript 7 native compilation, OpenRouter SDK 1, and refreshed editor/UI baseline. v1.26.2 made publishing and administration responsive across phone, tablet, and desktop; v1.26.3 closed the audited category canonical, crawler endpoint, indexing, metadata fallback, and duplicate-slash gaps; v1.26.4 made Security Dashboard charts truthful and protected unsaved Quick Editor work during exit; v1.26.5 added accurate admin editor route context and a broader advisory publish-readiness summary; v1.26.6 improved editor label legibility, added three explicit header identity modes, aligned list and single-post read time, and exposed public publish times; v1.26.7 adds a public-safe Categories sidebar widget, category scroll reset, resilient saved theme colors, a contrast-aware TechPress search control, a timezone-aware dashboard clock, and compatible OpenRouter SDK and TipTap maintenance. The OpenGate installer, `.htaccess`, privacy, ownership, and admin security baselines remain in place.
+The Deploy package and OTA updater deliberately do not overwrite a live `von_config.php` because it contains database credentials and may contain installation-specific definitions. Replacing that working file is not required for a normal application update; an existing site can continue using VonCMS with its current configuration. A fresh v1.26.9 installation receives the current fail-closed environment detection and private PHP log location automatically. Sites installed before v1.26.9 that want those complete current configuration features can adopt them once through this manual migration:
+
+1. Back up the live `von_config.php` outside the public document root. Do not leave a credentialed `.bak`, `.txt`, or editor backup copy inside the website directory.
+2. Take `von_config.sample.php` from the matching Deploy package. Source checkouts keep the same template at `public/von_config.sample.php`.
+3. Copy the sample to a temporary private file named `von_config.new.php`. Do not put real credentials into the tracked or distributable sample file.
+4. Copy the complete `$db_host`, `$db_name`, `$db_user`, and `$db_pass` assignment lines from the working config into the matching four assignments in `von_config.new.php`. Copying the complete valid PHP lines avoids accidentally damaging quotes or special characters in a password.
+5. Copy any installation-specific definitions that are not present in the sample, including `CRON_KEY` when the optional external publishing cron is configured. Preserve other host-specific constants or deliberate local customizations only after checking that they are still required and are not duplicated by the new template.
+6. Run `php -l von_config.new.php`. If the host does not provide command-line PHP, lint the file locally with the same PHP major version before uploading it.
+7. During a short maintenance window, activate the validated file as `von_config.php`. Keep the external backup until verification finishes, but immediately remove any temporary credentialed copy created inside the public website directory.
+8. Verify the homepage, `/login`, and the admin dashboard. Confirm that production pages do not display PHP diagnostics. Developers who intentionally need browser-visible local diagnostics must explicitly set the web-server environment variable `VONCMS_ENV=development`.
+
+This migration is not required during every update. Once the live file uses the v1.26.9 template, keep protecting it from normal Deploy ZIP and OTA replacement.
+
+## What to verify after updating to v1.26.9
+
+After Hours keeps the Tailwind CSS 4, TypeScript 7 native compilation, OpenRouter SDK 1, and refreshed editor/UI baseline. v1.26.2 made publishing and administration responsive across phone, tablet, and desktop; v1.26.3 closed the audited category canonical, crawler endpoint, indexing, metadata fallback, and duplicate-slash gaps; v1.26.4 made Security Dashboard charts truthful and protected unsaved Quick Editor work during exit; v1.26.5 added accurate admin editor route context and a broader advisory publish-readiness summary; v1.26.6 improved editor label legibility, added three explicit header identity modes, aligned list and single-post read time, and exposed public publish times; v1.26.7 added a public-safe Categories sidebar widget, category scroll reset, resilient saved theme colors, a contrast-aware TechPress search control, a timezone-aware dashboard clock, and compatible OpenRouter SDK and TipTap maintenance; v1.26.8 added bounded production-warning maintenance, reliable media search, persistent public search URLs, crawlable navigation across all six bundled themes, stricter system-image validation, and compatible dependency maintenance; v1.26.9 rejects malformed structured inputs before PHP string handling and removes an obsolete WordPress import transport. The OpenGate installer, `.htaccess`, privacy, ownership, and admin security baselines remain in place.
 
 Check these items:
 
@@ -113,6 +128,8 @@ If your site is too old for the current OTA flow or the admin panel is unavailab
 5. if the hosting folder already contains cPanel-generated PHP handlers, custom `.htaccess` blocks, or hardcoded redirects, verify `.htaccess` after extraction and restore your backup or `.bak` copy if needed
 6. keep your real `von_config.php` in place and do not replace it with the sample file
 7. sign in to the admin panel and verify the system version
+
+The instruction above protects the working site during the application-file upgrade. If the installation predates v1.26.9 and the owner wants the complete current configuration features, complete the separate [`von_config.php` migration](#optional-von_configphp-feature-migration-for-v1269) only after the updated site is loading normally.
 
 ## Shared hosting note
 

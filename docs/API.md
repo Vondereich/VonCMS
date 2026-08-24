@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.26.7`
+Version: `1.26.9`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -32,7 +32,6 @@ Frontend code in the app should use the project fetch helpers instead of buildin
 ### Example authenticated request
 
 ```ts
-import { getAuthHeader } from '../config/auth.config';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 
@@ -40,7 +39,6 @@ await vonFetch(API.savePost, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
   },
   body: JSON.stringify(payload),
 });
@@ -126,7 +124,7 @@ Successful responses include the number of posts published by that request:
 }
 ```
 
-Use the header instead of `?key=...` so the secret is not copied into normal URL access logs. See [Installation Guide](INSTALL.md#optional-cpanel-cron-for-quiet-sites) for cPanel setup.
+The endpoint accepts the key only through `X-Cron-Key`; `?key=...` is rejected so the secret cannot be copied into normal URL access logs. See [Installation Guide](INSTALL.md#optional-cpanel-cron-for-quiet-sites) for cPanel setup.
 
 ### Redirects
 

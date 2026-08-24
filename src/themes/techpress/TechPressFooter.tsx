@@ -2,10 +2,12 @@ import React from 'react';
 import { Rss } from 'lucide-react';
 import { SiteSettings } from '../../types';
 import VonNewsletter from '../../components/VonNewsletter';
-import { getBasePathPrefix, normalizeSiteUrl } from '../../utils/siteUtils';
+import { getBasePathPrefix, getPublicHomeHref, normalizeSiteUrl } from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 
 interface TechPressFooterProps {
   settings: SiteSettings;
+  onBackToHome: () => void;
   colors: {
     text: string;
     textSecondary: string;
@@ -15,7 +17,7 @@ interface TechPressFooterProps {
   };
 }
 
-const TechPressFooter: React.FC<TechPressFooterProps> = ({ settings, colors }) => {
+const TechPressFooter: React.FC<TechPressFooterProps> = ({ settings, colors, onBackToHome }) => {
   const rssPath = `${getBasePathPrefix()}/rss`;
   return (
     <footer
@@ -78,11 +80,8 @@ const TechPressFooter: React.FC<TechPressFooterProps> = ({ settings, colors }) =
                 <>
                   <li>
                     <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
+                      href={getPublicHomeHref()}
+                      onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
                       className="text-sm hover:underline cursor-pointer"
                       style={{ color: colors.textSecondary }}
                     >

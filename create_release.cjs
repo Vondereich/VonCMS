@@ -8,6 +8,10 @@ const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
 const { execSync } = require('child_process');
+const {
+  assertNoForbiddenReleasePaths,
+  isForbiddenReleasePath,
+} = require('./server/release-path-policy.cjs');
 
 const version = require('./package.json').version;
 const basePath = __dirname;
@@ -70,6 +74,10 @@ function walkSync(dir, baseDir = basePath) {
       continue;
     }
 
+    if (isForbiddenReleasePath(normalizedRelativePath)) {
+      continue;
+    }
+
     if (fs.statSync(fullPath).isDirectory()) {
       files.push(...walkSync(fullPath, baseDir));
     } else {
@@ -117,6 +125,12 @@ try {
   process.exit(1);
 }
 
+const distFiles = walkSync(path.join(basePath, 'dist'), path.join(basePath, 'dist'));
+assertNoForbiddenReleasePaths(
+  distFiles.map(({ relativePath }) => relativePath),
+  'Deploy staging tree'
+);
+
 const releaseArtifactPattern = new RegExp(
   `^VonCMS_v\\d+\\.\\d+\\.\\d+_(Deploy|Source)\\.zip(\\.sha256)?$`
 );
@@ -153,6 +167,10 @@ deployZip.addLocalFile(path.join(basePath, 'README.md'));
 deployZip.addLocalFile(path.join(basePath, 'LICENSE.md'));
 deployZip.addLocalFile(path.join(basePath, 'metadata.json'));
 deployZip.addLocalFile(changelogPath, '', 'CHANGELOG.md');
+assertNoForbiddenReleasePaths(
+  deployZip.getEntries().map((entry) => entry.entryName),
+  'Deploy ZIP'
+);
 const deployPath = path.join(basePath, `VonCMS_v${version}_Deploy.zip`);
 deployZip.writeZip(deployPath);
 log(
@@ -162,6 +180,10 @@ log(
 log('\nCreating Source zip...');
 const sourceZip = new AdmZip();
 const sourceFiles = walkSync(basePath);
+assertNoForbiddenReleasePaths(
+  sourceFiles.map(({ relativePath }) => relativePath),
+  'Source staging tree'
+);
 sourceFiles.forEach(({ fullPath, relativePath }) => {
   sourceZip.addLocalFile(fullPath, path.dirname(relativePath), path.basename(relativePath));
 });
@@ -180,6 +202,11 @@ if (fs.existsSync(path.join(basePath, 'public', 'uploads', '.htaccess'))) {
     '.htaccess'
   );
 }
+
+assertNoForbiddenReleasePaths(
+  sourceZip.getEntries().map((entry) => entry.entryName),
+  'Source ZIP'
+);
 
 const sourcePath = path.join(basePath, `VonCMS_v${version}_Source.zip`);
 sourceZip.writeZip(sourcePath);

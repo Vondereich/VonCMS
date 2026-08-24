@@ -95,11 +95,15 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
               className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
             >
               <option value="hybrid">Smart (Hybrid) - Recommended</option>
-              <option value="headings">Headings Only (H2, H3)</option>
-              <option value="sentences">First Sentences</option>
+              <option value="headings">Headings Only (H2-H4)</option>
+              <option value="sentences">Ranked Sentences</option>
             </select>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Hybrid: Try headings first, fallback to sentences if needed
+              {config.extractMethod === 'hybrid'
+                ? 'Hybrid blends descriptive headings with ranked article sentences.'
+                : config.extractMethod === 'headings'
+                  ? 'Uses article H2-H4 headings in document order.'
+                  : 'Ranks distinct article sentences, then restores their document order.'}
             </p>
           </div>
 
@@ -128,7 +132,7 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
           {/* Max Bullets */}
           <div className="space-y-2">
             <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Number of Points
+              Maximum Points
             </span>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {bulletOptions.map((num) => (

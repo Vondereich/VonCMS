@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-VonCMS v1.26.7 is the current release in the **v1.26 "After Hours"** series. The series opened with v1.26.0 as a focused modernization of the development toolchain, editor structure, SEO controls, public themes, and admin experience while keeping the established PHP shared-hosting runtime. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+VonCMS v1.26.9 is the current release in the **v1.26 "After Hours"** series. The series opened with v1.26.0 as a focused modernization of the development toolchain, editor structure, SEO controls, public themes, and admin experience while keeping the established PHP shared-hosting runtime. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -13,7 +13,7 @@ VonCMS v1.26.7 is the current release in the **v1.26 "After Hours"** series. The
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
 > [!NOTE]
-> v1.26.7 is the current release. Review the changelog, back up the site, and verify the homepage, one post, and the admin dashboard after updating.
+> v1.26.9 is the current release. Review the changelog, back up the site, and verify the homepage, one post, and the admin dashboard after updating.
 
 The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, editor structure, SEO schema controls, and bundled extension baseline while preserving the shared-hosting PHP runtime established by OpenGate. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
 
@@ -21,9 +21,15 @@ The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, edit
 >
 > ## Manual Update Required For Affected Builds
 >
-> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the current `v1.26.7` Deploy ZIP manually once. Those affected builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
+> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the latest published Deploy ZIP manually once. Those affected builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
 >
 > Follow [Updating Existing Sites](#updating-existing-sites) and keep `von_config.php`, `data/`, `uploads/`, `backups/`, and the live `.htaccess` file protected. After the refreshed build is installed, primary-owner OTA discovery works normally for later releases.
+
+> [!IMPORTANT]
+> **Optional `von_config.php` feature migration for v1.26.9**
+> A normal Deploy or OTA update does not require replacing the working `von_config.php`; existing sites can keep it and continue using VonCMS normally. Migrate from the matching `von_config.sample.php` only if the site should adopt the complete current configuration features, including fail-closed environment handling and the private PHP log location. Use the sample only as a template for a new private config: copy the four complete database assignment lines from the working config, preserve required definitions such as `CRON_KEY`, run `php -l`, and activate the validated file during a short maintenance window. Never add real credentials to the tracked sample or leave a credentialed backup inside the public website directory.
+>
+> Follow the complete backup, migration, verification, and rollback-safe procedure in [Optional `von_config.php` feature migration for v1.26.9](docs/UPGRADE.md#optional-von_configphp-feature-migration-for-v1269).
 
 > [!IMPORTANT]
 > **Updating an existing site to v1.25.0 through OTA?**
@@ -197,7 +203,7 @@ Fresh installs use `Inter, sans-serif` by default. VonCMS does not load Google F
 
 ## Theme Development
 
-Start with [Extension Development](docs/EXTENSION_DEVELOPMENT.md). Themes are for presentation and public UX. They should use the shared theme props, preserve SEO ownership, render post and page content through the shared renderer, and avoid duplicating runtime APIs when the core already provides them.
+Start with [Extension Development](docs/EXTENSION_DEVELOPMENT.md). Themes are for presentation and public UX. A compiling layout is not automatically VonCMS-compatible: it must satisfy the documented route/state, shared data, settings, base-path link, SEO/SSR, media, accessibility, performance, and verification contracts. Themes should use shared props and hooks, render post and page content through the shared renderer, and avoid duplicating runtime ownership that the core already provides.
 
 Common files:
 
@@ -208,7 +214,7 @@ Common files:
 
 ## Plugin And Extension Development
 
-Start with [Extension Development](docs/EXTENSION_DEVELOPMENT.md). Plugins and extensions are for optional behavior: SEO helpers, analytics, widgets, article blocks, campaign bars, integrations, and admin tools. Built-in plugin code lives under `src/plugins/von-core/features/plugins/built-in/`. Keep plugin settings explicit, sanitize public HTML, and verify activation state in both admin UI and public theme runtime.
+Start with [Extension Development](docs/EXTENSION_DEVELOPMENT.md). Plugins and extensions are for optional behavior: SEO helpers, analytics, widgets, article blocks, campaign bars, integrations, and admin tools. Built-in plugin code lives under `src/plugins/von-core/features/plugins/built-in/`. Follow the documented system, Custom HTML/CSS, or backend-integrated plugin boundary; keep settings ownership explicit, sanitize public HTML, use the shared activation decision, clean up runtime work, and verify inactive, active, route-change, and subfolder behavior.
 
 Useful docs:
 
@@ -248,8 +254,8 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.26.7_Deploy.zip`
-- `VonCMS_v1.26.7_Source.zip`
+- `VonCMS_v1.26.9_Deploy.zip`
+- `VonCMS_v1.26.9_Source.zip`
 
 No checksum sidecar files are generated by the release script.
 
@@ -298,6 +304,19 @@ After a site is already on the fixed updater baseline, the dashboard updater can
 ## Release History
 
 Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
+
+### v1.26.9 - Runtime Boundary And Extension Specification
+
+- Structured request inputs fail safely before PHP string handling, authentication throttles reserve attempts atomically, and public query offsets stay bounded.
+- Upload shields, media variant paths, generated runtime configuration, private logging, credentialed CORS, and WordPress import transport boundaries are aligned and hardened.
+- Existing installations receive a one-time safe `von_config.php` migration procedure without allowing Deploy or OTA updates to overwrite live credentials.
+- Theme and plugin development now has an explicit VonCMS compatibility specification covering route/state ownership, settings, SSR/SEO, links, media, accessibility, performance, backend APIs, lifecycle, and release proof.
+
+### v1.26.8 - Public Discovery And Production Maintenance
+
+- Public search URLs persist across direct loads and reloads, all bundled themes expose crawlable navigation, and the bounded no-JavaScript reading view is usable without taking over theme rendering.
+- Media library search, responsive social metadata, related-post ranking, AI summaries, AI writing guidance, effective publish time, page pagination, and production warning paths are aligned.
+- Compatible direct dependencies and the matching lockfile graph are current for the release.
 
 ### v1.26.7 - Categories And Theme UX
 

@@ -28,9 +28,15 @@ import {
   CheckCircle,
   Clock,
 } from 'lucide-react';
-import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import {
+  getBasePathPrefix,
+  getPermalink,
+  getPublicCategoryHref,
+  getPublicHomeHref,
+} from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
+import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -417,9 +423,10 @@ const CorporateProfile: React.FC<{
             ))
           ) : articlePosts.length > 0 ? (
             articlePosts.map((post) => (
-              <div
+              <a
                 key={post.id}
-                onClick={() => onPostClick(post.id)}
+                href={getPermalink(post, settings)}
+                onClick={(event) => handleCrawlableLinkClick(event, () => onPostClick(post.id))}
                 className="cursor-pointer group flex gap-4"
               >
                 <div className="w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg overflow-hidden shrink-0">
@@ -439,10 +446,14 @@ const CorporateProfile: React.FC<{
                     {decodeEntities(post.title)}
                   </h4>
                   <span className="text-xs text-slate-500">
-                    {formatDate(post.createdAt || '', settings.timeZone, settings.dateFormat)}
+                    {formatDate(
+                      getPostPublishTimestamp(post),
+                      settings.timeZone,
+                      settings.dateFormat
+                    )}
                   </span>
                 </div>
-              </div>
+              </a>
             ))
           ) : (
             <p className="text-slate-500 dark:text-neutral-400 italic">No articles published.</p>
@@ -592,27 +603,18 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
     return <Icon size={size} />;
   };
 
-  const safeLink = (url: string | undefined) => {
-    if (!url) return '#';
-    const trimmed = url.trim();
-    if (trimmed === 'home' || trimmed.startsWith('page:') || trimmed.startsWith('post:'))
-      return '#';
-    return normalizeSiteUrl(trimmed);
-  };
-
-  const handleLinkClick = (url: string | undefined, e?: React.MouseEvent) => {
+  const handleNavigationItem = (url: string | undefined) => {
     if (!url) return;
     const trimmed = url.trim();
+    if (trimmed === '' || trimmed === '#') return;
 
     if (trimmed === 'home') {
-      e?.preventDefault();
       onBackToHome();
       setMobileMenuOpen(false);
       return;
     }
 
     if (trimmed.startsWith('page:')) {
-      e?.preventDefault();
       const pageId = trimmed.split(':')[1];
       const pg = pages.find((p: any) => p.id === pageId);
       onPageClick(pg?.slug || pageId);
@@ -621,7 +623,6 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
     }
 
     if (trimmed.startsWith('post:')) {
-      e?.preventDefault();
       const postId = trimmed.split(':')[1];
       onPostClick(postId);
       setMobileMenuOpen(false);
@@ -629,14 +630,13 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
     }
 
     const categoryTarget = getSameSiteCategoryNavigation(trimmed);
-    const preservesBrowserNavigation = Boolean(
-      e && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
-    );
-    if (categoryTarget !== null && onCategoryClick && !preservesBrowserNavigation) {
-      e?.preventDefault();
+    if (categoryTarget !== null && onCategoryClick) {
       onCategoryClick(categoryTarget);
       setMobileMenuOpen(false);
+      return;
     }
+
+    window.location.href = normalizeSiteUrl(trimmed);
   };
 
   // SECURE AD BLOCK: Uses sanitizeHtml
@@ -652,7 +652,11 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
       <div className="max-w-7xl mx-auto px-5 flex justify-between items-center">
         {/* Logo */}
         {/* Logo */}
-        <button onClick={onBackToHome} className="flex items-center gap-2 group">
+        <a
+          href={getPublicHomeHref()}
+          onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
+          className="flex items-center gap-2 group"
+        >
           {headerIdentity.showUploadedLogo ? (
             <ThemeLogo
               src={settings.logoUrl || ''}
@@ -678,15 +682,18 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               {settings.siteName}
             </span>
           )}
-        </button>
+        </a>
 
         {/* Desktop Nav */}
         <nav className={desktopNavigationClassName}>
           {visibleNavigationItems.map((item: any) => (
-            <a
+            <PublicNavigationLink
               key={item.id}
-              href={safeLink(item.url)}
-              onClick={(e) => handleLinkClick(item.url, e)}
+              nav={item}
+              settings={settings}
+              posts={posts}
+              pages={pages}
+              onNavigate={() => handleNavigationItem(item.url)}
               className={`font-medium transition-colors hover:text-blue-600 ${
                 currentView === 'home' && !scrolled && !isDarkMode
                   ? 'text-slate-700'
@@ -694,7 +701,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               }`}
             >
               {item.label}
-            </a>
+            </PublicNavigationLink>
           ))}
           {overflowNavigationItems.length > 0 && (
             <div className="relative group">
@@ -720,16 +727,19 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                   <path d="m6 9 6 6 6-6" />
                 </svg>
               </button>
-              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-slate-100 dark:border-neutral-800 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-slate-100 dark:border-neutral-800 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']">
                 {overflowNavigationItems.map((item: any) => (
-                  <a
+                  <PublicNavigationLink
                     key={item.id}
-                    href={safeLink(item.url)}
-                    onClick={(e) => handleLinkClick(item.url, e)}
+                    nav={item}
+                    settings={settings}
+                    posts={posts}
+                    pages={pages}
+                    onNavigate={() => handleNavigationItem(item.url)}
                     className="block px-4 py-2 hover:bg-slate-50 dark:hover:bg-neutral-800 text-slate-700 dark:text-neutral-300 text-sm font-medium"
                   >
                     {item.label}
-                  </a>
+                  </PublicNavigationLink>
                 ))}
               </div>
             </div>
@@ -793,14 +803,17 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           className={`${compactNavigationClassName} absolute top-full left-0 w-full bg-white dark:bg-neutral-900 border-t border-slate-100 dark:border-neutral-800 shadow-xl p-5 flex flex-col gap-4 animate-slide-down`}
         >
           {navigationItems.map((item: any) => (
-            <a
+            <PublicNavigationLink
               key={item.id}
-              href={safeLink(item.url)}
+              nav={item}
+              settings={settings}
+              posts={posts}
+              pages={pages}
               className="font-bold text-slate-800 dark:text-neutral-200 hover:text-blue-600"
-              onClick={(e) => handleLinkClick(item.url, e)}
+              onNavigate={() => handleNavigationItem(item.url)}
             >
               {item.label}
-            </a>
+            </PublicNavigationLink>
           ))}
           <div className="border-t border-slate-100 dark:border-neutral-800 pt-4 flex flex-col gap-3">
             <button
@@ -884,22 +897,40 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 'We provide cutting-edge solutions to help your business grow. Professional, reliable, and scalable strategies for modern enterprises.'}
             </p>
             <div className="flex flex-col sm:flex-row gap-5 pt-4">
-              <button
-                onClick={() =>
-                  (window.location.href = safeLink(settings.theme?.corporatePro?.heroPrimaryLink))
+              <PublicNavigationLink
+                nav={{
+                  id: 'corporate-hero-primary',
+                  label: 'Get a Quote',
+                  url: settings.theme?.corporatePro?.heroPrimaryLink || '',
+                  type: 'internal',
+                }}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() =>
+                  handleNavigationItem(settings.theme?.corporatePro?.heroPrimaryLink)
                 }
                 className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg shadow-blue-600/30 transition-all hover:scale-105"
               >
                 Get a Quote
-              </button>
-              <button
-                onClick={() =>
-                  (window.location.href = safeLink(settings.theme?.corporatePro?.heroSecondaryLink))
+              </PublicNavigationLink>
+              <PublicNavigationLink
+                nav={{
+                  id: 'corporate-hero-secondary',
+                  label: 'Learn More',
+                  url: settings.theme?.corporatePro?.heroSecondaryLink || '',
+                  type: 'internal',
+                }}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() =>
+                  handleNavigationItem(settings.theme?.corporatePro?.heroSecondaryLink)
                 }
                 className="px-8 py-4 bg-white/10 hover:bg-white/20 text-slate-700 dark:text-white font-bold rounded-lg backdrop-blur-md border border-slate-200 dark:border-white/20 transition-all hover:scale-105"
               >
                 Learn More
-              </button>
+              </PublicNavigationLink>
             </div>
           </div>
 
@@ -945,7 +976,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               desc:
                 settings.theme?.corporatePro?.service1Desc ||
                 'Expert guidance to define your business roadmap and achieve long-term goals.',
-              link: safeLink(settings.theme?.corporatePro?.service1Link),
+              link: settings.theme?.corporatePro?.service1Link || '',
             },
             {
               title: settings.theme?.corporatePro?.service2Title || 'Digital Transformation',
@@ -953,7 +984,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               desc:
                 settings.theme?.corporatePro?.service2Desc ||
                 'Modernize your operations with cutting-edge technology solutions.',
-              link: safeLink(settings.theme?.corporatePro?.service2Link),
+              link: settings.theme?.corporatePro?.service2Link || '',
             },
             {
               title: settings.theme?.corporatePro?.service3Title || 'Market Analysis',
@@ -961,7 +992,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               desc:
                 settings.theme?.corporatePro?.service3Desc ||
                 'In-depth insights into market trends to keep you ahead of the competition.',
-              link: safeLink(settings.theme?.corporatePro?.service3Link),
+              link: settings.theme?.corporatePro?.service3Link || '',
             },
           ].map((service, idx) => (
             <div
@@ -975,12 +1006,21 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 {service.title}
               </h3>
               <p className="text-slate-600 dark:text-neutral-400 leading-relaxed">{service.desc}</p>
-              <a
-                href={service.link}
+              <PublicNavigationLink
+                nav={{
+                  id: `corporate-service-${idx + 1}`,
+                  label: service.title,
+                  url: service.link,
+                  type: 'internal',
+                }}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() => handleNavigationItem(service.link)}
                 className="inline-flex items-center gap-2 text-blue-600 font-bold mt-6 hover:gap-3 transition-all"
               >
                 Learn More <ChevronRight size={16} />
-              </a>
+              </PublicNavigationLink>
             </div>
           ))}
         </div>
@@ -1066,14 +1106,21 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           {settings.theme?.corporatePro?.ctaSubtitle ||
             'Join hundreds of successful companies that trust us with their corporate strategy.'}
         </p>
-        <button
-          onClick={() =>
-            (window.location.href = safeLink(settings.theme?.corporatePro?.ctaButtonLink))
-          }
+        <PublicNavigationLink
+          nav={{
+            id: 'corporate-footer-cta',
+            label: settings.theme?.corporatePro?.ctaButtonText || 'Start Your Project Today',
+            url: settings.theme?.corporatePro?.ctaButtonLink || '',
+            type: 'internal',
+          }}
+          settings={settings}
+          posts={posts}
+          pages={pages}
+          onNavigate={() => handleNavigationItem(settings.theme?.corporatePro?.ctaButtonLink)}
           className="px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-xl shadow-blue-600/30 transition-all hover:scale-105"
         >
           {settings.theme?.corporatePro?.ctaButtonText || 'Start Your Project Today'}
-        </button>
+        </PublicNavigationLink>
       </div>
     </section>
   );
@@ -1121,23 +1168,27 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <ul className="space-y-4">
                 {settings.navigation?.map((item: any) => (
                   <li key={item.id}>
-                    <a
-                      href={safeLink(item.url)}
-                      onClick={(e) => handleLinkClick(item.url, e)}
+                    <PublicNavigationLink
+                      nav={item}
+                      settings={settings}
+                      posts={posts}
+                      pages={pages}
+                      onNavigate={() => handleNavigationItem(item.url)}
                       className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400"
                     >
                       {item.label}
-                    </a>
+                    </PublicNavigationLink>
                   </li>
                 ))}
                 {(!settings.navigation || settings.navigation.length === 0) && (
                   <li>
-                    <button
-                      onClick={onBackToHome}
+                    <a
+                      href={getPublicHomeHref()}
+                      onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
                       className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400"
                     >
                       Home
-                    </button>
+                    </a>
                   </li>
                 )}
               </ul>
@@ -1146,20 +1197,14 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <h4 className="font-bold text-slate-900 dark:text-white mb-6">Resources</h4>
               <ul className="space-y-4">
                 <li>
-                  <a
-                    href="#"
-                    className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
+                  <span className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400">
                     Documentation
-                  </a>
+                  </span>
                 </li>
                 <li>
-                  <a
-                    href="#"
-                    className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
+                  <span className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400">
                     Support
-                  </a>
+                  </span>
                 </li>
               </ul>
             </div>
@@ -1197,18 +1242,12 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 <Rss size={14} />
                 <span className="text-sm">RSS</span>
               </a>
-              <a
-                href="#"
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-neutral-300"
-              >
+              <span className="text-slate-400 hover:text-slate-600 dark:hover:text-neutral-300">
                 Privacy Policy
-              </a>
-              <a
-                href="#"
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-neutral-300"
-              >
+              </span>
+              <span className="text-slate-400 hover:text-slate-600 dark:hover:text-neutral-300">
                 Terms of Service
-              </a>
+              </span>
             </div>
           </div>
         </div>
@@ -1441,13 +1480,15 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                               />
                             </div>
                             {onCategoryClick && (
-                              <button
-                                type="button"
-                                onClick={() => onCategoryClick('')}
+                              <a
+                                href={getPublicHomeHref()}
+                                onClick={(event) =>
+                                  handleCrawlableLinkClick(event, () => onCategoryClick(''))
+                                }
                                 className="text-sm font-semibold text-blue-600 transition-colors hover:text-blue-500"
                               >
                                 View All Articles
-                              </button>
+                              </a>
                             )}
                           </div>
                         </div>
@@ -1487,16 +1528,18 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                                       loading="lazy"
                                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                     />
-                                    <button
-                                      type="button"
+                                    <a
+                                      href={getPublicCategoryHref(post.category)}
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        onCategoryClick?.(post.category);
+                                        handleCrawlableLinkClick(event, () =>
+                                          onCategoryClick?.(post.category)
+                                        );
                                       }}
                                       className="absolute top-4 left-4 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xs px-3 py-1 rounded-sm text-xs font-bold uppercase tracking-wider text-slate-800 transition-colors hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-400"
                                     >
                                       {post.category}
-                                    </button>
+                                    </a>
                                   </div>
                                   <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 transition-colors line-clamp-2 text-slate-900 dark:text-white">
                                     <a

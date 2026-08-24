@@ -24,7 +24,9 @@ import { getPermalink } from './utils/siteUtils';
 import { vonFetch } from './utils/api';
 import { BASE_PATH, API } from './config/site.config';
 import { getCachedPublicPost } from './hooks/usePublicPostsQuery';
+import { usePublicSearchUrlState } from './hooks/usePublicSearchUrlState';
 import { normalizeDiscoveryQueryValue } from './utils/seoQuery';
+import { toAbsolutePublicMediaUrl } from './utils/socialMetadata';
 
 const SESSION_VISIBILITY_CHECK_COOLDOWN = 60 * 1000;
 
@@ -166,6 +168,19 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   const [editedPageOverride, setEditedPageOverride] = useState<Page | null>(null);
 
   const categoryParam = normalizeDiscoveryQueryValue(searchParams.get('category'), 100) || null;
+  const writePublicSearchParams = React.useCallback(
+    (nextSearchParams: URLSearchParams, options: { replace: true; state?: unknown }) => {
+      setSearchParams(nextSearchParams, options);
+    },
+    [setSearchParams]
+  );
+  const { query: publicSearchQuery, updateQuery: handlePublicSearchChange } =
+    usePublicSearchUrlState({
+      searchParams,
+      navigationKey: location.key,
+      navigationState: location.state,
+      writeSearchParams: writePublicSearchParams,
+    });
 
   let currentView: 'home' | 'single-post' | 'page' | 'profile' | 'category' = 'home';
   let selectedPost = null;
@@ -486,6 +501,8 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
         selectedProfile={selectedProfile}
         resolvedProfile={resolvedPublicProfile}
         selectedCategory={selectedCategory}
+        publicSearchQuery={publicSearchQuery}
+        onPublicSearchChange={handlePublicSearchChange}
         onPostClick={(pid) => {
           const targetPost = posts.find((x: Post) => x.id === pid) || getCachedPublicPost(pid);
           if (targetPost && props.settings) {
@@ -692,24 +709,29 @@ const App: React.FC = () => {
 
   // Update Favicon (only if changed to prevent redundant requests)
   useEffect(() => {
-    if (settings.faviconUrl) {
+    const basePrefix =
+      BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
+    const faviconBase =
+      settings.domainUrl?.trim().replace(/\/+$/, '') || `${window.location.origin}${basePrefix}`;
+    const faviconUrl = toAbsolutePublicMediaUrl(settings.faviconUrl, faviconBase);
+    if (faviconUrl) {
       const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
       if (link) {
         // Robust comparison: check base URL without query parameters (?v=...)
         const currentBase = link.href.split('?')[0];
-        const newBase = new URL(settings.faviconUrl, window.location.origin).href.split('?')[0];
+        const newBase = faviconUrl.split('?')[0];
 
         if (currentBase !== newBase) {
-          link.href = settings.faviconUrl;
+          link.href = faviconUrl;
         }
       } else {
         const newLink = document.createElement('link');
         newLink.rel = 'icon';
-        newLink.href = settings.faviconUrl;
+        newLink.href = faviconUrl;
         document.head.appendChild(newLink);
       }
     }
-  }, [settings.faviconUrl]);
+  }, [settings.domainUrl, settings.faviconUrl]);
 
   // Global Session Expiry Listener
   useEffect(() => {

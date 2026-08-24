@@ -83,6 +83,57 @@ if (!function_exists('voncms_public_cache_is_known_file')) {
   }
 }
 
+if (!function_exists('voncms_public_cache_gate_path')) {
+  function voncms_public_cache_gate_path(): string
+  {
+    return voncms_public_cache_directory() . '/.rebuild-purge.lock';
+  }
+}
+
+if (!function_exists('voncms_public_cache_acquire_gate')) {
+  /**
+   * @return resource|false
+   */
+  function voncms_public_cache_acquire_gate()
+  {
+    $cacheDir = voncms_public_cache_directory();
+    if (!is_dir($cacheDir) && !@mkdir($cacheDir, 0755, true) && !is_dir($cacheDir)) {
+      return false;
+    }
+
+    if (!is_writable($cacheDir)) {
+      return false;
+    }
+
+    $handle = @fopen(voncms_public_cache_gate_path(), 'c+');
+    if (!is_resource($handle)) {
+      return false;
+    }
+
+    if (!@flock($handle, LOCK_EX)) {
+      @fclose($handle);
+      return false;
+    }
+
+    return $handle;
+  }
+}
+
+if (!function_exists('voncms_public_cache_release_gate')) {
+  /**
+   * @param mixed $handle
+   */
+  function voncms_public_cache_release_gate($handle): void
+  {
+    if (!is_resource($handle)) {
+      return;
+    }
+
+    @flock($handle, LOCK_UN);
+    @fclose($handle);
+  }
+}
+
 if (!function_exists('voncms_public_cache_prune')) {
   function voncms_public_cache_prune(int $ttlSeconds = 60, int $maxFiles = 250): void
   {
@@ -111,9 +162,16 @@ if (!function_exists('voncms_public_cache_prune')) {
         continue;
       }
 
-      $isTempFile = str_ends_with($fileName, '.tmp');
       $modifiedAt = filemtime($entry);
-      if ($modifiedAt === false || $isTempFile || $now - $modifiedAt > $ttlSeconds) {
+      $isTempFile = str_ends_with($fileName, '.tmp');
+      if ($isTempFile) {
+        if ($modifiedAt !== false && $now - $modifiedAt > $ttlSeconds) {
+          @unlink($entry);
+        }
+        continue;
+      }
+
+      if ($modifiedAt === false || $now - $modifiedAt > $ttlSeconds) {
         @unlink($entry);
         continue;
       }
@@ -158,7 +216,6 @@ if (!function_exists('voncms_public_cache_get')) {
 
     $modifiedAt = filemtime($cacheFile);
     if ($modifiedAt === false || time() - $modifiedAt > $ttlSeconds) {
-      @unlink($cacheFile);
       return null;
     }
 
@@ -177,7 +234,10 @@ if (!function_exists('voncms_public_cache_get')) {
 }
 
 if (!function_exists('voncms_public_cache_set')) {
-  function voncms_public_cache_set(string $cacheKey, string $json): void
+  /**
+   * @param resource|null $gateHandle
+   */
+  function voncms_public_cache_set(string $cacheKey, string $json, $gateHandle = null): void
   {
     if (trim($json) === '') {
       return;
@@ -202,10 +262,17 @@ if (!function_exists('voncms_public_cache_set')) {
       return;
     }
 
-    voncms_public_cache_prune(60, 250);
+    $ownsGate = !is_resource($gateHandle);
+    if ($ownsGate) {
+      $gateHandle = voncms_public_cache_acquire_gate();
+      if (!is_resource($gateHandle)) {
+        return;
+      }
+    }
 
     $tempFile = null;
     try {
+      voncms_public_cache_prune(60, 250);
       $tempFile = $cacheFile . '.' . bin2hex(random_bytes(6)) . '.tmp';
       $bytesWritten = @file_put_contents($tempFile, $json, LOCK_EX);
       if ($bytesWritten === false || $bytesWritten !== strlen($json)) {
@@ -217,7 +284,7 @@ if (!function_exists('voncms_public_cache_set')) {
         return;
       }
 
-      if (!rename($tempFile, $cacheFile)) {
+      if (!@rename($tempFile, $cacheFile)) {
         @unlink($tempFile);
         return;
       }
@@ -228,15 +295,18 @@ if (!function_exists('voncms_public_cache_set')) {
       if (isset($tempFile) && is_file($tempFile)) {
         @unlink($tempFile);
       }
+      if ($ownsGate) {
+        voncms_public_cache_release_gate($gateHandle);
+      }
     }
   }
 }
 
-if (!function_exists('voncms_public_cache_clear')) {
+if (!function_exists('voncms_public_cache_clear_files')) {
   /**
    * @return array{removed: int, errors: array<int, string>}
    */
-  function voncms_public_cache_clear(): array
+  function voncms_public_cache_clear_files(): array
   {
     $cacheDir = voncms_public_cache_directory();
     $result = ['removed' => 0, 'errors' => []];
@@ -264,5 +334,24 @@ if (!function_exists('voncms_public_cache_clear')) {
     }
 
     return $result;
+  }
+}
+
+if (!function_exists('voncms_public_cache_clear')) {
+  /**
+   * @return array{removed: int, errors: array<int, string>}
+   */
+  function voncms_public_cache_clear(): array
+  {
+    $gateHandle = voncms_public_cache_acquire_gate();
+    if (!is_resource($gateHandle)) {
+      return ['removed' => 0, 'errors' => ['cache-gate']];
+    }
+
+    try {
+      return voncms_public_cache_clear_files();
+    } finally {
+      voncms_public_cache_release_gate($gateHandle);
+    }
   }
 }

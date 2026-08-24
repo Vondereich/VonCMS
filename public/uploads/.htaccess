@@ -1,7 +1,7 @@
-# VonCMS Uploads Security
+# VonCMS Uploads Security v2
 # Block all script execution in this directory
 
-<FilesMatch "\.(php|php5|phtml|pl|py|jsp|asp|htm|html|shtml|sh|cgi)$">
+<FilesMatch "(?i)\.(php|php[0-9]+|phtml|pht|phar|phps|pl|py|jsp|asp|aspx|htm|html|shtml|sh|cgi|js|exe)$">
     Require all denied
 </FilesMatch>
 

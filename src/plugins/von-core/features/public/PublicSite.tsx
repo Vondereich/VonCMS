@@ -44,6 +44,8 @@ interface PublicSiteProps {
   selectedCategory?: string | null;
   onCategoryClick?: (category: string) => void;
   onPageClick?: (slug: string) => void;
+  publicSearchQuery?: string;
+  onPublicSearchChange?: (query: string) => void;
 }
 
 const PublicSite: React.FC<PublicSiteProps> = (props) => {

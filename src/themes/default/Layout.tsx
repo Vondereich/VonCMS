@@ -19,10 +19,17 @@ import {
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import {
+  getBasePathPrefix,
+  getPermalink,
+  getPublicCategoryHref,
+  getPublicHomeHref,
+  getPublicProfileHref,
+} from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
+import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 
 // Theme SDK
 import {
@@ -96,32 +103,15 @@ const UserAvatar: React.FC<{
 
 // Utility for rendering ads safely (Raw HTML) using sanitizeHtml
 
-const NavLink: React.FC<{ label: string; onClick: () => void; isActive?: boolean }> = ({
-  label,
-  onClick,
-  isActive,
-}) => (
-  <button
-    onClick={onClick}
-    className={`relative group text-sm font-semibold tracking-wide transition-opacity py-2 uppercase ${isActive ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
-    style={{ color: 'inherit' }}
-  >
-    {label}
-    <span
-      className={`absolute bottom-0 left-0 h-0.5 transition-all duration-300 group-hover:w-full ${isActive ? 'w-full' : 'w-0'}`}
-      style={{ backgroundColor: 'var(--color-primary)' }}
-    ></span>
-  </button>
-);
-
 // ===== TRENDING TICKER (Feature Parity) =====
 const TrendingTicker: React.FC<{
   posts: Post[];
+  settings: SiteSettings;
   onPostClick: (id: string) => void;
   isDarkMode: boolean;
   accentColor: string;
   enableMarquee?: boolean;
-}> = ({ posts, onPostClick, isDarkMode, accentColor, enableMarquee = true }) => {
+}> = ({ posts, settings, onPostClick, isDarkMode, accentColor, enableMarquee = true }) => {
   if (!posts || posts.length === 0) return null;
 
   // Helper for contrast text (matches Digest implementation)
@@ -157,9 +147,10 @@ const TrendingTicker: React.FC<{
             className={`flex gap-10 whitespace-nowrap ${enableMarquee ? 'animate-marquee hover:[animation-play-state:paused]' : 'overflow-x-auto no-scrollbar'}`}
           >
             {posts.map((post) => (
-              <span
+              <a
                 key={post.id}
-                onClick={() => onPostClick(post.id)}
+                href={getPermalink(post, settings)}
+                onClick={(event) => handleCrawlableLinkClick(event, () => onPostClick(post.id))}
                 className="text-sm font-bold cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
                 style={{ color: 'var(--text-primary)' }}
               >
@@ -167,14 +158,15 @@ const TrendingTicker: React.FC<{
                   #
                 </span>
                 {decodeEntities(post.title)}
-              </span>
+              </a>
             ))}
             {/* Duplicate for infinite marquee effect - only if enabled */}
             {enableMarquee &&
               posts.map((post) => (
-                <span
+                <a
                   key={`${post.id}-clone`}
-                  onClick={() => onPostClick(post.id)}
+                  href={getPermalink(post, settings)}
+                  onClick={(event) => handleCrawlableLinkClick(event, () => onPostClick(post.id))}
                   className="text-sm font-bold cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
                   style={{ color: 'var(--text-primary)' }}
                 >
@@ -182,7 +174,7 @@ const TrendingTicker: React.FC<{
                     #
                   </span>
                   {decodeEntities(post.title)}
-                </span>
+                </a>
               ))}
           </div>
         </div>
@@ -226,10 +218,12 @@ const DefaultLayout: React.FC<
   onViewProfile,
   onBackToHome,
   onCategoryClick,
+  publicSearchQuery = '',
+  onPublicSearchChange,
 }) => {
   // Internal state for mobile menu only
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const activeSearchQuery = publicSearchQuery;
   const [publicTickerPosts, setPublicTickerPosts] = useState<Post[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -261,7 +255,7 @@ const DefaultLayout: React.FC<
   // Derived state for legacy support
   const isProfileRoute = currentView === 'profile';
 
-  const handleSearch = (query: string) => setActiveSearchQuery(query);
+  const handleSearch = (query: string) => onPublicSearchChange?.(query);
 
   // Nav color: use custom color in light mode, original neutral in dark mode
   const customNavColor = settings.theme?.default?.navColor || '#171717'; // Default to Neutral 900 (Dark Header)
@@ -375,9 +369,10 @@ const DefaultLayout: React.FC<
         <nav className="sticky top-0 z-50 w-full bg-(--bg-nav) text-(--text-nav) border-b border-(--border-color) shadow-md transition-colors duration-300">
           <div className="w-full px-6 lg:px-12">
             <div className="flex justify-between items-center h-20">
-              <div
+              <a
+                href={getPublicHomeHref()}
                 className="shrink-0 flex items-center cursor-pointer group gap-3"
-                onClick={goHome}
+                onClick={(event) => handleCrawlableLinkClick(event, goHome)}
               >
                 {headerIdentity.showUploadedLogo ? (
                   <ThemeLogo
@@ -406,15 +401,24 @@ const DefaultLayout: React.FC<
                     )}
                   </div>
                 )}
-              </div>
+              </a>
               <div className={desktopNavigationClassName}>
                 {visibleNavigationItems.map((nav: NavItem) => (
-                  <NavLink
+                  <PublicNavigationLink
                     key={nav.id}
-                    label={resolveNavigationLabel(nav)}
-                    onClick={() => handleNavigationItem(nav)}
-                    isActive={currentView === 'home' && nav.url === 'home'}
-                  />
+                    nav={nav}
+                    settings={settings}
+                    posts={posts}
+                    pages={pages}
+                    onNavigate={() => handleNavigationItem(nav)}
+                    className={`relative group text-sm font-semibold tracking-wide transition-opacity py-2 uppercase ${currentView === 'home' && nav.url === 'home' ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
+                  >
+                    {resolveNavigationLabel(nav)}
+                    <span
+                      className={`absolute bottom-0 left-0 h-0.5 transition-all duration-300 group-hover:w-full ${currentView === 'home' && nav.url === 'home' ? 'w-full' : 'w-0'}`}
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    />
+                  </PublicNavigationLink>
                 ))}
                 {/* More Dropdown */}
                 {overflowNavigationItems.length > 0 && (
@@ -440,21 +444,24 @@ const DefaultLayout: React.FC<
                       </svg>
                     </button>
                     <div
-                      className="absolute top-full right-0 mt-2 w-48 py-2 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50"
+                      className="absolute top-full right-0 mt-2 w-48 py-2 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50 before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']"
                       style={{
                         backgroundColor: 'var(--bg-nav)',
                         border: '1px solid rgba(128,128,128,0.3)',
                       }}
                     >
                       {overflowNavigationItems.map((nav: NavItem) => (
-                        <button
+                        <PublicNavigationLink
                           key={nav.id}
-                          onClick={() => handleNavigationItem(nav)}
-                          className="w-full px-4 py-2 text-left text-sm transition-opacity opacity-70 hover:opacity-100"
-                          style={{ color: 'var(--text-nav)' }}
+                          nav={nav}
+                          settings={settings}
+                          posts={posts}
+                          pages={pages}
+                          onNavigate={() => handleNavigationItem(nav)}
+                          className="block w-full px-4 py-2 text-left text-sm transition-opacity opacity-70 hover:opacity-100"
                         >
                           {resolveNavigationLabel(nav)}
-                        </button>
+                        </PublicNavigationLink>
                       ))}
                     </div>
                   </div>
@@ -663,24 +670,30 @@ const DefaultLayout: React.FC<
             >
               <div className="px-6 py-8 space-y-6">
                 {navigationItems.map((nav: NavItem) => (
-                  <button
+                  <PublicNavigationLink
                     key={nav.id}
-                    onClick={() => handleNavigationItem(nav, true)}
+                    nav={nav}
+                    settings={settings}
+                    posts={posts}
+                    pages={pages}
+                    onNavigate={() => handleNavigationItem(nav, true)}
                     className="block w-full text-left text-lg font-bold"
-                    style={{ color: 'var(--text-nav)' }}
                   >
                     {resolveNavigationLabel(nav)}
-                  </button>
+                  </PublicNavigationLink>
                 ))}
                 <hr style={{ borderColor: 'rgba(128,128,128,0.3)' }} />
                 {user ? (
                   <>
-                    <div
+                    <a
+                      href={getPublicProfileHref(user.username)}
                       className="flex items-center gap-4"
-                      onClick={() => {
-                        viewProfile(user.username);
-                        setIsMobileMenuOpen(false);
-                      }}
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () => {
+                          viewProfile(user.username);
+                          setIsMobileMenuOpen(false);
+                        })
+                      }
                     >
                       <UserAvatar url={user.avatar} name={user.username} email={user.email} />
                       <div>
@@ -694,7 +707,7 @@ const DefaultLayout: React.FC<
                           {user.role}
                         </p>
                       </div>
-                    </div>
+                    </a>
                     {user.role !== 'Member' && (
                       <button
                         onClick={onNavigateAdmin}
@@ -734,6 +747,7 @@ const DefaultLayout: React.FC<
                 0,
                 5
               )}
+              settings={settings}
               onPostClick={onPostClick || viewPost}
               isDarkMode={isDarkMode}
               accentColor={settings.theme?.primaryColor || '#0ea5ff'}
@@ -758,7 +772,7 @@ const DefaultLayout: React.FC<
               settings={settings}
               activeSearchQuery={activeSearchQuery}
               onSearch={handleSearch}
-              onClearSearch={() => setActiveSearchQuery('')}
+              onClearSearch={() => handleSearch('')}
               onViewProfile={viewProfile}
               allUsers={allUsers}
               selectedCategory={currentView === 'category' ? selectedCategory : null}
@@ -768,13 +782,14 @@ const DefaultLayout: React.FC<
             />
           ) : currentView === 'page' && selectedPage ? (
             <div className="w-full max-w-5xl mx-auto py-12 animate-fade-in">
-              <button
-                onClick={onBackToHome}
+              <a
+                href={getPublicHomeHref()}
+                onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
                 className="flex items-center gap-3 text-neutral-400 hover:text-neutral-900 dark:hover:text-white mb-8 transition-colors group font-medium"
               >
                 <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
                 Back Home
-              </button>
+              </a>
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-neutral-900 dark:text-white mb-8">
                 {selectedPage.title}
               </h1>
@@ -826,12 +841,13 @@ const DefaultLayout: React.FC<
                 <h2 className="text-2xl font-bold text-neutral-800 dark:text-white">
                   User not found.
                 </h2>
-                <button
-                  onClick={onBackToHome || goHome}
+                <a
+                  href={getPublicHomeHref()}
+                  onClick={(event) => handleCrawlableLinkClick(event, onBackToHome || goHome)}
                   className="mt-6 text-primary-600 hover:underline font-bold"
                 >
                   Return Home
-                </button>
+                </a>
               </div>
             )
           ) : (
@@ -840,12 +856,13 @@ const DefaultLayout: React.FC<
               <h2 className="text-2xl font-bold text-neutral-800 dark:text-white">
                 Article not found.
               </h2>
-              <button
-                onClick={onBackToHome || goHome}
+              <a
+                href={getPublicHomeHref()}
+                onClick={(event) => handleCrawlableLinkClick(event, onBackToHome || goHome)}
                 className="mt-6 text-primary-600 hover:underline font-bold"
               >
                 Return Home
-              </button>
+              </a>
             </div>
           )}
         </main>
@@ -935,11 +952,10 @@ const DefaultLayout: React.FC<
                     <>
                       <li>
                         <a
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
+                          href={getPublicHomeHref()}
+                          onClick={(event) =>
+                            handleCrawlableLinkClick(event, onBackToHome || goHome)
+                          }
                           className="hover:opacity-100 transition-opacity cursor-pointer"
                           style={{ opacity: 0.7 }}
                         >
@@ -947,13 +963,12 @@ const DefaultLayout: React.FC<
                         </a>
                       </li>
                       <li>
-                        <a
-                          href="#"
+                        <span
                           className="hover:opacity-100 transition-opacity"
                           style={{ opacity: 0.7 }}
                         >
                           About
-                        </a>
+                        </span>
                       </li>
                     </>
                   )}
@@ -1143,16 +1158,18 @@ const HomeView: React.FC<{
                 active={isCategoryRefreshing}
                 className="mx-auto mt-3 text-primary-600 dark:text-primary-400"
               />
-              <button
+              <a
+                href={getPublicHomeHref()}
                 className="text-sm text-neutral-500 hover:text-primary-600 mt-2 hover:underline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (onCategoryClick) onCategoryClick('');
-                  else window.location.href = '/';
-                }}
+                onClick={(event) =>
+                  handleCrawlableLinkClick(event, () => {
+                    if (onCategoryClick) onCategoryClick('');
+                    else window.location.href = getPublicHomeHref();
+                  })
+                }
               >
                 View All Categories
-              </button>
+              </a>
             </div>
           )}
           {localSearchTerm && searchResultsCount > 0 && !selectedCategory && (
@@ -1195,15 +1212,16 @@ const HomeView: React.FC<{
                     </a>
                     <div className="p-8 flex flex-col grow">
                       <div className="flex items-center justify-between mb-4">
-                        <span
+                        <a
+                          href={getPublicCategoryHref(post.category)}
                           className="text-xs font-bold uppercase tracking-wider text-primary-600 bg-primary-50 dark:bg-primary-900/20 px-3 py-1 rounded-full hover:bg-primary-100 dark:hover:bg-primary-900/40 cursor-pointer transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (onCategoryClick) onCategoryClick(post.category);
+                            handleCrawlableLinkClick(e, () => onCategoryClick?.(post.category));
                           }}
                         >
                           {post.category}
-                        </span>
+                        </a>
                         <span className="text-xs font-medium text-neutral-400">
                           {post.readTime || '5 min read'}
                         </span>
@@ -1225,39 +1243,47 @@ const HomeView: React.FC<{
                         {decodeEntities(post.excerpt)}
                       </p>
                       <div className="mt-auto pt-6 border-t border-neutral-50 dark:border-neutral-800 flex items-center gap-3">
-                        <UserAvatar
-                          name={post.author}
-                          email={
-                            allUsers.find(
-                              (u) => u.username === (post.author_data?.username || post.author)
-                            )?.email
+                        <a
+                          href={getPublicProfileHref(post.author_data?.username || post.author)}
+                          onClick={(event) =>
+                            handleCrawlableLinkClick(event, () =>
+                              onViewProfile(post.author_data?.username || post.author)
+                            )
                           }
-                          url={
-                            post.author_data?.avatar ||
-                            allUsers.find(
-                              (u) => u.username === (post.author_data?.username || post.author)
-                            )?.avatar
-                          }
-                          size="w-8 h-8"
-                          className="cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onViewProfile(post.author_data?.username || post.author);
-                          }}
-                        />
+                          aria-label={`View ${post.author}'s profile`}
+                          className="shrink-0 hover:opacity-80 transition-opacity"
+                        >
+                          <UserAvatar
+                            name={post.author}
+                            email={
+                              allUsers.find(
+                                (u) => u.username === (post.author_data?.username || post.author)
+                              )?.email
+                            }
+                            url={
+                              post.author_data?.avatar ||
+                              allUsers.find(
+                                (u) => u.username === (post.author_data?.username || post.author)
+                              )?.avatar
+                            }
+                            size="w-8 h-8"
+                          />
+                        </a>
                         <div className="text-xs">
-                          <span
+                          <a
+                            href={getPublicProfileHref(post.author_data?.username || post.author)}
                             className="font-bold text-neutral-900 dark:text-white block hover:text-primary-600 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onViewProfile(post.author_data?.username || post.author);
-                            }}
+                            onClick={(event) =>
+                              handleCrawlableLinkClick(event, () =>
+                                onViewProfile(post.author_data?.username || post.author)
+                              )
+                            }
                           >
                             {post.author}
-                          </span>
+                          </a>
                           <span className="text-neutral-400">
                             {formatDate(
-                              post.createdAt || '',
+                              getPostPublishTimestamp(post),
                               settings.timeZone,
                               settings.dateFormat
                             )}
@@ -1380,24 +1406,28 @@ const SinglePostView: React.FC<{
       <article
         className={`grow min-w-0 ${hasSinglePostSidebar ? 'lg:max-w-[calc(100%-420px)]' : 'w-full max-w-4xl mx-auto'}`}
       >
-        <button
-          onClick={onBack}
+        <a
+          href={getPublicHomeHref()}
+          onClick={(event) => handleCrawlableLinkClick(event, onBack)}
           className="flex items-center gap-3 text-neutral-400 hover:text-neutral-900 dark:hover:text-white mb-12 transition-colors group font-medium"
         >
           <div className="p-2 rounded-full bg-neutral-100 dark:bg-neutral-800 group-hover:bg-neutral-200 dark:group-hover:bg-neutral-700 transition-colors">
             <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           </div>
           Back
-        </button>
+        </a>
 
         <header className="mb-12 text-center lg:text-left">
           <div className="flex items-center justify-center lg:justify-start gap-4 text-sm font-bold mb-8 uppercase tracking-widest">
-            <span
+            <a
+              href={getPublicCategoryHref(post.category)}
               className="px-4 py-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full text-primary-600 dark:text-primary-400 cursor-pointer hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
-              onClick={() => onCategoryClick && onCategoryClick(post.category)}
+              onClick={(event) =>
+                handleCrawlableLinkClick(event, () => onCategoryClick?.(post.category))
+              }
             >
               {post.category}
-            </span>
+            </a>
             <span className="text-neutral-300">•</span>
             <span>{post.readTime || '5 min read'}</span>
           </div>
@@ -1406,21 +1436,31 @@ const SinglePostView: React.FC<{
           </h1>
           <div className="flex flex-col sm:flex-row items:center justify-center lg:justify-start gap-6 pt-8 border-t border-neutral-100 dark:border-neutral-800">
             <div className="flex items-center gap-4">
-              <UserAvatar
-                name={post.author}
-                url={authorAvatar}
-                email={authorEmail}
-                size="w-12 h-12"
-                className="cursor-pointer hover:opacity-80 shadow-md border-2 border-white dark:border-neutral-800"
-                onClick={() => onViewProfile(authorUsername)}
-              />
+              <a
+                href={getPublicProfileHref(authorUsername)}
+                onClick={(event) =>
+                  handleCrawlableLinkClick(event, () => onViewProfile(authorUsername))
+                }
+                aria-label={`View ${post.author}'s profile`}
+              >
+                <UserAvatar
+                  name={post.author}
+                  url={authorAvatar}
+                  email={authorEmail}
+                  size="w-12 h-12"
+                  className="cursor-pointer hover:opacity-80 shadow-md border-2 border-white dark:border-neutral-800"
+                />
+              </a>
               <div className="text-left">
-                <p
+                <a
+                  href={getPublicProfileHref(authorUsername)}
                   className="font-bold text-neutral-900 dark:text-white cursor-pointer hover:text-primary-600 transition-colors"
-                  onClick={() => onViewProfile(authorUsername)}
+                  onClick={(event) =>
+                    handleCrawlableLinkClick(event, () => onViewProfile(authorUsername))
+                  }
                 >
                   {post.author}
-                </p>
+                </a>
                 <p className="text-xs text-neutral-500 uppercase tracking-wide">Main Author</p>
               </div>
             </div>

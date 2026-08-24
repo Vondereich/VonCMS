@@ -13,13 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
 }
 
-$configFile = __DIR__ . '/../von_config.php';
-if (!file_exists($configFile)) {
-  echo json_encode(['installed' => false]);
-  exit();
-}
-require_once $configFile;
-
 // Extra Cache-Control for settings integrity
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
@@ -30,21 +23,47 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'POST
   ResponseHelper::sendError('Method not allowed', 405);
 }
 
-// Check if user is authenticated (for sensitive settings)
-// Session already started in security.php
-$isAdmin = SessionManager::isAdmin();
-$isPrimaryAdmin = SessionManager::isPrimaryAdmin();
-if (session_status() === PHP_SESSION_ACTIVE) {
-  session_write_close();
+$configFile = __DIR__ . '/../von_config.php';
+if (!file_exists($configFile)) {
+  echo json_encode(['installed' => false]);
+  exit();
 }
-$publicSettingsCacheKey = voncms_public_cache_key('settings-public', ['scope' => 'guest']);
 
-if (!$isAdmin) {
+$hasSessionUser = isset($_SESSION['user']);
+$canUsePublicSettingsCache = !$hasSessionUser;
+$publicSettingsCacheKey = voncms_public_cache_key('settings-public', ['scope' => 'guest']);
+$publicSettingsCacheGate = null;
+
+if ($canUsePublicSettingsCache) {
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
+
   $cachedPublicSettings = voncms_public_cache_get($publicSettingsCacheKey, 60);
   if (is_string($cachedPublicSettings)) {
     echo $cachedPublicSettings;
     exit();
   }
+
+  $publicSettingsCacheGate = voncms_public_cache_acquire_gate();
+  if (is_resource($publicSettingsCacheGate)) {
+    $cachedPublicSettings = voncms_public_cache_get($publicSettingsCacheKey, 60);
+    if (is_string($cachedPublicSettings)) {
+      voncms_public_cache_release_gate($publicSettingsCacheGate);
+      echo $cachedPublicSettings;
+      exit();
+    }
+  }
+}
+
+require_once $configFile;
+
+// Check if user is authenticated (for sensitive settings).
+// Authenticated non-admin sessions receive the same scrubbed projection but do not share the guest cache.
+$isAdmin = $hasSessionUser && SessionManager::isAdmin();
+$isPrimaryAdmin = $isAdmin && SessionManager::isPrimaryAdmin();
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
 }
 
 function voncms_project_public_admin_profile(mixed $profile): ?array
@@ -113,6 +132,99 @@ function voncms_normalize_public_categories($categories): array
   }
 
   return $normalized;
+}
+
+/**
+ * @param mixed $navigation
+ * @return array<int, array<string, mixed>>
+ */
+function voncms_project_public_navigation_hrefs(PDO $pdo, $navigation): array
+{
+  if (!is_array($navigation)) {
+    return [];
+  }
+
+  $pageIds = [];
+  $postIds = [];
+  foreach ($navigation as $item) {
+    if (!is_array($item)) {
+      continue;
+    }
+    $target = trim((string) ($item['url'] ?? ''));
+    if (str_starts_with($target, 'page:')) {
+      $pageId = trim(substr($target, 5));
+      if ($pageId !== '') {
+        $pageIds[$pageId] = true;
+      }
+    } elseif (str_starts_with($target, 'post:')) {
+      $postId = trim(substr($target, 5));
+      if ($postId !== '') {
+        $postIds[$postId] = true;
+      }
+    }
+  }
+
+  $pageHrefs = [];
+  if ($pageIds !== []) {
+    try {
+      $ids = array_slice(array_keys($pageIds), 0, 100);
+      $placeholders = implode(',', array_fill(0, count($ids), '?'));
+      $stmt = $pdo->prepare(
+        "SELECT id, slug FROM pages WHERE id IN ($placeholders) AND (status = 'published' OR status IS NULL)",
+      );
+      $stmt->execute($ids);
+      foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $page) {
+        $slug = trim((string) ($page['slug'] ?? ''));
+        if ($slug !== '') {
+          $pageHrefs[(string) ($page['id'] ?? '')] = '/' . ltrim($slug, '/');
+        }
+      }
+    } catch (Throwable $e) {
+      $pageHrefs = [];
+    }
+  }
+
+  $postHrefs = [];
+  if ($postIds !== []) {
+    try {
+      $ids = array_slice(array_keys($postIds), 0, 100);
+      $placeholders = implode(',', array_fill(0, count($ids), '?'));
+      $stmt = $pdo->prepare(
+        "SELECT id FROM posts WHERE id IN ($placeholders) AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?)",
+      );
+      $stmt->execute([...$ids, date('Y-m-d H:i:s')]);
+      foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $post) {
+        $postId = trim((string) ($post['id'] ?? ''));
+        if ($postId !== '') {
+          $postHrefs[$postId] = '/post/' . rawurlencode($postId);
+        }
+      }
+    } catch (Throwable $e) {
+      $postHrefs = [];
+    }
+  }
+
+  return array_map(static function ($item) use ($pageHrefs, $postHrefs): array {
+    if (!is_array($item)) {
+      return [];
+    }
+    unset($item['resolvedHref']);
+    $target = trim((string) ($item['url'] ?? ''));
+    if ($target === 'home' || $target === '/') {
+      $item['resolvedHref'] = '/';
+    } elseif (str_starts_with($target, 'page:')) {
+      $pageId = trim(substr($target, 5));
+      if (isset($pageHrefs[$pageId])) {
+        $item['resolvedHref'] = $pageHrefs[$pageId];
+      }
+    } elseif (str_starts_with($target, 'post:')) {
+      $postId = trim(substr($target, 5));
+      if (isset($postHrefs[$postId])) {
+        $item['resolvedHref'] = $postHrefs[$postId];
+      }
+    }
+    return $item;
+  }, $navigation);
 }
 
 function voncms_normalize_plugin_settings_value(string $key, mixed $value): array
@@ -473,6 +585,11 @@ try {
     }
   }
 
+  $settings['navigation'] = voncms_project_public_navigation_hrefs(
+    $pdo,
+    $settings['navigation'] ?? [],
+  );
+
   // --- SMART BRIDGE: Fallback to JSON for Contact Forms if DB is empty ---
   if ($isAdmin && empty($settings['contactForms'])) {
     $jsonPath = __DIR__ . '/../data/site_settings.json';
@@ -534,11 +651,14 @@ try {
     ResponseHelper::sendError('Failed to encode settings response', 500);
   }
 
-  if (!$isAdmin && $publicSettingsCacheKey !== null) {
-    voncms_public_cache_set($publicSettingsCacheKey, $settingsJson);
+  if ($canUsePublicSettingsCache && is_resource($publicSettingsCacheGate)) {
+    voncms_public_cache_set($publicSettingsCacheKey, $settingsJson, $publicSettingsCacheGate);
   }
+
+  voncms_public_cache_release_gate($publicSettingsCacheGate);
 
   echo $settingsJson;
 } catch (Throwable $e) {
+  voncms_public_cache_release_gate($publicSettingsCacheGate);
   ResponseHelper::sendError($e);
 }

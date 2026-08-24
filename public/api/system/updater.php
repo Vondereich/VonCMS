@@ -1303,24 +1303,29 @@ if (!defined('IN_API')) {
       // Read input ONCE and store it
       $rawInput = CSRFProtection::getRequestBody();
       $input = json_decode($rawInput, true);
-
-      // CSRF validation - check token from JSON body or header
-      $csrfToken = $input['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-      $sessionToken = CSRFProtection::getToken();
-
-      if (!$csrfToken || !hash_equals($sessionToken, $csrfToken)) {
+      if (!is_array($input)) {
         ob_end_clean();
-        die(
-          json_encode([
-            'error' => 'CSRF token validation failed',
-            'received' => substr($csrfToken, 0, 10) . '...',
-          ])
-        );
+        ResponseHelper::sendError('Invalid update request payload.', 400);
       }
 
-      $url = $input['download_url'] ?? '';
-      $version = $input['version'] ?? 'unknown';
-      $expectedHash = $input['expected_hash'] ?? null;
+      CSRFProtection::requireToken();
+
+      foreach (['download_url', 'version', 'expected_hash'] as $field) {
+        if (
+          array_key_exists($field, $input) &&
+          $input[$field] !== null &&
+          !is_scalar($input[$field])
+        ) {
+          ob_end_clean();
+          ResponseHelper::sendError('Invalid update request payload.', 400);
+        }
+      }
+
+      $url = trim((string) ($input['download_url'] ?? ''));
+      $version = trim((string) ($input['version'] ?? 'unknown'));
+      $expectedHash = isset($input['expected_hash'])
+        ? trim((string) $input['expected_hash'])
+        : null;
 
       if (!$url) {
         ob_end_clean();

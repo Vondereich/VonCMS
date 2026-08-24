@@ -27,6 +27,9 @@ type AuthView = 'login' | 'register' | 'register-success' | 'forgot' | 'reset';
 
 const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) => {
   const [view, setView] = useState<AuthView>('login');
+  const [resetToken] = useState(
+    () => new URLSearchParams(window.location.search).get('reset_token') || ''
+  );
 
   const registrationEnabled = settings?.registrationEnabled ?? true;
 
@@ -264,7 +267,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'reset',
-          token: new URLSearchParams(window.location.search).get('reset_token'),
+          token: resetToken,
           password,
         }),
       });
@@ -274,7 +277,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
       if (data.success) {
         setMessage({ type: 'success', text: 'Password Reset! redirecting to login...' });
         setTimeout(() => {
-          window.location.search = ''; // Clear token
+          window.location.href = BASE_PATH + 'login';
         }, 3000);
       } else {
         setMessage({ type: 'error', text: data.error || data.message || 'Reset failed' });
@@ -287,12 +290,17 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   };
 
   // Check for Reset Token on Load
-  React.useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('reset_token');
-    if (token) {
+  React.useLayoutEffect(() => {
+    if (resetToken) {
       setView('reset');
+
+      // Clear the credential before passive effects such as analytics can run.
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('reset_token');
+      const cleanPath = `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`;
+      window.history.replaceState(window.history.state, '', cleanPath);
     }
-  }, []);
+  }, [resetToken]);
 
   // Solid auth surface classes
   const outerClass = isModal

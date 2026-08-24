@@ -5,6 +5,7 @@ import { findRelatedPosts } from './matcher';
 import {
   formatDate,
   getPermalink,
+  getPostPublishTimestamp,
   getResponsiveImageAttributes,
 } from '../../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../../utils/linkEvents';
@@ -50,10 +51,16 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
       const postWithViews = post as Post & { views?: number };
       return [
         post.id,
+        post.title,
+        post.slug,
         post.status,
         post.category,
         post.keywords,
+        post.excerpt,
+        post.image,
+        post.imageSrcSet,
         post.createdAt || post.created_at,
+        post.scheduledAt || post.scheduled_at,
         post.updatedAt || post.updated_at,
         postWithViews.views || 0,
       ].join(':');
@@ -62,13 +69,14 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
 
   // Find related posts
   const relatedPosts = useMemo(
-    () => findRelatedPosts(currentPost, allPosts, config),
+    () => findRelatedPosts(currentPost, allPosts, config, permalinkSettings.timeZone),
     [
       currentPost.id,
       currentPost.category,
       currentPost.keywords,
       config.orderBy,
       config.count,
+      permalinkSettings.timeZone,
       relatedPostsSignature,
     ]
   );
@@ -139,10 +147,10 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                     {post.excerpt}
                   </p>
                 )}
-                {config.showDate && (
+                {config.showDate && getPostPublishTimestamp(post) && (
                   <p className="text-xs text-zinc-500 dark:text-zinc-500">
                     {formatDate(
-                      post.createdAt || new Date().toISOString(),
+                      getPostPublishTimestamp(post),
                       permalinkSettings.timeZone,
                       permalinkSettings.dateFormat
                     )}
@@ -196,10 +204,15 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                 >
                   {post.title}
                 </h4>
-                {config.showDate && (
+                {config.showExcerpt && post.excerpt && (
+                  <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-2">
+                    {post.excerpt}
+                  </p>
+                )}
+                {config.showDate && getPostPublishTimestamp(post) && (
                   <p className="text-xs text-slate-500">
                     {formatDate(
-                      post.createdAt || new Date().toISOString(),
+                      getPostPublishTimestamp(post),
                       permalinkSettings.timeZone,
                       permalinkSettings.dateFormat
                     )}
@@ -255,10 +268,15 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
                 >
                   {post.title}
                 </h4>
-                {config.showDate && (
+                {config.showExcerpt && post.excerpt && (
+                  <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 mb-3">
+                    {post.excerpt}
+                  </p>
+                )}
+                {config.showDate && getPostPublishTimestamp(post) && (
                   <p className="text-xs text-zinc-500 font-medium">
                     {formatDate(
-                      post.createdAt || new Date().toISOString(),
+                      getPostPublishTimestamp(post),
                       permalinkSettings.timeZone,
                       permalinkSettings.dateFormat
                     )}

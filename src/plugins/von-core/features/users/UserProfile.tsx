@@ -13,7 +13,13 @@ import { sanitizeHtml } from '../../../../utils/security';
 import { LoadMoreButton } from '../../../../components/LoadMoreButton';
 import { useProfileActivity } from '../../../../hooks/useProfileActivity';
 import { useProfileEditor } from '../../../../hooks/useProfileEditor';
-import { formatDate, getResponsiveImageAttributes } from '../../../../utils/siteUtils';
+import {
+  formatDate,
+  getPermalink,
+  getPostPublishTimestamp,
+  getResponsiveImageAttributes,
+} from '../../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../../utils/linkEvents';
 import { SafeImage } from '../../../../components/SafeImage';
 import {
   getProfileDisplayRole,
@@ -429,9 +435,10 @@ const UserProfile: React.FC<ProfileProps> = ({
                 ))
               ) : articlePosts.length > 0 ? (
                 articlePosts.map((post) => (
-                  <div
+                  <a
                     key={post.id}
-                    onClick={() => onViewPost(post.id)}
+                    href={getPermalink(post, settings)}
+                    onClick={(event) => handleCrawlableLinkClick(event, () => onViewPost(post.id))}
                     className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-100 dark:border-neutral-800 cursor-pointer hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 transition-all group flex gap-4"
                   >
                     <div className="w-24 h-24 rounded-xl bg-neutral-200 dark:bg-neutral-800 overflow-hidden shrink-0">
@@ -455,13 +462,13 @@ const UserProfile: React.FC<ProfileProps> = ({
                       <p className="text-xs text-neutral-400">
                         {post.readTime || '5 min read'} •{' '}
                         {formatDate(
-                          post.createdAt || post.updatedAt,
+                          getPostPublishTimestamp(post),
                           settings.timeZone,
                           settings.dateFormat
                         )}
                       </p>
                     </div>
-                  </div>
+                  </a>
                 ))
               ) : (
                 <div className="col-span-2 py-12 text-center border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl">

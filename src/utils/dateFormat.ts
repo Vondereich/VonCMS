@@ -65,6 +65,66 @@ const resolveDateTimeInput = (
     : { date: new Date(Number.NaN), displayTimeZone: timeZone || undefined };
 };
 
+const getTimeZoneOffsetMs = (date: Date, timeZone: string): number => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((item) => item.type === type)?.value);
+  const zonedTime = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second')
+  );
+
+  return zonedTime - Math.floor(date.getTime() / 1000) * 1000;
+};
+
+export const normalizeSchemaDateTime = (value?: string, timeZone?: string): string | undefined => {
+  const rawValue = value?.trim();
+  if (!rawValue) return undefined;
+  if (/[zZ]|[+\-]\d{2}:\d{2}$/.test(rawValue)) return rawValue;
+
+  const sqlDateTime = SQL_DATETIME_PATTERN.exec(rawValue);
+  if (!sqlDateTime) {
+    const parsed = new Date(rawValue);
+    return Number.isNaN(parsed.getTime()) ? rawValue : parsed.toISOString();
+  }
+
+  const [, year, month, day, hour, minute, second = '0'] = sqlDateTime;
+  const wallClockMs = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  );
+  const { date: validatedWallClock } = resolveDateTimeInput(rawValue, timeZone);
+  if (Number.isNaN(validatedWallClock.getTime())) return rawValue;
+
+  try {
+    const effectiveTimeZone = timeZone?.trim() || 'UTC';
+    let instant = new Date(wallClockMs);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      instant = new Date(wallClockMs - getTimeZoneOffsetMs(instant, effectiveTimeZone));
+    }
+    return instant.toISOString();
+  } catch {
+    return rawValue;
+  }
+};
+
 export const formatDate = (
   dateString: string,
   timeZone?: string,
@@ -73,7 +133,7 @@ export const formatDate = (
   if (!dateString) return '';
 
   try {
-    const date = new Date(dateString);
+    const { date, displayTimeZone } = resolveDateTimeInput(dateString, timeZone);
     if (Number.isNaN(date.getTime())) return dateString;
 
     const normalizedFormat = normalizeSiteDateFormat(dateFormat);
@@ -82,7 +142,7 @@ export const formatDate = (
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-        timeZone: timeZone || undefined,
+        timeZone: displayTimeZone,
       }).formatToParts(date);
       const part = (type: Intl.DateTimeFormatPartTypes) =>
         parts.find((item) => item.type === type)?.value || '';
@@ -96,7 +156,7 @@ export const formatDate = (
       year: 'numeric',
       month: isNumeric ? '2-digit' : isShort ? 'short' : 'long',
       day: isNumeric ? '2-digit' : 'numeric',
-      timeZone: timeZone || undefined,
+      timeZone: displayTimeZone,
     }).format(date);
   } catch {
     return dateString;

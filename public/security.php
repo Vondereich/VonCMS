@@ -190,10 +190,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
     // Let index.php render the public page without starting a visitor session.
   } else {
-    $isProduction = !in_array(
-      preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')),
-      ['localhost', '127.0.0.1', 'localhost:8080'],
-    );
     session_set_cookie_params([
       'lifetime' => 0, // Session cookie (expires on browser close)
       'path' => voncms_detect_session_cookie_path(),
@@ -255,31 +251,42 @@ function sendApiHeaders($methods = 'GET, OPTIONS')
     $isTrustedOrigin = false;
     if (!empty($origin)) {
       $originParts = parse_url($origin);
+      if (!is_array($originParts)) {
+        $originParts = [];
+      }
       $originScheme = strtolower($originParts['scheme'] ?? '');
       $originHost = strtolower($originParts['host'] ?? '');
-      $originPort = isset($originParts['port']) ? (int) $originParts['port'] : null;
-
-      $hostHeader = preg_replace(
-        '/[^a-zA-Z0-9.\-:]/',
-        '',
-        strtolower((string) ($_SERVER['HTTP_HOST'] ?? '')),
+      $currentScheme = is_https() ? 'https' : 'http';
+      $serverOriginParts = parse_url(
+        $currentScheme . '://' . (string) ($_SERVER['HTTP_HOST'] ?? ''),
       );
-      $serverHost = $hostHeader;
-      $serverPort = null;
-      if (strpos($hostHeader, ':') !== false) {
-        [$serverHost, $serverPortRaw] = explode(':', $hostHeader, 2);
-        $serverPort = (int) $serverPortRaw;
-      }
+      $serverHost = is_array($serverOriginParts)
+        ? strtolower((string) ($serverOriginParts['host'] ?? ''))
+        : '';
+      $originPort = isset($originParts['port'])
+        ? (int) $originParts['port']
+        : ($originScheme === 'https'
+          ? 443
+          : 80);
+      $serverPort =
+        is_array($serverOriginParts) && isset($serverOriginParts['port'])
+          ? (int) $serverOriginParts['port']
+          : ($currentScheme === 'https'
+            ? 443
+            : 80);
 
       $sameHost = $originHost !== '' && $originHost === $serverHost;
       $localhostDev =
         in_array($originHost, ['localhost', '127.0.0.1'], true) &&
         in_array($serverHost, ['localhost', '127.0.0.1'], true);
-      $samePort = $serverPort === null || $originPort === null || $originPort === $serverPort;
+      $samePort = $originPort === $serverPort;
+      $sameScheme = $originScheme === $currentScheme;
 
       $isTrustedOrigin =
-        in_array($originScheme, ['http', 'https'], true) &&
+        $sameScheme &&
         $samePort &&
+        !isset($originParts['user']) &&
+        !isset($originParts['pass']) &&
         ($sameHost || $localhostDev);
     }
 
@@ -351,20 +358,24 @@ class CSRFProtection
   public static function validateToken()
   {
     // Check header first (SPA pattern) - Standardize to X-CSRF-Token
-    $headerToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $headerTokenValue = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $headerToken = is_string($headerTokenValue) ? trim($headerTokenValue) : '';
 
     // Fallback to POST field (Standard form data)
-    $postToken = $_POST['csrf_token'] ?? '';
+    $postTokenValue = $_POST['csrf_token'] ?? '';
+    $postToken = is_string($postTokenValue) ? trim($postTokenValue) : '';
 
     // Use Buffered Input for JSON tokens (Multi-reader safe)
     $jsonToken = '';
-    $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
+    $contentType = (string) ($_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
     if (strpos($contentType, 'application/json') !== false) {
       $input = json_decode(self::getRequestBody(), true);
-      $jsonToken = $input['csrf_token'] ?? '';
+      $jsonTokenValue = is_array($input) ? $input['csrf_token'] ?? '' : '';
+      $jsonToken = is_string($jsonTokenValue) ? trim($jsonTokenValue) : '';
     }
 
-    $submittedToken = trim($headerToken ?: ($postToken ?: $jsonToken));
+    $submittedToken =
+      $headerToken !== '' ? $headerToken : ($postToken !== '' ? $postToken : $jsonToken);
     $sessionToken = self::getToken();
 
     return !empty($submittedToken) && hash_equals($sessionToken, $submittedToken);
@@ -850,6 +861,73 @@ class RateLimiter
   }
 
   /**
+   * Reserve one authentication attempt under an exclusive lock.
+   * The attempt that reaches the threshold is allowed, then the escalating lockout applies.
+   * Storage failures remain fail-open so authentication is not taken offline by filesystem faults.
+   *
+   * @param string|null $identifier
+   * @return bool
+   */
+  public static function consumeAttempt($identifier = null)
+  {
+    $identifier = $identifier ?? self::getClientIP();
+    $file = self::getFilePath($identifier);
+    $handle = @fopen($file, 'c+');
+    if ($handle === false) {
+      return true;
+    }
+
+    if (!@flock($handle, LOCK_EX)) {
+      @fclose($handle);
+      return true;
+    }
+
+    $accepted = true;
+    try {
+      rewind($handle);
+      $raw = stream_get_contents($handle);
+      $existing = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+      $data = is_array($existing)
+        ? $existing
+        : ['attempts' => 0, 'lockout_until' => 0, 'penalty_level' => 0];
+      $now = time();
+      $lockoutUntil = (int) ($data['lockout_until'] ?? 0);
+
+      if ($lockoutUntil > $now) {
+        return false;
+      }
+
+      if ($lockoutUntil > 0) {
+        $data['attempts'] = 0;
+        $data['lockout_until'] = 0;
+      }
+
+      $data['attempts'] = (int) ($data['attempts'] ?? 0) + 1;
+      $data['penalty_level'] = (int) ($data['penalty_level'] ?? 0);
+      if ($data['attempts'] >= self::$maxAttempts) {
+        $data['penalty_level']++;
+        $multipliers = [1 => 1, 2 => 4];
+        $multiplier = $multipliers[$data['penalty_level']] ?? 96;
+        $data['lockout_until'] = $now + self::$lockoutTime * $multiplier;
+      }
+
+      $payload = json_encode($data);
+      if (is_string($payload)) {
+        rewind($handle);
+        if (@ftruncate($handle, 0)) {
+          @fwrite($handle, $payload);
+          @fflush($handle);
+        }
+      }
+    } finally {
+      @flock($handle, LOCK_UN);
+      @fclose($handle);
+    }
+
+    return $accepted;
+  }
+
+  /**
    * Check if IP is rate limited
    * @param string|null $identifier
    * @return bool
@@ -890,29 +968,7 @@ class RateLimiter
    */
   public static function recordAttempt($identifier = null)
   {
-    $identifier = $identifier ?? self::getClientIP();
-    $file = self::getFilePath($identifier);
-
-    $data = ['attempts' => 1, 'lockout_until' => 0, 'penalty_level' => 0];
-
-    if (file_exists($file)) {
-      $existing = json_decode(file_get_contents($file), true);
-      $data['attempts'] = ($existing['attempts'] ?? 0) + 1;
-      $data['penalty_level'] = $existing['penalty_level'] ?? 0;
-    }
-
-    // Trigger lockout if max attempts reached
-    if ($data['attempts'] >= self::$maxAttempts) {
-      $data['penalty_level']++;
-
-      // Escalating penalty: 1 = 15m, 2 = 1h, 3+ = 24h
-      $multipliers = [1 => 1, 2 => 4];
-      $multiplier = $multipliers[$data['penalty_level']] ?? 96;
-
-      $data['lockout_until'] = time() + self::$lockoutTime * $multiplier;
-    }
-
-    file_put_contents($file, json_encode($data));
+    self::consumeAttempt($identifier);
   }
 
   /**
@@ -945,6 +1001,22 @@ class RateLimiter
       return; // Avoid visitor rate-limit storage for a public crawler GET.
     }
     if (self::isLimited($identifier)) {
+      sendApiHeaders();
+      http_response_code(429);
+      echo json_encode(['error' => 'Too many requests. Please try again later.']);
+      exit();
+    }
+  }
+
+  /**
+   * Atomically reserve an authentication attempt or terminate when locked out.
+   *
+   * @param string|null $identifier
+   * @return void
+   */
+  public static function requireAttempt($identifier = null)
+  {
+    if (!self::consumeAttempt($identifier)) {
       sendApiHeaders();
       http_response_code(429);
       echo json_encode(['error' => 'Too many requests. Please try again later.']);
@@ -1082,6 +1154,7 @@ class SecurityHelper
     $requiredDirectiveGroups = [
       ['DirectoryIndex index.php index.html'],
       ['RewriteEngine On'],
+      ['RewriteRule \.(sql|md|json|log|bak|env|zip|lock)$ - [F,L]'],
       ['RewriteRule ^von_config\\.php$ - [F,L]'],
       ['RewriteRule ^api/(.*)$ api/$1 [L]', 'RewriteRule ^api/(.*)$ public/api/$1 [L]'],
       [
@@ -1148,7 +1221,13 @@ class SecurityHelper
       }
 
       $shieldContent = @file_get_contents($shield);
-      if ($shieldContent === false || strpos($shieldContent, 'Require all denied') === false) {
+      if (
+        $shieldContent === false ||
+        strpos($shieldContent, 'VonCMS Uploads Security v2') === false ||
+        strpos($shieldContent, '(?i)\.(php|php[0-9]+|phtml|pht|phar|phps') === false ||
+        strpos($shieldContent, 'Require all denied') === false ||
+        strpos($shieldContent, 'Options -Indexes') === false
+      ) {
         return true;
       }
     }
@@ -1165,7 +1244,7 @@ class ResponseHelper
   /**
    * Send Error Response (Secure)
    *
-   * @param Exception|string $e The exception object or error message
+   * @param Throwable|string|scalar|null $e The throwable object or error message
    * @param int $statusCode HTTP Status code (default 500)
    * @return void
    */
@@ -1181,7 +1260,33 @@ class ResponseHelper
 
     http_response_code($statusCode);
 
-    $message = $e instanceof Exception ? $e->getMessage() : $e;
+    if ($e instanceof Throwable) {
+      $message = $e->getMessage();
+    } elseif (is_scalar($e) || $e === null) {
+      $message = (string) ($e ?? '');
+    } else {
+      $message = 'Unexpected error';
+    }
+
+    $message = trim($message);
+    if ($message === '') {
+      $message = 'Unexpected error';
+    }
+
+    $encodedMessage = json_encode($message, JSON_INVALID_UTF8_SUBSTITUTE);
+    if (is_string($encodedMessage)) {
+      $decodedMessage = json_decode($encodedMessage, true);
+      if (is_string($decodedMessage)) {
+        $message = $decodedMessage;
+      }
+    }
+
+    if (strlen($message) > 2000) {
+      $message = function_exists('mb_strcut')
+        ? mb_strcut($message, 0, 2000, 'UTF-8')
+        : substr($message, 0, 2000);
+    }
+
     $isAdmin = SessionManager::isAdmin();
     $debugEnabled = defined('VONCMS_DEBUG') && constant('VONCMS_DEBUG') === true;
 
@@ -1190,19 +1295,25 @@ class ResponseHelper
 
     if ($isAdmin || ($statusCode >= 400 && $statusCode < 500)) {
       // Admins or validation errors (4xx) see the actual message
-      echo json_encode([
-        'success' => false,
-        'error' => $message,
-        'debug_trace' =>
-          $isAdmin && $debugEnabled && $e instanceof Exception ? $e->getTraceAsString() : null,
-      ]);
+      echo json_encode(
+        [
+          'success' => false,
+          'error' => $message,
+          'debug_trace' =>
+            $isAdmin && $debugEnabled && $e instanceof Throwable ? $e->getTraceAsString() : null,
+        ],
+        JSON_INVALID_UTF8_SUBSTITUTE,
+      );
     } else {
       // Public users see generic message for 5xx to prevent info disclosure
-      echo json_encode([
-        'success' => false,
-        'error' => 'An internal server error occurred. Please contact support.',
-        'code' => 'INTERNAL_ERROR',
-      ]);
+      echo json_encode(
+        [
+          'success' => false,
+          'error' => 'An internal server error occurred. Please contact support.',
+          'code' => 'INTERNAL_ERROR',
+        ],
+        JSON_INVALID_UTF8_SUBSTITUTE,
+      );
     }
     exit();
   }

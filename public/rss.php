@@ -21,12 +21,16 @@ try {
   voncms_apply_site_timezone($pdo);
 
   // Settings
-  $limit = isset($_GET['limit']) ? max(1, min(100, (int) $_GET['limit'])) : 20;
+  $limitValue = $_GET['limit'] ?? 20;
+  $limit = is_scalar($limitValue) ? max(1, min(100, (int) $limitValue)) : 20;
+  $categoryValue = $_GET['category'] ?? null;
+  $categoryText = is_string($categoryValue) ? trim($categoryValue) : '';
   $category =
-    isset($_GET['category']) && preg_match('/^[\p{L}\p{N} ._-]+$/u', $_GET['category'])
-      ? $_GET['category']
+    $categoryText !== '' && preg_match('/^[\p{L}\p{N} ._-]+$/u', $categoryText)
+      ? $categoryText
       : null;
-  $offset = isset($_GET['offset']) ? max(0, (int) $_GET['offset']) : 0;
+  $offsetValue = $_GET['offset'] ?? 0;
+  $offset = is_scalar($offsetValue) ? min(10000, max(0, (int) $offsetValue)) : 0;
 
   // Get site settings
   $stmt = $pdo->prepare(
@@ -276,7 +280,7 @@ endforeach; ?>
   </channel>
 </rss>
 <?php
-} catch (Exception $e) {
+} catch (Throwable $e) {
   error_log('RSS feed error: ' . $e->getMessage());
   header('Content-Type: text/xml; charset=utf-8');
   echo '<?xml version="1.0" encoding="UTF-8"?>';

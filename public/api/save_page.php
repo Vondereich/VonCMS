@@ -37,32 +37,62 @@ try {
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid JSON payload', 400);
+}
+
+foreach (
+  [
+    'id',
+    'baseUpdatedAt',
+    'title',
+    'slug',
+    'content',
+    'excerpt',
+    'metaDescription',
+    'meta_description',
+    'keywords',
+    'status',
+  ]
+  as $field
+) {
+  if (array_key_exists($field, $input) && $input[$field] !== null && !is_scalar($input[$field])) {
+    ResponseHelper::sendError('Invalid page payload', 400);
+  }
+}
+
 $clientUpdatedAt = trim((string) ($input['baseUpdatedAt'] ?? ''));
 
 if (
   !isset($input['title']) ||
-  trim($input['title']) === '' ||
+  trim((string) $input['title']) === '' ||
   !isset($input['slug']) ||
-  trim($input['slug']) === ''
+  trim((string) $input['slug']) === ''
 ) {
   ResponseHelper::sendError('Title and Slug are required', 400);
 }
 
 // Content length limit (prevent DoS - max 1MB)
-if (isset($input['content']) && strlen($input['content']) > 1048576) {
+if (isset($input['content']) && strlen((string) $input['content']) > 1048576) {
   ResponseHelper::sendError('Content too large. Maximum 1MB allowed.', 400);
 }
 
 // Sanitize input - but preserve fields that should not be HTML encoded
-$rawContent = $input['content'] ?? '';
-$rawTitle = $input['title'] ?? '';
-$rawSlug = $input['slug'] ?? '';
-$rawExcerpt = $input['excerpt'] ?? '';
-$rawMeta = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
-$rawKeywords = $input['keywords'] ?? '';
+$rawContent = (string) ($input['content'] ?? '');
+$rawTitle = (string) ($input['title'] ?? '');
+$rawSlug = (string) ($input['slug'] ?? '');
+$rawExcerpt = (string) ($input['excerpt'] ?? '');
+$rawMeta = (string) ($input['metaDescription'] ?? ($input['meta_description'] ?? ''));
+$rawKeywords = (string) ($input['keywords'] ?? '');
 
 if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
   ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
+}
+if (mb_strlen($rawSlug) > 255) {
+  ResponseHelper::sendError('Slug is too long. Maximum 255 characters allowed.', 400);
+}
+if (mb_strlen($rawExcerpt) > 5000 || mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
+  ResponseHelper::sendError('Page metadata exceeds the allowed length.', 400);
 }
 
 // SECURITY: Match post-save hardening for page content too

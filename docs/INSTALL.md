@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.26.7 "After Hours"**
+> **VonCMS v1.26.9 "After Hours"**
 
 ---
 
@@ -50,6 +50,8 @@ Laragon is lightweight but requires a small manual step:
 
 > **Default DB credentials:** Host: `localhost`, User: `root`, Password: _(empty)_. MariaDB is fully compatible with VonCMS (uses standard `mysql:` PDO DSN).
 
+VonCMS keeps PHP error display disabled by default on every host, including localhost. Developers who need browser-visible diagnostics must explicitly set the web-server environment variable `VONCMS_ENV=development`; removing that variable restores the production-safe default. PHP logs are written to a private per-install directory outside the server document root, with a private system-temporary fallback when the host does not expose or permit that location.
+
 ---
 
 ## Quick Install
@@ -64,7 +66,7 @@ inspection, but it cannot replace host-root robots configuration.
 
 ### Step 1: Upload
 
-1. Download the latest VonCMS Deploy package: `VonCMS_v1.26.7_Deploy.zip`.
+1. Download the latest published VonCMS Deploy package from the GitHub Releases page.
 2. Upload to hosting (`public_html`) or localhost (`htdocs`)
 3. For Laragon: extract to `C:\laragon\www\your-project`
 
@@ -126,7 +128,7 @@ An external cron is optional when a site can remain completely idle around a sch
 
 For a subfolder install, include the subfolder in the URL, for example `https://example.com/news/api/cron_publish.php`. Some hosts place `curl` elsewhere, so use the path shown by the hosting provider if `/usr/bin/curl` is unavailable.
 
-Keep the key in the `X-Cron-Key` header. Do not place it in the query string because URLs are commonly stored in access logs. If you do not configure cPanel cron, leave `CRON_KEY` undefined and continue using VonCMS normally.
+Keep the key in the `X-Cron-Key` header. Query-string cron keys are not accepted because URLs are commonly stored in access logs. If you do not configure cPanel cron, leave `CRON_KEY` undefined and continue using VonCMS normally.
 
 The endpoint contract and response fields are documented in [API Guide](API.md#scheduled-publishing-endpoint).
 
@@ -157,4 +159,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.26.7 "After Hours"_
+_VonCMS v1.26.9 "After Hours"_

@@ -3,7 +3,8 @@ import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { Comment, User, SiteSettings } from '../../../../../types';
 import { MessageCircle, CornerDownRight, ThumbsUp, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatDate } from '../../../../../utils/siteUtils';
+import { formatDate, getPublicProfileHref } from '../../../../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
 
 // Utility to render User Avatar locally within component
 const UserAvatar: React.FC<{
@@ -13,14 +14,12 @@ const UserAvatar: React.FC<{
   md5?: string;
   size?: string;
   className?: string;
-  onClick?: () => void;
-}> = ({ url, name, email, md5, size = 'w-10 h-10', className = '', onClick }) => {
+}> = ({ url, name, email, md5, size = 'w-10 h-10', className = '' }) => {
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <div
-      onClick={onClick}
-      className={`${size} rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 shrink-0 ${className} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      className={`${size} rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 shrink-0 ${className}`}
     >
       {url && !imageFailed ? (
         <img
@@ -318,6 +317,7 @@ export const VpComments: React.FC<CommentsProps> = ({
           <>
             {displayedComments.map((comment) => {
               const isLiked = likedComments.has(comment.id);
+              const commentHasProfile = Boolean(comment.hasProfile && onViewProfile);
 
               return (
                 <div
@@ -326,22 +326,50 @@ export const VpComments: React.FC<CommentsProps> = ({
                   style={{ borderColor: themeColors?.border }}
                 >
                   <div className="flex gap-6">
-                    <UserAvatar
-                      url={comment.userAvatar}
-                      name={comment.username}
-                      md5={comment.emailHash}
-                      size="w-12 h-12"
-                      onClick={() => onViewProfile && onViewProfile(comment.username)}
-                    />
+                    {commentHasProfile ? (
+                      <a
+                        href={getPublicProfileHref(comment.username)}
+                        onClick={(event) =>
+                          handleCrawlableLinkClick(event, () => onViewProfile?.(comment.username))
+                        }
+                        aria-label={`View ${comment.username}'s profile`}
+                        className="shrink-0 hover:opacity-80 transition-opacity"
+                      >
+                        <UserAvatar
+                          url={comment.userAvatar}
+                          name={comment.username}
+                          md5={comment.emailHash}
+                          size="w-12 h-12"
+                        />
+                      </a>
+                    ) : (
+                      <UserAvatar
+                        url={comment.userAvatar}
+                        name={comment.username}
+                        md5={comment.emailHash}
+                        size="w-12 h-12"
+                      />
+                    )}
 
                     <div className="grow">
                       <div className="flex items-baseline gap-3 mb-2">
-                        <span
-                          className="font-bold text-slate-900 dark:text-white text-lg cursor-pointer hover:text-primary-600 transition-colors"
-                          onClick={() => onViewProfile && onViewProfile(comment.username)}
-                        >
-                          {comment.username}
-                        </span>
+                        {commentHasProfile ? (
+                          <a
+                            href={getPublicProfileHref(comment.username)}
+                            className="font-bold text-slate-900 dark:text-white text-lg hover:text-primary-600 transition-colors"
+                            onClick={(event) =>
+                              handleCrawlableLinkClick(event, () =>
+                                onViewProfile?.(comment.username)
+                              )
+                            }
+                          >
+                            {comment.username}
+                          </a>
+                        ) : (
+                          <span className="font-bold text-slate-900 dark:text-white text-lg">
+                            {comment.username}
+                          </span>
+                        )}
                         <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">
                           {formatDate(comment.createdAt, settings.timeZone, settings.dateFormat)}
                         </span>
@@ -434,21 +462,51 @@ export const VpComments: React.FC<CommentsProps> = ({
                                 : {}
                             }
                           >
-                            <UserAvatar
-                              url={reply.userAvatar}
-                              name={reply.username}
-                              md5={reply.emailHash}
-                              size="w-8 h-8"
-                              onClick={() => onViewProfile && onViewProfile(reply.username)}
-                            />
+                            {reply.hasProfile && onViewProfile ? (
+                              <a
+                                href={getPublicProfileHref(reply.username)}
+                                onClick={(event) =>
+                                  handleCrawlableLinkClick(event, () =>
+                                    onViewProfile(reply.username)
+                                  )
+                                }
+                                aria-label={`View ${reply.username}'s profile`}
+                                className="shrink-0 hover:opacity-80 transition-opacity"
+                              >
+                                <UserAvatar
+                                  url={reply.userAvatar}
+                                  name={reply.username}
+                                  md5={reply.emailHash}
+                                  size="w-8 h-8"
+                                />
+                              </a>
+                            ) : (
+                              <UserAvatar
+                                url={reply.userAvatar}
+                                name={reply.username}
+                                md5={reply.emailHash}
+                                size="w-8 h-8"
+                              />
+                            )}
                             <div className="grow">
                               <div className="flex items-baseline gap-2 mb-1">
-                                <span
-                                  className="font-bold text-slate-800 dark:text-white text-sm cursor-pointer hover:text-primary-600"
-                                  onClick={() => onViewProfile && onViewProfile(reply.username)}
-                                >
-                                  {reply.username}
-                                </span>
+                                {reply.hasProfile && onViewProfile ? (
+                                  <a
+                                    href={getPublicProfileHref(reply.username)}
+                                    className="font-bold text-slate-800 dark:text-white text-sm hover:text-primary-600"
+                                    onClick={(event) =>
+                                      handleCrawlableLinkClick(event, () =>
+                                        onViewProfile(reply.username)
+                                      )
+                                    }
+                                  >
+                                    {reply.username}
+                                  </a>
+                                ) : (
+                                  <span className="font-bold text-slate-800 dark:text-white text-sm">
+                                    {reply.username}
+                                  </span>
+                                )}
                                 <span className="text-[10px] text-slate-400 uppercase">
                                   {formatDate(
                                     reply.createdAt,

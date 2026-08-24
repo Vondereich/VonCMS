@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { SiteSettings, Post, Comment } from '../types';
+import type { SiteSettings, Post, Comment, Page, NavItem } from '../types';
 import { BASE_PATH } from '../config/site.config';
 
 export {
@@ -8,6 +8,7 @@ export {
   formatDate,
   formatDateTime,
   getPostPublishTimestamp,
+  normalizeSchemaDateTime,
   normalizeSiteDateFormat,
 } from './dateFormat';
 
@@ -167,6 +168,46 @@ export const getSameSiteCategoryNavigation = (url?: string): string | null => {
   } catch {
     return null;
   }
+};
+
+export const getPublicHomeHref = (): string => normalizeSiteUrl('/');
+
+export const getPublicCategoryHref = (category: string): string =>
+  normalizeSiteUrl(`/?category=${encodeURIComponent(category.trim())}`);
+
+export const getPublicProfileHref = (username: string): string =>
+  normalizeSiteUrl(`/profile/${encodeURIComponent(username.trim())}`);
+
+export const getPublicNavigationHref = (
+  nav: NavItem,
+  settings: SiteSettings,
+  posts: Post[] = [],
+  pages: Page[] = []
+): string | null => {
+  const target = String(nav.url || '').trim();
+  const projectedHref = String(nav.resolvedHref || '').trim();
+  if (projectedHref !== '') {
+    const normalizedProjectedHref = normalizeSiteUrl(projectedHref);
+    if (normalizedProjectedHref !== '#') return normalizedProjectedHref;
+  }
+  if (target === 'home' || target === '/') return getPublicHomeHref();
+
+  if (target.startsWith('page:')) {
+    const pageRef = target.slice(5).trim();
+    const page = pages.find((candidate) => candidate.id === pageRef || candidate.slug === pageRef);
+    return page?.status === 'published' && page.slug ? normalizeSiteUrl(`/${page.slug}`) : null;
+  }
+
+  if (target.startsWith('post:')) {
+    const postRef = target.slice(5).trim();
+    if (!postRef) return null;
+    const post = posts.find((candidate) => candidate.id === postRef || candidate.slug === postRef);
+    const scheduledAt = String(post?.scheduledAt || post?.scheduled_at || '').trim();
+    return post?.status === 'published' && scheduledAt === '' ? getPermalink(post, settings) : null;
+  }
+
+  const href = normalizeSiteUrl(target);
+  return href === '#' ? null : href;
 };
 
 export const normalizeImageSource = (url?: string, fallback: string = ''): string => {

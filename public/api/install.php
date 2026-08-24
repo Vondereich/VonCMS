@@ -459,20 +459,30 @@ $configContent =
 
 // Production Error Reporting (Security Enhancement)
 if (php_sapi_name() !== 'cli') {
-    \$host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) (\$_SERVER['HTTP_HOST'] ?? ''));
-    \$isProduction = !in_array(\$host, ['localhost', '127.0.0.1', 'localhost:8080']);
-    if (\$isProduction) {
+    // Fail closed unless the server owner explicitly opts into a development environment.
+    \$voncmsEnvironment = strtolower(trim((string) (getenv('VONCMS_ENV') ?: 'production')));
+    \$isDevelopment = in_array(\$voncmsEnvironment, ['development', 'dev', 'local'], true);
+    \$documentRoot = realpath((string) (\$_SERVER['DOCUMENT_ROOT'] ?? ''));
+    \$privateLogRoot = is_string(\$documentRoot) && \$documentRoot !== ''
+        ? dirname(\$documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'
+        : rtrim(sys_get_temp_dir(), '/\\\\') . DIRECTORY_SEPARATOR . 'voncms-logs';
+    \$logDir = \$privateLogRoot . DIRECTORY_SEPARATOR . substr(hash('sha256', __DIR__), 0, 16);
+    if (
+        (!is_dir(\$logDir) && !@mkdir(\$logDir, 0700, true) && !is_dir(\$logDir)) ||
+        !is_writable(\$logDir)
+    ) {
+        \$logDir = rtrim(sys_get_temp_dir(), '/\\\\')
+            . DIRECTORY_SEPARATOR . 'voncms-logs'
+            . DIRECTORY_SEPARATOR . substr(hash('sha256', __DIR__), 0, 16);
+        @mkdir(\$logDir, 0700, true);
+    }
+
+    if (!\$isDevelopment) {
         // HIDE errors from user, but LOG them to file
         error_reporting(E_ALL);
         ini_set('display_errors', '0');
         ini_set('log_errors', '1');
         
-        // Ensure logs directory exists (Auto-Fix)
-        \$logDir = __DIR__ . '/logs';
-        if (!file_exists(\$logDir)) {
-            @mkdir(\$logDir, 0755, true);
-        }
-
         \$logFile = \$logDir . '/php_error.log';
         ini_set('error_log', \$logFile);
         
@@ -489,7 +499,7 @@ if (php_sapi_name() !== 'cli') {
              ini_set('display_errors', '1');
         }
         ini_set('log_errors', '1');
-        ini_set('error_log', __DIR__ . '/logs/php_error_dev.log');
+        ini_set('error_log', \$logDir . '/php_error_dev.log');
     }
 }
 
@@ -532,7 +542,7 @@ if (!function_exists('sanitize_input')) {
                 \$data[\$key] = sanitize_input(\$value);
             }
         } else {
-            \$data = trim(\$data);
+            \$data = trim((string) (\$data ?? ''));
             \$data = stripslashes(\$data);
             \$data = htmlspecialchars(\$data, ENT_QUOTES, 'UTF-8');
         }
@@ -754,7 +764,7 @@ if (file_put_contents($configFile, $configContent)) {
 
   if (is_dir($uploadsShieldPath)) {
     $shieldRule =
-      "<FilesMatch \"\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|html|htm|js|sh|exe)$\">\n    Require all denied\n</FilesMatch>\nOptions -Indexes";
+      "# VonCMS Uploads Security v2\n# Block all script execution in this directory\n\n<FilesMatch \"(?i)\.(php|php[0-9]+|phtml|pht|phar|phps|pl|py|jsp|asp|aspx|htm|html|shtml|sh|cgi|js|exe)$\">\n    Require all denied\n</FilesMatch>\n\nOptions -Indexes\n";
     file_put_contents($uploadsShieldPath . '/.htaccess', $shieldRule);
   }
 

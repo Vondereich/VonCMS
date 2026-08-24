@@ -1,5 +1,20 @@
 import { Post } from '../../../../../../types';
+import {
+  getPostPublishTimestamp,
+  normalizeSchemaDateTime,
+} from '../../../../../../utils/dateFormat';
 import { ScoredPost, RelatedPostsConfig } from './types';
+
+const normalizeTaxonomyValue = (value: unknown): string =>
+  typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, ' ') : '';
+
+const getKeywordSet = (keywords: unknown): Set<string> =>
+  new Set(
+    (typeof keywords === 'string' ? keywords : '')
+      .split(',')
+      .map(normalizeTaxonomyValue)
+      .filter(Boolean)
+  );
 
 /**
  * Find related posts based on category and keywords
@@ -7,8 +22,14 @@ import { ScoredPost, RelatedPostsConfig } from './types';
 export function findRelatedPosts(
   currentPost: Post,
   allPosts: Post[],
-  config: RelatedPostsConfig
+  config: RelatedPostsConfig,
+  timeZone?: string
 ): Post[] {
+  const getPublishTime = (post: Post): number => {
+    const normalized = normalizeSchemaDateTime(getPostPublishTimestamp(post), timeZone);
+    return normalized ? new Date(normalized).getTime() : Number.NaN;
+  };
+
   // Filter out current post and non-published posts
   const candidates = allPosts.filter((p) => p.id !== currentPost.id && p.status === 'published');
 
@@ -17,30 +38,23 @@ export function findRelatedPosts(
     let score = 0;
 
     // Category match (highest priority)
-    if (post.category === currentPost.category) {
+    if (
+      normalizeTaxonomyValue(post.category) !== '' &&
+      normalizeTaxonomyValue(post.category) === normalizeTaxonomyValue(currentPost.category)
+    ) {
       score += 10;
     }
 
     // Keywords/tags match (if available)
-    if (currentPost.keywords && post.keywords) {
-      const currentKeywords = currentPost.keywords
-        .toLowerCase()
-        .split(',')
-        .map((k) => k.trim());
-      const postKeywords = post.keywords
-        .toLowerCase()
-        .split(',')
-        .map((k) => k.trim());
-
-      const matches = currentKeywords.filter((k) => postKeywords.includes(k));
-      score += matches.length * 2;
-    }
+    const currentKeywords = getKeywordSet(currentPost.keywords);
+    const postKeywords = getKeywordSet(post.keywords);
+    const keywordMatches = [...currentKeywords].filter((keyword) => postKeywords.has(keyword));
+    score += keywordMatches.length * 2;
 
     // Recent post bonus (published within 30 days)
-    const daysSincePublished = Math.floor(
-      (Date.now() - new Date(post.createdAt || Date.now()).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    if (daysSincePublished <= 30) {
+    const publishedAt = getPublishTime(post);
+    const daysSincePublished = Math.floor((Date.now() - publishedAt) / (1000 * 60 * 60 * 24));
+    if (Number.isFinite(publishedAt) && daysSincePublished >= 0 && daysSincePublished <= 30) {
       score += 1;
     }
 
@@ -59,8 +73,8 @@ export function findRelatedPosts(
       break;
     case 'date':
       sorted = scored.sort((a, b) => {
-        const dateA = new Date(a.createdAt || 0).getTime();
-        const dateB = new Date(b.createdAt || 0).getTime();
+        const dateA = getPublishTime(a);
+        const dateB = getPublishTime(b);
         return dateB - dateA;
       });
       break;

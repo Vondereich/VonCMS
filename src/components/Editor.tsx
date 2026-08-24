@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import notify from '../utils/toast';
 import {
@@ -38,6 +38,7 @@ import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { DarkModeStyles } from '../styles/DarkModeStyles';
 import SmartPagination from './SmartPagination';
+import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import AdminModal from './admin/AdminModal';
 import { sanitizeHTML } from '../utils/colorSanitizer';
 import { sanitizeEditorHtml, sanitizePastedHtml } from '../utils/security';
@@ -156,7 +157,8 @@ const Editor: React.FC<EditorProps> = ({
     limit: 32,
   });
   const [mediaSearchInput, setMediaSearchInput] = useState('');
-  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  const { query: mediaSearchQuery, commit: commitMediaSearch } =
+    useDebouncedSearchQuery(mediaSearchInput);
 
   // Modal State
   const [activeModal, setActiveModal] = useState<
@@ -711,11 +713,6 @@ const Editor: React.FC<EditorProps> = ({
     setModalInput2('');
     setModalError('');
 
-    // Fetch media if opening library
-    if (type === 'mediaLibrary') {
-      fetchMedia();
-    }
-
     // For table, set defaults
     if (type === 'table') {
       setModalInput('3');
@@ -723,42 +720,52 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  const fetchMedia = async (page = 1, search = mediaSearchQuery) => {
-    const requestId = ++mediaRequestIdRef.current;
-    setLoadingMedia(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(mediaPagination.limit),
-      });
-      if (search) params.set('search', search);
-      const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
-      const data = await res.json();
-      if (requestId === mediaRequestIdRef.current && data.success) {
-        setMediaFiles(data.files || []);
-        setMediaPagination((current) => ({
-          ...current,
-          currentPage: data.currentPage || 1,
-          totalPages: data.totalPages || 1,
-          totalItems: data.totalItems || 0,
-        }));
+  const fetchMedia = useCallback(
+    async (page = 1, search = mediaSearchQuery) => {
+      const requestId = ++mediaRequestIdRef.current;
+      setLoadingMedia(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(mediaPagination.limit),
+        });
+        if (search) params.set('search', search);
+        const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
+        const data = await res.json();
+        if (requestId === mediaRequestIdRef.current && data.success) {
+          setMediaFiles(data.files || []);
+          setMediaPagination((current) => ({
+            ...current,
+            currentPage: data.currentPage || 1,
+            totalPages: data.totalPages || 1,
+            totalItems: data.totalItems || 0,
+          }));
+        }
+      } catch (error) {
+        if (requestId === mediaRequestIdRef.current) {
+          notify.error('Failed to load media library');
+        }
+      } finally {
+        if (requestId === mediaRequestIdRef.current) {
+          setLoadingMedia(false);
+        }
       }
-    } catch (error) {
-      if (requestId === mediaRequestIdRef.current) {
-        notify.error('Failed to load media library');
-      }
-    } finally {
-      if (requestId === mediaRequestIdRef.current) {
-        setLoadingMedia(false);
-      }
+    },
+    [mediaPagination.limit, mediaSearchQuery]
+  );
+
+  useEffect(() => {
+    if (activeModal === 'mediaLibrary') {
+      void fetchMedia(1, mediaSearchQuery);
     }
-  };
+  }, [activeModal, fetchMedia, mediaSearchQuery]);
 
   const handleMediaSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedSearch = mediaSearchInput.trim().slice(0, 120);
-    setMediaSearchQuery(normalizedSearch);
-    void fetchMedia(1, normalizedSearch);
+    const normalizedSearch = commitMediaSearch();
+    if (normalizedSearch === mediaSearchQuery) {
+      void fetchMedia(1, normalizedSearch);
+    }
   };
 
   const insertEditorImages = (images: EditorImageInput[]) => {
@@ -2220,14 +2227,26 @@ const Editor: React.FC<EditorProps> = ({
               <input
                 id="editor-media-search"
                 name="editorMediaSearch"
-                type="search"
+                type="text"
+                inputMode="search"
                 value={mediaSearchInput}
                 maxLength={120}
                 aria-label="Search media library"
                 onChange={(event) => setMediaSearchInput(event.target.value)}
                 placeholder="Search filename, alt text or caption..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-10 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
               />
+              {mediaSearchInput !== '' && (
+                <button
+                  type="button"
+                  onClick={() => setMediaSearchInput('')}
+                  className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-[#2a2b36] dark:hover:text-white"
+                  title="Clear search"
+                  aria-label="Clear media library search"
+                >
+                  <X size={15} />
+                </button>
+              )}
             </div>
             <button
               type="submit"

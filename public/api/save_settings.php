@@ -71,16 +71,14 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'adminProfile',
     'sidebarLayout',
     'media',
+    'analytics',
+    'activePlugins',
+    'pluginConfig',
     'customPlugins',
   ];
 
   foreach ($restrictedTopLevelKeys as $key) {
     unset($settings[$key]);
-  }
-
-  if (isset($settings['analytics']) && is_array($settings['analytics'])) {
-    unset($settings['analytics']['measurementSecret']);
-    unset($settings['analytics']['apiSecret']);
   }
 }
 
@@ -102,7 +100,7 @@ if (isset($settings['domainUrl'])) {
   $settings['domainUrl'] = $domainUrl;
 }
 
-function voncms_normalize_active_plugins($value): array
+function voncms_normalize_active_plugins(mixed $value): array
 {
   if (!is_array($value) || count($value) > 100) {
     ResponseHelper::sendError('Invalid active plugins configuration.', 400);
@@ -129,7 +127,29 @@ function voncms_normalize_active_plugins($value): array
   return array_keys($activePlugins);
 }
 
-function voncms_normalize_custom_plugins($value): array
+function voncms_remove_confirmed_legacy_theme_customizations(array $theme): array
+{
+  // These namespaces no longer have a registered theme owner. Keep unknown/custom
+  // namespaces intact so third-party theme preferences are never removed by guesswork.
+  foreach (['classic'] as $legacyThemeKey) {
+    unset($theme[$legacyThemeKey]);
+  }
+
+  return $theme;
+}
+
+function voncms_strip_navigation_runtime_projection(array $navigation): array
+{
+  return array_map(static function ($item): array {
+    if (!is_array($item)) {
+      return [];
+    }
+    unset($item['resolvedHref']);
+    return $item;
+  }, $navigation);
+}
+
+function voncms_normalize_custom_plugins(mixed $value): array
 {
   if (!is_array($value) || count($value) > 25) {
     ResponseHelper::sendError('Invalid custom plugins configuration.', 400);
@@ -190,7 +210,7 @@ function voncms_normalize_custom_plugins($value): array
   return $customPlugins;
 }
 
-function voncms_validate_plugin_config_node($value, int $depth = 0): void
+function voncms_validate_plugin_config_node(mixed $value, int $depth = 0): void
 {
   if ($depth > 12) {
     ResponseHelper::sendError('Plugin configuration is too deeply nested.', 400);
@@ -505,6 +525,14 @@ try {
 
       if ($jsonKey === 'postsPerPage') {
         $value = max(6, min(50, (int) $value));
+      }
+
+      if ($jsonKey === 'theme' && is_array($value)) {
+        $value = voncms_remove_confirmed_legacy_theme_customizations($value);
+      }
+
+      if ($jsonKey === 'navigation' && is_array($value)) {
+        $value = voncms_strip_navigation_runtime_projection($value);
       }
 
       if ($jsonKey === 'api' && is_array($value)) {

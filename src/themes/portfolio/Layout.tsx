@@ -8,11 +8,14 @@ import {
   getBasePathPrefix,
   getHeaderIdentityState,
   getPermalink,
+  getPublicCategoryHref,
+  getPublicHomeHref,
   getSameSiteCategoryNavigation,
   normalizeSiteUrl,
 } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
+import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -650,12 +653,15 @@ const ProjectsSection = ({
         {categories.length > 2 && (
           <div className="flex flex-wrap justify-center gap-3 mb-12">
             {categories.map((cat) => (
-              <button
+              <a
                 key={cat}
-                onClick={() => {
-                  setActiveCategory(cat);
-                  onCategoryClick?.(cat === 'all' ? '' : cat);
-                }}
+                href={cat === 'all' ? getPublicHomeHref() : getPublicCategoryHref(cat)}
+                onClick={(event) =>
+                  handleCrawlableLinkClick(event, () => {
+                    setActiveCategory(cat);
+                    onCategoryClick?.(cat === 'all' ? '' : cat);
+                  })
+                }
                 className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                   activeCategory === cat ? 'scale-105 shadow-lg' : 'hover:scale-105'
                 }`}
@@ -666,7 +672,7 @@ const ProjectsSection = ({
                 }}
               >
                 {cat === 'all' ? 'All Projects' : cat}
-              </button>
+              </a>
             ))}
           </div>
         )}
@@ -801,6 +807,7 @@ const PortfolioNav = ({
   onPostClick,
   onCategoryClick,
   settings,
+  posts,
   pages,
   transparentTextColor,
 }: any) => {
@@ -852,8 +859,9 @@ const PortfolioNav = ({
       }}
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-        <button
-          onClick={onBackToHome}
+        <a
+          href={getPublicHomeHref()}
+          onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
           className="flex items-center gap-3 bg-transparent border-none cursor-pointer"
           title={siteName || 'Portfolio'}
         >
@@ -875,14 +883,18 @@ const PortfolioNav = ({
               {siteName || 'Portfolio'}
             </span>
           )}
-        </button>
+        </a>
 
         <div className="flex items-center gap-4">
           {/* Standard Navigation */}
           {visibleNavigationItems.map((nav: any) => (
-            <button
+            <PublicNavigationLink
               key={nav.id}
-              onClick={() => handleNavigationItem(nav)}
+              nav={nav}
+              settings={settings}
+              posts={posts}
+              pages={pages}
+              onNavigate={() => handleNavigationItem(nav)}
               className={desktopNavigationItemClassName}
               style={{
                 color:
@@ -890,7 +902,7 @@ const PortfolioNav = ({
               }}
             >
               {nav.label || nav.url}
-            </button>
+            </PublicNavigationLink>
           ))}
 
           {/* More Dropdown */}
@@ -925,18 +937,22 @@ const PortfolioNav = ({
                 </svg>
               </button>
               <div
-                className="absolute top-full right-0 mt-2 w-48 py-2 rounded-xl shadow-xl border overflow-hidden z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all"
+                className="absolute top-full right-0 mt-2 w-48 py-2 rounded-xl shadow-xl border overflow-hidden z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']"
                 style={{ background: colors.bgSecondary, borderColor: colors.cardBorder }}
               >
                 {overflowNavigationItems.map((nav: any) => (
-                  <button
+                  <PublicNavigationLink
                     key={nav.id}
-                    onClick={() => handleNavigationItem(nav)}
-                    className="w-full px-4 py-3 text-left text-sm hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer"
+                    nav={nav}
+                    settings={settings}
+                    posts={posts}
+                    pages={pages}
+                    onNavigate={() => handleNavigationItem(nav)}
+                    className="block w-full px-4 py-3 text-left text-sm hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer"
                     style={{ color: colors.text }}
                   >
                     {nav.label || nav.url}
-                  </button>
+                  </PublicNavigationLink>
                 ))}
               </div>
             </div>
@@ -1053,14 +1069,18 @@ const PortfolioNav = ({
         >
           <div className="flex flex-col gap-4">
             {navigationItems.map((nav: any) => (
-              <button
+              <PublicNavigationLink
                 key={nav.id}
-                onClick={() => handleNavigationItem(nav, true)}
+                nav={nav}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() => handleNavigationItem(nav, true)}
                 className="text-left py-2 text-lg font-medium border-b bg-transparent cursor-pointer"
                 style={{ color: colors.text, borderColor: colors.cardBorder }}
               >
                 {nav.label || nav.url}
-              </button>
+              </PublicNavigationLink>
             ))}
           </div>
         </div>
@@ -1124,15 +1144,16 @@ const SingleProject = ({
       )}
 
       {/* Back button - Floating */}
-      <button
-        onClick={onBack}
+      <a
+        href={getPublicHomeHref()}
+        onClick={(event) => handleCrawlableLinkClick(event, onBack)}
         className="fixed top-24 left-6 z-20 flex items-center gap-2 px-4 py-2 rounded-full text-white bg-black/30 backdrop-blur-xs hover:bg-black/50 transition-colors"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Back
-      </button>
+      </a>
 
       {/* Header Section */}
       <header className="relative py-32 px-6 md:px-16 text-center">
@@ -1297,15 +1318,16 @@ const SinglePage = ({ page, colors, onBack }: any) => (
       <div className="absolute inset-0" style={{ background: colors.gradientDark, opacity: 0.8 }} />
 
       {/* Back button */}
-      <button
-        onClick={onBack}
+      <a
+        href={getPublicHomeHref()}
+        onClick={(event) => handleCrawlableLinkClick(event, onBack)}
         className="absolute top-24 left-6 flex items-center gap-2 px-4 py-2 rounded-full text-white bg-black/30 backdrop-blur-xs hover:bg-black/50 transition-colors z-10"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Back
-      </button>
+      </a>
 
       {/* Title */}
       <div className="absolute bottom-0 left-0 right-0 p-8 md:p-16 flex justify-center">
@@ -1630,8 +1652,9 @@ const PortfolioProfile = ({
 
       <div className="max-w-4xl mx-auto">
         {/* Back Button */}
-        <button
-          onClick={onBack}
+        <a
+          href={getPublicHomeHref()}
+          onClick={(event) => handleCrawlableLinkClick(event, onBack)}
           className="flex items-center gap-2 mb-8 text-sm font-medium transition-opacity hover:opacity-70"
           style={{ color: colors.textSecondary }}
         >
@@ -1644,7 +1667,7 @@ const PortfolioProfile = ({
             />
           </svg>
           Back to Portfolio
-        </button>
+        </a>
 
         {/* Profile Card */}
         <div
@@ -1983,6 +2006,7 @@ const PortfolioLayout = ({
                 onNavigateAdmin={onNavigateAdmin}
                 onViewProfile={onViewProfile}
                 onBackToHome={handleGoHome}
+                posts={posts}
                 pages={pages}
                 onPageClick={onPageClick}
                 onPostClick={onPostClick}
@@ -2047,6 +2071,7 @@ const PortfolioLayout = ({
                 onNavigateAdmin={onNavigateAdmin}
                 onViewProfile={onViewProfile}
                 onBackToHome={handleGoHome}
+                posts={posts}
                 pages={pages}
                 onPageClick={onPageClick}
                 onPostClick={onPostClick}
@@ -2088,6 +2113,7 @@ const PortfolioLayout = ({
                 onNavigateAdmin={onNavigateAdmin}
                 onViewProfile={onViewProfile}
                 onBackToHome={handleGoHome}
+                posts={posts}
                 pages={pages}
                 onPageClick={onPageClick}
                 onPostClick={onPostClick}
@@ -2147,6 +2173,7 @@ const PortfolioLayout = ({
               onNavigateAdmin={onNavigateAdmin}
               onViewProfile={onViewProfile}
               onBackToHome={handleGoHome}
+              posts={posts}
               pages={pages}
               onPageClick={onPageClick}
               onPostClick={onPostClick}

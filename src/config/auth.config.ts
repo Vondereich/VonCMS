@@ -1,29 +1,21 @@
 /**
  * VonCMS Auth Configuration
  *
- * Environment Variables:
- * - VITE_AUTH_TOKEN: Optional. Set in .env.production for custom auth token
- *
- * Note: VonCMS uses PHP session-based auth. These tokens are for API compatibility only.
+ * VonCMS browser requests use the PHP session and CSRF token managed by vonFetch.
+ * Static bearer credentials must never be compiled into the public Vite bundle.
  */
 
 // Session timeout in milliseconds (30 minutes)
 export const SESSION_TIMEOUT = 30 * 60 * 1000;
 
-// Auth token - uses env var in production, empty string otherwise
-export const AUTH_TOKEN = import.meta.env['VITE_AUTH_TOKEN'] || '';
-
 /**
  * Get auth header for internal API calls
- * Note: PHP session handles actual authentication, this is for API layer compatibility
+ * Retained as an empty compatibility helper while older call sites migrate to vonFetch-only auth.
  */
-export const getAuthHeader = (): string => {
-  if (!AUTH_TOKEN) return '';
-  return `Bearer ${AUTH_TOKEN}`;
-};
+export const getAuthHeader = (): string => '';
 
 // Legacy export for backward compatibility
 export const DEV_TOKENS = {
-  mockDevToken: AUTH_TOKEN,
-  secureToken: AUTH_TOKEN,
+  mockDevToken: '',
+  secureToken: '',
 };

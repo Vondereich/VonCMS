@@ -23,9 +23,17 @@ import {
   shouldUseTabletBurgerMenu,
 } from '../../utils/navigation';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix, getPermalink, type ResponsiveImageMode } from '../../utils/siteUtils';
+import {
+  getBasePathPrefix,
+  getPermalink,
+  getPublicCategoryHref,
+  getPublicHomeHref,
+  getPublicProfileHref,
+  type ResponsiveImageMode,
+} from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
+import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 
 // Theme SDK
 import {
@@ -152,10 +160,11 @@ const DigestThemeStyles: React.FC = () => (
 
 const TrendingTicker: React.FC<{
   posts: Post[];
+  settings: SiteSettings;
   colors: ReturnType<typeof getColors>;
   onPostClick: (id: string) => void;
   enableMarquee?: boolean;
-}> = ({ posts, colors, onPostClick, enableMarquee = true }) => {
+}> = ({ posts, settings, colors, onPostClick, enableMarquee = true }) => {
   if (!posts || posts.length === 0) return null;
   return (
     <div
@@ -174,9 +183,10 @@ const TrendingTicker: React.FC<{
             className={`flex gap-10 whitespace-nowrap ${enableMarquee ? 'animate-marquee hover:[animation-play-state:paused]' : 'overflow-x-auto no-scrollbar'}`}
           >
             {posts.map((post) => (
-              <span
+              <a
                 key={post.id}
-                onClick={() => onPostClick(post.id)}
+                href={getPermalink(post, settings)}
+                onClick={(event) => handleCrawlableLinkClick(event, () => onPostClick(post.id))}
                 className="text-sm font-bold cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
                 style={{ color: colors.text }}
               >
@@ -184,14 +194,15 @@ const TrendingTicker: React.FC<{
                   #
                 </span>
                 {decodeEntities(post.title)}
-              </span>
+              </a>
             ))}
             {/* Duplicate for infinite marquee effect - only if enabled */}
             {enableMarquee &&
               posts.map((post) => (
-                <span
+                <a
                   key={`${post.id}-clone`}
-                  onClick={() => onPostClick(post.id)}
+                  href={getPermalink(post, settings)}
+                  onClick={(event) => handleCrawlableLinkClick(event, () => onPostClick(post.id))}
                   className="text-sm font-bold cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
                   style={{ color: colors.text }}
                 >
@@ -199,7 +210,7 @@ const TrendingTicker: React.FC<{
                     #
                   </span>
                   {decodeEntities(post.title)}
-                </span>
+                </a>
               ))}
           </div>
         </div>
@@ -343,11 +354,12 @@ const CategoryBadge: React.FC<{
   const label = category || 'General';
 
   return (
-    <span
+    <a
+      href={getPublicCategoryHref(label)}
       title={label}
       onClick={(e) => {
         e.stopPropagation();
-        onClick?.();
+        handleCrawlableLinkClick(e, () => onClick?.());
       }}
       className={`
 inline-flex max-w-40 sm:max-w-48 items-center overflow-hidden rounded font-bold uppercase tracking-wider cursor-pointer
@@ -363,7 +375,7 @@ transition-all hover:scale-105 hover:shadow-lg whitespace-nowrap digest-category
       }
     >
       <span className="truncate">{label}</span>
-    </span>
+    </a>
   );
 };
 // ===== HERO SECTION =====
@@ -463,7 +475,11 @@ const DigestHero: React.FC<{
               </p>
               <div className="flex items-center gap-2">
                 <p className="text-xs" style={{ color: colors.textMuted }}>
-                  {formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)}
+                  {formatDate(
+                    getPostPublishTimestamp(article),
+                    settings.timeZone,
+                    settings.dateFormat
+                  )}
                 </p>
                 <span className="text-xs" style={{ color: colors.textMuted }}>
                   &bull;
@@ -555,7 +571,9 @@ const DigestCard: React.FC<{
         <DigestAvatar name={article.author} email={authorEmail} url={authorAvatar} size="w-6 h-6" />
         <span className="font-medium">{article.author}</span>
         <span>&bull;</span>
-        <span>{formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)}</span>
+        <span>
+          {formatDate(getPostPublishTimestamp(article), settings.timeZone, settings.dateFormat)}
+        </span>
       </div>
     </div>
   </div>
@@ -1222,6 +1240,8 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   onCategoryClick,
   allUsers,
   onUpdateUser,
+  publicSearchQuery = '',
+  onPublicSearchChange,
 }) => {
   // Theme settings
   const digestSettings: DigestSettings = { ...defaultDigestSettings, ...settings.theme?.digest };
@@ -1237,7 +1257,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   const shouldRenderVonSEO = isSystemPluginActive(settings, 'vp_von_seo');
 
   // State
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchQuery = publicSearchQuery;
   const postsPerPage = settings.postsPerPage || 6;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -1255,8 +1275,9 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
   const handleReturnHome = () => {
     onBackToHome();
-    setSearchQuery('');
   };
+
+  const handleSearchChange = (query: string) => onPublicSearchChange?.(query);
 
   // Shared Hooks (v1.9.5)
   const { showPopup, closePopup } = useAdsPopup(settings.ads, currentView, 5000);
@@ -1343,7 +1364,11 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       <div className="max-w-7xl mx-auto px-5 py-4">
         <div className="flex items-center justify-between">
           {/* Logo & Site Info */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={handleReturnHome}>
+          <a
+            href={getPublicHomeHref()}
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
+          >
             {headerIdentity.showUploadedLogo ? (
               <ThemeLogo
                 src={settings.logoUrl || ''}
@@ -1372,19 +1397,23 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 )}
               </div>
             )}
-          </div>
+          </a>
 
           {/* Desktop Nav */}
           <nav className={desktopNavigationClassName}>
             {visibleNavigationItems.map((nav) => (
-              <button
+              <PublicNavigationLink
                 key={nav.id}
-                onClick={() => handleNavClick(nav)}
+                nav={nav}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() => handleNavClick(nav)}
                 className="text-sm font-semibold hover:opacity-70 transition-opacity"
                 style={{ color: colors.text }}
               >
                 {nav.label}
-              </button>
+              </PublicNavigationLink>
             ))}
 
             {/* More Dropdown */}
@@ -1408,17 +1437,21 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                     style={{ background: colors.surface, borderColor: colors.border }}
                   >
                     {overflowNavigationItems.map((nav) => (
-                      <button
+                      <PublicNavigationLink
                         key={nav.id}
-                        onClick={() => {
+                        nav={nav}
+                        settings={settings}
+                        posts={posts}
+                        pages={pages}
+                        onNavigate={() => {
                           handleNavClick(nav);
                           setShowMoreDropdown(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-sm font-medium hover:opacity-70 transition-opacity"
+                        className="block w-full px-4 py-3 text-left text-sm font-medium hover:opacity-70 transition-opacity"
                         style={{ color: colors.text }}
                       >
                         {nav.label}
-                      </button>
+                      </PublicNavigationLink>
                     ))}
                   </div>
                 )}
@@ -1536,9 +1569,13 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
         >
           <nav className="flex flex-col gap-2">
             {navigationItems.map((nav) => (
-              <button
+              <PublicNavigationLink
                 key={nav.id}
-                onClick={() => {
+                nav={nav}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() => {
                   handleNavClick(nav);
                   setIsMobileMenuOpen(false);
                 }}
@@ -1546,7 +1583,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 style={{ color: colors.text, background: colors.surfaceHover }}
               >
                 {nav.label}
-              </button>
+              </PublicNavigationLink>
             ))}
           </nav>
         </div>
@@ -1602,13 +1639,14 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
         )}
 
         <div className="flex-1 max-w-7xl mx-auto px-5 py-12 w-full">
-          <button
-            onClick={handleReturnHome}
+          <a
+            href={getPublicHomeHref()}
+            onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             className="mb-8 text-sm font-semibold hover:opacity-70 flex items-center gap-2"
             style={{ color: colors.textSecondary }}
           >
             <ChevronLeft size={16} /> Back to Home
-          </button>
+          </a>
 
           <div className={`flex flex-col ${hasSinglePostSidebar ? 'lg:flex-row' : ''} gap-8`}>
             {/* Main Content */}
@@ -1636,9 +1674,12 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                     style={{ borderColor: colors.border }}
                   >
                     {/* Author & Date */}
-                    <div
+                    <a
+                      href={getPublicProfileHref(authorUsername)}
                       className="flex items-center gap-3 cursor-pointer hover:opacity-80"
-                      onClick={() => onViewProfile(authorUsername)}
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () => onViewProfile(authorUsername))
+                      }
                     >
                       <DigestAvatar
                         name={selectedPost.author}
@@ -1669,7 +1710,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </a>
                   </div>
                 </header>
 
@@ -1858,13 +1899,14 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
         )}
 
         <main className="flex-1 max-w-4xl mx-auto px-5 py-12 w-full">
-          <button
-            onClick={handleReturnHome}
+          <a
+            href={getPublicHomeHref()}
+            onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             className="mb-8 text-sm font-semibold hover:opacity-70 flex items-center gap-2"
             style={{ color: colors.textSecondary }}
           >
             <ChevronLeft size={16} /> Back
-          </button>
+          </a>
 
           <h1
             className="text-3xl sm:text-4xl md:text-5xl font-black mb-8"
@@ -1899,13 +1941,14 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
         <Header />
 
         <main className="flex-1 max-w-6xl mx-auto px-5 py-12 w-full">
-          <button
-            onClick={handleReturnHome}
+          <a
+            href={getPublicHomeHref()}
+            onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             className="mb-8 text-sm font-semibold hover:opacity-70 flex items-center gap-2"
             style={{ color: colors.textSecondary }}
           >
             <ChevronLeft size={16} /> Back
-          </button>
+          </a>
 
           <DigestProfile
             key={targetProfile.id}
@@ -1943,6 +1986,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       {!selectedCategory && !searchQuery && digestSettings.showTrending !== false && (
         <TrendingTicker
           posts={displayedPosts.slice(0, 5)}
+          settings={settings}
           colors={colors}
           onPostClick={onPostClick}
           enableMarquee={digestSettings.enableMarquee !== false}
@@ -1961,7 +2005,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             placeholder={isSearching ? 'Searching...' : 'Search articles...'}
             value={searchQuery}
             maxLength={PUBLIC_SEARCH_MAX_LENGTH}
-            onChange={(e) => setSearchQuery(normalizePublicSearchInput(e.target.value))}
+            onChange={(e) => handleSearchChange(normalizePublicSearchInput(e.target.value))}
             className="w-full pl-8 pr-14 py-4 text-lg rounded-full outline-hidden transition-all shadow-xs focus:shadow-md"
             style={{
               background: colors.surface,
@@ -1976,7 +2020,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           )}
           <button
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full cursor-pointer hover:scale-110 transition-transform"
-            onClick={() => setSearchQuery(searchQuery.trim())}
+            onClick={() => handleSearchChange(searchQuery.trim())}
             style={{ color: colors.accent, background: 'transparent', border: 'none' }}
           >
             <Search size={22} />
@@ -1984,7 +2028,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           {searchQuery && (
             <button
               onClick={() => {
-                setSearchQuery('');
+                handleSearchChange('');
               }}
               className="absolute right-12 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-black/10 transition-colors"
               style={{ color: colors.textMuted }}

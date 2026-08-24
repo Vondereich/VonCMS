@@ -110,11 +110,42 @@ if (!is_dir($uploadDir)) {
   mkdir($uploadDir, 0755, true);
 }
 
-// Validate file type (Checked against MIME and Extension)
-$allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/x-icon'];
-$allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'ico'];
-
+// Validate file type with matching server-sniffed MIME and extension pairs.
 $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+$rawSystemImageType = $_POST['systemImageType'] ?? '';
+$rawUploadContext = $_POST['context'] ?? '';
+$systemImageType = is_string($rawSystemImageType) ? trim($rawSystemImageType) : '';
+$isSystemUpload = is_string($rawUploadContext) && $rawUploadContext === 'system';
+$standardImageTypes = [
+  'jpg' => ['image/jpeg'],
+  'jpeg' => ['image/jpeg'],
+  'png' => ['image/png'],
+  'gif' => ['image/gif'],
+  'webp' => ['image/webp'],
+  'ico' => ['image/x-icon', 'image/vnd.microsoft.icon'],
+];
+$systemImageTypes = [
+  'logo' => $standardImageTypes,
+  'favicon' => [
+    'png' => ['image/png'],
+    'ico' => ['image/x-icon', 'image/vnd.microsoft.icon'],
+  ],
+  'ogImage' => [
+    'jpg' => ['image/jpeg'],
+    'jpeg' => ['image/jpeg'],
+    'png' => ['image/png'],
+  ],
+  'ogImageSquare' => [
+    'jpg' => ['image/jpeg'],
+    'jpeg' => ['image/jpeg'],
+    'png' => ['image/png'],
+  ],
+];
+
+if ($isSystemUpload && !isset($systemImageTypes[$systemImageType])) {
+  ResponseHelper::sendError('Invalid system image type.', 400);
+}
+$allowedImageTypes = $isSystemUpload ? $systemImageTypes[$systemImageType] : $standardImageTypes;
 
 // Server-side MIME sniffing
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -125,10 +156,10 @@ if ($finfo) {
 
 if (
   !is_string($realMime) ||
-  !in_array($realMime, $allowedMimes, true) ||
-  !in_array($extension, $allowedExts, true)
+  !isset($allowedImageTypes[$extension]) ||
+  !in_array($realMime, $allowedImageTypes[$extension], true)
 ) {
-  ResponseHelper::sendError('Invalid file type. Only images are allowed.', 400);
+  ResponseHelper::sendError('Invalid or mismatched image file type.', 400);
 }
 
 $imageInfo = @getimagesize($file['tmp_name']);

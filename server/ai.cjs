@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 const { GoogleGenAI } = require('@google/genai');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 
 module.exports = function initAiRoutes(app) {
   const apiKey = process.env.API_KEY || '';
-  const AUTH_TOKEN = process.env.AI_AUTH_TOKEN || null; // expected token for requests
+  const AUTH_TOKEN = String(process.env.AI_AUTH_TOKEN || '').trim();
   const RATE_LIMIT = parseInt(process.env.AI_RATE_LIMIT || '30', 10); // requests per window
   const RATE_WINDOW = parseInt(process.env.AI_RATE_WINDOW_SECONDS || '60', 10) * 1000; // window in ms
 
@@ -20,12 +21,18 @@ module.exports = function initAiRoutes(app) {
 
   function checkAiAuth(req, res) {
     // Accept token from `x-ai-token` header or Authorization: Bearer <token>
-    const headerToken =
-      req.headers['x-ai-token'] ||
-      (req.headers.authorization && String(req.headers.authorization).split(' ')[1]);
+    const authorizationMatch = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+    const headerToken = req.headers['x-ai-token'] || authorizationMatch?.[1];
     const token = headerToken ? String(headerToken) : null;
 
-    if (AUTH_TOKEN && token !== AUTH_TOKEN) {
+    if (!AUTH_TOKEN) {
+      res.status(503).json({ success: false, message: 'AI authentication is not configured' });
+      return false;
+    }
+
+    const supplied = Buffer.from(token || '', 'utf8');
+    const expected = Buffer.from(AUTH_TOKEN, 'utf8');
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
       res.status(401).json({ success: false, message: 'Unauthorized (AI token required)' });
       return false;
     }

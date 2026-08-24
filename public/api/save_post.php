@@ -4,6 +4,7 @@
  * Creates or updates a post in the database
  */
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 sendApiHeaders('POST, OPTIONS');
@@ -257,10 +258,22 @@ try {
   // We check for collision right before write to minimize race condition window
   // Also fetch current status for SEO Safety check
   $checkExisting = $db->prepare(
-    'SELECT status, slug, category, scheduled_at, updated_at FROM posts WHERE id = ? FOR UPDATE',
+    'SELECT status, slug, category, scheduled_at, updated_at, image_url FROM posts WHERE id = ? FOR UPDATE',
   );
   $checkExisting->execute([$postId ?? 0]);
   $dbPost = $checkExisting->fetch();
+
+  $storedFeaturedImage = is_array($dbPost) ? trim((string) ($dbPost['image_url'] ?? '')) : '';
+  $featuredImageResolution = voncms_resolve_featured_image_input(
+    $featuredImage,
+    $storedFeaturedImage,
+    $isUpdate && is_array($dbPost),
+  );
+  if (!$featuredImageResolution['accepted']) {
+    $db->rollBack();
+    ResponseHelper::sendError('Featured image URL is invalid.', 400);
+  }
+  $featuredImage = $featuredImageResolution['value'];
 
   $publicCategoriesChanged = !$isUpdate;
   if ($isUpdate && $dbPost) {
@@ -297,7 +310,7 @@ try {
     throw new Exception('Cannot schedule an already published post (SEO Safety).');
   }
 
-  if (isset($dbPost) && $dbPost['slug'] === $input['slug']) {
+  if (is_array($dbPost) && $dbPost['slug'] === $input['slug']) {
     // Slug matches current, no change needed
   } else {
     $checkSlug = $db->prepare('SELECT id FROM posts WHERE slug = ? AND id != ? FOR UPDATE');

@@ -24,9 +24,9 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 voncms_apply_site_timezone($pdo ?? null);
 
-// SECURITY: Check for secret cron key or admin session
-// You can define CRON_KEY in von_config.php for automated tasks
-$providedKey = (string) ($_SERVER['HTTP_X_CRON_KEY'] ?? ($_GET['key'] ?? ''));
+// SECURITY: Keep long-lived cron credentials out of URL logs and browser history.
+// Define CRON_KEY in von_config.php and send it only through X-Cron-Key.
+$providedKey = (string) ($_SERVER['HTTP_X_CRON_KEY'] ?? '');
 $configuredKey = defined('CRON_KEY') ? (string) constant('CRON_KEY') : '';
 
 if (!empty($configuredKey) && !hash_equals($configuredKey, $providedKey)) {

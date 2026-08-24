@@ -6,13 +6,14 @@ require_once __DIR__ . '/von_config.php';
 // Standardize Headers
 sendApiHeaders('GET, POST, OPTIONS');
 
-$action = $_GET['action'] ?? ($_POST['action'] ?? '');
+$actionValue = $_GET['action'] ?? ($_POST['action'] ?? '');
+$action = is_scalar($actionValue) ? (string) $actionValue : '';
 
 // Helper to get JSON input
-function getJsonInput()
+function getJsonInput(): array
 {
-  $input = file_get_contents('php://input');
-  return json_decode($input, true) ?? [];
+  $input = json_decode(CSRFProtection::getRequestBody(), true);
+  return is_array($input) ? $input : [];
 }
 
 switch ($action) {
@@ -53,19 +54,23 @@ switch ($action) {
 
     $input = getJsonInput();
 
-    // Manual CSRF Check (since we consumed stream)
-    $csrfToken = $input['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-    $sessionToken = CSRFProtection::getToken();
+    // The shared CSRF reader uses the same cached request body.
+    CSRFProtection::requireToken();
 
-    if (!$csrfToken || !hash_equals($sessionToken, $csrfToken)) {
-      http_response_code(403);
-      exit(json_encode(['error' => 'CSRF validation failed']));
+    foreach (['download_url', 'version', 'expected_hash'] as $field) {
+      if (
+        array_key_exists($field, $input) &&
+        $input[$field] !== null &&
+        !is_scalar($input[$field])
+      ) {
+        ResponseHelper::sendError('Invalid update request payload.', 400);
+      }
     }
 
     require_once __DIR__ . '/api/system/updater.php';
-    $url = $input['download_url'] ?? '';
-    $version = $input['version'] ?? 'unknown';
-    $expectedHash = $input['expected_hash'] ?? null;
+    $url = trim((string) ($input['download_url'] ?? ''));
+    $version = trim((string) ($input['version'] ?? 'unknown'));
+    $expectedHash = isset($input['expected_hash']) ? trim((string) $input['expected_hash']) : null;
 
     if (!$url) {
       exit(json_encode(['error' => 'No download URL provided']));

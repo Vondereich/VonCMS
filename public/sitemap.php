@@ -100,8 +100,13 @@ try {
   }
 
   // Determine request type
-  $type = isset($_GET['type']) ? $_GET['type'] : 'index';
-  $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
+  $typeValue = $_GET['type'] ?? 'index';
+  $type =
+    is_string($typeValue) && in_array($typeValue, ['index', 'posts', 'pages'], true)
+      ? $typeValue
+      : 'index';
+  $pageValue = $_GET['page'] ?? 1;
+  $page = is_scalar($pageValue) ? max(1, (int) $pageValue) : 1;
 
   // Set XML header
   if (!headers_sent()) {
@@ -165,14 +170,6 @@ try {
       echo '</sitemap>';
     }
 
-    // RSS feed reference for content syndication
-    echo '<sitemap>';
-    echo '<loc>' . htmlspecialchars($baseUrl) . '/rss.xml</loc>';
-    if ($lastPostMod) {
-      echo '<lastmod>' . date('c', strtotime($lastPostMod)) . '</lastmod>';
-    }
-    echo '</sitemap>';
-
     echo '</sitemapindex>';
     exit();
   }
@@ -181,6 +178,19 @@ try {
   // POSTS SITEMAP (chunked)
   // =====================
   if ($type === 'posts') {
+    $postCountStmt = $pdo->prepare(
+      "SELECT COUNT(*) FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)",
+    );
+    $postCountStmt->bindValue(':currentTime', $currentTime);
+    $postCountStmt->execute();
+    $postPageCount = max(1, (int) ceil((int) $postCountStmt->fetchColumn() / MAX_URLS_PER_SITEMAP));
+    if ($page > $postPageCount) {
+      http_response_code(404);
+      echo '<?xml version="1.0" encoding="UTF-8"?>';
+      echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>';
+      exit();
+    }
+
     $offset = ($page - 1) * MAX_URLS_PER_SITEMAP;
 
     echo '<?xml version="1.0" encoding="UTF-8"?>';

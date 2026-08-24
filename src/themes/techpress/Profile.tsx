@@ -12,7 +12,13 @@ import {
 } from 'lucide-react';
 import { LoadMoreButton } from '../../components/LoadMoreButton';
 import { SafeImage } from '../../components/SafeImage';
-import { formatDate, getResponsiveImageAttributes } from '../../utils/siteUtils';
+import {
+  formatDate,
+  getPermalink,
+  getPostPublishTimestamp,
+  getResponsiveImageAttributes,
+} from '../../utils/siteUtils';
+import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { useProfileActivity } from '../../hooks/useProfileActivity';
 import { useProfileEditor } from '../../hooks/useProfileEditor';
 import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../utils/profileUtils';
@@ -413,9 +419,12 @@ const TechPressProfile: React.FC<ProfileProps> = ({
               ) : (
                 <>
                   {articlePosts.map((post) => (
-                    <div
+                    <a
                       key={post.id}
-                      onClick={() => onViewPost(post.id)}
+                      href={getPermalink(post, settings)}
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () => onViewPost(post.id))
+                      }
                       className="group bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl overflow-hidden cursor-pointer hover:shadow-2xl hover:border-neutral-500/30 transition-all duration-300 flex flex-col h-full"
                     >
                       <div className="h-48 overflow-hidden relative bg-slate-100 dark:bg-neutral-800">
@@ -439,14 +448,14 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                           <span>{post.readTime || '5 min read'}</span>
                           <span>
                             {formatDate(
-                              post.createdAt || post.updatedAt,
+                              getPostPublishTimestamp(post),
                               settings.timeZone,
                               settings.dateFormat
                             )}
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </a>
                   ))}
                   {articleTotal === 0 && !articlesLoading && (
                     <div className="col-span-3 py-16 text-center border-2 border-dashed border-slate-200 dark:border-neutral-800 rounded-2xl bg-slate-50 dark:bg-neutral-900/50">

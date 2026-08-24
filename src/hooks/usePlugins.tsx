@@ -19,7 +19,7 @@ const defaultRelatedPostsConfig: RelatedPostsConfig = {
   showExcerpt: true,
   showImage: true,
   showDate: true,
-  titleText: 'Berita Berkaitan',
+  titleText: 'Related Posts',
 };
 
 const getSafeRelatedCount = (count: unknown): RelatedPostsConfig['count'] => {
@@ -44,6 +44,7 @@ const normalizeRelatedPostCandidate = (post: any): Post => ({
   imageSrcSet: post.imageSrcSet || post.image_srcset || '',
   status: post.status || 'published',
   category: post.category || 'Uncategorized',
+  keywords: post.keywords || '',
   updatedAt: post.updatedAt || post.updated_at || '',
   updated_at: post.updated_at || post.updatedAt || '',
   createdAt: post.createdAt || post.created_at || '',

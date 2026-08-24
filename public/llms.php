@@ -167,7 +167,7 @@ try {
   // OUTPUT: POSTS
   // =====================
   $postStmt = $pdo->prepare(
-    "SELECT id, title, slug, excerpt, created_at, category FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY COALESCE(scheduled_at, created_at) DESC LIMIT 50",
+    "SELECT id, title, slug, excerpt, created_at, category, COALESCE(scheduled_at, created_at) AS effective_publish_at FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY effective_publish_at DESC LIMIT 50",
   );
   $postStmt->bindValue(':currentTime', $currentTime);
   $postStmt->execute();
@@ -221,9 +221,9 @@ try {
 
     // Format date if available
     $dateStr = '';
-    if (!empty($post['created_at'])) {
+    if (!empty($post['effective_publish_at'])) {
       try {
-        $dt = new DateTime($post['created_at']);
+        $dt = new DateTime($post['effective_publish_at']);
         $dateStr = ' (' . $dt->format('Y-m-d') . ')';
       } catch (Exception $e) {
         $dateStr = '';

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router';
+import { resolveAnalyticsPageLocation } from '../utils/analyticsPrivacy';
 
 interface AnalyticsSettings {
   googleAnalyticsId?: string;
@@ -18,6 +19,10 @@ export const AnalyticsInjector: React.FC<AnalyticsInjectorProps> = ({ analytics 
   const location = useLocation();
 
   useEffect(() => {
+    // Authentication routes and credential-like query parameters must never reach telemetry.
+    const safePageLocation = resolveAnalyticsPageLocation(window.location.href, location.pathname);
+    if (!safePageLocation) return;
+
     // 1. Validation: ID must exist, tracking enabled, and ID must be valid format (Prevent XSS)
     // Allows G-XXXXXX, UA-XXXXXX, and alphanumeric characters only.
     const validIdRegex = /^[a-zA-Z0-9-_]+$/;
@@ -70,7 +75,7 @@ export const AnalyticsInjector: React.FC<AnalyticsInjectorProps> = ({ analytics 
     // 4. Track Page View (SPA)
     if (analytics.trackPageViews !== false && window.gtag) {
       window.gtag('event', 'page_view', {
-        page_location: window.location.href,
+        page_location: safePageLocation,
         page_path: window.location.pathname,
         page_title: document.title,
       });

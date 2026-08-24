@@ -41,4 +41,6 @@ export interface ThemeLayoutProps {
   selectedCategory?: string | null;
   onCategoryClick?: (category: string) => void;
   onClearSearch?: () => void;
+  publicSearchQuery?: string;
+  onPublicSearchChange?: (query: string) => void;
 }

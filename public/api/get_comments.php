@@ -146,6 +146,7 @@ try {
       'dbId' => $id,
       'postId' => (string) $c['postId'],
       'userId' => $c['userId'],
+      'hasProfile' => !empty($c['userId']),
       'parentId' => $c['parentId'],
       'username' => $c['username'],
       'userAvatar' => ResponseHelper::scrubAvatarUrl($commentAvatar),

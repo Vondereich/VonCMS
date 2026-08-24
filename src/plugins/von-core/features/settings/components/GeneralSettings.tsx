@@ -46,6 +46,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
     const formData = new FormData();
     formData.append('file', file);
     formData.append('context', 'system');
+    formData.append('systemImageType', type);
 
     try {
       const endpoint = API.uploadFile;
@@ -228,7 +229,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings196"
                   type="file"
                   className="hidden"
-                  accept="image/*"
+                  accept=".jpg,.jpeg,.png,.gif,.webp,.ico,image/jpeg,image/png,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
                   onChange={(e) => handleFileUpload(e, 'logo')}
                   disabled={uploading === 'logo'}
                 />
@@ -328,7 +329,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings276"
                   type="file"
                   className="hidden"
-                  accept="image/x-icon,image/png,image/svg+xml"
+                  accept=".png,.ico,image/png,image/x-icon,image/vnd.microsoft.icon"
                   onChange={(e) => handleFileUpload(e, 'favicon')}
                   disabled={uploading === 'favicon'}
                 />
@@ -383,7 +384,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                       name="generalsettings329"
                       type="file"
                       className="hidden"
-                      accept="image/png,image/jpeg"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                       onChange={(e) => handleFileUpload(e, 'ogImage')}
                       disabled={uploading === 'ogImage'}
                     />
@@ -433,7 +434,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                       name="generalsettings377"
                       type="file"
                       className="hidden"
-                      accept="image/png,image/jpeg"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                       onChange={(e) => handleFileUpload(e, 'ogImageSquare')}
                       disabled={uploading === 'ogImageSquare'}
                     />

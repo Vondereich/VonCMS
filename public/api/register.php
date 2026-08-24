@@ -28,11 +28,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 
-// Rate limiting handled via requireNotLimited() in security.php
 // Session already started in security.php
-
-// Check rate limiting
-RateLimiter::requireNotLimited();
 
 // Check if registration is enabled in settings
 try {
@@ -64,18 +60,29 @@ try {
 }
 
 CSRFProtection::requireToken();
+$registrationRateIdentifier = 'registration:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+RateLimiter::requireAttempt($registrationRateIdentifier);
 
 // Get JSON input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
-$username = trim($input['username'] ?? '');
-$email = trim($input['email'] ?? '');
-$password = $input['password'] ?? '';
-$confirmPassword = $input['confirmPassword'] ?? '';
-$honeypot = $input['hp_field'] ?? '';
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid request body', 400);
+}
+
+foreach (['username', 'email', 'password', 'confirmPassword', 'hp_field'] as $field) {
+  if (array_key_exists($field, $input) && $input[$field] !== null && !is_scalar($input[$field])) {
+    ResponseHelper::sendError('Invalid request body', 400);
+  }
+}
+
+$username = trim((string) ($input['username'] ?? ''));
+$email = trim((string) ($input['email'] ?? ''));
+$password = (string) ($input['password'] ?? '');
+$confirmPassword = (string) ($input['confirmPassword'] ?? '');
+$honeypot = (string) ($input['hp_field'] ?? '');
 
 // Honeypot check
 if (!empty($honeypot)) {
-  RateLimiter::recordAttempt();
   error_log(
     'Honeypot triggered during registration from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
   );
@@ -88,12 +95,17 @@ $errors = [];
 if (empty($username) || strlen($username) < 3) {
   $errors[] = 'Username must be at least 3 characters';
 }
+if (strlen($username) > 50) {
+  $errors[] = 'Username must not exceed 50 characters';
+}
 
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+if (strlen($email) > 100 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
   $errors[] = 'Please enter a valid email address';
 }
 
-if (strlen($password) < 8) {
+if (strlen($password) > 4096 || strlen($confirmPassword) > 4096) {
+  $errors[] = 'Password is too long';
+} elseif (strlen($password) < 8) {
   $errors[] = 'Password must be at least 8 characters';
 }
 if (!preg_match('/[A-Z]/', $password)) {
@@ -116,7 +128,6 @@ if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
 }
 
 if (!empty($errors)) {
-  RateLimiter::recordAttempt();
   ResponseHelper::sendError(implode('. ', $errors), 400);
 }
 
@@ -151,7 +162,6 @@ try {
   $stmt->execute([$username, $email]);
 
   if ($stmt->fetch()) {
-    RateLimiter::recordAttempt();
     ResponseHelper::sendError('Username or email already taken', 400);
   }
 

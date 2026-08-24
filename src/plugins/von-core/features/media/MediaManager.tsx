@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import {
   Upload,
@@ -22,6 +22,7 @@ import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import SmartPagination from '../../../../components/SmartPagination';
 import AdminModal from '../../../../components/admin/AdminModal';
+import { useDebouncedSearchQuery } from '../../../../hooks/useDebouncedSearchQuery';
 
 interface MediaManagerProps {
   settings?: SiteSettings;
@@ -32,7 +33,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(settings?.media?.defaultView || 'grid');
   const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { query: searchQuery, commit: commitSearch } = useDebouncedSearchQuery(searchInput);
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -72,11 +73,6 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
   }, [settings?.media?.defaultView]);
 
-  // Fetch media on component mount
-  useEffect(() => {
-    fetchMedia(1);
-  }, []);
-
   // Sync edit state when a single item is selected
   useEffect(() => {
     if (selectedItems.size === 1) {
@@ -95,41 +91,50 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
   }, [selectedItems, media]);
 
-  const fetchMedia = async (page = 1, search = searchQuery) => {
-    const requestId = ++mediaRequestIdRef.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(pagination.limit),
-      });
-      if (search) params.set('search', search);
-      const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch media');
-      const data = await res.json();
-      if (requestId !== mediaRequestIdRef.current) return;
-      if (data.success) {
-        setMedia(data.files || []);
-        setSelectedItems(new Set());
-        setPagination((current) => ({
-          ...current,
-          currentPage: data.currentPage || 1,
-          totalPages: data.totalPages || 1,
-          totalItems: data.totalItems || 0,
-        }));
-      } else {
-        throw new Error(data.error || 'Unknown error');
+  const fetchMedia = useCallback(
+    async (page = 1, search = searchQuery) => {
+      const requestId = ++mediaRequestIdRef.current;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(pagination.limit),
+        });
+        if (search) params.set('search', search);
+        const res = await vonFetch(`${API.listMedia}?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch media');
+        const data = await res.json();
+        if (requestId !== mediaRequestIdRef.current) return;
+        if (data.success) {
+          setMedia(data.files || []);
+          setSelectedItems(new Set());
+          setPagination((current) => ({
+            ...current,
+            currentPage: data.currentPage || 1,
+            totalPages: data.totalPages || 1,
+            totalItems: data.totalItems || 0,
+          }));
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (err: any) {
+        if (requestId === mediaRequestIdRef.current) {
+          setError(err.message || 'Failed to load media');
+          console.error('Fetch media error:', err);
+        }
+      } finally {
+        if (requestId === mediaRequestIdRef.current) {
+          setIsLoading(false);
+        }
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load media');
-      console.error('Fetch media error:', err);
-    } finally {
-      if (requestId === mediaRequestIdRef.current) {
-        setIsLoading(false);
-      }
-    }
-  };
+    },
+    [pagination.limit, searchQuery]
+  );
+
+  useEffect(() => {
+    void fetchMedia(1, searchQuery);
+  }, [fetchMedia, searchQuery]);
 
   const handleUpload = async (files: FileList) => {
     if (!files.length) return;
@@ -298,9 +303,10 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    const normalizedSearch = searchInput.trim().slice(0, 120);
-    setSearchQuery(normalizedSearch);
-    void fetchMedia(1, normalizedSearch);
+    const normalizedSearch = commitSearch();
+    if (normalizedSearch === searchQuery) {
+      void fetchMedia(1, normalizedSearch);
+    }
   };
 
   // Lightbox State
@@ -677,12 +683,24 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               name="searchFiles"
               aria-label="Search files..."
               type="text"
+              inputMode="search"
               placeholder="Search files..."
               maxLength={120}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-10 pr-20 py-2 border rounded-lg bg-slate-50 dark:bg-[#16161e] border-slate-200 dark:border-[#2a2b36] text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+              className="w-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-28 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
             />
+            {searchInput !== '' && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="absolute right-[4.75rem] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-[#2a2b36] dark:hover:text-white"
+                title="Clear search"
+                aria-label="Clear media search"
+              >
+                <X size={14} />
+              </button>
+            )}
             <button
               type="submit"
               className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import Gravatar from 'react-gravatar';
 import { Post, SiteSettings, NavItem } from '../../types';
 import { Menu, X, Moon, Sun, ChevronLeft } from 'lucide-react';
@@ -49,10 +49,14 @@ import {
 import {
   getHeaderIdentityState,
   getPermalink,
+  getPublicCategoryHref,
+  getPublicHomeHref,
+  getPublicProfileHref,
   getSameSiteCategoryNavigation,
   normalizeSiteUrl,
 } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
+import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 
 // TechPress Avatar Component with Gravatar Support
@@ -175,11 +179,13 @@ const getReadableForeground = (color: string): string => {
 function LatestTickerBanner({
   colors,
   latestTickerItems,
+  settings,
   onClick,
   enableMarquee = true,
 }: {
   colors: any;
   latestTickerItems: Post[];
+  settings: SiteSettings;
   onClick: (id: string) => void;
   enableMarquee?: boolean;
 }) {
@@ -204,26 +210,28 @@ function LatestTickerBanner({
             className={`flex gap-10 ${enableMarquee ? 'animate-marquee hover:[animation-play-state:paused]' : 'overflow-x-auto no-scrollbar'}`}
           >
             {latestTickerItems.map((news: Post) => (
-              <span
+              <a
                 key={news.id}
-                onClick={() => onClick(news.id)}
+                href={getPermalink(news, settings)}
+                onClick={(event) => handleCrawlableLinkClick(event, () => onClick(news.id))}
                 className="text-white text-sm font-bold cursor-pointer hover:underline flex items-center gap-2"
               >
                 <span className="opacity-50">#</span>
                 {decodeEntities(news.title)}
-              </span>
+              </a>
             ))}
             {/* Duplicate for infinite marquee effect - only if enabled */}
             {enableMarquee &&
               latestTickerItems.map((news: Post) => (
-                <span
+                <a
                   key={`${news.id}-clone`}
-                  onClick={() => onClick(news.id)}
+                  href={getPermalink(news, settings)}
+                  onClick={(event) => handleCrawlableLinkClick(event, () => onClick(news.id))}
                   className="text-white text-sm font-bold cursor-pointer hover:underline flex items-center gap-2"
                 >
                   <span className="opacity-50">#</span>
                   {decodeEntities(news.title)}
-                </span>
+                </a>
               ))}
           </div>
         </div>
@@ -291,16 +299,17 @@ function HeroArticle({
           />
 
           <div className="flex gap-2 mb-4">
-            <span
+            <a
+              href={getPublicCategoryHref(article.category || 'News')}
               onClick={(e) => {
                 e.stopPropagation();
-                onCategoryClick && onCategoryClick(article.category);
+                handleCrawlableLinkClick(e, () => onCategoryClick?.(article.category));
               }}
               className="px-3 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
               style={{ background: colors.primary, color: 'white' }}
             >
               {article.category || 'News'}
-            </span>
+            </a>
             <span
               className="px-3 py-1 text-xs font-bold uppercase rounded-sm"
               style={{ background: colors.accent, color: 'white' }}
@@ -344,8 +353,12 @@ function HeroArticle({
                 {article.author}
               </p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
-                {formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)} ·{' '}
-                {article.readTime || '5 min read'}
+                {formatDate(
+                  getPostPublishTimestamp(article),
+                  settings.timeZone,
+                  settings.dateFormat
+                )}{' '}
+                · {article.readTime || '5 min read'}
               </p>
             </div>
           </div>
@@ -414,16 +427,17 @@ function NewsCard({
 
         <div className="p-5 flex-1 flex flex-col">
           <div className="flex gap-2 mb-3">
-            <span
+            <a
+              href={getPublicCategoryHref(article.category || 'Tech')}
               onClick={(e) => {
                 e.stopPropagation();
-                onCategoryClick && onCategoryClick(article.category);
+                handleCrawlableLinkClick(e, () => onCategoryClick?.(article.category));
               }}
               className="px-2 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
               style={{ background: colors.primary, color: 'white' }}
             >
               {article.category || 'Tech'}
-            </span>
+            </a>
           </div>
           <h3
             className="text-xl font-bold mb-3 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"
@@ -461,11 +475,7 @@ function NewsCard({
             <span className="font-semibold">{article.author}</span>
             <span>•</span>
             <span>
-              {formatDate(
-                article.createdAt || article.updatedAt || '',
-                settings.timeZone,
-                settings.dateFormat
-              )}
+              {formatDate(getPostPublishTimestamp(article), settings.timeZone, settings.dateFormat)}
             </span>
           </div>
         </div>
@@ -499,16 +509,17 @@ function NewsCard({
 
       <div className="flex-1">
         <div className="flex gap-2 mb-2">
-          <span
+          <a
+            href={getPublicCategoryHref(article.category || 'News')}
             onClick={(e) => {
               e.stopPropagation();
-              onCategoryClick && onCategoryClick(article.category);
+              handleCrawlableLinkClick(e, () => onCategoryClick?.(article.category));
             }}
             className="px-2 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
             style={{ background: colors.primary, color: 'white' }}
           >
             {article.category || 'News'}
-          </span>
+          </a>
         </div>
         <h3
           className="text-lg font-bold mb-2 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"
@@ -534,7 +545,9 @@ function NewsCard({
           />
           <span>{article.author}</span>
           <span>•</span>
-          <span>{formatDate(article.createdAt || '', settings.timeZone, settings.dateFormat)}</span>
+          <span>
+            {formatDate(getPostPublishTimestamp(article), settings.timeZone, settings.dateFormat)}
+          </span>
         </div>
       </div>
     </div>
@@ -574,6 +587,8 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   selectedCategory,
   onCategoryClick,
   onClearSearch,
+  publicSearchQuery = '',
+  onPublicSearchChange,
 }) => {
   const config = getThemeConfig(settings);
   // Use global dark mode unless theme forces something else (but we sync with global for better UX)
@@ -592,18 +607,17 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   const searchControlForeground = getReadableForeground(colors.primary);
 
   // Search State
-  const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const activeSearchQuery = publicSearchQuery;
   // Load More State (replaces numbered pagination)
   const postsPerPage = settings.postsPerPage || 6;
 
   const handleClearSearch = useCallback(() => {
-    setActiveSearchQuery('');
+    onPublicSearchChange?.('');
     if (onClearSearch) onClearSearch();
-  }, [onClearSearch]);
+  }, [onClearSearch, onPublicSearchChange]);
 
   const handleReturnHome = useCallback(() => {
     onBackToHome();
-    setActiveSearchQuery('');
   }, [onBackToHome]);
 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -628,7 +642,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   );
 
   const handleSearch = (query: string) => {
-    setActiveSearchQuery(query);
+    onPublicSearchChange?.(query);
   };
 
   // Filter published posts
@@ -642,13 +656,6 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   });
 
   const displayedPosts = publicPosts.posts;
-
-  // Reset visible count when filters change
-  useEffect(() => {
-    setActiveSearchQuery((currentQuery) =>
-      currentView === 'home' && currentQuery ? '' : currentQuery
-    );
-  }, [currentView, postsPerPage]);
 
   const paginatedPosts = publicPosts.posts;
   const hasMorePosts = publicPosts.hasMore;
@@ -723,9 +730,10 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         <ProseDarkModeStyles />
         <div className="max-w-7xl mx-auto px-5 py-4">
           <div className="flex items-center justify-between">
-            <div
+            <a
+              href={getPublicHomeHref()}
               className="min-w-0 max-w-[58%] md:max-w-[320px] flex items-center gap-3 cursor-pointer"
-              onClick={handleReturnHome}
+              onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             >
               {headerIdentity.showUploadedLogo ? (
                 <ThemeLogo
@@ -761,18 +769,22 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                   )}
                 </div>
               )}
-            </div>
+            </a>
 
             <nav className={desktopNavigationClassName}>
               {visibleNavigationItems.map((nav: NavItem) => (
-                <button
+                <PublicNavigationLink
                   key={nav.id}
-                  onClick={() => handleNavClick(nav)}
+                  nav={nav}
+                  settings={settings}
+                  posts={posts}
+                  pages={pages}
+                  onNavigate={() => handleNavClick(nav)}
                   className="hover:opacity-70 transition bg-transparent border-0 cursor-pointer"
                   style={{ color: colors.text }}
                 >
                   {nav.label}
-                </button>
+                </PublicNavigationLink>
               ))}
               {/* More Dropdown */}
               {overflowNavigationItems.length > 0 && (
@@ -797,18 +809,22 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     </svg>
                   </button>
                   <div
-                    className="absolute top-full right-0 mt-2 w-48 py-2 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50"
+                    className="absolute top-full right-0 mt-2 w-48 py-2 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50 before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']"
                     style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                   >
                     {overflowNavigationItems.map((nav: NavItem) => (
-                      <button
+                      <PublicNavigationLink
                         key={nav.id}
-                        onClick={() => handleNavClick(nav)}
-                        className="w-full px-4 py-2 text-left text-sm hover:opacity-70 transition"
+                        nav={nav}
+                        settings={settings}
+                        posts={posts}
+                        pages={pages}
+                        onNavigate={() => handleNavClick(nav)}
+                        className="block w-full px-4 py-2 text-left text-sm hover:opacity-70 transition"
                         style={{ color: colors.text }}
                       >
                         {nav.label}
-                      </button>
+                      </PublicNavigationLink>
                     ))}
                   </div>
                 </div>
@@ -1023,9 +1039,13 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             >
               <nav className="flex flex-col gap-2">
                 {navigationItems.map((nav: NavItem) => (
-                  <button
+                  <PublicNavigationLink
                     key={nav.id}
-                    onClick={() => {
+                    nav={nav}
+                    settings={settings}
+                    posts={posts}
+                    pages={pages}
+                    onNavigate={() => {
                       handleNavClick(nav);
                       setIsMobileMenuOpen(false);
                     }}
@@ -1033,7 +1053,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     style={{ color: colors.text, background: colors.surface }}
                   >
                     {nav.label}
-                  </button>
+                  </PublicNavigationLink>
                 ))}
               </nav>
             </div>
@@ -1123,8 +1143,9 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             <main
               className={`flex-1 w-full min-w-0 ${hasSinglePostSidebar ? 'lg:max-w-[calc(100%-370px)]' : 'max-w-4xl mx-auto'}`}
             >
-              <button
-                onClick={handleReturnHome}
+              <a
+                href={getPublicHomeHref()}
+                onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
                 className="mb-10 font-bold text-sm hover:underline flex items-center gap-2 transition-opacity hover:opacity-70"
                 style={{ color: colors.textSecondary }}
               >
@@ -1137,17 +1158,22 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                   />
                 </svg>
                 Back to Home
-              </button>
+              </a>
 
               <article className="mb-16">
                 <header className="mb-8">
-                  <span
-                    onClick={() => onCategoryClick && onCategoryClick(selectedPost.category)}
+                  <a
+                    href={getPublicCategoryHref(selectedPost.category)}
+                    onClick={(event) =>
+                      handleCrawlableLinkClick(event, () =>
+                        onCategoryClick?.(selectedPost.category)
+                      )
+                    }
                     className="inline-block px-3 py-1 mb-6 text-xs font-black uppercase tracking-widest rounded-sm"
                     style={{ background: colors.primary, color: 'white' }}
                   >
                     {selectedPost.category || 'Lifestyle'}
-                  </span>
+                  </a>
                   <h1
                     className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-8 leading-tight tracking-tight"
                     style={{ color: colors.text }}
@@ -1159,10 +1185,15 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     className="flex items-center gap-6 text-sm font-bold pb-8 border-b"
                     style={{ color: colors.textSecondary, borderColor: colors.border }}
                   >
-                    <div
+                    <a
+                      href={getPublicProfileHref(
+                        selectedPost.author_data?.username || selectedPost.author
+                      )}
                       className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() =>
-                        onViewProfile(selectedPost.author_data?.username || selectedPost.author)
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () =>
+                          onViewProfile(selectedPost.author_data?.username || selectedPost.author)
+                        )
                       }
                     >
                       <TechPressAvatar
@@ -1204,7 +1235,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </a>
                   </div>
                 </header>
 
@@ -1381,7 +1412,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         </div>
 
         {/* Footer */}
-        <TechPressFooter settings={settings} colors={isDark ? colors : footerColors} />
+        <TechPressFooter
+          settings={settings}
+          colors={isDark ? colors : footerColors}
+          onBackToHome={handleReturnHome}
+        />
       </div>
     );
   }
@@ -1420,13 +1455,14 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         <div className="max-w-7xl mx-auto px-5 py-12 flex-1 w-full">
           <div className="flex flex-col lg:flex-row gap-8 justify-center">
             <main className="w-full max-w-4xl">
-              <button
-                onClick={handleReturnHome}
+              <a
+                href={getPublicHomeHref()}
+                onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
                 className="mb-8 font-bold text-sm hover:underline flex items-center gap-1"
                 style={{ color: colors.textSecondary }}
               >
                 <ChevronLeft size={16} /> Back to Home
-              </button>
+              </a>
               <h1
                 className="text-4xl md:text-5xl font-bold mb-6 leading-tight"
                 style={{ color: colors.text }}
@@ -1443,7 +1479,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         </div>
 
         {/* Footer */}
-        <TechPressFooter settings={settings} colors={isDark ? colors : footerColors} />
+        <TechPressFooter
+          settings={settings}
+          colors={isDark ? colors : footerColors}
+          onBackToHome={handleReturnHome}
+        />
       </div>
     );
   }
@@ -1466,13 +1506,14 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         )}
         <Header />
         <main className="max-w-5xl mx-auto px-5 py-12 flex-1 w-full">
-          <button
-            onClick={handleReturnHome}
+          <a
+            href={getPublicHomeHref()}
+            onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             className="mb-8 font-bold text-sm hover:underline flex items-center gap-1"
             style={{ color: colors.textSecondary }}
           >
             <ChevronLeft size={16} /> Back to Home
-          </button>
+          </a>
           <TechPressProfile
             key={targetProfile.id}
             targetUser={targetProfile}
@@ -1489,7 +1530,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
           />
         </main>
         {/* Footer */}
-        <TechPressFooter settings={settings} colors={isDark ? colors : footerColors} />
+        <TechPressFooter
+          settings={settings}
+          colors={isDark ? colors : footerColors}
+          onBackToHome={handleReturnHome}
+        />
       </div>
     );
   }
@@ -1515,6 +1560,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         <LatestTickerBanner
           colors={colors}
           latestTickerItems={latestTickerItems}
+          settings={settings}
           onClick={onPostClick}
           enableMarquee={config.enableMarquee}
         />
@@ -1535,17 +1581,19 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             className="mx-auto mb-2 font-bold uppercase tracking-wider"
             style={{ color: colors.primary }}
           />
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              if (onCategoryClick) onCategoryClick('');
-              else window.location.href = '/';
-            }}
+          <a
+            href={getPublicHomeHref()}
+            onClick={(event) =>
+              handleCrawlableLinkClick(event, () => {
+                if (onCategoryClick) onCategoryClick('');
+                else window.location.href = getPublicHomeHref();
+              })
+            }
             className="text-sm font-bold hover:underline"
             style={{ color: colors.textSecondary }}
           >
             View All Stories
-          </button>
+          </a>
         </div>
       )}
 
@@ -1798,7 +1846,11 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         )}
       </main>
 
-      <TechPressFooter settings={settings} colors={isDark ? colors : footerColors} />
+      <TechPressFooter
+        settings={settings}
+        colors={isDark ? colors : footerColors}
+        onBackToHome={handleReturnHome}
+      />
 
       {/* Popup Ad */}
       <VonPopupAd show={showPopup} onClose={closePopup} content={settings.ads.popupAd} />

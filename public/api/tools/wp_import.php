@@ -660,67 +660,6 @@ function fetch_import_image_hop_with_curl($url, $tempPath)
 /**
  * @param string $url
  * @param string $tempPath
- * @return array<string, mixed>
- */
-function fetch_import_image_hop_with_stream($url, $tempPath)
-{
-  $context = stream_context_create([
-    'http' => [
-      'method' => 'GET',
-      'timeout' => 30,
-      'follow_location' => 0,
-      'user_agent' => 'VonCMS WP Importer/1.25.2',
-      'ignore_errors' => true,
-    ],
-    'ssl' => [
-      'verify_peer' => true,
-      'verify_peer_name' => true,
-    ],
-  ]);
-
-  $data = false;
-  $headers = [];
-  $stream = @fopen($url, 'rb', false, $context);
-  if (is_resource($stream)) {
-    $data = stream_get_contents($stream);
-    $metadata = stream_get_meta_data($stream);
-    $headers =
-      isset($metadata['wrapper_data']) && is_array($metadata['wrapper_data'])
-        ? $metadata['wrapper_data']
-        : [];
-    fclose($stream);
-  }
-  $httpCode = 0;
-  $redirectLocation = '';
-
-  foreach ($headers as $header) {
-    if (preg_match('~^HTTP/\S+\s+(\d{3})~i', $header, $matches)) {
-      $httpCode = (int) $matches[1];
-      $redirectLocation = '';
-    } elseif (stripos($header, 'Location:') === 0) {
-      $redirectLocation = trim(substr($header, 9));
-    }
-  }
-
-  if (import_remote_http_code_is_redirect($httpCode)) {
-    return ['redirect' => true, 'location' => $redirectLocation, 'http_code' => $httpCode];
-  }
-
-  if (
-    $data !== false &&
-    $httpCode >= 200 &&
-    $httpCode < 300 &&
-    @file_put_contents($tempPath, $data) !== false
-  ) {
-    return ['success' => true, 'http_code' => $httpCode];
-  }
-
-  return ['success' => false, 'http_code' => $httpCode, 'error' => 'HTTP ' . $httpCode];
-}
-
-/**
- * @param string $url
- * @param string $tempPath
  * @return bool
  */
 function fetch_import_image_url_with_redirect_validation($url, $tempPath)

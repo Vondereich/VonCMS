@@ -149,13 +149,13 @@ if (!function_exists('voncms_extract_plaintext_for_noscript')) {
     $content = preg_replace('/<(br|hr)\s*\/?>/i', "\n", $content);
     $content = preg_replace(
       '/<\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li)>/i',
-      "\n",
+      "\n\n",
       $content,
     );
     $content = strip_tags($content);
     $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $content = str_replace("\xC2\xA0", ' ', $content);
-    $content = preg_replace('/[ \t\r\f\v]+/', ' ', $content);
+    $content = preg_replace('/[ \t\r\f]+/', ' ', $content);
     $content = preg_replace("/\n[ \t]+/", "\n", $content);
     $content = preg_replace("/\n{3,}/", "\n\n", $content);
 
@@ -191,6 +191,148 @@ if (!function_exists('voncms_absolute_public_url')) {
   }
 }
 
+if (!function_exists('voncms_normalize_public_media_url')) {
+  /**
+   * Validate a public media URL without fetching it. Local root/subfolder paths
+   * and absolute HTTP(S) URLs are supported; active or ambiguous schemes fail closed.
+   *
+   * @param mixed $value
+   * @param int $maxLength
+   * @return string
+   */
+  function voncms_normalize_public_media_url($value, $maxLength = 2048): string
+  {
+    if (!is_string($value)) {
+      return '';
+    }
+
+    $maxLength = max(1, (int) $maxLength);
+    $url = trim($value);
+    if (
+      preg_match('/^\s*<meta\b[^>]*\bcontent=["\']([^"\']+)["\'][^>]*>\s*$/i', $url, $contentMatch)
+    ) {
+      $url = $contentMatch[1];
+    }
+    for ($decodePass = 0; $decodePass < 3; $decodePass++) {
+      $decoded = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      if ($decoded === $url) {
+        break;
+      }
+      $url = $decoded;
+    }
+    $url = trim($url);
+
+    if (preg_match('/%(?![0-9A-Fa-f]{2})/', $url)) {
+      return '';
+    }
+    $decodedUrl = rawurldecode($url);
+    if (!mb_check_encoding($decodedUrl, 'UTF-8')) {
+      return '';
+    }
+
+    if (
+      $url === '' ||
+      mb_strlen($url) > $maxLength ||
+      preg_match('/[\x00-\x20\x7F]/u', $url) ||
+      strpbrk($url, "<>\"'`\\") !== false ||
+      str_starts_with($url, '//')
+    ) {
+      return '';
+    }
+
+    if (preg_match('/^https?:\/\//i', $url)) {
+      $parts = parse_url($url);
+      if (
+        !is_array($parts) ||
+        !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true) ||
+        empty($parts['host']) ||
+        isset($parts['user']) ||
+        isset($parts['pass']) ||
+        filter_var($url, FILTER_VALIDATE_URL) === false
+      ) {
+        return '';
+      }
+
+      return $url;
+    }
+
+    if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url)) {
+      return '';
+    }
+
+    $path = explode('?', $url, 2)[0];
+    $decodedPath = rawurldecode($path);
+    if (
+      $path === '' ||
+      preg_match('/[\x00-\x20\x7F]/u', $decodedPath) ||
+      str_contains($decodedPath, '\\')
+    ) {
+      return '';
+    }
+    foreach (explode('/', $decodedPath) as $segment) {
+      if ($segment === '.' || $segment === '..') {
+        return '';
+      }
+    }
+
+    return $url;
+  }
+}
+
+if (!function_exists('voncms_resolve_social_image')) {
+  /**
+   * @param array<int, array{url:mixed, kind:string}> $candidates
+   * @param string $domainUrl
+   * @return array{url:string, kind:string, card:string}
+   */
+  function voncms_resolve_social_image(array $candidates, $domainUrl): array
+  {
+    foreach ($candidates as $candidate) {
+      $normalizedUrl = voncms_normalize_public_media_url($candidate['url'] ?? '');
+      if ($normalizedUrl === '') {
+        continue;
+      }
+
+      $kind = strtolower(trim((string) ($candidate['kind'] ?? '')));
+      $card = in_array($kind, ['featured', 'large', 'default'], true)
+        ? 'summary_large_image'
+        : 'summary';
+
+      return [
+        'url' => voncms_absolute_public_url($normalizedUrl, $domainUrl),
+        'kind' => $kind,
+        'card' => $card,
+      ];
+    }
+
+    return ['url' => '', 'kind' => '', 'card' => 'summary'];
+  }
+}
+
+if (!function_exists('voncms_resolve_featured_image_input')) {
+  /**
+   * Preserve an unchanged legacy value so unrelated edits remain saveable, but
+   * reject malformed values for inserts and explicit image changes.
+   *
+   * @return array{accepted:bool, value:string, changed:bool}
+   */
+  function voncms_resolve_featured_image_input(
+    string $incomingValue,
+    string $storedValue,
+    bool $isUpdate,
+  ): array {
+    $normalizedValue = voncms_normalize_public_media_url($incomingValue, 255);
+    $changed = !$isUpdate || $incomingValue !== $storedValue;
+    $accepted = $incomingValue === '' || $normalizedValue !== '' || !$changed;
+
+    return [
+      'accepted' => $accepted,
+      'value' => $normalizedValue !== '' ? $normalizedValue : $incomingValue,
+      'changed' => $changed,
+    ];
+  }
+}
+
 if (!function_exists('voncms_schema_entity_id')) {
   /**
    * @param string $domainUrl
@@ -221,7 +363,8 @@ if (!function_exists('voncms_build_schema_organization')) {
       'url' => rtrim((string) $domainUrl, '/'),
     ];
 
-    $absoluteLogoUrl = voncms_absolute_public_url($logoUrl, $domainUrl);
+    $normalizedLogoUrl = voncms_normalize_public_media_url($logoUrl);
+    $absoluteLogoUrl = voncms_absolute_public_url($normalizedLogoUrl, $domainUrl);
     if ($absoluteLogoUrl !== '') {
       $organization['logo'] = [
         '@type' => 'ImageObject',
@@ -334,16 +477,22 @@ if (!function_exists('voncms_apply_content_schema')) {
     $schemaData['headline'] = $schemaTitle;
     $schemaData['description'] = $seoDescription;
     $schemaData['url'] = $seoUrl;
-    if ($seoImage !== '') {
+    $normalizedSchemaImage = voncms_normalize_public_media_url($seoImage);
+    if ($normalizedSchemaImage !== '') {
       $schemaData['image'] = [
         [
           '@type' => 'ImageObject',
-          'url' => $seoImage,
+          'url' => voncms_absolute_public_url($normalizedSchemaImage, $domainUrl),
         ],
       ];
+    } else {
+      unset($schemaData['image']);
     }
-    $schemaData['datePublished'] = !empty($content['created_at'])
-      ? date('c', strtotime((string) $content['created_at']))
+    $publishedAt = !empty($content['scheduled_at'])
+      ? $content['scheduled_at']
+      : $content['created_at'] ?? null;
+    $schemaData['datePublished'] = !empty($publishedAt)
+      ? date('c', strtotime((string) $publishedAt))
       : date('c');
 
     if (!empty($content['author_name']) || !empty($content['author'])) {
@@ -410,8 +559,9 @@ if (!function_exists('voncms_apply_category_collection_items')) {
           200,
         ),
       ];
-      if (!empty($post['image_url'])) {
-        $item['image'] = voncms_absolute_public_url($post['image_url'], $domainUrl);
+      $normalizedItemImage = voncms_normalize_public_media_url($post['image_url'] ?? '');
+      if ($normalizedItemImage !== '') {
+        $item['image'] = voncms_absolute_public_url($normalizedItemImage, $domainUrl);
       }
       $itemList[] = [
         '@type' => 'ListItem',

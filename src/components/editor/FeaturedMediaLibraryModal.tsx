@@ -66,14 +66,26 @@ const FeaturedMediaLibraryModal: React.FC<FeaturedMediaLibraryModalProps> = ({
             <input
               id="featured-media-search"
               name="featuredMediaSearch"
-              type="search"
+              type="text"
+              inputMode="search"
               value={searchInput}
               maxLength={120}
               aria-label="Search featured images"
               onChange={(event) => onSearchInputChange(event.target.value)}
               placeholder="Search featured images..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-10 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
             />
+            {searchInput !== '' && (
+              <button
+                type="button"
+                onClick={() => onSearchInputChange('')}
+                className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-[#2a2b36] dark:hover:text-white"
+                title="Clear search"
+                aria-label="Clear featured image search"
+              >
+                <X size={15} />
+              </button>
+            )}
           </div>
           <button
             type="submit"

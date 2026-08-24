@@ -191,6 +191,8 @@ function analyzeUploadsShieldState($publicPath, $projectRoot)
 
   $state['readable'] = true;
   if (
+    strpos($shieldContent, 'VonCMS Uploads Security v2') === false ||
+    strpos($shieldContent, '(?i)\.(php|php[0-9]+|phtml|pht|phar|phps') === false ||
     strpos($shieldContent, 'Require all denied') === false ||
     strpos($shieldContent, 'Options -Indexes') === false
   ) {

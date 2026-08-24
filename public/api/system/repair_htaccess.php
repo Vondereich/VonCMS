@@ -455,12 +455,14 @@ function repairUploadsShield($publicPath, $projectRoot)
 
   $shieldPath = $uploadsDir . '/.htaccess';
   $shieldRule =
-    "<FilesMatch \"\\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|html|htm|js|sh|exe)$\">\n    Require all denied\n</FilesMatch>\nOptions -Indexes\n";
+    "# VonCMS Uploads Security v2\n# Block all script execution in this directory\n\n<FilesMatch \"(?i)\\.(php|php[0-9]+|phtml|pht|phar|phps|pl|py|jsp|asp|aspx|htm|html|shtml|sh|cgi|js|exe)$\">\n    Require all denied\n</FilesMatch>\n\nOptions -Indexes\n";
 
   if (file_exists($shieldPath)) {
     $existing = (string) @file_get_contents($shieldPath);
     if (
       $existing !== '' &&
+      strpos($existing, 'VonCMS Uploads Security v2') !== false &&
+      strpos($existing, '(?i)\\.(php|php[0-9]+|phtml|pht|phar|phps') !== false &&
       strpos($existing, 'Require all denied') !== false &&
       strpos($existing, 'Options -Indexes') !== false
     ) {

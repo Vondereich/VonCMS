@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
 import { Post, Page, SiteSettings, User } from '../../../../types';
-import { getPermalink } from '../../../../utils/siteUtils';
+import {
+  getPermalink,
+  getPostPublishTimestamp,
+  normalizeSchemaDateTime,
+} from '../../../../utils/siteUtils';
 import { API, BASE_PATH } from '../../../../config/site.config';
 import { htmlToPlainText } from '../../../../utils/security';
 import { hasNonemptySeoQueryValue } from '../../../../utils/seoQuery';
@@ -10,6 +14,11 @@ import {
   normalizeSchemaLanguage,
   truncateSchemaText,
 } from '../../../../utils/articleSchema';
+import {
+  resolveSocialImage,
+  toAbsolutePublicMediaUrl,
+  type SocialImageCandidate,
+} from '../../../../utils/socialMetadata';
 
 const ensureMeta = (nameOrProp: string, attr: 'name' | 'property', content: string) => {
   let el = document.head.querySelector(`meta[${attr}="${nameOrProp}"]`);
@@ -55,17 +64,6 @@ const setJsonLd = (obj: any, schemaUrl: string) => {
   el.textContent = JSON.stringify(obj);
   el.removeAttribute('data-voncms-schema-source');
   el.removeAttribute('data-voncms-schema-url');
-};
-
-const normalizeSchemaDate = (value?: string) => {
-  const rawValue = value?.trim();
-  if (!rawValue) return undefined;
-  if (/[zZ]|[+\-]\d{2}:\d{2}$/.test(rawValue)) return rawValue;
-
-  const parsed = new Date(rawValue);
-  if (Number.isNaN(parsed.getTime())) return rawValue;
-
-  return parsed.toISOString();
 };
 
 const normalizeSeoDescriptionCandidate = (value?: string | null): string => {
@@ -148,7 +146,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     // --- 1. Construct Metadata ---
     let title = siteTitle;
     let description = settings.siteDescription || '';
-    let image = settings.ogImageUrl || settings.logoUrl || '';
+    let routeSocialImage: SocialImageCandidate | null = null;
     let type = 'website';
     let hydratedRobots =
       'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
@@ -171,7 +169,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
           selectedPost.excerpt,
           selectedPost.content
         ) || description;
-      image = selectedPost.image || settings.ogImageUrl || image;
+      routeSocialImage = { url: selectedPost.image, kind: 'featured' };
       type = 'article';
       // Use authoritative permalink for canonical
       canonical = getPermalink(selectedPost, settings, true);
@@ -193,7 +191,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
       title = `${profileDisplayName} | ${siteTitle}`;
       description =
         selectedProfile.bio || `Profile of ${profileDisplayName} on ${settings.siteName}`;
-      image = selectedProfile.avatar || image;
+      routeSocialImage = { url: selectedProfile.avatar, kind: 'profile' };
       type = 'profile';
       canonical = canonicalUrl(`profile/${encodeURIComponent(selectedProfile.username)}`);
     } else if (currentView === 'category' && selectedCategory) {
@@ -233,20 +231,6 @@ const VonSEO: React.FC<VonSEOProps> = ({
     ensureMeta('generator', 'name', 'VonSEO 3.0'); // Branding
 
     // --- 5. Open Graph (Facebook / LinkedIn) ---
-    // Fix: Force Absolute URLs for Client-Side OG Tags (Robustness Upgrade)
-    const toAbsolute = (url: string) => {
-      if (!url) return '';
-      if (/^https?:\/\//i.test(url)) return url;
-
-      const canonicalUrlObject = new URL(canonicalBase, window.location.origin);
-      const canonicalPath = canonicalUrlObject.pathname.replace(/\/$/, '');
-      if (canonicalPath && (url === canonicalPath || url.startsWith(`${canonicalPath}/`))) {
-        return `${canonicalUrlObject.origin}${url}`;
-      }
-
-      return `${canonicalBase}/${url.replace(/^\/+/, '')}`;
-    };
-
     ensureMeta('og:title', 'property', title);
     ensureMeta('og:description', 'property', description);
     ensureMeta('og:url', 'property', canonical);
@@ -261,8 +245,16 @@ const VonSEO: React.FC<VonSEOProps> = ({
           : '';
     ensureMeta('og:locale', 'property', openGraphLocale);
 
-    const ogImage = image || settings.ogImageSquareUrl || '';
-    const absoluteOgImage = toAbsolute(ogImage);
+    const resolvedSocialImage = resolveSocialImage(
+      [
+        ...(routeSocialImage ? [routeSocialImage] : []),
+        { url: settings.ogImageUrl, kind: 'large' },
+        { url: settings.ogImageSquareUrl, kind: 'square' },
+        { url: settings.logoUrl, kind: 'logo' },
+      ],
+      canonicalBase
+    );
+    const absoluteOgImage = resolvedSocialImage.url;
     const currentOgImage =
       document.head.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
     const currentImageWidth = Number(
@@ -285,15 +277,8 @@ const VonSEO: React.FC<VonSEOProps> = ({
     }
 
     // --- 6. Twitter Cards ---
-    // If we have a square image but no large image, use 'summary'. Large image -> 'summary_large_image'
-    const cardType = ogImage
-      ? 'summary_large_image'
-      : settings.ogImageSquareUrl
-        ? 'summary'
-        : 'summary';
-
-    // Fix: Ensure Twitter images are also absolute
-    const twitterImage = ogImage ? toAbsolute(ogImage) : '';
+    const cardType = resolvedSocialImage.card;
+    const twitterImage = absoluteOgImage;
 
     ensureMeta('twitter:card', 'name', cardType);
     ensureMeta('twitter:title', 'name', title);
@@ -308,7 +293,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     };
 
     // Organization Node
-    const organizationLogoUrl = toAbsolute(settings.logoUrl || '');
+    const organizationLogoUrl = toAbsolutePublicMediaUrl(settings.logoUrl, canonicalBase);
     const orgNode = {
       '@type': 'Organization',
       '@id': `${canonicalBase}/#organization`,
@@ -343,19 +328,27 @@ const VonSEO: React.FC<VonSEOProps> = ({
         '@id': `${canonical}#article`,
         headline: selectedPost.title,
         description: description,
-        image: absoluteOgImage
-          ? [
-              {
-                '@type': 'ImageObject',
-                url: absoluteOgImage,
-                ...(canReuseSocialImageDimensions
-                  ? { width: currentImageWidth, height: currentImageHeight }
-                  : {}),
-              },
-            ]
-          : [],
-        datePublished: normalizeSchemaDate(selectedPost.createdAt || selectedPost.updatedAt),
-        dateModified: normalizeSchemaDate(selectedPost.updatedAt || selectedPost.createdAt),
+        ...(absoluteOgImage
+          ? {
+              image: [
+                {
+                  '@type': 'ImageObject',
+                  url: absoluteOgImage,
+                  ...(canReuseSocialImageDimensions
+                    ? { width: currentImageWidth, height: currentImageHeight }
+                    : {}),
+                },
+              ],
+            }
+          : {}),
+        datePublished: normalizeSchemaDateTime(
+          getPostPublishTimestamp(selectedPost),
+          settings.timeZone
+        ),
+        dateModified: normalizeSchemaDateTime(
+          selectedPost.updatedAt || getPostPublishTimestamp(selectedPost),
+          settings.timeZone
+        ),
         author: { '@type': 'Person', name: selectedPost.author, url: authorProfileUrl },
         publisher: { '@id': `${canonicalBase}/#organization` },
         mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
@@ -365,12 +358,13 @@ const VonSEO: React.FC<VonSEOProps> = ({
       jsonLd['@graph'].push(articleNode);
     } else if (currentView === 'profile' && selectedProfile) {
       const profileDisplayName = selectedProfile.display_name || selectedProfile.username;
+      const profileImage = toAbsolutePublicMediaUrl(selectedProfile.avatar, canonicalBase);
       const personNode = {
         '@type': 'Person',
         '@id': `${canonical}#person`,
         name: profileDisplayName,
         description: selectedProfile.bio,
-        image: selectedProfile.avatar,
+        ...(profileImage ? { image: profileImage } : {}),
         url: canonical,
       };
       jsonLd['@graph'].push(personNode);

@@ -13,7 +13,48 @@ const HOST = process.env.THEMES_API_HOST || '127.0.0.1';
 const IS_LOOPBACK_HOST = ['127.0.0.1', '::1', 'localhost'].includes(HOST.toLowerCase());
 const ADMIN_SAVE_TOKEN = process.env.ADMIN_SAVE_TOKEN || '';
 const cors = require('cors');
-app.use(cors());
+const configuredBrowserOrigins = new Set(
+  String(process.env.THEMES_API_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+const loopbackOriginHosts = new Set(['localhost', '127.0.0.1', '::1']);
+
+function isAllowedBrowserOrigin(origin) {
+  if (!origin) return true;
+  if (configuredBrowserOrigins.has(origin)) return true;
+
+  try {
+    const parsed = new URL(origin);
+    return (
+      IS_LOOPBACK_HOST &&
+      ['http:', 'https:'].includes(parsed.protocol) &&
+      loopbackOriginHosts.has(parsed.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !isAllowedBrowserOrigin(String(origin))) {
+    return res.status(403).json({ success: false, message: 'Forbidden: Origin not allowed' });
+  }
+  next();
+});
+app.use(
+  cors({
+    origin(origin, callback) {
+      callback(null, isAllowedBrowserOrigin(origin));
+    },
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-AI-Token'],
+    credentials: false,
+    optionsSuccessStatus: 204,
+  })
+);
 app.use(express.json());
 
 const https = require('https');
@@ -276,19 +317,27 @@ const saveSettingsLimiter = buildRateLimiter({
 });
 
 // SECURITY MIDDLEWARE
-// Mock tokens are intentionally limited to the local development host.
+function safeTokenEquals(left, right) {
+  const supplied = Buffer.from(String(left || ''), 'utf8');
+  const expected = Buffer.from(String(right || ''), 'utf8');
+  return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+}
+
 const verifyDevToken = (req, res, next) => {
+  if (!ADMIN_SAVE_TOKEN) {
+    return res.status(503).json({
+      success: false,
+      message: 'Local API authentication is not configured',
+    });
+  }
+
   const authHeader = req.headers.authorization;
-  if (!authHeader) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, message: 'Unauthorized: Missing Token' });
   }
 
   const token = authHeader.split(' ')[1]; // Bearer <token>
-  if (ADMIN_SAVE_TOKEN && token === ADMIN_SAVE_TOKEN) {
-    return next();
-  }
-
-  if (IS_LOOPBACK_HOST && token?.startsWith('mock_dev_token_')) {
+  if (safeTokenEquals(token, ADMIN_SAVE_TOKEN)) {
     return next();
   }
 

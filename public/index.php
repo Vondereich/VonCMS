@@ -302,6 +302,7 @@ header('X-Powered-By: VonCMS', true);
 $seoTitle = 'My Website';
 $seoDescription = 'Built with CMS Core';
 $seoImage = '';
+$seoImageKind = '';
 $seoOgType = 'website';
 $seoRobots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 $schemaData = null;
@@ -366,7 +367,7 @@ try {
     if (isset($pdo)) {
       $runtimeSettingsStmt = $pdo->prepare(
         "SELECT setting_group, setting_key, setting_value FROM settings
-         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'header_identity_mode', 'use_logo_as_title', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'discussion_enabled', 'permalink_structure', 'time_zone', 'date_format'))
+         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'header_identity_mode', 'use_logo_as_title', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'og_image_square_url', 'discussion_enabled', 'permalink_structure', 'time_zone', 'date_format'))
             OR (setting_group = 'ads' AND setting_key = 'ads_config')
             OR (setting_group = 'seo' AND setting_key = 'site_config')
             OR (setting_group = 'theme' AND setting_key IN ('active_theme_id', 'customization'))",
@@ -478,7 +479,10 @@ try {
         FILTER_VALIDATE_BOOLEAN,
       );
 
-      $faviconUrl = $runtimeSettings['general']['favicon_url'] ?? '';
+      $faviconUrl = voncms_normalize_public_media_url(
+        $runtimeSettings['general']['favicon_url'] ?? '',
+      );
+      $faviconUrl = voncms_absolute_public_url($faviconUrl, $domainUrl);
       if ($faviconUrl !== '') {
         // Cache-busting: Use file mtime if local, else hash of URL
         $localPath = __DIR__ . '/' . ltrim(parse_url($faviconUrl, PHP_URL_PATH) ?? '', '/');
@@ -654,7 +658,7 @@ try {
           }
 
           $seoImage = $post['image_url'] ?? '';
-          $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
+          $seoImageKind = 'featured';
 
           $seoOgType = 'article';
 
@@ -704,12 +708,14 @@ try {
             : 'Profile of ' . $profileName . ' on ' . ($siteName ?? $seoTitle);
           $profileDescription = mb_substr(str_replace('"', "'", $profileDescription), 0, 160);
           $profileAvatar = ResponseHelper::scrubAvatarUrl((string) ($profileUser['avatar'] ?? ''));
+          $profileAvatar = voncms_normalize_public_media_url($profileAvatar);
           $profileAvatar = voncms_absolute_public_url($profileAvatar, $domainUrl);
           $profilePath = '/profile/' . rawurlencode((string) ($profileUser['username'] ?? $profileUsername));
 
           $seoTitle = $profileName . ' | ' . $seoTitle;
           $seoDescription = $profileDescription;
           $seoImage = $profileAvatar;
+          $seoImageKind = 'profile';
           $seoUrl = $domainUrl . $profilePath;
           $seoOgType = 'profile';
           $schemaPerson = [
@@ -777,9 +783,7 @@ try {
           }
 
           $seoImage = $post['image_url'] ?? '';
-
-          // Previous Logo Fallback Removed via cleanup -
-          // We now enforce og-default.jpg later for consistent 1200x630 sizing
+          $seoImageKind = $resolvedContentType === 'post' ? 'featured' : '';
 
           // --------------------------------------------
           // Construct Absolute URLs for Open Graph (Plain Slug)
@@ -808,9 +812,6 @@ try {
             $canonicalPath = buildCanonicalContentPath($post, 'slug', 'page');
             $seoUrl = $domainUrl . $canonicalPath;
           }
-          // Construct Absolute Image URL for og:image
-          $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
-
           $seoOgType = $resolvedContentType === 'page' ? 'website' : 'article';
           voncms_apply_content_schema(
             $schemaData,
@@ -841,7 +842,7 @@ try {
       // ============================================
       if (empty($path)) {
         try {
-          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 5");
+          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 10");
           $hpStmt->execute([$publicContentCurrentTime]);
           $homepagePosts = $hpStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -906,21 +907,32 @@ try {
 // ============================================
 $assetsDir = __DIR__ . '/assets/';
 
-// FINAL FALLBACK & SPECS FOR OG:IMAGE
-if (empty($seoImage)) {
-  $seoImage = trim((string) ($runtimeSettings['general']['og_image_url'] ?? ''));
-  if (preg_match('/content=["\']([^"\']+)["\']/', $seoImage, $matches)) {
-    $seoImage = $matches[1];
-  }
-  if ($seoImage === '') {
-    $defaultOgImagePath = __DIR__ . '/og-default.png';
-    if (is_file($defaultOgImagePath)) {
-      $seoImage = $domainUrl . '/og-default.png';
-    } elseif (trim((string) $logoUrl) !== '') {
-      $seoImage = voncms_absolute_public_url($logoUrl, $domainUrl);
+// Resolve one authoritative social image before emitting OG, Twitter, and JSON-LD.
+$resolvedSocialImage = voncms_resolve_social_image(
+  [
+    ['url' => $seoImage, 'kind' => $seoImageKind],
+    ['url' => $runtimeSettings['general']['og_image_url'] ?? '', 'kind' => 'large'],
+    ['url' => $runtimeSettings['general']['og_image_square_url'] ?? '', 'kind' => 'square'],
+    ['url' => $logoUrl, 'kind' => 'logo'],
+  ],
+  $domainUrl,
+);
+$seoImage = $resolvedSocialImage['url'];
+$twitterCard = $resolvedSocialImage['card'];
+
+if (is_array($schemaData)) {
+  $schemaType = (string) ($schemaData['@type'] ?? '');
+  if (in_array($schemaType, ['Article', 'NewsArticle', 'BlogPosting', 'WebPage'], true)) {
+    if ($seoImage !== '') {
+      $schemaData['image'] = [
+        [
+          '@type' => 'ImageObject',
+          'url' => $seoImage,
+        ],
+      ];
+    } else {
+      unset($schemaData['image']);
     }
-  } else {
-    $seoImage = voncms_absolute_public_url($seoImage, $domainUrl);
   }
 }
 $seoImageWidth = 0;
@@ -1004,12 +1016,16 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>" />
   <?php
-  $faviconHref = !empty($faviconUrl) ? $faviconUrl : $basePath . 'favicon.ico';
+  $faviconHref = !empty($faviconUrl)
+    ? $faviconUrl
+    : (is_file(__DIR__ . '/favicon.ico') ? $basePath . 'favicon.ico' : '');
   if (!empty($faviconVersion)) {
     $faviconHref .= (strpos($faviconHref, '?') !== false ? '&' : '?') . 'v=' . $faviconVersion;
   }
   ?>
+  <?php if ($faviconHref !== ''): ?>
   <link rel="icon" href="<?php echo htmlspecialchars($faviconHref, ENT_COMPAT, 'UTF-8', false); ?>" />
+  <?php endif; ?>
 
   <!-- Dynamic SEO Meta Tags -->
   <title><?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?></title>
@@ -1022,15 +1038,14 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <!-- Open Graph / Social Media -->
   <meta property="og:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta property="og:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
-  <?php
-  $socialImage = $seoImage;
-  $twitterCard = !empty($socialImage) ? 'summary_large_image' : 'summary';
-  ?>
+  <?php $socialImage = $seoImage; ?>
+  <?php if ($socialImage !== ''): ?>
   <meta property="og:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta property="og:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if ($seoImageWidth > 0 && $seoImageHeight > 0): ?>
   <meta property="og:image:width" content="<?php echo $seoImageWidth; ?>">
   <meta property="og:image:height" content="<?php echo $seoImageHeight; ?>">
+  <?php endif; ?>
   <?php endif; ?>
   <meta property="og:url" content="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
   <link rel="canonical" href="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
@@ -1047,8 +1062,10 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   <meta name="twitter:card" content="<?php echo $twitterCard; ?>">
   <meta name="twitter:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta name="twitter:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
+  <?php if ($socialImage !== ''): ?>
   <meta name="twitter:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
   <meta name="twitter:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <?php endif; ?>
 
   <!-- Google Search Console Verification -->
   <?php if (!empty($seo['googleSearchConsole'])):
@@ -1118,16 +1135,20 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         foreach ($homepagePosts as $idx => $hp) {
           $cleanName = html_entity_decode($hp['title'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
           $cleanExcerpt = html_entity_decode(strip_tags($hp['excerpt'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+          $homepageItem = [
+            '@type' => $articleSchemaType,
+            'name' => $cleanName,
+            'url' => $domainUrl . $hp['url'],
+            'description' => voncms_truncate_word_safe($cleanExcerpt, 200),
+          ];
+          $homepageItemImage = voncms_normalize_public_media_url($hp['image_url'] ?? '');
+          if ($homepageItemImage !== '') {
+            $homepageItem['image'] = voncms_absolute_public_url($homepageItemImage, $domainUrl);
+          }
           $seoItemList[] = [
             '@type' => 'ListItem',
             'position' => $idx + 1,
-            'item' => [
-              '@type' => $articleSchemaType,
-              'name' => $cleanName,
-              'url' => $domainUrl . $hp['url'],
-              'description' => voncms_truncate_word_safe($cleanExcerpt, 200),
-              'image' => !empty($hp['image_url']) ? voncms_absolute_public_url($hp['image_url'], $domainUrl) : ''
-            ]
+            'item' => $homepageItem,
           ];
         }
         $homepageCollectionPage['mainEntity'] = [
@@ -1248,13 +1269,15 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
     $homepageHeroStrategy === 'first-post-image' &&
     !empty($homepagePosts[0]['image'])
   ) {
-    $heroPreloadHref = voncms_absolute_public_url($homepagePosts[0]['image'], $domainUrl);
+    $normalizedHeroPreload = voncms_normalize_public_media_url($homepagePosts[0]['image']);
+    $heroPreloadHref = voncms_absolute_public_url($normalizedHeroPreload, $domainUrl);
     $rawHeroSrcSet = trim((string) ($homepagePosts[0]['imageSrcSet'] ?? ''));
     if ($rawHeroSrcSet !== '') {
       $absoluteCandidates = [];
       foreach (explode(',', $rawHeroSrcSet) as $candidate) {
         if (preg_match('/^\s*(.+?)\s+(\d+w)\s*$/', $candidate, $matches)) {
-          $candidateUrl = voncms_absolute_public_url($matches[1], $domainUrl);
+          $normalizedCandidateUrl = voncms_normalize_public_media_url($matches[1]);
+          $candidateUrl = voncms_absolute_public_url($normalizedCandidateUrl, $domainUrl);
           if ($candidateUrl !== '') {
             $absoluteCandidates[] = $candidateUrl . ' ' . $matches[2];
           }
@@ -1274,8 +1297,10 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
                                     'domainUrl'            => $domainUrl ?? '',
                                      'siteUrl'              => $domainUrl ?? '',
                                      'activeThemeId'        => $activeThemeId ?: '',
-                                     'faviconUrl'           => $faviconUrl ?? '',
-                                     'logoUrl'              => $logoUrl ?? '',
+                                      'faviconUrl'           => $faviconUrl ?? '',
+                                      'logoUrl'              => $logoUrl ?? '',
+                                      'ogImageUrl'            => $runtimeSettings['general']['og_image_url'] ?? '',
+                                      'ogImageSquareUrl'      => $runtimeSettings['general']['og_image_square_url'] ?? '',
                                      'headerIdentityMode'   => $headerIdentityMode ?? 'logo_and_text',
                                      'useLogoAsTitle'       => $useLogoAsTitle ?? false,
                                      'invertLogoInDarkMode' => $invertLogoInDarkMode ?? false,
@@ -1453,41 +1478,54 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
   $showNoscriptTitle = $headerIdentityMode !== 'logo_only' || empty($logoUrl);
   ?>
   <?php if (isset($post) && !empty($post)): ?>
-    <?php $noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? ''); ?>
+    <?php
+    $noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? '');
+    $noscriptPostParagraphs = preg_split('/\n{2,}/', $noscriptPostContent, -1, PREG_SPLIT_NO_EMPTY);
+    if ($noscriptPostParagraphs === false) {
+      $noscriptPostParagraphs = $noscriptPostContent === '' ? [] : [$noscriptPostContent];
+    }
+    ?>
     <noscript>
-      <article>
-        <header>
+      <article class="voncms-noscript voncms-noscript-article">
+        <header class="voncms-noscript-header">
+          <a class="voncms-noscript-home" href="<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>">Back to Home</a>
           <h1><?php echo htmlspecialchars($post['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?></h1>
         </header>
-        <div class="content"><?php echo nl2br(htmlspecialchars($noscriptPostContent, ENT_QUOTES, 'UTF-8')); ?></div>
+        <div class="voncms-noscript-content">
+          <?php foreach ($noscriptPostParagraphs as $noscriptPostParagraph): ?>
+            <p><?php echo nl2br(htmlspecialchars(trim($noscriptPostParagraph), ENT_QUOTES, 'UTF-8')); ?></p>
+          <?php endforeach; ?>
+        </div>
       </article>
     </noscript>
   <?php elseif ($categoryNoscriptLanding || !empty($noscriptListingPosts)): ?>
     <noscript>
-      <header>
-        <?php if ($showNoscriptLogo): ?>
-          <img src="<?php echo htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 140px; max-height: 45px; width: auto; height: auto; object-fit: contain;">
-        <?php endif; ?>
-        <?php if ($showNoscriptTitle): ?>
-          <h1><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
-        <?php else: ?>
-          <h1 style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;"><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
-        <?php endif; ?>
-        <p><?php echo htmlspecialchars($seoDescription, ENT_QUOTES, 'UTF-8'); ?></p>
-      </header>
-      <main>
-        <?php foreach ($noscriptListingPosts as $hp): ?>
-          <article>
-            <h2><a href="<?php echo htmlspecialchars(rtrim($basePath, '/') . $hp['url'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($hp['title'], ENT_QUOTES, 'UTF-8'); ?></a></h2>
-            <?php if (!empty($hp['excerpt'])): ?>
-              <p><?php echo htmlspecialchars(voncms_truncate_word_safe(voncms_extract_plaintext_for_noscript($hp['excerpt']), 200), ENT_QUOTES, 'UTF-8'); ?></p>
-            <?php endif; ?>
-          </article>
-        <?php endforeach; ?>
-        <?php if ($categoryNoscriptLanding && empty($noscriptListingPosts)): ?>
-          <p>No published articles were found in this category.</p>
-        <?php endif; ?>
-      </main>
+      <div class="voncms-noscript">
+        <header class="voncms-noscript-header">
+          <?php if ($showNoscriptLogo): ?>
+            <img class="voncms-noscript-logo" src="<?php echo htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?>">
+          <?php endif; ?>
+          <?php if ($showNoscriptTitle): ?>
+            <h1><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
+          <?php else: ?>
+            <h1 class="voncms-noscript-sr-only"><?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
+          <?php endif; ?>
+          <p><?php echo htmlspecialchars($seoDescription, ENT_QUOTES, 'UTF-8'); ?></p>
+        </header>
+        <main class="voncms-noscript-list">
+          <?php foreach ($noscriptListingPosts as $hp): ?>
+            <article class="voncms-noscript-item">
+              <h2><a href="<?php echo htmlspecialchars(rtrim($basePath, '/') . $hp['url'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($hp['title'], ENT_QUOTES, 'UTF-8'); ?></a></h2>
+              <?php if (!empty($hp['excerpt'])): ?>
+                <p><?php echo htmlspecialchars(voncms_truncate_word_safe(voncms_extract_plaintext_for_noscript($hp['excerpt']), 200), ENT_QUOTES, 'UTF-8'); ?></p>
+              <?php endif; ?>
+            </article>
+          <?php endforeach; ?>
+          <?php if ($categoryNoscriptLanding && empty($noscriptListingPosts)): ?>
+            <p class="voncms-noscript-empty">No published articles were found in this category.</p>
+          <?php endif; ?>
+        </main>
+      </div>
     </noscript>
   <?php endif; ?>
   <noscript>

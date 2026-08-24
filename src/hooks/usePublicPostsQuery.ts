@@ -76,6 +76,19 @@ const matchesSearch = (post: Post, search: string) => {
   return safeLower(post.title).includes(q) || safeLower(post.content).includes(q);
 };
 
+const selectFallbackPosts = (
+  posts: Post[],
+  category: string,
+  search: string,
+  limit: number
+): Post[] =>
+  posts
+    .filter((post) => post.status === 'published')
+    .filter((post) => !category || post.category === category)
+    .filter((post) => matchesSearch(post, search))
+    .slice(0, limit)
+    .map(normalizePost);
+
 export function usePublicPostsQuery({
   initialPosts,
   category,
@@ -89,24 +102,30 @@ export function usePublicPostsQuery({
   const rawSearchQuery = normalizePublicSearchQuery(rawSearch);
   const normalizedSearch = normalizePublicSearchQuery(debouncedSearch);
   const hasShortSearch = rawSearchQuery.length > 0 && rawSearchQuery.length < 2;
-  const isDebouncingSearch = rawSearchQuery.length >= 2 && rawSearch !== debouncedSearch;
-  const effectiveFallbackSearch = rawSearchQuery;
+  const hasPendingSearchDebounce = rawSearchQuery !== normalizedSearch;
+  const isDebouncingSearch = rawSearchQuery.length >= 2 && hasPendingSearchDebounce;
   const requestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    if (rawSearch === '') {
+      setDebouncedSearch('');
+      return;
+    }
     const timeout = window.setTimeout(() => setDebouncedSearch(rawSearch), 300);
     return () => window.clearTimeout(timeout);
   }, [rawSearch]);
 
-  const fallbackPosts = useMemo(() => {
-    return initialPosts
-      .filter((post) => post.status === 'published')
-      .filter((post) => !normalizedCategory || post.category === normalizedCategory)
-      .filter((post) => matchesSearch(post, effectiveFallbackSearch))
-      .slice(0, limit)
-      .map(normalizePost);
-  }, [initialPosts, limit, normalizedCategory, effectiveFallbackSearch]);
+  const fallbackPosts = useMemo(
+    () => selectFallbackPosts(initialPosts, normalizedCategory, rawSearchQuery, limit),
+    [initialPosts, limit, normalizedCategory, rawSearchQuery]
+  );
+  const settledFallbackPosts = useMemo(
+    () => selectFallbackPosts(initialPosts, normalizedCategory, normalizedSearch, limit),
+    [initialPosts, limit, normalizedCategory, normalizedSearch]
+  );
+  const fallbackPostsRef = useRef(fallbackPosts);
+  fallbackPostsRef.current = fallbackPosts;
 
   useEffect(() => {
     rememberPublicPosts(fallbackPosts);
@@ -114,9 +133,9 @@ export function usePublicPostsQuery({
 
   const preserveVisiblePostsDuringFetch =
     !hasShortSearch &&
-    fallbackPosts.length === 0 &&
-    (normalizedCategory.length > 0 || normalizedSearch.length >= 2 || rawSearchQuery.length >= 2);
-  const startsWithPublicFetch = enabled && !hasShortSearch && fallbackPosts.length === 0;
+    settledFallbackPosts.length === 0 &&
+    (normalizedCategory.length > 0 || normalizedSearch.length >= 2);
+  const startsWithPublicFetch = enabled && !hasShortSearch && settledFallbackPosts.length === 0;
 
   const [posts, setPosts] = useState<Post[]>(fallbackPosts);
   const [meta, setMeta] = useState<PublicPostsMeta | null>(null);
@@ -132,7 +151,7 @@ export function usePublicPostsQuery({
         abortControllerRef.current?.abort();
         abortControllerRef.current = null;
         requestIdRef.current += 1;
-        setPosts(fallbackPosts);
+        setPosts(fallbackPostsRef.current);
         setMeta(null);
         setHasMore(false);
         setIsLoading(false);
@@ -183,7 +202,7 @@ export function usePublicPostsQuery({
         console.error('usePublicPostsQuery error:', err);
         setError('Failed to load posts. Please try again.');
         if (!append) {
-          setPosts(fallbackPosts);
+          setPosts(settledFallbackPosts);
           setMeta(null);
           setHasMore(false);
         }
@@ -196,27 +215,48 @@ export function usePublicPostsQuery({
         }
       }
     },
-    [category, enabled, fallbackPosts, hasShortSearch, limit, normalizedSearch]
+    [category, enabled, hasShortSearch, limit, normalizedSearch, settledFallbackPosts]
   );
 
   useEffect(() => {
+    if (!hasShortSearch && !hasPendingSearchDebounce) return;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    requestIdRef.current += 1;
+    setPosts(fallbackPosts);
+    setMeta(null);
+    setPage(1);
+    setHasMore(false);
+    setIsLoading(false);
+    setLoadingMore(false);
+    setError(null);
+  }, [fallbackPosts, hasPendingSearchDebounce, hasShortSearch]);
+
+  useEffect(() => {
+    if (hasShortSearch || hasPendingSearchDebounce) return;
     if (!preserveVisiblePostsDuringFetch) {
-      setPosts(fallbackPosts);
+      setPosts(settledFallbackPosts);
       setMeta(null);
       setPage(1);
       setHasMore(false);
     }
     void fetchPage(1, false);
-  }, [fallbackPosts, fetchPage, preserveVisiblePostsDuringFetch]);
+  }, [
+    fetchPage,
+    hasPendingSearchDebounce,
+    hasShortSearch,
+    preserveVisiblePostsDuringFetch,
+    settledFallbackPosts,
+  ]);
 
   useEffect(() => {
     return () => abortControllerRef.current?.abort();
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || isLoading || !hasMore || hasShortSearch) return;
+    if (loadingMore || isLoading || !hasMore || hasShortSearch || hasPendingSearchDebounce) return;
     await fetchPage(page + 1, true);
-  }, [fetchPage, hasMore, hasShortSearch, isLoading, loadingMore, page]);
+  }, [fetchPage, hasMore, hasPendingSearchDebounce, hasShortSearch, isLoading, loadingMore, page]);
 
   return {
     posts,

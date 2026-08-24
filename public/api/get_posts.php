@@ -17,13 +17,103 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 ob_start(); // Buffer output to prevent warnings from corrupting JSON
-if (file_exists(__DIR__ . '/../von_config.php')) {
-  require_once __DIR__ . '/../von_config.php';
+require_once __DIR__ . '/public_cache_helper.php';
+
+$queryValue = static function (string $key, ?string $default = null): ?string {
+  if (!array_key_exists($key, $_GET)) {
+    return $default;
+  }
+
+  $value = $_GET[$key];
+  return is_scalar($value) || $value === null ? (string) $value : $default;
+};
+
+// Public cache eligibility and keying must be resolved before loading von_config.php.
+$configFile = __DIR__ . '/../von_config.php';
+$defaultLimit = 15;
+$settingsFile = __DIR__ . '/../data/site_settings.json';
+if (file_exists($settingsFile)) {
+  $siteSettings = json_decode((string) file_get_contents($settingsFile), true);
+  if (is_array($siteSettings)) {
+    $filePostsPerPage = $siteSettings['posts_per_page'] ?? ($siteSettings['postsPerPage'] ?? null);
+    if ($filePostsPerPage !== null) {
+      $defaultLimit = max(6, min(50, (int) $filePostsPerPage));
+    }
+  }
+}
+
+$forcePublic = filter_var($queryValue('public', 'false'), FILTER_VALIDATE_BOOLEAN);
+$page = max(1, (int) $queryValue('page', '1'));
+$requestedLimit = (int) $queryValue('limit', (string) $defaultLimit);
+$limit = max(1, min(200, $requestedLimit));
+$offset = ($page - 1) * $limit;
+$category = $queryValue('category');
+$normalizedCategory = trim((string) $category);
+$authorQuery = $queryValue('author');
+$search = trim((string) $queryValue('search', ''));
+if ($search !== '') {
+  $search = function_exists('mb_substr')
+    ? mb_substr($search, 0, 120, 'UTF-8')
+    : substr($search, 0, 120);
+}
+$statusFilter = $queryValue('status');
+$includeTotal = $queryValue('includeTotal', 'true') !== 'false';
+$countOnly = filter_var($queryValue('countOnly', 'false'), FILTER_VALIDATE_BOOLEAN);
+$countScope = strtolower((string) $queryValue('scope', ''));
+$canUsePublicPostsCache =
+  file_exists($configFile) &&
+  $forcePublic &&
+  !$includeTotal &&
+  !$countOnly &&
+  $authorQuery === null &&
+  $statusFilter === null &&
+  ($search === '' || strlen($search) >= 2);
+$publicPostsCacheKey = $canUsePublicPostsCache
+  ? voncms_public_cache_key('posts-list', [
+    'page' => $page,
+    'limit' => $limit,
+    'category' => $normalizedCategory,
+    'search' => $search,
+    'includeTotal' => false,
+    'public' => true,
+  ])
+  : null;
+$publicPostsCacheGate = null;
+
+if ($canUsePublicPostsCache && is_string($publicPostsCacheKey)) {
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
+
+  $cachedPublicPosts = voncms_public_cache_get($publicPostsCacheKey, 60);
+  if (is_string($cachedPublicPosts)) {
+    if (ob_get_length()) {
+      ob_clean();
+    }
+    echo $cachedPublicPosts;
+    exit();
+  }
+
+  $publicPostsCacheGate = voncms_public_cache_acquire_gate();
+  if (is_resource($publicPostsCacheGate)) {
+    $cachedPublicPosts = voncms_public_cache_get($publicPostsCacheKey, 60);
+    if (is_string($cachedPublicPosts)) {
+      voncms_public_cache_release_gate($publicPostsCacheGate);
+      if (ob_get_length()) {
+        ob_clean();
+      }
+      echo $cachedPublicPosts;
+      exit();
+    }
+  }
+}
+
+if (file_exists($configFile)) {
+  require_once $configFile;
 }
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
-require_once __DIR__ . '/public_cache_helper.php';
 
 if (!function_exists('voncms_normalize_fulltext_search')) {
   function voncms_normalize_fulltext_search(string $value): string
@@ -66,9 +156,8 @@ try {
     : 'u.username';
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
-  $forcePublic = filter_var($_GET['public'] ?? false, FILTER_VALIDATE_BOOLEAN);
-  $isAdmin = SessionManager::isAdmin() && !$forcePublic;
-  $canReadProtectedPosts = SessionManager::isStaff() && !$forcePublic;
+  $isAdmin = !$forcePublic && SessionManager::isAdmin();
+  $canReadProtectedPosts = !$forcePublic && SessionManager::isStaff();
   $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
   $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentTimestamp = date('Y-m-d H:i:s');
@@ -80,37 +169,6 @@ try {
   if ($canReadProtectedPosts) {
     voncms_run_scheduler_if_due($db, dirname(__DIR__) . '/data/scheduler.lock');
   }
-
-  // --- RESTORED: SITE SETTINGS PAGINATION ---
-  $defaultLimit = 15;
-  $settingsFile = __DIR__ . '/../data/site_settings.json';
-  if (file_exists($settingsFile)) {
-    $siteSettings = json_decode(file_get_contents($settingsFile), true);
-    $filePostsPerPage = $siteSettings['posts_per_page'] ?? ($siteSettings['postsPerPage'] ?? null);
-    if ($filePostsPerPage !== null) {
-      $defaultLimit = max(6, min(50, (int) $filePostsPerPage));
-    }
-  }
-
-  // Params
-  $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
-  $requestedLimit = isset($_GET['limit']) ? (int) $_GET['limit'] : $defaultLimit;
-  $limit = max(1, min(200, $requestedLimit));
-  $offset = ($page - 1) * $limit;
-
-  $category = $_GET['category'] ?? null;
-  $normalizedCategory = trim((string) $category);
-  $authorQuery = $_GET['author'] ?? null;
-  $search = trim((string) ($_GET['search'] ?? ''));
-  if ($search !== '') {
-    $search = function_exists('mb_substr')
-      ? mb_substr($search, 0, 120, 'UTF-8')
-      : substr($search, 0, 120);
-  }
-  $statusFilter = $_GET['status'] ?? null;
-  $includeTotal = ($_GET['includeTotal'] ?? 'true') !== 'false';
-  $countOnly = filter_var($_GET['countOnly'] ?? false, FILTER_VALIDATE_BOOLEAN);
-  $countScope = strtolower((string) ($_GET['scope'] ?? ''));
 
   // Initialize search variables to avoid "undefined variable" warnings
   $searchTerm = null;
@@ -153,34 +211,6 @@ try {
   $countStatusClause =
     $canReadProtectedPosts && $countScope === 'all' ? ' WHERE 1=1' : $statusClause;
   $canSkipTotal = !$isAdmin && !$includeTotal && $authorQuery === null;
-  $canUsePublicPostsCache =
-    !$isAdmin &&
-    $forcePublic &&
-    !$includeTotal &&
-    !$countOnly &&
-    $authorQuery === null &&
-    $statusFilter === null &&
-    ($search === '' || strlen($search) >= 2);
-  $publicPostsCacheKey = voncms_public_cache_key('posts-list', [
-    'page' => $page,
-    'limit' => $limit,
-    'category' => $normalizedCategory,
-    'search' => $search,
-    'includeTotal' => false,
-    'public' => true,
-  ]);
-
-  if ($canUsePublicPostsCache) {
-    $cachedPublicPosts = voncms_public_cache_get($publicPostsCacheKey, 60);
-    if (is_string($cachedPublicPosts)) {
-      if (ob_get_length()) {
-        ob_clean();
-      }
-      echo $cachedPublicPosts;
-      exit();
-    }
-  }
-
   $queryLimit = $canSkipTotal ? $limit + 1 : $limit;
   $total = 0;
 
@@ -241,6 +271,7 @@ try {
     p.status,
     p.image_url,
     p.category,
+    p.keywords,
     p.views,
     p.author_id,
     p.author,
@@ -321,6 +352,7 @@ try {
       'readTime' => $readTime,
       'status' => $row['status'] ?? 'published',
       'category' => $row['category'] ?? 'Uncategorized',
+      'keywords' => $row['keywords'] ?? '',
       'views' => (int) ($row['views'] ?? 0),
       'image' => ResponseHelper::scrubUrl($imagePath),
       'imageSrcSet' => $responsiveImage['srcSet'],
@@ -359,11 +391,18 @@ try {
     ResponseHelper::sendError('Failed to encode posts response', 500);
   }
 
-  if ($canUsePublicPostsCache) {
-    voncms_public_cache_set($publicPostsCacheKey, $responseJson);
+  if (
+    $canUsePublicPostsCache &&
+    is_string($publicPostsCacheKey) &&
+    is_resource($publicPostsCacheGate)
+  ) {
+    voncms_public_cache_set($publicPostsCacheKey, $responseJson, $publicPostsCacheGate);
   }
+
+  voncms_public_cache_release_gate($publicPostsCacheGate);
 
   echo $responseJson;
 } catch (Throwable $e) {
+  voncms_public_cache_release_gate($publicPostsCacheGate);
   ResponseHelper::sendError($e);
 }

@@ -19,23 +19,35 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 
-// Rate limiting handled via requireNotLimited()
-
-// Check rate limiting FIRST
 require_once __DIR__ . '/security/SecurityLogger.php';
 
-// Check rate limiting FIRST
-RateLimiter::requireNotLimited();
+// Reserve the attempt atomically before authentication work begins.
+$loginRateIdentifier = 'login:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+RateLimiter::requireAttempt($loginRateIdentifier);
 
 // Get JSON input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
-$username = $input['username'] ?? '';
-$password = $input['password'] ?? '';
-$honeypot = $input['hp_field'] ?? '';
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid request body', 400);
+}
+
+foreach (['username', 'password', 'hp_field', 'remember_me'] as $field) {
+  if (array_key_exists($field, $input) && $input[$field] !== null && !is_scalar($input[$field])) {
+    ResponseHelper::sendError('Invalid request body', 400);
+  }
+}
+
+$username = trim((string) ($input['username'] ?? ''));
+$password = (string) ($input['password'] ?? '');
+$honeypot = (string) ($input['hp_field'] ?? '');
+$rememberMe = filter_var($input['remember_me'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+if (strlen($username) > 254 || strlen($password) > 4096) {
+  ResponseHelper::sendError('Invalid credentials', 401);
+}
 
 // Honeypot check - bots will fill this hidden field
 if (!empty($honeypot)) {
-  RateLimiter::recordAttempt();
   // Log suspicious activity but don't reveal it's a honeypot
   SecurityLogger::log(
     'honeypot_caught',
@@ -54,7 +66,6 @@ if (empty($username) || empty($password)) {
 // Check if database connection exists
 if (!isset($pdo) || $pdo === null) {
   // No database - return error
-  RateLimiter::recordAttempt();
   ResponseHelper::sendError(
     'Database not configured. Please set up database connection in von_config.php',
     503,
@@ -115,10 +126,9 @@ try {
     $csrfToken = CSRFProtection::generateToken();
 
     // Reset rate limiter on successful login
-    RateLimiter::reset();
+    RateLimiter::reset($loginRateIdentifier);
 
     // HANDLE REMEMBER ME (30 Days)
-    $rememberMe = $input['remember_me'] ?? false;
     $rememberCookieName = 'voncms_remember';
     $rememberCookie = (string) ($_COOKIE[$rememberCookieName] ?? '');
     $params = session_get_cookie_params();
@@ -196,8 +206,6 @@ try {
       'csrf_token' => $csrfToken,
     ]);
   } else {
-    // Login failed - record attempt
-    RateLimiter::recordAttempt();
     SecurityLogger::log(
       'login_failed',
       'medium',
@@ -209,6 +217,5 @@ try {
   }
 } catch (Exception $e) {
   // Database error
-  RateLimiter::recordAttempt();
   ResponseHelper::sendError($e);
 }

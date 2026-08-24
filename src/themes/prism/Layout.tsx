@@ -19,10 +19,16 @@ import {
 } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
 import { SafeImage } from '../../components/SafeImage';
-import { getBasePathPrefix, getPermalink } from '../../utils/siteUtils';
+import {
+  getBasePathPrefix,
+  getPermalink,
+  getPublicCategoryHref,
+  getPublicHomeHref,
+} from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import ThemeLogo from '../shared/components/ThemeLogo';
+import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -135,8 +141,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
   onClearSearch,
   selectedCategory,
   onUpdateUser,
+  publicSearchQuery = '',
+  onPublicSearchChange,
 }) => {
-  const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const activeSearchQuery = publicSearchQuery;
   const postsPerPage = settings.postsPerPage || 6;
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -151,12 +159,27 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
   const compactNavigationClassName = useTabletBurgerMenu ? 'lg:hidden' : 'md:hidden';
 
   const handleClearSearch = () => {
-    setActiveSearchQuery('');
+    onPublicSearchChange?.('');
     if (onClearSearch) onClearSearch();
   };
 
   const handleReturnHome = () => {
     onBackToHome();
+  };
+
+  const handleNavigationItem = (nav: any, closeMobileMenu = false) => {
+    if (closeMobileMenu) setIsMobileMenuOpen(false);
+    if (nav.url === 'home') return handleReturnHome();
+    if (nav.url.startsWith('page:')) {
+      const pageId = nav.url.split(':')[1];
+      const page = pages.find((candidate) => candidate.id === pageId || candidate.slug === pageId);
+      if (onPageClick) return onPageClick(page?.slug || pageId);
+      return;
+    }
+    if (nav.url.startsWith('post:')) return onPostClick(nav.url.split(':')[1]);
+    const categoryTarget = getSameSiteCategoryNavigation(nav.url);
+    if (categoryTarget !== null && onCategoryClick) return onCategoryClick(categoryTarget);
+    window.location.href = normalizeSiteUrl(nav.url);
   };
 
   const publishedPosts = useMemo(() => posts.filter((p) => p.status === 'published'), [posts]);
@@ -305,9 +328,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
         {/* PRISM HEADER: Glassmorphism, Neon Borders */}
         <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#050510]/80 border-b border-white/10">
           <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div
+            <a
+              href={getPublicHomeHref()}
               className="flex items-center gap-3 cursor-pointer group"
-              onClick={handleReturnHome}
+              onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             >
               {headerIdentity.showUploadedLogo ? (
                 <ThemeLogo
@@ -338,31 +362,22 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   )}
                 </div>
               )}
-            </div>
+            </a>
 
             <nav className={desktopNavigationClassName}>
               {visibleNavigationItems.map((nav: any) => (
-                <button
+                <PublicNavigationLink
                   key={nav.id}
-                  onClick={() => {
-                    if (nav.url === 'home') return handleReturnHome();
-                    if (nav.url.startsWith('page:')) {
-                      const pageId = nav.url.split(':')[1];
-                      const pg = pages.find((p) => p.id === pageId);
-                      if (onPageClick) return onPageClick(pg?.slug || pageId);
-                      return;
-                    }
-                    if (nav.url.startsWith('post:')) return onPostClick(nav.url.split(':')[1]);
-                    const categoryTarget = getSameSiteCategoryNavigation(nav.url);
-                    if (categoryTarget !== null && onCategoryClick)
-                      return onCategoryClick(categoryTarget);
-                    window.location.href = normalizeSiteUrl(nav.url);
-                  }}
+                  nav={nav}
+                  settings={settings}
+                  posts={posts}
+                  pages={pages}
+                  onNavigate={() => handleNavigationItem(nav)}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all relative overflow-hidden group ${currentView === 'home' && nav.url === 'home' ? 'text-(--color-primary)' : 'text-slate-400 hover:text-white'}`}
                 >
                   <span className="relative z-10">{nav.label || nav.url}</span>
                   <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                </button>
+                </PublicNavigationLink>
               ))}
               {/* More Dropdown for excess items */}
               {overflowNavigationItems.length > 0 && (
@@ -386,29 +401,19 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       />
                     </svg>
                   </button>
-                  <div className="absolute top-full right-0 mt-2 w-48 py-2 bg-[#0a0a1f] border border-white/10 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="absolute top-full right-0 mt-2 w-48 py-2 bg-[#0a0a1f] border border-white/10 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50 before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']">
                     {overflowNavigationItems.map((nav: any) => (
-                      <button
+                      <PublicNavigationLink
                         key={nav.id}
-                        onClick={() => {
-                          if (nav.url === 'home') return handleReturnHome();
-                          if (nav.url.startsWith('page:')) {
-                            const pageId = nav.url.split(':')[1];
-                            const pg = pages.find((p) => p.id === pageId);
-                            if (onPageClick) return onPageClick(pg?.slug || pageId);
-                            return;
-                          }
-                          if (nav.url.startsWith('post:'))
-                            return onPostClick(nav.url.split(':')[1]);
-                          const categoryTarget = getSameSiteCategoryNavigation(nav.url);
-                          if (categoryTarget !== null && onCategoryClick)
-                            return onCategoryClick(categoryTarget);
-                          window.location.href = normalizeSiteUrl(nav.url);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                        nav={nav}
+                        settings={settings}
+                        posts={posts}
+                        pages={pages}
+                        onNavigate={() => handleNavigationItem(nav)}
+                        className="block w-full px-4 py-2 text-left text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
                       >
                         {nav.label || nav.url}
-                      </button>
+                      </PublicNavigationLink>
                     ))}
                   </div>
                 </div>
@@ -584,27 +589,17 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
           >
             <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col gap-4">
               {navigationItems.map((nav: any) => (
-                <button
+                <PublicNavigationLink
                   key={nav.id}
-                  onClick={() => {
-                    if (nav.url === 'home') handleReturnHome();
-                    else if (nav.url.startsWith('page:')) {
-                      const pageId = nav.url.split(':')[1];
-                      const pg = pages.find((p) => p.id === pageId);
-                      if (onPageClick) onPageClick(pg?.slug || pageId);
-                    } else if (nav.url.startsWith('post:')) onPostClick(nav.url.split(':')[1]);
-                    else {
-                      const categoryTarget = getSameSiteCategoryNavigation(nav.url);
-                      if (categoryTarget !== null && onCategoryClick)
-                        onCategoryClick(categoryTarget);
-                      else window.location.href = normalizeSiteUrl(nav.url);
-                    }
-                    setIsMobileMenuOpen(false);
-                  }}
+                  nav={nav}
+                  settings={settings}
+                  posts={posts}
+                  pages={pages}
+                  onNavigate={() => handleNavigationItem(nav, true)}
                   className="text-left px-4 py-3 rounded-sm border border-white/5 hover:border-(--color-primary)/50 hover:bg-(--color-primary)/10 text-slate-300 hover:text-white transition-all font-mono"
                 >
                   &gt; {nav.label || nav.url}
-                </button>
+                </PublicNavigationLink>
               ))}
 
               {/* Mobile Search */}
@@ -618,7 +613,9 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   placeholder="SEARCH..."
                   value={activeSearchQuery}
                   maxLength={PUBLIC_SEARCH_MAX_LENGTH}
-                  onChange={(e) => setActiveSearchQuery(normalizePublicSearchInput(e.target.value))}
+                  onChange={(e) =>
+                    onPublicSearchChange?.(normalizePublicSearchInput(e.target.value))
+                  }
                   className="w-full bg-black/50 border border-white/10 rounded-sm py-3 pl-10 pr-4 text-sm focus:outline-hidden focus:border-(--color-primary) text-slate-300 font-mono"
                 />
                 {activeSearchQuery.length >= PUBLIC_SEARCH_MAX_LENGTH && (
@@ -659,7 +656,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     value={activeSearchQuery}
                     maxLength={PUBLIC_SEARCH_MAX_LENGTH}
                     onChange={(e) =>
-                      setActiveSearchQuery(normalizePublicSearchInput(e.target.value))
+                      onPublicSearchChange?.(normalizePublicSearchInput(e.target.value))
                     }
                     className="w-full bg-black/50 border border-white/10 rounded-full py-4 pl-14 pr-12 text-sm focus:outline-hidden focus:border-(--color-primary) focus:shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all text-slate-300 placeholder:text-slate-600 font-mono"
                   />
@@ -696,14 +693,18 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     className="mx-auto mt-4 font-mono text-(--color-primary)"
                   />
                   <div className="mt-4">
-                    <button
-                      onClick={() =>
-                        onCategoryClick ? onCategoryClick('') : (window.location.href = '/')
+                    <a
+                      href={getPublicHomeHref()}
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () => {
+                          if (onCategoryClick) onCategoryClick('');
+                          else window.location.href = getPublicHomeHref();
+                        })
                       }
                       className="px-4 py-2 border border-white/10 rounded-full text-slate-400 hover:text-white hover:border-white/30 transition-all text-sm font-mono flex items-center gap-2 mx-auto w-fit"
                     >
                       <X size={14} /> CLEAR_FILTER
-                    </button>
+                    </a>
                   </div>
                 </div>
               )}
@@ -738,15 +739,18 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                               </div>
                             )}
                             <div className="absolute top-4 left-4 z-20">
-                              <span
+                              <a
+                                href={getPublicCategoryHref(post.category)}
                                 className="px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-sm text-xs font-mono text-(--color-secondary) uppercase tracking-wider hover:bg-(--color-secondary)/10 hover:border-(--color-secondary)/50 transition-colors cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (onCategoryClick) onCategoryClick(post.category);
+                                  handleCrawlableLinkClick(e, () =>
+                                    onCategoryClick?.(post.category)
+                                  );
                                 }}
                               >
                                 {post.category}
-                              </span>
+                              </a>
                             </div>
                           </div>
 
@@ -821,12 +825,13 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             </>
           ) : currentView === 'page' && selectedPage ? (
             <div className="max-w-4xl mx-auto">
-              <button
-                onClick={handleReturnHome}
+              <a
+                href={getPublicHomeHref()}
+                onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
                 className="mb-8 flex items-center gap-2 text-slate-400 hover:text-(--color-primary) transition-colors font-mono text-sm"
               >
                 <ChevronLeft size={16} /> SYSTEM.RETURN_HOME()
-              </button>
+              </a>
               <article className="bg-[#0a0a1f]/50 backdrop-blur-xs border border-white/5 rounded-3xl overflow-hidden p-8 md:p-12 relative">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-(--color-primary)/10 blur-3xl rounded-full pointer-events-none"></div>
                 <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-8 leading-tight tracking-tight">
@@ -841,12 +846,13 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
           ) : currentView === 'single-post' ? (
             selectedPost ? (
               <div className="max-w-4xl mx-auto">
-                <button
-                  onClick={handleReturnHome}
+                <a
+                  href={getPublicHomeHref()}
+                  onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
                   className="mb-8 flex items-center gap-2 text-slate-400 hover:text-(--color-primary) transition-colors font-mono text-sm"
                 >
                   <ChevronLeft size={16} /> SYSTEM.RETURN_HOME()
-                </button>
+                </a>
 
                 <article className="bg-[#0a0a1f]/50 backdrop-blur-xs border border-white/5 rounded-3xl overflow-hidden p-8 md:p-12 relative">
                   {/* Decorative elements */}
@@ -854,12 +860,17 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
                   <header className="mb-12 relative z-10">
                     <div className="flex flex-wrap items-center gap-4 mb-6">
-                      <span
-                        onClick={() => onCategoryClick && onCategoryClick(selectedPost.category)}
+                      <a
+                        href={getPublicCategoryHref(selectedPost.category)}
+                        onClick={(event) =>
+                          handleCrawlableLinkClick(event, () =>
+                            onCategoryClick?.(selectedPost.category)
+                          )
+                        }
                         className="px-3 py-1 bg-(--color-primary)/10 border border-(--color-primary)/30 text-(--color-primary) rounded-sm text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-(--color-primary)/20 transition-colors"
                       >
                         {selectedPost.category}
-                      </span>
+                      </a>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-mono text-slate-500">
                         <span>
                           {formatDateTime(

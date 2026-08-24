@@ -10,14 +10,8 @@ require_once __DIR__ . '/von_config.php';
 // Standardize Headers
 sendApiHeaders();
 
-$action = $_GET['action'] ?? ($_POST['action'] ?? '');
-
-// Helper to get JSON input
-function getJsonInput()
-{
-  $input = file_get_contents('php://input');
-  return json_decode($input, true) ?? [];
-}
+$actionValue = $_GET['action'] ?? ($_POST['action'] ?? '');
+$action = is_scalar($actionValue) ? (string) $actionValue : '';
 
 switch ($action) {
   case 'get_settings':
@@ -37,6 +31,6 @@ switch ($action) {
     break;
 
   default:
-    ResponseHelper::sendError('Invalid action: ' . $action, 400);
+    ResponseHelper::sendError('Invalid action', 400);
     break;
 }
