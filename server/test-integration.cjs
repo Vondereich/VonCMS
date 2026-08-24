@@ -16317,15 +16317,17 @@ $_SERVER['HTTP_USER_AGENT'] = str_repeat('agent', 300) . "\\xB1\\x31";
 $_SERVER['REQUEST_URI'] = '/api/login?token=must-not-be-stored';
 SecurityLogger::log([], [], ['bad' => "\\xB1\\x31", 'large' => str_repeat('x', 20000)], []);
 SecurityLogger::log(str_repeat('e', 80), str_repeat('s', 40), 'scalar-details', true);
+SecurityLogger::log('valid_severity', 'HIGH', [], true);
 $rows = $pdo->query('SELECT * FROM security_logs ORDER BY rowid')->fetchAll(PDO::FETCH_ASSOC);
-if (count($rows) !== 2) exit(30);
+if (count($rows) !== 3) exit(30);
 if ($rows[0]['event_type'] !== 'security_event' || $rows[0]['ip_address'] !== 'unknown') exit(31);
 if ($rows[0]['endpoint'] !== '/api/login' || str_contains($rows[0]['endpoint'], 'token=')) exit(32);
 if (strlen($rows[0]['user_agent']) > 1000 || $rows[0]['severity'] !== 'medium') exit(33);
 if ((int) $rows[0]['blocked'] !== 0 || strlen($rows[0]['details']) > 16000) exit(34);
 json_decode($rows[0]['details'], true);
 if (json_last_error() !== JSON_ERROR_NONE) exit(35);
-if (strlen($rows[1]['event_type']) !== 50 || strlen($rows[1]['severity']) !== 20) exit(36);
+if (strlen($rows[1]['event_type']) !== 50 || $rows[1]['severity'] !== 'medium') exit(36);
+if ($rows[2]['severity'] !== 'high') exit(37);
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 SecurityLogger::log('missing_table', 'low');
@@ -16345,7 +16347,7 @@ echo 'ok';
     securityLoggerRuntimeProbe.stderr.trim() === ''
   ) {
     pass(
-      'Security Logger Runtime: malformed and oversized values are stored safely without query data, while missing tables and connections cannot break the protected request.'
+      'Security Logger Runtime: malformed and oversized values are stored safely without query data, severity is normalized to its allowlist, and missing tables or connections cannot break the protected request.'
     );
   } else {
     fail(

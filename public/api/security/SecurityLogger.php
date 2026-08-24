@@ -111,7 +111,10 @@ class SecurityLogger
         'unknown',
         255,
       );
-      $safeSeverity = self::boundedString($severity, 'medium', 20);
+      $safeSeverity = strtolower(self::boundedString($severity, 'medium', 20));
+      if (!in_array($safeSeverity, ['low', 'medium', 'high', 'critical'], true)) {
+        $safeSeverity = 'medium';
+      }
       $jsonDetails = self::encodeDetails($details);
       $isBlocked = (bool) $blocked ? 1 : 0;
 
