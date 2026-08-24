@@ -3,6 +3,30 @@ const { GoogleGenAI } = require('@google/genai');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 
+function extractBearerToken(headerValue) {
+  if (typeof headerValue !== 'string') return null;
+
+  const schemeLength = 'bearer'.length;
+  if (
+    headerValue.length <= schemeLength ||
+    headerValue.slice(0, schemeLength).toLowerCase() !== 'bearer'
+  ) {
+    return null;
+  }
+
+  let tokenOffset = schemeLength;
+  const firstSeparator = headerValue.charCodeAt(tokenOffset);
+  if (firstSeparator !== 0x20 && firstSeparator !== 0x09) return null;
+
+  while (tokenOffset < headerValue.length) {
+    const character = headerValue.charCodeAt(tokenOffset);
+    if (character !== 0x20 && character !== 0x09) break;
+    tokenOffset += 1;
+  }
+
+  return tokenOffset < headerValue.length ? headerValue.slice(tokenOffset) : null;
+}
+
 module.exports = function initAiRoutes(app) {
   const apiKey = process.env.API_KEY || '';
   const AUTH_TOKEN = String(process.env.AI_AUTH_TOKEN || '').trim();
@@ -21,9 +45,12 @@ module.exports = function initAiRoutes(app) {
 
   function checkAiAuth(req, res) {
     // Accept token from `x-ai-token` header or Authorization: Bearer <token>
-    const authorizationMatch = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
-    const headerToken = req.headers['x-ai-token'] || authorizationMatch?.[1];
-    const token = headerToken ? String(headerToken) : null;
+    const directHeaderToken = req.headers['x-ai-token'];
+    const token = directHeaderToken
+      ? typeof directHeaderToken === 'string'
+        ? directHeaderToken
+        : null
+      : extractBearerToken(req.headers.authorization);
 
     if (!AUTH_TOKEN) {
       res.status(503).json({ success: false, message: 'AI authentication is not configured' });

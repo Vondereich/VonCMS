@@ -36,7 +36,7 @@ function assertIncludes(label, content, needles, successMessage, failureMessage)
   if (missing.length === 0) {
     pass(successMessage);
   } else {
-    fail(`${failureMessage} Missing: ${missing.join(', ')}`);
+    fail(failureMessage);
   }
 }
 
@@ -46,7 +46,7 @@ function assertExcludes(label, content, needles, successMessage, failureMessage)
   if (present.length === 0) {
     pass(successMessage);
   } else {
-    fail(`${failureMessage} Present: ${present.join(', ')}`);
+    fail(failureMessage);
   }
 }
 
@@ -143,6 +143,56 @@ assertIncludes(
   'AI Dev Route Rate Guard: Node AI routes expose scanner-visible rate-limit middleware plus auth guard.',
   'AI Dev Route Rate Guard: Node AI routes can be flagged as missing explicit rate-limit middleware.'
 );
+
+assertIncludes(
+  'AI Dev Route Linear Bearer Parser',
+  aiServerContent,
+  [
+    'function extractBearerToken(headerValue)',
+    "headerValue.slice(0, schemeLength).toLowerCase() !== 'bearer'",
+    'const firstSeparator = headerValue.charCodeAt(tokenOffset);',
+    'character !== 0x20 && character !== 0x09',
+  ],
+  'AI Dev Route Linear Bearer Parser: Authorization tokens use bounded-step scheme and whitespace parsing.',
+  'AI Dev Route Linear Bearer Parser: Authorization parsing can regress to an input-dependent regex.'
+);
+assertExcludes(
+  'AI Dev Route Polynomial Regex Exclusion',
+  aiServerContent,
+  ['match(/^Bearer\\s+(.+)$/i)'],
+  'AI Dev Route Polynomial Regex Exclusion: the CodeQL-alerted Bearer regex is absent.',
+  'AI Dev Route Polynomial Regex Exclusion: the CodeQL-alerted Bearer regex remains.'
+);
+
+const bearerParserSource = extractPhpFunctionSource(
+  aiServerContent,
+  'function extractBearerToken(headerValue)'
+);
+try {
+  const extractBearerToken = vm.runInNewContext(`(${bearerParserSource})`);
+  const repeatedWhitespace = `Bearer ${' '.repeat(12000)}incorrect-token`;
+
+  if (
+    extractBearerToken('Bearer voncms-integration-ai-token') === 'voncms-integration-ai-token' &&
+    extractBearerToken('bEaReR \t  voncms-integration-ai-token') ===
+      'voncms-integration-ai-token' &&
+    extractBearerToken(repeatedWhitespace) === 'incorrect-token' &&
+    extractBearerToken('Basic voncms-integration-ai-token') === null &&
+    extractBearerToken('Bearervoncms-integration-ai-token') === null &&
+    extractBearerToken('Bearer   ') === null &&
+    extractBearerToken(['Bearer voncms-integration-ai-token']) === null
+  ) {
+    pass(
+      'AI Dev Route Authentication Runtime: valid Bearer tokens survive while malformed and repeated-whitespace inputs follow the linear parser contract.'
+    );
+  } else {
+    fail(
+      'AI Dev Route Authentication Runtime: Bearer parsing no longer preserves valid headers or fails closed on malformed input.'
+    );
+  }
+} catch {
+  fail('AI Dev Route Authentication Runtime: the focused authentication probe could not run.');
+}
 
 assertIncludes(
   'Shared URL Scheme Guard',
@@ -3805,7 +3855,7 @@ if (genericRecoveryResponseCount === 2) {
   );
 } else {
   fail(
-    `Password Recovery Enumeration Response Parity: expected two identical generic success branches, found ${genericRecoveryResponseCount}.`
+    'Password Recovery Enumeration Response Parity: expected two identical generic success branches.'
   );
 }
 assertIncludes(
@@ -5613,7 +5663,7 @@ assertIncludes(
     "const AUTH_TOKEN = String(process.env.AI_AUTH_TOKEN || '').trim();",
     'if (!AUTH_TOKEN) {',
     "message: 'AI authentication is not configured'",
-    'match(/^Bearer\\s+(.+)$/i)',
+    'extractBearerToken(req.headers.authorization)',
     'crypto.timingSafeEqual(supplied, expected)',
   ],
   'Optional Node AI Fail-Closed Authentication: provider-backed routes require an explicit exact token.',
@@ -14712,7 +14762,7 @@ echo 'ok';`,
       failProfileWrite: true,
     },
   ];
-  let profilePasswordRuntimeFailure = '';
+  let profilePasswordRuntimeResult = 'pass';
   for (const runtimeCase of profilePasswordRuntimeCases) {
     const encodedPayload = Buffer.from(JSON.stringify(runtimeCase.payload)).toString('base64');
     const profilePasswordProbe = spawnSync(
@@ -14778,7 +14828,7 @@ require ${JSON.stringify(resolveFromRoot('public/api/update_profile.php'))};`,
       { encoding: 'utf8' }
     );
     if (profilePasswordProbe.status === 0 && profilePasswordProbe.stdout.trim() === 'skip') {
-      profilePasswordRuntimeFailure = 'skip';
+      profilePasswordRuntimeResult = 'skip';
       break;
     }
     const stateMatch = profilePasswordProbe.stdout.match(/PROFILE_PASSWORD_STATE:(\{[^\r\n]+\})/);
@@ -14798,21 +14848,21 @@ require ${JSON.stringify(resolveFromRoot('public/api/update_profile.php'))};`,
       state.rememberTokens !== 1 ||
       state.inTransaction !== false
     ) {
-      profilePasswordRuntimeFailure = `${runtimeCase.name}: ${(profilePasswordProbe.stderr || profilePasswordProbe.stdout || '').trim()}`;
+      profilePasswordRuntimeResult = 'fail';
       break;
     }
   }
-  if (profilePasswordRuntimeFailure === '') {
+  if (profilePasswordRuntimeResult === 'pass') {
     pass(
       'Profile Password Transaction Runtime: malformed and oversized values stop before mutation while a failed profile write rolls back the password hash and remember-token deletion.'
     );
-  } else if (profilePasswordRuntimeFailure === 'skip') {
+  } else if (profilePasswordRuntimeResult === 'skip') {
     warn(
       'Profile Password Transaction Runtime: pdo_sqlite unavailable; static contract still ran.'
     );
   } else {
     fail(
-      `Profile Password Transaction Runtime: malformed input or a failed profile write can leave partial credential state. ${profilePasswordRuntimeFailure}`
+      'Profile Password Transaction Runtime: malformed input or a failed profile write can leave partial credential state.'
     );
   }
 
