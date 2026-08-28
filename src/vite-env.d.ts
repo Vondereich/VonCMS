@@ -10,6 +10,7 @@ type InitialPostPayload = Partial<Post> & {
   created_at?: string;
   updated_at?: string;
   scheduled_at?: string;
+  published_at?: string;
 };
 
 interface InitialContentState {

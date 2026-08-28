@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -58,20 +59,20 @@ if (!isset($pdo) || $pdo === null) {
 }
 
 try {
-  $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-  if (!$columnStmt || $columnStmt->rowCount() === 0) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL');
-  }
-} catch (Throwable $e) {
-  ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);
-}
-
-try {
   $pdo->beginTransaction();
 
   $input['avatar'] = ResponseHelper::scrubAvatarUrl($input['avatar'] ?? '');
 
-  $inputId = $input['id'] ?? '';
+  $inputIdValue = $input['id'] ?? null;
+  if ($inputIdValue !== null && !is_string($inputIdValue) && !is_int($inputIdValue)) {
+    $pdo->rollBack();
+    ResponseHelper::sendError('Invalid user ID', 400);
+  }
+  $inputId = trim((string) ($inputIdValue ?? ''));
+  if ($inputId !== '' && !ctype_digit($inputId)) {
+    $pdo->rollBack();
+    ResponseHelper::sendError('Invalid user ID', 400);
+  }
   $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentUserRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
   $isPrimaryAdminActor = $currentUserId === '1' || $currentUserRole === 'root';
@@ -84,15 +85,9 @@ try {
     ResponseHelper::sendError('Only admin 1 can approve email verification', 403);
   }
 
-  // Check database if user already exists (much more reliable than ID format checking)
-  $isNewUser = true;
-  if (!empty($inputId)) {
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?');
-    $stmt->execute([$inputId]);
-    if ($stmt->fetch()) {
-      $isNewUser = false;
-    }
-  }
+  // Create requests omit the database ID. Any supplied ID owns the update path,
+  // so a stale or deleted user can never fall through into account creation.
+  $isNewUser = $inputId === '';
 
   if ($isNewUser) {
     // Check for duplicate username/email - LOCKING READ
@@ -154,10 +149,22 @@ try {
       'success' => true,
       'id' => (string) $userId,
       'message' => 'User created successfully',
+      'user' => [
+        'id' => (string) $userId,
+        'username' => (string) $input['username'],
+        'display_name' => $displayName !== '' ? $displayName : null,
+        'email' => (string) $input['email'],
+        'role' => (string) $newRole,
+        'avatar' => (string) ($input['avatar'] ?? ''),
+        'bio' => (string) ($input['bio'] ?? ''),
+        'email_verified' => $isStaffRole ? 1 : 0,
+      ],
     ]);
   } else {
-    $targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ? FOR UPDATE');
-    $targetStmt->execute([$input['id']]);
+    $targetStmt = $pdo->prepare(
+      'SELECT id, username, display_name, email, role, avatar, bio FROM users WHERE id = ? FOR UPDATE',
+    );
+    $targetStmt->execute([$inputId]);
     $targetUser = $targetStmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$targetUser) {
@@ -241,39 +248,62 @@ try {
     }
 
     $sql .= ' WHERE id = ?';
-    $params[] = $input['id'];
+    $params[] = $inputId;
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    // Check if update actually affected any rows (user might have been deleted)
+    // The target row is already locked and verified above. A zero count here means
+    // the submitted values match the stored values, so treat the request as an
+    // idempotent no-op instead of reporting a false missing-user error.
     if ($stmt->rowCount() === 0) {
       $pdo->rollBack();
-      ResponseHelper::sendError('User not found or no changes made', 404);
+      echo json_encode([
+        'success' => true,
+        'unchanged' => true,
+        'id' => $inputId,
+        'message' => 'No changes detected.',
+        'user' => [
+          'id' => (string) ($targetUser['id'] ?? $inputId),
+          'username' => (string) ($targetUser['username'] ?? ''),
+          'display_name' => $targetUser['display_name'] ?? null,
+          'email' => (string) ($targetUser['email'] ?? ''),
+          'role' => (string) ($targetUser['role'] ?? ''),
+          'avatar' => (string) ($targetUser['avatar'] ?? ''),
+          'bio' => (string) ($targetUser['bio'] ?? ''),
+        ],
+      ]);
+      exit();
     }
 
     if (!empty($input['password'])) {
-      try {
-        $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
-        $revokeRememberStmt->execute([$input['id']]);
-      } catch (PDOException $e) {
-        if ($e->getCode() !== '42S02') {
-          throw $e;
-        }
-      }
+      $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+      $revokeRememberStmt->execute([$inputId]);
     }
 
     $pdo->commit();
     voncms_public_cache_clear();
     echo json_encode([
       'success' => true,
-      'id' => $input['id'],
+      'id' => $inputId,
       'message' => 'User updated successfully',
+      'user' => [
+        'id' => $inputId,
+        'username' => (string) $input['username'],
+        'display_name' => $displayName !== '' ? $displayName : null,
+        'email' => (string) $input['email'],
+        'role' => (string) $roleToPersist,
+        'avatar' => (string) ($input['avatar'] ?? ''),
+        'bio' => (string) ($input['bio'] ?? ''),
+      ],
     ]);
   }
-} catch (Exception $e) {
+} catch (Throwable $e) {
   if (isset($pdo) && $pdo->inTransaction()) {
     $pdo->rollBack();
+  }
+  if (voncms_schema_mutation_error_requires_repair($e)) {
+    ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);
   }
   ResponseHelper::sendError($e);
 }

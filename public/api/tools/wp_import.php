@@ -2,6 +2,7 @@
 // Suppress PHP error output that breaks JSON
 require_once __DIR__ . '/../../security.php';
 require_once __DIR__ . '/../public_cache_helper.php';
+require_once __DIR__ . '/../publication_time_helper.php';
 define('VONCMS_WP_IMPORT_CONTEXT', true);
 require_once __DIR__ . '/wp_wxr_reader_helper.php';
 sendApiHeaders('POST, OPTIONS');
@@ -1693,10 +1694,13 @@ try {
             }
 
             // Insert with author_id AND image_url
+            $hasPostPublishedAt = voncms_has_publication_column($conn, 'posts');
+            $postPublishedColumn = $hasPostPublishedAt ? ', published_at' : '';
+            $postPublishedPlaceholder = $hasPostPublishedAt ? ', ?' : '';
             $insert = $conn->prepare(
-              'INSERT INTO posts (title, slug, content, status, author, author_id, category, created_at, updated_at, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              "INSERT INTO posts (title, slug, content, status, author, author_id, category, created_at, updated_at, image_url{$postPublishedColumn}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$postPublishedPlaceholder})",
             );
-            $insert->execute([
+            $postInsertValues = [
               $title,
               $slug,
               $encodedContent,
@@ -1707,16 +1711,23 @@ try {
               $date,
               $date,
               $imageUrl,
-            ]);
+            ];
+            if ($hasPostPublishedAt) {
+              $postInsertValues[] = $targetStatus === 'published' ? $date : null;
+            }
+            $insert->execute($postInsertValues);
             $insertedId = (string) $conn->lastInsertId();
             $imported++;
             debug_log("Imported Post: $title" . ($imageUrl ? ' [Has Image]' : ''));
           } elseif ($postType === 'page') {
             // Insert with author_id
+            $hasPagePublishedAt = voncms_has_publication_column($conn, 'pages');
+            $pagePublishedColumn = $hasPagePublishedAt ? ', published_at' : '';
+            $pagePublishedPlaceholder = $hasPagePublishedAt ? ', ?' : '';
             $insert = $conn->prepare(
-              'INSERT INTO pages (title, slug, content, status, author, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              "INSERT INTO pages (title, slug, content, status, author, author_id, created_at, updated_at{$pagePublishedColumn}) VALUES (?, ?, ?, ?, ?, ?, ?, ?{$pagePublishedPlaceholder})",
             );
-            $insert->execute([
+            $pageInsertValues = [
               $title,
               $slug,
               $encodedContent,
@@ -1725,7 +1736,11 @@ try {
               $authorId,
               $date,
               $date,
-            ]);
+            ];
+            if ($hasPagePublishedAt) {
+              $pageInsertValues[] = $targetStatus === 'published' ? $date : null;
+            }
+            $insert->execute($pageInsertValues);
             $insertedId = (string) $conn->lastInsertId();
             $imported++;
             debug_log("Imported Page: $title");

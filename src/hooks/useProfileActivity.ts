@@ -31,6 +31,8 @@ const normalizePost = (post: any): Post => ({
   createdAt: post.created_at || post.createdAt || '',
   updatedAt: post.updated_at || post.updatedAt || post.created_at || '',
   scheduledAt: post.scheduled_at || post.scheduledAt || '',
+  publishedAt: post.published_at || post.publishedAt || '',
+  published_at: post.published_at || post.publishedAt || '',
   author_data: post.author_data || { username: post.author || '', avatar: '' },
   readTime: post.readTime || '',
 });

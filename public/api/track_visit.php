@@ -37,32 +37,14 @@ if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
-// Auto-migration: Create analytics table if not exists
-try {
-  $pdo->exec("CREATE TABLE IF NOT EXISTS analytics (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        page_url VARCHAR(500),
-        referrer VARCHAR(500),
-        user_agent TEXT,
-        ip_hash VARCHAR(64),
-        visit_date DATE,
-        visit_time TIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_date (visit_date),
-        INDEX idx_ip_date (ip_hash, visit_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-} catch (PDOException $e) {
-  error_log('Analytics table creation: ' . $e->getMessage());
-}
-
 // ============================================
 // AUTO-PURGE: Delete data older than 30 days
 // ============================================
 if (rand(1, 100) === 1) {
   try {
     $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
-  } catch (PDOException $e) {
-    error_log('Analytics auto-purge: ' . $e->getMessage());
+  } catch (Throwable $e) {
+    // Analytics is optional; missing storage must not affect or spam public requests.
   }
 }
 
@@ -105,8 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$pageUrl, $referrer, $userAgent, $ipHash]);
 
     echo json_encode(['success' => true, 'message' => 'Visit recorded']);
-  } catch (Exception $e) {
-    ResponseHelper::sendError($e);
+  } catch (Throwable $e) {
+    echo json_encode(['success' => true, 'message' => 'Visit tracking unavailable']);
   }
 } else {
   try {
@@ -143,7 +125,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'period' => $days . ' days',
       ],
     ]);
-  } catch (Exception $e) {
-    ResponseHelper::sendError($e);
+  } catch (Throwable $e) {
+    echo json_encode([
+      'success' => true,
+      'analytics' => [
+        'daily' => [],
+        'totals' => ['total_views' => 0, 'unique_visitors' => 0],
+        'period' => $days . ' days',
+      ],
+    ]);
   }
 }

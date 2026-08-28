@@ -24,6 +24,7 @@ import {
   getPermalink,
   getPublicCategoryHref,
   getPublicHomeHref,
+  getPublicProfileHref,
 } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
@@ -486,11 +487,14 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       {/* Menu Items */}
                       <div className="py-2">
                         {/* View Profile */}
-                        <button
-                          onClick={() => {
-                            onViewProfile(user.username);
-                            setShowUserDropdown(false);
-                          }}
+                        <a
+                          href={getPublicProfileHref(user.username)}
+                          onClick={(event) =>
+                            handleCrawlableLinkClick(event, () => {
+                              onViewProfile(user.username);
+                              setShowUserDropdown(false);
+                            })
+                          }
                           className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3 text-slate-300 hover:bg-white/5 hover:text-white"
                         >
                           <svg
@@ -507,7 +511,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                             />
                           </svg>
                           View Profile
-                        </button>
+                        </a>
 
                         {/* Dashboard (Admin/Moderator/Writer only) */}
                         {['Admin', 'Moderator', 'Writer'].includes(user.role) && (

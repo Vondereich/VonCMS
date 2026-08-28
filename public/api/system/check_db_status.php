@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../../security.php';
+require_once __DIR__ . '/../schema_repair_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -22,63 +23,65 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 }
 SessionManager::requirePrimaryAdmin();
 
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
+
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+  ResponseHelper::sendError('Database not configured', 503);
+}
+
 try {
   $needsRepair = false;
   $missingItems = [];
 
-  // 1. Check for Redirects Table
+  // 1. Check every structure owned by the explicit core repair path.
   try {
-    $result = $pdo->query("SHOW TABLES LIKE 'redirects'");
-    if ($result->rowCount() === 0) {
+    foreach (voncms_schema_missing_core_repair_items($pdo) as $missingItem) {
       $needsRepair = true;
-      $missingItems[] = "Missing 'redirects' table";
+      $missingItems[] = "Core schema requires Database Repair: {$missingItem}";
     }
-  } catch (Exception $e) {
+  } catch (Throwable $e) {
     $needsRepair = true;
+    $missingItems[] = 'Core schema could not be verified';
   }
 
-  // 2. Check for Media Metadata Columns
-  try {
-    $stmt = $pdo->query("SHOW COLUMNS FROM media LIKE 'alt_text'");
-    if ($stmt->rowCount() === 0) {
+  // 2. Check shared runtime capabilities without mutating the schema.
+  $capabilityLabels = [
+    'registration' => 'Registration schema',
+    'password_reset' => 'Password reset schema',
+    'profile_display_name' => 'Profile display-name schema',
+    'remember_tokens' => 'Remember-token storage',
+    'analytics' => 'Analytics storage',
+    'comment_likes' => 'Comment-like storage',
+    'content_audit' => 'Content audit storage',
+    'security_logs' => 'Security log storage',
+  ];
+
+  foreach ($capabilityLabels as $capability => $label) {
+    try {
+      if (!voncms_schema_has_capability($pdo, $capability)) {
+        $needsRepair = true;
+        $missingItems[] = $label . ' requires Database Repair';
+      }
+    } catch (Throwable $e) {
       $needsRepair = true;
-      $missingItems[] = 'Missing media metadata columns';
+      $missingItems[] = $label . ' could not be verified';
     }
-  } catch (Exception $e) {
-    $needsRepair = true;
   }
 
-  // 3. Check for Settings Public Column
   try {
-    $stmt = $pdo->query("SHOW COLUMNS FROM settings LIKE 'is_public'");
-    if ($stmt->rowCount() === 0) {
-      $needsRepair = true;
-      $missingItems[] = "Missing 'is_public' column in settings";
+    $userColumns = voncms_schema_column_map($pdo, 'users');
+    foreach (['verification_token', 'reset_token'] as $tokenColumn) {
+      $tokenType = strtolower((string) ($userColumns[$tokenColumn]['Type'] ?? ''));
+      if ($tokenType !== '' && $tokenType !== 'varchar(64)') {
+        $needsRepair = true;
+        $missingItems[] = "Column users.{$tokenColumn} requires VARCHAR(64) reconciliation";
+      }
     }
-  } catch (Exception $e) {
+  } catch (Throwable $e) {
     $needsRepair = true;
-  }
-
-  // 4. Check for Content Audit Logs Table
-  try {
-    $result = $pdo->query("SHOW TABLES LIKE 'content_audit_logs'");
-    if ($result->rowCount() === 0) {
-      $needsRepair = true;
-      $missingItems[] = "Missing 'content_audit_logs' table";
-    }
-  } catch (Exception $e) {
-    $needsRepair = true;
-  }
-
-  // 5. Check for public author display-name column
-  try {
-    $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-    if ($stmt->rowCount() === 0) {
-      $needsRepair = true;
-      $missingItems[] = "Missing 'display_name' column in users";
-    }
-  } catch (Exception $e) {
-    $needsRepair = true;
+    $missingItems[] = 'Token column widths could not be verified';
   }
 
   echo json_encode([

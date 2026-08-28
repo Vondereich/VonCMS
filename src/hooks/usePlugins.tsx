@@ -51,6 +51,8 @@ const normalizeRelatedPostCandidate = (post: any): Post => ({
   created_at: post.created_at || post.createdAt || '',
   scheduledAt: post.scheduledAt || post.scheduled_at || '',
   scheduled_at: post.scheduled_at || post.scheduledAt || '',
+  publishedAt: post.publishedAt || post.published_at || '',
+  published_at: post.published_at || post.publishedAt || '',
   author: post.author || post.author_data?.username || '',
   author_data: post.author_data || { username: post.author || '', avatar: '' },
 });

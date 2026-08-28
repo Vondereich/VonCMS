@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 // Enforce Security
@@ -17,6 +18,13 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 
+$hasPublishedAtColumn =
+  isset($pdo) && $pdo instanceof PDO ? voncms_has_publication_column($pdo, 'pages') : false;
+$publishedAtSelect =
+  isset($pdo) && $pdo instanceof PDO
+    ? voncms_publication_column_sql($pdo, 'pages')
+    : 'NULL AS published_at';
+
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
@@ -26,14 +34,6 @@ $canManagePages = in_array($currentRole, ['admin', 'root', 'moderator'], true);
 
 if (!$canManagePages) {
   ResponseHelper::sendError('Page management access required', 403);
-}
-
-try {
-  if (isset($pdo)) {
-    voncms_ensure_content_audit_logs_table($pdo);
-  }
-} catch (Throwable $auditBootstrapError) {
-  error_log('VonCMS Audit Bootstrap: ' . $auditBootstrapError->getMessage());
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
@@ -143,7 +143,7 @@ try {
   if ($isUpdate) {
     // SECURITY: Check ownership before update
     $checkOwner = $pdo->prepare(
-      'SELECT author_id, status, slug, updated_at FROM pages WHERE id = ? FOR UPDATE',
+      "SELECT author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$pageId]);
     $existingPage = $checkOwner->fetch(PDO::FETCH_ASSOC);
@@ -177,7 +177,16 @@ try {
       }
     }
 
+    $status = $input['status'] ?? 'draft';
+    $validStatuses = ['published', 'draft', 'archived'];
+    if (!in_array($status, $validStatuses, true)) {
+      $status = 'draft';
+    }
+
     // Update existing page
+    $publishedAtAssignment = $hasPublishedAtColumn
+      ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END,\n            "
+      : '';
     $stmt = $pdo->prepare("UPDATE pages SET 
             title = :title, 
             slug = :slug, 
@@ -186,15 +195,11 @@ try {
             status = :status, 
             keywords = :keywords,
             meta_description = :meta_description,
+            {$publishedAtAssignment}
             updated_at = NOW() 
         WHERE id = :id");
-    $status = $input['status'] ?? 'draft';
-    $validStatuses = ['published', 'draft', 'archived'];
-    if (!in_array($status, $validStatuses, true)) {
-      $status = 'draft';
-    }
 
-    $stmt->execute([
+    $updateParams = [
       'title' => $input['title'],
       'slug' => $input['slug'],
       'content' => $input['content'] ?? '',
@@ -203,11 +208,15 @@ try {
       'keywords' => $keywords,
       'meta_description' => $metaDescription,
       'id' => $pageId,
-    ]);
+    ];
+    if ($hasPublishedAtColumn) {
+      $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
+    }
+    $stmt->execute($updateParams);
 
     try {
       $oldStatus = strtolower((string) ($existingPage['status'] ?? ''));
-      $newStatus = strtolower((string) ($input['status'] ?? 'draft'));
+      $newStatus = $status;
       $summary =
         $oldStatus !== '' && $oldStatus !== $newStatus
           ? sprintf(
@@ -238,9 +247,14 @@ try {
 
     // Commit Transaction
     $savedUpdatedAt = date('Y-m-d H:i:s');
-    $savedUpdatedAtStmt = $pdo->prepare('SELECT updated_at FROM pages WHERE id = ?');
+    $savedUpdatedAtStmt = $pdo->prepare(
+      "SELECT updated_at, {$publishedAtSelect} FROM pages WHERE id = ?",
+    );
     $savedUpdatedAtStmt->execute([$pageId]);
-    $savedUpdatedAt = (string) ($savedUpdatedAtStmt->fetchColumn() ?: $savedUpdatedAt);
+    $savedTimestamps = $savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC);
+    $savedTimestamps = is_array($savedTimestamps) ? $savedTimestamps : [];
+    $savedUpdatedAt = (string) ($savedTimestamps['updated_at'] ?? null ?: $savedUpdatedAt);
+    $savedPublishedAt = $savedTimestamps['published_at'] ?? null;
 
     $pdo->commit();
     voncms_public_cache_clear();
@@ -253,13 +267,20 @@ try {
       'message' => 'Page updated',
       'id' => (string) $pageId,
       'slug' => $input['slug'],
+      'status' => $status,
+      'published_at' => $savedPublishedAt,
+      'publishedAt' => $savedPublishedAt,
       'updated_at' => $savedUpdatedAt,
       'updatedAt' => $savedUpdatedAt,
     ]);
   } else {
     // Insert new page
+    $publishedAtColumn = $hasPublishedAtColumn ? ', published_at' : '';
+    $publishedAtValue = $hasPublishedAtColumn
+      ? ', CASE WHEN :publish_now = 1 THEN NOW() ELSE NULL END'
+      : '';
     $stmt = $pdo->prepare(
-      'INSERT INTO pages (title, slug, content, excerpt, status, keywords, meta_description, author_id, created_at, updated_at) VALUES (:title, :slug, :content, :excerpt, :status, :keywords, :meta_description, :author_id, NOW(), NOW())',
+      "INSERT INTO pages (title, slug, content, excerpt, status, keywords, meta_description, author_id{$publishedAtColumn}, created_at, updated_at) VALUES (:title, :slug, :content, :excerpt, :status, :keywords, :meta_description, :author_id{$publishedAtValue}, NOW(), NOW())",
     );
     $status = $input['status'] ?? 'draft';
     $validStatuses = ['published', 'draft', 'archived'];
@@ -267,7 +288,7 @@ try {
       $status = 'draft';
     }
 
-    $stmt->execute([
+    $insertParams = [
       'title' => $input['title'],
       'slug' => $input['slug'],
       'content' => $input['content'] ?? '',
@@ -276,7 +297,11 @@ try {
       'keywords' => $keywords,
       'meta_description' => $metaDescription,
       'author_id' => $currentUser['id'],
-    ]);
+    ];
+    if ($hasPublishedAtColumn) {
+      $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
+    }
+    $stmt->execute($insertParams);
 
     $newId = $pdo->lastInsertId();
 
@@ -287,10 +312,10 @@ try {
         (int) $newId,
         'create',
         $currentUser ?? [],
-        sprintf('Page created as %s', ucfirst((string) ($input['status'] ?? 'draft'))),
+        sprintf('Page created as %s', ucfirst($status)),
         [
           'title' => (string) ($input['title'] ?? ''),
-          'new_status' => strtolower((string) ($input['status'] ?? 'draft')),
+          'new_status' => $status,
           'new_slug' => (string) ($input['slug'] ?? ''),
         ],
       );
@@ -300,9 +325,14 @@ try {
 
     // Commit Transaction
     $savedUpdatedAt = date('Y-m-d H:i:s');
-    $savedUpdatedAtStmt = $pdo->prepare('SELECT updated_at FROM pages WHERE id = ?');
+    $savedUpdatedAtStmt = $pdo->prepare(
+      "SELECT updated_at, {$publishedAtSelect} FROM pages WHERE id = ?",
+    );
     $savedUpdatedAtStmt->execute([$newId]);
-    $savedUpdatedAt = (string) ($savedUpdatedAtStmt->fetchColumn() ?: $savedUpdatedAt);
+    $savedTimestamps = $savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC);
+    $savedTimestamps = is_array($savedTimestamps) ? $savedTimestamps : [];
+    $savedUpdatedAt = (string) ($savedTimestamps['updated_at'] ?? null ?: $savedUpdatedAt);
+    $savedPublishedAt = $savedTimestamps['published_at'] ?? null;
 
     $pdo->commit();
     voncms_public_cache_clear();
@@ -315,6 +345,9 @@ try {
       'message' => 'Page created',
       'id' => (string) $newId,
       'slug' => $input['slug'],
+      'status' => $status,
+      'published_at' => $savedPublishedAt,
+      'publishedAt' => $savedPublishedAt,
       'updated_at' => $savedUpdatedAt,
       'updatedAt' => $savedUpdatedAt,
     ]);

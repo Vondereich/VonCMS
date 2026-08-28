@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
@@ -61,23 +62,24 @@ try {
   }
 
   try {
-    voncms_ensure_content_audit_logs_table($pdo);
+    $stmt = $pdo->prepare(
+      'SELECT id, content_type, content_id, action, actor_user_id, actor_username, actor_role, summary, context_json, created_at
+       FROM content_audit_logs
+       WHERE content_type = :content_type AND content_id = :content_id
+       ORDER BY created_at DESC, id DESC
+       LIMIT 50',
+    );
+    $stmt->execute([
+      'content_type' => $contentType,
+      'content_id' => $contentId,
+    ]);
   } catch (Throwable $tableError) {
-    echo json_encode(['success' => true, 'logs' => []]);
-    exit();
+    if (voncms_schema_error_requires_repair($tableError)) {
+      echo json_encode(['success' => true, 'logs' => []]);
+      exit();
+    }
+    throw $tableError;
   }
-
-  $stmt = $pdo->prepare(
-    'SELECT id, content_type, content_id, action, actor_user_id, actor_username, actor_role, summary, context_json, created_at
-     FROM content_audit_logs
-     WHERE content_type = :content_type AND content_id = :content_id
-     ORDER BY created_at DESC, id DESC
-     LIMIT 50',
-  );
-  $stmt->execute([
-    'content_type' => $contentType,
-    'content_id' => $contentId,
-  ]);
 
   $logs = array_map(
     static function (array $row): array {

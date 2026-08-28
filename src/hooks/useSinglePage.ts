@@ -89,6 +89,8 @@ export const useSinglePage = (
             author_id: rawPage.author_id ?? null,
             createdAt: rawPage.createdAt || rawPage.created_at || '',
             created_at: rawPage.created_at,
+            publishedAt: rawPage.publishedAt || rawPage.published_at || '',
+            published_at: rawPage.published_at,
             updatedAt: rawPage.updatedAt || rawPage.updated_at || '',
             updated_at: rawPage.updated_at,
             metaDescription: rawPage.metaDescription || rawPage.meta_description || '',

@@ -10,6 +10,7 @@ import {
   getPermalink,
   getPublicCategoryHref,
   getPublicHomeHref,
+  getPublicProfileHref,
   getSameSiteCategoryNavigation,
   normalizeSiteUrl,
 } from '../../utils/siteUtils';
@@ -989,16 +990,19 @@ const PortfolioNav = ({
                   className="absolute right-0 mt-2 w-48 rounded-xl shadow-xl border overflow-hidden z-50"
                   style={{ background: colors.bgSecondary, borderColor: colors.cardBorder }}
                 >
-                  <button
-                    onClick={() => {
-                      onViewProfile(user.username);
-                      setShowUserMenu(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm hover:opacity-80 transition-opacity"
+                  <a
+                    href={getPublicProfileHref(user.username)}
+                    onClick={(event) =>
+                      handleCrawlableLinkClick(event, () => {
+                        onViewProfile(user.username);
+                        setShowUserMenu(false);
+                      })
+                    }
+                    className="block w-full px-4 py-3 text-left text-sm hover:opacity-80 transition-opacity"
                     style={{ color: colors.text }}
                   >
                     👤 View Profile
-                  </button>
+                  </a>
                   {['Admin', 'Moderator', 'Writer'].includes(user.role) && (
                     <button
                       onClick={() => {

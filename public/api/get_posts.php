@@ -114,6 +114,7 @@ if (file_exists($configFile)) {
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 
 if (!function_exists('voncms_normalize_fulltext_search')) {
   function voncms_normalize_fulltext_search(string $value): string
@@ -262,6 +263,8 @@ try {
   }
 
   // Keep list payloads bounded: full content is intentionally left to get_post.php.
+  $publishedAtSql = voncms_publication_column_sql($db, 'posts', 'p');
+  $publicationExpression = voncms_publication_expression_sql($db, 'posts', 'p');
   $sql = "SELECT
     p.id,
     p.title,
@@ -278,7 +281,8 @@ try {
     p.created_at,
     p.updated_at,
     p.scheduled_at,
-    CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at,
+    {$publishedAtSql},
+    {$publicationExpression} AS effective_publish_at,
     $authorNameSql AS author_name,
     u.username AS author_username,
     $authorDisplayNameSql AS author_display_name,
@@ -333,6 +337,7 @@ try {
     $createdAt = $row['created_at'] ?? date('Y-m-d H:i:s');
     $updatedAt = $row['updated_at'] ?? $createdAt;
     $scheduledAt = $row['scheduled_at'] ?? null;
+    $publishedAt = $row['published_at'] ?? null;
 
     // Match the shared raw-content character contract without fetching full bodies.
     $chars = (int) ($row['content_chars'] ?? 0);
@@ -370,6 +375,7 @@ try {
       'created_at' => $createdAt,
       'updated_at' => $updatedAt,
       'scheduled_at' => $scheduledAt,
+      'published_at' => $publishedAt,
     ];
 
     return ResponseHelper::shapeContentPayload($post, $isAdmin);

@@ -29,20 +29,32 @@ export function useUsers() {
   // Add new user
   const handleAddUser = useCallback(async (newUser: User): Promise<boolean> => {
     // Optimistic Update
-    setUsers((prev) => [...prev, newUser]);
+    const optimisticNewUser = { ...newUser };
+    delete optimisticNewUser.password;
+    setUsers((prev) => [...prev, optimisticNewUser]);
 
     let saved = false;
     try {
       const res = await vonFetch(API.saveUser, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify({ ...newUser, id: undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         if (data.id) {
-          // Update the temporary ID with real ID from server
-          setUsers((prev) => prev.map((u) => (u.id === newUser.id ? { ...u, id: data.id } : u)));
+          // Replace the temporary ID with the canonical password-free server record.
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === optimisticNewUser.id
+                ? {
+                    ...u,
+                    ...(data.user && typeof data.user === 'object' ? data.user : {}),
+                    id: data.id,
+                  }
+                : u
+            )
+          );
         }
         saved = true;
       } else {
@@ -55,7 +67,7 @@ export function useUsers() {
     if (!saved) {
       toast.error('Failed to save user to server.');
       // Rollback optimistic add
-      setUsers((prev) => prev.filter((u) => u.id !== newUser.id));
+      setUsers((prev) => prev.filter((u) => u.id !== optimisticNewUser.id));
       return false;
     }
     toast.success('User created successfully.');
@@ -112,7 +124,9 @@ export function useUsers() {
   const handleUpdateUserInList = useCallback(
     async (updatedUser: User) => {
       const previousUser = users.find((u) => u.id === updatedUser.id);
-      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+      const optimisticUser = { ...updatedUser };
+      delete optimisticUser.password;
+      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? optimisticUser : u)));
 
       try {
         const res = await vonFetch(API.saveUser, {
@@ -125,11 +139,22 @@ export function useUsers() {
           if (previousUser) {
             setUsers((prev) => prev.map((u) => (u.id === previousUser.id ? previousUser : u)));
           }
-          console.error('Failed to update user:', data.message);
+          console.error('Failed to update user:', data.message || data.error || res.statusText);
           toast.error(data.message || data.error || 'Failed to update user.');
           return false;
         }
-        toast.success(data.message || 'User updated successfully.');
+        if (previousUser && (data.unchanged || (data.user && typeof data.user === 'object'))) {
+          const canonicalUser =
+            data.user && typeof data.user === 'object'
+              ? { ...previousUser, ...data.user }
+              : previousUser;
+          setUsers((prev) => prev.map((u) => (u.id === previousUser.id ? canonicalUser : u)));
+        }
+        if (data.unchanged) {
+          toast(data.message || 'No changes detected.');
+        } else {
+          toast.success(data.message || 'User updated successfully.');
+        }
         return true;
       } catch (e) {
         if (previousUser) {

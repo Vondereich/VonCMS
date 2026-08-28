@@ -1331,6 +1331,8 @@ const PostEditorWrapper: React.FC<any> = ({
               author_id: page.author_id || null,
               createdAt: page.createdAt || page.created_at || '',
               created_at: page.created_at,
+              publishedAt: page.publishedAt || page.published_at || '',
+              published_at: page.published_at,
               metaDescription: page.metaDescription || page.meta_description || '',
               keywords: page.keywords || '',
             } as Page);
@@ -1366,6 +1368,8 @@ const PostEditorWrapper: React.FC<any> = ({
             slug: post.slug || '',
             scheduledAt: post.scheduledAt || post.scheduled_at || '',
             scheduled_at: post.scheduled_at,
+            publishedAt: post.publishedAt || post.published_at || '',
+            published_at: post.published_at,
             createdAt: post.createdAt || post.created_at || '',
             created_at: post.created_at,
           } as Post);

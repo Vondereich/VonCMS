@@ -545,11 +545,14 @@ const DefaultLayout: React.FC<
                         {/* Menu Items */}
                         <div className="py-2">
                           {/* View Profile */}
-                          <button
-                            onClick={() => {
-                              viewProfile(user.username);
-                              setShowUserDropdown(false);
-                            }}
+                          <a
+                            href={getPublicProfileHref(user.username)}
+                            onClick={(event) =>
+                              handleCrawlableLinkClick(event, () => {
+                                viewProfile(user.username);
+                                setShowUserDropdown(false);
+                              })
+                            }
                             className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white"
                           >
                             <svg
@@ -566,7 +569,7 @@ const DefaultLayout: React.FC<
                               />
                             </svg>
                             View Profile
-                          </button>
+                          </a>
 
                           {/* Dashboard (Admin/Moderator/Writer only) */}
                           {['Admin', 'Moderator', 'Writer'].includes(user.role) && (

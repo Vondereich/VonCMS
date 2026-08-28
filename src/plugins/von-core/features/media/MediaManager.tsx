@@ -502,13 +502,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     </p>
                     <div className="mt-2 flex gap-3 text-[11px] text-slate-500 dark:text-slate-400">
                       <span>{filteredMedia[lightboxIndex].extension?.toUpperCase()}</span>
-                      <span>
-                        {(() => {
-                          const size = parseFloat(String(filteredMedia[lightboxIndex].size || 0));
-                          return isNaN(size) ? '0.00' : (size / 1024).toFixed(2);
-                        })()}{' '}
-                        KB
-                      </span>
+                      <span>{filteredMedia[lightboxIndex].size || '0 B'}</span>
                     </div>
                   </div>
 

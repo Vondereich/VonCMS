@@ -55,7 +55,7 @@ if (!$settings || !is_array($settings)) {
   ResponseHelper::sendError('Invalid settings data', 400);
 }
 
-function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings): void
+function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings): array
 {
   $restrictedTopLevelKeys = [
     'api',
@@ -72,19 +72,57 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'sidebarLayout',
     'media',
     'analytics',
-    'activePlugins',
-    'pluginConfig',
     'customPlugins',
   ];
 
+  $ignoredKeys = [];
   foreach ($restrictedTopLevelKeys as $key) {
+    if (array_key_exists($key, $settings)) {
+      $ignoredKeys[] = $key;
+    }
     unset($settings[$key]);
+  }
+
+  return $ignoredKeys;
+}
+
+/**
+ * Apply the public maintenance flag without allowing a silent filesystem failure.
+ */
+function voncms_apply_maintenance_flag(string $flagFile, bool $enabled): void
+{
+  $flagDirectory = dirname($flagFile);
+
+  if ($enabled) {
+    if (!is_dir($flagDirectory) && !@mkdir($flagDirectory, 0755, true) && !is_dir($flagDirectory)) {
+      throw new RuntimeException('Maintenance mode storage is unavailable.');
+    }
+
+    $written = @file_put_contents($flagFile, "MAINTENANCE_ON\n", LOCK_EX);
+    if ($written === false || !is_file($flagFile)) {
+      throw new RuntimeException('Maintenance mode could not be enabled.');
+    }
+    return;
+  }
+
+  if (is_file($flagFile) && !@unlink($flagFile) && is_file($flagFile)) {
+    throw new RuntimeException('Maintenance mode could not be disabled.');
   }
 }
 
+$ignoredSettingsKeys = [];
 if (!$isPrimaryAdmin) {
-  voncms_guard_restricted_settings_for_non_primary_admin($settings);
+  $ignoredSettingsKeys = voncms_guard_restricted_settings_for_non_primary_admin($settings);
+  if ($settings === [] && $ignoredSettingsKeys !== []) {
+    ResponseHelper::sendError('Primary Admin permission is required for these settings.', 403);
+  }
 }
+
+$maintenanceFlagFile = __DIR__ . '/../data/maintenance.flag';
+$maintenanceFlagPreviouslyEnabled = is_file($maintenanceFlagFile);
+$pendingMaintenanceMode = null;
+$maintenanceFlagTouched = false;
+$settingsCommitted = false;
 
 if (isset($settings['domainUrl'])) {
   $domainUrl = rtrim(trim((string) $settings['domainUrl']), '/');
@@ -678,20 +716,9 @@ try {
         }
       }
 
-      // MAINTENANCE MODE FLAG LOGIC (File-based fallback)
+      // Defer the filesystem flag until every database write has succeeded.
       if ($jsonKey === 'maintenanceMode') {
-        $flagFile = __DIR__ . '/../data/maintenance.flag';
-        // If setting is true, adjust flag file
-        if ($value === 'true' || $value === true || $value === '1') {
-          if (!file_exists(dirname($flagFile))) {
-            @mkdir(dirname($flagFile), 0755, true);
-          }
-          file_put_contents($flagFile, 'MAINTENANCE_ON');
-        } else {
-          if (file_exists($flagFile)) {
-            unlink($flagFile);
-          }
-        }
+        $pendingMaintenanceMode = $value === 'true';
       }
     }
   }
@@ -863,7 +890,15 @@ try {
   }
 
   $mirrorWarning = null;
+  if (
+    $pendingMaintenanceMode !== null &&
+    $pendingMaintenanceMode !== $maintenanceFlagPreviouslyEnabled
+  ) {
+    $maintenanceFlagTouched = true;
+    voncms_apply_maintenance_flag($maintenanceFlagFile, $pendingMaintenanceMode);
+  }
   $pdo->commit();
+  $settingsCommitted = true;
   voncms_public_cache_clear();
 
   // Legacy JSON mirror for compatibility-only fallback readers.
@@ -893,14 +928,25 @@ try {
 
   echo json_encode([
     'success' => true,
-    'message' => 'Settings saved successfully',
+    'message' =>
+      $ignoredSettingsKeys === []
+        ? 'Settings saved successfully'
+        : 'Permitted settings saved. Primary-admin-only fields were ignored.',
     'updated' => $updated,
+    'ignored' => $ignoredSettingsKeys,
     'source' => 'database',
     'warning' => $mirrorWarning,
   ]);
 } catch (Throwable $e) {
   if (isset($pdo) && $pdo->inTransaction()) {
     $pdo->rollBack();
+  }
+  if (!$settingsCommitted && $maintenanceFlagTouched) {
+    try {
+      voncms_apply_maintenance_flag($maintenanceFlagFile, $maintenanceFlagPreviouslyEnabled);
+    } catch (Throwable $restoreError) {
+      error_log('Maintenance flag rollback failed: ' . $restoreError->getMessage());
+    }
   }
   ResponseHelper::sendError($e);
 }

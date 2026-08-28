@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -615,6 +616,7 @@ try {
 
   if ($destructiveSummary['count'] > 0) {
     $safetyBackup = createPreImportSafetyBackup($pdo);
+    voncms_clear_publication_capability_marker();
   }
 
   // Transaction protects against partial imports for DML statements (INSERT, SET).

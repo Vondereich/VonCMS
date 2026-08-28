@@ -160,28 +160,12 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           setStats(data.stats);
         }
       } else {
-        // SECTION I: Auto-Create Table Logic
         if (
           data.message &&
           (data.message.includes('no such table') || data.message.includes("doesn't exist"))
         ) {
-          try {
-            const createRes = await vonFetch(API.createSecurityTable, {
-              method: 'POST',
-            });
-            const createData = await createRes.json();
-            if (createData.success) {
-              toast.success('Security database initialized! Refreshing...');
-              // Retry fetch with refresh mode (smoother UX)
-              setTimeout(() => fetchData(true, overrides), 1500);
-              return;
-            } else {
-              toast.error('Failed to initialize security database');
-            }
-          } catch (e) {
-            console.error('Failed to auto-create table', e);
-            toast.error('Failed to connect to security setup');
-          }
+          toast.error('Security storage requires Database Repair in Settings > Tools.');
+          return;
         }
         toast.error(data.message || 'Failed to load security logs');
       }

@@ -452,6 +452,16 @@ interface SanitizeHtmlOptions extends DOMPurifyConfig {
   styleAllowlist?: Set<string>;
 }
 
+const SAFE_IFRAME_ATTRS = [
+  'allow',
+  'allowfullscreen',
+  'frameborder',
+  'scrolling',
+  'loading',
+  'target',
+  'style',
+];
+
 export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): string => {
   if (!content) return '';
   const { styleAllowlist, ...purifyOptions } = options || {};
@@ -460,15 +470,7 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
     ? { ...purifyOptions }
     : {
         ADD_TAGS: ['iframe'],
-        ADD_ATTR: [
-          'allow',
-          'allowfullscreen',
-          'frameborder',
-          'scrolling',
-          'loading',
-          'target',
-          'style',
-        ],
+        ADD_ATTR: SAFE_IFRAME_ATTRS,
         ...purifyOptions,
       };
   const activeStyleAllowlist = styleAllowlist || ALLOWED_STYLE_PROPS;
@@ -489,6 +491,14 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
 
   // Hook: Auto-add rel="noopener noreferrer" to target="_blank" links
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (
+      node.tagName === 'IFRAME' &&
+      isAllowedIframeSrc(node.getAttribute('src') || '') &&
+      !node.hasAttribute('allowfullscreen')
+    ) {
+      node.setAttribute('allowfullscreen', '');
+    }
+
     if (node.tagName === 'A' && node.getAttribute('target') === '_blank') {
       const rel = node.getAttribute('rel');
       if (!rel || (!rel.includes('noopener') && !rel.includes('noreferrer'))) {
@@ -512,7 +522,7 @@ export const sanitizeEditorHtml = (content: string): string => {
   const normalized = normalizeEditorMarkup(content, 'save');
   return sanitizeHtml(normalized, {
     ADD_ATTR: [
-      'style',
+      ...SAFE_IFRAME_ATTRS,
       'data-id',
       'data-von-video-aspect',
       'data-von-image-size',

@@ -18,6 +18,7 @@ if ($requestMethod !== 'POST' && $requestMethod !== 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($requestMethod === 'OPTIONS') {
@@ -136,26 +137,6 @@ if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured. Please complete installation first.', 503);
 }
 
-// Auto-migration: Add email verification columns if not exist
-try {
-  $columns = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
-
-  if (!in_array('email_verified', $columns)) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 0');
-  }
-  if (!in_array('display_name', $columns)) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL');
-  }
-  if (!in_array('verification_token', $columns)) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN verification_token VARCHAR(64) DEFAULT NULL');
-  }
-  if (!in_array('verification_token_expires', $columns)) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN verification_token_expires DATETIME DEFAULT NULL');
-  }
-} catch (PDOException $e) {
-  error_log('Migration check: ' . $e->getMessage());
-}
-
 try {
   // Check if username already exists
   $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
@@ -226,6 +207,9 @@ try {
     'emailSent' => $emailResult['success'],
     'requiresVerification' => $requiresVerification,
   ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
+  if (voncms_schema_mutation_error_requires_repair($e)) {
+    ResponseHelper::sendError('Registration requires Database Repair by the primary admin.', 503);
+  }
   ResponseHelper::sendError($e);
 }

@@ -1503,16 +1503,19 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                     className="absolute right-0 mt-2 w-48 rounded-xl shadow-2xl border overflow-hidden z-50"
                     style={{ background: colors.surface, borderColor: colors.border }}
                   >
-                    <button
-                      onClick={() => {
-                        onViewProfile(user.username);
-                        setShowUserDropdown(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm font-medium hover:opacity-70"
+                    <a
+                      href={getPublicProfileHref(user.username)}
+                      onClick={(event) =>
+                        handleCrawlableLinkClick(event, () => {
+                          onViewProfile(user.username);
+                          setShowUserDropdown(false);
+                        })
+                      }
+                      className="block w-full px-4 py-3 text-left text-sm font-medium hover:opacity-70"
                       style={{ color: colors.text }}
                     >
                       View Profile
-                    </button>
+                    </a>
                     {['Admin', 'Moderator', 'Writer'].includes(user.role) && (
                       <button
                         onClick={() => {

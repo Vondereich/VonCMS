@@ -67,6 +67,8 @@ public/data/generated_media_variants.php
 public/data/generated_media_variants.lock
 public/data/generated_media_variants.php.tmp.*
 public/data/media_cleanup_previews/
+public/data/schema-capabilities.json
+public/data/schema-capabilities.json.*
 logs/
 
 # Internal Planning (Private)

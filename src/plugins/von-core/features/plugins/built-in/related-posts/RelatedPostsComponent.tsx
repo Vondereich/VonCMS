@@ -60,6 +60,7 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
         post.image,
         post.imageSrcSet,
         post.createdAt || post.created_at,
+        post.publishedAt || post.published_at,
         post.scheduledAt || post.scheduled_at,
         post.updatedAt || post.updated_at,
         postWithViews.views || 0,

@@ -114,7 +114,14 @@ const formatCompactDateTime = (value?: string) => {
 };
 
 const getPublishDateTime = (item: Post) =>
-  item.scheduledAt || item.scheduled_at || item.createdAt || item.created_at;
+  item.status === 'scheduled'
+    ? item.scheduledAt || item.scheduled_at || item.createdAt || item.created_at
+    : item.publishedAt ||
+      item.published_at ||
+      item.scheduledAt ||
+      item.scheduled_at ||
+      item.createdAt ||
+      item.created_at;
 
 const getAuthorName = (item: Post | Page) =>
   (item.author || item.author_data?.username || '').trim();

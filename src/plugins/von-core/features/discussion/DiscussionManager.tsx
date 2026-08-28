@@ -18,7 +18,10 @@ import AdminModal from '../../../../components/admin/AdminModal';
 interface DiscussionManagerProps {
   comments: Comment[];
   posts: Post[];
-  onUpdateCommentStatus: (commentId: string, status: 'approved' | 'pending' | 'spam') => void;
+  onUpdateCommentStatus: (
+    commentId: string,
+    status: 'approved' | 'pending' | 'spam'
+  ) => Promise<boolean> | boolean;
   onDeleteComment: (commentId: string) => void;
 }
 
@@ -42,6 +45,7 @@ interface DiscussionState {
   searchQuery: string;
   searchInput: string;
   isDeleting: string | null;
+  updatingStatusId: string | null;
   deleteConfirmComment: Comment | null;
 }
 
@@ -55,6 +59,7 @@ type DiscussionAction =
   | { type: 'setSearchQuery'; searchQuery: string }
   | { type: 'clearSearch' }
   | { type: 'setDeleting'; commentId: string | null }
+  | { type: 'setUpdatingStatus'; commentId: string | null }
   | { type: 'setDeleteConfirm'; comment: Comment | null };
 
 const itemsPerPage = 20;
@@ -83,6 +88,7 @@ const initialState: DiscussionState = {
   searchQuery: '',
   searchInput: '',
   isDeleting: null,
+  updatingStatusId: null,
   deleteConfirmComment: null,
 };
 
@@ -155,6 +161,8 @@ const discussionReducer = (state: DiscussionState, action: DiscussionAction): Di
       return { ...state, searchInput: '', searchQuery: '' };
     case 'setDeleting':
       return { ...state, isDeleting: action.commentId };
+    case 'setUpdatingStatus':
+      return { ...state, updatingStatusId: action.commentId };
     case 'setDeleteConfirm':
       return { ...state, deleteConfirmComment: action.comment };
     default:
@@ -285,6 +293,7 @@ const DiscussionTabs: React.FC<TabsProps> = ({ activeTab, counts, isSearchMode, 
 interface CommentRowProps {
   comment: Comment;
   isDeleting: string | null;
+  updatingStatusId: string | null;
   getPostTitle: (postId: string) => string;
   onStatusChange: (commentId: string, status: ModerationTab) => void;
   onDeleteClick: (comment: Comment) => void;
@@ -293,11 +302,13 @@ interface CommentRowProps {
 const CommentRow: React.FC<CommentRowProps> = ({
   comment,
   isDeleting,
+  updatingStatusId,
   getPostTitle,
   onStatusChange,
   onDeleteClick,
 }) => {
   const commentStatus = getCommentStatus(comment);
+  const isUpdatingStatus = updatingStatusId === comment.id;
 
   return (
     <div className="flex gap-3 p-4 sm:gap-4 sm:p-6">
@@ -334,7 +345,15 @@ const CommentRow: React.FC<CommentRowProps> = ({
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {commentStatus === 'pending' && (
+            {isUpdatingStatus ? (
+              <span
+                className="flex h-9 w-9 items-center justify-center text-primary-600"
+                aria-label="Updating comment status"
+                title="Updating status"
+              >
+                <Loader2 size={18} className="animate-spin" />
+              </span>
+            ) : commentStatus === 'pending' ? (
               <>
                 <button
                   onClick={() => onStatusChange(comment.id, 'approved')}
@@ -351,8 +370,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
                   <AlertTriangle size={18} />
                 </button>
               </>
-            )}
-            {commentStatus === 'approved' && (
+            ) : commentStatus === 'approved' ? (
               <button
                 onClick={() => onStatusChange(comment.id, 'spam')}
                 className="rounded-lg p-2 text-orange-500 transition-colors hover:bg-orange-50"
@@ -360,8 +378,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
               >
                 <AlertTriangle size={18} />
               </button>
-            )}
-            {commentStatus === 'spam' && (
+            ) : (
               <button
                 onClick={() => onStatusChange(comment.id, 'approved')}
                 className="rounded-lg p-2 text-green-600 transition-colors hover:bg-green-50"
@@ -403,6 +420,7 @@ interface CommentsPanelProps {
   currentPage: number;
   meta: FetchMeta;
   isDeleting: string | null;
+  updatingStatusId: string | null;
   searchQuery: string;
   activeTabLabel: string;
   getPostTitle: (postId: string) => string;
@@ -417,6 +435,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   currentPage,
   meta,
   isDeleting,
+  updatingStatusId,
   searchQuery,
   activeTabLabel,
   getPostTitle,
@@ -443,6 +462,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                 key={comment.id}
                 comment={comment}
                 isDeleting={isDeleting}
+                updatingStatusId={updatingStatusId}
                 getPostTitle={getPostTitle}
                 onStatusChange={onStatusChange}
                 onDeleteClick={onDeleteClick}
@@ -544,6 +564,8 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
 }) => {
   const [state, dispatch] = useReducer(discussionReducer, initialState);
   const commentsRequestId = useRef(0);
+  const countsRequestId = useRef(0);
+  const statusUpdateInFlight = useRef(false);
   const {
     activeTab,
     pageItems,
@@ -554,11 +576,13 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
     searchQuery,
     searchInput,
     isDeleting,
+    updatingStatusId,
     deleteConfirmComment,
   } = state;
   const isSearchMode = searchQuery !== '';
 
   const fetchCounts = useCallback(async (search?: string) => {
+    const requestId = ++countsRequestId.current;
     try {
       const tabs: ModerationTab[] = ['pending', 'approved', 'spam'];
       const entries = await Promise.all(
@@ -581,16 +605,18 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
         })
       );
 
-      dispatch({
-        type: 'setCounts',
-        counts: entries.reduce(
-          (acc, [status, total]) => {
-            acc[status] = total;
-            return acc;
-          },
-          { ...emptyCounts }
-        ),
-      });
+      if (requestId === countsRequestId.current) {
+        dispatch({
+          type: 'setCounts',
+          counts: entries.reduce(
+            (acc, [status, total]) => {
+              acc[status] = total;
+              return acc;
+            },
+            { ...emptyCounts }
+          ),
+        });
+      }
     } catch (error) {
       console.warn('Failed to fetch comment counts:', error);
     }
@@ -672,6 +698,7 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
   useEffect(
     () => () => {
       commentsRequestId.current += 1;
+      countsRequestId.current += 1;
     },
     []
   );
@@ -709,8 +736,21 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
   };
 
   const handleStatusChange = async (commentId: string, status: ModerationTab) => {
-    await Promise.resolve(onUpdateCommentStatus(commentId, status));
-    await refreshComments();
+    if (statusUpdateInFlight.current) {
+      return;
+    }
+
+    statusUpdateInFlight.current = true;
+    dispatch({ type: 'setUpdatingStatus', commentId });
+    try {
+      const success = await Promise.resolve(onUpdateCommentStatus(commentId, status));
+      if (success) {
+        await refreshComments();
+      }
+    } finally {
+      statusUpdateInFlight.current = false;
+      dispatch({ type: 'setUpdatingStatus', commentId: null });
+    }
   };
 
   const getPostTitle = (postId: string): string => {
@@ -766,6 +806,7 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
         currentPage={currentPage}
         meta={meta}
         isDeleting={isDeleting}
+        updatingStatusId={updatingStatusId}
         searchQuery={searchQuery}
         activeTabLabel={activeTabLabel}
         getPostTitle={getPostTitle}

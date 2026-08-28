@@ -117,6 +117,8 @@ export const normalizeSiteUrl = (url?: string): string => {
   const trimmed = url.trim();
   if (!trimmed) return '#';
 
+  if (trimmed.includes('\\')) return '#';
+
   if (trimmed.startsWith('//')) return '#';
 
   if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {

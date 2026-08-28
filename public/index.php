@@ -107,8 +107,7 @@ if (file_exists($maintenanceFlag)) {
   // 2. Allow logged-in ADMINS (so you can see the whole house)
 
   $isLoginOrAdminPath = preg_match('/^(login|admin)(\/|$)/i', $currentPath);
-  $isAdminUser =
-    SessionManager::isValid() && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin';
+  $isAdminUser = SessionManager::isAdmin();
 
   $bypass = $isLoginOrAdminPath || $isAdminUser;
 
@@ -116,6 +115,8 @@ if (file_exists($maintenanceFlag)) {
 
     http_response_code(503);
     header('Retry-After: 3600');
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
     // Simple standalone HTML
 ?>
@@ -762,8 +763,9 @@ try {
 
         if (!$post) {
           // Try pages
+          $pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');
           $stmt = $pdo->prepare(
-            "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p LEFT JOIN users u ON p.author_id = u.id WHERE p.slug = ? AND p.status = 'published' LIMIT 1"
+            "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, {$pagePublishedAtSql}, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p LEFT JOIN users u ON p.author_id = u.id WHERE p.slug = ? AND p.status = 'published' LIMIT 1"
           );
           $stmt->execute([$path]);
           $post = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -842,7 +844,9 @@ try {
       // ============================================
       if (empty($path)) {
         try {
-          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 10");
+          $homepagePublishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
+          $homepagePublicationExpression = voncms_publication_expression_sql($pdo, 'posts', 'p');
+          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, {$homepagePublishedAtSql}, {$homepagePublicationExpression} AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 10");
           $hpStmt->execute([$publicContentCurrentTime]);
           $homepagePosts = $hpStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1348,6 +1352,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         'author_id'        => isset($post['author_id']) ? (string) $post['author_id'] : null,
         'created_at'       => $post['created_at'] ?? '',
         'updated_at'       => $post['updated_at'] ?? '',
+        'published_at'     => $post['published_at'] ?? null,
         'status'           => $post['status'] ?? 'published',
       ];
       $initialState = [
@@ -1381,6 +1386,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         'created_at'       => $post['created_at']       ?? '',
         'updated_at'       => $post['updated_at']       ?? '',
         'scheduled_at'     => $post['scheduled_at']     ?? null,
+        'published_at'     => $post['published_at']     ?? null,
         'keywords'         => $post['keywords']         ?? '',
       ];
       $initialState = [

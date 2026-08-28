@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, DELETE, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -58,39 +59,31 @@ try {
     ResponseHelper::sendError('Only admin 1 can delete this account', 403);
   }
 
-  $pdo->exec(
-    'CREATE TABLE IF NOT EXISTS comment_likes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        comment_id INT NOT NULL,
-        user_id INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_comment_like (comment_id, user_id),
-        INDEX idx_comment_likes_comment (comment_id),
-        INDEX idx_comment_likes_user (user_id),
-        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-  );
-
   // Start Transaction (Critical for Multi-Table Cleanup)
   $pdo->beginTransaction();
 
-  $likedCommentStmt = $pdo->prepare(
-    'SELECT DISTINCT comment_id FROM comment_likes WHERE user_id = :id',
-  );
-  $likedCommentStmt->execute(['id' => $id]);
-  $likedCommentIds = array_map('intval', $likedCommentStmt->fetchAll(PDO::FETCH_COLUMN));
-
-  $pdo->prepare('DELETE FROM comment_likes WHERE user_id = :id')->execute(['id' => $id]);
-
-  if (!empty($likedCommentIds)) {
-    $placeholders = implode(',', array_fill(0, count($likedCommentIds), '?'));
-    $recountStmt = $pdo->prepare(
-      "UPDATE comments c
-       SET likes = (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id)
-       WHERE c.id IN ($placeholders)",
+  try {
+    $likedCommentStmt = $pdo->prepare(
+      'SELECT DISTINCT comment_id FROM comment_likes WHERE user_id = :id',
     );
-    $recountStmt->execute($likedCommentIds);
+    $likedCommentStmt->execute(['id' => $id]);
+    $likedCommentIds = array_map('intval', $likedCommentStmt->fetchAll(PDO::FETCH_COLUMN));
+
+    $pdo->prepare('DELETE FROM comment_likes WHERE user_id = :id')->execute(['id' => $id]);
+
+    if (!empty($likedCommentIds)) {
+      $placeholders = implode(',', array_fill(0, count($likedCommentIds), '?'));
+      $recountStmt = $pdo->prepare(
+        "UPDATE comments c
+         SET likes = (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id)
+         WHERE c.id IN ($placeholders)",
+      );
+      $recountStmt->execute($likedCommentIds);
+    }
+  } catch (Throwable $likeStorageError) {
+    if (!voncms_schema_error_requires_repair($likeStorageError)) {
+      throw $likeStorageError;
+    }
   }
 
   // Cascade: Update posts and comments to NULL author (don't delete content)

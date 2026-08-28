@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -54,19 +55,6 @@ if (!empty($honeypot)) {
 // Check if database connection exists
 if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured', 503);
-}
-
-// Auto-migration: Add reset token columns if not exist
-try {
-  $columns = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
-  if (!in_array('reset_token', $columns)) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN reset_token VARCHAR(64) DEFAULT NULL');
-  }
-  if (!in_array('reset_token_expires', $columns)) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN reset_token_expires DATETIME DEFAULT NULL');
-  }
-} catch (PDOException $e) {
-  error_log('Migration check: ' . $e->getMessage());
 }
 
 if ($action === 'request') {
@@ -192,7 +180,13 @@ if ($action === 'request') {
       'success' => true,
       'message' => 'If this email exists, a reset link has been sent.',
     ]);
-  } catch (Exception $e) {
+  } catch (Throwable $e) {
+    if (voncms_schema_mutation_error_requires_repair($e)) {
+      ResponseHelper::sendError(
+        'Password recovery requires Database Repair by the primary admin.',
+        503,
+      );
+    }
     ResponseHelper::sendError($e);
   }
 } elseif ($action === 'reset') {
@@ -240,14 +234,8 @@ if ($action === 'request') {
       );
       $stmt->execute([$hashedPassword, $user['id']]);
 
-      try {
-        $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
-        $revokeRememberStmt->execute([$user['id']]);
-      } catch (PDOException $e) {
-        if ($e->getCode() !== '42S02') {
-          throw $e;
-        }
-      }
+      $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+      $revokeRememberStmt->execute([$user['id']]);
 
       $pdo->commit();
     } catch (Throwable $e) {
@@ -261,7 +249,13 @@ if ($action === 'request') {
       'success' => true,
       'message' => 'Password updated successfully. You can now log in.',
     ]);
-  } catch (Exception $e) {
+  } catch (Throwable $e) {
+    if (voncms_schema_mutation_error_requires_repair($e)) {
+      ResponseHelper::sendError(
+        'Password reset requires Database Repair by the primary admin.',
+        503,
+      );
+    }
     ResponseHelper::sendError($e);
   }
 } else {

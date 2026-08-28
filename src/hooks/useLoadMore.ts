@@ -84,6 +84,8 @@ export function useLoadMore(options: UseLoadMoreOptions = {}): UseLoadMoreReturn
           imageSrcSet: p.imageSrcSet || p.image_srcset || '',
           createdAt: p.created_at || p.createdAt || '',
           updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
+          publishedAt: p.published_at || p.publishedAt || '',
+          published_at: p.published_at || p.publishedAt || '',
           author_data: p.author_data || { username: p.author || '', avatar: '' },
         }));
         const fetchedMeta: PaginationMeta | null = data.meta || null;

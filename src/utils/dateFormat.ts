@@ -21,6 +21,8 @@ export const normalizeSiteDateFormat = (value?: string | null): SiteDateFormat =
     : DEFAULT_SITE_DATE_FORMAT;
 
 type PostPublishTimestampSource = {
+  publishedAt?: string;
+  published_at?: string;
   scheduledAt?: string;
   scheduled_at?: string;
   createdAt?: string;
@@ -28,7 +30,13 @@ type PostPublishTimestampSource = {
 };
 
 export const getPostPublishTimestamp = (post: PostPublishTimestampSource): string =>
-  post.scheduledAt || post.scheduled_at || post.createdAt || post.created_at || '';
+  post.publishedAt ||
+  post.published_at ||
+  post.scheduledAt ||
+  post.scheduled_at ||
+  post.createdAt ||
+  post.created_at ||
+  '';
 
 const SQL_DATETIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 

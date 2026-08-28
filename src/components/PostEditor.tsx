@@ -177,6 +177,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
               status: data.post.status || prev.status,
               scheduledAt:
                 data.post.scheduled_at || ('scheduledAt' in prev ? prev.scheduledAt || '' : ''),
+              publishedAt:
+                data.post.published_at || data.post.publishedAt || prev.publishedAt || '',
+              published_at:
+                data.post.published_at || data.post.publishedAt || prev.published_at || '',
               updatedAt: data.post.updated_at || data.post.updatedAt || prev.updatedAt || '',
               updated_at: data.post.updated_at || data.post.updatedAt || prev.updated_at || '',
             };

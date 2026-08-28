@@ -275,21 +275,7 @@ export function useComments(initialComments: Comment[] = []) {
 
   // Update comment status
   const handleUpdateCommentStatus = useCallback(
-    async (commentId: string, status: 'approved' | 'pending' | 'spam') => {
-      const updateRecursive = (items: Comment[]): Comment[] => {
-        return items.map((c) => {
-          if (c.id === commentId) {
-            return { ...c, status };
-          }
-          if (c.replies && c.replies.length > 0) {
-            return { ...c, replies: updateRecursive(c.replies) };
-          }
-          return c;
-        });
-      };
-
-      setComments((prev) => updateRecursive(prev));
-
+    async (commentId: string, status: 'approved' | 'pending' | 'spam'): Promise<boolean> => {
       const commentIdNum = commentId.replace(/[^0-9]/g, '');
       const loadingToast = toast.loading('Updating status...');
 
@@ -297,11 +283,16 @@ export function useComments(initialComments: Comment[] = []) {
         const result = await saveCommentToDb('updateStatus', { commentId: commentIdNum, status });
         if (result.success) {
           toast.success(`Comment marked as ${status}`, { id: loadingToast });
+          return true;
         } else {
-          toast.error('Failed to update status on server', { id: loadingToast });
+          toast.error(result.error || result.message || 'Failed to update status on server', {
+            id: loadingToast,
+          });
+          return false;
         }
       } catch (e) {
         toast.error('Server error occurred', { id: loadingToast });
+        return false;
       }
     },
     []

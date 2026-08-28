@@ -4,6 +4,7 @@
  * Saves comments to database
  */
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -379,7 +380,6 @@ try {
     if ($currentUserId <= 0) {
       ResponseHelper::sendError('Authentication required to like comments', 401);
     }
-
     $commentId = isset($input['commentId'])
       ? intval(preg_replace('/[^0-9]/', '', (string) $input['commentId']))
       : 0;
@@ -393,20 +393,6 @@ try {
     if (!$commentExists->fetch(PDO::FETCH_ASSOC)) {
       ResponseHelper::sendError('Comment not found', 404);
     }
-
-    $pdo->exec(
-      'CREATE TABLE IF NOT EXISTS comment_likes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        comment_id INT NOT NULL,
-        user_id INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_comment_like (comment_id, user_id),
-        INDEX idx_comment_likes_comment (comment_id),
-        INDEX idx_comment_likes_user (user_id),
-        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-    );
 
     $pdo->beginTransaction();
 
@@ -471,20 +457,53 @@ try {
     // Only staff can moderate comments
     SessionManager::requireStaff();
 
-    $commentId = isset($input['commentId'])
-      ? intval(preg_replace('/[^0-9]/', '', (string) $input['commentId']))
-      : 0;
-    $status = isset($input['status']) ? $input['status'] : 'approved';
+    $commentIdValue = $input['commentId'] ?? null;
+    if (!is_string($commentIdValue) && !is_int($commentIdValue)) {
+      ResponseHelper::sendError('Invalid comment ID', 400);
+    }
+    $commentIdRaw = trim((string) $commentIdValue);
+    if ($commentIdRaw === '' || !ctype_digit($commentIdRaw) || (int) $commentIdRaw <= 0) {
+      ResponseHelper::sendError('Invalid comment ID', 400);
+    }
+    $commentId = (int) $commentIdRaw;
 
-    if (!in_array($status, ['approved', 'pending', 'spam'])) {
+    $status = $input['status'] ?? null;
+    if (!is_string($status) || !in_array($status, ['approved', 'pending', 'spam'], true)) {
       ResponseHelper::sendError('Invalid status', 400);
+    }
+
+    $pdo->beginTransaction();
+    $checkComment = $pdo->prepare('SELECT status FROM comments WHERE id = ? FOR UPDATE');
+    $checkComment->execute([$commentId]);
+    $existingStatus = $checkComment->fetchColumn();
+    if ($existingStatus === false) {
+      $pdo->rollBack();
+      ResponseHelper::sendError('Comment not found', 404);
+    }
+
+    if ((string) $existingStatus === $status) {
+      $pdo->commit();
+      echo json_encode([
+        'success' => true,
+        'unchanged' => true,
+        'status' => $status,
+        'message' => "Comment is already marked as $status",
+        'source' => 'database',
+      ]);
+      exit();
     }
 
     $stmt = $pdo->prepare('UPDATE comments SET status = ? WHERE id = ?');
     $stmt->execute([$status, $commentId]);
+    if ($stmt->rowCount() !== 1) {
+      throw new RuntimeException('Comment status update did not affect the expected row.');
+    }
+    $pdo->commit();
 
     echo json_encode([
       'success' => true,
+      'unchanged' => false,
+      'status' => $status,
       'message' => "Comment status set to $status",
       'source' => 'database',
     ]);
@@ -566,6 +585,9 @@ try {
 } catch (Throwable $e) {
   if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
     $pdo->rollBack();
+  }
+  if (($action ?? '') === 'like' && voncms_schema_error_requires_repair($e)) {
+    ResponseHelper::sendError('Comment likes require Database Repair by the primary admin.', 503);
   }
   ResponseHelper::sendError($e);
 }

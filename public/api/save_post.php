@@ -7,6 +7,7 @@ require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -33,14 +34,6 @@ $canManagePosts = in_array($currentRole, ['admin', 'root', 'moderator', 'writer'
 
 if (!$canManagePosts) {
   ResponseHelper::sendError('Not authorized to manage posts', 403);
-}
-
-try {
-  if (isset($pdo) && $pdo instanceof PDO) {
-    voncms_ensure_content_audit_logs_table($pdo);
-  }
-} catch (Throwable $auditBootstrapError) {
-  error_log('VonCMS Audit Bootstrap: ' . $auditBootstrapError->getMessage());
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
@@ -165,6 +158,8 @@ try {
   }
   /** @var PDO $db */
   $db = $pdo;
+  $hasPublishedAtColumn = voncms_has_publication_column($db, 'posts');
+  $publishedAtSelect = voncms_publication_column_sql($db, 'posts');
 
   // Start Transaction (Critical for Concurrency)
   $db->beginTransaction();
@@ -258,7 +253,7 @@ try {
   // We check for collision right before write to minimize race condition window
   // Also fetch current status for SEO Safety check
   $checkExisting = $db->prepare(
-    'SELECT status, slug, category, scheduled_at, updated_at, image_url FROM posts WHERE id = ? FOR UPDATE',
+    "SELECT status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
   );
   $checkExisting->execute([$postId ?? 0]);
   $dbPost = $checkExisting->fetch();
@@ -341,6 +336,9 @@ try {
     }
 
     // Update existing post
+    $publishedAtAssignment = $hasPublishedAtColumn
+      ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END,\n            "
+      : '';
     $stmt = $db->prepare("UPDATE posts SET 
             title = :title, 
             slug = :slug, 
@@ -352,10 +350,11 @@ try {
             category = :category,
             meta_description = :meta_description,
             scheduled_at = :scheduled_at,
+            {$publishedAtAssignment}
             updated_at = NOW()
         WHERE id = :id");
 
-    $stmt->execute([
+    $updateParams = [
       'title' => $input['title'],
       'slug' => $input['slug'],
       'content' => $input['content'] ?? '',
@@ -367,7 +366,11 @@ try {
       'meta_description' => $metaDescription,
       'scheduled_at' => $scheduledAt,
       'id' => $postId,
-    ]);
+    ];
+    if ($hasPublishedAtColumn) {
+      $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
+    }
+    $stmt->execute($updateParams);
 
     try {
       $oldStatus = strtolower((string) ($existingPost['status'] ?? ''));
@@ -404,12 +407,16 @@ try {
     $message = 'Post updated';
   } else {
     // Insert new post
+    $publishedAtColumn = $hasPublishedAtColumn ? ', published_at' : '';
+    $publishedAtValue = $hasPublishedAtColumn
+      ? ', CASE WHEN :publish_now = 1 THEN NOW() ELSE NULL END'
+      : '';
     $stmt = $db->prepare("INSERT INTO posts 
-            (title, slug, content, excerpt, status, image_url, keywords, category, meta_description, author_id, scheduled_at, created_at, updated_at) 
+            (title, slug, content, excerpt, status, image_url, keywords, category, meta_description, author_id, scheduled_at{$publishedAtColumn}, created_at, updated_at)
             VALUES 
-            (:title, :slug, :content, :excerpt, :status, :image_url, :keywords, :category, :meta_description, :author_id, :scheduled_at, NOW(), NOW())");
+            (:title, :slug, :content, :excerpt, :status, :image_url, :keywords, :category, :meta_description, :author_id, :scheduled_at{$publishedAtValue}, NOW(), NOW())");
 
-    $stmt->execute([
+    $insertParams = [
       'title' => $input['title'],
       'slug' => $input['slug'],
       'content' => $input['content'] ?? '',
@@ -421,7 +428,11 @@ try {
       'meta_description' => $metaDescription,
       'author_id' => $_SESSION['user']['id'],
       'scheduled_at' => $scheduledAt,
-    ]);
+    ];
+    if ($hasPublishedAtColumn) {
+      $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
+    }
+    $stmt->execute($insertParams);
 
     $finalId = (string) $db->lastInsertId();
 
@@ -447,9 +458,14 @@ try {
   }
 
   $savedUpdatedAt = date('Y-m-d H:i:s');
-  $savedUpdatedAtStmt = $db->prepare('SELECT updated_at FROM posts WHERE id = ?');
+  $savedUpdatedAtStmt = $db->prepare(
+    "SELECT updated_at, {$publishedAtSelect} FROM posts WHERE id = ?",
+  );
   $savedUpdatedAtStmt->execute([$finalId]);
-  $savedUpdatedAt = (string) ($savedUpdatedAtStmt->fetchColumn() ?: $savedUpdatedAt);
+  $savedTimestamps = $savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC);
+  $savedTimestamps = is_array($savedTimestamps) ? $savedTimestamps : [];
+  $savedUpdatedAt = (string) ($savedTimestamps['updated_at'] ?? null ?: $savedUpdatedAt);
+  $savedPublishedAt = $savedTimestamps['published_at'] ?? null;
 
   // Commit Transaction
   $db->commit();
@@ -490,6 +506,8 @@ try {
     'status' => $status,
     'scheduled_at' => $scheduledAt,
     'scheduledAt' => $scheduledAt,
+    'published_at' => $savedPublishedAt,
+    'publishedAt' => $savedPublishedAt,
     'public_categories_changed' => $publicCategoriesChanged,
     'updated_at' => $savedUpdatedAt,
     'updatedAt' => $savedUpdatedAt,

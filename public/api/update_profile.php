@@ -12,6 +12,7 @@ $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -48,15 +49,6 @@ if (!$isOwnProfile && !SessionManager::isAdmin()) {
 // Check database connection
 if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured', 503);
-}
-
-try {
-  $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-  if (!$columnStmt || $columnStmt->rowCount() === 0) {
-    $pdo->exec('ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL');
-  }
-} catch (Throwable $e) {
-  ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);
 }
 
 try {
@@ -148,14 +140,8 @@ try {
         throw new Exception('Failed to update password');
       }
 
-      try {
-        $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
-        $revokeRememberStmt->execute([$userId]);
-      } catch (PDOException $e) {
-        if ($e->getCode() !== '42S02') {
-          throw $e;
-        }
-      }
+      $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
+      $revokeRememberStmt->execute([$userId]);
     }
 
     // Keep profile fields and a requested password change in one transaction.
@@ -173,6 +159,10 @@ try {
   } catch (Throwable $e) {
     if ($transactionStarted && $pdo->inTransaction()) {
       $pdo->rollBack();
+    }
+
+    if (voncms_schema_mutation_error_requires_repair($e)) {
+      ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);
     }
 
     if ($e instanceof Exception) {
@@ -204,6 +194,10 @@ try {
     ]);
   }
 } catch (Throwable $e) {
+  if (voncms_schema_mutation_error_requires_repair($e)) {
+    ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);
+  }
+
   if ($e instanceof Exception) {
     ResponseHelper::sendError($e);
   }

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     reset_token VARCHAR(64) DEFAULT NULL,
     reset_token_expires DATETIME DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS remember_tokens (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS settings (
     is_sensitive BOOLEAN DEFAULT FALSE COMMENT 'Flag for sensitive data (API keys, passwords)',
     is_public BOOLEAN DEFAULT TRUE COMMENT 'Can be exposed to frontend (false = admin-only)',
     description VARCHAR(255) DEFAULT NULL COMMENT 'Human-readable description',
-    default_value LONGTEXT DEFAULT NULL COMMENT 'Default value for reset',
+    default_value LONGTEXT NULL COMMENT 'Default value for reset',
     version INT DEFAULT 1 COMMENT 'Version number for this setting',
     created_by INT DEFAULT NULL COMMENT 'User who created this setting',
     updated_by INT DEFAULT NULL COMMENT 'User who last updated',
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS settings_audit_log (
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'When change occurred',
     change_type ENUM('INSERT', 'UPDATE', 'DELETE') DEFAULT 'UPDATE' COMMENT 'Type of change',
     ip_address VARCHAR(45) DEFAULT NULL COMMENT 'IP address of user',
-    user_agent TEXT DEFAULT NULL COMMENT 'Browser/client info',
+    user_agent TEXT NULL COMMENT 'Browser/client info',
     INDEX idx_setting_id (setting_id),
     INDEX idx_changed_at (changed_at),
     INDEX idx_changed_by (changed_by),
@@ -142,15 +142,15 @@ CREATE TABLE IF NOT EXISTS media (
     filetype VARCHAR(100) DEFAULT NULL,
     filesize BIGINT DEFAULT 0,
     alt_text VARCHAR(255) DEFAULT NULL,
-    caption TEXT DEFAULT NULL,
-    description TEXT DEFAULT NULL,
+    caption TEXT NULL,
+    description TEXT NULL,
     uploaded_by INT,
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_filename (filename),
     INDEX idx_uploaded_at (uploaded_at)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Posts Table
 CREATE TABLE IF NOT EXISTS posts (
@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS posts (
     author_id INT,
     status VARCHAR(20) DEFAULT 'draft',
     scheduled_at DATETIME DEFAULT NULL,
+    published_at DATETIME DEFAULT NULL,
     category VARCHAR(100) DEFAULT 'Uncategorized',
     keywords VARCHAR(255),
     meta_description TEXT,
@@ -189,6 +190,7 @@ CREATE TABLE IF NOT EXISTS pages (
     author VARCHAR(100),
     author_id INT,
     status VARCHAR(20) DEFAULT 'draft',
+    published_at DATETIME DEFAULT NULL,
     featured_image VARCHAR(255) DEFAULT NULL,
     keywords VARCHAR(255),
     meta_description TEXT,
@@ -198,7 +200,7 @@ CREATE TABLE IF NOT EXISTS pages (
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_status (status),
     FULLTEXT INDEX ft_title_content (title, content)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Comments Table (renamed from discussions)
 CREATE TABLE IF NOT EXISTS comments (
@@ -218,7 +220,7 @@ CREATE TABLE IF NOT EXISTS comments (
     INDEX idx_post_id (post_id),
     INDEX idx_status (status),
     INDEX idx_created_at (created_at)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS comment_likes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -230,7 +232,7 @@ CREATE TABLE IF NOT EXISTS comment_likes (
     INDEX idx_comment_likes_user (user_id),
     FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Newsletter Subscribers Table
 CREATE TABLE IF NOT EXISTS newsletter_subscribers (

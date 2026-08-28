@@ -19,6 +19,7 @@ ob_start(); // Buffer output to prevent warnings from corrupting JSON
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
+require_once __DIR__ . '/publication_time_helper.php';
 
 if (!function_exists('voncms_normalize_fulltext_search')) {
   function voncms_normalize_fulltext_search(string $value): string
@@ -130,8 +131,9 @@ try {
   $totalStmt->execute();
   $total = (int) $totalStmt->fetchColumn();
 
+  $publishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');
   $stmt = $pdo->prepare(
-    "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.status, p.keywords, p.meta_description, p.author_id, p.created_at, p.updated_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name
+    "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.status, p.keywords, p.meta_description, p.author_id, p.created_at, p.updated_at, {$publishedAtSql}, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name
      FROM pages p
      LEFT JOIN users u ON p.author_id = u.id
      $statusClause
@@ -163,6 +165,7 @@ try {
       'meta_description' => $page['meta_description'] ?? '',
       'created_at' => $page['created_at'] ?? date('Y-m-d H:i:s'),
       'updated_at' => $page['updated_at'] ?? ($page['created_at'] ?? date('Y-m-d H:i:s')),
+      'published_at' => $page['published_at'] ?? null,
       'author' => $page['author_name'] ?? '',
       'author_data' => [
         'username' => $page['author_username'] ?? ($page['author_name'] ?? ''),

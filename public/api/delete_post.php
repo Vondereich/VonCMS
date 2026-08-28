@@ -33,13 +33,6 @@ if (!$canManagePosts) {
   ResponseHelper::sendError('Not authorized to manage posts', 403);
 }
 
-try {
-  if (isset($pdo)) {
-    voncms_ensure_content_audit_logs_table($pdo);
-  }
-} catch (Throwable $auditBootstrapError) {
-}
-
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 
 $postId = $input['id'] ?? null;

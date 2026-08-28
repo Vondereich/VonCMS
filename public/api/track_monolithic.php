@@ -49,18 +49,19 @@ $userAgent = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 1000);
 $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));
 $throttleMinutes = 30;
 
+// Analytics is optional. Missing storage must not block content delivery or view counters.
+$recentLogs = 0;
+$visitRecorded = false;
 try {
-  // Check if IP already logged recently (Throttling)
   $stmt = $pdo->prepare("
-        SELECT COUNT(*) FROM analytics 
-        WHERE ip_hash = ? 
-        AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)
-    ");
+      SELECT COUNT(*) FROM analytics
+      WHERE ip_hash = ?
+      AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)
+  ");
   $stmt->execute([$ipHash, $throttleMinutes]);
-  $recentLogs = $stmt->fetchColumn();
+  $recentLogs = (int) $stmt->fetchColumn();
 
-  $visitRecorded = false;
-  if ($recentLogs == 0) {
+  if ($recentLogs === 0) {
     $stmt = $pdo->prepare(
       'INSERT INTO analytics (page_url, referrer, user_agent, ip_hash, visit_date, visit_time) VALUES (?, ?, ?, ?, CURDATE(), CURTIME())',
     );
@@ -68,8 +69,16 @@ try {
     $visitRecorded = true;
   }
 
-  // 3. View Tracking (Posts/Pages Counter)
-  $viewRecorded = false;
+  if (rand(1, 100) === 1) {
+    $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
+  }
+} catch (Throwable $analyticsError) {
+  $recentLogs = 0;
+  $visitRecorded = false;
+}
+
+$viewRecorded = false;
+try {
   if ($postId) {
     $stmt = $pdo->prepare(
       'UPDATE posts SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ?',
@@ -83,18 +92,13 @@ try {
     $stmt->execute([$pageId]);
     $viewRecorded = true;
   }
-
-  // 4. Auto-Purge (1 in 100 requests)
-  if (rand(1, 100) === 1) {
-    $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
-  }
-
-  echo json_encode([
-    'success' => true,
-    'visit' => $visitRecorded,
-    'view' => $viewRecorded,
-    'throttled' => $recentLogs > 0,
-  ]);
-} catch (Exception $e) {
-  ResponseHelper::sendError($e);
+} catch (Throwable $viewError) {
+  $viewRecorded = false;
 }
+
+echo json_encode([
+  'success' => true,
+  'visit' => $visitRecorded,
+  'view' => $viewRecorded,
+  'throttled' => $recentLogs > 0,
+]);

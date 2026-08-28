@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { Shield, Hammer, CheckCircle, AlertCircle, Loader2, Activity, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { API } from '../../../../config/site.config';
+import { API, DATABASE_STATUS_INVALIDATED_EVENT } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 
 export const SystemTools: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
+  const hasResultWarnings =
+    Array.isArray(results?.warnings) &&
+    results.warnings.some(
+      (warning: unknown) => typeof warning === 'string' && warning.trim() !== ''
+    );
 
   const runTool = async (apiPath: string, label: string) => {
     if (loading) return;
@@ -18,14 +23,27 @@ export const SystemTools: React.FC = () => {
       });
       const data = await res.json();
       setResults(data);
-      if (data.success || !data.error) {
-        toast.success(`${label} completed successfully!`);
+      const warnings = Array.isArray(data.warnings)
+        ? data.warnings.filter((warning: unknown): warning is string => typeof warning === 'string')
+        : [];
+      if (data.success === true) {
+        if (warnings.length > 0) {
+          toast(`${data.message || `${label} completed with warnings.`} ${warnings.join(' ')}`, {
+            icon: '⚠️',
+            duration: 10000,
+          });
+        } else {
+          toast.success(data.message || `${label} completed successfully!`);
+        }
       } else {
-        toast.error(data.error || `${label} failed.`);
+        toast.error(data.error || data.message || `${label} failed.`);
       }
     } catch (err) {
       toast.error(`System error while running ${label}`);
     } finally {
+      if (apiPath === API.repairDb) {
+        window.dispatchEvent(new Event(DATABASE_STATUS_INVALIDATED_EVENT));
+      }
       setLoading(null);
     }
   };
@@ -141,9 +159,13 @@ export const SystemTools: React.FC = () => {
             <h4 className="text-slate-400 font-bold text-sm uppercase tracking-widest flex items-center gap-2">
               <Activity size={16} /> Tool Execution Logs
             </h4>
-            {results.error ? (
+            {results.success !== true ? (
               <span className="text-red-400 text-xs flex items-center gap-1">
                 <AlertCircle size={14} /> Failed
+              </span>
+            ) : hasResultWarnings ? (
+              <span className="text-amber-400 text-xs flex items-center gap-1">
+                <AlertCircle size={14} /> Warning
               </span>
             ) : (
               <span className="text-green-400 text-xs flex items-center gap-1">

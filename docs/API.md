@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.26.9`
+Version: `1.26.11`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -97,11 +97,15 @@ When remember-me is enabled, `login.php` issues a dedicated selector/validator c
 - `get_settings_audit.php`
 - `rollback_setting.php`
 - `get_storage.php`
-- `repair_db.php` - admin-only VonCMS schema repair for the configured database
+- `repair_db.php` - primary-admin-only, POST-only VonCMS schema repair; serialized with a bounded database advisory lock, releases the PHP session before DDL, verifies each shared capability after repair, and returns visible compatibility warnings
 - `backup_db.php` - admin-only SQL export of the configured database tables
 - `import_db.php` - admin-only SQL restore into the configured database; intended for VonCMS backup files
 - `db_query.php` - admin-only read-only database inspection helper
 - `cron_publish.php` - optional authenticated scheduled-publishing trigger for quiet sites
+
+`system/check_db_status.php` is a primary-admin, read-only capability check. It can recommend Database Repair but never changes tables. Shared registration, password-recovery, remember-token, analytics, comment-like, content-audit, and security-log structures are created during fresh installation or repaired explicitly through `repair_db.php`; normal endpoint traffic does not own permanent DDL.
+
+Database repair is resumable rather than transactionally rolled back. MySQL can commit DDL one statement at a time, so a stopped repair reports a controlled failure and the next run re-checks completed structures before continuing. Runtime and core tables are also checked for InnoDB and `utf8mb4`; only empty storage-drifted tables are converted automatically. Populated storage or type drift, duplicate values that block a unique index, and orphaned references stop for operator review instead of deleting or coercing live data.
 
 #### Scheduled publishing endpoint
 

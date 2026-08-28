@@ -6,7 +6,12 @@ import { vonFetch } from '../../../../../utils/api';
 import SafeImage from '../../../../../components/SafeImage';
 import AdBlock from '../../../../../themes/shared/components/AdBlock';
 import { sanitizeHtml } from '../../../../../utils/security';
-import { formatDate, getPermalink, normalizeSiteUrl } from '../../../../../utils/siteUtils';
+import {
+  formatDate,
+  getPermalink,
+  getPostPublishTimestamp,
+  normalizeSiteUrl,
+} from '../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
 
 // Theme colors for custom theme overrides (e.g., Digest theme)
@@ -69,6 +74,8 @@ const normalizeSidebarPost = (post: any): Post => ({
   createdAt: post.created_at || post.createdAt || '',
   updatedAt: post.updated_at || post.updatedAt || post.created_at || '',
   scheduledAt: post.scheduled_at || post.scheduledAt || '',
+  publishedAt: post.published_at || post.publishedAt || '',
+  published_at: post.published_at || post.publishedAt || '',
   author_data: post.author_data || { username: post.author || '', avatar: '' },
   readTime: post.readTime || '',
 });
@@ -194,12 +201,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                     </span>
                     <div className="flex-1 pt-1">
                       {(() => {
-                        const sourceDate =
-                          post.scheduledAt ||
-                          post.scheduled_at ||
-                          post.createdAt ||
-                          post.created_at ||
-                          '';
+                        const sourceDate = getPostPublishTimestamp(post);
                         const freshnessLabel = formatSidebarFreshness(sourceDate, settings);
 
                         return freshnessLabel ? (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wrench, Mail, ArrowRight } from 'lucide-react';
+import { Wrench, ArrowRight } from 'lucide-react';
 
 interface MaintenancePageProps {
   siteName?: string;
@@ -47,18 +47,6 @@ export const MaintenancePage: React.FC<MaintenancePageProps> = ({
                 <div className="w-3 h-3 bg-pink-500 rounded-full animate-pulse delay-300"></div>
               </div>
               <p className="text-slate-400 text-sm">Work in progress...</p>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-white/10 pt-6">
-              <p className="text-slate-400 text-sm mb-4">Need urgent assistance?</p>
-              <a
-                href="mailto:admin@example.com"
-                className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                <Mail className="w-4 h-4" />
-                Contact Support
-              </a>
             </div>
           </div>
 

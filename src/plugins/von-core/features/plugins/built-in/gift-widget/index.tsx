@@ -24,20 +24,18 @@ export const FloatingGiftPlugin: PluginDefinition = {
     const position = positionClasses[props?.position] ? props.position : 'bottom-left';
     const iconLabel = props?.iconLabel || '';
     const targetBlank = props?.targetBlank !== false && props?.targetBlank !== 'false';
+    const safeTargetUrl = normalizeSiteUrl(targetUrl);
+
+    if (safeTargetUrl === '#') return null;
 
     return (
-      <div
+      <a
+        href={safeTargetUrl}
+        target={targetBlank ? '_blank' : undefined}
+        rel={targetBlank ? 'noopener noreferrer' : undefined}
+        aria-label={tooltipText}
         className={`fixed ${positionClasses[position]} z-50 animate-bounce cursor-pointer group`}
         title={tooltipText}
-        onClick={() => {
-          const safeTargetUrl = normalizeSiteUrl(targetUrl);
-          if (safeTargetUrl === '#') return;
-          if (targetBlank) {
-            window.open(safeTargetUrl, '_blank', 'noopener,noreferrer');
-          } else {
-            window.location.href = safeTargetUrl;
-          }
-        }}
       >
         <div
           className="text-white p-3 rounded-full shadow-lg transition-transform hover:scale-105 relative flex items-center gap-2"
@@ -50,7 +48,7 @@ export const FloatingGiftPlugin: PluginDefinition = {
             {tooltipText}
           </div>
         </div>
-      </div>
+      </a>
     );
   },
 };

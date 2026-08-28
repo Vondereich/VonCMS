@@ -158,19 +158,6 @@ try {
 
     if ($rememberMe) {
       try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS remember_tokens (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        selector CHAR(24) NOT NULL UNIQUE,
-        token_hash CHAR(64) NOT NULL,
-        expires_at DATETIME NOT NULL,
-        last_used_at DATETIME DEFAULT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_remember_user (user_id),
-        INDEX idx_remember_expires (expires_at),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
         $pdo->exec('DELETE FROM remember_tokens WHERE expires_at <= NOW()');
 
         $rememberSelector = bin2hex(random_bytes(12));
@@ -196,7 +183,7 @@ try {
           'samesite' => 'Lax',
         ]);
       } catch (Throwable $e) {
-        error_log('Remember token creation failed: ' . $e->getMessage());
+        error_log('Remember token creation failed');
       }
     }
 

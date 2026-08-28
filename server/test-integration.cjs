@@ -376,6 +376,16 @@ const sqlDateTimeIsBrowserIndependent =
     '2026-08-09T19:20:00+08:00';
 const publishTimestampSelectionMatches =
   dateFormatModule.getPostPublishTimestamp({
+    publishedAt: '2026-08-11T08:00:00.000Z',
+    scheduledAt: '2026-08-12T08:00:00.000Z',
+    createdAt: '2026-08-01T09:00:00.000Z',
+  }) === '2026-08-11T08:00:00.000Z' &&
+  dateFormatModule.getPostPublishTimestamp({
+    published_at: '2026-08-11T09:00:00.000Z',
+    scheduled_at: '2026-08-12T09:00:00.000Z',
+    created_at: '2026-08-02T09:00:00.000Z',
+  }) === '2026-08-11T09:00:00.000Z' &&
+  dateFormatModule.getPostPublishTimestamp({
     scheduledAt: '2026-08-09T22:30:00.000Z',
     createdAt: '2026-08-01T09:00:00.000Z',
   }) === '2026-08-09T22:30:00.000Z' &&
@@ -766,6 +776,7 @@ const criticalFiles = [
   'public/api/login.php',
   'public/api/get_settings.php',
   'public/api/public_cache_helper.php',
+  'public/api/publication_time_helper.php',
   'public/api/save_settings.php',
   'public/api/get_posts.php',
   'public/api/get_post.php',
@@ -919,6 +930,10 @@ try {
     path.join(fixturePublic, 'data', 'site_settings.json'),
     JSON.stringify({ smtpPass: 'SECRET_SENTINEL' })
   );
+  fs.writeFileSync(
+    path.join(fixturePublic, 'data', 'schema-capabilities.json'),
+    JSON.stringify({ version: 1, published_at: { posts: true, pages: true } })
+  );
   fs.writeFileSync(path.join(fixturePublic, 'data', 'backups', 'database.sql'), 'SQL_SENTINEL');
   fs.writeFileSync(path.join(fixturePublic, 'logs', 'php_error.log'), 'LOG_SENTINEL');
   fs.writeFileSync(path.join(fixturePublic, '.env.production'), 'ENV_SENTINEL');
@@ -942,6 +957,7 @@ try {
     builtSample === 'SAFE_SAMPLE_SENTINEL' &&
     !fs.existsSync(builtRuntimePath) &&
     !fs.existsSync(path.join(fixtureDist, 'data', 'site_settings.json')) &&
+    !fs.existsSync(path.join(fixtureDist, 'data', 'schema-capabilities.json')) &&
     !fs.existsSync(path.join(fixtureDist, 'data', 'backups', 'database.sql')) &&
     !fs.existsSync(path.join(fixtureDist, 'logs', 'php_error.log')) &&
     !fs.existsSync(path.join(fixtureDist, '.env.production')) &&
@@ -965,6 +981,8 @@ const forbiddenReleasePolicyFixtures = [
   'public/data/site_settings.json',
   'public/data/site_settings.json.a1b2c3.tmp',
   'data/site_settings.json',
+  'public/data/schema-capabilities.json',
+  'data/schema-capabilities.json.a1b2c3.tmp',
   'data/public-cache/posts-list.json',
   'data/media_cleanup_previews/preview.json',
   'public/logs/php_error.log',
@@ -1629,11 +1647,26 @@ assertIncludes(
 );
 
 assertIncludes(
-  'Security Dashboard Setup Contract',
-  securityDashboardContent,
-  ['vonFetch(API.createSecurityTable, {', "method: 'POST'"],
-  'Security Dashboard Setup Contract: missing security-log table setup uses the POST-only CSRF endpoint.',
-  'Security Dashboard Setup Contract: security-log table setup still calls the POST-only endpoint without POST.'
+  'Security Dashboard Repair Ownership Contract',
+  securityDashboardContent + '\n' + read('public/api/security/create_security_table.php'),
+  [
+    'Security storage requires Database Repair in Settings > Tools.',
+    'Security log storage is managed by Database Repair.',
+    'SessionManager::requirePrimaryAdmin();',
+  ],
+  'Security Dashboard Repair Ownership Contract: missing security storage directs the primary owner to Database Repair.',
+  'Security Dashboard Repair Ownership Contract: security storage can still be mutated from the feature screen.'
+);
+assertExcludes(
+  'Security Dashboard Runtime DDL Guard',
+  securityDashboardContent + '\n' + read('public/api/security/create_security_table.php'),
+  [
+    'API.createSecurityTable',
+    'CREATE TABLE IF NOT EXISTS security_logs',
+    'CREATE INDEX IF NOT EXISTS',
+  ],
+  'Security Dashboard Runtime DDL Guard: dashboard reads and compatibility endpoints no longer create schema.',
+  'Security Dashboard Runtime DDL Guard: dashboard access can still execute permanent DDL.'
 );
 
 assertIncludes(
@@ -3462,7 +3495,7 @@ if (missingSensitiveBlocks.length === 0 && socialBotSensitiveBypasses.length ===
 }
 
 const apiHelperDenyMarkers = [
-  'RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
 ];
@@ -4328,7 +4361,7 @@ assertIncludes(
     "'voncms:public-categories-invalidated'",
     'const handlePublicCategoriesInvalidated = () => {',
     'void loadSettings(true);',
-    "'SELECT status, slug, category, scheduled_at, updated_at, image_url FROM posts WHERE id = ? FOR UPDATE'",
+    'SELECT status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
     '$previousScheduledAt !== $savedScheduledAt',
     "'public_categories_changed' => $publicCategoriesChanged",
     "typeof data.public_categories_changed === 'boolean'",
@@ -5222,7 +5255,9 @@ assertIncludes(
 assertIncludes(
   'Page Editor Atomic Conflict Guard',
   savePageApiContent,
-  ['SELECT author_id, status, slug, updated_at FROM pages WHERE id = ? FOR UPDATE'],
+  [
+    'SELECT author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
+  ],
   'Page Editor Atomic Conflict Guard: page updates lock the current row before comparing updated_at.',
   'Page Editor Atomic Conflict Guard: simultaneous page saves can both pass the stale-content check before overwriting each other.'
 );
@@ -5252,6 +5287,18 @@ assertIncludes(
   ],
   'Monolithic View Counter Timestamp Guard: post/page analytics view counters preserve updated_at so SEO dateModified, sitemap lastmod, and editor conflict baselines only change on real content edits.',
   'Monolithic View Counter Timestamp Guard: analytics view counters can mutate updated_at and create false modified dates or editor 409 conflicts.'
+);
+assertIncludes(
+  'Optional Analytics Failure Boundary',
+  monolithicTrackingContent + '\n' + read('public/api/track_visit.php'),
+  [
+    'Missing storage must not block content delivery or view counters.',
+    'catch (Throwable $analyticsError)',
+    "'message' => 'Visit tracking unavailable'",
+    "'daily' => []",
+  ],
+  'Optional Analytics Failure Boundary: missing analytics storage fails open for public tracking and returns an empty admin dataset.',
+  'Optional Analytics Failure Boundary: missing analytics storage can still block public tracking or break the admin chart.'
 );
 
 const promoBarContent = read('src/plugins/von-core/features/plugins/built-in/promo-bar/index.tsx');
@@ -5310,7 +5357,7 @@ assertIncludes(
   [
     'const handleInstall = async (id: string) => {',
     "newPluginStatus[id] = 'inactive';",
-    'const saved = await persistSettings({',
+    'const saved = await persistSettings(',
     'if (!saved) return;',
     'pluginStatus: newPluginStatus',
   ],
@@ -5325,7 +5372,7 @@ assertIncludes(
     'const handleUninstall = async (id: string) => {',
     "newPluginStatus[id] = 'not_installed';",
     'newActivePlugins = newActivePlugins.filter((pId) => pId !== id);',
-    'const saved = await persistSettings({',
+    'const saved = await persistSettings(',
     'pluginStatus: newPluginStatus',
   ],
   'Extensions Manager Uninstall State Contract: plugin uninstall persists inactive cleanup and removes active plugin state.',
@@ -5381,7 +5428,7 @@ assertIncludes(
   'Extensions Persisted Save Acknowledgement',
   extensionsManagerContent + '\n' + themeContextContent + '\n' + useSettingsContent,
   [
-    'const persistSettings = async (nextSettings: SiteSettings): Promise<boolean> => {',
+    'const persistSettings = async (',
     'onUpdateSettings(nextSettings, { optimistic: false })',
     'const optimistic = options.optimistic !== false;',
     'if (!optimistic) {',
@@ -5392,6 +5439,68 @@ assertIncludes(
   'Extensions Persisted Save Acknowledgement: activation and card state change only after the canonical settings write succeeds.',
   'Extensions Persisted Save Acknowledgement: extension UI can still report success or switch local state before persistence succeeds.'
 );
+assertIncludes(
+  'Extensions Mutation Serialization',
+  extensionsManagerContent,
+  [
+    'const settingsSnapshotRef = React.useRef(settings);',
+    'const extensionMutationInFlight = React.useRef(false);',
+    'if (extensionMutationInFlight.current) {',
+    'settingsSnapshotRef.current = nextSettings;',
+    'const currentSettings = settingsSnapshotRef.current;',
+    'settings={settingsSnapshotRef.current}',
+    'disabled={mutatingExtensionId !== null}',
+  ],
+  'Extensions Mutation Serialization: lifecycle and settings writes use one acknowledged gate and the latest saved snapshot.',
+  'Extensions Mutation Serialization: rapid extension actions can still overlap or rebuild state from a stale settings snapshot.'
+);
+
+const appointedAdminSettingsGuardStart = saveSettingsContent.indexOf(
+  'function voncms_guard_restricted_settings_for_non_primary_admin'
+);
+const appointedAdminSettingsGuardEnd = saveSettingsContent.indexOf(
+  '\nif (!$isPrimaryAdmin)',
+  appointedAdminSettingsGuardStart
+);
+const appointedAdminSettingsGuard =
+  appointedAdminSettingsGuardStart >= 0 && appointedAdminSettingsGuardEnd > 0
+    ? saveSettingsContent.slice(appointedAdminSettingsGuardStart, appointedAdminSettingsGuardEnd)
+    : '';
+const appointedAdminSettingsCommit = saveSettingsContent.indexOf('$pdo->commit();');
+const appointedAdminSettingsCachePurge = saveSettingsContent.indexOf(
+  'voncms_public_cache_clear();',
+  appointedAdminSettingsCommit
+);
+if (
+  appointedAdminSettingsGuard.includes("'customPlugins',") &&
+  appointedAdminSettingsGuard.includes("'analytics',") &&
+  !appointedAdminSettingsGuard.includes("'activePlugins',") &&
+  !appointedAdminSettingsGuard.includes("'pluginConfig',") &&
+  saveSettingsContent.includes(
+    '$ignoredSettingsKeys = voncms_guard_restricted_settings_for_non_primary_admin($settings);'
+  ) &&
+  saveSettingsContent.includes('if ($settings === [] && $ignoredSettingsKeys !== [])') &&
+  saveSettingsContent.includes(
+    "ResponseHelper::sendError('Primary Admin permission is required for these settings.', 403);"
+  ) &&
+  saveSettingsContent.includes("['activePlugins', 'plugins', 'active_plugins', 'json']") &&
+  saveSettingsContent.includes("['pluginConfig', 'plugins', 'plugin_config', 'json']") &&
+  appointedAdminSettingsCommit >= 0 &&
+  appointedAdminSettingsCachePurge > appointedAdminSettingsCommit &&
+  saveSettingsContent.includes("'ignored' => $ignoredSettingsKeys,") &&
+  useSettingsContent.includes('const ignoredSettingsKeys = Array.isArray(data.ignored)') &&
+  useSettingsContent.includes('const resynced = await loadSettings(true);') &&
+  useSettingsContent.includes('if (!resynced) {') &&
+  useSettingsContent.includes('return false;')
+) {
+  pass(
+    'Appointed Admin Plugin Delegation: appointed admins can persist system plugin state/config while custom plugins and sensitive settings remain primary-only, and ignored writes resync instead of reporting false success.'
+  );
+} else {
+  fail(
+    'Appointed Admin Plugin Delegation: system plugin activation is still silently discarded or appointed admins can alter custom plugins and sensitive settings.'
+  );
+}
 assertExcludes(
   'Theme Activation Single Write',
   themeContextContent,
@@ -6085,6 +6194,26 @@ assertIncludes(
   'RSS Discovery Contract: RSS remains a valid endpoint advertised through head feed discovery.',
   'RSS Discovery Contract: removing RSS from the sitemap also removed its endpoint or head discovery link.'
 );
+assertIncludes(
+  'RSS Reader Interoperability Contract',
+  modernSeoRssContent,
+  [
+    '$feedEndpoint = in_array(',
+    '$requestEndpointKey = strtolower($requestEndpoint);',
+    "['rss', 'rss.xml', 'feed', 'feed.xml', 'rss.php']",
+    'strlen($queryString) <= 2048',
+    '$sanitizeRssContent = function (?string $content): string',
+    "'//script|//style|//object|//embed|//link|//meta|//noscript|//template|//form|//input|//button'",
+    "['http', 'https']",
+    "'View embedded media'",
+    "$attributeName === 'style'",
+    "$attributeName === 'srcdoc'",
+    "str_starts_with($attributeName, 'on')",
+    '$renderedContent = $sanitizeRssContent($renderedContent);',
+  ],
+  'RSS Reader Interoperability Contract: feed self-links follow the requested clean alias and feed-only HTML is portable for conservative readers.',
+  'RSS Reader Interoperability Contract: feed aliases can disagree with atom:self or unsafe presentation/embed markup can reach content:encoded.'
+);
 
 assertIncludes(
   'LLMS Linked Resource Contract',
@@ -6092,7 +6221,7 @@ assertIncludes(
   [
     '## Categories',
     'echo "- [$categoryName]($categoryUrl) ($categoryCount)\\n";',
-    'COALESCE(scheduled_at, created_at) AS effective_publish_at',
+    '{$publicationExpression} AS effective_publish_at',
     'ORDER BY effective_publish_at DESC',
     "new DateTime($post['effective_publish_at'])",
     "header('Retry-After: 300')",
@@ -6130,9 +6259,61 @@ assertIncludes(
     "$maintenanceFlag = __DIR__ . '/data/maintenance.flag';",
     'http_response_code(503);',
     "header('Retry-After: 3600');",
+    "header('Content-Type: text/html; charset=UTF-8');",
+    "header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');",
+    '$isAdminUser = SessionManager::isAdmin();',
   ],
-  'Maintenance Service Availability Contract: temporary maintenance returns 503 with retry guidance while admin access remains available.',
-  'Maintenance Service Availability Contract: temporary maintenance can still look like an indexable successful page.'
+  'Maintenance Service Availability Contract: temporary maintenance returns an uncached 503 with retry guidance while current admin and root access remains available.',
+  'Maintenance Service Availability Contract: temporary maintenance can look successful, be cached, or block a current system administrator.'
+);
+
+assertIncludes(
+  'Maintenance Flag Persistence Contract',
+  saveSettingsContent,
+  [
+    'function voncms_apply_maintenance_flag(string $flagFile, bool $enabled): void',
+    'LOCK_EX',
+    "$pendingMaintenanceMode = $value === 'true';",
+    'voncms_apply_maintenance_flag($maintenanceFlagFile, $pendingMaintenanceMode);',
+    'voncms_apply_maintenance_flag($maintenanceFlagFile, $maintenanceFlagPreviouslyEnabled);',
+  ],
+  'Maintenance Flag Persistence Contract: settings defer a checked flag mutation until database writes succeed and compensate if commit fails.',
+  'Maintenance Flag Persistence Contract: maintenance settings can report success after a silent flag failure or leave a changed flag after database rollback.'
+);
+
+const databaseConnectionFailureStart = modernSeoPublicIndexContent.indexOf(
+  '// DATABASE CONNECTION CHECK'
+);
+const databaseConnectionFailureEnd = modernSeoPublicIndexContent.indexOf(
+  '// VONSEO REDIRECT ENGINE',
+  databaseConnectionFailureStart
+);
+const databaseConnectionFailureSection =
+  databaseConnectionFailureStart >= 0 &&
+  databaseConnectionFailureEnd > databaseConnectionFailureStart
+    ? modernSeoPublicIndexContent.slice(
+        databaseConnectionFailureStart,
+        databaseConnectionFailureEnd
+      )
+    : '';
+assertIncludes(
+  'Database Connection Failure Page Contract',
+  databaseConnectionFailureSection,
+  [
+    'if (!isset($pdo) || $pdo === null)',
+    'http_response_code(503);',
+    '<title>Database Error</title>',
+    'Error establishing a database connection',
+  ],
+  'Database Connection Failure Page Contract: an installed site with unavailable PDO stops before runtime work and returns a generic HTTP 503 page.',
+  'Database Connection Failure Page Contract: a failed installed database connection can continue into runtime work or return a successful response.'
+);
+assertExcludes(
+  'Database Connection Failure Detail Guard',
+  databaseConnectionFailureSection,
+  ['$db_user', '$db_pass', 'getMessage()', 'PDOException'],
+  'Database Connection Failure Detail Guard: the public outage page does not expose database credentials or driver diagnostics.',
+  'Database Connection Failure Detail Guard: the public outage page can expose database credentials or driver diagnostics.'
 );
 
 assertExcludes(
@@ -6490,14 +6671,14 @@ const activeSchemaOwnerMarkers = [
   [installContent, 'settings_audit_log'],
   [repairDbContent, 'settings_audit_log'],
   [publicInstallSqlContent, 'content_audit_logs'],
-  [installContent, 'voncms_ensure_content_audit_logs_table($pdo);'],
-  [repairDbContent, 'voncms_ensure_content_audit_logs_table($pdo);'],
+  [installContent, 'voncms_schema_repair_runtime_capabilities($pdo);'],
+  [repairDbContent, 'voncms_schema_repair_runtime_capabilities($pdo);'],
   [publicInstallSqlContent, "'permalink_structure', 'slug'"],
   [installContent, "['general', 'permalink_structure', 'slug', 'string']"],
   [publicInstallSqlContent, "'site_tagline'"],
   [installContent, "['general', 'site_tagline', 'Modern Content Management', 'string']"],
-  [repairDbContent, 'ADD COLUMN avatar VARCHAR(255)'],
-  [repairDbContent, 'ADD COLUMN bio TEXT'],
+  [read('public/api/schema_repair_helper.php'), "'avatar' => ["],
+  [read('public/api/schema_repair_helper.php'), "'bio' => ["],
 ];
 const missingActiveSchemaOwnerMarkers = activeSchemaOwnerMarkers
   .filter(([content, marker]) => !content.includes(marker))
@@ -6814,16 +6995,85 @@ assertIncludes(
   'Editor Video Aspect Override Sanitizer: manual portrait/landscape markers survive sanitizing and override auto heuristics.',
   'Editor Video Aspect Override Sanitizer: manual portrait/landscape sanitizer or renderer markers are missing.'
 );
-if (
-  editorSecurityContent.includes('data-von-video-aspect') &&
-  editorSecurityContent.includes('ALLOW_DATA_ATTR: false')
-) {
+const editorSanitizerSaveSection = sliceBetween(
+  editorSecurityContent,
+  'export const sanitizeEditorHtml',
+  'export const sanitizePastedHtml'
+);
+assertIncludes(
+  'Editor Video Capability Save Path',
+  editorSanitizerSaveSection,
+  [
+    '...SAFE_IFRAME_ATTRS',
+    'data-von-video-aspect',
+    'ALLOW_DATA_ATTR: false',
+    "FORBID_ATTR: ['class', 'id', 'role']",
+  ],
+  'Editor Video Capability Save Path: safe iframe capabilities and persisted aspect state survive editor sanitization while broad data-* remains disabled.',
+  'Editor Video Capability Save Path: editor sanitization can strip iframe capabilities/aspect state or enable broad data-* attributes.'
+);
+let editorSanitizerConfigRuntimePass = false;
+try {
+  let capturedSanitizerConfig = null;
+  let legacyFullscreenRestored = false;
+  let sanitizedIframeSrc = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
+  const sanitizerHooks = {};
+  const domPurifyMock = {
+    addHook: (name, callback) => {
+      sanitizerHooks[name] = callback;
+    },
+    removeHook: (name) => {
+      delete sanitizerHooks[name];
+    },
+    sanitize: (content, config) => {
+      capturedSanitizerConfig = config;
+      sanitizerHooks.afterSanitizeAttributes?.({
+        tagName: 'IFRAME',
+        getAttribute: (name) => (name === 'src' ? sanitizedIframeSrc : null),
+        hasAttribute: () => false,
+        setAttribute: (name) => {
+          if (name === 'allowfullscreen') legacyFullscreenRestored = true;
+        },
+      });
+      return content;
+    },
+  };
+  const editorSecurityRuntime = loadTsModuleForSmokeWithMocks(
+    'src/utils/security.ts',
+    {
+      dompurify: domPurifyMock,
+      '../config/site.config': { BASE_PATH: '' },
+    },
+    { URL }
+  );
+  editorSecurityRuntime.sanitizeHtml('<iframe></iframe>');
+  const defaultTags = capturedSanitizerConfig?.ADD_TAGS || [];
+  const defaultAttrs = capturedSanitizerConfig?.ADD_ATTR || [];
+  const recognizedFullscreenRestored = legacyFullscreenRestored;
+  sanitizedIframeSrc = 'https://example.test/embed/unrecognized';
+  legacyFullscreenRestored = false;
+  editorSecurityRuntime.sanitizeHtml('<iframe></iframe>', {
+    ADD_TAGS: ['style', 'span', 'a', 'img', 'div'],
+    ADD_ATTR: ['style', 'class', 'id', 'target', 'width', 'height', 'href', 'alt'],
+  });
+  const restrictedTags = capturedSanitizerConfig?.ADD_TAGS || [];
+  editorSanitizerConfigRuntimePass =
+    defaultTags.includes('iframe') &&
+    defaultAttrs.includes('allow') &&
+    defaultAttrs.includes('allowfullscreen') &&
+    recognizedFullscreenRestored &&
+    !legacyFullscreenRestored &&
+    !restrictedTags.includes('iframe');
+} catch {
+  editorSanitizerConfigRuntimePass = false;
+}
+if (editorSanitizerConfigRuntimePass) {
   pass(
-    'Editor Video Aspect Override Save Path: sanitizeEditorHtml explicitly allows the persisted video aspect attribute while keeping broad data-* disabled.'
+    'Editor Video Fullscreen Runtime Boundary: recognized legacy embeds recover fullscreen while custom sanitizers that exclude iframe remain closed.'
   );
 } else {
   fail(
-    'Editor Video Aspect Override Save Path: sanitizeEditorHtml must explicitly allow data-von-video-aspect or manual aspect overrides will be stripped on save.'
+    'Editor Video Fullscreen Runtime Boundary: legacy fullscreen recovery failed or a restricted custom sanitizer inherited iframe support.'
   );
 }
 if (
@@ -7236,6 +7486,18 @@ assertExcludes(
   'Page Payload Compatibility Boundary: blanket top-level scalar validation would reject the normal React Page payload.'
 );
 assertIncludes(
+  'Page Canonical Status Response And Audit',
+  savePageApiContent,
+  [
+    '$newStatus = $status;',
+    "sprintf('Page created as %s', ucfirst($status))",
+    "'new_status' => $status,",
+    "'status' => $status,",
+  ],
+  'Page Canonical Status Response And Audit: the audit record and response use the normalized status persisted by the API.',
+  'Page Canonical Status Response And Audit: page audit or client state can diverge from the normalized database status.'
+);
+assertIncludes(
   'Page Payload Known Field Boundary',
   savePageApiContent,
   [
@@ -7255,15 +7517,459 @@ assertExcludes(
   'WordPress Import Transport Single Source: media imports retain only the bounded DNS-pinned cURL path.',
   'WordPress Import Transport Single Source: the unreachable non-DNS-pinned stream transport remains in source.'
 );
+const schemaRepairHelperContent = read('public/api/schema_repair_helper.php');
+const publicationTimeHelperContent = read('public/api/publication_time_helper.php');
+const ordinarySchemaRequestFiles = [
+  'public/api/content_audit_helper.php',
+  'public/api/delete_page.php',
+  'public/api/delete_post.php',
+  'public/api/delete_user.php',
+  'public/api/get_content_audit_logs.php',
+  'public/api/login.php',
+  'public/api/register.php',
+  'public/api/reset_password.php',
+  'public/api/save_comments.php',
+  'public/api/save_page.php',
+  'public/api/save_post.php',
+  'public/api/save_user.php',
+  'public/api/security/create_security_table.php',
+  'public/api/track_monolithic.php',
+  'public/api/track_visit.php',
+  'public/api/update_profile.php',
+];
+const ordinaryRuntimeDdlViolations = ordinarySchemaRequestFiles.filter((file) =>
+  /\b(?:CREATE\s+TABLE|ALTER\s+TABLE)\b/i.test(read(file))
+);
+if (ordinaryRuntimeDdlViolations.length === 0) {
+  pass(
+    'Runtime Schema Ownership Guard: ordinary public and admin requests contain no permanent table creation or alteration.'
+  );
+} else {
+  fail(
+    `Runtime Schema Ownership Guard: permanent DDL remains in ordinary request files: ${ordinaryRuntimeDdlViolations.join(', ')}.`
+  );
+}
+
+const ordinaryRuntimeMetadataViolations = ordinarySchemaRequestFiles.filter((file) => {
+  let content = read(file);
+  if (file === 'public/api/login.php') {
+    content = content.replace(/SHOW COLUMNS FROM users LIKE 'display_name'/g, '');
+  }
+  return /\bSHOW\s+(?:TABLES|COLUMNS|INDEX)\b/i.test(content);
+});
+if (ordinaryRuntimeMetadataViolations.length === 0) {
+  pass(
+    'Runtime Schema Metadata Ownership Guard: cleaned request paths do not repeat schema probes, except the deliberate login display-name compatibility check.'
+  );
+} else {
+  fail(
+    `Runtime Schema Metadata Ownership Guard: repeated metadata probes remain in cleaned request files: ${ordinaryRuntimeMetadataViolations.join(', ')}.`
+  );
+}
+
+assertIncludes(
+  'Explicit Schema Repair Lock And Verification Contract',
+  schemaRepairHelperContent + '\n' + repairDbContent,
+  [
+    'SELECT GET_LOCK(?, ?)',
+    'SELECT RELEASE_LOCK(?)',
+    'finally {',
+    'if ($repairLockName === null) {',
+    'voncms_schema_repair_runtime_capabilities($pdo)',
+    "'definition' => 'VARCHAR(64) DEFAULT NULL'",
+    'MAX(CHAR_LENGTH(`{$column}`))',
+    'Schema capability verification failed:',
+    'information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+    "'Sub_part'",
+    'voncms_schema_column_spec_matches',
+    'column-drift:',
+    'voncms_schema_identity_matches',
+    'HAVING COUNT(*) > 1 LIMIT 1',
+    'voncms_schema_index_conflicts',
+    'voncms_schema_foreign_key_conflicts',
+    '$conflicts !== []',
+    'DROP INDEX `{$safeConflictingName}` ON `{$safeTable}`',
+    'Schema repair could not reconcile index:',
+  ],
+  'Explicit Schema Repair Lock And Verification Contract: repair is serialized, resumable, verifies exact capability structure, replaces conflicting indexes only after a safe preflight, and narrows auth fields only after live-data checks.',
+  'Explicit Schema Repair Lock And Verification Contract: repair can race, accept structural drift, preserve a conflicting constraint, or truncate live data.'
+);
+assertExcludes(
+  'Schema Repair Orphan Preservation',
+  schemaRepairHelperContent,
+  ['DELETE rt FROM', 'DELETE cl FROM'],
+  'Schema Repair Orphan Preservation: broken legacy references stop repair without deleting rows.',
+  'Schema Repair Orphan Preservation: repair still deletes orphan rows while reconciling foreign keys.'
+);
+assertIncludes(
+  'Schema Repair Table Storage Contract',
+  schemaRepairHelperContent,
+  [
+    'function voncms_schema_table_storage',
+    'TABLE_COLLATION',
+    'CHARACTER_SET_NAME IS NOT NULL',
+    "LOWER(CHARACTER_SET_NAME) <> 'utf8mb4'",
+    "'non_utf8mb4_columns' => $nonUtf8mb4Columns",
+    'function voncms_schema_table_storage_matches',
+    "=== 'INNODB'",
+    "=== 'utf8mb4'",
+    'function voncms_schema_repair_table_storage',
+    'storageForeignKeySpecs',
+    'voncms_schema_storage_has_charset_drift',
+    'voncms_schema_foreign_key_conflicts($foreignKey, $spec)',
+    "$foreignKeysToRestore[$safeTable][strtolower((string) $spec['name'])] = $spec",
+    "$foreignKeysToRestore = array_map('array_values', $foreignKeysToRestore)",
+    'Released {$safeTable}.{$safeConstraint} for character-set repair.',
+    'voncms_schema_repair_foreign_keys($pdo, $foreignKeysToRestore, [])',
+    'populated table storage drift',
+    'ALTER TABLE `{$safeTable}` ENGINE=InnoDB',
+    'ALTER TABLE `{$safeTable}` CONVERT TO CHARACTER SET utf8mb4',
+    'storage:{$table}',
+  ],
+  'Schema Repair Table Storage Contract: runtime and core manifests reject non-InnoDB, non-utf8mb4 table defaults, or mixed text-column charsets, convert only empty drifted tables, preserve owned character foreign keys across conversion, and stop on populated drift.',
+  'Schema Repair Table Storage Contract: structurally complete tables can still pass with non-transactional, non-Unicode, mixed-column, or foreign-key-blocked storage.'
+);
+const coreColumnSpecsSource = extractPhpFunctionSource(
+  schemaRepairHelperContent,
+  'function voncms_schema_core_column_specs'
+);
+const coreForeignKeySpecsSource = extractPhpFunctionSource(
+  schemaRepairHelperContent,
+  'function voncms_schema_core_foreign_key_specs'
+);
+assertExcludes(
+  'Schema Repair Manifest Type Separation',
+  coreColumnSpecsSource,
+  ["'contact_submissions'"],
+  'Schema Repair Manifest Type Separation: foreign-key metadata stays out of the column manifest.',
+  'Schema Repair Manifest Type Separation: contact foreign-key metadata can be interpreted as a numbered column definition.'
+);
+assertIncludes(
+  'Schema Repair Contact Foreign Key Ownership',
+  coreForeignKeySpecsSource,
+  [
+    "'contact_submissions'",
+    "'name' => 'fk_contact_submissions_form'",
+    "'column' => 'form_id'",
+    "'referenced_table' => 'contact_forms'",
+    "'referenced_column' => 'id'",
+    "'delete_rule' => 'SET NULL'",
+  ],
+  'Schema Repair Contact Foreign Key Ownership: the character-key relationship is owned by the foreign-key manifest used for status, conversion, and repair.',
+  'Schema Repair Contact Foreign Key Ownership: the character-key relationship is missing or stored in the wrong manifest.'
+);
+const installSqlTableCount = (publicInstallSqlContent.match(/CREATE TABLE IF NOT EXISTS/g) || [])
+  .length;
+const installSqlEngineCount = (
+  publicInstallSqlContent.match(/\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4/g) || []
+).length;
+if (installSqlTableCount > 0 && installSqlEngineCount === installSqlTableCount) {
+  pass(
+    'Install SQL Storage Parity: every shipped table explicitly uses InnoDB with utf8mb4 instead of inheriting database defaults.'
+  );
+} else {
+  fail(
+    `Install SQL Storage Parity: expected ${installSqlTableCount} explicit table storage clauses, found ${installSqlEngineCount}.`
+  );
+}
+assertIncludes(
+  'Schema Repair Core Table And Session Honesty',
+  schemaRepairHelperContent +
+    '\n' +
+    repairDbContent +
+    '\n' +
+    read('public/api/system/check_db_status.php'),
+  [
+    'function voncms_schema_core_repair_tables',
+    '$missingCoreTables[] = $table;',
+    'Schema: Created required table {$table}.',
+    'session_write_close();',
+    '$missing[] = "table:{$table}";',
+    'Core schema requires Database Repair: {$missingItem}',
+  ],
+  'Schema Repair Core Table And Session Honesty: missing core tables remain visible in status and repair output while long DDL does not retain the PHP session lock.',
+  'Schema Repair Core Table And Session Honesty: core table creation can be reported as healthy or block other requests behind the PHP session lock.'
+);
+assertIncludes(
+  'Database Status Session Release Contract',
+  read('public/api/system/check_db_status.php'),
+  ['SessionManager::requirePrimaryAdmin();', 'session_write_close();'],
+  'Database Status Session Release Contract: the read-only metadata scan releases its authenticated PHP session before querying schema state.',
+  'Database Status Session Release Contract: a slow metadata scan can serialize other requests from the same admin session.'
+);
+assertIncludes(
+  'Schema Repair Core Manifest And Mutation Drift Contract',
+  schemaRepairHelperContent +
+    '\n' +
+    repairDbContent +
+    '\n' +
+    read('public/api/system/check_db_status.php') +
+    '\n' +
+    read('public/api/register.php') +
+    '\n' +
+    read('public/api/reset_password.php') +
+    '\n' +
+    read('public/api/save_user.php') +
+    '\n' +
+    read('public/api/update_profile.php'),
+  [
+    'function voncms_schema_core_column_specs',
+    'function voncms_schema_core_index_specs',
+    'function voncms_schema_core_foreign_key_specs',
+    'function voncms_schema_missing_core_repair_items',
+    'function voncms_schema_repair_core_structures',
+    'voncms_schema_mutation_error_requires_repair',
+    'Core schema verification failed:',
+  ],
+  'Schema Repair Core Manifest And Mutation Drift Contract: status, repair, final verification, and schema-dependent mutation guidance share the explicit core/runtime definitions.',
+  'Schema Repair Core Manifest And Mutation Drift Contract: core status can disagree with repair or type/default/nullability drift can fall through generic mutation errors.'
+);
+assertIncludes(
+  'Release Schema Capability Runtime Exclusion',
+  createReleaseContent + '\n' + read('server/release-path-policy.cjs'),
+  [
+    "normalizedRelativePath === 'public/data/schema-capabilities.json'",
+    "lower === 'public/data/schema-capabilities.json'",
+    "lower === 'data/schema-capabilities.json'",
+  ],
+  'Release Schema Capability Runtime Exclusion: a local repair marker cannot leak into Deploy or Source packages.',
+  'Release Schema Capability Runtime Exclusion: a local repair marker can still make another installation trust unavailable columns.'
+);
+assertIncludes(
+  'Schema Capability Git Hygiene',
+  read('.gitignore'),
+  ['public/data/schema-capabilities.json', 'public/data/schema-capabilities.json.*'],
+  'Schema Capability Git Hygiene: local repair markers are ignored by source control.',
+  'Schema Capability Git Hygiene: a local repair marker can still be staged accidentally.'
+);
+assertIncludes(
+  'First Publication Schema Ownership Contract',
+  publicInstallSqlContent +
+    '\n' +
+    installContent +
+    '\n' +
+    repairDbContent +
+    '\n' +
+    schemaRepairHelperContent,
+  [
+    'published_at DATETIME DEFAULT NULL',
+    "'published_at' => [",
+    'function voncms_schema_backfill_publication_timestamps',
+    'SET published_at = COALESCE(scheduled_at, created_at)',
+    "WHERE published_at IS NULL AND (status = 'published' OR status IS NULL)",
+    'SET published_at = created_at',
+    "WHERE published_at IS NULL AND status = 'published'",
+  ],
+  'First Publication Schema Ownership Contract: fresh install, explicit repair, legacy backfill, and core status share the nullable publication column.',
+  'First Publication Schema Ownership Contract: installer, repair manifest, or safe legacy backfill is incomplete.'
+);
+assertIncludes(
+  'First Publication Mutation Contract',
+  read('public/api/save_post.php') +
+    '\n' +
+    read('public/api/save_page.php') +
+    '\n' +
+    read('public/scheduler_helper.php') +
+    '\n' +
+    wpImportContent,
+  [
+    'published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END',
+    'CASE WHEN :publish_now = 1 THEN NOW() ELSE NULL END',
+    'published_at = COALESCE(published_at, scheduled_at)',
+    '$postPublishedColumn',
+    '$pagePublishedColumn',
+  ],
+  'First Publication Mutation Contract: immediate publish, scheduled publish, republish, and WXR import preserve one first-publication timestamp.',
+  'First Publication Mutation Contract: a save, scheduler, republish, or import path can omit or overwrite first publication.'
+);
+assertIncludes(
+  'First Publication Compatibility And Consumer Contract',
+  publicationTimeHelperContent +
+    '\n' +
+    installContent +
+    '\n' +
+    repairDbContent +
+    '\n' +
+    read('public/api/import_db.php') +
+    '\n' +
+    read('public/api/get_posts.php') +
+    '\n' +
+    read('public/api/get_pages.php') +
+    '\n' +
+    read('public/index.php') +
+    '\n' +
+    read('public/rss.php') +
+    '\n' +
+    read('public/llms.php') +
+    '\n' +
+    read('public/seo_schema_helper.php'),
+  [
+    'function voncms_has_publication_column',
+    'data/schema-capabilities.json',
+    'voncms_mark_publication_columns_ready',
+    'voncms_clear_publication_capability_marker',
+    "return 'COALESCE(' . implode(', ', $parts) . ')'",
+    "'NULL AS published_at'",
+    'voncms_publication_expression_sql',
+    'voncms_publication_value',
+    "'published_at' =>",
+    'AS effective_publish_at',
+  ],
+  'First Publication Compatibility And Consumer Contract: unrepaired installs fall back safely while public APIs, SSR, schema, RSS, and llms use the shared publication resolver.',
+  'First Publication Compatibility And Consumer Contract: compatibility fallback or a public publication-time consumer is missing.'
+);
+assertExcludes(
+  'First Publication Runtime Metadata Probe Guard',
+  publicationTimeHelperContent,
+  ['SHOW COLUMNS', 'information_schema', 'ALTER TABLE', 'CREATE TABLE'],
+  'First Publication Runtime Metadata Probe Guard: ordinary reads use the repair-owned capability marker without schema SQL.',
+  'First Publication Runtime Metadata Probe Guard: the compatibility helper can probe or mutate schema during ordinary traffic.'
+);
+assertExcludes(
+  'First Publication Permalink Stability Guard',
+  read('src/utils/siteUtils.ts') +
+    '\n' +
+    read('public/index.php') +
+    '\n' +
+    read('public/rss.php') +
+    '\n' +
+    read('public/llms.php'),
+  ['new Date(post.publishedAt', "new DateTime($post['published_at'])"],
+  'First Publication Permalink Stability Guard: existing date permalink paths remain creation-based while display and ordering semantics improve.',
+  'First Publication Permalink Stability Guard: adding published_at can silently rewrite existing date permalink paths.'
+);
+assertExcludes(
+  'Schema Repair Single DDL Owner Guard',
+  repairDbContent,
+  ['ALTER TABLE', 'SHOW COLUMNS', 'SHOW INDEX', 'information_schema.KEY_COLUMN_USAGE'],
+  'Schema Repair Single DDL Owner Guard: repair_db delegates column, index, and foreign-key inspection and mutation to the guarded shared helper.',
+  'Schema Repair Single DDL Owner Guard: ad-hoc column, index, or foreign-key DDL still duplicates the shared helper.'
+);
+
+const indexCreatePosition = schemaRepairHelperContent.indexOf(
+  'CREATE {$unique}INDEX `{$safeIndex}` ON `{$safeTable}`'
+);
+const indexDropPosition = schemaRepairHelperContent.indexOf(
+  'DROP INDEX `{$safeConflictingName}` ON `{$safeTable}`',
+  indexCreatePosition
+);
+const foreignKeyAddPosition = schemaRepairHelperContent.indexOf(
+  'ADD CONSTRAINT `{$safeConstraint}` FOREIGN KEY'
+);
+const foreignKeyDropPosition = schemaRepairHelperContent.indexOf(
+  'DROP FOREIGN KEY `{$safeConstraint}`',
+  foreignKeyAddPosition
+);
 if (
-  saveCommentsContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
-  saveCommentsContent.includes('UNIQUE KEY unique_comment_like') &&
+  indexCreatePosition >= 0 &&
+  indexDropPosition > indexCreatePosition &&
+  foreignKeyAddPosition >= 0 &&
+  foreignKeyDropPosition > foreignKeyAddPosition
+) {
+  pass(
+    'Schema Replacement Ordering: correct indexes and foreign keys are installed before conflicting definitions are removed.'
+  );
+} else {
+  fail(
+    'Schema Replacement Ordering: a conflicting index or foreign key can be removed before its verified replacement exists.'
+  );
+}
+
+assertIncludes(
+  'Schema Repair Warning Visibility',
+  databaseManagerContent + '\n' + systemToolsContent,
+  [
+    'data.success === true',
+    'Array.isArray(data.warnings)',
+    'warnings.length > 0',
+    'data.repaired && warnings.length === 0',
+    'results.success !== true',
+    'hasResultWarnings',
+    'Warning',
+  ],
+  'Schema Repair Warning Visibility: compatibility warnings remain visible, prevent an immediate success-only reload, and receive an amber result state instead of a false green success badge.',
+  'Schema Repair Warning Visibility: repair warnings can still be hidden behind a success toast, immediate reload, or false green result state.'
+);
+const adminDbStatusCallCount = (
+  `${adminLayoutContent}\n${read('src/plugins/von-core/features/dashboard/Dashboard.tsx')}`.match(
+    /API\.checkDbStatus/g
+  ) || []
+).length;
+if (adminDbStatusCallCount === 1) {
+  pass(
+    'Admin Schema Status Single Request: the shared admin shell performs one database status check.'
+  );
+} else {
+  fail(
+    `Admin Schema Status Single Request: expected one database status check, found ${adminDbStatusCallCount}.`
+  );
+}
+assertIncludes(
+  'Admin Schema Status Bounded Healthy Cache',
+  adminLayoutContent,
+  [
+    'ADMIN_DB_STATUS_CACHE_TTL_MS = 60_000',
+    '`voncms:admin-db-status:${pkg.version}`',
+    'window.sessionStorage.getItem(ADMIN_DB_STATUS_CACHE_KEY)',
+    'parsed.needsRepair === false',
+    'alertsRefreshTick === 0',
+    'if (!isPrimaryAdmin) return',
+    'DATABASE_STATUS_INVALIDATED_EVENT',
+    'handleDatabaseStatusInvalidated',
+    'setAlertsLoaded(false)',
+    'setAlertsCheckedAt(null)',
+    'writeHealthyDatabaseStatusCache(checkedAt)',
+    'clearHealthyDatabaseStatusCache()',
+    "if (!res.ok) throw new Error('Database status request failed')",
+    'if (data.success !== true)',
+    "typeof data.needs_repair !== 'boolean'",
+    'setAlertsCheckFailed(true)',
+    'Database status unavailable',
+    'Database status restricted',
+    'Database health is available to the primary admin.',
+  ],
+  'Admin Schema Status Bounded Healthy Cache: only the primary admin uses a versioned 60-second session cache for a verified healthy result, while manual refresh, drift, invalid responses, and request failures bypass or clear it.',
+  'Admin Schema Status Bounded Healthy Cache: hard reloads can repeat the full metadata scan or an unverified status can be cached/rendered as healthy.'
+);
+assertIncludes(
+  'Admin Schema Status Repair Invalidation',
+  read('src/config/site.config.ts') +
+    '\n' +
+    read('src/plugins/von-core/features/database/DatabaseManager.tsx') +
+    '\n' +
+    read('src/plugins/von-core/features/tools/SystemTools.tsx'),
+  [
+    "DATABASE_STATUS_INVALIDATED_EVENT = 'voncms:database-status-invalidated'",
+    'window.dispatchEvent(new Event(DATABASE_STATUS_INVALIDATED_EVENT))',
+    'if (apiPath === API.repairDb)',
+  ],
+  'Admin Schema Status Repair Invalidation: every explicit database-repair attempt invalidates the bounded healthy snapshot and asks the mounted primary-admin shell for a live status refresh.',
+  'Admin Schema Status Repair Invalidation: an explicit repair outcome can leave the current healthy snapshot visible until its TTL expires.'
+);
+assertIncludes(
+  'Schema-Dependent Mutation Failure Contract',
+  read('public/api/register.php') +
+    '\n' +
+    read('public/api/reset_password.php') +
+    '\n' +
+    read('public/api/save_user.php') +
+    '\n' +
+    read('public/api/update_profile.php'),
+  ['voncms_schema_mutation_error_requires_repair($e)', 'Database Repair'],
+  'Schema-Dependent Mutation Failure Contract: auth and profile mutations stop with controlled repair guidance instead of silently altering schema.',
+  'Schema-Dependent Mutation Failure Contract: a schema-dependent mutation can continue into a raw database failure.'
+);
+
+if (
+  !saveCommentsContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  saveCommentsContent.includes("($action ?? '') === 'like'") &&
+  saveCommentsContent.includes('voncms_schema_error_requires_repair($e)') &&
   read('public/install.sql').includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
-  read('public/api/install.php').includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
-  read('public/api/repair_db.php').includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
-  read('public/api/repair_db.php').includes('DELETE cl FROM comment_likes') &&
-  read('public/api/repair_db.php').includes('ADD CONSTRAINT fk_comment_likes_comment') &&
-  read('public/api/repair_db.php').includes('ADD CONSTRAINT fk_comment_likes_user') &&
+  schemaRepairHelperContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  schemaRepairHelperContent.includes('contains orphaned references') &&
+  schemaRepairHelperContent.includes('WHERE c.id IS NULL OR u.id IS NULL LIMIT 1') &&
+  schemaRepairHelperContent.includes("'name' => 'fk_comment_likes_comment'") &&
+  schemaRepairHelperContent.includes("'name' => 'fk_comment_likes_user'") &&
   read('public/install.sql').includes(
     'FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE'
   ) &&
@@ -7285,7 +7991,7 @@ if (
   publicCommentsContent.includes('const likeSaved = await onLikeComment(commentId);')
 ) {
   pass(
-    'Comments Like Persistence: comment likes are installed up front, authenticated, deduplicated server-side, and optimistic UI rolls back on save failure.'
+    'Comments Like Persistence: comment likes are installed or explicitly repaired, authenticated, deduplicated server-side, and optimistic UI rolls back on save failure.'
   );
 } else {
   fail(
@@ -7309,7 +8015,9 @@ if (
 }
 const deleteUserContent = read('public/api/delete_user.php');
 if (
-  deleteUserContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  !deleteUserContent.includes('CREATE TABLE IF NOT EXISTS comment_likes') &&
+  deleteUserContent.includes('catch (Throwable $likeStorageError)') &&
+  deleteUserContent.includes('voncms_schema_error_requires_repair($likeStorageError)') &&
   deleteUserContent.includes('SELECT DISTINCT comment_id FROM comment_likes WHERE user_id = :id') &&
   deleteUserContent.includes('DELETE FROM comment_likes WHERE user_id = :id') &&
   deleteUserContent.includes('UPDATE comments c') &&
@@ -7552,9 +8260,9 @@ if (
   contentManagerContent.includes('formatDateTime(') &&
   contentManagerContent.includes("item.status === 'draft'") &&
   contentManagerContent.includes('const getPublishDateTime = (item: Post) =>') &&
-  contentManagerContent.includes(
-    'item.scheduledAt || item.scheduled_at || item.createdAt || item.created_at'
-  ) &&
+  contentManagerContent.includes('item.publishedAt ||') &&
+  contentManagerContent.includes('item.published_at ||') &&
+  contentManagerContent.includes('item.scheduledAt ||') &&
   contentManagerContent.includes("colSpan={type === 'post' ? 8 : 6}")
 ) {
   pass(
@@ -7607,13 +8315,21 @@ assertIncludes(
 const getPagesContent = read('public/api/get_pages.php');
 assertIncludes(
   'Pages API Search Contract',
-  getPagesContent + '\n' + publicInstallSqlContent + '\n' + installContent + '\n' + repairDbContent,
+  getPagesContent +
+    '\n' +
+    publicInstallSqlContent +
+    '\n' +
+    installContent +
+    '\n' +
+    repairDbContent +
+    '\n' +
+    schemaRepairHelperContent,
   [
     "$search = trim((string) ($_GET['search'] ?? ''));",
     'MATCH(p.title, p.content) AGAINST(:searchTerm IN BOOLEAN MODE)',
     'LIKE :searchLike',
     'FULLTEXT INDEX ft_title_content (title, content)',
-    'ALTER TABLE pages ADD FULLTEXT INDEX ft_title_content (title, content)',
+    'function voncms_schema_repair_optional_search_indexes',
   ],
   'Pages API Search Contract: get_pages.php supports server search with FULLTEXT/new-install/repair coverage and LIKE fallback.',
   'Pages API Search Contract: page manager search backend markers are incomplete.'
@@ -7676,6 +8392,23 @@ assertIncludes(
   'Discussion Manager Server Flow: live global search, search-safe tab badges, and delete confirmation markers detected.',
   'Discussion Manager Server Flow: live moderation screen is missing the approved global-search/delete-confirmation flow.'
 );
+assertIncludes(
+  'Comment Moderation Canonical Mutation Contract',
+  `${saveCommentsContent}\n${useCommentsContent}\n${discussionManagerContent}`,
+  [
+    "!is_string($status) || !in_array($status, ['approved', 'pending', 'spam'], true)",
+    "ResponseHelper::sendError('Comment not found', 404);",
+    "'unchanged' => true,",
+    "'status' => $status,",
+    '): Promise<boolean> => {',
+    'const countsRequestId = useRef(0);',
+    'const statusUpdateInFlight = useRef(false);',
+    "dispatch({ type: 'setUpdatingStatus', commentId });",
+    'updatingStatusId={updatingStatusId}',
+  ],
+  'Comment Moderation Canonical Mutation Contract: exact backend status validation, truthful target handling, and serialized manager refresh markers are present.',
+  'Comment Moderation Canonical Mutation Contract: invalid or overlapping moderation state can still be accepted or rendered as successful.'
+);
 
 assertIncludes(
   'Comments Avatar Source',
@@ -7724,6 +8457,8 @@ assertIncludes(
 );
 
 const userManagerContent = read('src/plugins/von-core/features/users/UserManager.tsx');
+const userListHookContent = read('src/hooks/useUsers.ts');
+const saveUserContent = read('public/api/save_user.php');
 assertIncludes(
   'User Manager Server Flow',
   userManagerContent,
@@ -7735,6 +8470,55 @@ assertIncludes(
   ],
   'User Manager Server Flow: compact search and server pagination markers detected.',
   'User Manager Server Flow: user dashboard is missing the approved server pagination/search flow.'
+);
+
+assertIncludes(
+  'Idempotent Admin User Editing',
+  `${userManagerContent}\n${userListHookContent}\n${saveUserContent}`,
+  [
+    'const hasChanges =',
+    "toast('No changes detected.');",
+    'body: JSON.stringify({ ...newUser, id: undefined })',
+    'const optimisticNewUser = { ...newUser };',
+    'delete optimisticNewUser.password;',
+    'u.id === optimisticNewUser.id',
+    'const optimisticUser = { ...updatedUser };',
+    'delete optimisticUser.password;',
+    'if (data.unchanged)',
+    '? { ...previousUser, ...data.user }',
+    "$isNewUser = $inputId === '';",
+    "ResponseHelper::sendError('Invalid user ID', 400)",
+    "'unchanged' => true,",
+    "'message' => 'No changes detected.',",
+    "'user' => [",
+    "ResponseHelper::sendError('User not found', 404)",
+  ],
+  'Idempotent Admin User Editing: create requests omit IDs, missing update targets retain a dedicated 404, unchanged forms and direct API no-ops stay neutral, and canonical state is restored without retaining passwords.',
+  'Idempotent Admin User Editing: create/update intent can still be ambiguous, no-op responses can corrupt optimistic state, or passwords can remain in the global user list.'
+);
+assertIncludes(
+  'Admin User Mutation Serialization',
+  userManagerContent,
+  [
+    'const userMutationInFlight = useRef(false);',
+    'if (userMutationInFlight.current) {',
+    'setUpdatingUserId(String(editingUser.id));',
+    'setUpdatingUserId(String(user.id));',
+    "? 'Approving...' : 'Approve Email'",
+    "? 'Saving...' : 'Save Changes'",
+  ],
+  'Admin User Mutation Serialization: edit and email-approval actions reject duplicate in-flight submissions and expose a bounded pending state.',
+  'Admin User Mutation Serialization: edit or approval actions can still double-submit before the first request settles.'
+);
+assertExcludes(
+  'Admin User Save Intent Inference Exclusion',
+  saveUserContent,
+  [
+    "$stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?')",
+    'User not found or no changes made',
+  ],
+  'Admin User Save Intent Inference Exclusion: database existence no longer decides whether a request creates or updates an account.',
+  'Admin User Save Intent Inference Exclusion: a missing update ID can still fall through into account creation or an ambiguous error.'
 );
 
 assertIncludes(
@@ -7867,6 +8651,29 @@ assertIncludes(
   'Category SSR Content Parity Contract: category discovery raw HTML, noscript links, and CollectionPage ItemList use published posts from the requested category.',
   'Category SSR Content Parity Contract: category discovery can expose unrelated homepage posts before hydration and retain soft-404-style content mismatch.'
 );
+
+const homepagePostsFetchMarker = '$homepagePosts = $hpStmt->fetchAll(PDO::FETCH_ASSOC);';
+const publicBootstrapSourceMarkers = [
+  'foreach ($homepagePosts as $idx => $hp)',
+  'json_encode($homepagePosts,',
+  '$noscriptListingPosts = $categoryNoscriptLanding ? $categoryLandingPosts : $homepagePosts;',
+  '$initialPostPayload = [',
+  "'title'            => $post['title']            ?? '',",
+  "$noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? '');",
+];
+const homepagePostsFetchCount = indexContent.split(homepagePostsFetchMarker).length - 1;
+if (
+  homepagePostsFetchCount === 1 &&
+  publicBootstrapSourceMarkers.every((marker) => indexContent.includes(marker))
+) {
+  pass(
+    'Public Bootstrap And Noscript Source Ownership Contract: one homepage result set feeds schema, React bootstrap, and no-JavaScript listings while one resolved post feeds hydration and article fallback.'
+  );
+} else {
+  fail(
+    'Public Bootstrap And Noscript Source Ownership Contract: homepage or single-content outputs can drift onto independently fetched source records.'
+  );
+}
 
 assertIncludes(
   'No-JavaScript Reading View Contract',
@@ -8177,7 +8984,7 @@ if (
   vonSeoContent.includes('getPostPublishTimestamp(selectedPost),') &&
   vonSeoContent.includes('settings.timeZone') &&
   vonSeoContent.includes('selectedPost.updatedAt || getPostPublishTimestamp(selectedPost)') &&
-  phpSeoSchemaHelperContent.includes("!empty($content['scheduled_at'])") &&
+  phpSeoSchemaHelperContent.includes('voncms_publication_value($content, $contentType)') &&
   vonSeoContent.includes("publisher: { '@id': `${canonicalBase}/#organization` },") &&
   vonSeoContent.includes(
     'const organizationLogoUrl = toAbsolutePublicMediaUrl(settings.logoUrl, canonicalBase);'
@@ -8285,6 +9092,8 @@ assertIncludes(
     '\n' +
     read('public/api/repair_db.php') +
     '\n' +
+    read('public/api/schema_repair_helper.php') +
+    '\n' +
     read('src/types.ts') +
     '\n' +
     read('src/plugins/von-core/features/users/UserManager.tsx') +
@@ -8292,7 +9101,7 @@ assertIncludes(
     read('src/themes/default/Layout.tsx'),
   [
     'display_name VARCHAR(100) DEFAULT NULL',
-    'ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL',
+    "'definition' => 'VARCHAR(100) DEFAULT NULL'",
     "COALESCE(NULLIF(u.display_name, ''), u.username)",
     'AS author_name',
     'u.username AS author_username',
@@ -8395,7 +9204,7 @@ assertIncludes(
   [
     'formatSidebarFreshness',
     'const sourceDate =',
-    "post.scheduledAt || post.scheduled_at || post.createdAt || post.created_at || '';",
+    'getPostPublishTimestamp(post);',
     'Math.floor(ageMs / minuteMs)',
     'Math.floor(ageMs / hourMs)',
     "'Yesterday'",
@@ -8415,8 +9224,14 @@ assertIncludes(
 assertIncludes(
   'Sidebar Effective Publish Freshness Contract',
   read('src/types.ts') + '\n' + normalizedSharedSidebarContent,
-  ['scheduledAt?: string;', 'scheduled_at?: string;', 'post.scheduledAt || post.scheduled_at'],
-  'Sidebar Effective Publish Freshness Contract: latest widgets prefer scheduled/publish timestamps before created dates.',
+  [
+    'publishedAt?: string;',
+    'published_at?: string;',
+    'scheduledAt?: string;',
+    'scheduled_at?: string;',
+    'getPostPublishTimestamp(post)',
+  ],
+  'Sidebar Effective Publish Freshness Contract: latest widgets prefer first-publication and scheduled timestamps before created dates.',
   'Sidebar Effective Publish Freshness Contract: latest widgets can still show stale created-date freshness for scheduled/published posts.'
 );
 assertIncludes(
@@ -8868,6 +9683,7 @@ assertIncludes(
     'post.excerpt',
     'post.image',
     'post.imageSrcSet',
+    'post.publishedAt || post.published_at',
     'post.scheduledAt || post.scheduled_at',
   ],
   'Related Posts Memoized Card Freshness: title, URL, excerpt, image, responsive image, and publish-time changes invalidate cached cards.',
@@ -9256,6 +10072,16 @@ assertIncludes(
   'Open Source First-Run Guide: README/INSTALL/VPS docs are missing first-run install, local, or source workflow markers.'
 );
 assertIncludes(
+  'Nginx Publication Helper Guard',
+  firstRunDocsContent,
+  [
+    'media_library_filter_helper|publication_time_helper|public_cache_helper',
+    '"/api/publication_time_helper.php"',
+  ],
+  'Nginx Publication Helper Guard: the VPS rule and verification probe block the internal publication helper before PHP-FPM.',
+  'Nginx Publication Helper Guard: the VPS example can expose the internal publication helper to PHP-FPM without an explicit deny.'
+);
+assertIncludes(
   'Open Source GitHub Templates',
   bugReportTemplateContent +
     '\n' +
@@ -9430,6 +10256,20 @@ assertExcludes(
   'Media Gallery Page-Local Filter Exclusion: Gallery no longer searches only the loaded page.',
   'Media Gallery Page-Local Filter Exclusion: Gallery still filters only the current page in memory.'
 );
+assertIncludes(
+  'Media Gallery Lightbox Size Parity',
+  galleryMediaManagerContent,
+  ["filteredMedia[lightboxIndex].size || '0 B'"],
+  'Media Gallery Lightbox Size Parity: lightbox reuses the formatted media size returned by the API.',
+  'Media Gallery Lightbox Size Parity: lightbox does not reuse the formatted media size returned by the API.'
+);
+assertExcludes(
+  'Media Gallery Lightbox Size Double-Conversion Exclusion',
+  galleryMediaManagerContent,
+  ['parseFloat(String(filteredMedia[lightboxIndex].size', '(size / 1024).toFixed(2)'],
+  'Media Gallery Lightbox Size Double-Conversion Exclusion: formatted sizes are not parsed and divided a second time.',
+  'Media Gallery Lightbox Size Double-Conversion Exclusion: lightbox still parses or divides an already formatted size.'
+);
 
 assertIncludes(
   'Media Variant Registry Integrity Contract',
@@ -9602,7 +10442,15 @@ assertIncludes(
 
 const getPostsContent = read('public/api/get_posts.php');
 const postsApiSearchContent =
-  getPostsContent + '\n' + publicInstallSqlContent + '\n' + installContent + '\n' + repairDbContent;
+  getPostsContent +
+  '\n' +
+  publicInstallSqlContent +
+  '\n' +
+  installContent +
+  '\n' +
+  repairDbContent +
+  '\n' +
+  schemaRepairHelperContent;
 if (
   (postsApiSearchContent.includes("$search = $_GET['search'] ?? null;") ||
     postsApiSearchContent.includes("$search = trim((string) $queryValue('search', ''));")) &&
@@ -9610,9 +10458,7 @@ if (
     'MATCH(p.title, p.content) AGAINST(:searchTerm IN BOOLEAN MODE)'
   ) &&
   postsApiSearchContent.includes('p.title LIKE :searchLike') &&
-  postsApiSearchContent.includes(
-    'ALTER TABLE posts ADD FULLTEXT INDEX ft_title_content (title, content)'
-  ) &&
+  postsApiSearchContent.includes('function voncms_schema_repair_optional_search_indexes') &&
   !getPostsContent.includes("SHOW INDEX FROM posts WHERE Key_name = 'ft_title_content'") &&
   !getPostsContent.includes('p.content LIKE :searchLike') &&
   !getPostsContent.includes(':searchContentLike')
@@ -10751,8 +11597,6 @@ if (
     'OTA Structured Request Boundary: an owner-only updater entry point can still accept compound request fields or expose submitted token fragments.'
   );
 }
-const dashboardSystemOwnerChecks = (dashboardOtaOwnerParity.match(/if \(canManageSystem\)/g) || [])
-  .length;
 const legacyOtaBridgeOwnerChecks = (
   legacyOtaBridgeOwnerParity.match(/SessionManager::requirePrimaryAdmin\(\);/g) || []
 ).length;
@@ -10760,7 +11604,8 @@ if (
   dashboardOtaOwnerParity.includes("currentUser?.role?.toLowerCase() === 'root'") &&
   dashboardOtaOwnerParity.includes("String(currentUser?.id || '') === '1'") &&
   !dashboardOtaOwnerParity.includes("currentUser?.id === '1'") &&
-  dashboardSystemOwnerChecks >= 2 &&
+  dashboardOtaOwnerParity.includes('if (!canManageSystem) return;') &&
+  dashboardOtaOwnerParity.includes('if (canManageSystem) {') &&
   !dashboardOtaOwnerParity.includes("currentUser?.role?.toLowerCase() !== 'admin'") &&
   legacyOtaBridgeOwnerChecks >= 2 &&
   !legacyOtaBridgeOwnerParity.includes("strtolower($_SESSION['user']['role'] ?? '') !== 'admin'")
@@ -11512,14 +12357,16 @@ const injectedPostBuilderBlock = sliceBetween(
 if (
   publicPostLookupBlock.includes('p.updated_at, p.scheduled_at,') &&
   initialPostPayloadBlock.includes("'scheduled_at'     => $post['scheduled_at']     ?? null") &&
-  injectedPostBuilderBlock.includes("scheduledAt: p.scheduled_at || p.scheduledAt || ''")
+  initialPostPayloadBlock.includes("'published_at'     => $post['published_at']     ?? null") &&
+  injectedPostBuilderBlock.includes("scheduledAt: p.scheduled_at || p.scheduledAt || ''") &&
+  injectedPostBuilderBlock.includes("publishedAt: p.published_at || p.publishedAt || ''")
 ) {
   pass(
-    'Scheduled Publish Hydration Contract: direct-load lookup, SSR seed, and injected React state preserve the scheduled publication timestamp.'
+    'First Publication Hydration Contract: direct-load lookup, SSR seed, and injected React state preserve scheduled and first-publication timestamps.'
   );
 } else {
   fail(
-    'Scheduled Publish Hydration Contract: a direct load can lose scheduled_at before React consumes the SSR post seed.'
+    'First Publication Hydration Contract: a direct load can lose scheduled_at or published_at before React consumes the SSR post seed.'
   );
 }
 assertIncludes(
@@ -11565,20 +12412,20 @@ if (hasInlineSchedulerSql) {
 }
 
 if (
-  schedulerHelperContent.includes(
-    "UPDATE posts SET status = 'published', updated_at = scheduled_at"
-  ) &&
-  getPostsContent.includes('CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at') &&
+  schedulerHelperContent.includes('published_at = COALESCE(published_at, scheduled_at)') &&
+  schedulerHelperContent.includes('updated_at = scheduled_at') &&
+  getPostsContent.includes('voncms_publication_expression_sql') &&
   getPostsContent.includes('AS effective_publish_at') &&
   getPostsContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC') &&
-  publicIndexContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC')
+  publicIndexContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC') &&
+  read('src/utils/dateFormat.ts').includes('post.publishedAt ||')
 ) {
   pass(
-    'Scheduled Publish Ordering: scheduled posts keep their scheduled publish time as the latest ordering timestamp after publication.'
+    'First Publication Ordering: public surfaces prioritize the immutable first-publication time while scheduled publication stamps its due time.'
   );
 } else {
   fail(
-    'Scheduled Publish Ordering: scheduled posts can still be ordered by old created_at timestamps after they publish.'
+    'First Publication Ordering: scheduled or republished posts can still drift to creation or edit time.'
   );
 }
 
@@ -11586,18 +12433,16 @@ const sitemapContent = read('public/sitemap.php');
 const llmsContent = read('public/llms.php');
 const rssContent = read('public/rss.php');
 if (
-  rssContent.includes(
-    'CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at'
-  ) &&
+  rssContent.includes("voncms_publication_expression_sql($pdo, 'posts', 'p')") &&
   rssContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC') &&
   rssContent.includes("$post['effective_publish_at'] ?? $post['created_at']")
 ) {
   pass(
-    'Scheduled RSS Publish Time: feed ordering and item pubDate use scheduled time with a created-time fallback.'
+    'First Publication RSS Time: feed ordering and item pubDate use first publication with scheduled and created fallbacks.'
   );
 } else {
   fail(
-    'Scheduled RSS Publish Time: a scheduled post can still be ordered or dated by its older creation time.'
+    'First Publication RSS Time: a post can still be ordered or dated by edit or old creation time.'
   );
 }
 if (
@@ -11652,10 +12497,10 @@ assertIncludes(
     "AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1",
     '$stmt->execute([$slugOrId, $currentTime]);',
     'voncms_fetch_public_post(',
-    'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p',
+    "$pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');",
     "WHERE p.slug = ? AND p.status = 'published' LIMIT 1",
     "WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 10",
-    'p.updated_at, p.scheduled_at, CASE WHEN p.scheduled_at IS NOT NULL',
+    "$homepagePublicationExpression = voncms_publication_expression_sql($pdo, 'posts', 'p');",
     '$hpStmt->execute([$publicContentCurrentTime]);',
   ],
   'Public SSR Visibility Contract: direct SSR post/homepage SEO hydration follows public published and scheduled cutoff rules, while page SSR stays published-only to match the pages API contract.',
@@ -11697,7 +12542,7 @@ if (
   authLoginContent.includes("cleanUrl.searchParams.delete('reset_token');") &&
   authLoginContent.includes('React.useLayoutEffect(() => {') &&
   authLoginContent.includes("window.history.replaceState(window.history.state, '', cleanPath);") &&
-  ['analytics', 'activePlugins', 'pluginConfig'].every((key) => {
+  ['analytics'].every((key) => {
     const guardStart = saveSettingsContent.indexOf(
       'function voncms_guard_restricted_settings_for_non_primary_admin'
     );
@@ -11907,7 +12752,7 @@ const postOwnerGuardIndex = savePostContent.indexOf(
   'SELECT id, author_id, status, slug FROM posts WHERE id = ?'
 );
 const postRowLockIndex = savePostContent.indexOf(
-  'SELECT status, slug, category, scheduled_at, updated_at, image_url FROM posts WHERE id = ? FOR UPDATE'
+  'SELECT status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
 );
 const postConflictIndex = savePostContent.indexOf(
   'Content changed in another tab. Reload before saving again.'
@@ -13372,15 +14217,10 @@ assertIncludes(
 
 assertIncludes(
   'Active Session Maintenance Bypass Contract',
-  indexContent,
-  [
-    '$isAdminUser =',
-    'SessionManager::isValid() && strtolower',
-    "($_SESSION['user']['role'] ?? '')",
-    "=== 'admin';",
-  ],
-  'Active Session Maintenance Bypass Contract: the existing admin-only bypass revalidates database-backed session authority without widening the accepted role.',
-  'Active Session Maintenance Bypass Contract: maintenance mode can trust stale session authority or widen the previous admin-only bypass.'
+  indexContent + '\n' + securityContent,
+  ['$isAdminUser = SessionManager::isAdmin();', "return $role === 'admin' || $role === 'root';"],
+  'Active Session Maintenance Bypass Contract: the canonical admin check revalidates database-backed authority and accepts both supported system-admin roles.',
+  'Active Session Maintenance Bypass Contract: maintenance mode can trust stale session authority or reject a supported system administrator.'
 );
 
 assertIncludes(
@@ -13401,15 +14241,22 @@ assertIncludes(
   'Remember Token Login Contract',
   rememberLoginContent,
   [
-    'CREATE TABLE IF NOT EXISTS remember_tokens',
+    'if ($rememberMe) {',
     'random_bytes(12)',
     'random_bytes(32)',
     "hash('sha256', $rememberValidator)",
     "'voncms_remember'",
     "'samesite' => 'Lax'",
   ],
-  'Remember Token Login Contract: remember-me stores a hashed validator behind a dedicated HttpOnly cookie.',
-  'Remember Token Login Contract: login is missing the dedicated selector/validator token flow.'
+  'Remember Token Login Contract: remember-me stores a hashed validator without creating schema during login.',
+  'Remember Token Login Contract: login is missing the dedicated selector/validator token flow or still owns schema DDL.'
+);
+assertExcludes(
+  'Remember Token Runtime DDL Guard',
+  rememberLoginContent,
+  ['CREATE TABLE IF NOT EXISTS remember_tokens'],
+  'Remember Token Runtime DDL Guard: an ordinary login never creates persistent storage.',
+  'Remember Token Runtime DDL Guard: remember-me login can still execute CREATE TABLE.'
 );
 
 assertIncludes(
@@ -13569,11 +14416,13 @@ if (
 }
 
 if (
-  rememberInstallContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
-  rememberRepairContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
+  rememberInstallContent.includes('voncms_schema_repair_runtime_capabilities($pdo);') &&
+  rememberRepairContent.includes('voncms_schema_repair_runtime_capabilities($pdo);') &&
+  schemaRepairHelperContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
   rememberInstallSqlContent.includes('CREATE TABLE IF NOT EXISTS remember_tokens') &&
-  rememberInstallContent.includes('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') &&
-  rememberRepairContent.includes('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE') &&
+  schemaRepairHelperContent.includes(
+    'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE'
+  ) &&
   rememberInstallSqlContent.includes('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
 ) {
   pass('Remember Token Schema Contract: fresh install, SQL schema, and repair flows stay aligned.');
@@ -14209,7 +15058,9 @@ assertIncludes(
   'v1.26.8 Social Metadata Contract: SSR/hydration priority, missing-image omission, favicon/preload validation, or initial settings parity is incomplete.'
 );
 if (
-  featuredImageSaveBranch.includes('image_url FROM posts WHERE id = ? FOR UPDATE') &&
+  featuredImageSaveBranch.includes(
+    'image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
+  ) &&
   featuredImageSaveBranch.includes('voncms_resolve_featured_image_input(') &&
   featuredImageSaveBranch.indexOf('$dbPost = $checkExisting->fetch();') <
     featuredImageSaveBranch.indexOf('voncms_resolve_featured_image_input(') &&
@@ -14345,7 +15196,10 @@ const v1268ProfileCardContents = [
   read('src/themes/prism/components/PrismProfile.tsx'),
 ];
 const v1268PrismProfileContent = v1268ProfileCardContents[2];
+const v12610AccountProfileContents = v1268ThemeNavigationContents.slice(0, 5);
+const v12610NotFoundContent = read('src/components/NotFoundPage.tsx');
 let v1268PublicNavigationRuntimePass = false;
+let v12610PublicLinkBehaviorRuntimePass = false;
 try {
   const navigationRuntime = loadTsModuleForSmokeWithMocks(
     'src/utils/siteUtils.ts',
@@ -14367,6 +15221,7 @@ try {
     },
     { URL }
   );
+  const linkEventRuntime = loadTsModuleForSmokeWithMocks('src/utils/linkEvents.ts', {});
   const navigationSettings = { permalinkStructure: 'post_name', domainUrl: '' };
   const publishedPost = {
     id: 'published-1',
@@ -14437,8 +15292,51 @@ try {
       [],
       [draftPage]
     ) === null;
+
+  const createClickEvent = (overrides = {}) => ({
+    defaultPrevented: false,
+    propagationStopped: false,
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    stopPropagation() {
+      this.propagationStopped = true;
+    },
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    ...overrides,
+  });
+  let navigationCalls = 0;
+  const plainClick = createClickEvent();
+  linkEventRuntime.handleCrawlableLinkClick(plainClick, () => {
+    navigationCalls += 1;
+  });
+  const controlClick = createClickEvent({ ctrlKey: true });
+  linkEventRuntime.handleCrawlableLinkClick(controlClick, () => {
+    navigationCalls += 1;
+  });
+  const middleClick = createClickEvent({ button: 1 });
+  linkEventRuntime.handleCrawlableLinkClick(middleClick, () => {
+    navigationCalls += 1;
+  });
+  v12610PublicLinkBehaviorRuntimePass =
+    navigationRuntime.getPublicHomeHref() === '/zangetsu/' &&
+    navigationRuntime.getPublicProfileHref('Ada Lovelace') === '/zangetsu/profile/Ada%20Lovelace' &&
+    navigationRuntime.normalizeSiteUrl('\\evil.example') === '#' &&
+    navigationRuntime.normalizeSiteUrl('folder\\child') === '#' &&
+    navigationCalls === 1 &&
+    plainClick.defaultPrevented &&
+    plainClick.propagationStopped &&
+    !controlClick.defaultPrevented &&
+    controlClick.propagationStopped &&
+    !middleClick.defaultPrevented &&
+    middleClick.propagationStopped;
 } catch {
   v1268PublicNavigationRuntimePass = false;
+  v12610PublicLinkBehaviorRuntimePass = false;
 }
 if (
   v1268PublicNavigationLinkContent.includes('<a') &&
@@ -14489,6 +15387,32 @@ if (
 } else {
   fail(
     'Public Navigation Link Semantics: a bundled theme, author/profile surface, Corporate CTA, runtime projection, persisted settings boundary, or fake hash link has regressed.'
+  );
+}
+
+if (
+  v12610AccountProfileContents.every(
+    (content) =>
+      content.includes('href={getPublicProfileHref(user.username)}') &&
+      content.includes('handleCrawlableLinkClick(event, () => {')
+  ) &&
+  v12610PublicLinkBehaviorRuntimePass &&
+  v12610NotFoundContent.includes('href={getPublicHomeHref()}') &&
+  v12610NotFoundContent.includes("handleCrawlableLinkClick(event, () => navigate('/'))") &&
+  giftWidgetContent.includes('<a') &&
+  giftWidgetContent.includes('href={safeTargetUrl}') &&
+  giftWidgetContent.includes("if (safeTargetUrl === '#') return null;") &&
+  giftWidgetContent.includes("target={targetBlank ? '_blank' : undefined}") &&
+  giftWidgetContent.includes("rel={targetBlank ? 'noopener noreferrer' : undefined}") &&
+  !giftWidgetContent.includes('window.open(') &&
+  !giftWidgetContent.includes('window.location.href')
+) {
+  pass(
+    'Public Action Link Completion: account profile destinations, the public 404 Home destination, and the Holiday Gift Widget expose safe anchors while retaining SPA or native navigation behavior.'
+  );
+} else {
+  fail(
+    'Public Action Link Completion: a profile, 404 Home, or Gift Widget destination has regressed to JavaScript-only navigation or unsafe new-tab handling.'
   );
 }
 
@@ -16684,6 +17608,7 @@ const cacheFiles = () => fs.existsSync(storage)
     'public/api/update_profile.php',
     'public/api/save_user.php',
     'public/api/repair_db.php',
+    'public/api/schema_repair_helper.php',
     'public/security.php',
     'public/index.php',
   ];

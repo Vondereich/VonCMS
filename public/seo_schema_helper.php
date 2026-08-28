@@ -488,9 +488,12 @@ if (!function_exists('voncms_apply_content_schema')) {
     } else {
       unset($schemaData['image']);
     }
-    $publishedAt = !empty($content['scheduled_at'])
-      ? $content['scheduled_at']
-      : $content['created_at'] ?? null;
+    $publishedAt = function_exists('voncms_publication_value')
+      ? voncms_publication_value($content, $contentType)
+      : $content['published_at'] ??
+        ($contentType === 'post'
+          ? $content['scheduled_at'] ?? ($content['created_at'] ?? null)
+          : $content['created_at'] ?? null);
     $schemaData['datePublished'] = !empty($publishedAt)
       ? date('c', strtotime((string) $publishedAt))
       : date('c');

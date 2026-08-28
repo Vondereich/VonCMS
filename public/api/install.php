@@ -17,7 +17,8 @@ if (version_compare(PHP_VERSION, '8.2.0', '<')) {
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
-require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/schema_repair_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('POST, OPTIONS');
@@ -107,19 +108,6 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-  $pdo->exec("CREATE TABLE IF NOT EXISTS remember_tokens (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        selector CHAR(24) NOT NULL UNIQUE,
-        token_hash CHAR(64) NOT NULL,
-        expires_at DATETIME NOT NULL,
-        last_used_at DATETIME DEFAULT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_remember_user (user_id),
-        INDEX idx_remember_expires (expires_at),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
   // Posts Table
   $pdo->exec("CREATE TABLE IF NOT EXISTS posts (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -132,6 +120,7 @@ try {
         author_id INT,
         status VARCHAR(20) DEFAULT 'draft',
         scheduled_at DATETIME DEFAULT NULL,
+        published_at DATETIME DEFAULT NULL,
         category VARCHAR(100) DEFAULT 'Uncategorized',
         keywords VARCHAR(255),
         meta_description TEXT,
@@ -157,6 +146,7 @@ try {
         author VARCHAR(100),
         author_id INT,
         status VARCHAR(20) DEFAULT 'draft',
+        published_at DATETIME DEFAULT NULL,
         featured_image VARCHAR(255) DEFAULT NULL,
         keywords VARCHAR(255),
         meta_description TEXT,
@@ -188,18 +178,6 @@ try {
         INDEX idx_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-  $pdo->exec("CREATE TABLE IF NOT EXISTS comment_likes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        comment_id INT NOT NULL,
-        user_id INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_comment_like (comment_id, user_id),
-        INDEX idx_comment_likes_comment (comment_id),
-        INDEX idx_comment_likes_user (user_id),
-        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
   // Settings Table
   $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -210,7 +188,7 @@ try {
         is_sensitive BOOLEAN DEFAULT FALSE,
         is_public BOOLEAN DEFAULT TRUE,
         description VARCHAR(255) DEFAULT NULL,
-        default_value LONGTEXT DEFAULT NULL,
+        default_value LONGTEXT NULL,
         version INT DEFAULT 1,
         created_by INT DEFAULT NULL,
         updated_by INT DEFAULT NULL,
@@ -238,7 +216,7 @@ try {
         changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         change_type ENUM('INSERT', 'UPDATE', 'DELETE') DEFAULT 'UPDATE',
         ip_address VARCHAR(45) DEFAULT NULL,
-        user_agent TEXT DEFAULT NULL,
+        user_agent TEXT NULL,
         INDEX idx_setting_id (setting_id),
         INDEX idx_changed_at (changed_at),
         INDEX idx_changed_by (changed_by),
@@ -255,8 +233,8 @@ try {
         filetype VARCHAR(100) DEFAULT NULL,
         filesize BIGINT DEFAULT 0,
         alt_text VARCHAR(255) DEFAULT NULL,
-        caption TEXT DEFAULT NULL,
-        description TEXT DEFAULT NULL,
+        caption TEXT NULL,
+        description TEXT NULL,
         uploaded_by INT,
         uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -277,20 +255,6 @@ try {
         INDEX idx_email (email),
         INDEX idx_status (status),
         INDEX idx_subscribed_at (subscribed_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-  // Analytics Table (Smart Session)
-  $pdo->exec("CREATE TABLE IF NOT EXISTS analytics (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        page_url VARCHAR(500),
-        referrer VARCHAR(500),
-        user_agent TEXT,
-        ip_hash VARCHAR(64) COMMENT 'SHA256 hashed IP for privacy',
-        visit_date DATE,
-        visit_time TIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_date (visit_date),
-        INDEX idx_ip_date (ip_hash, visit_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
   // CONTACT FORMS Table
@@ -324,23 +288,6 @@ try {
         FOREIGN KEY (form_id) REFERENCES contact_forms(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-  // Security Logs Table (Security Dashboard)
-  // Security Logs Table
-  $pdo->exec("CREATE TABLE IF NOT EXISTS security_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        event_type VARCHAR(50) NOT NULL,
-        ip_address VARCHAR(45) NOT NULL,
-        user_agent TEXT,
-        endpoint VARCHAR(255),
-        severity VARCHAR(20) NOT NULL,
-        details TEXT,
-        blocked TINYINT(1) DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_security_timestamp (created_at),
-        INDEX idx_security_ip (ip_address),
-        INDEX idx_security_event (event_type)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
   // Redirects Table SEO Velocity
   $pdo->exec("CREATE TABLE IF NOT EXISTS redirects (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -353,8 +300,8 @@ try {
         UNIQUE KEY unique_source (source_url(255))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-  // Content Audit Logs Table
-  voncms_ensure_content_audit_logs_table($pdo);
+  // Shared runtime capabilities are installed once here and repaired only by Database Repair.
+  voncms_schema_repair_runtime_capabilities($pdo);
 
   // 4. Create Admin User (auto-verified — no email verification needed for fresh install)
   $hashedPass = password_hash($adminPass, PASSWORD_DEFAULT);
@@ -663,7 +610,7 @@ if (file_put_contents($configFile, $configContent)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
 
@@ -769,6 +716,7 @@ if (file_put_contents($configFile, $configContent)) {
   }
 
   // 7. Create Installer Lock File (Security Patch)
+  voncms_mark_publication_columns_ready();
   @file_put_contents(__DIR__ . '/../install.lock', 'VonCMS Installed: ' . date('Y-m-d H:i:s'));
 
   echo json_encode(['success' => true, 'message' => 'Installation successful! Config written.']);

@@ -31,6 +31,8 @@ const getInitialPosts = (): Post[] => {
       createdAt: p.created_at || '',
       updatedAt: p.updated_at || p.created_at || '',
       scheduledAt: p.scheduled_at || p.scheduledAt || '',
+      publishedAt: p.published_at || p.publishedAt || '',
+      published_at: p.published_at || p.publishedAt || '',
       keywords: p.keywords || '',
       metaDescription: p.meta_description || '',
       readTime: p.readTime || '',
@@ -43,6 +45,8 @@ const normalizePage = (p: any): Page => ({
   ...p,
   createdAt: p.created_at || p.createdAt || '',
   updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
+  publishedAt: p.published_at || p.publishedAt || '',
+  published_at: p.published_at || p.publishedAt || '',
   metaDescription: p.metaDescription || p.meta_description || '',
   meta_description: p.meta_description || p.metaDescription || '',
 });
@@ -123,6 +127,8 @@ export function useContent() {
           createdAt: p.created_at || p.createdAt || '',
           updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
           scheduledAt: p.scheduled_at || p.scheduledAt || '',
+          publishedAt: p.published_at || p.publishedAt || '',
+          published_at: p.published_at || p.publishedAt || '',
           author_data: p.author_data || { username: p.author || '', avatar: '' },
           readTime: p.readTime || '',
         }));

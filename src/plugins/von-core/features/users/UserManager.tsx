@@ -111,6 +111,8 @@ const UserManager: React.FC<UserManagerProps> = ({
       : 'Only admin 1 can delete this account';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const userMutationInFlight = useRef(false);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
   const fetchUsersPage = useCallback(async (page: number, filters?: { search?: string }) => {
     const requestId = ++usersRequestId.current;
@@ -260,25 +262,49 @@ const UserManager: React.FC<UserManagerProps> = ({
     }
 
     if (editingUser && onUpdateUser) {
-      const updateData: User = {
-        ...editingUser,
-        username: editForm.username,
-        display_name: editForm.display_name,
-        email: editForm.email,
-        role: editForm.role,
-        avatar: editForm.avatar,
-      };
-      if (editForm.password) {
-        updateData.password = editForm.password;
-      }
-      const success = await onUpdateUser(updateData);
-      if (success === false) {
+      const hasChanges =
+        editForm.username !== editingUser.username ||
+        editForm.display_name !== (editingUser.display_name || '') ||
+        editForm.email !== editingUser.email ||
+        editForm.role !== editingUser.role ||
+        editForm.avatar !== (editingUser.avatar || '') ||
+        editForm.password !== '';
+
+      if (!hasChanges) {
+        toast('No changes detected.');
         return;
       }
-      await fetchUsersPage(currentPage, { search: searchQuery || undefined });
+
+      if (userMutationInFlight.current) {
+        return;
+      }
+      userMutationInFlight.current = true;
+      setUpdatingUserId(String(editingUser.id));
+
+      try {
+        const updateData: User = {
+          ...editingUser,
+          username: editForm.username,
+          display_name: editForm.display_name,
+          email: editForm.email,
+          role: editForm.role,
+          avatar: editForm.avatar,
+        };
+        if (editForm.password) {
+          updateData.password = editForm.password;
+        }
+        const success = await onUpdateUser(updateData);
+        if (success === false) {
+          return;
+        }
+        await fetchUsersPage(currentPage, { search: searchQuery || undefined });
+        setEditingUser(null);
+        setEditPasswordError(null);
+      } finally {
+        userMutationInFlight.current = false;
+        setUpdatingUserId(null);
+      }
     }
-    setEditingUser(null);
-    setEditPasswordError(null);
   };
 
   const handleApproveEmail = async (user: User) => {
@@ -286,14 +312,24 @@ const UserManager: React.FC<UserManagerProps> = ({
       return;
     }
 
-    const success = await onUpdateUser({
-      ...user,
-      approve_email: true,
-    });
-    if (success === false) {
+    if (userMutationInFlight.current) {
       return;
     }
-    await fetchUsersPage(currentPage, { search: searchQuery || undefined });
+    userMutationInFlight.current = true;
+    setUpdatingUserId(String(user.id));
+    try {
+      const success = await onUpdateUser({
+        ...user,
+        approve_email: true,
+      });
+      if (success === false) {
+        return;
+      }
+      await fetchUsersPage(currentPage, { search: searchQuery || undefined });
+    } finally {
+      userMutationInFlight.current = false;
+      setUpdatingUserId(null);
+    }
   };
 
   const confirmDelete = async () => {
@@ -319,10 +355,11 @@ const UserManager: React.FC<UserManagerProps> = ({
         <button
           type="button"
           onClick={() => handleApproveEmail(user)}
-          className="min-h-11 rounded-lg px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+          disabled={updatingUserId !== null}
+          className="min-h-11 rounded-lg px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-emerald-900/30"
           title="Approve Email"
         >
-          Approve Email
+          {updatingUserId === String(user.id) ? 'Approving...' : 'Approve Email'}
         </button>
       )}
       <button
@@ -686,9 +723,10 @@ const UserManager: React.FC<UserManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="min-h-11 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto"
+                  disabled={updatingUserId !== null}
+                  className="min-h-11 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 disabled:cursor-wait disabled:opacity-50 sm:w-auto"
                 >
-                  Save Changes
+                  {updatingUserId === String(editingUser.id) ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

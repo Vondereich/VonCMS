@@ -82,13 +82,13 @@ const INITIAL_SETTINGS: SiteSettings = {
 export function useSettings() {
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
   const settingsRef = useRef<SiteSettings>(INITIAL_SETTINGS);
-  const loadSettingsInFlightRef = useRef<Promise<void> | null>(null);
+  const loadSettingsInFlightRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
 
-  const executeSettingsRequest = useCallback(async (): Promise<void> => {
+  const executeSettingsRequest = useCallback(async (): Promise<boolean> => {
     try {
       const res = await vonFetch(API.settings);
       if (res.ok) {
@@ -102,15 +102,17 @@ export function useSettings() {
             const currentPath = window.location.pathname;
             if (!currentPath.endsWith('/install')) {
               window.location.href = `${BASE_PATH}install`;
-              return;
+              return true;
             }
           }
 
           if (data) {
             setSettings((prev) => ({ ...prev, ...data }));
+            return true;
           }
         } catch (e) {
           console.error('Failed to parse settings JSON:', e);
+          return false;
         }
       } else {
         console.warn('Failed to load settings from database, status:', res.status);
@@ -118,24 +120,25 @@ export function useSettings() {
     } catch (e) {
       console.error('Failed to load settings from database:', e);
     }
+    return false;
   }, []);
 
   // Load settings from database. Same-scope callers share one request, while login can queue a
   // protected refresh after a guest request that was already in flight.
   const loadSettings = useCallback(
-    async (forceRefresh = false): Promise<void> => {
+    async (forceRefresh = false): Promise<boolean> => {
       const activeRequest = loadSettingsInFlightRef.current;
       if (activeRequest) {
-        await activeRequest;
+        const activeRequestSucceeded = await activeRequest;
         if (!forceRefresh) {
-          return;
+          return activeRequestSucceeded;
         }
       }
 
       const request = executeSettingsRequest();
       loadSettingsInFlightRef.current = request;
       try {
-        await request;
+        return await request;
       } finally {
         if (loadSettingsInFlightRef.current === request) {
           loadSettingsInFlightRef.current = null;
@@ -226,7 +229,9 @@ export function useSettings() {
           }
 
           console.error('Failed to save settings:', res.status, data);
-          toast.error('Failed to save settings: ' + (data.message || 'Database error'));
+          toast.error(
+            'Failed to save settings: ' + (data.error || data.message || 'Database error')
+          );
           restorePreviousSettings();
           return false;
         } else {
@@ -235,6 +240,23 @@ export function useSettings() {
             console.error('Settings save failed:', data.message);
             toast.error('Settings save failed: ' + (data.message || 'Unknown error'));
             restorePreviousSettings();
+            return false;
+          }
+
+          const ignoredSettingsKeys = Array.isArray(data.ignored)
+            ? data.ignored.filter((key: unknown): key is string => typeof key === 'string')
+            : [];
+          if (ignoredSettingsKeys.length > 0) {
+            toast.error(
+              `Some settings require Primary Admin permission: ${ignoredSettingsKeys.join(', ')}`
+            );
+            restorePreviousSettings();
+            const resynced = await loadSettings(true);
+            if (!resynced) {
+              toast.error(
+                'Could not reload canonical settings. Refresh this page before editing again.'
+              );
+            }
             return false;
           }
         }
@@ -252,7 +274,7 @@ export function useSettings() {
         return false;
       }
     },
-    []
+    [loadSettings]
   );
 
   // Toggle navigation item

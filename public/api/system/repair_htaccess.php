@@ -114,7 +114,7 @@ function getHtaccessContent($prefix)
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|public_cache_helper|redirect_loop_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
 

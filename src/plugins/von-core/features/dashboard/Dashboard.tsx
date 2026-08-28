@@ -226,7 +226,6 @@ const VpDashboard: React.FC<DashboardProps> = ({
     totalVisits: 0,
     uniqueVisitors: 0,
   });
-  const navigate = useNavigate();
   const canManageSystem =
     currentUser?.role?.toLowerCase() === 'root' || String(currentUser?.id || '') === '1';
   const currentUserRole = currentUser?.role?.toLowerCase();
@@ -242,24 +241,6 @@ const VpDashboard: React.FC<DashboardProps> = ({
     expectedHash?: string;
   } | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-
-  // Database Status
-  const [dbStatus, setDbStatus] = useState<{ needs_repair: boolean; details: string[] } | null>(
-    null
-  );
-
-  useEffect(() => {
-    if (canManageSystem) {
-      vonFetch(API.checkDbStatus)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.needs_repair) {
-            setDbStatus({ needs_repair: true, details: data.details || [] });
-          }
-        })
-        .catch((err) => console.error('DB Status Check Failed', err));
-    }
-  }, [canManageSystem]);
 
   // Compare semantic versions (returns true if remote > local)
   const isNewerVersion = (local: string, remote: string): boolean => {
@@ -688,43 +669,6 @@ const VpDashboard: React.FC<DashboardProps> = ({
         <div className="bg-slate-100 dark:bg-[#1a1b26] rounded-xl p-3 flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
           <RefreshCw size={16} className="animate-spin" />
           Checking for updates...
-        </div>
-      )}
-
-      {/* Database Repair Warning Standardized */}
-      {dbStatus?.needs_repair && (
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-6 rounded-r-xl shadow-xs animate-fade-in mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex gap-4">
-              <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-full text-red-600 dark:text-red-400">
-                <Server size={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-red-700 dark:text-red-300">
-                  Database Schema Update Required
-                </h3>
-                <p className="text-sm text-red-600 dark:text-red-400 max-w-2xl mt-1">
-                  Your database schema is outdated and missing critical tables for v{pkg.version}.
-                  Features like <strong>Redirect Manager</strong> and <strong>Smart Slugs</strong>{' '}
-                  are currently disabled.
-                </p>
-                {dbStatus.details && dbStatus.details.length > 0 && (
-                  <ul className="mt-2 text-xs text-red-500 list-disc ml-4 opacity-80">
-                    {dbStatus.details.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => navigate('/admin/settings?tab=tools')}
-              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2 whitespace-nowrap"
-            >
-              <RefreshCw size={18} />
-              Open Schema Repair
-            </button>
-          </div>
         </div>
       )}
 

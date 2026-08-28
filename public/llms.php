@@ -166,8 +166,10 @@ try {
   // =====================
   // OUTPUT: POSTS
   // =====================
+  $publishedAtSql = voncms_publication_column_sql($pdo, 'posts');
+  $publicationExpression = voncms_publication_expression_sql($pdo, 'posts');
   $postStmt = $pdo->prepare(
-    "SELECT id, title, slug, excerpt, created_at, category, COALESCE(scheduled_at, created_at) AS effective_publish_at FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY effective_publish_at DESC LIMIT 50",
+    "SELECT id, title, slug, excerpt, created_at, category, {$publishedAtSql}, {$publicationExpression} AS effective_publish_at FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY effective_publish_at DESC LIMIT 50",
   );
   $postStmt->bindValue(':currentTime', $currentTime);
   $postStmt->execute();

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Database, Play, Shield, Download, Upload, RefreshCw, Server, Search } from 'lucide-react';
 import { SqlResult } from '../../../../types';
-import { API } from '../../../../config/site.config';
+import { API, DATABASE_STATUS_INVALIDATED_EVENT } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 
 const quoteSqlIdentifier = (identifier: string) => `\`${identifier.replace(/`/g, '``')}\``;
@@ -208,17 +208,28 @@ const DatabaseManager: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await response.json();
-      if (data.success) {
-        toast.success(data.message);
-        if (data.repaired) {
+      const warnings = Array.isArray(data.warnings)
+        ? data.warnings.filter((warning: unknown): warning is string => typeof warning === 'string')
+        : [];
+      if (data.success === true) {
+        if (warnings.length > 0) {
+          toast(`${data.message} ${warnings.join(' ')}`, {
+            icon: '⚠️',
+            duration: 10000,
+          });
+        } else {
+          toast.success(data.message);
+        }
+        if (data.repaired && warnings.length === 0) {
           window.location.reload();
         }
       } else {
-        toast.error('Repair failed: ' + data.message);
+        toast.error('Repair failed: ' + (data.error || data.message || 'Unknown error'));
       }
     } catch (error) {
       toast.error('Repair failed: Network Error');
     } finally {
+      window.dispatchEvent(new Event(DATABASE_STATUS_INVALIDATED_EVENT));
       setIsRepairing(false);
     }
   };

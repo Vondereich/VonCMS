@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Gravatar from 'react-gravatar';
 import { useLocation, Link } from 'react-router';
 import toast from 'react-hot-toast';
-import { API } from '../../config/site.config';
+import { API, DATABASE_STATUS_INVALIDATED_EVENT } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
 import {
   LayoutDashboard,
@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { VonLogo } from '../VonLogo';
 import { SiteSettings, User } from '../../types';
+import pkg from '../../../package.json';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -56,6 +57,64 @@ interface AdminEditorRouteContext {
 
 const ADMIN_NAV_FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const ADMIN_DB_STATUS_CACHE_TTL_MS = 60_000;
+const ADMIN_DB_STATUS_CACHE_KEY = `voncms:admin-db-status:${pkg.version}`;
+
+interface HealthyDatabaseStatusCache {
+  version: string;
+  checkedAt: number;
+  needsRepair: false;
+}
+
+const readHealthyDatabaseStatusCache = (): number | null => {
+  try {
+    const stored = window.sessionStorage.getItem(ADMIN_DB_STATUS_CACHE_KEY);
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as Partial<HealthyDatabaseStatusCache>;
+    const age = Date.now() - Number(parsed.checkedAt);
+    if (
+      parsed.version === pkg.version &&
+      parsed.needsRepair === false &&
+      Number.isFinite(age) &&
+      age >= 0 &&
+      age < ADMIN_DB_STATUS_CACHE_TTL_MS
+    ) {
+      return Number(parsed.checkedAt);
+    }
+
+    window.sessionStorage.removeItem(ADMIN_DB_STATUS_CACHE_KEY);
+  } catch {
+    try {
+      window.sessionStorage.removeItem(ADMIN_DB_STATUS_CACHE_KEY);
+    } catch {
+      // Storage is optional; a live request remains the source of truth.
+    }
+  }
+
+  return null;
+};
+
+const writeHealthyDatabaseStatusCache = (checkedAt: number) => {
+  try {
+    const snapshot: HealthyDatabaseStatusCache = {
+      version: pkg.version,
+      checkedAt,
+      needsRepair: false,
+    };
+    window.sessionStorage.setItem(ADMIN_DB_STATUS_CACHE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Storage can be unavailable in hardened or private browser contexts.
+  }
+};
+
+const clearHealthyDatabaseStatusCache = () => {
+  try {
+    window.sessionStorage.removeItem(ADMIN_DB_STATUS_CACHE_KEY);
+  } catch {
+    // A failed cache clear must not block the live status request.
+  }
+};
 
 const isAdminMenuPathMatch = (pathname: string, menuPath: string) =>
   pathname === menuPath || pathname.startsWith(`${menuPath}/`);
@@ -101,6 +160,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [alertsCheckedAt, setAlertsCheckedAt] = useState<number | null>(null);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsCheckFailed, setAlertsCheckFailed] = useState(false);
   const [alertsRefreshTick, setAlertsRefreshTick] = useState(0);
   const alertsTrayRef = useRef<HTMLDivElement | null>(null);
   const mobileSidebarRef = useRef<HTMLElement | null>(null);
@@ -251,6 +311,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           },
         ]
       : []),
+    ...(alertsCheckFailed
+      ? [
+          {
+            id: 'db-status-unavailable',
+            title: 'Database status unavailable',
+            body: 'VonCMS could not verify the current database schema. Use Refresh to try again.',
+            actionLabel: 'Open system tools',
+            actionPath: '/admin/settings?tab=tools',
+          },
+        ]
+      : []),
   ];
   const hasActiveAlerts = alertItems.length > 0;
   const editorRouteContext = resolveAdminEditorRouteContext(pathname, search);
@@ -264,7 +335,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     (pathname === '/admin' ? 'Admin' : 'Page Not Found');
   const alertsCheckedLabel =
     alertsCheckedAt === null
-      ? userRole === 'admin'
+      ? isPrimaryAdmin
         ? 'Checking system status...'
         : 'Current session status'
       : Date.now() - alertsCheckedAt < 60_000
@@ -412,31 +483,79 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   }, [settings?._serverInfo?.integrityNeeded]);
 
   useEffect(() => {
-    if (userRole !== 'admin') return;
+    if (!isPrimaryAdmin) return;
+
+    const handleDatabaseStatusInvalidated = () => {
+      clearHealthyDatabaseStatusCache();
+      setAlertsRefreshTick((current) => current + 1);
+    };
+
+    window.addEventListener(DATABASE_STATUS_INVALIDATED_EVENT, handleDatabaseStatusInvalidated);
+    return () => {
+      window.removeEventListener(
+        DATABASE_STATUS_INVALIDATED_EVENT,
+        handleDatabaseStatusInvalidated
+      );
+    };
+  }, [isPrimaryAdmin]);
+
+  useEffect(() => {
+    if (!isPrimaryAdmin) return;
+
+    if (alertsRefreshTick === 0) {
+      const cachedCheckedAt = readHealthyDatabaseStatusCache();
+      if (cachedCheckedAt !== null) {
+        setDbAlert({ needsRepair: false, details: [] });
+        setAlertsCheckFailed(false);
+        setAlertsLoaded(true);
+        setAlertsLoading(false);
+        setAlertsCheckedAt(cachedCheckedAt);
+        return;
+      }
+    } else {
+      clearHealthyDatabaseStatusCache();
+    }
 
     let active = true;
+    setAlertsCheckFailed(false);
+    setDbAlert(null);
+    setAlertsLoaded(false);
+    setAlertsCheckedAt(null);
     setAlertsLoading(true);
 
     vonFetch(API.checkDbStatus)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Database status request failed');
+        return res.json();
+      })
       .then((data) => {
         if (!active) return;
+        if (data.success !== true) throw new Error('Database status response was not successful');
+        if (typeof data.needs_repair !== 'boolean') {
+          throw new Error('Database status response was incomplete');
+        }
+        const checkedAt = Date.now();
 
-        if (data.success && data.needs_repair) {
+        if (data.needs_repair === true) {
+          clearHealthyDatabaseStatusCache();
           setDbAlert({
             needsRepair: true,
             details: Array.isArray(data.details) ? data.details : [],
           });
         } else {
           setDbAlert({ needsRepair: false, details: [] });
+          writeHealthyDatabaseStatusCache(checkedAt);
         }
 
+        setAlertsCheckFailed(false);
         setAlertsLoaded(true);
-        setAlertsCheckedAt(Date.now());
+        setAlertsCheckedAt(checkedAt);
       })
       .catch(() => {
         if (!active) return;
-        setDbAlert({ needsRepair: false, details: [] });
+        clearHealthyDatabaseStatusCache();
+        setDbAlert(null);
+        setAlertsCheckFailed(true);
         setAlertsLoaded(true);
         setAlertsCheckedAt(Date.now());
       })
@@ -447,7 +566,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     return () => {
       active = false;
     };
-  }, [userRole, alertsRefreshTick]);
+  }, [isPrimaryAdmin, alertsRefreshTick]);
 
   useEffect(() => {
     if (!isAlertsOpen) return;
@@ -743,7 +862,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                         {alertsCheckedLabel}
                       </p>
                     </div>
-                    {userRole === 'admin' && (
+                    {isPrimaryAdmin && (
                       <button
                         type="button"
                         onClick={() => setAlertsRefreshTick((prev) => prev + 1)}
@@ -779,6 +898,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                           </p>
                         </Link>
                       ))
+                    ) : !isPrimaryAdmin ? (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-[#2a2b36] dark:bg-[#242633]/40">
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          Database status restricted
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Database health is available to the primary admin.
+                        </p>
+                      </div>
                     ) : (
                       <div className="rounded-lg border border-emerald-100 bg-emerald-50/80 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                         <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">

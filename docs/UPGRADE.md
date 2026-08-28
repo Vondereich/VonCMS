@@ -2,6 +2,22 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+> **Release note:** v1.26.11 is the current release baseline. Existing sites must complete the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
+
+### v1.26.11 database repair ownership
+
+The v1.26.11 development line removes permanent table and column creation from ordinary registration, recovery, profile, comment, analytics, audit, and security-log request paths. After upgrading an existing site:
+
+1. back up the database
+2. sign in as the primary administrator
+3. follow any database status notice to **Settings > Tools > Repair Database**
+4. review both completed fixes and compatibility warnings
+5. if hosting interrupts a DDL statement or the repair reports a controlled stop, correct the reported database condition and run the same repair again
+
+The status check is read-only. Repair uses a bounded advisory lock and verifies completed structures, but MySQL DDL is not transactionally rolled back as one unit. The repair therefore adds a correct index or foreign key before removing a conflicting definition, verifies InnoDB and `utf8mb4` table storage, converts only empty storage-drifted tables automatically, preserves populated or orphaned legacy data for manual review, and remains resumable. OTA does not silently run this DDL during public traffic.
+
+The same repair adds and safely backfills the v1.26.11 `published_at` columns for existing published posts and pages, then activates a protected local capability marker. Until that explicit repair succeeds, upgraded sites keep serving the older scheduled-or-created publication-time fallback without running schema probes during ordinary traffic. A destructive database restore clears the marker and requires Database Repair again.
+
 For a fresh install, use the root [README](../README.md) or [Installation](INSTALL.md) instead. This guide is only for existing sites.
 
 > [!IMPORTANT]

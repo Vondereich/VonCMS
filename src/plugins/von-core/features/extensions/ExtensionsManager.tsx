@@ -107,7 +107,14 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
+  const settingsSnapshotRef = React.useRef(settings);
+  const extensionMutationInFlight = React.useRef(false);
+  const [mutatingExtensionId, setMutatingExtensionId] = useState<string | null>(null);
   const itemsPerPage = 6;
+
+  React.useEffect(() => {
+    settingsSnapshotRef.current = settings;
+  }, [settings]);
 
   // Map themes to ExtensionItems
   const themeItems: ExtensionItem[] = availableThemes.map((theme) => ({
@@ -123,19 +130,40 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
   const allItems = activeTab === 'themes' ? themeItems : pluginItems;
 
-  const persistSettings = async (nextSettings: SiteSettings): Promise<boolean> => {
+  const persistSettings = async (
+    nextSettings: SiteSettings,
+    mutationId = 'extension-settings'
+  ): Promise<boolean> => {
+    if (extensionMutationInFlight.current) {
+      toast.error('Another extension change is still saving.');
+      return false;
+    }
+
+    extensionMutationInFlight.current = true;
+    setMutatingExtensionId(mutationId);
     try {
-      return (await onUpdateSettings(nextSettings, { optimistic: false })) !== false;
+      const saved = (await onUpdateSettings(nextSettings, { optimistic: false })) !== false;
+      if (saved) {
+        settingsSnapshotRef.current = nextSettings;
+      }
+      return saved;
     } catch {
       return false;
+    } finally {
+      extensionMutationInFlight.current = false;
+      setMutatingExtensionId(null);
     }
   };
 
   const handleActivateTheme = async (themeId: string) => {
-    const saved = await persistSettings({
-      ...settings,
-      activeThemeId: themeId,
-    });
+    const currentSettings = settingsSnapshotRef.current;
+    const saved = await persistSettings(
+      {
+        ...currentSettings,
+        activeThemeId: themeId,
+      },
+      themeId
+    );
     if (!saved) return;
 
     setTheme(themeId);
@@ -148,18 +176,19 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
     if (item.type === 'theme') {
       if (item.status !== 'active') {
-        handleActivateTheme(id);
+        await handleActivateTheme(id);
       }
     } else {
       // Plugin logic - update state and save to settings
       const newStatus = item.status === 'active' ? 'inactive' : 'active';
 
       // Save plugin status to settings AND update activePlugins array
-      const currentPluginStatus = settings.pluginConfig?.['pluginStatus'] || {};
+      const currentSettings = settingsSnapshotRef.current;
+      const currentPluginStatus = currentSettings.pluginConfig?.['pluginStatus'] || {};
 
       // Update activePlugins array
       let newActivePlugins = [
-        ...(Array.isArray(settings.activePlugins) ? settings.activePlugins : []),
+        ...(Array.isArray(currentSettings.activePlugins) ? currentSettings.activePlugins : []),
       ];
       if (newStatus === 'active') {
         if (!newActivePlugins.includes(id)) newActivePlugins.push(id);
@@ -167,17 +196,20 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         newActivePlugins = newActivePlugins.filter((pId) => pId !== id);
       }
 
-      const saved = await persistSettings({
-        ...settings,
-        activePlugins: newActivePlugins,
-        pluginConfig: {
-          ...settings.pluginConfig,
-          pluginStatus: {
-            ...currentPluginStatus,
-            [id]: newStatus,
+      const saved = await persistSettings(
+        {
+          ...currentSettings,
+          activePlugins: newActivePlugins,
+          pluginConfig: {
+            ...currentSettings.pluginConfig,
+            pluginStatus: {
+              ...currentPluginStatus,
+              [id]: newStatus,
+            },
           },
         },
-      });
+        id
+      );
       if (!saved) return;
 
       setPluginItems((prev) =>
@@ -196,17 +228,21 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   const handleInstall = async (id: string) => {
     const confirm = window.confirm('Install this extension?');
     if (confirm) {
-      const currentPluginStatus = settings.pluginConfig?.['pluginStatus'] || {};
+      const currentSettings = settingsSnapshotRef.current;
+      const currentPluginStatus = currentSettings.pluginConfig?.['pluginStatus'] || {};
       const newPluginStatus = { ...currentPluginStatus };
       newPluginStatus[id] = 'inactive';
 
-      const saved = await persistSettings({
-        ...settings,
-        pluginConfig: {
-          ...settings.pluginConfig,
-          pluginStatus: newPluginStatus,
+      const saved = await persistSettings(
+        {
+          ...currentSettings,
+          pluginConfig: {
+            ...currentSettings.pluginConfig,
+            pluginStatus: newPluginStatus,
+          },
         },
-      });
+        id
+      );
       if (!saved) return;
 
       setPluginItems((prev) =>
@@ -219,22 +255,26 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   const handleUninstall = async (id: string) => {
     const confirm = window.confirm('Are you sure you want to uninstall this? Data may be lost.');
     if (confirm) {
-      const currentPluginStatus = settings.pluginConfig?.['pluginStatus'] || {};
+      const currentSettings = settingsSnapshotRef.current;
+      const currentPluginStatus = currentSettings.pluginConfig?.['pluginStatus'] || {};
       const newPluginStatus = { ...currentPluginStatus };
       let newActivePlugins = [
-        ...(Array.isArray(settings.activePlugins) ? settings.activePlugins : []),
+        ...(Array.isArray(currentSettings.activePlugins) ? currentSettings.activePlugins : []),
       ];
       newActivePlugins = newActivePlugins.filter((pId) => pId !== id);
       newPluginStatus[id] = 'not_installed';
 
-      const saved = await persistSettings({
-        ...settings,
-        activePlugins: newActivePlugins,
-        pluginConfig: {
-          ...settings.pluginConfig,
-          pluginStatus: newPluginStatus,
+      const saved = await persistSettings(
+        {
+          ...currentSettings,
+          activePlugins: newActivePlugins,
+          pluginConfig: {
+            ...currentSettings.pluginConfig,
+            pluginStatus: newPluginStatus,
+          },
         },
-      });
+        id
+      );
       if (!saved) return;
 
       setPluginItems((prev) =>
@@ -245,6 +285,8 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   };
 
   const handleOpenSettings = (id: string) => {
+    const currentSettings = settingsSnapshotRef.current;
+
     // All themes have custom modals
     if (
       id === 'theme-default' ||
@@ -259,12 +301,12 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
     }
 
     if (id === 'vp_von_seo') {
-      const seoConfig = settings.seo || {
+      const seoConfig = currentSettings.seo || {
         sitemapEnabled: true,
       };
       setTempConfig({ ...seoConfig });
     } else if (id === 'vp_promo_bar') {
-      const currentConfig = settings.pluginConfig?.[id] || {};
+      const currentConfig = currentSettings.pluginConfig?.[id] || {};
       setTempConfig({
         text:
           currentConfig.text ||
@@ -278,7 +320,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         targetBlank: currentConfig.targetBlank ?? true,
       });
     } else if (id === 'vp_gift_widget') {
-      const currentConfig = settings.pluginConfig?.[id] || {};
+      const currentConfig = currentSettings.pluginConfig?.[id] || {};
       setTempConfig({
         targetUrl: currentConfig.targetUrl || '#',
         tooltipText: currentConfig.tooltipText || 'Claim Gift',
@@ -288,7 +330,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         targetBlank: currentConfig.targetBlank ?? true,
       });
     } else {
-      const currentConfig = settings.pluginConfig?.[id] || {};
+      const currentConfig = currentSettings.pluginConfig?.[id] || {};
       setTempConfig(currentConfig);
     }
     setConfiguringPluginId(id);
@@ -296,21 +338,28 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
   const handleSaveSettings = async () => {
     if (!configuringPluginId) return;
+    const currentSettings = settingsSnapshotRef.current;
 
     if (configuringPluginId === 'vp_von_seo') {
-      const saved = await persistSettings({
-        ...settings,
-        seo: tempConfig as SeoConfig,
-      });
+      const saved = await persistSettings(
+        {
+          ...currentSettings,
+          seo: tempConfig as SeoConfig,
+        },
+        configuringPluginId
+      );
       if (!saved) return;
     } else {
-      const saved = await persistSettings({
-        ...settings,
-        pluginConfig: {
-          ...settings.pluginConfig,
-          [configuringPluginId]: tempConfig,
+      const saved = await persistSettings(
+        {
+          ...currentSettings,
+          pluginConfig: {
+            ...currentSettings.pluginConfig,
+            [configuringPluginId]: tempConfig,
+          },
         },
-      });
+        configuringPluginId
+      );
       if (!saved) return;
     }
 
@@ -342,7 +391,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* Default Theme Settings Modal */}
       {configuringPluginId === 'theme-default' && (
         <DefaultThemeSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -351,7 +400,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* Prism Settings Modal */}
       {configuringPluginId === 'theme-prism' && (
         <PrismSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -360,7 +409,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* TechPress Settings Modal */}
       {configuringPluginId === 'theme-techpress' && (
         <TechPressSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -369,7 +418,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* Portfolio Settings Modal */}
       {configuringPluginId === 'theme-portfolio' && (
         <PortfolioSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -378,7 +427,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* Digest Settings Modal */}
       {configuringPluginId === 'theme-digest' && (
         <DigestSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -387,7 +436,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* Corporate Pro Settings Modal */}
       {configuringPluginId === 'theme-corporate-pro' && (
         <CorporateProSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -396,7 +445,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* VonSEO Settings Modal */}
       {configuringPluginId === 'vp_von_seo' && (
         <VonSEOSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -405,7 +454,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* VonAnalytics Settings Modal */}
       {configuringPluginId === 'vp_analytics' && (
         <VonAnalyticsSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -414,7 +463,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* AI Summary Settings Modal */}
       {configuringPluginId === 'vp_ai_summary' && (
         <AISummarySettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -423,7 +472,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       {/* Related Posts Settings Modal */}
       {configuringPluginId === 'vp_related_posts' && (
         <RelatedPostsSettings
-          settings={settings}
+          settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
           onClose={() => setConfiguringPluginId(null)}
         />
@@ -694,7 +743,8 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                 {item.status === 'not_installed' ? (
                   <button
                     onClick={() => handleInstall(item.id)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#101018] dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                    disabled={mutatingExtensionId !== null}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#101018] dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:cursor-wait disabled:opacity-50"
                   >
                     <Download size={16} /> Install
                   </button>
@@ -702,7 +752,10 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                   <>
                     <button
                       onClick={() => handleToggleStatus(item.id)}
-                      disabled={item.status === 'active' && item.type === 'theme'}
+                      disabled={
+                        mutatingExtensionId !== null ||
+                        (item.status === 'active' && item.type === 'theme')
+                      }
                       className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors ${
                         item.status === 'active'
                           ? 'bg-green-50 text-green-600 cursor-default dark:bg-green-900/20 dark:text-green-400'
@@ -722,7 +775,8 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
                     <button
                       onClick={() => handleUninstall(item.id)}
-                      className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      disabled={mutatingExtensionId !== null}
+                      className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:cursor-wait disabled:opacity-50"
                       title="Uninstall"
                     >
                       <Trash2 size={18} />
@@ -730,7 +784,8 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
                     <button
                       onClick={() => handleOpenSettings(item.id)}
-                      className="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                      disabled={mutatingExtensionId !== null}
+                      className="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors disabled:cursor-wait disabled:opacity-50"
                       title="Settings"
                     >
                       <Settings size={18} />

@@ -31,13 +31,6 @@ if (!$canManagePages) {
   ResponseHelper::sendError('Page management access required', 403);
 }
 
-try {
-  if (isset($pdo)) {
-    voncms_ensure_content_audit_logs_table($pdo);
-  }
-} catch (Throwable $auditBootstrapError) {
-}
-
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 $pageId = $input['id'] ?? null;
 

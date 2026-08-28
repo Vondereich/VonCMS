@@ -12,6 +12,8 @@ if ($seoRouteHelperPath !== false && $requestedScriptPath === $seoRouteHelperPat
 }
 unset($seoRouteHelperPath, $requestedScriptPath);
 
+require_once __DIR__ . '/api/publication_time_helper.php';
+
 if (!function_exists('voncms_request_path')) {
   /**
    * Extract the origin-form request path without treating a leading double
@@ -342,6 +344,7 @@ if (!function_exists('buildCanonicalContentPath')) {
         return '/' . $catSlug . '/' . $postSlug;
       case 'date':
       case 'day_name':
+        // Date-based permalinks deliberately retain creation time so upgrades never move existing URLs.
         $postDate = new DateTime(!empty($content['created_at']) ? $content['created_at'] : 'now');
         return '/' .
           $postDate->format('Y') .
@@ -384,8 +387,11 @@ if (!function_exists('voncms_fetch_public_post')) {
     $authorDisplayNameSql,
   ) {
     $lookupColumn = $isId ? 'p.id' : 'p.slug';
+    $publishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
     $sql =
       'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, ' .
+      $publishedAtSql .
+      ', ' .
       $authorNameSql .
       ' as author_name, u.username as author_username, ' .
       $authorDisplayNameSql .
@@ -415,25 +421,27 @@ if (!function_exists('voncms_fetch_category_landing_posts')) {
     string $permalinkStyle,
     bool $caseFolded = false,
   ): array {
+    $publicationExpression = voncms_publication_expression_sql($pdo, 'posts');
+    $publishedAtSql = voncms_publication_column_sql($pdo, 'posts');
     $statement = $caseFolded
       ? $pdo->prepare(
-        "SELECT id, title, slug, excerpt, image_url, category, created_at
+        "SELECT id, title, slug, excerpt, image_url, category, created_at, {$publishedAtSql}
          FROM posts
          WHERE status = 'published'
            AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)
            AND LOWER(category) = LOWER(:category)
-         ORDER BY CASE WHEN scheduled_at IS NOT NULL THEN scheduled_at ELSE created_at END DESC,
+         ORDER BY {$publicationExpression} DESC,
                   created_at DESC,
                   id DESC
          LIMIT 5",
       )
       : $pdo->prepare(
-        "SELECT id, title, slug, excerpt, image_url, category, created_at
+        "SELECT id, title, slug, excerpt, image_url, category, created_at, {$publishedAtSql}
          FROM posts
          WHERE status = 'published'
            AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)
            AND category = :category
-         ORDER BY CASE WHEN scheduled_at IS NOT NULL THEN scheduled_at ELSE created_at END DESC,
+         ORDER BY {$publicationExpression} DESC,
                   created_at DESC,
                   id DESC
          LIMIT 5",

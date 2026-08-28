@@ -24,6 +24,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 
 $id = isset($_GET['id']) ? trim((string) $_GET['id']) : null;
 $slug = isset($_GET['slug']) ? trim((string) $_GET['slug']) : null;
@@ -143,6 +144,7 @@ try {
   $createdAt = $normalized['created_at'] ?? ($normalized['createdat'] ?? date('Y-m-d H:i:s'));
   $updatedAt = $normalized['updated_at'] ?? ($normalized['updatedat'] ?? $createdAt);
   $scheduledAt = $normalized['scheduled_at'] ?? ($normalized['scheduledat'] ?? null);
+  $publishedAt = $normalized['published_at'] ?? ($normalized['publishedat'] ?? null);
 
   $readTime = voncms_calculate_read_time((string) ($normalized['content'] ?? ''));
 
@@ -175,6 +177,7 @@ try {
     'created_at' => $createdAt,
     'updated_at' => $updatedAt,
     'scheduled_at' => $scheduledAt,
+    'published_at' => $publishedAt,
 
     'keywords' => $normalized['keywords'] ?? '',
     'meta_description' => $normalized['meta_description'] ?? '',

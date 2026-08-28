@@ -901,11 +901,14 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       {/* Menu Items */}
                       <div className="py-2">
                         {/* View Profile */}
-                        <button
-                          onClick={() => {
-                            onViewProfile(user.username);
-                            setShowUserDropdown(false);
-                          }}
+                        <a
+                          href={getPublicProfileHref(user.username)}
+                          onClick={(event) =>
+                            handleCrawlableLinkClick(event, () => {
+                              onViewProfile(user.username);
+                              setShowUserDropdown(false);
+                            })
+                          }
                           className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3"
                           style={{ color: colors.text }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = colors.border)}
@@ -925,7 +928,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                             />
                           </svg>
                           View Profile
-                        </button>
+                        </a>
 
                         {/* Dashboard (Admin/Moderator/Writer only) */}
                         {['Admin', 'Moderator', 'Writer'].includes(user.role) && (

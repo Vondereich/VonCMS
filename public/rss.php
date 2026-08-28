@@ -81,6 +81,124 @@ try {
     return $domainUrl . '/' . ltrim($url, '/');
   };
 
+  /**
+   * Keep full article HTML portable across feed readers without changing the
+   * stored post body or the public article. Inline presentation is removed and
+   * remote embeds become ordinary links because many readers strip both.
+   */
+  $sanitizeRssContent = function (?string $content): string {
+    $content = trim((string) $content);
+    if ($content === '') {
+      return '';
+    }
+
+    $plainTextFallback = static function (string $html): string {
+      $plainText = trim(strip_tags($html));
+      return $plainText === ''
+        ? ''
+        : nl2br(
+          htmlspecialchars($plainText, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+          false,
+        );
+    };
+
+    if (!class_exists('DOMDocument')) {
+      return $plainTextFallback($content);
+    }
+
+    $previousLibxmlState = libxml_use_internal_errors(true);
+    $document = new DOMDocument('1.0', 'UTF-8');
+    $loaded = $document->loadHTML(
+      '<?xml encoding="UTF-8"><div id="voncms-rss-root">' . $content . '</div>',
+      LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+    );
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousLibxmlState);
+
+    if (!$loaded) {
+      return $plainTextFallback($content);
+    }
+
+    $xpath = new DOMXPath($document);
+    $rootNodes = $xpath->query('//*[@id="voncms-rss-root"]');
+    $root = $rootNodes instanceof DOMNodeList ? $rootNodes->item(0) : null;
+    if (!($root instanceof DOMElement)) {
+      return $plainTextFallback($content);
+    }
+
+    $blockedNodes = $xpath->query(
+      '//script|//style|//object|//embed|//link|//meta|//noscript|//template|//form|//input|//button',
+      $root,
+    );
+    if ($blockedNodes instanceof DOMNodeList) {
+      for ($index = $blockedNodes->length - 1; $index >= 0; $index--) {
+        $node = $blockedNodes->item($index);
+        if ($node?->parentNode) {
+          $node->parentNode->removeChild($node);
+        }
+      }
+    }
+
+    $iframeNodes = $xpath->query('.//iframe', $root);
+    if ($iframeNodes instanceof DOMNodeList) {
+      for ($index = $iframeNodes->length - 1; $index >= 0; $index--) {
+        $iframe = $iframeNodes->item($index);
+        if (!($iframe instanceof DOMElement) || !$iframe->parentNode) {
+          continue;
+        }
+
+        $sourceUrl = trim($iframe->getAttribute('src'));
+        $sourceParts = $sourceUrl !== '' ? parse_url($sourceUrl) : false;
+        $safeSource =
+          is_array($sourceParts) &&
+          in_array(strtolower((string) ($sourceParts['scheme'] ?? '')), ['http', 'https'], true) &&
+          !empty($sourceParts['host']) &&
+          !isset($sourceParts['user']) &&
+          !isset($sourceParts['pass']);
+
+        if (!$safeSource) {
+          $iframe->parentNode->removeChild($iframe);
+          continue;
+        }
+
+        $paragraph = $document->createElement('p');
+        $link = $document->createElement('a', 'View embedded media');
+        $link->setAttribute('href', $sourceUrl);
+        $link->setAttribute('rel', 'noopener noreferrer');
+        $paragraph->appendChild($link);
+        $iframe->parentNode->replaceChild($paragraph, $iframe);
+      }
+    }
+
+    $elements = $xpath->query('.//*', $root);
+    if ($elements instanceof DOMNodeList) {
+      foreach ($elements as $element) {
+        if (!($element instanceof DOMElement) || !$element->hasAttributes()) {
+          continue;
+        }
+
+        for ($index = $element->attributes->length - 1; $index >= 0; $index--) {
+          $attribute = $element->attributes->item($index);
+          $attributeName = strtolower((string) ($attribute?->nodeName ?? ''));
+          if (
+            $attributeName === 'style' ||
+            $attributeName === 'srcdoc' ||
+            str_starts_with($attributeName, 'on')
+          ) {
+            $element->removeAttribute($attributeName);
+          }
+        }
+      }
+    }
+
+    $sanitized = '';
+    foreach ($root->childNodes as $childNode) {
+      $sanitized .= $document->saveHTML($childNode);
+    }
+
+    return trim($sanitized);
+  };
+
   // Get permalink style
   $plStmt = $pdo->prepare(
     "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='permalink_structure' LIMIT 1",
@@ -155,7 +273,9 @@ try {
   $countStmt->execute();
   $total = (int) $countStmt->fetchColumn();
 
-  $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.category, p.author, p.author_id, p.keywords, p.image_url, p.created_at, p.updated_at, p.scheduled_at, CASE WHEN p.scheduled_at IS NOT NULL THEN p.scheduled_at ELSE p.created_at END AS effective_publish_at, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name
+  $publishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
+  $publicationExpression = voncms_publication_expression_sql($pdo, 'posts', 'p');
+  $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.category, p.author, p.author_id, p.keywords, p.image_url, p.created_at, p.updated_at, p.scheduled_at, {$publishedAtSql}, {$publicationExpression} AS effective_publish_at, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name
     FROM posts p
     LEFT JOIN users u ON p.author_id = u.id
     $where
@@ -173,9 +293,25 @@ try {
   $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   // Generate RSS
-  $rssUrl = $category
-    ? $domainUrl . '/rss.xml?category=' . urlencode($category)
-    : $domainUrl . '/rss.xml';
+  $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+  $requestEndpoint = basename(is_string($requestPath) ? $requestPath : '');
+  $requestEndpointKey = strtolower($requestEndpoint);
+  $feedEndpoint = in_array(
+    $requestEndpointKey,
+    ['rss', 'rss.xml', 'feed', 'feed.xml', 'rss.php'],
+    true,
+  )
+    ? $requestEndpoint
+    : 'rss.xml';
+  $rssUrl = $domainUrl . '/' . $feedEndpoint;
+  $queryString = (string) ($_SERVER['QUERY_STRING'] ?? '');
+  if (
+    $queryString !== '' &&
+    strlen($queryString) <= 2048 &&
+    !preg_match('/[\x00-\x1F\x7F]/', $queryString)
+  ) {
+    $rssUrl .= '?' . $queryString;
+  }
   $feedTitle = $category ? "$category - $siteName" : $siteName;
   $feedDesc = $category ? "Latest posts in $category" : $siteDesc;
 
@@ -216,6 +352,7 @@ try {
     },
     $post['content'],
   );
+  $renderedContent = $sanitizeRssContent($renderedContent);
 
   $postUrl = $buildPostUrl($post);
   $excerpt = !empty($post['excerpt'])

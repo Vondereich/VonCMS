@@ -64,6 +64,8 @@ export interface Post {
   slug?: string;
   scheduledAt?: string;
   scheduled_at?: string; // Hybrid Contract
+  publishedAt?: string;
+  published_at?: string; // First actual publication
   createdAt?: string;
   created_at?: string; // Hybrid Contract
 }
@@ -91,6 +93,8 @@ export interface Page {
   keywords?: string;
   createdAt?: string;
   created_at?: string; // Hybrid Contract
+  publishedAt?: string;
+  published_at?: string; // First actual publication
 }
 
 export interface ContentAuditLog {

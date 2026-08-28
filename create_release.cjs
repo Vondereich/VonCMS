@@ -60,6 +60,8 @@ function walkSync(dir, baseDir = basePath) {
       normalizedRelativePath === 'public/data/generated_media_variants.php' ||
       normalizedRelativePath === 'public/data/generated_media_variants.lock' ||
       normalizedRelativePath.startsWith('public/data/generated_media_variants.php.tmp.') ||
+      normalizedRelativePath === 'public/data/schema-capabilities.json' ||
+      normalizedRelativePath.startsWith('public/data/schema-capabilities.json.') ||
       normalizedRelativePath.startsWith('public/data/media_cleanup_previews/') ||
       normalizedRelativePath.startsWith('data/backups/') ||
       normalizedRelativePath.startsWith('data/public-cache/') ||
@@ -105,6 +107,7 @@ try {
     'data/public-cache',
     'data/generated_media_variants.php',
     'data/generated_media_variants.lock',
+    'data/schema-capabilities.json',
     'data/media_cleanup_previews',
   ].forEach((item) => {
     const itemPath = path.join(basePath, 'dist', item);

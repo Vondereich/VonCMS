@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.26.9 "After Hours"**
+> **VonCMS v1.26.11 "After Hours"**
 
 ---
 
@@ -104,6 +104,8 @@ inspection, but it cannot replace host-root robots configuration.
 
 This guide is for fresh installs. For OTA updates, manual Deploy ZIP replacement, `.htaccess` repair, and rollback steps, read [Upgrade](UPGRADE.md).
 
+The installer creates the shared authentication, analytics, comment-like, audit, and security-log capabilities as part of installation. Later public or admin requests do not silently create these permanent structures. If an older database needs reconciliation, back it up and use the primary-admin **Settings > Tools > Repair Database** action described in the upgrade guide.
+
 ---
 
 ## Optional cPanel cron for quiet sites
@@ -159,4 +161,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.26.9 "After Hours"_
+_VonCMS v1.26.11 "After Hours"_

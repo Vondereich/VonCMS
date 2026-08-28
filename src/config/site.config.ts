@@ -16,6 +16,8 @@
 export const BASE_PATH =
   typeof window !== 'undefined' && window.VON_BASE ? window.VON_BASE : import.meta.env['BASE_URL'];
 
+export const DATABASE_STATUS_INVALIDATED_EVENT = 'voncms:database-status-invalidated';
+
 // API endpoint helper - automatically handles path
 export const API = {
   // Core endpoints
@@ -75,7 +77,6 @@ export const API = {
 
   // Security Endpoints
   securityLogs: `${BASE_PATH}api/security/get_security_logs.php`,
-  createSecurityTable: `${BASE_PATH}api/security/create_security_table.php`,
   clearSecurityLogs: `${BASE_PATH}api/security/clear_all_logs.php`,
 
   // AI & Other

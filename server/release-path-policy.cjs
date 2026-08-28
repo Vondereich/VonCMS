@@ -50,6 +50,14 @@ function isForbiddenReleasePath(input) {
   ) {
     return true;
   }
+  if (
+    lower === 'public/data/schema-capabilities.json' ||
+    lower.startsWith('public/data/schema-capabilities.json.') ||
+    lower === 'data/schema-capabilities.json' ||
+    lower.startsWith('data/schema-capabilities.json.')
+  ) {
+    return true;
+  }
   if (lower.startsWith('data/public-cache/') || lower.includes('/data/public-cache/')) return true;
   if (lower === 'data/public-cache' || lower.endsWith('/data/public-cache')) return true;
   if (

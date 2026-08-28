@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
 import { AlertTriangle, Home, ArrowLeft } from 'lucide-react';
+import { handleCrawlableLinkClick } from '../utils/linkEvents';
+import { getPublicHomeHref } from '../utils/siteUtils';
 
 interface NotFoundPageProps {
   isDarkMode?: boolean;
@@ -59,13 +61,14 @@ const NotFoundPage: React.FC<NotFoundPageProps> = ({ isDarkMode = false }) => {
             <ArrowLeft size={18} />
             Go Back
           </button>
-          <button
-            onClick={() => navigate('/')}
+          <a
+            href={getPublicHomeHref()}
+            onClick={(event) => handleCrawlableLinkClick(event, () => navigate('/'))}
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 bg-linear-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
           >
             <Home size={18} />
             Go to Home
-          </button>
+          </a>
         </div>
 
         {/* Error Code */}
