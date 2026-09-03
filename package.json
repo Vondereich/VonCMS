@@ -21,7 +21,7 @@
     "test:smoke": "node server/test-integration.cjs"
   },
   "dependencies": {
-    "@openrouter/sdk": "^1.2.81",
+    "@openrouter/sdk": "^1.2.84",
     "@tiptap/core": "^3.30.5",
     "@tiptap/extension-image": "^3.30.5",
     "@tiptap/extension-link": "^3.30.5",
