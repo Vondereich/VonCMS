@@ -36,7 +36,7 @@
     "cors": "^2.8.6",
     "dompurify": "^3.4.14",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.2",
+    "express-rate-limit": "^8.7.0",
     "fs-extra": "^11.4.0",
     "lucide-react": "^1.35.0",
     "multer": "^2.2.0",
