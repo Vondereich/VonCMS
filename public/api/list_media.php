@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../von_config.php';
 require_once __DIR__ . '/media_library_filter_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -18,7 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
   exit();
 }
 // 2. Enforce Staff Media Security
-SessionManager::requireMediaAccess();
+SessionManager::requireValidSession();
+if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')) {
+  ResponseHelper::sendError('Media access required', 403);
+}
 
 /**
  * Format file size to human readable

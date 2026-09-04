@@ -262,7 +262,13 @@ const CorporateProfile: React.FC<{
                 @{displayUser.username}
               </p>
             )}
-            <span className="inline-block px-3 py-1 bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 rounded-full text-xs font-bold uppercase tracking-wide mb-4">
+            <span
+              className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4 ${
+                getProfileDisplayRole(currentUser, displayUser) === 'Super Admin'
+                  ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-neutral-300'
+              }`}
+            >
               {getProfileDisplayRole(currentUser, displayUser)}
             </span>
             <div className="prose prose-slate dark:prose-invert max-w-none">
@@ -1438,7 +1444,13 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           // 4. Homepage (Default)
           return (
             <>
-              {shouldRenderVonSEO && <VonSEO settings={settings} currentView={currentView} />}
+              {shouldRenderVonSEO && (
+                <VonSEO
+                  settings={settings}
+                  currentView={currentView}
+                  selectedCategory={selectedCategory}
+                />
+              )}
               <ProseDarkModeStyles />
               <Header />
               <HeaderAd />
@@ -1573,6 +1585,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                               loading={loadingMore}
                               hasMore={hasMore}
                               onLoadMore={handleLoadMore}
+                              href={publicPosts.nextPageHref}
                             />
                           </div>
                         </>

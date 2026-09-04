@@ -18,6 +18,7 @@ import {
   Rss,
 } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
+import { getUserDisplayRole } from '../../utils/profileUtils';
 import { SafeImage } from '../../components/SafeImage';
 import {
   getBasePathPrefix,
@@ -479,7 +480,11 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-sm truncate text-white">{user.username}</p>
-                            <p className="text-xs truncate text-(--color-secondary)">{user.role}</p>
+                            <p
+                              className={`text-xs truncate ${String(user.id) === '1' ? 'font-semibold text-red-400' : 'text-(--color-secondary)'}`}
+                            >
+                              {getUserDisplayRole(user)}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -821,6 +826,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     loading={loadingMore}
                     hasMore={hasMorePosts}
                     onLoadMore={handleLoadMore}
+                    href={publicPosts.nextPageHref}
                     label="LOAD_MORE_DATA"
                     className="font-mono"
                   />

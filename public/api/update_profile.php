@@ -13,6 +13,7 @@ $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/schema_repair_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -69,9 +70,12 @@ try {
   if (
     !$isOwnProfile &&
     !$isPrimaryAdminActor &&
-    ($targetUserId === '1' || $targetUserRole === 'root')
+    voncms_user_target_requires_primary_admin($targetUserId, $targetUserRole)
   ) {
-    ResponseHelper::sendError('Only admin 1 can update this account', 403);
+    ResponseHelper::sendError(
+      'System owner permission is required to update this protected account',
+      403,
+    );
   }
 
   $displayName = trim((string) ($input['display_name'] ?? ''));

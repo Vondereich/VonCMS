@@ -229,6 +229,7 @@ For an intentional `/blog` installation:
 - change `/index.html`, `/api/`, `/data`, `/uploads/`, and `/von_config.php` matches below to their `/blog/...` equivalents
 - change the direct shell rewrite to `location = /blog/index.html { rewrite ^ /blog/index.php last; }` so it cannot escape to a sibling application at the website root
 - change helper regex anchors from `^/api/` to `^/blog/api/`
+- scope the PHP PATH_INFO block to `location ~* ^/blog/.*\.php/ { return 404; }`, still before PHP-FPM, so it rejects VonCMS aliases without blocking a sibling application's PHP routes
 - scope the sensitive-extension regex to `^/blog/.*\.(sql|md|json|log|bak|env|zip|lock)$` so it does not alter a sibling application
 - change the SPA fallback to `location /blog/ { try_files $uri $uri/ /blog/index.php?$query_string; }`
 - change the static cache regex later in this guide from `^/(assets|fonts)/` to `^/blog/(assets|fonts)/`
@@ -310,13 +311,23 @@ location ^~ /uploads/ {
     try_files $uri =404;
 }
 
+# Reject appended PATH_INFO on every PHP entry point before PHP-FPM. Exact
+# scripts keep working, including query-string links such as email verification.
+location ~* \.php/ {
+    return 404;
+}
+
 # Block internal API helper files. These regex blocks must appear before
 # aaPanel's generic PHP-FPM regex handler.
-location ~* ^/api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|schema_repair_helper|settings_audit_helper)\.php$ {
+location ~* ^/api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
     deny all;
 }
 
 location ~* ^/api/(system/IndexNow|security/SecurityLogger)\.php$ {
+    deny all;
+}
+
+location = /api/tools/wp_wxr_reader_helper.php {
     deny all;
 }
 
@@ -462,6 +473,8 @@ check_code "/index.html" 301
 
 # Internal helper files must be stopped by Nginx before PHP-FPM.
 for path in \
+    "/api/ai_provider_helper.php" \
+    "/api/analytics_consent_helper.php" \
     "/api/content_audit_helper.php" \
     "/api/ImageProcessor.php" \
     "/api/mail_helper.php" \
@@ -469,10 +482,12 @@ for path in \
     "/api/publication_time_helper.php" \
     "/api/public_cache_helper.php" \
     "/api/redirect_loop_helper.php" \
+    "/api/role_capability_helper.php" \
     "/api/schema_repair_helper.php" \
     "/api/settings_audit_helper.php" \
     "/api/system/IndexNow.php" \
     "/api/security/SecurityLogger.php" \
+    "/api/tools/wp_wxr_reader_helper.php" \
     "/von_config.php" \
     "/install.lock" \
     "/data/" \
@@ -484,6 +499,10 @@ done
 
 # Concealed runtime paths and missing public media.
 check_code "/api/public-cache/test.json" 404
+check_code "/api/content_audit_helper.php/sdsj" 404
+check_code "/api/verify_email.php/invalid" 404
+check_code "/api.php/invalid?action=get_csrf_token" 404
+check_code "/rss.php/invalid" 404
 check_code "/uploads/missing.jpg" 404
 
 # Critical execution test.

@@ -1014,7 +1014,12 @@ const DigestProfile: React.FC<{
         )}
         <p
           className="text-sm font-medium uppercase tracking-wider mb-4"
-          style={{ color: colors.accent }}
+          style={{
+            color:
+              getProfileDisplayRole(currentUser, localDisplayUser) === 'Super Admin'
+                ? '#ef4444'
+                : colors.accent,
+          }}
         >
           {getProfileDisplayRole(currentUser, localDisplayUser)}
         </p>
@@ -2185,6 +2190,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           loading={loadingMore}
           hasMore={hasMorePosts}
           onLoadMore={handleLoadMore}
+          href={publicPosts.nextPageHref}
           label="Load More Articles"
           style={{ background: colors.accent }}
         />

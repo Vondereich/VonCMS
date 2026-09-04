@@ -35,6 +35,18 @@ import { SystemTools } from '../tools/SystemTools';
 import { MediaSettings } from './components/MediaSettings';
 import { CategorySettings } from './components/CategorySettings';
 
+const defaultAiModel = 'gemini-3.6-flash';
+const supportedAiModels = [
+  'gemini-3.7-flash',
+  defaultAiModel,
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
+];
+
 const isSavedAiKeyExpired = (api?: SiteSettings['api']) => {
   const aiKeyExpiresAt = api?.aiKeyExpiresAt?.trim();
   const aiKeyExpiresAtTime = aiKeyExpiresAt ? Date.parse(aiKeyExpiresAt) : Number.NaN;
@@ -185,7 +197,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         api: {
           ...tempSettings.api,
           aiProvider: 'gemini',
-          aiModel: rawAiModel.startsWith('gemini-') ? rawAiModel : 'gemini-flash-latest',
+          aiModel: supportedAiModels.includes(rawAiModel) ? rawAiModel : defaultAiModel,
         },
       };
 
@@ -248,9 +260,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     });
     setDraggedMenuItemIndex(targetIndex);
   };
-  const selectedAiModel = tempSettings.api?.aiModel?.startsWith('gemini-')
-    ? tempSettings.api.aiModel
-    : 'gemini-flash-latest';
+  const selectedAiModel = supportedAiModels.includes(tempSettings.api?.aiModel || '')
+    ? tempSettings.api!.aiModel!
+    : defaultAiModel;
   const aiKeyExpiresAtTime = tempSettings.api?.aiKeyExpiresAt
     ? Date.parse(tempSettings.api.aiKeyExpiresAt)
     : Number.NaN;
@@ -799,10 +811,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) => handleChange('api', 'aiModel', e.target.value)}
                     className="w-full p-2.5 border rounded-lg dark:bg-[#16161e] dark:text-white dark:border-[#2a2b36]"
                   >
-                    <option value="gemini-flash-latest">gemini-flash-latest</option>
-                    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                    <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended)</option>
+                    <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
+                    <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                    <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
+                    <option value="gemini-flash-latest">Gemini Flash Latest (Automatic)</option>
                   </select>
                 </div>
               </div>

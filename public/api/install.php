@@ -2,7 +2,7 @@
 
 /**
  * VonCMS - Multi-Stage Safe Installer
- * Version: 1.26 "After Hours"
+ * Version: 1.27 "OverDrive"
  */
 
 // PHP Version Enforcement
@@ -568,6 +568,9 @@ if (file_put_contents($configFile, $configContent)) {
   <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Reject PHP PATH_INFO aliases before any crawler or file fast-path can exit.
+    RewriteRule ^.+\.php/ - [R=404,L,NC]
+
     # =====================================================
     # PRIORITY 1 - VVIP LANE FOR SOCIAL CRAWLERS
     # =====================================================
@@ -610,9 +613,11 @@ if (file_put_contents($configFile, $configContent)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
+
+    RewriteRule ^api/tools/wp_wxr_reader_helper\.php$ - [F,L,NC]
 
     RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]
 

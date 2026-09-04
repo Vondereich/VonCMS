@@ -5,7 +5,7 @@ import { AISummaryConfig } from './types';
 export const AISummaryPlugin: PluginDefinition = {
   id: 'vp_ai_summary',
   name: 'AI Summary',
-  version: '1.26',
+  version: '1.27',
   author: 'VonCMS Team',
   description: 'Auto-extract article summaries without API - Fast & Free!',
 

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -16,8 +17,12 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 
-// Authenticate and Authorize (Admin only)
-SessionManager::requireAdmin();
+// Authenticate and authorize through the fixed-role capability policy.
+SessionManager::requireValidSession();
+$currentRole = $_SESSION['user']['role'] ?? '';
+if (!voncms_role_has_capability($currentRole, 'users.manage')) {
+  ResponseHelper::sendError('User management access required', 403);
+}
 if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }

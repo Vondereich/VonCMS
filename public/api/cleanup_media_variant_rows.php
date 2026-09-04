@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../von_config.php';
 require_once __DIR__ . '/media_library_filter_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -18,6 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 SessionManager::requirePrimaryAdmin();
+if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.admin_tools')) {
+  ResponseHelper::sendError('Media administration access required', 403);
+}
 CSRFProtection::requireToken();
 
 $uploadsDir = dirname(__DIR__) . '/uploads/';

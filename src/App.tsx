@@ -18,7 +18,7 @@ import {
   useSearchParams,
 } from 'react-router';
 import toast, { Toaster } from 'react-hot-toast';
-import { Post, Page, User } from './types';
+import { Post, Page, User, type PostSaveOptions } from './types';
 import { VonProviders } from './plugins/von-core/providers/VonProviders';
 import { getPermalink } from './utils/siteUtils';
 import { vonFetch } from './utils/api';
@@ -27,6 +27,7 @@ import { getCachedPublicPost } from './hooks/usePublicPostsQuery';
 import { usePublicSearchUrlState } from './hooks/usePublicSearchUrlState';
 import { normalizeDiscoveryQueryValue } from './utils/seoQuery';
 import { toAbsolutePublicMediaUrl } from './utils/socialMetadata';
+import { isPostWriter } from './utils/contentCapabilities';
 
 const SESSION_VISIBILITY_CHECK_COOLDOWN = 60 * 1000;
 
@@ -356,7 +357,9 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   const canFrontendEditCurrentView =
     currentView === 'page'
       ? isFrontendAdmin || normalizedFrontendRole === 'moderator'
-      : isFrontendAdmin || ['moderator', 'writer'].includes(normalizedFrontendRole);
+      : isFrontendAdmin ||
+        normalizedFrontendRole === 'moderator' ||
+        (isPostWriter(props.user?.role) && selectedPost?.status === 'draft');
   const canFrontendEdit =
     !!props.user &&
     ((currentView === 'single-post' && !!selectedPost?.id) ||
@@ -408,7 +411,8 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   const handleQuickEditSave = async (
     item: Post | Page,
     addToMenu: boolean,
-    isAutoSave?: boolean
+    isAutoSave?: boolean,
+    saveOptions?: PostSaveOptions
   ) => {
     const saved = await props.handleSaveContent(
       item,
@@ -417,7 +421,8 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
       props.settings,
       props.handleUpdateSettings,
       true,
-      quickEditIsPage
+      quickEditIsPage,
+      saveOptions
     );
     setIsQuickEditDirty(false);
 
@@ -635,6 +640,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
                 navigation={props.settings.navigation}
                 posts={posts}
                 settings={props.settings}
+                userRole={props.user?.role}
                 onSave={handleQuickEditSave}
                 onBack={requestQuickEditorClose}
                 onDirtyChange={setIsQuickEditDirty}
@@ -1198,6 +1204,7 @@ const ContentManagerWrapper: React.FC<any> = ({
       navigation={navigation}
       onToggleNav={onToggleNav}
       refreshKey={refreshKey}
+      userRole={user?.role}
       onEdit={(id, isPage) => handleEdit(id, isPage, navigate, user)}
       onDelete={async (id, isPage, skipConfirm = false) => {
         if (
@@ -1222,6 +1229,7 @@ const ContentManagerWrapper: React.FC<any> = ({
             } else {
               setPosts((prev: any) => prev.filter((p: any) => p.id !== id));
               window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
+              window.dispatchEvent(new Event('voncms:pending-review-invalidated'));
             }
             triggerRefresh(); // Re-fetch current page in ContentManager
           } else {
@@ -1428,7 +1436,8 @@ const PostEditorWrapper: React.FC<any> = ({
       navigation={navigation}
       posts={posts}
       settings={settings}
-      onSave={(item, addToMenu, isAutoSave) =>
+      userRole={user?.role}
+      onSave={(item, addToMenu, isAutoSave, saveOptions) =>
         handleSaveContent(
           item,
           addToMenu,
@@ -1436,7 +1445,8 @@ const PostEditorWrapper: React.FC<any> = ({
           settings,
           handleUpdateSettings,
           isAutoSave,
-          effectiveIsPage
+          effectiveIsPage,
+          saveOptions
         )
       }
       onBack={() => navigate(effectiveIsPage ? '/admin/pages' : '/admin/posts')}

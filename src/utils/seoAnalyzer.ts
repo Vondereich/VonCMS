@@ -18,6 +18,30 @@ const MAX_ANALYZE_CONTENT_CHARS = 200000;
 const MAX_ANALYZE_TITLE_CHARS = 10000;
 const MAX_ANALYZE_DESC_CHARS = 20000;
 const MAX_ANALYZE_KEYWORDS_CHARS = 20000;
+export const SEO_KEYWORDS_MAX_LENGTH = 255;
+export const SEO_KEYWORDS_MAX_COUNT = 8;
+
+const fitKeywordsWithinStorageLimit = (keywords: string[]): string[] => {
+  const fitted: string[] = [];
+  let serializedLength = 0;
+
+  for (const rawKeyword of keywords) {
+    if (fitted.length >= SEO_KEYWORDS_MAX_COUNT) break;
+
+    const keyword = rawKeyword.replace(/\s+/g, ' ').trim();
+    if (!keyword) continue;
+
+    const separatorLength = fitted.length > 0 ? 2 : 0;
+    if (serializedLength + separatorLength + keyword.length > SEO_KEYWORDS_MAX_LENGTH) {
+      continue;
+    }
+
+    fitted.push(keyword);
+    serializedLength += separatorLength + keyword.length;
+  }
+
+  return fitted;
+};
 
 const getSeoVisibleText = (html: string) => {
   const spacedHtml = (html || '')
@@ -252,7 +276,7 @@ export const extractKeywords = (content: string, title: string = ''): string[] =
   const singleKeywords = Object.entries(frequency)
     .filter(([word, count]) => count >= 2 && !stopWords.has(word))
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
+    .slice(0, SEO_KEYWORDS_MAX_COUNT)
     .map(([word]) => word);
 
   // =====================
@@ -264,7 +288,7 @@ export const extractKeywords = (content: string, title: string = ''): string[] =
 
   // Add bigrams first (most valuable — "Timur Tengah", "harga minyak")
   for (const bg of significantBigrams) {
-    if (result.length >= 8) break;
+    if (result.length >= SEO_KEYWORDS_MAX_COUNT) break;
     result.push(bg);
     // Mark component words as seen to avoid duplication
     bg.split(' ').forEach((w) => seen.add(w));
@@ -272,7 +296,7 @@ export const extractKeywords = (content: string, title: string = ''): string[] =
 
   // Add proper nouns (OPEC, WTI, etc.)
   for (const pn of properNouns) {
-    if (result.length >= 8) break;
+    if (result.length >= SEO_KEYWORDS_MAX_COUNT) break;
     const lower = pn.toLowerCase();
     if (!seen.has(lower) && !stopWords.has(lower) && pn.length >= 3) {
       result.push(pn);
@@ -282,14 +306,14 @@ export const extractKeywords = (content: string, title: string = ''): string[] =
 
   // Fill remaining with frequency-based keywords
   for (const kw of singleKeywords) {
-    if (result.length >= 8) break;
+    if (result.length >= SEO_KEYWORDS_MAX_COUNT) break;
     if (!seen.has(kw)) {
       result.push(kw);
       seen.add(kw);
     }
   }
 
-  return result;
+  return fitKeywordsWithinStorageLimit(result);
 };
 
 export const analyzeSEO = (

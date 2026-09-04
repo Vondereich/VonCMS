@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/analytics_consent_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -33,8 +34,9 @@ $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
 }
-$url = mb_substr(trim((string) ($input['url'] ?? '')), 0, 500);
-$referrer = mb_substr(trim((string) ($input['referrer'] ?? '')), 0, 500);
+$recordAnalytics = voncms_native_analytics_allowed($pdo, $_COOKIE);
+$url = $recordAnalytics ? mb_substr(trim((string) ($input['url'] ?? '')), 0, 500) : '';
+$referrer = $recordAnalytics ? mb_substr(trim((string) ($input['referrer'] ?? '')), 0, 500) : '';
 $postId =
   isset($input['postId']) && preg_match('/^\d+$/', (string) $input['postId'])
     ? (int) $input['postId']
@@ -43,38 +45,42 @@ $pageId =
   isset($input['pageId']) && preg_match('/^\d+$/', (string) $input['pageId'])
     ? (int) $input['pageId']
     : null;
-$userAgent = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 1000);
+$userAgent = $recordAnalytics
+  ? mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 1000)
+  : '';
 
 // 2. Visit Tracking (Analytics Table)
-$ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));
 $throttleMinutes = 30;
 
 // Analytics is optional. Missing storage must not block content delivery or view counters.
 $recentLogs = 0;
 $visitRecorded = false;
-try {
-  $stmt = $pdo->prepare("
+if ($recordAnalytics) {
+  $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));
+  try {
+    $stmt = $pdo->prepare("
       SELECT COUNT(*) FROM analytics
       WHERE ip_hash = ?
       AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)
   ");
-  $stmt->execute([$ipHash, $throttleMinutes]);
-  $recentLogs = (int) $stmt->fetchColumn();
+    $stmt->execute([$ipHash, $throttleMinutes]);
+    $recentLogs = (int) $stmt->fetchColumn();
 
-  if ($recentLogs === 0) {
-    $stmt = $pdo->prepare(
-      'INSERT INTO analytics (page_url, referrer, user_agent, ip_hash, visit_date, visit_time) VALUES (?, ?, ?, ?, CURDATE(), CURTIME())',
-    );
-    $stmt->execute([$url, $referrer, $userAgent, $ipHash]);
-    $visitRecorded = true;
-  }
+    if ($recentLogs === 0) {
+      $stmt = $pdo->prepare(
+        'INSERT INTO analytics (page_url, referrer, user_agent, ip_hash, visit_date, visit_time) VALUES (?, ?, ?, ?, CURDATE(), CURTIME())',
+      );
+      $stmt->execute([$url, $referrer, $userAgent, $ipHash]);
+      $visitRecorded = true;
+    }
 
-  if (rand(1, 100) === 1) {
-    $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
+    if (rand(1, 100) === 1) {
+      $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
+    }
+  } catch (Throwable $analyticsError) {
+    $recentLogs = 0;
+    $visitRecorded = false;
   }
-} catch (Throwable $analyticsError) {
-  $recentLogs = 0;
-  $visitRecorded = false;
 }
 
 $viewRecorded = false;
@@ -100,5 +106,5 @@ echo json_encode([
   'success' => true,
   'visit' => $visitRecorded,
   'view' => $viewRecorded,
-  'throttled' => $recentLogs > 0,
+  'throttled' => $recordAnalytics && $recentLogs > 0,
 ]);

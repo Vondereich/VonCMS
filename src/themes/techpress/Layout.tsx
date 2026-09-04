@@ -3,6 +3,7 @@ import Gravatar from 'react-gravatar';
 import { Post, SiteSettings, NavItem } from '../../types';
 import { Menu, X, Moon, Sun, ChevronLeft } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
+import { getUserDisplayRole } from '../../utils/profileUtils';
 
 // Theme SDK
 import {
@@ -115,7 +116,7 @@ const getColors = (isDark: boolean, primaryColor: string) => {
     colors: {
       primary: primaryColor,
       secondary: '#2d3748',
-      accent: '#d97706',
+      accent: '#b45309',
       success: '#059669',
       background: '#ffffff',
       surface: '#f8f9fa',
@@ -439,31 +440,35 @@ function NewsCard({
               {article.category || 'Tech'}
             </a>
           </div>
-          <h3
-            className="text-xl font-bold mb-3 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"
-            style={{ color: colors.text }}
-          >
-            <a
-              href={getPermalink(article, settings)}
-              onClick={(event) =>
-                handleCrawlableLinkClick(event, () => {
-                  onClick(article.id);
-                })
-              }
+          <div className="mb-3 shrink-0">
+            <h3
+              className="line-clamp-2 cursor-pointer text-xl font-bold leading-tight transition group-hover:opacity-70"
+              style={{ color: colors.text }}
             >
-              {decodeEntities(article.title)}
-            </a>
-          </h3>
+              <a
+                href={getPermalink(article, settings)}
+                onClick={(event) =>
+                  handleCrawlableLinkClick(event, () => {
+                    onClick(article.id);
+                  })
+                }
+              >
+                {decodeEntities(article.title)}
+              </a>
+            </h3>
+          </div>
 
-          <p
-            onClick={() => onClick(article.id)}
-            className="mb-4 flex-1 line-clamp-3 cursor-pointer"
-            style={{ color: colors.textSecondary, fontSize: '1rem', lineHeight: 1.7 }}
-          >
-            {decodeEntities(article.excerpt)}
-          </p>
+          <div className="mb-4 min-h-0 flex-1 overflow-hidden">
+            <p
+              onClick={() => onClick(article.id)}
+              className="line-clamp-3 cursor-pointer"
+              style={{ color: colors.textSecondary, fontSize: '1rem', lineHeight: 1.7 }}
+            >
+              {decodeEntities(article.excerpt)}
+            </p>
+          </div>
           <div
-            className="flex items-center gap-3 text-sm font-medium mt-auto"
+            className="mt-auto flex min-w-0 items-center gap-2 text-sm font-medium"
             style={{ color: colors.textSecondary }}
           >
             <TechPressAvatar
@@ -472,9 +477,9 @@ function NewsCard({
               url={authorAvatar}
               size="w-6 h-6"
             />
-            <span className="font-semibold">{article.author}</span>
-            <span>•</span>
-            <span>
+            <span className="min-w-0 truncate font-semibold">{article.author}</span>
+            <span className="shrink-0">•</span>
+            <span className="shrink-0 whitespace-nowrap">
               {formatDate(getPostPublishTimestamp(article), settings.timeZone, settings.dateFormat)}
             </span>
           </div>
@@ -891,8 +896,13 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                             >
                               {user.username}
                             </p>
-                            <p className="text-xs truncate" style={{ color: colors.textSecondary }}>
-                              {user.role}
+                            <p
+                              className={`text-xs truncate ${String(user.id) === '1' ? 'font-semibold' : ''}`}
+                              style={{
+                                color: String(user.id) === '1' ? '#ef4444' : colors.textSecondary,
+                              }}
+                            >
+                              {getUserDisplayRole(user)}
                             </p>
                           </div>
                         </div>
@@ -1814,6 +1824,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     loading={loadingMore}
                     hasMore={hasMorePosts}
                     onLoadMore={handleLoadMore}
+                    href={publicPosts.nextPageHref}
                     label="Load More Articles"
                     style={{ background: colors.primary }}
                   />

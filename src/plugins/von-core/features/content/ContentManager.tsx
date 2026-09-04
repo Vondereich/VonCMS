@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Post, Page } from '../../../../types';
+import { Post, Page, type PostStatus, type UserRole } from '../../../../types';
 import { sanitizeHtml } from '../../../../utils/security';
 import { vonFetch } from '../../../../utils/api';
 import { API } from '../../../../config/site.config';
@@ -9,6 +9,13 @@ import {
   PUBLIC_SEARCH_MAX_LENGTH,
   normalizePublicSearchInput,
 } from '../../../../hooks/usePublicPostsQuery';
+import {
+  canDeletePostForRole,
+  getPostStatusClassName,
+  getPostStatusLabel,
+  isPostReviewer,
+  isPostWriter,
+} from '../../../../utils/contentCapabilities';
 
 interface NavItem {
   id: string;
@@ -25,6 +32,7 @@ interface ContentManagerProps {
   onDelete?: (id: string, isPage?: boolean, skipConfirm?: boolean) => void;
   onToggleNav?: (pageId: string) => void;
   refreshKey?: number; // External trigger to re-fetch current page (after delete/save)
+  userRole?: UserRole;
 }
 
 interface FetchMeta {
@@ -135,6 +143,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
   navigation = [],
   onToggleNav,
   refreshKey = 0,
+  userRole,
 }) => {
   const itemsPerPage = 20;
 
@@ -151,7 +160,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
 
   // Filter/search state — triggers server fetch
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<PostStatus | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
@@ -160,12 +169,19 @@ const ContentManager: React.FC<ContentManagerProps> = ({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const pageRequestId = useRef(0);
+  const canReviewPosts = type === 'post' && isPostReviewer(userRole);
+  const writerView = type === 'post' && isPostWriter(userRole);
+  const canDeleteItem = useCallback(
+    (item: Post | Page) => type === 'page' || canDeletePostForRole(userRole, (item as Post).status),
+    [type, userRole]
+  );
+  const selectableItems = pageItems.filter(canDeleteItem);
 
   // Fetch page data from server
   const fetchPage = useCallback(
     async (
       page: number,
-      filters?: { search?: string; category?: string | null; status?: string | null }
+      filters?: { search?: string; category?: string | null; status?: PostStatus | null }
     ) => {
       const requestId = ++pageRequestId.current;
       setLoading(true);
@@ -178,6 +194,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       if (supportsSearch && filters?.search) params.set('search', filters.search);
       if (type === 'post' && filters?.category) params.set('category', filters.category);
       if (type === 'post' && filters?.status) params.set('status', filters.status);
+      if (type === 'post' && filters?.status === 'pending_review' && canReviewPosts) {
+        params.set('scope', 'all');
+      }
 
       try {
         const res = await vonFetch(`${endpoint}?${params.toString()}`);
@@ -207,7 +226,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         }
       }
     },
-    [type]
+    [type, canReviewPosts]
   );
 
   // Fetch on mount, when page changes, when filters change, or when refreshKey changes
@@ -266,6 +285,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
 
   // Toggle Selection Logic
   const toggleSelect = (id: string) => {
+    const item = pageItems.find((candidate) => candidate.id === id);
+    if (!item || !canDeleteItem(item)) return;
     const newSelected = new Set(selectedItems);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -277,10 +298,10 @@ const ContentManager: React.FC<ContentManagerProps> = ({
 
   // Select All Logic
   const toggleSelectAll = () => {
-    if (selectedItems.size === pageItems.length) {
+    if (selectedItems.size === selectableItems.length) {
       setSelectedItems(new Set());
     } else {
-      const newSelected = new Set(pageItems.map((item) => item.id));
+      const newSelected = new Set(selectableItems.map((item) => item.id));
       setSelectedItems(newSelected);
     }
   };
@@ -318,6 +339,30 @@ const ContentManager: React.FC<ContentManagerProps> = ({
     setSelectedStatus(null);
     clearSearch();
   };
+
+  const postStatusFilters: { value: PostStatus | null; label: string }[] = [
+    { value: null, label: 'All' },
+    { value: 'published', label: 'Published' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'scheduled', label: 'Scheduled' },
+    ...(canReviewPosts || writerView
+      ? [
+          {
+            value: 'pending_review' as const,
+            label: canReviewPosts ? 'Review' : 'Submitted',
+          },
+        ]
+      : []),
+    { value: 'archived', label: 'Archived' },
+  ];
+
+  const emptyMessage = searchQuery
+    ? `No results found for "${searchQuery}"`
+    : selectedStatus === 'pending_review'
+      ? canReviewPosts
+        ? 'No submissions are waiting for review.'
+        : 'You have no submitted articles.'
+      : `No ${type === 'post' ? 'articles' : 'pages'} found.`;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -370,7 +415,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                   onClick={() => setSelectedStatus(null)}
                   className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded-full hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
                 >
-                  <span>Status: {selectedStatus}</span>
+                  <span>Status: {getPostStatusLabel(selectedStatus)}</span>
                   <span className="font-bold">×</span>
                 </button>
               )}
@@ -432,6 +477,29 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         </form>
       )}
 
+      {type === 'post' && (
+        <div className="flex flex-wrap gap-2" aria-label="Filter articles by status">
+          {postStatusFilters.map((filter) => {
+            const isActive = selectedStatus === filter.value;
+            return (
+              <button
+                key={filter.value || 'all'}
+                type="button"
+                onClick={() => setSelectedStatus(filter.value)}
+                aria-pressed={isActive}
+                className={`min-h-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'border-primary-600 bg-primary-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300 hover:text-primary-600 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-slate-300'
+                }`}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {loading && pageItems.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-3 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
@@ -442,9 +510,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:hidden">
             {pageItems.length === 0 ? (
               <div className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
-                {searchQuery
-                  ? `No results found for "${searchQuery}"`
-                  : `No ${type === 'post' ? 'articles' : 'pages'} found.`}
+                {emptyMessage}
               </div>
             ) : (
               <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -459,18 +525,20 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <button
-                          type="button"
-                          onClick={() => toggleSelect(item.id)}
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
-                          aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
-                        >
-                          {selectedItems.has(item.id) ? (
-                            <CheckSquare size={20} className="text-primary-600" />
-                          ) : (
-                            <Square size={20} />
-                          )}
-                        </button>
+                        {canDeleteItem(item) && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSelect(item.id)}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
+                            aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
+                          >
+                            {selectedItems.has(item.id) ? (
+                              <CheckSquare size={20} className="text-primary-600" />
+                            ) : (
+                              <Square size={20} />
+                            )}
+                          </button>
+                        )}
                         <div className="min-w-0 flex-1">
                           <h3
                             className="font-semibold leading-snug text-slate-900 dark:text-white"
@@ -479,16 +547,20 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                                item.status === 'published'
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                                isPost
+                                  ? getPostStatusClassName(itemPost.status)
+                                  : item.status === 'published'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
                               }`}
                             >
-                              {item.status === 'published'
-                                ? 'Published'
-                                : item.status === 'scheduled'
-                                  ? 'Scheduled'
-                                  : 'Draft'}
+                              {isPost
+                                ? getPostStatusLabel(itemPost.status)
+                                : item.status === 'published'
+                                  ? 'Published'
+                                  : item.status === 'scheduled'
+                                    ? 'Scheduled'
+                                    : 'Draft'}
                             </span>
                             {isPost && itemPost.category && (
                               <button
@@ -516,7 +588,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                             {formatCompactDate(item.createdAt || item.created_at)}
                           </dd>
                         </div>
-                        {isPost && item.status !== 'draft' && (
+                        {isPost && ['published', 'scheduled', 'archived'].includes(item.status) && (
                           <div className="col-span-2 min-w-0">
                             <dt className="text-slate-400">Publish at</dt>
                             <dd className="font-medium text-slate-700 dark:text-slate-200">
@@ -532,7 +604,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           onClick={() => onEdit(item.id, type === 'page')}
                           className="min-h-11 flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
                         >
-                          Edit
+                          {writerView && item.status !== 'draft' ? 'View' : 'Edit'}
                         </button>
                         {type === 'page' && onToggleNav && (
                           <button
@@ -546,7 +618,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                               : 'Add Nav'}
                           </button>
                         )}
-                        {onDelete && (
+                        {onDelete && canDeleteItem(item) && (
                           <button
                             type="button"
                             onClick={() => {
@@ -588,7 +660,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                       onClick={toggleSelectAll}
                       className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                     >
-                      {pageItems.length > 0 && selectedItems.size === pageItems.length ? (
+                      {selectableItems.length > 0 &&
+                      selectedItems.size === selectableItems.length ? (
                         <CheckSquare size={18} className="text-primary-600" />
                       ) : (
                         <Square size={18} />
@@ -623,16 +696,19 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                       className={`hover:bg-slate-50 dark:hover:bg-[#242633]/50 transition-colors ${selectedItems.has(item.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''}`}
                     >
                       <td className="px-4 py-4">
-                        <button
-                          onClick={() => toggleSelect(item.id)}
-                          className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                        >
-                          {selectedItems.has(item.id) ? (
-                            <CheckSquare size={18} className="text-primary-600" />
-                          ) : (
-                            <Square size={18} />
-                          )}
-                        </button>
+                        {canDeleteItem(item) && (
+                          <button
+                            onClick={() => toggleSelect(item.id)}
+                            className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
+                          >
+                            {selectedItems.has(item.id) ? (
+                              <CheckSquare size={18} className="text-primary-600" />
+                            ) : (
+                              <Square size={18} />
+                            )}
+                          </button>
+                        )}
                       </td>
                       <td className="px-4 py-4 pr-8 min-w-0">
                         <p
@@ -674,17 +750,11 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           <button
                             onClick={() => setSelectedStatus(item.status)}
                             title="Filter by this status"
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-transform hover:scale-105 ${
-                              item.status === 'published'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
-                            }`}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-transform hover:scale-105 ${getPostStatusClassName(
+                              item.status as PostStatus
+                            )}`}
                           >
-                            {item.status === 'published'
-                              ? 'Published'
-                              : item.status === 'scheduled'
-                                ? 'Scheduled'
-                                : 'Draft'}
+                            {getPostStatusLabel(item.status as PostStatus)}
                           </button>
                         ) : (
                           <span
@@ -716,7 +786,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                       </td>
                       {type === 'post' && (
                         <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {item.status === 'draft'
+                          {item.status === 'draft' || item.status === 'pending_review'
                             ? '-'
                             : (() => {
                                 const publishDateTime = getPublishDateTime(item as Post);
@@ -742,7 +812,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                             onClick={() => onEdit(item.id, type === 'page')}
                             className="text-primary-600 hover:text-primary-800 dark:hover:text-primary-400 font-medium text-sm"
                           >
-                            Edit
+                            {writerView && item.status !== 'draft' ? 'View' : 'Edit'}
                           </button>
                           {type === 'page' && onToggleNav && (
                             <button
@@ -755,7 +825,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                                 : 'Add to Nav'}
                             </button>
                           )}
-                          {onDelete && (
+                          {onDelete && canDeleteItem(item) && (
                             <button
                               onClick={() => {
                                 if (confirm('Delete this item?'))

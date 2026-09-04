@@ -53,6 +53,30 @@ export const hasUnsavedEditorChanges = (
   return JSON.stringify(currentSnapshot) !== JSON.stringify(initialSnapshot);
 };
 
+export const hasUnsavedEditorContentChanges = (
+  currentItem: ContentItem | null,
+  initialItem: ContentItem | null,
+  currentContent: string
+) => {
+  if (!currentItem || !initialItem) return Boolean(currentItem);
+
+  const currentSnapshot = buildEditorDraftSnapshot(currentItem, currentContent, false);
+  const initialSnapshot = buildEditorDraftSnapshot(initialItem, initialItem.content || '', false);
+  if (!currentSnapshot || !initialSnapshot) return currentSnapshot !== initialSnapshot;
+
+  const {
+    status: _currentStatus,
+    scheduledAt: _currentSchedule,
+    ...currentFields
+  } = currentSnapshot;
+  const {
+    status: _initialStatus,
+    scheduledAt: _initialSchedule,
+    ...initialFields
+  } = initialSnapshot;
+  return JSON.stringify(currentFields) !== JSON.stringify(initialFields);
+};
+
 export const formatAutoSaveCountdown = (seconds: number) => {
   const safeSeconds = Math.max(0, seconds);
   const minutes = Math.floor(safeSeconds / 60);

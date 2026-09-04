@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/analytics_consent_helper.php';
 sendApiHeaders('GET, POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -37,6 +38,21 @@ if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $input = json_decode(CSRFProtection::getRequestBody(), true);
+  if (!is_array($input)) {
+    ResponseHelper::sendError('Invalid JSON payload', 400);
+  }
+  if (!voncms_native_analytics_allowed($pdo, $_COOKIE)) {
+    echo json_encode([
+      'success' => true,
+      'visit' => false,
+      'message' => 'Visitor analytics disabled',
+    ]);
+    exit();
+  }
+}
+
 // ============================================
 // AUTO-PURGE: Delete data older than 30 days
 // ============================================
@@ -50,10 +66,6 @@ if (rand(1, 100) === 1) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // Record a visit
-  $input = json_decode(CSRFProtection::getRequestBody(), true);
-  if (!is_array($input)) {
-    ResponseHelper::sendError('Invalid JSON payload', 400);
-  }
   $pageUrl = mb_substr(trim((string) ($input['url'] ?? ($_SERVER['REQUEST_URI'] ?? ''))), 0, 500);
   $referrer = mb_substr(
     trim((string) ($input['referrer'] ?? ($_SERVER['HTTP_REFERER'] ?? ''))),

@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('POST, OPTIONS');
@@ -30,7 +31,7 @@ CSRFProtection::requireToken();
 
 $currentUser = $_SESSION['user'] ?? null;
 $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-$canManagePosts = in_array($currentRole, ['admin', 'root', 'moderator', 'writer'], true);
+$canManagePosts = voncms_role_has_capability($currentRole, 'posts.create');
 
 if (!$canManagePosts) {
   ResponseHelper::sendError('Not authorized to manage posts', 403);
@@ -40,6 +41,15 @@ $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
 }
+$workflowActionWasExplicit =
+  array_key_exists('workflowAction', $input) || array_key_exists('workflow_action', $input);
+$requestedWorkflowAction = $input['workflowAction'] ?? ($input['workflow_action'] ?? null);
+if ($workflowActionWasExplicit && !voncms_is_post_workflow_action($requestedWorkflowAction)) {
+  ResponseHelper::sendError('Invalid post workflow action.', 400);
+}
+$expectedStatus = is_scalar($input['expectedStatus'] ?? null)
+  ? strtolower(trim((string) $input['expectedStatus']))
+  : '';
 $clientUpdatedAt = trim((string) ($input['baseUpdatedAt'] ?? ''));
 
 if (
@@ -70,7 +80,10 @@ $rawKeywords = is_scalar($input['keywords'] ?? '') ? (string) ($input['keywords'
 if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
   ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
 }
-if (mb_strlen($rawExcerpt) > 5000 || mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
+if (mb_strlen($rawExcerpt) > 220) {
+  ResponseHelper::sendError('Excerpt is too long. Maximum 220 characters allowed.', 400);
+}
+if (mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
   ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
 }
 
@@ -167,9 +180,13 @@ try {
   // Check if this is an update (has numeric ID) or insert (no ID or temp ID)
   $postId = $input['id'] ?? null;
   $isUpdate = is_scalar($postId) && preg_match('/^\d+$/', (string) $postId) && (int) $postId > 0;
+  $existingPost = null;
+  $isPostOwner = !$isUpdate;
 
   if ($isUpdate) {
-    $checkOwner = $db->prepare('SELECT id, author_id, status, slug FROM posts WHERE id = ?');
+    $checkOwner = $db->prepare(
+      "SELECT id, author_id, title, status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
+    );
     $checkOwner->execute([$postId]);
     $ownerPost = $checkOwner->fetch(PDO::FETCH_ASSOC);
 
@@ -179,15 +196,73 @@ try {
     }
 
     $isPostOwner = (string) ($ownerPost['author_id'] ?? '') === (string) ($currentUser['id'] ?? '');
-    $isAdminOrModerator = SessionManager::isAdmin() || $currentRole === 'moderator';
+    $canEditAnyPost = voncms_role_has_capability($currentRole, 'posts.edit_any');
 
-    if (!$isPostOwner && !$isAdminOrModerator) {
+    if (!$isPostOwner && !$canEditAnyPost) {
       $db->rollBack();
       ResponseHelper::sendError('Not authorized to edit this post', 403);
     }
 
     $existingPost = $ownerPost;
   }
+
+  $workflowAction = voncms_normalize_post_workflow_action(
+    $requestedWorkflowAction,
+    $input['status'] ?? 'draft',
+  );
+  $sourceStatus = $isUpdate ? strtolower((string) ($existingPost['status'] ?? 'draft')) : null;
+  $transitionActions = [
+    'submit_review',
+    'withdraw_review',
+    'return_draft',
+    'publish',
+    'schedule',
+    'archive',
+  ];
+
+  if ($isUpdate && $workflowActionWasExplicit && $expectedStatus === '') {
+    $db->rollBack();
+    ResponseHelper::sendError('Expected post status is required for this workflow action.', 400);
+  }
+
+  $clientUpdatedTimestamp = $clientUpdatedAt !== '' ? strtotime($clientUpdatedAt) : false;
+  if (
+    $isUpdate &&
+    !$workflowActionWasExplicit &&
+    in_array($workflowAction, $transitionActions, true) &&
+    $clientUpdatedTimestamp === false
+  ) {
+    $db->rollBack();
+    ResponseHelper::sendError(
+      'Post version is required for this legacy workflow action. Reload before trying again.',
+      400,
+    );
+  }
+
+  if ($isUpdate && $expectedStatus !== '' && $expectedStatus !== $sourceStatus) {
+    $db->rollBack();
+    ResponseHelper::sendError(
+      'Post status changed. Reload before applying this workflow action.',
+      409,
+    );
+  }
+
+  $workflow = voncms_resolve_post_workflow(
+    $currentRole,
+    $sourceStatus,
+    $workflowAction,
+    $isPostOwner,
+    !$isUpdate,
+  );
+  if (!$workflow['allowed']) {
+    $db->rollBack();
+    ResponseHelper::sendError($workflow['message'], 403);
+  }
+
+  $status = $workflow['status'];
+  $statusOnlyTransition = $workflow['status_only'];
+  $workflowAuditAction = $workflow['audit_action'];
+  $workflowMessage = $workflow['message'];
 
   // Get category (default to Uncategorized if not provided)
   $category = is_scalar($input['category'] ?? null)
@@ -202,12 +277,12 @@ try {
 
   // --- Handling Scheduled Logic ---
   $scheduledAt = $input['scheduledAt'] ?? null;
-  $status = $input['status'] ?? 'draft';
 
-  // Whitelist status check for security
-  $validStatuses = ['published', 'draft', 'scheduled', 'archived'];
+  // The workflow helper is authoritative; keep a defensive status allowlist at the SQL boundary.
+  $validStatuses = ['published', 'draft', 'scheduled', 'archived', 'pending_review'];
   if (!in_array($status, $validStatuses, true)) {
-    $status = 'draft';
+    $db->rollBack();
+    ResponseHelper::sendError('Invalid post workflow status.', 500);
   }
 
   // Logic: If status is 'scheduled', valid date is required. Otherwise reset to draft or clear date.
@@ -236,39 +311,38 @@ try {
       if ($scheduledDate instanceof DateTime) {
         $scheduledAt = $scheduledDate->format('Y-m-d H:i:s');
       } else {
-        // Invalid date
-        $scheduledAt = null;
-        $status = 'draft';
+        $db->rollBack();
+        ResponseHelper::sendError('A valid schedule date is required.', 400);
       }
     } else {
-      // Missing date
-      $status = 'draft';
+      $db->rollBack();
+      ResponseHelper::sendError('A schedule date is required.', 400);
     }
   } else {
     // Not scheduled status = no scheduled date
     $scheduledAt = null;
   }
 
-  // --- Slug Uniqueness Check (INSIDE TRANSACTION) ---
-  // We check for collision right before write to minimize race condition window
-  // Also fetch current status for SEO Safety check
-  $checkExisting = $db->prepare(
-    "SELECT status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
-  );
-  $checkExisting->execute([$postId ?? 0]);
-  $dbPost = $checkExisting->fetch();
+  // Updates already own a row lock from the authorization check above.
+  $dbPost = $existingPost;
 
   $storedFeaturedImage = is_array($dbPost) ? trim((string) ($dbPost['image_url'] ?? '')) : '';
-  $featuredImageResolution = voncms_resolve_featured_image_input(
-    $featuredImage,
-    $storedFeaturedImage,
-    $isUpdate && is_array($dbPost),
-  );
-  if (!$featuredImageResolution['accepted']) {
-    $db->rollBack();
-    ResponseHelper::sendError('Featured image URL is invalid.', 400);
+  if ($statusOnlyTransition && is_array($dbPost)) {
+    $featuredImage = $storedFeaturedImage;
+    $input['slug'] = (string) ($dbPost['slug'] ?? $input['slug']);
+    $category = (string) ($dbPost['category'] ?? $category);
+  } else {
+    $featuredImageResolution = voncms_resolve_featured_image_input(
+      $featuredImage,
+      $storedFeaturedImage,
+      $isUpdate && is_array($dbPost),
+    );
+    if (!$featuredImageResolution['accepted']) {
+      $db->rollBack();
+      ResponseHelper::sendError('Featured image URL is invalid.', 400);
+    }
+    $featuredImage = $featuredImageResolution['value'];
   }
-  $featuredImage = $featuredImageResolution['value'];
 
   $publicCategoriesChanged = !$isUpdate;
   if ($isUpdate && $dbPost) {
@@ -282,13 +356,19 @@ try {
       $previousScheduledAt !== $savedScheduledAt;
   }
 
-  if ($isUpdate && $dbPost && $clientUpdatedAt !== '' && !empty($dbPost['updated_at'])) {
-    $clientTimestamp = strtotime($clientUpdatedAt);
+  if (
+    (!$statusOnlyTransition || !$workflowActionWasExplicit) &&
+    $isUpdate &&
+    $dbPost &&
+    $clientUpdatedAt !== '' &&
+    !empty($dbPost['updated_at'])
+  ) {
+    $clientTimestamp = $clientUpdatedTimestamp;
     $serverTimestamp = strtotime((string) $dbPost['updated_at']);
     if (
       $clientTimestamp !== false &&
       $serverTimestamp !== false &&
-      $serverTimestamp > $clientTimestamp
+      $serverTimestamp !== $clientTimestamp
     ) {
       $db->rollBack();
       http_response_code(409);
@@ -305,7 +385,9 @@ try {
     throw new Exception('Cannot schedule an already published post (SEO Safety).');
   }
 
-  if (is_array($dbPost) && $dbPost['slug'] === $input['slug']) {
+  if ($statusOnlyTransition) {
+    // Workflow-only mutations keep the canonical content fields already stored in the locked row.
+  } elseif (is_array($dbPost) && $dbPost['slug'] === $input['slug']) {
     // Slug matches current, no change needed
   } else {
     $checkSlug = $db->prepare('SELECT id FROM posts WHERE slug = ? AND id != ? FOR UPDATE');
@@ -318,6 +400,7 @@ try {
   if ($isUpdate) {
     // SMART SLUG PROTECTION: Auto-create redirect on slug change (Gold Standard)
     if (
+      !$statusOnlyTransition &&
       $existingPost['status'] === 'published' &&
       !empty($existingPost['slug']) &&
       $existingPost['slug'] !== $input['slug']
@@ -335,11 +418,24 @@ try {
       }
     }
 
-    // Update existing post
+    // Update an existing post. Workflow-only transitions cannot overwrite content fields.
     $publishedAtAssignment = $hasPublishedAtColumn
       ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END,\n            "
       : '';
-    $stmt = $db->prepare("UPDATE posts SET 
+    if ($statusOnlyTransition) {
+      $stmt = $db->prepare("UPDATE posts SET
+            status = :status,
+            scheduled_at = :scheduled_at,
+            {$publishedAtAssignment}
+            updated_at = NOW()
+        WHERE id = :id");
+      $updateParams = [
+        'status' => $status,
+        'scheduled_at' => $scheduledAt,
+        'id' => $postId,
+      ];
+    } else {
+      $stmt = $db->prepare("UPDATE posts SET
             title = :title, 
             slug = :slug, 
             content = :content, 
@@ -353,20 +449,20 @@ try {
             {$publishedAtAssignment}
             updated_at = NOW()
         WHERE id = :id");
-
-    $updateParams = [
-      'title' => $input['title'],
-      'slug' => $input['slug'],
-      'content' => $input['content'] ?? '',
-      'excerpt' => $excerpt,
-      'status' => $status,
-      'image_url' => $featuredImage,
-      'keywords' => $input['keywords'] ?? '',
-      'category' => $category,
-      'meta_description' => $metaDescription,
-      'scheduled_at' => $scheduledAt,
-      'id' => $postId,
-    ];
+      $updateParams = [
+        'title' => $input['title'],
+        'slug' => $input['slug'],
+        'content' => $input['content'] ?? '',
+        'excerpt' => $excerpt,
+        'status' => $status,
+        'image_url' => $featuredImage,
+        'keywords' => $input['keywords'] ?? '',
+        'category' => $category,
+        'meta_description' => $metaDescription,
+        'scheduled_at' => $scheduledAt,
+        'id' => $postId,
+      ];
+    }
     if ($hasPublishedAtColumn) {
       $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
     }
@@ -375,28 +471,25 @@ try {
     try {
       $oldStatus = strtolower((string) ($existingPost['status'] ?? ''));
       $newStatus = strtolower((string) $status);
-      $summary =
-        $oldStatus !== '' && $oldStatus !== $newStatus
-          ? sprintf(
-            'Post updated: status changed from %s to %s',
-            ucfirst($oldStatus),
-            ucfirst($newStatus),
-          )
-          : 'Post updated';
+      $summary = $workflowMessage;
 
       voncms_record_content_audit(
         $db,
         'post',
         (int) $postId,
-        'update',
+        $workflowAuditAction,
         $_SESSION['user'] ?? [],
         $summary,
         [
-          'title' => (string) ($input['title'] ?? ''),
+          'title' => $statusOnlyTransition
+            ? (string) ($existingPost['title'] ?? '')
+            : (string) ($input['title'] ?? ''),
           'old_status' => $oldStatus,
           'new_status' => $newStatus,
           'old_slug' => (string) ($existingPost['slug'] ?? ''),
-          'new_slug' => (string) ($input['slug'] ?? ''),
+          'new_slug' => $statusOnlyTransition
+            ? (string) ($existingPost['slug'] ?? '')
+            : (string) ($input['slug'] ?? ''),
         ],
       );
     } catch (Throwable $auditError) {
@@ -404,7 +497,7 @@ try {
     }
 
     $finalId = (string) $postId;
-    $message = 'Post updated';
+    $message = $workflowMessage;
   } else {
     // Insert new post
     $publishedAtColumn = $hasPublishedAtColumn ? ', published_at' : '';
@@ -441,9 +534,9 @@ try {
         $db,
         'post',
         (int) $finalId,
-        'create',
+        $workflowAuditAction,
         $_SESSION['user'] ?? [],
-        sprintf('Post created as %s', ucfirst((string) $status)),
+        $workflowMessage,
         [
           'title' => (string) ($input['title'] ?? ''),
           'new_status' => strtolower((string) $status),
@@ -454,7 +547,7 @@ try {
       error_log('VonCMS Audit Create: ' . $auditError->getMessage());
     }
 
-    $message = 'Post created';
+    $message = $workflowMessage;
   }
 
   $savedUpdatedAt = date('Y-m-d H:i:s');

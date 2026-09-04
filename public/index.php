@@ -71,6 +71,7 @@ require_once __DIR__ . '/media_variants.php';
 require_once __DIR__ . '/content_metrics_helper.php';
 require_once __DIR__ . '/scheduler_helper.php';
 require_once __DIR__ . '/seo_schema_helper.php';
+require_once __DIR__ . '/public_render_helper.php';
 
 $maintenanceFlag = __DIR__ . '/data/maintenance.flag';
 
@@ -309,6 +310,11 @@ $seoRobots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-
 $schemaData = null;
 $homepagePosts = [];
 $categoryLandingPosts = [];
+$publicListingPage = 1;
+$publicListingLimit = 6;
+$publicListingOffset = 0;
+$publicListingHasNextPage = false;
+$publicListingPageInRange = true;
 $htmlLang = 'en'; // Global fallback for site language
 $schemaLanguage = '';
 $openGraphLocale = '';
@@ -324,6 +330,7 @@ $siteDescription = $seoDescription;
 $logoUrl = '';
 $headerIdentityMode = 'logo_and_text';
 $useLogoAsTitle = false;
+$invertLogoInDarkMode = false;
 $faviconUrl = '';
 $faviconVersion = '';
 $adsenseVerification = '';
@@ -332,11 +339,16 @@ $articleSchemaType = 'Article';
 $rawDiscoveryQueryString = $_SERVER['QUERY_STRING'] ?? '';
 $firstCategoryQueryValue = voncms_first_query_value($rawDiscoveryQueryString, 'category', 100);
 $firstSearchQueryValue = voncms_first_query_value($rawDiscoveryQueryString, 'search', 120);
+$firstPageQueryValue = voncms_first_query_value($rawDiscoveryQueryString, 'page', 10);
+$publicListingPage = voncms_normalize_public_page(
+  $firstPageQueryValue ?? ($_GET['page'] ?? 1),
+);
 $selectedCategoryParam = $firstCategoryQueryValue ??
   voncms_normalize_discovery_query($_GET['category'] ?? '', 100);
 $isCategoryLanding = $selectedCategoryParam !== '';
 $selectedCategoryName = '';
 $categoryPostCount = 0;
+$categoryCaseFolded = false;
 $homepageDiscoveryCategory = $selectedCategoryParam;
 $homepageDiscoverySearch = $firstSearchQueryValue ??
   voncms_normalize_discovery_query($_GET['search'] ?? '', 120);
@@ -345,7 +357,9 @@ $hasHomepageDiscoverySearchQuery = voncms_has_nonempty_query_value(
   'search',
 );
 $hasHomepageDiscoveryQuery =
-  $homepageDiscoveryCategory !== '' || $hasHomepageDiscoverySearchQuery;
+  $homepageDiscoveryCategory !== '' ||
+  $hasHomepageDiscoverySearchQuery ||
+  $publicListingPage > 1;
 if (voncms_is_private_spa_shell_route($path)) {
   $seoRobots = 'noindex, nofollow';
 } elseif (voncms_is_homepage_path($path) && $hasHomepageDiscoverySearchQuery) {
@@ -366,167 +380,44 @@ try {
     $publicContentCurrentTime = date('Y-m-d H:i:s');
 
     if (isset($pdo)) {
-      $runtimeSettingsStmt = $pdo->prepare(
-        "SELECT setting_group, setting_key, setting_value FROM settings
-         WHERE (setting_group = 'general' AND setting_key IN ('site_language', 'site_name', 'site_description', 'domain_url', 'logo_url', 'header_identity_mode', 'use_logo_as_title', 'invert_logo_in_dark_mode', 'favicon_url', 'og_image_url', 'og_image_square_url', 'discussion_enabled', 'permalink_structure', 'time_zone', 'date_format'))
-            OR (setting_group = 'ads' AND setting_key = 'ads_config')
-            OR (setting_group = 'seo' AND setting_key = 'site_config')
-            OR (setting_group = 'theme' AND setting_key IN ('active_theme_id', 'customization'))",
+      $runtimeContext = voncms_load_public_runtime_context(
+        $pdo,
+        $basePath,
+        $path,
+        $publicListingPage,
+        $domainUrl,
+        $seoTitle,
+        $seoDescription,
       );
-      $runtimeSettingsStmt->execute();
-      foreach ($runtimeSettingsStmt->fetchAll(PDO::FETCH_ASSOC) as $settingRow) {
-        $runtimeSettings[$settingRow['setting_group']][$settingRow['setting_key']] =
-          $settingRow['setting_value'];
-      }
-
-      $permalinkStructureValue =
-        $runtimeSettings['general']['permalink_structure'] ?? 'slug';
-      $storedTimeZone = trim((string) ($runtimeSettings['general']['time_zone'] ?? ''));
-      if (in_array($storedTimeZone, timezone_identifiers_list(), true)) {
-        $timeZoneValue = $storedTimeZone;
-      }
-      $storedDateFormat = $runtimeSettings['general']['date_format'] ?? '';
-      if (
-        in_array(
-          $storedDateFormat,
-          [
-            'month_day_year_long',
-            'month_day_year_short',
-            'day_month_year_long',
-            'day_month_year_short',
-            'day_month_year_numeric',
-            'month_day_year_numeric',
-            'iso',
-          ],
-          true,
-        )
-      ) {
-        $dateFormatValue = $storedDateFormat;
-      }
-      $activeThemeId = $runtimeSettings['theme']['active_theme_id'] ?? '';
-      $themeCustomizationRaw = $runtimeSettings['theme']['customization'] ?? '';
-      if ($themeCustomizationRaw !== '') {
-        $decodedThemeCustomization = json_decode($themeCustomizationRaw, true);
-        if (is_array($decodedThemeCustomization)) {
-          $themeCustomization = $decodedThemeCustomization;
-        }
-      }
-      if (array_key_exists('discussion_enabled', $runtimeSettings['general'] ?? [])) {
-        $discussionEnabledValue = filter_var(
-          $runtimeSettings['general']['discussion_enabled'],
-          FILTER_VALIDATE_BOOLEAN,
-        );
-      }
-
-      $siteLanguageValue = $runtimeSettings['general']['site_language'] ?? '';
-      if ($siteLanguageValue !== '') {
-        $schemaLanguage = voncms_normalize_schema_language($siteLanguageValue);
-        if ($schemaLanguage !== '') {
-          $htmlLang = $schemaLanguage;
-          if ($schemaLanguage === 'ms') {
-            $openGraphLocale = 'ms_MY';
-          } elseif (preg_match('/^[a-z]{2,3}-[A-Z]{2}$/', $schemaLanguage)) {
-            $openGraphLocale = str_replace('-', '_', $schemaLanguage);
-          }
-        }
-      }
-
-      $siteNameValue = trim((string) ($runtimeSettings['general']['site_name'] ?? ''));
-      if ($siteNameValue !== '') {
-        $siteName = html_entity_decode($siteNameValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $seoTitle = $siteName;
-      }
-
-      $siteDescriptionValue = $runtimeSettings['general']['site_description'] ?? '';
-      if ($siteDescriptionValue !== '') {
-        $val = $siteDescriptionValue;
-        // Smart Extract: If user pasted full tag, get only the content attribute
-        if (preg_match('/content=["\']([^"\']+)["\']/', $val, $m)) {
-          $val = $m[1];
-        }
-
-        // Triple-step sanitization for base site description
-        $cleanSiteDesc = strip_tags($val);
-        $cleanSiteDesc = html_entity_decode($cleanSiteDesc, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cleanSiteDesc = str_replace('"', "'", $cleanSiteDesc);
-        // Standard SEO limit: 160 chars
-        $seoDescription = mb_substr($cleanSiteDesc, 0, 160);
-        $siteDescription = $seoDescription;
-      }
-
-      $configuredDomainUrl = $runtimeSettings['general']['domain_url'] ?? '';
-      if ($configuredDomainUrl !== '') {
-        $domainUrl = rtrim($configuredDomainUrl, '/');
-      }
-
-      $logoUrl = $runtimeSettings['general']['logo_url'] ?? '';
-      $useLogoAsTitle = filter_var(
-        $runtimeSettings['general']['use_logo_as_title'] ?? false,
-        FILTER_VALIDATE_BOOLEAN,
-      );
-      $storedHeaderIdentityMode = trim(
-        (string) ($runtimeSettings['general']['header_identity_mode'] ?? ''),
-      );
-      if (
-        in_array($storedHeaderIdentityMode, ['logo_and_text', 'logo_only', 'text_only'], true)
-      ) {
-        $headerIdentityMode = $storedHeaderIdentityMode;
-        $useLogoAsTitle = $headerIdentityMode === 'logo_only';
-      } else {
-        $headerIdentityMode = $useLogoAsTitle ? 'logo_only' : 'logo_and_text';
-      }
-      $invertLogoInDarkMode = filter_var(
-        $runtimeSettings['general']['invert_logo_in_dark_mode'] ?? false,
-        FILTER_VALIDATE_BOOLEAN,
-      );
-
-      $faviconUrl = voncms_normalize_public_media_url(
-        $runtimeSettings['general']['favicon_url'] ?? '',
-      );
-      $faviconUrl = voncms_absolute_public_url($faviconUrl, $domainUrl);
-      if ($faviconUrl !== '') {
-        // Cache-busting: Use file mtime if local, else hash of URL
-        $localPath = __DIR__ . '/' . ltrim(parse_url($faviconUrl, PHP_URL_PATH) ?? '', '/');
-        if (file_exists($localPath)) {
-          $faviconVersion = filemtime($localPath);
-        } else {
-          $faviconVersion = substr(md5($faviconUrl), 0, 8);
-        }
-      }
-
-      // Fallback if domain_url not set
-      if (empty($domainUrl)) {
-        $protocol = is_https() ? 'https://' : 'http://';
-        $safeHost = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-        $domainUrl = rtrim($protocol . $safeHost . $basePath, '/');
-      }
-      $seoUrl = $domainUrl . '/';
-
-      $adsConfigValue = $runtimeSettings['ads']['ads_config'] ?? '';
-      if ($adsConfigValue !== '') {
-        $adsSettings = json_decode($adsConfigValue, true);
-        if ($adsSettings && !empty($adsSettings['adsenseVerification'])) {
-          $adsenseVerification = $adsSettings['adsenseVerification'];
-        }
-      }
-
-      $seoConfigValue = $runtimeSettings['seo']['site_config'] ?? '';
-      if ($seoConfigValue !== '') {
-        $seo = json_decode($seoConfigValue, true) ?: [];
-      }
-      $articleSchemaType = voncms_normalize_article_schema_type($seo['articleSchemaType'] ?? null);
-
-      // Prepare Schema.org Data (VonSEO)
-      $schemaData = [
-        '@context' => 'https://schema.org',
-        '@type' => 'WebSite',
-        'name' => $seoTitle,
-        'url' => $seoUrl,
-        'description' => $seoDescription,
-      ];
-      if (voncms_is_private_spa_shell_route($path)) {
-        $schemaData = null;
-      }
+      $runtimeSettings = $runtimeContext['runtimeSettings'];
+      $publicContentCurrentTime = $runtimeContext['publicContentCurrentTime'];
+      $permalinkStructureValue = $runtimeContext['permalinkStructureValue'];
+      $publicListingLimit = $runtimeContext['publicListingLimit'];
+      $publicListingOffset = $runtimeContext['publicListingOffset'];
+      $timeZoneValue = $runtimeContext['timeZoneValue'];
+      $dateFormatValue = $runtimeContext['dateFormatValue'];
+      $activeThemeId = $runtimeContext['activeThemeId'];
+      $themeCustomization = $runtimeContext['themeCustomization'];
+      $discussionEnabledValue = $runtimeContext['discussionEnabledValue'];
+      $htmlLang = $runtimeContext['htmlLang'];
+      $schemaLanguage = $runtimeContext['schemaLanguage'];
+      $openGraphLocale = $runtimeContext['openGraphLocale'];
+      $siteName = $runtimeContext['siteName'];
+      $siteDescription = $runtimeContext['siteDescription'];
+      $seoTitle = $runtimeContext['seoTitle'];
+      $seoDescription = $runtimeContext['seoDescription'];
+      $domainUrl = $runtimeContext['domainUrl'];
+      $seoUrl = $runtimeContext['seoUrl'];
+      $logoUrl = $runtimeContext['logoUrl'];
+      $headerIdentityMode = $runtimeContext['headerIdentityMode'];
+      $useLogoAsTitle = $runtimeContext['useLogoAsTitle'];
+      $invertLogoInDarkMode = $runtimeContext['invertLogoInDarkMode'];
+      $faviconUrl = $runtimeContext['faviconUrl'];
+      $faviconVersion = $runtimeContext['faviconVersion'];
+      $adsenseVerification = $runtimeContext['adsenseVerification'];
+      $seo = $runtimeContext['seo'];
+      $articleSchemaType = $runtimeContext['articleSchemaType'];
+      $schemaData = $runtimeContext['schemaData'];
 
       if ($isCategoryLanding && voncms_is_homepage_path($path)) {
         $selectedCategoryName = $selectedCategoryParam;
@@ -547,6 +438,7 @@ try {
             $canonicalCategoryQuery = voncms_build_category_canonical_query(
               $rawDiscoveryQueryString,
               $storedCategoryName,
+              $publicListingPage,
             );
             if (
               $storedCategoryName !== '' &&
@@ -558,20 +450,16 @@ try {
             if ($storedCategoryName !== '') {
               $selectedCategoryName = $storedCategoryName;
             }
-            $categoryLandingPosts = voncms_fetch_category_landing_posts(
-              $pdo,
-              $selectedCategoryName,
-              $publicContentCurrentTime,
-              $permalinkStructureValue,
-              $categoryCaseFolded,
-            );
           }
         } catch (Throwable $categorySeoError) {
           $categoryPostCount = 0;
           $categoryLandingPosts = [];
         }
 
-        $seoTitle = $selectedCategoryName . ' - ' . $siteName;
+        $categoryPageSuffix = $publicListingPage > 1
+          ? ' - Page ' . $publicListingPage
+          : '';
+        $seoTitle = $selectedCategoryName . $categoryPageSuffix . ' - ' . $siteName;
         $categoryDescriptionContext = trim((string) $siteDescription) !== ''
           ? $siteDescription
           : $siteName;
@@ -580,7 +468,12 @@ try {
           160,
           '',
         );
-        $seoUrl = $domainUrl . '/?category=' . rawurlencode($selectedCategoryName);
+        $categorySeoQuery = voncms_build_public_page_query(
+          '',
+          $publicListingPage,
+          $selectedCategoryName,
+        );
+        $seoUrl = $domainUrl . '/?' . $categorySeoQuery;
         $seoRobots = $categoryPostCount > 0 ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, follow';
         if ($hasHomepageDiscoverySearchQuery) {
           $seoRobots = 'noindex, follow';
@@ -588,7 +481,7 @@ try {
         $schemaData = [
           '@context' => 'https://schema.org',
           '@type' => 'CollectionPage',
-          'name' => $selectedCategoryName . ' - ' . $siteName,
+          'name' => $seoTitle,
           'url' => $seoUrl,
           'description' => $seoDescription,
         ];
@@ -844,11 +737,20 @@ try {
       // ============================================
       if (empty($path)) {
         try {
-          $homepagePublishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
-          $homepagePublicationExpression = voncms_publication_expression_sql($pdo, 'posts', 'p');
-          $hpStmt = $pdo->prepare("SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, {$homepagePublishedAtSql}, {$homepagePublicationExpression} AS effective_publish_at, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.status='published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) ORDER BY effective_publish_at DESC, p.created_at DESC LIMIT 10");
-          $hpStmt->execute([$publicContentCurrentTime]);
-          $homepagePosts = $hpStmt->fetchAll(PDO::FETCH_ASSOC);
+          $publicListing = voncms_fetch_public_listing_page(
+            $pdo,
+            $publicContentCurrentTime,
+            $publicListingPage,
+            $publicListingLimit,
+            $isCategoryLanding ? $selectedCategoryName : '',
+            $homepageDiscoverySearch,
+            $hasDisplayNameColumn,
+            $categoryCaseFolded,
+          );
+          $homepagePosts = $publicListing['posts'];
+          $publicListingHasNextPage = $publicListing['hasNext'];
+          $publicListingOffset = $publicListing['offset'];
+          $publicListingPageInRange = $publicListing['inRange'];
 
           foreach ($homepagePosts as &$hp) {
             $responsiveImage = voncms_build_responsive_image_data($hp['image_url'] ?? '', __DIR__ . '/uploads/');
@@ -865,39 +767,41 @@ try {
 
             $hp['readTime'] = voncms_format_read_time((int) ($hp['content_chars'] ?? 0));
             unset($hp['content_chars']);
-            $hpSlug = $hp['slug'] ?: $hp['id'];
-            $hp['url'] = ''; // Wait for switch statement
-            switch ($permalinkStructureValue) {
-              case 'date':
-              case 'day_name':
-                $hpD = new DateTime($hp['created_at']);
-                $hp['url'] = '/' . $hpD->format('Y') . '/' . $hpD->format('m') . '/' . $hpD->format('d') . '/' . $hpSlug;
-                break;
-              case 'month_name':
-                $hpD = new DateTime($hp['created_at']);
-                $hp['url'] = '/' . $hpD->format('Y') . '/' . $hpD->format('m') . '/' . $hpSlug;
-                break;
-              case 'category':
-                $hpCat = voncms_category_slug($hp['category'] ?? 'uncategorized');
-                $hp['url'] = '/' . $hpCat . '/' . $hpSlug;
-                break;
-              case 'post_name':
-              case 'slug':
-                $hp['url'] = '/' . $hpSlug;
-                break;
-              case 'plain':
-                $hp['url'] = '/post/' . $hp['id'];
-                break;
-              default:
-                $hp['url'] = '/' . $hpSlug; // Fallback to slug (consistent with canonical/content routing)
-                break;
-            }
+            $hp['url'] = buildCanonicalContentPath($hp, $permalinkStructureValue, 'post');
 
             $hp = ResponseHelper::shapeContentPayload($hp, false);
           }
           unset($hp);
-        } catch (Exception $e) {
+          if ($isCategoryLanding) {
+            $categoryLandingPosts = $homepagePosts;
+          }
+
+          if ($publicListingPage > 1) {
+            if (!$isCategoryLanding && !$hasHomepageDiscoverySearchQuery) {
+              $seoTitle = $siteName . ' - Page ' . $publicListingPage;
+              $seoUrl = $domainUrl . '/?page=' . $publicListingPage;
+              $schemaData = [
+                '@context' => 'https://schema.org',
+                '@type' => 'CollectionPage',
+                'name' => $seoTitle,
+                'url' => $seoUrl,
+                'description' => $siteDescription,
+              ];
+            }
+            if (!$publicListingPageInRange || empty($homepagePosts)) {
+              $seoRobots = 'noindex, follow';
+            }
+            if (!$publicListingPageInRange) {
+              voncms_apply_discovery_overflow_response($seoRobots, $schemaData);
+            }
+          }
+        } catch (Throwable $e) {
           $homepagePosts = [];
+          $categoryLandingPosts = [];
+          $publicListingHasNextPage = false;
+          if ($publicListingPage > 1) {
+            $seoRobots = 'noindex, follow';
+          }
         }
       }
     }
@@ -906,13 +810,8 @@ try {
   // Silently fail - use defaults
 }
 
-// ============================================
-// AUTO-DETECT ASSET FILENAMES
-// ============================================
-$assetsDir = __DIR__ . '/assets/';
-
-// Resolve one authoritative social image before emitting OG, Twitter, and JSON-LD.
-$resolvedSocialImage = voncms_resolve_social_image(
+$socialSchema = voncms_enrich_public_social_schema(
+  $schemaData,
   [
     ['url' => $seoImage, 'kind' => $seoImageKind],
     ['url' => $runtimeSettings['general']['og_image_url'] ?? '', 'kind' => 'large'],
@@ -920,97 +819,21 @@ $resolvedSocialImage = voncms_resolve_social_image(
     ['url' => $logoUrl, 'kind' => 'logo'],
   ],
   $domainUrl,
+  __DIR__,
 );
-$seoImage = $resolvedSocialImage['url'];
-$twitterCard = $resolvedSocialImage['card'];
+$schemaData = $socialSchema['schemaData'];
+$seoImage = $socialSchema['seoImage'];
+$twitterCard = $socialSchema['twitterCard'];
+$seoImageWidth = $socialSchema['width'];
+$seoImageHeight = $socialSchema['height'];
 
-if (is_array($schemaData)) {
-  $schemaType = (string) ($schemaData['@type'] ?? '');
-  if (in_array($schemaType, ['Article', 'NewsArticle', 'BlogPosting', 'WebPage'], true)) {
-    if ($seoImage !== '') {
-      $schemaData['image'] = [
-        [
-          '@type' => 'ImageObject',
-          'url' => $seoImage,
-        ],
-      ];
-    } else {
-      unset($schemaData['image']);
-    }
-  }
-}
-$seoImageWidth = 0;
-$seoImageHeight = 0;
-$seoImageParts = parse_url($seoImage);
-$domainUrlParts = parse_url($domainUrl);
-if (
-  is_array($seoImageParts) &&
-  is_array($domainUrlParts) &&
-  !empty($seoImageParts['host']) &&
-  !empty($domainUrlParts['host']) &&
-  strcasecmp((string) $seoImageParts['host'], (string) $domainUrlParts['host']) === 0 &&
-  (int) ($seoImageParts['port'] ?? 0) === (int) ($domainUrlParts['port'] ?? 0)
-) {
-  $seoImagePath = rawurldecode((string) ($seoImageParts['path'] ?? ''));
-  $domainBasePath = rtrim((string) ($domainUrlParts['path'] ?? ''), '/');
-  if ($domainBasePath !== '' && str_starts_with($seoImagePath, $domainBasePath . '/')) {
-    $seoImagePath = substr($seoImagePath, strlen($domainBasePath));
-  }
-
-  $publicRootPath = realpath(__DIR__);
-  $localImagePath = realpath(
-    __DIR__ .
-      DIRECTORY_SEPARATOR .
-      ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $seoImagePath), DIRECTORY_SEPARATOR),
-  );
-  if (
-    $publicRootPath !== false &&
-    $localImagePath !== false &&
-    str_starts_with($localImagePath, $publicRootPath . DIRECTORY_SEPARATOR) &&
-    is_file($localImagePath)
-  ) {
-    $imageDimensions = @getimagesize($localImagePath);
-    if (is_array($imageDimensions)) {
-      $seoImageWidth = max(0, (int) ($imageDimensions[0] ?? 0));
-      $seoImageHeight = max(0, (int) ($imageDimensions[1] ?? 0));
-    }
-  }
-}
-if (
-  $seoImageWidth > 0 &&
-  $seoImageHeight > 0 &&
-  is_array($schemaData) &&
-  isset($schemaData['image'][0]) &&
-  is_array($schemaData['image'][0])
-) {
-  $schemaData['image'][0]['width'] = $seoImageWidth;
-  $schemaData['image'][0]['height'] = $seoImageHeight;
-}
-$jsFile = '';
-$cssFile = '';
-
-if (is_dir($assetsDir)) {
-  $files = scandir($assetsDir);
-  foreach ($files as $file) {
-    if (preg_match('/^index-.*\.js$/', $file)) {
-      $jsFile = $file;
-    }
-    if (preg_match('/^index-.*\.css$/', $file)) {
-      $cssFile = $file;
-    }
-  }
-}
-
-// Fallback if not found
-if (!$jsFile) {
-  $jsFile = 'index.js';
-}
-if (!$cssFile) {
-  $cssFile = 'index.css';
-}
-
-// Asset Prefixer for Root Shim
-$assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'assets/';
+$publicAssets = voncms_resolve_public_assets(
+  __DIR__ . '/assets/',
+  defined('VON_ROOT_SHIM') && VON_ROOT_SHIM,
+);
+$assetPrefix = $publicAssets['assetPrefix'];
+$jsFile = $publicAssets['jsFile'];
+$cssFile = $publicAssets['cssFile'];
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars($htmlLang ?? 'en', ENT_COMPAT, 'UTF-8', false); ?>">
@@ -1111,108 +934,25 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
     <!-- Schema.org JSON-LD (VonSEO) -->
     <script type="application/ld+json" class="vp-seo" data-voncms-schema-source="ssr" data-voncms-schema-url="<?php echo htmlspecialchars($seoUrl, ENT_QUOTES, 'UTF-8'); ?>">
       <?php
-      $additionalSchemaNodes = [];
-      if (
-        $isCategoryLanding &&
-        voncms_is_homepage_path($path) &&
-        !empty($categoryLandingPosts) &&
-        (($schemaData['@type'] ?? '') === 'CollectionPage')
-      ) {
-        voncms_apply_category_collection_items(
-          $schemaData,
-          $categoryLandingPosts,
-          $categoryPostCount,
-          $articleSchemaType,
-          $domainUrl,
-        );
-      }
-
-      // Homepage Enhancement: Add ItemList of latest posts
-      if (voncms_is_homepage_path($path) && !$hasHomepageDiscoveryQuery && !empty($homepagePosts)) {
-        $homepageCollectionPage = [
-          '@type' => 'CollectionPage',
-          'name' => $siteName,
-          'url' => $domainUrl . '/',
-          'description' => $siteDescription,
-        ];
-        $seoItemList = [];
-        foreach ($homepagePosts as $idx => $hp) {
-          $cleanName = html_entity_decode($hp['title'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-          $cleanExcerpt = html_entity_decode(strip_tags($hp['excerpt'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-          $homepageItem = [
-            '@type' => $articleSchemaType,
-            'name' => $cleanName,
-            'url' => $domainUrl . $hp['url'],
-            'description' => voncms_truncate_word_safe($cleanExcerpt, 200),
-          ];
-          $homepageItemImage = voncms_normalize_public_media_url($hp['image_url'] ?? '');
-          if ($homepageItemImage !== '') {
-            $homepageItem['image'] = voncms_absolute_public_url($homepageItemImage, $domainUrl);
-          }
-          $seoItemList[] = [
-            '@type' => 'ListItem',
-            'position' => $idx + 1,
-            'item' => $homepageItem,
-          ];
-        }
-        $homepageCollectionPage['mainEntity'] = [
-          '@type' => 'ItemList',
-          'itemListElement' => $seoItemList
-        ];
-        $additionalSchemaNodes[] = $homepageCollectionPage;
-      }
-
-      if (
-        !empty($path) &&
-        isset($post) &&
-        $post &&
-        (($resolvedContentType ?? 'post') === 'post')
-      ) {
-        $breadcrumbCategoryName = trim((string) ($post['category'] ?? ''));
-        if ($breadcrumbCategoryName === '') {
-          $breadcrumbCategoryName = 'Uncategorized';
-        }
-        $breadcrumbCategorySlug = voncms_category_slug($breadcrumbCategoryName);
-        $breadcrumbPostName = html_entity_decode($post['title'] ?? $seoTitle, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $additionalSchemaNodes[] = [
-          '@type' => 'BreadcrumbList',
-          'itemListElement' => [
-            [
-              '@type' => 'ListItem',
-              'position' => 1,
-              'name' => 'Home',
-              'item' => $domainUrl,
-            ],
-            [
-              '@type' => 'ListItem',
-              'position' => 2,
-              'name' => $breadcrumbCategoryName,
-              'item' => $domainUrl . '/?category=' . rawurlencode($breadcrumbCategoryName),
-            ],
-            [
-              '@type' => 'ListItem',
-              'position' => 3,
-              'name' => $breadcrumbPostName,
-              'item' => $seoUrl ?: ($domainUrl . '/' . $breadcrumbCategorySlug . '/' . ($post['slug'] ?? $post['id'] ?? '')),
-            ],
-          ],
-        ];
-      }
-
-      // Final safety: decode all top-level text fields to prevent &amp; chains
-      foreach (['name', 'description', 'headline'] as $field) {
-        if (!empty($schemaData[$field])) {
-          $schemaData[$field] = html_entity_decode($schemaData[$field], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        }
-      }
-      $schemaData = voncms_build_site_identity_schema_graph(
-        $schemaData,
-        $siteName ?? $seoTitle,
-        $siteDescription ?? $seoDescription,
-        $domainUrl,
-        $logoUrl,
-        $additionalSchemaNodes,
-      );
+      $schemaData = voncms_build_public_schema_graph($schemaData, [
+        'path' => $path,
+        'isCategoryLanding' => $isCategoryLanding,
+        'categoryPosts' => $categoryLandingPosts,
+        'categoryPostCount' => $categoryPostCount,
+        'articleSchemaType' => $articleSchemaType,
+        'domainUrl' => $domainUrl,
+        'listingOffset' => $publicListingOffset,
+        'hasHomepageDiscoveryQuery' => $hasHomepageDiscoveryQuery,
+        'homepagePosts' => $homepagePosts,
+        'siteName' => $siteName ?? $seoTitle,
+        'siteDescription' => $siteDescription ?? $seoDescription,
+        'logoUrl' => $logoUrl,
+        'post' => isset($post) && is_array($post) ? $post : null,
+        'resolvedContentType' => $resolvedContentType ?? 'post',
+        'seoTitle' => $seoTitle,
+        'seoDescription' => $seoDescription,
+        'seoUrl' => $seoUrl,
+      ]);
       echo json_encode($schemaData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
       ?>
     </script>
@@ -1315,6 +1055,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
                                       'permalinkStructure'   => $permalinkStructureValue,
                                       'timeZone'              => $timeZoneValue,
                                       'dateFormat'            => $dateFormatValue,
+                                      'postsPerPage'           => $publicListingLimit,
                                     'discussionEnabled'      => $discussionEnabledValue,
                                   ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
   </script>
@@ -1478,10 +1219,27 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
 
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200">
   <?php
-  $categoryNoscriptLanding = $isCategoryLanding && voncms_is_homepage_path($path);
-  $noscriptListingPosts = $categoryNoscriptLanding ? $categoryLandingPosts : $homepagePosts;
-  $showNoscriptLogo = !empty($logoUrl) && $headerIdentityMode !== 'text_only';
-  $showNoscriptTitle = $headerIdentityMode !== 'logo_only' || empty($logoUrl);
+  $noscriptListing = voncms_build_noscript_listing_model([
+    'path' => $path,
+    'isCategoryLanding' => $isCategoryLanding,
+    'categoryPosts' => $categoryLandingPosts,
+    'homepagePosts' => $homepagePosts,
+    'hasSearchQuery' => $hasHomepageDiscoverySearchQuery,
+    'page' => $publicListingPage,
+    'pageInRange' => $publicListingPageInRange,
+    'hasNextPage' => $publicListingHasNextPage,
+    'rawQuery' => $rawDiscoveryQueryString,
+    'basePath' => $basePath,
+    'categoryName' => $selectedCategoryName,
+    'logoUrl' => $logoUrl,
+    'headerIdentityMode' => $headerIdentityMode,
+  ]);
+  $noscriptListingPosts = $noscriptListing['listingPosts'];
+  $noscriptDiscoveryLanding = $noscriptListing['discoveryLanding'];
+  $noscriptPreviousHref = $noscriptListing['previousHref'];
+  $noscriptNextHref = $noscriptListing['nextHref'];
+  $showNoscriptLogo = $noscriptListing['showLogo'];
+  $showNoscriptTitle = $noscriptListing['showTitle'];
   ?>
   <?php if (isset($post) && !empty($post)): ?>
     <?php
@@ -1504,7 +1262,7 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
         </div>
       </article>
     </noscript>
-  <?php elseif ($categoryNoscriptLanding || !empty($noscriptListingPosts)): ?>
+  <?php elseif ($noscriptDiscoveryLanding): ?>
     <noscript>
       <div class="voncms-noscript">
         <header class="voncms-noscript-header">
@@ -1527,10 +1285,21 @@ $assetPrefix = (defined('VON_ROOT_SHIM') && VON_ROOT_SHIM) ? 'dist/assets/' : 'a
               <?php endif; ?>
             </article>
           <?php endforeach; ?>
-          <?php if ($categoryNoscriptLanding && empty($noscriptListingPosts)): ?>
-            <p class="voncms-noscript-empty">No published articles were found in this category.</p>
+          <?php if (empty($noscriptListingPosts)): ?>
+            <p class="voncms-noscript-empty">No published articles were found on this page.</p>
           <?php endif; ?>
         </main>
+        <?php if ($noscriptPreviousHref !== '' || $noscriptNextHref !== ''): ?>
+          <nav class="voncms-noscript-pagination" aria-label="Article pages">
+            <?php if ($noscriptPreviousHref !== ''): ?>
+              <a rel="prev" href="<?php echo htmlspecialchars($noscriptPreviousHref, ENT_QUOTES, 'UTF-8'); ?>">Newer articles</a>
+            <?php endif; ?>
+            <span>Page <?php echo $publicListingPage; ?></span>
+            <?php if ($noscriptNextHref !== ''): ?>
+              <a rel="next" href="<?php echo htmlspecialchars($noscriptNextHref, ENT_QUOTES, 'UTF-8'); ?>">Older articles</a>
+            <?php endif; ?>
+          </nav>
+        <?php endif; ?>
       </div>
     </noscript>
   <?php endif; ?>

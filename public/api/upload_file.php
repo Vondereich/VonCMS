@@ -7,6 +7,7 @@
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/role_capability_helper.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('POST, OPTIONS');
@@ -57,7 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Enforce Security
-SessionManager::requireMediaAccess();
+SessionManager::requireValidSession();
+if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')) {
+  ResponseHelper::sendError('Media access required', 403);
+}
 CSRFProtection::requireToken();
 
 if (!isset($_FILES['file'])) {

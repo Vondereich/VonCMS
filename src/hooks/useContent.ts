@@ -3,7 +3,7 @@
  * Handles posts and pages CRUD operations
  */
 import { useState, useCallback, useRef } from 'react';
-import { Post, Page, SiteSettings, User } from '../types';
+import { Post, Page, SiteSettings, User, type PostSaveOptions } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
@@ -259,7 +259,8 @@ export function useContent() {
       settings: SiteSettings,
       onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean>,
       skipNavigate: boolean = false,
-      isPageOverride?: boolean
+      isPageOverride?: boolean,
+      saveOptions?: PostSaveOptions
     ) => {
       const effectiveIsPage = typeof isPageOverride === 'boolean' ? isPageOverride : isEditingPage;
       const now = new Date().toISOString();
@@ -316,7 +317,19 @@ export function useContent() {
             'Content-Type': 'application/json',
             ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
           },
-          body: JSON.stringify(newItem),
+          body: JSON.stringify(
+            effectiveIsPage
+              ? newItem
+              : {
+                  ...newItem,
+                  ...(saveOptions?.workflowAction
+                    ? { workflowAction: saveOptions.workflowAction }
+                    : {}),
+                  ...(saveOptions?.expectedStatus
+                    ? { expectedStatus: saveOptions.expectedStatus }
+                    : {}),
+                }
+          ),
         });
 
         // Handle Session Expiry (401)
@@ -364,28 +377,31 @@ export function useContent() {
               return [...prev, { ...newItem, ...data, id: realId } as Page];
             });
 
-            // Update Navigation Settings (if needed)
-            if (addToMenu) {
-              // Navigation logic using realId...
-              // (Simplified for robustness: Check by label mostly or update if url matches)
-              const navUrl = `page:${realId}`;
-              const existingNav = settings.navigation.find(
-                (n) => n.url === navUrl || (n.type === 'internal' && n.label === newItem.title)
-              );
+            // Keep the editor checkbox and saved navigation in sync in both directions.
+            const currentNavigation = settings.navigation || [];
+            const navUrl = `page:${realId}`;
+            const existingNav = currentNavigation.find((navItem) => navItem.url === navUrl);
+            let newNavigation = currentNavigation;
 
-              let newNav = settings.navigation;
+            if (addToMenu) {
               if (!existingNav) {
-                newNav = [
-                  ...settings.navigation,
+                newNavigation = [
+                  ...currentNavigation,
                   { id: `nav-${Date.now()}`, label: newItem.title, url: navUrl, type: 'internal' },
                 ];
               } else {
-                // Update existing
-                newNav = settings.navigation.map((n) =>
-                  n.id === existingNav.id ? { ...n, label: newItem.title, url: navUrl } : n
+                newNavigation = currentNavigation.map((navItem) =>
+                  navItem.id === existingNav.id
+                    ? { ...navItem, label: newItem.title, url: navUrl }
+                    : navItem
                 );
               }
-              onUpdateSettings({ ...settings, navigation: newNav });
+            } else if (existingNav) {
+              newNavigation = currentNavigation.filter((navItem) => navItem.url !== navUrl);
+            }
+
+            if (newNavigation !== currentNavigation) {
+              await onUpdateSettings({ ...settings, navigation: newNavigation });
             }
           } else {
             invalidateContentLoadCoverage('post');
@@ -426,6 +442,15 @@ export function useContent() {
                   savedStatus !== previousStatus;
             if (publicCategoriesChanged) {
               window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
+            }
+            if (
+              previousStatus === 'pending_review' ||
+              savedStatus === 'pending_review' ||
+              ['submit_review', 'withdraw_review', 'return_draft', 'publish', 'schedule'].includes(
+                saveOptions?.workflowAction || ''
+              )
+            ) {
+              window.dispatchEvent(new Event('voncms:pending-review-invalidated'));
             }
           }
 

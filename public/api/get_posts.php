@@ -43,7 +43,7 @@ if (file_exists($settingsFile)) {
 }
 
 $forcePublic = filter_var($queryValue('public', 'false'), FILTER_VALIDATE_BOOLEAN);
-$page = max(1, (int) $queryValue('page', '1'));
+$page = max(1, min(100000, (int) $queryValue('page', '1')));
 $requestedLimit = (int) $queryValue('limit', (string) $defaultLimit);
 $limit = max(1, min(200, $requestedLimit));
 $offset = ($page - 1) * $limit;
@@ -56,7 +56,14 @@ if ($search !== '') {
     ? mb_substr($search, 0, 120, 'UTF-8')
     : substr($search, 0, 120);
 }
-$statusFilter = $queryValue('status');
+$statusFilterValue = $queryValue('status');
+$statusFilter = $statusFilterValue === null ? null : strtolower(trim($statusFilterValue));
+$allowedStatusFilters = ['published', 'draft', 'scheduled', 'archived', 'pending_review'];
+if ($statusFilter === '') {
+  $statusFilter = null;
+} elseif ($statusFilter !== null && !in_array($statusFilter, $allowedStatusFilters, true)) {
+  ResponseHelper::sendError('Invalid post status filter', 400);
+}
 $includeTotal = $queryValue('includeTotal', 'true') !== 'false';
 $countOnly = filter_var($queryValue('countOnly', 'false'), FILTER_VALIDATE_BOOLEAN);
 $countScope = strtolower((string) $queryValue('scope', ''));
@@ -114,27 +121,9 @@ if (file_exists($configFile)) {
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
+require_once __DIR__ . '/../search_query_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
-
-if (!function_exists('voncms_normalize_fulltext_search')) {
-  function voncms_normalize_fulltext_search(string $value): string
-  {
-    $text = html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $normalized = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text);
-    if (!is_string($normalized)) {
-      $normalized = preg_replace('/[^a-zA-Z0-9\s]+/', ' ', $text);
-    }
-    $normalized = is_string($normalized) ? trim(preg_replace('/\s+/u', ' ', $normalized)) : '';
-    return is_string($normalized) ? $normalized : '';
-  }
-}
-
-if (!function_exists('voncms_escape_like_search')) {
-  function voncms_escape_like_search(string $value): string
-  {
-    return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], (string) $value);
-  }
-}
+require_once __DIR__ . '/role_capability_helper.php';
 
 try {
   if (!isset($pdo) || !($pdo instanceof PDO)) {
@@ -158,8 +147,12 @@ try {
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
   $isAdmin = !$forcePublic && SessionManager::isAdmin();
-  $canReadProtectedPosts = !$forcePublic && SessionManager::isStaff();
   $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $canReviewPosts = !$forcePublic && voncms_role_can_review_posts($currentRole);
+  $canReadOwnProtectedPosts =
+    !$forcePublic && voncms_role_has_capability($currentRole, 'posts.read_own_protected');
+  $canReadProtectedPosts = $canReviewPosts || $canReadOwnProtectedPosts;
+  $mustOwnProtectedPosts = $canReadOwnProtectedPosts && !$canReviewPosts;
   $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentTimestamp = date('Y-m-d H:i:s');
   if (session_status() === PHP_SESSION_ACTIVE) {
@@ -176,7 +169,7 @@ try {
   $searchLike = null;
 
   // Build Query
-  if ($canReadProtectedPosts && $currentRole === 'writer') {
+  if ($canReadProtectedPosts && $mustOwnProtectedPosts) {
     $statusClause = ' WHERE p.author_id = :currentUserId';
   } elseif ($canReadProtectedPosts) {
     $statusClause = ' WHERE 1=1';
@@ -189,7 +182,7 @@ try {
     $statusClause .= ' AND p.category = :category';
   }
 
-  if ($statusFilter && preg_match('/^[a-zA-Z]+$/', $statusFilter)) {
+  if ($statusFilter !== null) {
     $statusClause .= ' AND p.status = :statusFilter';
   }
 
@@ -210,7 +203,9 @@ try {
   }
 
   $countStatusClause =
-    $canReadProtectedPosts && $countScope === 'all' ? ' WHERE 1=1' : $statusClause;
+    $canReadProtectedPosts && $canReviewPosts && $countScope === 'all'
+      ? ' WHERE 1=1' . ($statusFilter !== null ? ' AND p.status = :statusFilter' : '')
+      : $statusClause;
   $canSkipTotal = !$isAdmin && !$includeTotal && $authorQuery === null;
   $queryLimit = $canSkipTotal ? $limit + 1 : $limit;
   $total = 0;
@@ -254,6 +249,24 @@ try {
         'limit' => $limit,
         'total' => $total,
         'totalPages' => 0,
+        'hasMore' => false,
+        'totalIsExact' => true,
+      ],
+      'source' => 'database',
+    ]);
+    exit();
+  }
+
+  $totalPages = $total > 0 ? (int) ceil($total / $limit) : 0;
+  if (!$canSkipTotal && $page > 1 && $page > $totalPages) {
+    echo json_encode([
+      'success' => true,
+      'posts' => [],
+      'meta' => [
+        'page' => $page,
+        'limit' => $limit,
+        'total' => $total,
+        'totalPages' => $totalPages,
         'hasMore' => false,
         'totalIsExact' => true,
       ],

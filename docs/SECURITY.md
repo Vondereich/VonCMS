@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.26.11
+# VonCMS Security Policy v1.27.0
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 
@@ -145,6 +145,14 @@ What this helps with:
 - brute-force login attempts
 - noisy spam bots
 - basic scripted abuse on public forms
+
+## Fixed Role and Review Authorization
+
+VonCMS keeps the built-in Root, Admin, Moderator, Writer, and Member roles behind one server-owned capability policy. The React admin mirrors those capabilities for usable buttons and tabs, but every endpoint checks the current database-backed session role again.
+
+Writer review transitions use an explicit action and expected source status. Existing post rows are locked before ownership and state decisions are applied, stale concurrent reviewer actions receive `409`, and status-only review decisions do not overwrite article fields. Writers remain limited to their own Draft or submitted posts, while reviewer actions retain the original author. Public queries continue to exclude `pending_review` content.
+
+Primary-administrator protections remain separate from the fixed role matrix. Database repair, owner credentials, destructive media tools, and other primary-only operations are not delegated merely because a user can review posts.
 
 ## Settings Ownership and Secret History
 

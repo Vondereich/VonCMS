@@ -5,6 +5,8 @@ import type { AiAssistantMode, AiAssistantResult } from '../../hooks/useAiWritin
 interface AiWritingPanelProps {
   title: string;
   hasContent: boolean;
+  activeModel: string;
+  isSharedModel: boolean;
   mode: AiAssistantMode;
   writePrompt: string;
   pendingResult: AiAssistantResult | null;
@@ -26,9 +28,17 @@ const formatResultTime = (value: string) => {
   return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
+const formatModelName = (model: string) =>
+  model
+    .split('-')
+    .map((part) => (part === 'gemini' ? 'Gemini' : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(' ');
+
 const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
   title,
   hasContent,
+  activeModel,
+  isSharedModel,
   mode,
   writePrompt,
   pendingResult,
@@ -58,9 +68,14 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
             Keep drafting and review outside the writing canvas.
           </p>
         </div>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-[#333544] dark:bg-[#16161e] dark:text-slate-300">
-          Gemini
-        </span>
+        <div className="text-right">
+          <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            {formatModelName(activeModel)}
+          </div>
+          <div className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+            {isSharedModel ? 'Shared AI model' : 'Personal AI model'}
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-[#16161e]">

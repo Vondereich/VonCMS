@@ -4,6 +4,7 @@
  * Allows updating Alt Text, Caption, and Description
  */
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -21,7 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // 2. Verify Member Auth & CSRF
-SessionManager::requireMediaAccess(); // Enforces valid session + Staff role
+SessionManager::requireValidSession();
+if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')) {
+  ResponseHelper::sendError('Media access required', 403);
+}
 CSRFProtection::requireToken();
 
 // 2. Get Input

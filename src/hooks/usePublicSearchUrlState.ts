@@ -43,7 +43,14 @@ export const usePublicSearchUrlState = ({
     (nextQuery: string) => {
       const nextSearchParams = new URLSearchParams(latestSearchParamsRef.current);
       Array.from(nextSearchParams.keys()).forEach((key) => {
-        if (key === 'search' || key.startsWith('search[')) nextSearchParams.delete(key);
+        if (
+          key === 'search' ||
+          key.startsWith('search[') ||
+          key === 'page' ||
+          key.startsWith('page[')
+        ) {
+          nextSearchParams.delete(key);
+        }
       });
 
       if (nextQuery !== '') nextSearchParams.set('search', nextQuery);

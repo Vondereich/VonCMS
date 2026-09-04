@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.26.11
+# VonCMS User Manual v1.27.0
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -59,6 +59,18 @@ Typical flow:
 2. Create a new post or edit an existing one.
 3. Fill in title, content, excerpt, category, image, and status.
 4. Save as draft or publish.
+
+### Writer review flow
+
+The buttons shown in the post editor follow the signed-in role:
+
+- A **Writer** can create and edit only their own Draft posts, use Gallery media from the editor, and choose **Submit for Review**.
+- A submitted post appears under **Submitted** and becomes read-only for the Writer. **Withdraw to Draft** reopens it for editing.
+- A **Moderator**, **Admin**, or **Root** account sees the shared **Review** tab and the pending count beside Posts.
+- A reviewer can save editorial changes, return the submission to Draft, publish it, or schedule it. Returning, publishing, or scheduling does not silently save unsaved editor changes; save reviewer changes first when the article body was edited.
+- The original Writer remains the post author after review.
+
+Review applies to posts only in v1.27.0. Pages keep their existing workflow, and published-post change proposals are not part of this stage.
 
 Good habits:
 
@@ -149,6 +161,8 @@ Common admin tasks:
 
 Use the smallest role that still gets the job done. Do not hand out admin access unless someone truly needs it.
 
+For publishing teams, assign **Writer** when someone should prepare posts but not publish them. Assign **Moderator** when someone should review submissions and manage ordinary pages without receiving user-management, site-settings, or destructive media authority.
+
 ## Settings
 
 The settings area is where most site-wide behavior lives.
@@ -175,6 +189,22 @@ This section usually covers:
 - IndexNow setup and status
 
 If you use IndexNow, verify the status after enabling it so you know the key and verification file are ready.
+
+#### Understanding orphan-page audit reports
+
+An orphan-page warning means an audit crawler discovered a URL from a sitemap, Search Console source, or another imported list but did not find an incoming internal HTML link to that URL during its crawl. It does not mean that the page is empty, broken, or automatically missing from Google.
+
+VonCMS public themes use React for interactive listings and Load More behavior. From v1.27.0, each public Load More control also exposes a real `?page=N` destination. A normal browser click still appends the next batch in place, while a crawler, a modified click, or a browser without JavaScript can follow the same bounded page chain. Category and search scope are preserved in those links, and subfolder installations keep their configured base path.
+
+When reviewing this warning:
+
+1. Finish the current crawl before reading its issue totals.
+2. Start a new crawl after upgrading so the crawler can discover the new page links. Changing crawler settings or site code does not rewrite an older report.
+3. Inspect the incoming internal links for several reported URLs instead of accepting only the total count.
+4. Compare the result with Google Search Console indexing and live URL inspection. A third-party audit and Search Console measure different things.
+5. Confirm that visible navigation, article cards, categories, and Related Posts use real `<a href>` destinations.
+
+The XML sitemap is a discovery source, not an incoming HTML link. Do not add hidden crawler-only links or place the complete article library on the homepage merely to clear an audit warning. VonCMS pagination remains intentionally bounded by Posts Per Page, but the real Older and Newer links now give non-JavaScript crawlers a complete public discovery path. If an audit still reports orphan pages, verify that it was started after the upgrade and inspect several incoming-link records before treating the total as a code defect.
 
 ### Appearance and themes
 

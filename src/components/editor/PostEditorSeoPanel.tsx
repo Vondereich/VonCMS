@@ -3,7 +3,12 @@ import { Activity, AlertCircle, AlertTriangle, CheckCircle, Sparkles } from 'luc
 import notify from '../../utils/toast';
 import { Page, Post } from '../../types';
 import { htmlToPlainText } from '../../utils/security';
-import { extractKeywords, SEOAnalysisResult } from '../../utils/seoAnalyzer';
+import {
+  extractKeywords,
+  SEOAnalysisResult,
+  SEO_KEYWORDS_MAX_COUNT,
+  SEO_KEYWORDS_MAX_LENGTH,
+} from '../../utils/seoAnalyzer';
 import { getPostEditorCleanText } from './postEditorTextHelpers';
 
 interface PostEditorSeoPanelProps {
@@ -89,7 +94,18 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         onChange={(event) =>
           setItem((previous) => (previous ? { ...previous, keywords: event.target.value } : null))
         }
+        maxLength={SEO_KEYWORDS_MAX_LENGTH}
+        aria-describedby="post-keywords-help"
       />
+      <p
+        id="post-keywords-help"
+        className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-400"
+      >
+        <span>
+          {(item.keywords || '').length}/{SEO_KEYWORDS_MAX_LENGTH} characters
+        </span>
+        <span>Up to {SEO_KEYWORDS_MAX_COUNT} focused keywords</span>
+      </p>
     </div>
 
     {isRestoring && (
@@ -99,7 +115,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
           <h3 className="font-bold text-slate-800 dark:text-white text-sm">SEO Health</h3>
         </div>
         <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
-          Restoring SEO data from the full post content...
+          Loading complete post details...
         </div>
       </div>
     )}

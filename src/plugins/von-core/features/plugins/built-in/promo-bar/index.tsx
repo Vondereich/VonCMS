@@ -123,7 +123,7 @@ export const PromoBarPlugin: PluginDefinition = {
   id: 'vp_promo_bar',
   name: 'Top Announcement Bar',
   description: 'Displays a high-visibility notification bar above the main menu.',
-  version: '1.26',
+  version: '1.27',
   author: 'VonCMS Team',
   render: (location: PluginLocation, props?: any) => {
     if (location !== 'header_top') return null;

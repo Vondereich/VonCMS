@@ -205,7 +205,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                         const freshnessLabel = formatSidebarFreshness(sourceDate, settings);
 
                         return freshnessLabel ? (
-                          <span className="text-[10px] uppercase font-bold tracking-wide text-slate-400 dark:text-slate-500 mb-1 block">
+                          <span className="text-[10px] uppercase font-bold tracking-wide text-slate-600 dark:text-slate-400 mb-1 block">
                             {freshnessLabel}
                           </span>
                         ) : null;

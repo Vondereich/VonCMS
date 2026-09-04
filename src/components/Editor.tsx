@@ -77,6 +77,7 @@ interface EditorProps {
   onChange: (content: string) => void;
   onImmediateChange?: (content: string) => void;
   onImageClick?: (src: string) => void;
+  readOnly?: boolean;
 }
 
 const Editor: React.FC<EditorProps> = ({
@@ -85,6 +86,7 @@ const Editor: React.FC<EditorProps> = ({
   onChange,
   onImmediateChange,
   onImageClick,
+  readOnly = false,
 }) => {
   const editorShellRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -217,6 +219,7 @@ const Editor: React.FC<EditorProps> = ({
 
   const editor = useEditor({
     immediatelyRender: false,
+    editable: !readOnly,
     extensions: EDITOR_EXTENSIONS,
     content: cleanContent(initialContent || ''),
     editorProps: {
@@ -437,6 +440,7 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
+    if (readOnly) return;
     if (isCodeView) return;
     if (e.defaultPrevented) return;
     e.preventDefault();
@@ -499,13 +503,16 @@ const Editor: React.FC<EditorProps> = ({
 
   useEffect(() => {
     if (!editor) return;
-    editor.setEditable(!isCodeView);
-    if (isCodeView) {
+    editor.setEditable(!isCodeView && !readOnly);
+    if (isCodeView || readOnly) {
       setSelectedImage(null);
       setSelectedVideoEmbed(null);
       setSelectedTable(null);
     }
-  }, [editor, isCodeView]);
+    if (readOnly && isCodeView) {
+      setIsCodeView(false);
+    }
+  }, [editor, isCodeView, readOnly]);
 
   // Cleanup timeout
   useEffect(() => {
@@ -868,6 +875,7 @@ const Editor: React.FC<EditorProps> = ({
 
   // Handle HTML textarea changes
   const handleHtmlChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (readOnly) return;
     const value = e.target.value;
     setHtmlContent(value);
     queueChange(value, false);
@@ -1260,6 +1268,7 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const handleEditorSurfaceMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
     if (isCodeView || !editor) return;
 
     const target = event.target as HTMLElement | null;
@@ -1275,6 +1284,7 @@ const Editor: React.FC<EditorProps> = ({
   };
 
   const handleEditorSurfaceClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
     if (isCodeView) return;
 
     const target = event.target as HTMLElement | null;
@@ -1487,7 +1497,7 @@ const Editor: React.FC<EditorProps> = ({
       {/* Main Toolbar - Sticky */}
       <div ref={toolbarSentinelRef} className="h-px" aria-hidden="true" />
       <div
-        className={`editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap items-center gap-0 overflow-visible border-b bg-slate-100/95 px-0.5 py-2 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-200 dark:bg-[#20212b]/95 sm:gap-0.5 sm:px-3 xl:top-0 xl:flex-wrap xl:px-2 ${
+        className={`editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap items-center gap-0 overflow-visible border-b bg-slate-200/80 px-0.5 py-2 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-200 dark:bg-[#20212b]/95 sm:gap-0.5 sm:px-3 xl:top-0 xl:flex-wrap xl:px-2 ${
           isToolbarElevated
             ? 'border-slate-300 shadow-lg shadow-slate-900/10 ring-1 ring-slate-200/70 dark:border-[#333544] dark:shadow-black/30 dark:ring-white/10'
             : 'border-slate-300/80 shadow-none ring-0 dark:border-[#333544]'
@@ -1973,6 +1983,7 @@ const Editor: React.FC<EditorProps> = ({
         aria-label="Text Content"
         value={htmlContent}
         onChange={handleHtmlChange}
+        disabled={readOnly}
         className="grow p-4 outline-hidden font-mono text-sm bg-[#101018] text-slate-300 resize-none rounded-b-lg"
         spellCheck={false}
         style={{ minHeight: '300px', display: isCodeView ? 'block' : 'none' }}
@@ -1986,6 +1997,7 @@ const Editor: React.FC<EditorProps> = ({
         onMouseDown={handleEditorSurfaceMouseDown}
         onPaste={handlePaste}
         onClick={handleEditorSurfaceClick}
+        aria-readonly={readOnly}
         style={{ minHeight: '320px', display: isCodeView ? 'none' : 'block' }}
       >
         {editor && <EditorContent editor={editor} />}

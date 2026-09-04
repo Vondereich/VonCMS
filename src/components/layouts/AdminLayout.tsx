@@ -4,6 +4,7 @@ import { useLocation, Link } from 'react-router';
 import toast from 'react-hot-toast';
 import { API, DATABASE_STATUS_INVALIDATED_EVENT } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
+import { getUserDisplayRole } from '../../utils/profileUtils';
 import {
   LayoutDashboard,
   FileText,
@@ -48,6 +49,7 @@ interface AdminMenuItem {
   color: string;
   allowedRoles: string[];
   requiresPrimaryAdmin?: boolean;
+  badge?: number;
 }
 
 interface AdminEditorRouteContext {
@@ -162,10 +164,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsCheckFailed, setAlertsCheckFailed] = useState(false);
   const [alertsRefreshTick, setAlertsRefreshTick] = useState(0);
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const alertsTrayRef = useRef<HTMLDivElement | null>(null);
   const mobileSidebarRef = useRef<HTMLElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const integrityReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rawUserRole = (user?.role || 'Writer').toLowerCase();
+  const userRole = rawUserRole === 'root' ? 'admin' : rawUserRole;
+  const canReviewPosts = ['root', 'admin', 'moderator'].includes(rawUserRole);
 
   const menuItems: AdminMenuItem[] = [
     {
@@ -181,6 +187,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       path: '/admin/posts',
       color: '#38bdf8', // Sky 400
       allowedRoles: ['Admin', 'Moderator', 'Writer'],
+      badge: canReviewPosts ? pendingReviewCount : undefined,
     },
     {
       icon: <FileStack size={20} />,
@@ -278,8 +285,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   }
 
   // Filter menu items based on user role - Case Insensitive
-  const rawUserRole = (user?.role || 'Writer').toLowerCase();
-  const userRole = rawUserRole === 'root' ? 'admin' : rawUserRole;
   const isPrimaryAdmin = rawUserRole === 'root' || String(user?.id || '') === '1';
   const filteredMenuItems = menuItems.filter((item) => {
     if (item.requiresPrimaryAdmin && !isPrimaryAdmin) return false;
@@ -347,6 +352,43 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     const siteName = settings?.siteName || 'Admin';
     document.title = `${adminPageName} - ${siteName} Admin`;
   }, [adminPageName, settings?.siteName]);
+
+  useEffect(() => {
+    if (!canReviewPosts) {
+      setPendingReviewCount(0);
+      return;
+    }
+
+    let active = true;
+    const loadPendingReviewCount = async () => {
+      try {
+        const response = await vonFetch(
+          `${API.getPosts}?countOnly=true&scope=all&status=pending_review&limit=1`
+        );
+        if (!response.ok) throw new Error('Pending review count request failed');
+        const data = await response.json();
+        if (active) {
+          setPendingReviewCount(Math.max(0, Number(data?.meta?.total) || 0));
+        }
+      } catch {
+        if (active) setPendingReviewCount(0);
+      }
+    };
+
+    const handlePendingReviewInvalidated = () => {
+      void loadPendingReviewCount();
+    };
+
+    void loadPendingReviewCount();
+    window.addEventListener('voncms:pending-review-invalidated', handlePendingReviewInvalidated);
+    return () => {
+      active = false;
+      window.removeEventListener(
+        'voncms:pending-review-invalidated',
+        handlePendingReviewInvalidated
+      );
+    };
+  }, [canReviewPosts]);
 
   useEffect(() => {
     setIsMobileSidebarOpen(false);
@@ -704,9 +746,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                 >
                   {item.label}
                 </span>
+                {!!item.badge && (
+                  <span
+                    className={`ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                      isActive ? 'bg-white text-blue-700' : 'bg-violet-500 text-white'
+                    } ${!isSidebarOpen ? 'xl:hidden' : ''}`}
+                    aria-label={`${item.badge} posts waiting for review`}
+                  >
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
                 {isActive && (
                   <div
-                    className={`ml-auto h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${
+                    className={`${item.badge ? '' : 'ml-auto'} h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${
                       !isSidebarOpen ? 'xl:hidden' : ''
                     }`}
                   ></div>
@@ -754,7 +806,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
             )}
             <div className={`flex-1 overflow-hidden ${!isSidebarOpen ? 'xl:hidden' : ''}`}>
               <p className="text-sm font-medium text-white truncate">{user?.username || 'Admin'}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.role || 'Administrator'}</p>
+              <p
+                className={`text-xs truncate ${String(user?.id || '') === '1' ? 'font-semibold text-red-400' : 'text-slate-400'}`}
+              >
+                {getUserDisplayRole(user, 'Administrator')}
+              </p>
             </div>
           </div>
         </div>

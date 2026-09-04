@@ -13,6 +13,7 @@ if ($seoRouteHelperPath !== false && $requestedScriptPath === $seoRouteHelperPat
 unset($seoRouteHelperPath, $requestedScriptPath);
 
 require_once __DIR__ . '/api/publication_time_helper.php';
+require_once __DIR__ . '/search_query_helper.php';
 
 if (!function_exists('voncms_request_path')) {
   /**
@@ -253,6 +254,140 @@ if (!function_exists('voncms_first_query_value')) {
   }
 }
 
+if (!function_exists('voncms_normalize_public_page')) {
+  /**
+   * Keep public discovery pagination bounded and deterministic across PHP and
+   * React. Invalid, empty, or non-scalar values resolve to the first page.
+   *
+   * @param mixed $value
+   * @param int $maxPage
+   * @return int
+   */
+  function voncms_normalize_public_page($value, int $maxPage = 100000): int
+  {
+    if (!is_scalar($value) || is_bool($value)) {
+      return 1;
+    }
+
+    $normalized = trim((string) $value);
+    if ($normalized === '' || !ctype_digit($normalized)) {
+      return 1;
+    }
+
+    return max(1, min(max(1, $maxPage), (int) $normalized));
+  }
+}
+
+if (!function_exists('voncms_build_public_page_query')) {
+  /**
+   * Replace pagination with one canonical page value while preserving the
+   * current public discovery scope and raw query ordering.
+   *
+   * @param mixed $queryString
+   * @param int $page
+   * @param mixed $category
+   * @return string
+   */
+  function voncms_build_public_page_query($queryString, int $page, $category = null): string
+  {
+    $queryParts = [];
+    $replaceCategory = is_string($category) && $category !== '';
+    if ($replaceCategory) {
+      $queryParts[] = 'category=' . rawurlencode($category);
+    }
+
+    if (is_string($queryString) && $queryString !== '') {
+      foreach (preg_split('/&/', $queryString) ?: [] as $queryPart) {
+        if ($queryPart === '') {
+          continue;
+        }
+
+        [$rawKey] = explode('=', $queryPart, 2);
+        $decodedKey = urldecode($rawKey);
+        if (
+          $decodedKey === 'page' ||
+          str_starts_with($decodedKey, 'page[') ||
+          ($replaceCategory &&
+            ($decodedKey === 'category' || str_starts_with($decodedKey, 'category[')))
+        ) {
+          continue;
+        }
+        if (str_contains($queryPart, "\r") || str_contains($queryPart, "\n")) {
+          continue;
+        }
+
+        $queryParts[] = $queryPart;
+      }
+    }
+
+    $normalizedPage = voncms_normalize_public_page($page);
+    if ($normalizedPage > 1) {
+      $queryParts[] = 'page=' . $normalizedPage;
+    }
+
+    return implode('&', $queryParts);
+  }
+}
+
+if (!function_exists('voncms_build_noscript_listing_model')) {
+  /**
+   * Build the data model used by the public no-JavaScript listing fallback.
+   * HTML emission remains in index.php.
+   *
+   * @param array<string, mixed> $context
+   * @return array{
+   *   listingPosts:array<int, array<string, mixed>>,
+   *   discoveryLanding:bool,
+   *   previousHref:string,
+   *   nextHref:string,
+   *   showLogo:bool,
+   *   showTitle:bool
+   * }
+   */
+  function voncms_build_noscript_listing_model(array $context): array
+  {
+    $path = (string) ($context['path'] ?? '');
+    $isHomepage = voncms_is_homepage_path($path);
+    $isCategoryLanding = !empty($context['isCategoryLanding']) && $isHomepage;
+    $categoryPosts = is_array($context['categoryPosts'] ?? null) ? $context['categoryPosts'] : [];
+    $homepagePosts = is_array($context['homepagePosts'] ?? null) ? $context['homepagePosts'] : [];
+    $listingPosts = $isCategoryLanding ? $categoryPosts : $homepagePosts;
+    $page = max(1, (int) ($context['page'] ?? 1));
+    $pageInRange = !empty($context['pageInRange']);
+    $rootHref = rtrim((string) ($context['basePath'] ?? '/'), '/') . '/';
+    $category = $isCategoryLanding ? (string) ($context['categoryName'] ?? '') : null;
+    $rawQuery = (string) ($context['rawQuery'] ?? '');
+    $previousHref = '';
+    $nextHref = '';
+
+    if ($page > 1 && $pageInRange) {
+      $previousQuery = voncms_build_public_page_query($rawQuery, $page - 1, $category);
+      $previousHref = $rootHref . ($previousQuery !== '' ? '?' . $previousQuery : '');
+    }
+    if (!empty($context['hasNextPage'])) {
+      $nextQuery = voncms_build_public_page_query($rawQuery, $page + 1, $category);
+      $nextHref = $rootHref . ($nextQuery !== '' ? '?' . $nextQuery : '');
+    }
+
+    $logoUrl = (string) ($context['logoUrl'] ?? '');
+    $headerIdentityMode = (string) ($context['headerIdentityMode'] ?? 'logo_and_text');
+
+    return [
+      'listingPosts' => $listingPosts,
+      'discoveryLanding' =>
+        $isHomepage &&
+        ($isCategoryLanding ||
+          !empty($context['hasSearchQuery']) ||
+          $page > 1 ||
+          $listingPosts !== []),
+      'previousHref' => $previousHref,
+      'nextHref' => $nextHref,
+      'showLogo' => $logoUrl !== '' && $headerIdentityMode !== 'text_only',
+      'showTitle' => $headerIdentityMode !== 'logo_only' || $logoUrl === '',
+    ];
+  }
+}
+
 if (!function_exists('voncms_build_category_canonical_query')) {
   /**
    * Collapse duplicate category keys to one stored spelling while preserving
@@ -260,31 +395,12 @@ if (!function_exists('voncms_build_category_canonical_query')) {
    *
    * @param mixed $queryString
    * @param mixed $category
+   * @param int $page
    * @return string
    */
-  function voncms_build_category_canonical_query($queryString, $category): string
+  function voncms_build_category_canonical_query($queryString, $category, int $page = 1): string
   {
-    $queryParts = ['category=' . rawurlencode((string) $category)];
-    if (!is_string($queryString) || $queryString === '') {
-      return $queryParts[0];
-    }
-
-    foreach (preg_split('/&/', $queryString) ?: [] as $queryPart) {
-      if ($queryPart === '') {
-        continue;
-      }
-      [$rawKey] = explode('=', $queryPart, 2);
-      $decodedKey = urldecode($rawKey);
-      if ($decodedKey === 'category' || str_starts_with($decodedKey, 'category[')) {
-        continue;
-      }
-      if (str_contains($queryPart, "\r") || str_contains($queryPart, "\n")) {
-        continue;
-      }
-      $queryParts[] = $queryPart;
-    }
-
-    return implode('&', $queryParts);
+    return voncms_build_public_page_query($queryString, $page, (string) $category);
   }
 }
 
@@ -406,60 +522,131 @@ if (!function_exists('voncms_fetch_public_post')) {
   }
 }
 
-if (!function_exists('voncms_fetch_category_landing_posts')) {
+if (!function_exists('voncms_fetch_public_listing_page')) {
   /**
    * @param PDO $pdo
-   * @param string $category
    * @param string $currentTime
-   * @param string $permalinkStyle
-   * @return array<int, array<string, mixed>>
+   * @param int $page
+   * @param int $limit
+   * @param string $category
+   * @param string $search
+   * @param bool $hasDisplayNameColumn
+   * @param bool $categoryCaseFolded
+   * @return array{posts: array<int, array<string, mixed>>, hasNext: bool, offset: int, inRange: bool, total: int|null}
    */
-  function voncms_fetch_category_landing_posts(
+  function voncms_fetch_public_listing_page(
     PDO $pdo,
-    string $category,
     string $currentTime,
-    string $permalinkStyle,
-    bool $caseFolded = false,
+    int $page,
+    int $limit,
+    string $category = '',
+    string $search = '',
+    bool $hasDisplayNameColumn = false,
+    bool $categoryCaseFolded = false,
   ): array {
-    $publicationExpression = voncms_publication_expression_sql($pdo, 'posts');
-    $publishedAtSql = voncms_publication_column_sql($pdo, 'posts');
-    $statement = $caseFolded
-      ? $pdo->prepare(
-        "SELECT id, title, slug, excerpt, image_url, category, created_at, {$publishedAtSql}
-         FROM posts
-         WHERE status = 'published'
-           AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)
-           AND LOWER(category) = LOWER(:category)
-         ORDER BY {$publicationExpression} DESC,
-                  created_at DESC,
-                  id DESC
-         LIMIT 5",
-      )
-      : $pdo->prepare(
-        "SELECT id, title, slug, excerpt, image_url, category, created_at, {$publishedAtSql}
-         FROM posts
-         WHERE status = 'published'
-           AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)
-           AND category = :category
-         ORDER BY {$publicationExpression} DESC,
-                  created_at DESC,
-                  id DESC
-         LIMIT 5",
-      );
-    $statement->bindValue(':currentTime', $currentTime);
-    $statement->bindValue(':category', $category);
-    $statement->execute();
-    $posts = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $normalizedPage = voncms_normalize_public_page($page);
+    $normalizedLimit = max(6, min(50, $limit));
+    $offset = ($normalizedPage - 1) * $normalizedLimit;
+    $publicationExpression = voncms_publication_expression_sql($pdo, 'posts', 'p');
+    $publishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
+    $authorNameSql = $hasDisplayNameColumn
+      ? "COALESCE(NULLIF(u.display_name, ''), u.username)"
+      : 'u.username';
+    $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
+    $where = "WHERE p.status = 'published'
+      AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)";
+    $searchTerm = null;
+    $searchLike = null;
 
-    foreach ($posts as &$post) {
-      $post['url'] = buildCanonicalContentPath($post, $permalinkStyle, 'post');
-      $post['image_url'] = !empty($post['image_url'])
-        ? ResponseHelper::scrubUrl($post['image_url'])
-        : '';
+    if ($category !== '') {
+      $where .= $categoryCaseFolded
+        ? ' AND LOWER(p.category) = LOWER(:category)'
+        : ' AND p.category = :category';
     }
-    unset($post);
+    $normalizedSearch = trim($search);
+    if ($normalizedSearch !== '' && strlen($normalizedSearch) >= 2) {
+      $fulltextSearch = voncms_normalize_fulltext_search($normalizedSearch);
+      $searchLike = '%' . voncms_escape_like_search($normalizedSearch) . '%';
+      $driverName = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+      if ($driverName === 'mysql' && $fulltextSearch !== '' && strlen($fulltextSearch) >= 2) {
+        $where .=
+          " AND (MATCH(p.title, p.content) AGAINST(:searchTerm IN BOOLEAN MODE) OR p.title LIKE :searchLike ESCAPE '\\\\')";
+        $searchTerm = $fulltextSearch;
+      } elseif ($driverName === 'mysql') {
+        $where .= " AND p.title LIKE :searchLike ESCAPE '\\\\'";
+      } else {
+        $where .= ' AND (p.title LIKE :searchLike OR p.content LIKE :searchLike)';
+      }
+    }
 
-    return $posts;
+    $bindDiscoveryValues = static function (PDOStatement $statement, string $sql) use (
+      $currentTime,
+      $category,
+      $searchTerm,
+      $searchLike,
+    ): void {
+      if (str_contains($sql, ':currentTime')) {
+        $statement->bindValue(':currentTime', $currentTime);
+      }
+      if (str_contains($sql, ':category')) {
+        $statement->bindValue(':category', $category);
+      }
+      if (str_contains($sql, ':searchTerm')) {
+        $statement->bindValue(':searchTerm', $searchTerm);
+      }
+      if (str_contains($sql, ':searchLike')) {
+        $statement->bindValue(':searchLike', $searchLike);
+      }
+    };
+
+    $total = null;
+    if ($normalizedPage > 1) {
+      $countSql = "SELECT COUNT(*) FROM posts p {$where}";
+      $countStatement = $pdo->prepare($countSql);
+      $bindDiscoveryValues($countStatement, $countSql);
+      $countStatement->execute();
+      $total = (int) $countStatement->fetchColumn();
+      if ($offset >= $total) {
+        return [
+          'posts' => [],
+          'hasNext' => false,
+          'offset' => $offset,
+          'inRange' => false,
+          'total' => $total,
+        ];
+      }
+    }
+
+    $listingSql = "SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars,
+              COALESCE(NULLIF(p.excerpt, ''), SUBSTRING(p.content, 1, 200)) AS excerpt,
+              p.author, p.author_id, p.meta_description, p.keywords, p.image_url,
+              p.category, p.created_at, p.updated_at, p.scheduled_at,
+              {$publishedAtSql},
+              {$publicationExpression} AS effective_publish_at,
+              {$authorNameSql} AS author_name,
+              u.username AS author_username,
+              {$authorDisplayNameSql} AS author_display_name,
+              u.avatar AS author_avatar
+       FROM posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       {$where}
+       ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC
+       LIMIT :limit OFFSET :offset";
+    $statement = $pdo->prepare($listingSql);
+    $bindDiscoveryValues($statement, $listingSql);
+    $statement->bindValue(':limit', $normalizedLimit + 1, PDO::PARAM_INT);
+    $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $statement->execute();
+    $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $hasNext = count($rows) > $normalizedLimit;
+
+    return [
+      'posts' => array_slice($rows, 0, $normalizedLimit),
+      'hasNext' => $hasNext,
+      'offset' => $offset,
+      'inRange' => true,
+      'total' => $total,
+    ];
   }
 }
 

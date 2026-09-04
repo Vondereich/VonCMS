@@ -2,6 +2,23 @@ import type { ArticleSchemaType } from './utils/articleSchema';
 
 export type UserRole = 'Admin' | 'Root' | 'Moderator' | 'Writer' | 'Member';
 
+export type PostStatus = 'published' | 'draft' | 'scheduled' | 'archived' | 'pending_review';
+
+export type PostWorkflowAction =
+  | 'save_draft'
+  | 'save_review'
+  | 'submit_review'
+  | 'withdraw_review'
+  | 'return_draft'
+  | 'publish'
+  | 'schedule'
+  | 'archive';
+
+export interface PostSaveOptions {
+  workflowAction?: PostWorkflowAction;
+  expectedStatus?: PostStatus;
+}
+
 export type HeaderIdentityMode = 'logo_and_text' | 'logo_only' | 'text_only';
 
 export interface User {
@@ -45,7 +62,7 @@ export interface Post {
   content: string;
   image?: string;
   imageSrcSet?: string;
-  status: 'published' | 'draft' | 'scheduled';
+  status: PostStatus;
   category: string;
   updatedAt: string;
   updated_at?: string; // Hybrid Contract
@@ -338,6 +355,11 @@ export interface ApiConfig {
   aiKeyExpiresAt?: string;
 }
 
+export interface AiAssistantConfig {
+  sharedAvailable: boolean;
+  model: string;
+}
+
 // --- PLUGIN SYSTEM TYPES ---
 export type PluginLocation = 'header_top' | 'footer_bottom' | 'sidebar_top' | 'post_after';
 
@@ -403,6 +425,7 @@ export interface SiteSettings {
   theme: ThemeConfig;
   activeThemeId?: string;
   api: ApiConfig;
+  aiAssistant?: AiAssistantConfig;
   media: MediaConfig;
   seo?: SeoConfig;
   sidebarLayout: SidebarWidget[];

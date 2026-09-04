@@ -14,6 +14,8 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/role_capability_helper.php';
+require_once __DIR__ . '/ai_provider_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 // Handle preflight
@@ -22,17 +24,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 SessionManager::requireValidSession();
+$currentRole = voncms_normalize_role($_SESSION['user']['role'] ?? '');
+if (!voncms_role_has_capability($currentRole, 'posts.create')) {
+  ResponseHelper::sendError('Staff content access required.', 403);
+}
 CSRFProtection::requireToken();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ResponseHelper::sendError('Method not allowed', 405);
 }
 
-// Get API key from header
-$apiKey = $_SERVER['HTTP_X_GEMINI_KEY'] ?? '';
-if (empty($apiKey)) {
-  ResponseHelper::sendError('API key required. Please provide your Gemini API key.', 400);
-}
+$providedApiKey = $_SERVER['HTTP_X_GEMINI_KEY'] ?? '';
 
 // Get request body
 $rawInput = CSRFProtection::getRequestBody();
@@ -45,7 +47,7 @@ if (json_last_error() !== JSON_ERROR_NONE || !is_array($input)) {
 $topic = isset($input['topic']) && is_scalar($input['topic']) ? trim((string) $input['topic']) : '';
 $context =
   isset($input['context']) && is_scalar($input['context']) ? trim((string) $input['context']) : '';
-$model = $input['model'] ?? 'gemini-2.0-flash'; // Default to 2.0-flash
+$requestedModel = $input['model'] ?? null;
 $regenerate = isset($input['regenerate']) && $input['regenerate'] === true;
 
 if (empty($topic)) {
@@ -54,7 +56,11 @@ if (empty($topic)) {
 if (mb_strlen($topic) > 500 || mb_strlen($context) > 20000) {
   ResponseHelper::sendError('AI prompt input is too large.', 400);
 }
-if (!is_string($model) || !preg_match('/^[a-zA-Z0-9._-]{1,100}$/', $model)) {
+if (
+  trim((string) $providedApiKey) !== '' &&
+  (!is_string($requestedModel) ||
+    preg_match('/^gemini-[A-Za-z0-9._-]{1,80}$/', $requestedModel) !== 1)
+) {
   ResponseHelper::sendError('Invalid AI model name.', 400);
 }
 
@@ -96,13 +102,6 @@ $styleRules = [
 
 $prompt .= "\n\nWriting rules:\n- " . implode("\n- ", $styleRules);
 
-// Gemini API endpoint (using dynamic model selection)
-$geminiUrl =
-  'https://generativelanguage.googleapis.com/v1beta/models/' .
-  urlencode($model) .
-  ':generateContent?key=' .
-  urlencode($apiKey);
-
 $payload = [
   'contents' => [
     [
@@ -110,42 +109,46 @@ $payload = [
     ],
   ],
   'generationConfig' => [
-    'temperature' => $regenerate ? 0.9 : 0.7, // Higher temperature for regeneration
-    'topK' => 40,
-    'topP' => 0.95,
     'maxOutputTokens' => 4096,
   ],
 ];
 
-// Make request to Gemini
-$ch = curl_init($geminiUrl);
-curl_setopt_array($ch, [
-  CURLOPT_RETURNTRANSFER => true,
-  CURLOPT_POST => true,
-  CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-  CURLOPT_POSTFIELDS => json_encode($payload),
-  CURLOPT_TIMEOUT => 60,
-  CURLOPT_SSL_VERIFYPEER => true,
-]);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
-
-if ($response === false || $curlError) {
-  ResponseHelper::sendError('Network error: ' . ($curlError ?: 'Unknown cURL failure'), 500);
+global $pdo;
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+  ResponseHelper::sendError('AI configuration is temporarily unavailable.', 503);
 }
 
-$data = json_decode($response, true);
-
-if ($httpCode !== 200) {
-  $errorMsg = $data['error']['message'] ?? 'Unknown API error';
-  ResponseHelper::sendError('AI Gateway Error: ' . $errorMsg, $httpCode ?: 502);
+$aiRequest = voncms_ai_resolve_request($pdo, $requestedModel, $providedApiKey);
+if ($aiRequest === null) {
+  voncms_ai_send_error('No usable Gemini API key is configured.', 400, 'AI_KEY_UNAVAILABLE');
 }
 
-if (!is_array($data)) {
-  ResponseHelper::sendError('AI service returned invalid JSON. Please try again later.', 502);
+$userId = (string) ($_SESSION['user']['id'] ?? '');
+if ($userId === '' || !voncms_ai_authorize_quota($userId, $aiRequest['shared'])) {
+  voncms_ai_send_error('AI request limit reached. Please try again later.', 429, 'AI_RATE_LIMITED');
 }
+
+$aiResponse = voncms_ai_generate_with_fallback(
+  $aiRequest['api_key'],
+  $aiRequest['model'],
+  $payload,
+  60,
+);
+if (!$aiResponse['ok']) {
+  $messages = [
+    'AI_AUTH_FAILED' => 'The Gemini API key was rejected.',
+    'AI_QUOTA_EXCEEDED' => 'The Gemini provider quota has been reached.',
+    'AI_MODEL_UNAVAILABLE' => 'The selected Gemini model is unavailable.',
+    'AI_NETWORK_ERROR' => 'The AI service could not be reached.',
+    'AI_INVALID_RESPONSE' => 'The AI service returned an invalid response.',
+  ];
+  voncms_ai_send_error(
+    $messages[$aiResponse['error_code']] ?? 'The AI provider could not complete the request.',
+    $aiResponse['http_code'],
+    $aiResponse['error_code'],
+  );
+}
+$data = $aiResponse['data'];
 
 // Extract generated text
 $generatedText = trim((string) ($data['candidates'][0]['content']['parts'][0]['text'] ?? ''));
@@ -153,17 +156,26 @@ $blockReason = $data['promptFeedback']['blockReason'] ?? '';
 $finishReason = strtoupper((string) ($data['candidates'][0]['finishReason'] ?? ''));
 
 if (!empty($blockReason)) {
-  ResponseHelper::sendError('AI request was blocked by the provider: ' . $blockReason, 422);
+  voncms_ai_send_error(
+    'The AI provider blocked this request for safety reasons.',
+    422,
+    'AI_SAFETY_BLOCKED',
+  );
 }
 
 if ($finishReason !== '' && $finishReason !== 'STOP') {
-  ResponseHelper::sendError('AI response was incomplete: ' . $finishReason, 502);
+  voncms_ai_send_error(
+    'The AI response was incomplete. Nothing was applied.',
+    502,
+    'AI_RESPONSE_INCOMPLETE',
+  );
 }
 
 if (empty($generatedText)) {
-  ResponseHelper::sendError(
+  voncms_ai_send_error(
     'The AI failed to generate content. Please try a different topic.',
     502,
+    'AI_EMPTY_RESPONSE',
   );
 }
 
@@ -176,4 +188,6 @@ echo json_encode([
   'success' => true,
   'text' => $generatedText,
   'mode' => $regenerate ? 'regenerated' : 'initial',
+  'model' => $aiResponse['model'],
+  'fallbackUsed' => $aiResponse['fallback_used'],
 ]);

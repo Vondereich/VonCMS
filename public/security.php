@@ -1156,6 +1156,12 @@ class SecurityHelper
       ['RewriteEngine On'],
       ['RewriteRule \.(sql|md|json|log|bak|env|zip|lock)$ - [F,L]'],
       ['RewriteRule ^von_config\\.php$ - [F,L]'],
+      ['RewriteRule ^.+\\.php/ - [R=404,L,NC]'],
+      [
+        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+      ],
+      ['RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]'],
+      ['RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]'],
       ['RewriteRule ^api/(.*)$ api/$1 [L]', 'RewriteRule ^api/(.*)$ public/api/$1 [L]'],
       [
         'RewriteRule ^robots\\.txt$ robots.php [L]',

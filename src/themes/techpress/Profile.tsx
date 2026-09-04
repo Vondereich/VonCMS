@@ -316,7 +316,7 @@ const TechPressProfile: React.FC<ProfileProps> = ({
                       {displayUser.display_name || displayUser.username}
                     </h1>
                     <span
-                      className={`px-2 py-0.5 rounded-sm text-[10px] font-mono uppercase tracking-wider font-bold border ${displayRole === 'Admin' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-700/60 md:bg-purple-500/10 md:text-purple-400 md:border-purple-500/50' : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700 md:bg-neutral-500/10 md:text-neutral-400 md:border-neutral-500/50'}`}
+                      className={`px-2 py-0.5 rounded-sm text-[10px] font-mono uppercase tracking-wider font-bold border ${displayRole === 'Super Admin' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-700/60' : displayRole === 'Admin' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-700/60 md:bg-purple-500/10 md:text-purple-400 md:border-purple-500/50' : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700 md:bg-neutral-500/10 md:text-neutral-400 md:border-neutral-500/50'}`}
                     >
                       {displayRole}
                     </span>

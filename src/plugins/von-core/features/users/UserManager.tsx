@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { User, UserRole } from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
+import { getUserDisplayRole } from '../../../../utils/profileUtils';
 import {
   Plus,
   Trash2,
@@ -100,15 +101,24 @@ const UserManager: React.FC<UserManagerProps> = ({
   const currentUserId = String(currentUser?.id || '');
   const isPrimaryAdminActor = currentUserId === '1' || currentUserRole === 'root';
   const isProtectedAdminUser = (user: User | null) =>
-    String(user?.id || '') === '1' || String(user?.role || '').toLowerCase() === 'root';
+    String(user?.id || '') === '1' ||
+    ['admin', 'root'].includes(String(user?.role || '').toLowerCase());
   const getEditRestrictionMessage = (user: User) =>
-    !isPrimaryAdminActor && isProtectedAdminUser(user) ? 'Only admin 1 can edit this account' : '';
+    currentUserId !== String(user.id) && !isPrimaryAdminActor && isProtectedAdminUser(user)
+      ? 'System owner permission is required to edit this protected account'
+      : '';
   const isDeleteBlocked = (user: User) =>
     currentUserId === String(user.id) || (!isPrimaryAdminActor && isProtectedAdminUser(user));
   const getDeleteRestrictionMessage = (user: User) =>
     currentUserId === String(user.id)
       ? 'You cannot delete yourself'
-      : 'Only admin 1 can delete this account';
+      : String(user.id) === '1'
+        ? 'The Super Admin account cannot be deleted'
+        : 'System owner permission is required to delete this protected account';
+  const isRoleChangeBlocked = (user: User | null) =>
+    currentUserId === String(user?.id || '') ||
+    (!isPrimaryAdminActor && isProtectedAdminUser(user)) ||
+    String(user?.role || '').toLowerCase() === 'root';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const userMutationInFlight = useRef(false);
@@ -651,21 +661,23 @@ const UserManager: React.FC<UserManagerProps> = ({
                   Role
                 </span>
                 <select
+                  id="edit-user-role"
+                  name="editUserRole"
                   aria-label="Role"
                   className={`w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white ${
-                    currentUser?.id == editingUser?.id || isProtectedAdminUser(editingUser)
-                      ? 'opacity-50 cursor-not-allowed'
-                      : ''
+                    isRoleChangeBlocked(editingUser) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   value={editForm.role}
                   onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
-                  disabled={currentUser?.id == editingUser?.id || isProtectedAdminUser(editingUser)}
+                  disabled={isRoleChangeBlocked(editingUser)}
                   title={
                     currentUser?.id == editingUser?.id
                       ? 'You cannot change your own role'
-                      : isProtectedAdminUser(editingUser)
-                        ? 'Super Admin role cannot be changed'
-                        : ''
+                      : String(editingUser?.role || '').toLowerCase() === 'root'
+                        ? 'Root role cannot be changed here'
+                        : !isPrimaryAdminActor && isProtectedAdminUser(editingUser)
+                          ? 'System owner permission is required to change this protected role'
+                          : ''
                   }
                 >
                   <option value="Member">Member</option>
@@ -808,16 +820,18 @@ const UserManager: React.FC<UserManagerProps> = ({
                         </h3>
                         <span
                           className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                            user.role === 'Admin'
-                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                              : user.role === 'Moderator'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                : user.role === 'Member'
-                                  ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
-                                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            String(user.id) === '1'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : user.role === 'Admin'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                : user.role === 'Moderator'
+                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                  : user.role === 'Member'
+                                    ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                           }`}
                         >
-                          {user.role}
+                          {getUserDisplayRole(user)}
                         </span>
                       </div>
                       {user.display_name && (
@@ -884,16 +898,18 @@ const UserManager: React.FC<UserManagerProps> = ({
                         <span
                           className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold
                                         ${
-                                          user.role === 'Admin'
-                                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                                            : user.role === 'Moderator'
-                                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                              : user.role === 'Member'
-                                                ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
-                                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                          String(user.id) === '1'
+                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : user.role === 'Admin'
+                                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                              : user.role === 'Moderator'
+                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                : user.role === 'Member'
+                                                  ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
+                                                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                         }`}
                         >
-                          {user.role}
+                          {getUserDisplayRole(user)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">{renderUserActions(user)}</td>

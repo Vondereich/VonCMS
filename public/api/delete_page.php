@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, DELETE, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -25,7 +26,7 @@ CSRFProtection::requireToken();
 
 $currentUser = $_SESSION['user'] ?? null;
 $currentRole = strtolower((string) ($currentUser['role'] ?? ''));
-$canManagePages = in_array($currentRole, ['admin', 'root', 'moderator'], true);
+$canManagePages = voncms_role_has_capability($currentRole, 'pages.delete_any');
 
 if (!$canManagePages) {
   ResponseHelper::sendError('Page management access required', 403);
@@ -53,7 +54,7 @@ try {
   }
 
   $isOwner = $page['author_id'] == $currentUser['id'];
-  $isAdminOrModerator = SessionManager::isAdmin() || $currentRole === 'moderator';
+  $isAdminOrModerator = voncms_role_has_capability($currentRole, 'pages.delete_any');
 
   if (!$isOwner && !$isAdminOrModerator) {
     ResponseHelper::sendError('Not authorized to delete this page', 403);

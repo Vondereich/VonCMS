@@ -5,7 +5,7 @@ import { RelatedPostsConfig } from './types';
 export const RelatedPostsPlugin: PluginDefinition = {
   id: 'vp_related_posts',
   name: 'Related Posts',
-  version: '1.26',
+  version: '1.27',
   author: 'VonCMS Team',
   description: 'Show related articles based on category and tags',
 

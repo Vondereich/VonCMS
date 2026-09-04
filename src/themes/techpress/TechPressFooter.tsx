@@ -105,14 +105,14 @@ const TechPressFooter: React.FC<TechPressFooterProps> = ({ settings, colors, onB
           <div className="flex items-center gap-4">
             <a
               href={rssPath}
-              className="opacity-70 hover:opacity-100 transition-opacity flex items-center gap-1.5"
+              className="opacity-80 hover:opacity-100 transition-opacity flex items-center gap-1.5"
               style={{ color: colors.textSecondary }}
               title="RSS Feed"
             >
               <Rss size={14} />
               <span>RSS</span>
             </a>
-            <p className="opacity-70">Designed for performance.</p>
+            <p className="opacity-80">Designed for performance.</p>
           </div>
         </div>
       </div>

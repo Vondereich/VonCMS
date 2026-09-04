@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/settings_audit_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -35,8 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-// Check if user is admin
-SessionManager::requireAdmin();
+$currentRole = $_SESSION['user']['role'] ?? '';
+if (!voncms_role_has_capability($currentRole, 'settings.manage')) {
+  ResponseHelper::sendError('Settings management access required', 403);
+}
 $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
 
 $userId = $_SESSION['user']['id'] ?? null;

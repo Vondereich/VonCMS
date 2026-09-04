@@ -24,7 +24,7 @@ const INITIAL_SETTINGS: SiteSettings = {
   siteDescription: _s?.siteDescription || 'A modern content management system',
   ...(_s?.activeThemeId ? { activeThemeId: _s.activeThemeId } : {}),
   ...(_s?.permalinkStructure ? { permalinkStructure: _s.permalinkStructure } : {}),
-  postsPerPage: 6,
+  postsPerPage: _s?.postsPerPage || 6,
   maintenanceMode: false,
   emailSmtp: '',
   ads: { headerAd: '', inFeedAd: '', inFeedFrequency: 6, popupAd: '', popupEnabled: false },

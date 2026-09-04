@@ -2,6 +2,8 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+> **Development note:** v1.27.0 "OverDrive" is currently unreleased. v1.26.11 remains the latest published upgrade baseline until a tested v1.27 package is released.
+
 > **Release note:** v1.26.11 is the current release baseline. Existing sites must complete the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
 
 ### v1.26.11 database repair ownership
@@ -55,6 +57,19 @@ The Deploy package and OTA updater deliberately do not overwrite a live `von_con
 8. Verify the homepage, `/login`, and the admin dashboard. Confirm that production pages do not display PHP diagnostics. Developers who intentionally need browser-visible local diagnostics must explicitly set the web-server environment variable `VONCMS_ENV=development`.
 
 This migration is not required during every update. Once the live file uses the v1.26.9 template, keep protecting it from normal Deploy ZIP and OTA replacement.
+
+## What to verify during v1.27.0 development
+
+The first OverDrive stage adds the fixed-role Writer review workflow without a database migration. On a development or canary install, verify these paths before wider use:
+
+- Writer can save an owned Draft, use editor Gallery media, and submit it for review.
+- Writer sees the post under Submitted, cannot edit it while pending, and can withdraw it to Draft.
+- Moderator, Admin, or Root sees the Review tab and pending count, can save reviewer edits, and can return, publish, or schedule the submission without changing its author.
+- a second stale review action is rejected and succeeds only after the reviewer reloads.
+- direct guest requests and public lists do not expose the pending post.
+- normal public `get_posts.php?public=1&includeTotal=false` cache hits still return without loading the database configuration.
+
+No Database Repair step is required for `pending_review`; it uses the existing post status column. The usual backup and canary rules still apply while v1.27.0 remains unreleased.
 
 ## What to verify after updating to v1.26.9
 

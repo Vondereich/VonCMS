@@ -174,7 +174,15 @@ if ($action === 'request') {
       1,
     );
 
-    vonSendMail($email, $subject, $htmlBody);
+    $mailResult = vonSendMail($email, $subject, $htmlBody);
+    if (empty($mailResult['success'])) {
+      error_log(
+        'Password reset email delivery failed via ' .
+          (string) ($mailResult['method'] ?? 'unknown') .
+          ': ' .
+          (string) ($mailResult['message'] ?? 'unknown mail error'),
+      );
+    }
 
     echo json_encode([
       'success' => true,

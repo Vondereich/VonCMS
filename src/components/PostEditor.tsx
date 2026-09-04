@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import notify from '../utils/toast';
-import { Post, Page, MediaItem, ContentAuditLog } from '../types';
+import {
+  Post,
+  Page,
+  MediaItem,
+  ContentAuditLog,
+  type PostSaveOptions,
+  type PostStatus,
+  type PostWorkflowAction,
+  type UserRole,
+} from '../types';
 import Editor from './Editor';
 import { API } from '../config/site.config';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
@@ -27,10 +36,12 @@ import { PostEditorAuditHistoryModal, PostEditorAuditSummary } from './editor/Po
 import PostEditorSeoPanel from './editor/PostEditorSeoPanel';
 import { getPostEditorCleanText } from './editor/postEditorTextHelpers';
 import { useAiWriting } from '../hooks/useAiWriting';
+import { getPostStatusLabel, isPostReviewer, isPostWriter } from '../utils/contentCapabilities';
 import {
   AUTOSAVE_INTERVAL_MS,
   SAVE_CONFLICT_MESSAGE,
   buildAutoSaveCandidate,
+  hasUnsavedEditorContentChanges,
   hasUnsavedEditorChanges,
   buildSaveStatusLabel,
   buildSavedSnapshot,
@@ -47,7 +58,13 @@ interface PostEditorProps {
   isPage: boolean;
   navigation: { url: string }[];
   posts?: Post[];
-  onSave: (item: Post | Page, addToMenu: boolean, isAutoSave?: boolean) => Promise<any>;
+  userRole?: UserRole;
+  onSave: (
+    item: Post | Page,
+    addToMenu: boolean,
+    isAutoSave?: boolean,
+    saveOptions?: PostSaveOptions
+  ) => Promise<any>;
   onBack: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
   settings?: any; // Added settings prop
@@ -55,7 +72,7 @@ interface PostEditorProps {
 
 const TITLE_MAX_LENGTH = 255;
 const EXCERPT_RECOMMENDED_MAX_LENGTH = 200;
-const EXCERPT_WARNING_LENGTH = 220;
+const EXCERPT_MAX_LENGTH = 220;
 type MobileEditorPanel = 'write' | 'publish' | 'ai';
 
 const PostEditor: React.FC<PostEditorProps> = ({
@@ -64,12 +81,15 @@ const PostEditor: React.FC<PostEditorProps> = ({
   isPage,
   navigation = [],
   posts = [],
+  userRole,
   onSave,
   onBack,
   onDirtyChange,
   settings,
 }) => {
   const [item, setItem] = useState<Post | Page | null>(initialItem);
+  const normalizedRoleIsWriter = !isPage && isPostWriter(userRole);
+  const normalizedRoleIsReviewer = !isPage && isPostReviewer(userRole);
   const [editorContentRevision, setEditorContentRevision] = useState(0);
   const [addToMenu, setAddToMenu] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,7 +113,6 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const featuredMediaRequestIdRef = React.useRef(0);
   const initialAddToMenuRef = React.useRef(false);
   const titleLength = item?.title?.length || 0;
-  const titleLimitHelpText = `Title is limited to ${TITLE_MAX_LENGTH} characters.`;
   const excerptLength = item?.excerpt?.length || 0;
 
   const availableCategories: string[] = [];
@@ -162,7 +181,13 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
         const data = await res.json();
 
-        if (!cancelled && data.success && data.post) {
+        if (cancelled) return;
+
+        if (!data.success || !data.post) {
+          throw new Error(data.error || data.message || 'Complete post data is unavailable.');
+        }
+
+        if (data.success && data.post) {
           setItem((prev) => {
             if (!prev || String(prev.id || '') !== String(restoreItemId)) return prev;
             const restoredSnapshot = {
@@ -190,11 +215,11 @@ const PostEditor: React.FC<PostEditorProps> = ({
           });
           contentRef.current = data.post.content || '';
           setEditorContentRevision((revision) => revision + 1);
-          notify.success('Restored full content & SEO data');
         }
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to fetch full content:', err);
+          notify.error('Could not load the complete post. Please reopen the editor.');
         }
       } finally {
         if (!cancelled) {
@@ -362,15 +387,33 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const handleSave = async (
     statusOverride?: string,
     isAutoSave: boolean = false,
-    itemOverride?: Post | Page | null
+    itemOverride?: Post | Page | null,
+    workflowActionOverride?: PostWorkflowAction
   ) => {
-    const itemForSaveBase = itemOverride || item;
+    const itemForSaveBase = itemOverride || itemRef.current || item;
     if (!itemForSaveBase || isSavingRef.current) return;
 
     const liveContent = contentRef.current;
     const itemForSave = { ...itemForSaveBase, content: liveContent };
 
     const status = statusOverride || itemForSave.status || 'draft';
+    const workflowAction: PostWorkflowAction | undefined = isPage
+      ? undefined
+      : workflowActionOverride ||
+        (status === 'published'
+          ? 'publish'
+          : status === 'scheduled'
+            ? 'schedule'
+            : status === 'archived'
+              ? 'archive'
+              : status === 'pending_review'
+                ? normalizedRoleIsReviewer
+                  ? 'save_review'
+                  : 'submit_review'
+                : 'save_draft');
+    const expectedStatus = !isPage
+      ? ((initialItemRef.current?.status || itemForSave.status || 'draft') as PostStatus)
+      : undefined;
 
     // Validate: Require title and content for publish/schedule (not draft)
     if (status !== 'draft') {
@@ -417,7 +460,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
         status
       );
 
-      const savedData = await onSave(itemToSave as Post | Page, addToMenu, isAutoSave);
+      const savedData = await onSave(itemToSave as Post | Page, addToMenu, isAutoSave, {
+        workflowAction,
+        ...(!isPage && itemForSave.id ? { expectedStatus } : {}),
+      });
       const savedSnapshot = buildSavedSnapshot(itemToSave as Post | Page, savedData);
       const savedStatus = savedSnapshot.status || status;
       initialItemRef.current = savedSnapshot;
@@ -436,7 +482,17 @@ const PostEditor: React.FC<PostEditorProps> = ({
         const isUpdate = !!initialItem?.id;
         const contentType = isPage ? 'Page' : 'Post';
         if (manualSaveToastId) notify.dismiss(manualSaveToastId);
-        if (status === 'scheduled' && savedStatus !== 'scheduled') {
+        if (workflowAction === 'submit_review' && savedStatus === 'pending_review') {
+          notify.success('Post submitted for review.');
+        } else if (workflowAction === 'withdraw_review' && savedStatus === 'draft') {
+          notify.success('Submission withdrawn to Draft.');
+        } else if (workflowAction === 'return_draft' && savedStatus === 'draft') {
+          notify.success('Post returned to the Writer as a draft.');
+        } else if (workflowAction === 'save_review' && savedStatus === 'pending_review') {
+          notify.success('Review changes saved.');
+        } else if (workflowAction === 'archive' && savedStatus === 'archived') {
+          notify.success('Post archived successfully.');
+        } else if (status === 'scheduled' && savedStatus !== 'scheduled') {
           notify.error(`${contentType} could not be scheduled and was saved as a draft.`);
         } else if (savedStatus === 'draft') {
           notify.success(`${contentType} draft saved!`);
@@ -456,6 +512,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
       saveStatusResetRef.current = window.setTimeout(() => {
         if (mountedRef.current) setSaveStatus('idle');
       }, 6000);
+      return savedData;
     } catch (err: any) {
       console.error('Save failed:', err);
       setSaveStatus('error');
@@ -468,6 +525,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
       } else if (!isAutoSave) {
         notify.error('Save failed: ' + err.message);
       }
+      return null;
     } finally {
       isSavingRef.current = false;
       if (mountedRef.current && !isAutoSave) setIsSaving(false);
@@ -705,6 +763,13 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
   if (!item) return null;
 
+  const postStatus = !isPage ? (item.status as PostStatus) : null;
+  const isPendingReview = postStatus === 'pending_review';
+  const isWriterLocked = normalizedRoleIsWriter && postStatus !== null && postStatus !== 'draft';
+  const isReviewerPending = normalizedRoleIsReviewer && isPendingReview;
+  const hasPendingReviewContentChanges =
+    isReviewerPending &&
+    hasUnsavedEditorContentChanges(item, initialItemRef.current, contentRef.current);
   const saveStatusLabel = buildSaveStatusLabel(saveStatus, lastSaved, autoSaveCountdown);
   const saveStatusClassName = getSaveStatusClassName(saveStatus);
   const publishingChecks = [
@@ -727,11 +792,66 @@ const PostEditor: React.FC<PostEditorProps> = ({
       : []),
   ];
   const completedPublishingChecks = publishingChecks.filter((check) => check.ready).length;
-  const publishActionLabel =
-    item.status === 'scheduled' ? 'Schedule' : item.status === 'published' ? 'Update' : 'Publish';
+  const secondaryActionLabel = isReviewerPending ? 'Save Review' : 'Save Draft';
+  const publishActionLabel = normalizedRoleIsWriter
+    ? isPendingReview
+      ? 'Withdraw to Draft'
+      : isWriterLocked
+        ? 'Read only'
+        : 'Submit for Review'
+    : item.status === 'scheduled'
+      ? 'Schedule'
+      : item.status === 'archived'
+        ? 'Archive'
+        : item.status === 'published'
+          ? 'Update'
+          : 'Publish';
+  const handleSecondarySave = () => {
+    if (isReviewerPending) {
+      void handleSave('pending_review', false, undefined, 'save_review');
+      return;
+    }
+    void handleSave('draft', false, undefined, 'save_draft');
+  };
+  const requireSavedReviewContent = () => {
+    if (!hasPendingReviewContentChanges) return true;
+    notify.info('Save review changes before changing this submission status.');
+    return false;
+  };
   const handlePrimaryPublish = () => {
-    const finalStatus = item.status === 'scheduled' ? 'scheduled' : 'published';
-    void handleSave(finalStatus);
+    if (normalizedRoleIsWriter) {
+      if (isPendingReview) {
+        void handleSave('draft', false, undefined, 'withdraw_review');
+      } else if (!isWriterLocked) {
+        void handleSave('pending_review', false, undefined, 'submit_review');
+      }
+      return;
+    }
+    if (isReviewerPending && !requireSavedReviewContent()) return;
+    const finalStatus =
+      item.status === 'scheduled'
+        ? 'scheduled'
+        : item.status === 'archived'
+          ? 'archived'
+          : 'published';
+    void handleSave(
+      finalStatus,
+      false,
+      undefined,
+      finalStatus === 'scheduled' ? 'schedule' : finalStatus === 'archived' ? 'archive' : 'publish'
+    );
+  };
+  const handleReturnToDraft = () => {
+    if (!requireSavedReviewContent()) return;
+    void handleSave('draft', false, undefined, 'return_draft');
+  };
+  const handleReviewSchedule = () => {
+    if (!(item as Post).scheduledAt?.trim()) {
+      notify.info('Please pick a date and time first.');
+      return;
+    }
+    if (isReviewerPending && !requireSavedReviewContent()) return;
+    void handleSave('scheduled', false, undefined, 'schedule');
   };
 
   return (
@@ -754,33 +874,39 @@ const PostEditor: React.FC<PostEditorProps> = ({
           </div>
         </div>
         <div className="hidden items-center gap-3 xl:flex">
-          <button
-            type="button"
-            onClick={() => handleSave('draft')}
-            disabled={isSaving}
-            className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
-          >
-            <CheckCircle size={16} className={isSaving ? 'animate-spin' : ''} />
-            <span>{isSaving ? 'Saving draft...' : 'Save Draft'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave('draft')}
-            disabled={isSaving}
-            className="sm:hidden p-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
-            title={isSaving ? 'Saving draft...' : 'Save Draft'}
-          >
-            <CheckCircle size={18} className={isSaving ? 'animate-spin' : ''} />
-          </button>
-          <button
-            type="button"
-            onClick={handlePrimaryPublish}
-            disabled={isSaving}
-            className={`flex items-center gap-2 px-6 py-2 ${item.status === 'scheduled' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'} text-white rounded-lg transition-colors shadow-lg font-medium disabled:opacity-70`}
-          >
-            <Globe size={18} className={isSaving ? 'animate-spin' : ''} />
-            <span>{isSaving ? 'Saving...' : publishActionLabel}</span>
-          </button>
+          {!isWriterLocked && (
+            <button
+              type="button"
+              onClick={handleSecondarySave}
+              disabled={isSaving}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
+            >
+              <CheckCircle size={16} className={isSaving ? 'animate-spin' : ''} />
+              <span>{isSaving ? 'Saving...' : secondaryActionLabel}</span>
+            </button>
+          )}
+          {!isWriterLocked && (
+            <button
+              type="button"
+              onClick={handleSecondarySave}
+              disabled={isSaving}
+              className="sm:hidden p-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
+              title={isSaving ? 'Saving...' : secondaryActionLabel}
+            >
+              <CheckCircle size={18} className={isSaving ? 'animate-spin' : ''} />
+            </button>
+          )}
+          {(!isWriterLocked || isPendingReview) && (
+            <button
+              type="button"
+              onClick={handlePrimaryPublish}
+              disabled={isSaving}
+              className={`flex items-center gap-2 px-6 py-2 ${item.status === 'scheduled' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30' : normalizedRoleIsWriter && isPendingReview ? 'bg-slate-700 hover:bg-slate-800 shadow-slate-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'} text-white rounded-lg transition-colors shadow-lg font-medium disabled:opacity-70`}
+            >
+              <Globe size={18} className={isSaving ? 'animate-spin' : ''} />
+              <span>{isSaving ? 'Saving...' : publishActionLabel}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -835,420 +961,454 @@ const PostEditor: React.FC<PostEditorProps> = ({
         <div
           className={`${mobilePanel === 'write' ? 'block' : 'hidden'} min-w-0 space-y-4 sm:space-y-6 xl:col-span-2 xl:block`}
         >
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
-            <input
-              id="post-title"
-              name="title"
-              aria-label={isPage ? 'Page title' : 'Post title'}
-              type="text"
-              maxLength={TITLE_MAX_LENGTH}
-              placeholder="Enter title here..."
-              className="w-full rounded-lg border-none bg-transparent px-2 py-1 -mx-2 -my-1 text-2xl font-bold text-slate-900 placeholder-slate-300 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white dark:placeholder-slate-600 sm:text-3xl"
-              value={item.title || ''}
-              onChange={handleTitleChange}
-            />
-            <p
-              className={`mt-2 text-xs ${
-                titleLength >= TITLE_MAX_LENGTH
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              {titleLength}/{TITLE_MAX_LENGTH} characters. {titleLimitHelpText}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-md border border-slate-200 dark:border-[#2a2b36] flex flex-col">
-            <Editor
-              key={item.id || 'new-post'}
-              initialContent={item.content || ''}
-              contentRevision={editorContentRevision}
-              onChange={handleEditorChange}
-              onImmediateChange={handleEditorImmediateChange}
-              onImageClick={handleEditorImageClick}
-            />
-          </div>
+          <fieldset
+            disabled={isWriterLocked}
+            className="flex min-w-0 flex-col gap-4 border-0 p-0 sm:gap-6"
+          >
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+              <input
+                id="post-title"
+                name="title"
+                aria-label={isPage ? 'Page title' : 'Post title'}
+                type="text"
+                maxLength={TITLE_MAX_LENGTH}
+                placeholder="Enter title here..."
+                className="w-full rounded-lg border-none bg-transparent px-2 py-1 -mx-2 -my-1 text-2xl font-bold text-slate-900 placeholder-slate-300 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white dark:placeholder-slate-600 sm:text-3xl"
+                value={item.title || ''}
+                onChange={handleTitleChange}
+              />
+              <p
+                className={`mt-2 text-xs ${
+                  titleLength >= TITLE_MAX_LENGTH
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                {titleLength}/{TITLE_MAX_LENGTH} characters
+              </p>
+            </div>
+            <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-md border border-slate-200 dark:border-[#2a2b36] flex flex-col">
+              <Editor
+                key={item.id || 'new-post'}
+                initialContent={item.content || ''}
+                contentRevision={editorContentRevision}
+                onChange={handleEditorChange}
+                onImmediateChange={handleEditorImmediateChange}
+                onImageClick={handleEditorImageClick}
+                readOnly={isWriterLocked}
+              />
+            </div>
+          </fieldset>
         </div>
 
         <div className="min-w-0 space-y-6">
           <div className={`${mobilePanel === 'ai' ? 'block' : 'hidden'} xl:block`}>
-            <AiWritingPanel
-              title={item.title || ''}
-              hasContent={Boolean(getPostEditorCleanText(item.content || ''))}
-              mode={aiAssistant.mode}
-              writePrompt={aiAssistant.writePrompt}
-              pendingResult={aiAssistant.pendingResult}
-              isGenerating={aiAssistant.isGenerating}
-              isChecking={aiAssistant.isChecking}
-              isSaving={isSaving}
-              onModeChange={aiAssistant.setMode}
-              onWritePromptChange={aiAssistant.setWritePrompt}
-              onGenerate={handleAiGenerate}
-              onCheck={handleAiCheckRequest}
-              onApplyAppend={handleApplyAiAppend}
-              onApplyReplace={handleApplyAiReplace}
-              onDiscard={handleDiscardAiResult}
-            />
+            <fieldset disabled={isWriterLocked} className="contents">
+              <AiWritingPanel
+                title={item.title || ''}
+                hasContent={Boolean(getPostEditorCleanText(item.content || ''))}
+                activeModel={aiAssistant.activeModel}
+                isSharedModel={aiAssistant.isSharedModel}
+                mode={aiAssistant.mode}
+                writePrompt={aiAssistant.writePrompt}
+                pendingResult={aiAssistant.pendingResult}
+                isGenerating={aiAssistant.isGenerating}
+                isChecking={aiAssistant.isChecking}
+                isSaving={isSaving}
+                onModeChange={aiAssistant.setMode}
+                onWritePromptChange={aiAssistant.setWritePrompt}
+                onGenerate={handleAiGenerate}
+                onCheck={handleAiCheckRequest}
+                onApplyAppend={handleApplyAiAppend}
+                onApplyReplace={handleApplyAiReplace}
+                onDiscard={handleDiscardAiResult}
+              />
+            </fieldset>
           </div>
           <div
             className={`${mobilePanel === 'publish' ? 'space-y-6' : 'hidden'} xl:block xl:space-y-6`}
           >
-            <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
-              <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-[#2a2b36] dark:bg-[#16161e]">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Publish readiness
-                  </span>
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                    {completedPublishingChecks}/{publishingChecks.length}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {publishingChecks.map((check) => (
-                    <span
-                      key={check.label}
-                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                        check.ready
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                      }`}
-                    >
-                      {check.ready ? 'Ready' : 'Needs'} {check.label}
+            <fieldset disabled={isWriterLocked} className="contents">
+              <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
+                <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-[#2a2b36] dark:bg-[#16161e]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Publish readiness
                     </span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label
-                  htmlFor="post-status"
-                  className="block text-xs font-medium text-slate-500 mb-1.5"
-                >
-                  Status
-                </label>
-                <select
-                  id="post-status"
-                  name="status"
-                  className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                  value={item.status || 'draft'}
-                  onChange={(e) => {
-                    const newStatus = e.target.value as Post['status'];
-                    // Safety: Prevent rescheduling already published posts to protect SEO
-                    if (
-                      initialItem &&
-                      initialItem.status === 'published' &&
-                      newStatus === 'scheduled'
-                    ) {
-                      notify.error('Cannot schedule an already published post (SEO Safety).');
-                      return;
-                    }
-                    setItem((prev) => {
-                      if (!prev) return null;
-                      return isPage
-                        ? ({ ...prev, status: newStatus as Page['status'] } as Page)
-                        : ({ ...prev, status: newStatus } as Post);
-                    });
-                  }}
-                >
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                  {!isPage && <option value="scheduled">Scheduled</option>}
-                </select>
-              </div>
-              {!isPage && item.status === 'scheduled' && (
-                <div className="space-y-2">
-                  <label
-                    htmlFor="post-publish-date"
-                    className="block text-sm font-medium text-slate-500"
-                  >
-                    Publish Date & Time
-                  </label>
-                  <input
-                    id="post-publish-date"
-                    name="scheduledAt"
-                    type="datetime-local"
-                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                    value={normalizeScheduledInputValue((item as Post).scheduledAt)}
-                    onChange={(e) =>
-                      setItem((prev) => (prev ? { ...prev, scheduledAt: e.target.value } : null))
-                    }
-                  />
-                  <button
-                    onClick={() => {
-                      if (!(item as Post).scheduledAt) {
-                        notify.info('Please pick a date and time first.');
-                        return;
-                      }
-                      handleSave('scheduled');
-                    }}
-                    disabled={isSaving}
-                    className="w-full py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg font-bold border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Activity size={16} />
-                    <span>{isSaving ? 'Locking...' : 'Set Schedule Now'}</span>
-                  </button>
-                  {(item as Post).scheduledAt && (
-                    <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <span className="text-xs text-amber-700 dark:text-amber-300">
-                        Target: {formatScheduledTarget((item as Post).scheduledAt)}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setItem((prev) =>
-                            prev ? { ...prev, status: 'draft', scheduledAt: '' } : null
-                          )
-                        }
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                  <p className="text-xs text-slate-400">Post will auto-publish at this time</p>
-                </div>
-              )}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="post-slug" className="block text-sm font-medium text-slate-500">
-                    Slug
-                  </label>
-                  <button
-                    onClick={() => {
-                      if (!item.title) {
-                        notify.info('Enter a title first');
-                        return;
-                      }
-                      // Use helper for clean text
-                      const cleanTitle = getPostEditorCleanText(item.title);
-                      const slug = cleanTitle
-                        .toLowerCase()
-                        .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
-                        .replace(/\s+/g, '-') // Spaces to hyphens
-                        .replace(/-+/g, '-') // Multiple hyphens to single
-                        .replace(/^-|-$/g, ''); // Trim hyphens
-                      setItem((prev) => (prev ? { ...prev, slug } : null));
-                    }}
-                    className="text-xs flex items-center gap-1 text-green-600 hover:text-green-700 font-bold bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full transition-colors"
-                  >
-                    <Sparkles size={12} /> Auto Generate
-                  </button>
-                </div>
-                <input
-                  id="post-slug"
-                  name="slug"
-                  type="text"
-                  className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                  placeholder="url-friendly-slug"
-                  value={item.slug || ''}
-                  onChange={(e) =>
-                    setItem((prev) => (prev ? { ...prev, slug: e.target.value } : null))
-                  }
-                />
-              </div>
-              {!isPage && (
-                <div>
-                  <label
-                    htmlFor="post-category-select"
-                    className="block text-sm font-medium text-slate-500 mb-1"
-                  >
-                    Category
-                  </label>
-                  <div className="space-y-2">
-                    <select
-                      id="post-category-select"
-                      name="categoryPreset"
-                      aria-label="Choose existing category"
-                      value={
-                        availableCategories.includes((item as Post).category || '')
-                          ? (item as Post).category || 'Uncategorized'
-                          : '__custom__'
-                      }
-                      onChange={(e) => {
-                        if (e.target.value === '__custom__') return;
-                        setItem((prev) => (prev ? { ...prev, category: e.target.value } : null));
-                      }}
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100 text-sm"
-                    >
-                      {availableCategories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                      <option value="__custom__">Custom category...</option>
-                    </select>
-                    <input
-                      id="post-category"
-                      name="category"
-                      aria-label="Custom category"
-                      type="text"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                      value={(item as Post).category || ''}
-                      placeholder="Uncategorized"
-                      onChange={(e) =>
-                        setItem((prev) => (prev ? { ...prev, category: e.target.value } : null))
-                      }
-                    />
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      {completedPublishingChecks}/{publishingChecks.length}
+                    </span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Pick an existing category or type a new one. Empty values still save as{' '}
-                    Uncategorized.
-                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {publishingChecks.map((check) => (
+                      <span
+                        key={check.label}
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          check.ready
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                        }`}
+                      >
+                        {check.ready ? 'Ready' : 'Needs'} {check.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              )}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label
-                    htmlFor="post-excerpt"
-                    className="block text-sm font-medium text-slate-500"
-                  >
-                    Excerpt
-                  </label>
-                  <button
-                    onClick={() => {
-                      if (item.content) {
-                        const excerpt = getPostEditorCleanText(
-                          item.content,
-                          EXCERPT_RECOMMENDED_MAX_LENGTH
-                        );
-                        setItem((prev) => (prev ? { ...prev, excerpt } : null));
-                      } else {
-                        notify.info('Add content first');
-                      }
-                    }}
-                    className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
-                  >
-                    <Sparkles size={12} /> Auto Fill
-                  </button>
-                </div>
-                <textarea
-                  id="post-excerpt"
-                  name="excerpt"
-                  className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
-                  value={item.excerpt || ''}
-                  onChange={(e) =>
-                    setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
-                  }
-                  placeholder="Short summary (recommended 160-200 characters)..."
-                  aria-describedby="post-excerpt-help"
-                />
-                <p
-                  id="post-excerpt-help"
-                  className={`mt-1 text-xs ${
-                    excerptLength > EXCERPT_WARNING_LENGTH
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-slate-400'
-                  }`}
-                >
-                  {excerptLength}/{EXCERPT_WARNING_LENGTH} characters - recommended 160-200.
-                  {excerptLength > EXCERPT_WARNING_LENGTH
-                    ? ' Long excerpts may be shortened in cards and discovery metadata.'
-                    : ''}
-                </p>
-              </div>
-
-              {/* Featured Image - For Posts Only */}
-              {!isPage && (
                 <div>
-                  <div className="flex justify-between items-center mb-1">
+                  <label
+                    htmlFor="post-status"
+                    className="block text-xs font-medium text-slate-500 mb-1.5"
+                  >
+                    Status
+                  </label>
+                  {normalizedRoleIsWriter || isReviewerPending ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-200">
+                      {getPostStatusLabel(item.status as PostStatus)}
+                    </div>
+                  ) : (
+                    <select
+                      id="post-status"
+                      name="status"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      value={item.status || 'draft'}
+                      onChange={(e) => {
+                        const newStatus = e.target.value as Post['status'];
+                        // Safety: Prevent rescheduling already published posts to protect SEO
+                        if (
+                          initialItem &&
+                          initialItem.status === 'published' &&
+                          newStatus === 'scheduled'
+                        ) {
+                          notify.error('Cannot schedule an already published post (SEO Safety).');
+                          return;
+                        }
+                        setItem((prev) => {
+                          if (!prev) return null;
+                          return isPage
+                            ? ({ ...prev, status: newStatus as Page['status'] } as Page)
+                            : ({ ...prev, status: newStatus } as Post);
+                        });
+                      }}
+                    >
+                      <option value="published">Published</option>
+                      <option value="draft">Draft</option>
+                      {!isPage && <option value="scheduled">Scheduled</option>}
+                      {!isPage && <option value="archived">Archived</option>}
+                    </select>
+                  )}
+                </div>
+                {isReviewerPending && (
+                  <button
+                    type="button"
+                    onClick={handleReturnToDraft}
+                    disabled={isSaving}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-[#3a3b48] dark:text-slate-200 dark:hover:bg-[#242633]"
+                  >
+                    Return to Draft
+                  </button>
+                )}
+                {!isPage && (item.status === 'scheduled' || isReviewerPending) && (
+                  <div className="space-y-2">
                     <label
-                      htmlFor="post-image"
+                      htmlFor="post-publish-date"
                       className="block text-sm font-medium text-slate-500"
                     >
-                      Featured Image
+                      Publish Date & Time
+                    </label>
+                    <input
+                      id="post-publish-date"
+                      name="scheduledAt"
+                      type="datetime-local"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      value={normalizeScheduledInputValue((item as Post).scheduledAt)}
+                      onChange={(e) =>
+                        setItem((prev) => (prev ? { ...prev, scheduledAt: e.target.value } : null))
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={handleReviewSchedule}
+                      disabled={isSaving}
+                      className="w-full py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-lg font-bold border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Activity size={16} />
+                      <span>
+                        {isSaving
+                          ? 'Scheduling...'
+                          : isReviewerPending
+                            ? 'Schedule Submission'
+                            : 'Set Schedule Now'}
+                      </span>
+                    </button>
+                    {(item as Post).scheduledAt && (
+                      <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                        <span className="text-xs text-amber-700 dark:text-amber-300">
+                          Target: {formatScheduledTarget((item as Post).scheduledAt)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setItem((prev) => {
+                              if (!prev) return null;
+                              const currentPost = prev as Post;
+                              return {
+                                ...currentPost,
+                                status: isReviewerPending ? currentPost.status : 'draft',
+                                scheduledAt: '',
+                              };
+                            })
+                          }
+                          className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-400">Post will auto-publish at this time</p>
+                  </div>
+                )}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label htmlFor="post-slug" className="block text-sm font-medium text-slate-500">
+                      Slug
                     </label>
                     <button
                       onClick={() => {
-                        // Clear image so backend auto-detects from content
-                        setItem((prev) => (prev ? { ...prev, image: '' } : null));
-                        notify.success('Featured image cleared. Will auto-detect on save.');
+                        if (!item.title) {
+                          notify.info('Enter a title first');
+                          return;
+                        }
+                        // Use helper for clean text
+                        const cleanTitle = getPostEditorCleanText(item.title);
+                        const slug = cleanTitle
+                          .toLowerCase()
+                          .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
+                          .replace(/\s+/g, '-') // Spaces to hyphens
+                          .replace(/-+/g, '-') // Multiple hyphens to single
+                          .replace(/^-|-$/g, ''); // Trim hyphens
+                        setItem((prev) => (prev ? { ...prev, slug } : null));
                       }}
-                      className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-full transition-colors"
+                      className="text-xs flex items-center gap-1 text-green-600 hover:text-green-700 font-bold bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full transition-colors"
                     >
-                      <Sparkles size={12} /> Refresh from Content
+                      <Sparkles size={12} /> Auto Generate
                     </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <button
-                      type="button"
-                      onClick={() => featuredImageInputRef.current?.click()}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                      <Upload size={16} />
-                      Upload Image
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openFeaturedLibrary}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-sm font-medium"
-                    >
-                      <Images size={16} />
-                      Browse Media Gallery
-                    </button>
-                    <input
-                      ref={featuredImageInputRef}
-                      id="featured-image-upload"
-                      name="featuredImageUpload"
-                      aria-label="Upload featured image"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFeaturedImageUpload}
-                    />
                   </div>
                   <input
-                    id="post-image"
-                    name="image"
-                    aria-label="Featured image URL"
+                    id="post-slug"
+                    name="slug"
                     type="text"
                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
-                    placeholder="Paste image URL if needed..."
-                    value={(item as Post).image || ''}
+                    placeholder="url-friendly-slug"
+                    value={item.slug || ''}
                     onChange={(e) =>
-                      setItem((prev) => (prev ? { ...prev, image: e.target.value } : null))
+                      setItem((prev) => (prev ? { ...prev, slug: e.target.value } : null))
                     }
                   />
-                  {(item as Post).image && (
-                    <div className="mt-2 relative group">
-                      <SafeImage
-                        src={(item as Post).image}
-                        alt="Featured"
-                        className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
-                      />
-                      <button
-                        onClick={() => setItem((prev) => (prev ? { ...prev, image: '' } : null))}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Remove image"
+                </div>
+                {!isPage && (
+                  <div>
+                    <label
+                      htmlFor="post-category-select"
+                      className="block text-sm font-medium text-slate-500 mb-1"
+                    >
+                      Category
+                    </label>
+                    <div className="space-y-2">
+                      <select
+                        id="post-category-select"
+                        name="categoryPreset"
+                        aria-label="Choose existing category"
+                        value={
+                          availableCategories.includes((item as Post).category || '')
+                            ? (item as Post).category || 'Uncategorized'
+                            : '__custom__'
+                        }
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') return;
+                          setItem((prev) => (prev ? { ...prev, category: e.target.value } : null));
+                        }}
+                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100 text-sm"
                       >
-                        <X size={14} />
+                        {availableCategories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                        <option value="__custom__">Custom category...</option>
+                      </select>
+                      <input
+                        id="post-category"
+                        name="category"
+                        aria-label="Custom category"
+                        type="text"
+                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                        value={(item as Post).category || ''}
+                        placeholder="Uncategorized"
+                        onChange={(e) =>
+                          setItem((prev) => (prev ? { ...prev, category: e.target.value } : null))
+                        }
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Pick an existing category or type a new one. Empty values still save as{' '}
+                      Uncategorized.
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label
+                      htmlFor="post-excerpt"
+                      className="block text-sm font-medium text-slate-500"
+                    >
+                      Excerpt
+                    </label>
+                    <button
+                      onClick={() => {
+                        if (item.content) {
+                          const excerpt = getPostEditorCleanText(
+                            item.content,
+                            EXCERPT_RECOMMENDED_MAX_LENGTH
+                          );
+                          setItem((prev) => (prev ? { ...prev, excerpt } : null));
+                        } else {
+                          notify.info('Add content first');
+                        }
+                      }}
+                      className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
+                    >
+                      <Sparkles size={12} /> Auto Fill
+                    </button>
+                  </div>
+                  <textarea
+                    id="post-excerpt"
+                    name="excerpt"
+                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
+                    value={item.excerpt || ''}
+                    onChange={(e) =>
+                      setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
+                    }
+                    maxLength={EXCERPT_MAX_LENGTH}
+                    placeholder="Short summary (recommended 160-200, maximum 220 characters)..."
+                    aria-describedby="post-excerpt-help"
+                  />
+                  <p
+                    id="post-excerpt-help"
+                    className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-400"
+                  >
+                    <span>
+                      {excerptLength}/{EXCERPT_MAX_LENGTH} characters
+                    </span>
+                    <span>Recommended: 160-200 characters</span>
+                  </p>
+                </div>
+
+                {/* Featured Image - For Posts Only */}
+                {!isPage && (
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label
+                        htmlFor="post-image"
+                        className="block text-sm font-medium text-slate-500"
+                      >
+                        Featured Image
+                      </label>
+                      <button
+                        onClick={() => {
+                          // Clear image so backend auto-detects from content
+                          setItem((prev) => (prev ? { ...prev, image: '' } : null));
+                          notify.success('Featured image cleared. Will auto-detect on save.');
+                        }}
+                        className="text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-full transition-colors"
+                      >
+                        <Sparkles size={12} /> Refresh from Content
                       </button>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* Navigation Toggle */}
-              {isPage && (
-                <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <div
-                      className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
-                    >
-                      {addToMenu && <Globe size={12} />}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => featuredImageInputRef.current?.click()}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        <Upload size={16} />
+                        Upload Image
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openFeaturedLibrary}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-sm font-medium"
+                      >
+                        <Images size={16} />
+                        Browse Media Gallery
+                      </button>
+                      <input
+                        ref={featuredImageInputRef}
+                        id="featured-image-upload"
+                        name="featuredImageUpload"
+                        aria-label="Upload featured image"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFeaturedImageUpload}
+                      />
                     </div>
                     <input
-                      id="post-add-menu"
-                      name="addToMenu"
-                      type="checkbox"
-                      checked={addToMenu}
-                      onChange={(e) => setAddToMenu(e.target.checked)}
-                      className="hidden"
+                      id="post-image"
+                      name="image"
+                      aria-label="Featured image URL"
+                      type="text"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      placeholder="Paste image URL if needed..."
+                      value={(item as Post).image || ''}
+                      onChange={(e) =>
+                        setItem((prev) => (prev ? { ...prev, image: e.target.value } : null))
+                      }
                     />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors">
-                      Add to Navigation Menu
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
+                    {(item as Post).image && (
+                      <div className="mt-2 relative group">
+                        <SafeImage
+                          src={(item as Post).image}
+                          alt="Featured"
+                          className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
+                        />
+                        <button
+                          onClick={() => setItem((prev) => (prev ? { ...prev, image: '' } : null))}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove image"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Navigation Toggle */}
+                {isPage && (
+                  <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <div
+                        className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
+                      >
+                        {addToMenu && <Globe size={12} />}
+                      </div>
+                      <input
+                        id="post-add-menu"
+                        name="addToMenu"
+                        type="checkbox"
+                        checked={addToMenu}
+                        onChange={(e) => setAddToMenu(e.target.checked)}
+                        className="hidden"
+                      />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary-600 transition-colors">
+                        Add to Navigation Menu
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </fieldset>
 
             <PostEditorAuditSummary
               itemId={item.id}
@@ -1257,39 +1417,47 @@ const PostEditor: React.FC<PostEditorProps> = ({
               onOpenHistory={() => setIsAuditHistoryOpen(true)}
             />
 
-            <PostEditorSeoPanel
-              item={item}
-              setItem={setItem}
-              isRestoring={isSeoRestoring}
-              result={seoResult}
-            />
+            <fieldset disabled={isWriterLocked} className="contents">
+              <PostEditorSeoPanel
+                item={item}
+                setItem={setItem}
+                isRestoring={isSeoRestoring}
+                result={seoResult}
+              />
+            </fieldset>
           </div>
         </div>
       </div>
 
       <div className="admin-safe-bottom fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-slate-200 bg-white/95 px-3 pt-3 shadow-[0_-12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-[#2a2b36] dark:bg-[#16161e]/95 xl:hidden">
-        <button
-          type="button"
-          onClick={() => void handleSave('draft')}
-          disabled={isSaving}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-slate-200 dark:hover:bg-[#242633]"
-        >
-          <CheckCircle size={17} className={isSaving ? 'animate-spin' : ''} />
-          Draft
-        </button>
-        <button
-          type="button"
-          onClick={handlePrimaryPublish}
-          disabled={isSaving}
-          className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white shadow-lg transition-colors disabled:opacity-70 ${
-            item.status === 'scheduled'
-              ? 'bg-amber-500 shadow-amber-500/25 hover:bg-amber-600'
-              : 'bg-blue-600 shadow-blue-500/25 hover:bg-blue-700'
-          }`}
-        >
-          <Globe size={18} className={isSaving ? 'animate-spin' : ''} />
-          {isSaving ? 'Saving...' : publishActionLabel}
-        </button>
+        {!isWriterLocked && (
+          <button
+            type="button"
+            onClick={handleSecondarySave}
+            disabled={isSaving}
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-slate-200 dark:hover:bg-[#242633]"
+          >
+            <CheckCircle size={17} className={isSaving ? 'animate-spin' : ''} />
+            {secondaryActionLabel}
+          </button>
+        )}
+        {(!isWriterLocked || isPendingReview) && (
+          <button
+            type="button"
+            onClick={handlePrimaryPublish}
+            disabled={isSaving}
+            className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white shadow-lg transition-colors disabled:opacity-70 ${
+              item.status === 'scheduled'
+                ? 'bg-amber-500 shadow-amber-500/25 hover:bg-amber-600'
+                : normalizedRoleIsWriter && isPendingReview
+                  ? 'bg-slate-700 shadow-slate-500/20 hover:bg-slate-800'
+                  : 'bg-blue-600 shadow-blue-500/25 hover:bg-blue-700'
+            }`}
+          >
+            <Globe size={18} className={isSaving ? 'animate-spin' : ''} />
+            {isSaving ? 'Saving...' : publishActionLabel}
+          </button>
+        )}
       </div>
 
       <PostEditorAuditHistoryModal

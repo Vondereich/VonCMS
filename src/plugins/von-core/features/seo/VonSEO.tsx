@@ -140,8 +140,28 @@ const VonSEO: React.FC<VonSEOProps> = ({
 
   useEffect(() => {
     const siteTitle = settings.siteName;
+    const queryParams = new URLSearchParams(location.search);
+    const rawPublicPage = queryParams.get('page')?.trim() || '';
+    const publicPage = /^\d+$/.test(rawPublicPage)
+      ? Math.max(1, Math.min(100000, Number(rawPublicPage)))
+      : 1;
     const existingRobots =
       document.head.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
+    const existingCanonical =
+      document.head.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
+    const hasPublicSearchQuery = Array.from(queryParams.entries()).some(
+      ([key, value]) =>
+        (key === 'search' || key.startsWith('search[')) && hasNonemptySeoQueryValue(value)
+    );
+    const isPaginatedDiscovery =
+      publicPage > 1 &&
+      !hasPublicSearchQuery &&
+      (currentView === 'home' || currentView === 'category');
+    const isPaginatedOverflow =
+      isPaginatedDiscovery && existingRobots.trim().toLowerCase().startsWith('noindex');
+    const existingSsrSchema = document.head.querySelector(
+      'script[type="application/ld+json"].vp-seo[data-voncms-schema-source="ssr"]'
+    );
 
     // --- 1. Construct Metadata ---
     let title = siteTitle;
@@ -209,10 +229,31 @@ const VonSEO: React.FC<VonSEOProps> = ({
         ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1'
         : 'noindex, follow';
     }
-    const hasPublicSearchQuery = Array.from(new URLSearchParams(location.search).entries()).some(
-      ([key, value]) =>
-        (key === 'search' || key.startsWith('search[')) && hasNonemptySeoQueryValue(value)
-    );
+    if (isPaginatedDiscovery) {
+      title = isPaginatedOverflow
+        ? document.title
+        : currentView === 'category' && selectedCategory
+          ? `${selectedCategory} - Page ${publicPage} - ${siteTitle}`
+          : `${siteTitle} - Page ${publicPage}`;
+      const existingCanonicalPage = (() => {
+        try {
+          return new URL(existingCanonical, window.location.origin).searchParams.get('page');
+        } catch {
+          return null;
+        }
+      })();
+      if (existingCanonicalPage === String(publicPage)) {
+        canonical = existingCanonical;
+      } else {
+        const canonicalParams = new URLSearchParams();
+        if (currentView === 'category' && selectedCategory) {
+          canonicalParams.set('category', selectedCategory);
+        }
+        canonicalParams.set('page', String(publicPage));
+        canonical = `${canonicalBase}/?${canonicalParams.toString()}`;
+      }
+      hydratedRobots = existingRobots || hydratedRobots;
+    }
     if (hasPublicSearchQuery) {
       hydratedRobots = 'noindex, follow';
     }
@@ -414,7 +455,14 @@ const VonSEO: React.FC<VonSEOProps> = ({
     };
     jsonLd['@graph'].push(breadcrumbNode);
 
-    setJsonLd(jsonLd, canonical);
+    const shouldPreservePaginatedSsrSchema =
+      isPaginatedDiscovery &&
+      existingSsrSchema?.getAttribute('data-voncms-schema-url') === canonical;
+    if (isPaginatedOverflow) {
+      document.head.querySelector('script[type="application/ld+json"].vp-seo')?.remove();
+    } else if (!shouldPreservePaginatedSsrSchema) {
+      setJsonLd(jsonLd, canonical);
+    }
 
     // Temporary maintenance is signalled server-side with HTTP 503, not persistent noindex metadata.
     ensureMeta('robots', 'name', hydratedRobots);

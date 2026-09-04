@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 import { Post, User, Comment, SiteSettings, Page } from '../../../../types';
 import { useTheme } from '../themes/ThemeContext';
 import { PluginSlot } from '../plugins/registry';
@@ -8,6 +9,7 @@ import { GlobalLightbox } from '../../../../components/GlobalLightbox';
 import { CookieBanner } from '../../../../components/CookieBanner';
 import SkeletonLoader from '../../../../components/SkeletonLoader';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
+import { analyticsTrackingAllowed } from '../../../../utils/analyticsConsent';
 import {
   getLoadedPublicThemeLayout,
   loadPublicThemeLayout,
@@ -50,6 +52,7 @@ interface PublicSiteProps {
 
 const PublicSite: React.FC<PublicSiteProps> = (props) => {
   const { activeTheme } = useTheme();
+  const location = useLocation();
   const analyticsPluginActive = isSystemPluginActive(props.settings, 'vp_analytics');
   const requestedThemeId = resolvePublicThemeId(activeTheme.id);
   const [loadedThemeLayout, setLoadedThemeLayout] = useState<{
@@ -105,7 +108,15 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
       props.selectedCategory ||
       profileTitle;
     const siteTitle = props.settings.siteName || 'VonCMS';
-    document.title = sub ? `${sub} | ${siteTitle}` : siteTitle;
+    const rawPage = new URLSearchParams(location.search).get('page')?.trim() || '';
+    const publicPage = /^\d+$/.test(rawPage) ? Math.max(1, Math.min(100000, Number(rawPage))) : 1;
+    const discoveryTitle =
+      publicPage > 1 && (props.currentView === 'home' || props.currentView === 'category')
+        ? props.currentView === 'category' && props.selectedCategory
+          ? `${props.selectedCategory} - Page ${publicPage} - ${siteTitle}`
+          : `${siteTitle} - Page ${publicPage}`
+        : '';
+    document.title = discoveryTitle || (sub ? `${sub} | ${siteTitle}` : siteTitle);
   }, [
     props.currentView,
     props.selectedPost?.title,
@@ -114,6 +125,7 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
     props.resolvedProfile?.display_name,
     props.resolvedProfile?.username,
     props.settings,
+    location.search,
   ]);
 
   const cachedLayout = getLoadedPublicThemeLayout(requestedThemeId);
@@ -123,18 +135,29 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
 
   // Track page views (Monolithic Tracking)
   useEffect(() => {
-    if (!isSystemPluginActive(props.settings, 'vp_analytics')) return;
+    const analyticsActive = isSystemPluginActive(props.settings, 'vp_analytics');
+    const consentRequired = Boolean(props.settings.analytics?.cookieConsent);
+    const analyticsAllowed = analyticsActive && analyticsTrackingAllowed(consentRequired);
+    const payload: {
+      url?: string;
+      referrer?: string;
+      postId?: string;
+      pageId?: string;
+    } = {};
 
-    const payload: any = {
-      url: window.location.pathname,
-      referrer: document.referrer,
-    };
+    if (analyticsAllowed) {
+      payload.url = window.location.pathname;
+      payload.referrer = document.referrer;
+    }
 
     if (props.currentView === 'single-post' && props.selectedPost) {
       payload.postId = props.selectedPost.id;
     } else if (props.currentView === 'page' && props.selectedPage) {
       payload.pageId = props.selectedPage.id;
     }
+
+    // Keep aggregate content views available without enabling visitor analytics.
+    if (!analyticsActive && !payload.postId && !payload.pageId) return;
 
     vonFetch(API.trackMonolithic, {
       method: 'POST',

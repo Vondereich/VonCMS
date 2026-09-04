@@ -287,3 +287,20 @@ if (!function_exists('voncms_apply_not_found_response')) {
     $seoUrl = rtrim((string) $domainUrl, '/') . ($safePath !== '' ? '/' . $safePath : '/');
   }
 }
+
+if (!function_exists('voncms_apply_discovery_overflow_response')) {
+  /**
+   * Mark a numbered discovery page outside the real result range without
+   * rewriting its already-resolved title or canonical URL.
+   *
+   * @param mixed $seoRobots
+   * @param mixed $schemaData
+   * @return void
+   */
+  function voncms_apply_discovery_overflow_response(&$seoRobots, &$schemaData): void
+  {
+    http_response_code(404);
+    $seoRobots = 'noindex, follow';
+    $schemaData = null;
+  }
+}

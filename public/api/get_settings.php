@@ -57,11 +57,13 @@ if ($canUsePublicSettingsCache) {
 }
 
 require_once $configFile;
+require_once __DIR__ . '/ai_provider_helper.php';
 
 // Check if user is authenticated (for sensitive settings).
 // Authenticated non-admin sessions receive the same scrubbed projection but do not share the guest cache.
 $isAdmin = $hasSessionUser && SessionManager::isAdmin();
 $isPrimaryAdmin = $isAdmin && SessionManager::isPrimaryAdmin();
+$isStaff = $hasSessionUser && SessionManager::isStaff();
 if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }
@@ -621,6 +623,12 @@ try {
       'memoryLimit' => ini_get('memory_limit'),
       'integrityNeeded' => SecurityHelper::isIntegrityCompromised(),
     ];
+  }
+
+  // Eligible staff receive only a safe AI capability projection. The stored
+  // key, rotation timestamps, and private API config remain server-side.
+  if ($isStaff && $pdo instanceof PDO) {
+    $settings['aiAssistant'] = voncms_ai_staff_projection($pdo);
   }
 
   // SECURITY SCRUBBING: Automated Masking for guests and appointed admins.

@@ -117,7 +117,7 @@ const InstallWizard: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">VonCMS Installer</h1>
-              <p className="text-xs text-slate-400">System Setup Wizard v1.26 "After Hours"</p>
+              <p className="text-xs text-slate-400">System Setup Wizard v1.27 "OverDrive"</p>
             </div>
           </div>
           <div className="flex gap-2">

@@ -19,27 +19,9 @@ ob_start(); // Buffer output to prevent warnings from corrupting JSON
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
+require_once __DIR__ . '/../search_query_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
-
-if (!function_exists('voncms_normalize_fulltext_search')) {
-  function voncms_normalize_fulltext_search(string $value): string
-  {
-    $text = html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $normalized = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text);
-    if (!is_string($normalized)) {
-      $normalized = preg_replace('/[^a-zA-Z0-9\s]+/', ' ', $text);
-    }
-    $normalized = is_string($normalized) ? trim(preg_replace('/\s+/u', ' ', $normalized)) : '';
-    return is_string($normalized) ? $normalized : '';
-  }
-}
-
-if (!function_exists('voncms_escape_like_search')) {
-  function voncms_escape_like_search(string $value): string
-  {
-    return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], (string) $value);
-  }
-}
+require_once __DIR__ . '/role_capability_helper.php';
 
 // Check session
 try {
@@ -50,7 +32,7 @@ try {
   // 1.1 Draft pages exposed to unauthenticated users (Fix)
   $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
   $currentRole = $hasValidSession ? strtolower((string) ($_SESSION['user']['role'] ?? '')) : '';
-  $canReadProtectedPages = in_array($currentRole, ['admin', 'root', 'moderator'], true);
+  $canReadProtectedPages = voncms_role_has_capability($currentRole, 'pages.read_protected');
   $isAdmin = $canReadProtectedPages;
   if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/schema_repair_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -20,7 +21,10 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-SessionManager::requireAdmin();
+$currentRole = $_SESSION['user']['role'] ?? '';
+if (!voncms_role_has_capability($currentRole, 'users.manage')) {
+  ResponseHelper::sendError('User management access required', 403);
+}
 
 // Get JSON input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
@@ -79,10 +83,19 @@ try {
   $approveEmail = !empty($input['approve_email']);
   $requestedRole = strtolower(trim((string) ($input['role'] ?? '')));
   $allowedNonPrimaryRoles = ['member', 'writer', 'moderator'];
+  $assignableRoles = [
+    'member' => 'Member',
+    'writer' => 'Writer',
+    'moderator' => 'Moderator',
+    'admin' => 'Admin',
+  ];
 
   if ($approveEmail && !$isPrimaryAdminActor) {
     $pdo->rollBack();
-    ResponseHelper::sendError('Only admin 1 can approve email verification', 403);
+    ResponseHelper::sendError(
+      'System owner permission is required to approve email verification',
+      403,
+    );
   }
 
   // Create requests omit the database ID. Any supplied ID owns the update path,
@@ -90,6 +103,12 @@ try {
   $isNewUser = $inputId === '';
 
   if ($isNewUser) {
+    $requestedRole = $requestedRole !== '' ? $requestedRole : 'member';
+    if (!isset($assignableRoles[$requestedRole])) {
+      $pdo->rollBack();
+      ResponseHelper::sendError('Invalid user role', 400);
+    }
+
     // Check for duplicate username/email - LOCKING READ
     $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ? FOR UPDATE');
     $stmt->execute([$input['username'], $input['email']]);
@@ -119,11 +138,14 @@ try {
       !in_array($requestedRole, $allowedNonPrimaryRoles, true)
     ) {
       $pdo->rollBack();
-      ResponseHelper::sendError('Only admin 1 can assign admin-level roles', 403);
+      ResponseHelper::sendError(
+        'System owner permission is required to assign admin-level roles',
+        403,
+      );
     }
 
     // Determine if the new user should be auto-verified (staff roles created by admin)
-    $newRole = $input['role'] ?? 'Member';
+    $newRole = $assignableRoles[$requestedRole];
     $isStaffRole = in_array($newRole, ['Admin', 'Root', 'Moderator', 'Writer'], true);
 
     // Insert new user (ID handled by DB AUTO_INCREMENT)
@@ -175,9 +197,28 @@ try {
     $targetUserId = (string) ($targetUser['id'] ?? '');
     $targetUserRole = strtolower((string) ($targetUser['role'] ?? ''));
 
-    if (!$isPrimaryAdminActor && ($targetUserId === '1' || $targetUserRole === 'root')) {
+    if (
+      $targetUserId !== $currentUserId &&
+      !$isPrimaryAdminActor &&
+      voncms_user_target_requires_primary_admin($targetUserId, $targetUserRole)
+    ) {
       $pdo->rollBack();
-      ResponseHelper::sendError('Only admin 1 can modify this account', 403);
+      ResponseHelper::sendError(
+        'System owner permission is required to modify this protected account',
+        403,
+      );
+    }
+
+    $requestedRole = $requestedRole !== '' ? $requestedRole : $targetUserRole;
+    $preservingExistingRoot = $targetUserRole === 'root' && $requestedRole === 'root';
+    if (!isset($assignableRoles[$requestedRole]) && !$preservingExistingRoot) {
+      $pdo->rollBack();
+      ResponseHelper::sendError('Invalid user role', 400);
+    }
+
+    if ($targetUserId === $currentUserId && $requestedRole !== $targetUserRole) {
+      $pdo->rollBack();
+      ResponseHelper::sendError('You cannot change your own role', 403);
     }
 
     if (
@@ -187,7 +228,10 @@ try {
       $requestedRole !== $targetUserRole
     ) {
       $pdo->rollBack();
-      ResponseHelper::sendError('Only admin 1 can assign admin-level roles', 403);
+      ResponseHelper::sendError(
+        'System owner permission is required to assign admin-level roles',
+        403,
+      );
     }
 
     // PROTECTION: Prevent modification of Super Admin (ID 1)
@@ -207,7 +251,9 @@ try {
     // Update existing user
     $sql =
       'UPDATE users SET username = ?, display_name = ?, email = ?, role = ?, avatar = ?, bio = ?';
-    $roleToPersist = $input['role'] ?? 'Writer';
+    $roleToPersist = $preservingExistingRoot
+      ? (string) ($targetUser['role'] ?? 'Root')
+      : $assignableRoles[$requestedRole];
     if (
       !$isPrimaryAdminActor &&
       !in_array(strtolower((string) $roleToPersist), $allowedNonPrimaryRoles, true)

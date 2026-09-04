@@ -131,8 +131,9 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                   Require Cookie Consent Banner
                 </span>
                 <p className="text-xs text-slate-500 mt-1">
-                  Only track after user accepts cookies (GDPR/EU Compliant). This applies to both
-                  Native Analytics and external scripts like Google Analytics.
+                  Native visitor analytics and built-in Google Analytics wait for consent. Aggregate
+                  post and page view counters continue without identifying visitor details. This
+                  does not by itself guarantee legal compliance.
                 </p>
               </div>
             </label>

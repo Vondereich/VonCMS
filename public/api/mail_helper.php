@@ -1,7 +1,7 @@
 <?php
 /**
  * VonCMS - Mail Helper
- * Simple SMTP email sending using PHPMailer or PHP mail()
+ * Lightweight SMTP email sending with a PHP mail() fallback.
  */
 
 /**
@@ -210,13 +210,35 @@ function sendWithPhpMail($to, $subject, $htmlBody, $fromEmail, $fromName)
  */
 function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
 {
-  $host = $config['host'];
-  $port = $config['port'];
-  $user = $config['user'];
-  $pass = $config['pass'];
-  $encryption = $config['encryption'];
-  $fromEmail = $config['fromEmail'];
-  $fromName = $config['fromName'];
+  $host = trim((string) ($config['host'] ?? ''));
+  $port = (int) ($config['port'] ?? 0);
+  $user = trim((string) ($config['user'] ?? ''));
+  $pass = (string) ($config['pass'] ?? '');
+  $encryption = strtolower(trim((string) ($config['encryption'] ?? 'tls')));
+  $fromEmail = trim((string) ($config['fromEmail'] ?? ''));
+  $fromName = trim((string) ($config['fromName'] ?? ''));
+
+  if (
+    $host === '' ||
+    strlen($host) > 255 ||
+    preg_match('/[\r\n]/', $host) ||
+    $port < 1 ||
+    $port > 65535 ||
+    !in_array($encryption, ['tls', 'ssl', 'none'], true) ||
+    !filter_var($user, FILTER_VALIDATE_EMAIL) ||
+    !filter_var($fromEmail, FILTER_VALIDATE_EMAIL) ||
+    !filter_var($to, FILTER_VALIDATE_EMAIL)
+  ) {
+    return [
+      'success' => false,
+      'method' => 'smtp',
+      'message' => 'SMTP configuration or recipient is invalid.',
+    ];
+  }
+
+  // One deadline covers connect, negotiation, authentication, and delivery.
+  // The existing per-read timeout remains as the tighter bound for any one response.
+  $transactionDeadline = microtime(true) + 30;
 
   // For TLS/SSL connections
   $prefix = '';
@@ -236,30 +258,42 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     return ['success' => false, 'method' => 'smtp', 'message' => "Connection failed: $errstr"];
   }
 
-  // Set read timeout (prevent hanging on fgets)
-  stream_set_timeout($socket, 15);
+  $applyRemainingTimeout =
+    /**
+     * @return void
+     */
+    function () use ($socket, $transactionDeadline) {
+      $remaining = $transactionDeadline - microtime(true);
+      if ($remaining <= 0) {
+        throw new RuntimeException('SMTP transaction timed out.');
+      }
+
+      $boundedRemaining = min(15, $remaining);
+      $seconds = (int) floor($boundedRemaining);
+      $microseconds = (int) (($boundedRemaining - $seconds) * 1000000);
+      stream_set_timeout($socket, $seconds, $microseconds);
+    };
 
   // Helper to get full response (handles multi-line responses)
   $getResponse =
     /**
      * @return string
      */
-    function () use ($socket) {
+    function () use ($socket, $applyRemainingTimeout) {
       $response = '';
       while (true) {
+        $applyRemainingTimeout();
         $line = fgets($socket, 512);
         $info = stream_get_meta_data($socket);
 
         if ($line === false) {
           if ($info['timed_out']) {
-            error_log('SMTP Timeout during read');
-            break;
+            throw new RuntimeException('SMTP server response timed out.');
           }
           if (feof($socket)) {
-            error_log('SMTP Connection closed by server');
-            break;
+            throw new RuntimeException('SMTP connection was closed by the server.');
           }
-          break;
+          throw new RuntimeException('SMTP server response could not be read.');
         }
 
         $response .= $line;
@@ -276,11 +310,12 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
      * @param string $content
      * @return void
      */
-    function ($content) use ($socket) {
+    function ($content) use ($socket, $applyRemainingTimeout) {
       $length = strlen($content);
       $offset = 0;
 
       while ($offset < $length) {
+        $applyRemainingTimeout();
         $written = fwrite($socket, substr($content, $offset));
         if ($written === false || $written === 0) {
           throw new RuntimeException(
@@ -302,9 +337,25 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
       return $getResponse();
     };
 
+  $expectResponse =
+    /**
+     * @param string $response
+     * @param array<int, int> $allowedCodes
+     * @param string $stage
+     * @return void
+     */
+    function ($response, $allowedCodes, $stage) {
+      $responseCode = preg_match('/^[0-9]{3}/', $response) ? (int) substr($response, 0, 3) : 0;
+      if (!in_array($responseCode, $allowedCodes, true)) {
+        $reportedCode = $responseCode > 0 ? (string) $responseCode : 'no response';
+        throw new RuntimeException("SMTP $stage failed ($reportedCode).");
+      }
+    };
+
   try {
     // Read greeting (Full)
     $greeting = $getResponse();
+    $expectResponse($greeting, [220], 'greeting');
     error_log('SMTP Greeting: ' . trim($greeting));
 
     // EHLO
@@ -314,13 +365,16 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
       (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'),
     );
     $ehloResp = $sendCmd('EHLO ' . $ehloHost);
+    $expectResponse($ehloResp, [250], 'EHLO');
     error_log('SMTP EHLO Response: ' . trim($ehloResp));
 
     // STARTTLS for TLS
     if ($encryption === 'tls') {
       $tlsResp = $sendCmd('STARTTLS');
+      $expectResponse($tlsResp, [220], 'STARTTLS');
       error_log('SMTP STARTTLS Response: ' . trim($tlsResp));
 
+      $applyRemainingTimeout();
       $cryptoResult = stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
       if ($cryptoResult !== true) {
         error_log('SMTP TLS handshake failed');
@@ -333,52 +387,39 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
       }
 
       $ehloResp = $sendCmd('EHLO ' . $ehloHost);
+      $expectResponse($ehloResp, [250], 'EHLO after TLS');
       error_log('SMTP EHLO (TLS) Response: ' . trim($ehloResp));
     }
 
     // AUTH LOGIN
     $authCmd = $sendCmd('AUTH LOGIN');
+    $expectResponse($authCmd, [334], 'AUTH LOGIN');
     error_log('SMTP AUTH LOGIN Response: ' . trim($authCmd));
 
-    // Check if server supports AUTH LOGIN
-    if (substr($authCmd, 0, 3) !== '334') {
-      fclose($socket);
-      return [
-        'success' => false,
-        'method' => 'smtp',
-        'message' => 'Server does not support AUTH LOGIN or rejected command: ' . trim($authCmd),
-      ];
-    }
-
     $userResp = $sendCmd(base64_encode($user));
+    $expectResponse($userResp, [334], 'username authentication');
     error_log('SMTP User Response: ' . trim($userResp));
 
     $passResp = $sendCmd(base64_encode($pass));
+    $expectResponse($passResp, [235], 'password authentication');
     error_log('SMTP Pass Response: ' . trim($passResp));
-
-    if (substr($passResp, 0, 3) !== '235') {
-      fclose($socket);
-      return [
-        'success' => false,
-        'method' => 'smtp',
-        'message' => 'Authentication failed: ' . trim($passResp),
-      ];
-    }
 
     // MAIL FROM (Envelope Sender)
     $envelopeEmail = $config['authEmail'] ?: $fromEmail;
     $mailFromResp = $sendCmd("MAIL FROM:<$envelopeEmail>");
+    $expectResponse($mailFromResp, [250], 'MAIL FROM');
     error_log('SMTP MAIL FROM Response: ' . trim($mailFromResp));
 
     // RCPT TO
     $rcptResp = $sendCmd("RCPT TO:<$to>");
+    $expectResponse($rcptResp, [250, 251], 'RCPT TO');
     error_log('SMTP RCPT TO Response: ' . trim($rcptResp));
 
     // DATA
     $dataResp = $sendCmd('DATA');
+    $expectResponse($dataResp, [354], 'DATA');
 
     // Email content
-    $boundary = md5(uniqid(time()));
     $email = "From: $fromName <$fromEmail>\r\n";
     $email .= "To: $to\r\n";
     $email .= "Subject: $subject\r\n";
@@ -402,21 +443,30 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
 
     $writeSocket($email);
     $dataResponse = $getResponse();
+    $expectResponse($dataResponse, [250], 'message delivery');
 
-    // QUIT
-    $sendCmd('QUIT');
+    // QUIT is best-effort after the server has already accepted the message.
+    try {
+      $quitResponse = $sendCmd('QUIT');
+      $expectResponse($quitResponse, [221], 'QUIT');
+    } catch (Throwable $quitError) {
+      error_log('SMTP QUIT warning: ' . $quitError->getMessage());
+    }
     fclose($socket);
 
-    $success = substr($dataResponse, 0, 3) === '250';
     return [
-      'success' => $success,
+      'success' => true,
       'method' => 'smtp',
-      'message' => $success ? 'Email sent via SMTP' : 'SMTP send failed',
+      'message' => 'Email sent via SMTP',
     ];
-  } catch (Exception $e) {
+  } catch (Throwable $e) {
     @fclose($socket);
     error_log('SMTP Error: ' . $e->getMessage());
-    return ['success' => false, 'method' => 'smtp', 'message' => $e->getMessage()];
+    return [
+      'success' => false,
+      'method' => 'smtp',
+      'message' => $e->getMessage(),
+    ];
   }
 }
 

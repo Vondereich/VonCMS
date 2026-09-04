@@ -13,6 +13,7 @@ import {
   Rss,
 } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
+import { getUserDisplayRole } from '../../utils/profileUtils';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -497,9 +498,12 @@ const DefaultLayout: React.FC<
                         </p>
                         <p
                           className="text-[10px] uppercase tracking-wide mt-1"
-                          style={{ color: 'var(--text-nav)', opacity: 0.7 }}
+                          style={{
+                            color: String(user.id) === '1' ? '#ef4444' : 'var(--text-nav)',
+                            opacity: String(user.id) === '1' ? 1 : 0.7,
+                          }}
                         >
-                          {user.role}
+                          {getUserDisplayRole(user)}
                         </p>
                       </div>
                       <UserAvatar
@@ -535,8 +539,10 @@ const DefaultLayout: React.FC<
                               <p className="font-bold text-sm truncate text-neutral-900 dark:text-white">
                                 {user.username}
                               </p>
-                              <p className="text-xs truncate text-primary-600 dark:text-primary-400">
-                                {user.role}
+                              <p
+                                className={`text-xs truncate ${String(user.id) === '1' ? 'font-semibold text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'}`}
+                              >
+                                {getUserDisplayRole(user)}
                               </p>
                             </div>
                           </div>
@@ -705,9 +711,12 @@ const DefaultLayout: React.FC<
                         </p>
                         <p
                           className="text-xs uppercase"
-                          style={{ color: 'var(--text-nav)', opacity: 0.6 }}
+                          style={{
+                            color: String(user.id) === '1' ? '#ef4444' : 'var(--text-nav)',
+                            opacity: String(user.id) === '1' ? 1 : 0.6,
+                          }}
                         >
-                          {user.role}
+                          {getUserDisplayRole(user)}
                         </p>
                       </div>
                     </a>
@@ -1330,6 +1339,7 @@ const HomeView: React.FC<{
             loading={loadingMore}
             hasMore={hasMorePosts}
             onLoadMore={handleLoadMore}
+            href={publicPosts.nextPageHref}
             label="Load More Articles"
           />
         </div>

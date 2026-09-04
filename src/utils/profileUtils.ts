@@ -19,14 +19,17 @@ export const isOwnUserProfile = (currentUser?: User | null, targetUser?: Partial
 export const isStaffUser = (user?: Partial<User> | null) =>
   ['admin', 'root', 'moderator', 'writer'].includes(String(user?.role || '').toLowerCase());
 
+export const getUserDisplayRole = (user?: Partial<User> | null, fallback = 'Member') =>
+  String(user?.id || '') === '1' ? 'Super Admin' : user?.role || fallback;
+
 export const getProfileDisplayRole = (
   currentUser?: User | null,
   targetUser?: Partial<User> | null,
   fallback = 'Member'
 ) => {
   if (isOwnUserProfile(currentUser, targetUser) && currentUser?.role) {
-    return currentUser.role;
+    return getUserDisplayRole(currentUser, fallback);
   }
 
-  return targetUser?.role || fallback;
+  return getUserDisplayRole(targetUser, fallback);
 };

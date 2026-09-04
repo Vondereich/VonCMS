@@ -5,9 +5,11 @@
  * preserving a lightweight initial render from the already-loaded posts array.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { Post } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
+import { normalizeSiteUrl } from '../utils/siteUtils';
 
 interface PublicPostsMeta {
   page: number;
@@ -35,16 +37,24 @@ interface UsePublicPostsQueryResult {
   loadingMore: boolean;
   error: string | null;
   loadMore: () => Promise<void>;
+  nextPageHref: string;
 }
 
 const publicPostCache = new Map<string, Post>();
 export const PUBLIC_SEARCH_MAX_LENGTH = 120;
+export const PUBLIC_LISTING_MAX_PAGE = 100000;
 
 export const normalizePublicSearchInput = (value: string) =>
   value.slice(0, PUBLIC_SEARCH_MAX_LENGTH);
 
 export const normalizePublicSearchQuery = (value: string) =>
   normalizePublicSearchInput(value).trim();
+
+export const normalizePublicListingPage = (value: string | null): number => {
+  const normalized = String(value || '').trim();
+  if (!/^\d+$/.test(normalized)) return 1;
+  return Math.max(1, Math.min(PUBLIC_LISTING_MAX_PAGE, Number(normalized)));
+};
 
 export const rememberPublicPosts = (posts: Post[]) => {
   posts.forEach((post) => {
@@ -98,6 +108,11 @@ export function usePublicPostsQuery({
   limit = 12,
   enabled = true,
 }: UsePublicPostsQueryOptions): UsePublicPostsQueryResult {
+  const [urlSearchParams] = useSearchParams();
+  const requestedPage = useMemo(
+    () => normalizePublicListingPage(urlSearchParams.get('page')),
+    [urlSearchParams]
+  );
   const normalizedCategory = (category || '').trim();
   const rawSearch = normalizePublicSearchInput(search);
   const [debouncedSearch, setDebouncedSearch] = useState(rawSearch);
@@ -141,7 +156,7 @@ export function usePublicPostsQuery({
 
   const [posts, setPosts] = useState<Post[]>(fallbackPosts);
   const [meta, setMeta] = useState<PublicPostsMeta | null>(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(requestedPage);
   const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(startsWithPublicFetch);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -172,7 +187,7 @@ export function usePublicPostsQuery({
         const params = new URLSearchParams();
         params.set('page', String(pageNum));
         params.set('limit', String(limit));
-        params.set('includeTotal', 'false');
+        params.set('includeTotal', !append && pageNum > 1 ? 'true' : 'false');
         params.set('public', '1');
         if (category && category.trim()) params.set('category', category.trim());
         if (normalizedSearch.length >= 2) params.set('search', normalizedSearch);
@@ -227,27 +242,28 @@ export function usePublicPostsQuery({
     requestIdRef.current += 1;
     setPosts(fallbackPosts);
     setMeta(null);
-    setPage(1);
+    setPage(requestedPage);
     setHasMore(false);
     setIsLoading(false);
     setLoadingMore(false);
     setError(null);
-  }, [fallbackPosts, hasPendingSearchDebounce, hasShortSearch]);
+  }, [fallbackPosts, hasPendingSearchDebounce, hasShortSearch, requestedPage]);
 
   useEffect(() => {
     if (hasShortSearch || hasPendingSearchDebounce) return;
     if (!preserveVisiblePostsDuringFetch) {
       setPosts(settledFallbackPosts);
       setMeta(null);
-      setPage(1);
+      setPage(requestedPage);
       setHasMore(false);
     }
-    void fetchPage(1, false);
+    void fetchPage(requestedPage, false);
   }, [
     fetchPage,
     hasPendingSearchDebounce,
     hasShortSearch,
     preserveVisiblePostsDuringFetch,
+    requestedPage,
     settledFallbackPosts,
   ]);
 
@@ -260,6 +276,15 @@ export function usePublicPostsQuery({
     await fetchPage(page + 1, true);
   }, [fetchPage, hasMore, hasPendingSearchDebounce, hasShortSearch, isLoading, loadingMore, page]);
 
+  const nextPageHref = useMemo(() => {
+    const nextSearchParams = new URLSearchParams(urlSearchParams);
+    Array.from(nextSearchParams.keys()).forEach((key) => {
+      if (key === 'page' || key.startsWith('page[')) nextSearchParams.delete(key);
+    });
+    nextSearchParams.set('page', String(page + 1));
+    return normalizeSiteUrl(`/?${nextSearchParams.toString()}`);
+  }, [page, urlSearchParams]);
+
   return {
     posts,
     meta,
@@ -269,6 +294,7 @@ export function usePublicPostsQuery({
     loadingMore,
     error,
     loadMore,
+    nextPageHref,
   };
 }
 

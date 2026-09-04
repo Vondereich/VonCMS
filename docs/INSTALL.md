@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.26.11 "After Hours"**
+> **VonCMS v1.27.0 "OverDrive"**
 
 ---
 
@@ -161,4 +161,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.26.11 "After Hours"_
+_VonCMS v1.27.0 "OverDrive"_

@@ -89,6 +89,8 @@ try {
  */
 function showResult($success, $message, $username = '')
 {
+  header('Content-Type: text/html; charset=UTF-8');
+
   $icon = $success ? '&#9989;' : '&#10060;';
   $color = $success ? '#10b981' : '#ef4444';
   $bgColor = $success ? '#ecfdf5' : '#fef2f2';

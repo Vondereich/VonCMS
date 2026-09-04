@@ -378,11 +378,13 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
               <div className="flex items-center gap-2 mb-6">
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider border ${
-                    displayRole === 'Admin'
+                    displayRole === 'Super Admin'
                       ? 'border-red-500/50 text-red-400 bg-red-500/10'
-                      : displayRole === 'Moderator'
-                        ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
-                        : 'border-slate-500/50 text-slate-400 bg-slate-500/10'
+                      : displayRole === 'Admin'
+                        ? 'border-purple-500/50 text-purple-400 bg-purple-500/10'
+                        : displayRole === 'Moderator'
+                          ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
+                          : 'border-slate-500/50 text-slate-400 bg-slate-500/10'
                   }`}
                 >
                   {displayRole}

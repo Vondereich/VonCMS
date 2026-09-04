@@ -33,8 +33,9 @@ const toPlainText = (html: string) => {
 };
 
 const resolveAiModel = (settings?: any) => {
-  const configuredModel = settings?.api?.aiModel?.trim() || '';
-  return configuredModel.startsWith('gemini-') ? configuredModel : 'gemini-flash-latest';
+  const configuredModel =
+    settings?.aiAssistant?.model?.trim() || settings?.api?.aiModel?.trim() || '';
+  return configuredModel.startsWith('gemini-') ? configuredModel : 'gemini-3.6-flash';
 };
 
 const isProtectedAiKey = (value?: string) => {
@@ -58,8 +59,12 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
   const [isChecking, setIsChecking] = useState(false);
   const promptedApiKeyRef = useRef('');
 
-  const resolveApiKey = useCallback(
+  const resolveCredential = useCallback(
     (targetMode: AiAssistantMode) => {
+      if (settings?.aiAssistant?.sharedAvailable) {
+        return { apiKey: '', shared: true };
+      }
+
       const hasUsableSavedAiKey = Boolean(
         settings?.api?.aiApiKey && !isProtectedAiKey(settings?.api?.aiApiKey)
       );
@@ -75,7 +80,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
       let apiKey = savedAiKeyExpired || !hasUsableSavedAiKey ? '' : settings?.api?.aiApiKey?.trim();
 
       if (!apiKey && promptedApiKeyRef.current) {
-        return promptedApiKeyRef.current;
+        return { apiKey: promptedApiKeyRef.current, shared: false };
       }
 
       if (savedAiKeyExpired) {
@@ -96,7 +101,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         }
       }
 
-      return apiKey;
+      return apiKey ? { apiKey, shared: false } : null;
     },
     [settings]
   );
@@ -138,8 +143,8 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         return;
       }
 
-      const apiKey = resolveApiKey('write');
-      if (!apiKey) return;
+      const credential = resolveCredential('write');
+      if (!credential) return;
 
       setMode('write');
       setPendingResult(null);
@@ -152,7 +157,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-gemini-key': apiKey,
+            ...(credential.apiKey ? { 'x-gemini-key': credential.apiKey } : {}),
           },
           body: JSON.stringify({
             topic,
@@ -162,14 +167,14 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         });
 
         const data = await parseJsonResponse(res, 'AI generation');
-        setResultFromText('write', data.text || '', model);
+        setResultFromText('write', data.text || '', data.model || model);
       } catch (err: any) {
         notify.error('AI Generation Failed: ' + err.message);
       } finally {
         setIsGenerating(false);
       }
     },
-    [parseJsonResponse, resolveApiKey, setResultFromText, settings, writePrompt]
+    [parseJsonResponse, resolveCredential, setResultFromText, settings, writePrompt]
   );
 
   const onCheck = useCallback(
@@ -179,8 +184,8 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         return;
       }
 
-      const apiKey = resolveApiKey('check');
-      if (!apiKey) return;
+      const credential = resolveCredential('check');
+      if (!credential) return;
 
       setMode('check');
       setPendingResult(null);
@@ -192,7 +197,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-gemini-key': apiKey,
+            ...(credential.apiKey ? { 'x-gemini-key': credential.apiKey } : {}),
           },
           body: JSON.stringify({
             text: content,
@@ -201,14 +206,14 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         });
 
         const data = await parseJsonResponse(res, 'AI check');
-        setResultFromText('check', data.text || '', model);
+        setResultFromText('check', data.text || '', data.model || model);
       } catch (err: any) {
         notify.error('AI Check Failed: ' + err.message);
       } finally {
         setIsChecking(false);
       }
     },
-    [parseJsonResponse, resolveApiKey, setResultFromText, settings]
+    [parseJsonResponse, resolveCredential, setResultFromText, settings]
   );
 
   const clearPendingResult = useCallback(() => {
@@ -216,6 +221,8 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
   }, []);
 
   return {
+    activeModel: resolveAiModel(settings),
+    isSharedModel: Boolean(settings?.aiAssistant?.sharedAvailable),
     mode,
     setMode,
     writePrompt,

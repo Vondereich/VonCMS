@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/schema_repair_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, DELETE, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -22,8 +23,10 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-// Check if user is admin
-SessionManager::requireAdmin();
+$currentRole = $_SESSION['user']['role'] ?? '';
+if (!voncms_role_has_capability($currentRole, 'users.manage')) {
+  ResponseHelper::sendError('User management access required', 403);
+}
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 
@@ -35,9 +38,9 @@ $id = $input['id'];
 $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
 $isPrimaryAdminActor = SessionManager::isPrimaryAdmin();
 
-// Protect Root Admin (ID 1)
+// The first installed administrator is the non-deletable Super Admin account.
 if ((int) $id === 1) {
-  ResponseHelper::sendError('Only admin 1 can delete this account', 403);
+  ResponseHelper::sendError('The Super Admin account cannot be deleted', 403);
 }
 
 // Protect Self-Deletion
@@ -55,8 +58,14 @@ try {
   }
 
   $targetRole = strtolower((string) ($targetUser['role'] ?? ''));
-  if (!$isPrimaryAdminActor && $targetRole === 'root') {
-    ResponseHelper::sendError('Only admin 1 can delete this account', 403);
+  if (
+    !$isPrimaryAdminActor &&
+    voncms_user_target_requires_primary_admin($targetUser['id'], $targetRole)
+  ) {
+    ResponseHelper::sendError(
+      'System owner permission is required to delete this protected account',
+      403,
+    );
   }
 
   // Start Transaction (Critical for Multi-Table Cleanup)

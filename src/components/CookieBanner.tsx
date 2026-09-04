@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Cookie } from 'lucide-react';
+import { readAnalyticsConsent, writeAnalyticsConsent } from '../utils/analyticsConsent';
 
 interface CookieBannerProps {
   cookieConsentRequired: boolean;
@@ -9,22 +10,11 @@ export const CookieBanner: React.FC<CookieBannerProps> = ({ cookieConsentRequire
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
-    // Only show if consent is required AND cookie is not yet set
-    if (cookieConsentRequired) {
-      const hasConsent = document.cookie.split('; ').find((row) => row.startsWith('von_consent='));
-
-      if (!hasConsent) {
-        setShowBanner(true);
-      }
-    }
+    setShowBanner(cookieConsentRequired && readAnalyticsConsent() === 'unset');
   }, [cookieConsentRequired]);
 
   const handleAccept = () => {
-    // Set cookie for 365 days
-    const d = new Date();
-    d.setTime(d.getTime() + 365 * 24 * 60 * 60 * 1000);
-    const expires = 'expires=' + d.toUTCString();
-    document.cookie = 'von_consent=true;' + expires + ';path=/';
+    writeAnalyticsConsent(true);
 
     setShowBanner(false);
 
@@ -35,11 +25,7 @@ export const CookieBanner: React.FC<CookieBannerProps> = ({ cookieConsentRequire
   };
 
   const handleDecline = () => {
-    // Set cookie to false to stop asking
-    const d = new Date();
-    d.setTime(d.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days memory for decline
-    const expires = 'expires=' + d.toUTCString();
-    document.cookie = 'von_consent=false;' + expires + ';path=/';
+    writeAnalyticsConsent(false);
 
     setShowBanner(false);
   };
@@ -58,8 +44,8 @@ export const CookieBanner: React.FC<CookieBannerProps> = ({ cookieConsentRequire
               Cookies & Privacy
             </h3>
             <p className="text-slate-600 dark:text-slate-400 text-sm max-w-2xl leading-relaxed">
-              We use cookies to enhance your experience and analyze site traffic. By clicking
-              "Accept", you agree to our use of cookies for analytics and personalized content.
+              We use optional analytics cookies to understand site traffic. Choose Accept to allow
+              visitor analytics, or Decline to continue without visitor analytics.
             </p>
           </div>
         </div>
@@ -75,7 +61,7 @@ export const CookieBanner: React.FC<CookieBannerProps> = ({ cookieConsentRequire
             onClick={handleAccept}
             className="flex-1 md:flex-none px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-600/30"
           >
-            Accept All
+            Accept
           </button>
         </div>
       </div>

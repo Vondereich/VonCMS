@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { resolveAnalyticsPageLocation } from '../utils/analyticsPrivacy';
+import { analyticsTrackingAllowed } from '../utils/analyticsConsent';
 
 interface AnalyticsSettings {
   googleAnalyticsId?: string;
@@ -39,13 +40,7 @@ export const AnalyticsInjector: React.FC<AnalyticsInjectorProps> = ({ analytics 
     const gaId = analytics.googleAnalyticsId.trim();
 
     // 2. Cookie Consent Check
-    if (analytics.cookieConsent) {
-      const hasConsent = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('von_consent=true'));
-
-      if (!hasConsent) return;
-    }
+    if (!analyticsTrackingAllowed(Boolean(analytics.cookieConsent))) return;
 
     // 3. Inject Script (Idempotent)
     const scriptId = `von-ga-script-${gaId}`;

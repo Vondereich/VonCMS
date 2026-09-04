@@ -309,6 +309,99 @@ if (!function_exists('voncms_resolve_social_image')) {
   }
 }
 
+if (!function_exists('voncms_enrich_public_social_schema')) {
+  /**
+   * Resolve one authoritative social image and enrich supported schema nodes
+   * with safe local dimensions when the image belongs to this installation.
+   *
+   * @param mixed $schemaData
+   * @param array<int, array{url:mixed, kind:string}> $candidates
+   * @return array{schemaData:mixed, seoImage:string, twitterCard:string, width:int, height:int}
+   */
+  function voncms_enrich_public_social_schema(
+    $schemaData,
+    array $candidates,
+    string $domainUrl,
+    string $publicRoot,
+  ): array {
+    $resolvedSocialImage = voncms_resolve_social_image($candidates, $domainUrl);
+    $seoImage = $resolvedSocialImage['url'];
+
+    if (is_array($schemaData)) {
+      $schemaType = (string) ($schemaData['@type'] ?? '');
+      if (in_array($schemaType, ['Article', 'NewsArticle', 'BlogPosting', 'WebPage'], true)) {
+        if ($seoImage !== '') {
+          $schemaData['image'] = [
+            [
+              '@type' => 'ImageObject',
+              'url' => $seoImage,
+            ],
+          ];
+        } else {
+          unset($schemaData['image']);
+        }
+      }
+    }
+
+    $width = 0;
+    $height = 0;
+    $seoImageParts = parse_url($seoImage);
+    $domainUrlParts = parse_url($domainUrl);
+    if (
+      is_array($seoImageParts) &&
+      is_array($domainUrlParts) &&
+      !empty($seoImageParts['host']) &&
+      !empty($domainUrlParts['host']) &&
+      strcasecmp((string) $seoImageParts['host'], (string) $domainUrlParts['host']) === 0 &&
+      (int) ($seoImageParts['port'] ?? 0) === (int) ($domainUrlParts['port'] ?? 0)
+    ) {
+      $seoImagePath = rawurldecode((string) ($seoImageParts['path'] ?? ''));
+      $domainBasePath = rtrim((string) ($domainUrlParts['path'] ?? ''), '/');
+      if ($domainBasePath !== '' && str_starts_with($seoImagePath, $domainBasePath . '/')) {
+        $seoImagePath = substr($seoImagePath, strlen($domainBasePath));
+      }
+
+      $resolvedPublicRoot = realpath($publicRoot);
+      $localImagePath = realpath(
+        rtrim($publicRoot, '/\\') .
+          DIRECTORY_SEPARATOR .
+          ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $seoImagePath), DIRECTORY_SEPARATOR),
+      );
+      if (
+        $resolvedPublicRoot !== false &&
+        $localImagePath !== false &&
+        str_starts_with($localImagePath, $resolvedPublicRoot . DIRECTORY_SEPARATOR) &&
+        is_file($localImagePath)
+      ) {
+        $imageDimensions = @getimagesize($localImagePath);
+        if (is_array($imageDimensions)) {
+          $width = max(0, (int) ($imageDimensions[0] ?? 0));
+          $height = max(0, (int) ($imageDimensions[1] ?? 0));
+        }
+      }
+    }
+
+    if (
+      $width > 0 &&
+      $height > 0 &&
+      is_array($schemaData) &&
+      isset($schemaData['image'][0]) &&
+      is_array($schemaData['image'][0])
+    ) {
+      $schemaData['image'][0]['width'] = $width;
+      $schemaData['image'][0]['height'] = $height;
+    }
+
+    return [
+      'schemaData' => $schemaData,
+      'seoImage' => $seoImage,
+      'twitterCard' => $resolvedSocialImage['card'],
+      'width' => $width,
+      'height' => $height,
+    ];
+  }
+}
+
 if (!function_exists('voncms_resolve_featured_image_input')) {
   /**
    * Preserve an unchanged legacy value so unrelated edits remain saveable, but
@@ -538,6 +631,7 @@ if (!function_exists('voncms_apply_category_collection_items')) {
    * @param int $totalPosts
    * @param string $articleSchemaType
    * @param string $domainUrl
+   * @param int $positionOffset
    * @return void
    */
   function voncms_apply_category_collection_items(
@@ -546,6 +640,7 @@ if (!function_exists('voncms_apply_category_collection_items')) {
     int $totalPosts,
     string $articleSchemaType,
     string $domainUrl,
+    int $positionOffset = 0,
   ): void {
     $itemList = [];
     foreach ($posts as $index => $post) {
@@ -568,7 +663,7 @@ if (!function_exists('voncms_apply_category_collection_items')) {
       }
       $itemList[] = [
         '@type' => 'ListItem',
-        'position' => $index + 1,
+        'position' => max(0, $positionOffset) + $index + 1,
         'item' => $item,
       ];
     }
@@ -578,5 +673,150 @@ if (!function_exists('voncms_apply_category_collection_items')) {
       'numberOfItems' => max(0, $totalPosts),
       'itemListElement' => $itemList,
     ];
+  }
+}
+
+if (!function_exists('voncms_build_public_schema_graph')) {
+  /**
+   * Assemble the final public schema graph from already-resolved route data.
+   *
+   * @param array<string, mixed> $schemaData
+   * @param array<string, mixed> $context
+   * @return array<string, mixed>
+   */
+  function voncms_build_public_schema_graph(array $schemaData, array $context): array
+  {
+    $path = (string) ($context['path'] ?? '');
+    $domainUrl = rtrim((string) ($context['domainUrl'] ?? ''), '/');
+    $articleSchemaType = voncms_normalize_article_schema_type(
+      $context['articleSchemaType'] ?? null,
+    );
+    $listingOffset = max(0, (int) ($context['listingOffset'] ?? 0));
+    $categoryPosts = is_array($context['categoryPosts'] ?? null) ? $context['categoryPosts'] : [];
+    $homepagePosts = is_array($context['homepagePosts'] ?? null) ? $context['homepagePosts'] : [];
+    $additionalSchemaNodes = [];
+
+    if (
+      !empty($context['isCategoryLanding']) &&
+      voncms_is_homepage_path($path) &&
+      $categoryPosts !== [] &&
+      ($schemaData['@type'] ?? '') === 'CollectionPage'
+    ) {
+      voncms_apply_category_collection_items(
+        $schemaData,
+        $categoryPosts,
+        max(0, (int) ($context['categoryPostCount'] ?? 0)),
+        $articleSchemaType,
+        $domainUrl,
+        $listingOffset,
+      );
+    }
+
+    if (
+      voncms_is_homepage_path($path) &&
+      empty($context['hasHomepageDiscoveryQuery']) &&
+      $homepagePosts !== []
+    ) {
+      $homepageCollectionPage = [
+        '@type' => 'CollectionPage',
+        'name' => (string) ($context['siteName'] ?? ''),
+        'url' => $domainUrl . '/',
+        'description' => (string) ($context['siteDescription'] ?? ''),
+      ];
+      $itemList = [];
+      foreach ($homepagePosts as $index => $post) {
+        $item = [
+          '@type' => $articleSchemaType,
+          'name' => html_entity_decode(
+            (string) ($post['title'] ?? ''),
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8',
+          ),
+          'url' => $domainUrl . (string) ($post['url'] ?? ''),
+          'description' => voncms_truncate_word_safe(
+            html_entity_decode(
+              strip_tags((string) ($post['excerpt'] ?? '')),
+              ENT_QUOTES | ENT_HTML5,
+              'UTF-8',
+            ),
+            200,
+          ),
+        ];
+        $itemImage = voncms_normalize_public_media_url($post['image_url'] ?? '');
+        if ($itemImage !== '') {
+          $item['image'] = voncms_absolute_public_url($itemImage, $domainUrl);
+        }
+        $itemList[] = [
+          '@type' => 'ListItem',
+          'position' => $listingOffset + $index + 1,
+          'item' => $item,
+        ];
+      }
+      $homepageCollectionPage['mainEntity'] = [
+        '@type' => 'ItemList',
+        'itemListElement' => $itemList,
+      ];
+      $additionalSchemaNodes[] = $homepageCollectionPage;
+    }
+
+    $post = is_array($context['post'] ?? null) ? $context['post'] : null;
+    if ($path !== '' && $post !== null && ($context['resolvedContentType'] ?? 'post') === 'post') {
+      $categoryName = trim((string) ($post['category'] ?? ''));
+      if ($categoryName === '') {
+        $categoryName = 'Uncategorized';
+      }
+      $categorySlug = voncms_category_slug($categoryName);
+      $postName = html_entity_decode(
+        (string) ($post['title'] ?? ($context['seoTitle'] ?? '')),
+        ENT_QUOTES | ENT_HTML5,
+        'UTF-8',
+      );
+      $seoUrl = (string) ($context['seoUrl'] ?? '');
+      $additionalSchemaNodes[] = [
+        '@type' => 'BreadcrumbList',
+        'itemListElement' => [
+          [
+            '@type' => 'ListItem',
+            'position' => 1,
+            'name' => 'Home',
+            'item' => $domainUrl,
+          ],
+          [
+            '@type' => 'ListItem',
+            'position' => 2,
+            'name' => $categoryName,
+            'item' => $domainUrl . '/?category=' . rawurlencode($categoryName),
+          ],
+          [
+            '@type' => 'ListItem',
+            'position' => 3,
+            'name' => $postName,
+            'item' =>
+              $seoUrl !== ''
+                ? $seoUrl
+                : $domainUrl . '/' . $categorySlug . '/' . ($post['slug'] ?? ($post['id'] ?? '')),
+          ],
+        ],
+      ];
+    }
+
+    foreach (['name', 'description', 'headline'] as $field) {
+      if (!empty($schemaData[$field])) {
+        $schemaData[$field] = html_entity_decode(
+          (string) $schemaData[$field],
+          ENT_QUOTES | ENT_HTML5,
+          'UTF-8',
+        );
+      }
+    }
+
+    return voncms_build_site_identity_schema_graph(
+      $schemaData,
+      (string) ($context['siteName'] ?? ($context['seoTitle'] ?? '')),
+      (string) ($context['siteDescription'] ?? ($context['seoDescription'] ?? '')),
+      $domainUrl,
+      (string) ($context['logoUrl'] ?? ''),
+      $additionalSchemaNodes,
+    );
   }
 }

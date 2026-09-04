@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -60,8 +61,11 @@ try {
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
   $isAdmin = SessionManager::isAdmin();
-  $canReadProtectedPost = SessionManager::isStaff();
   $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $canReadAnyProtectedPost = voncms_role_has_capability($currentRole, 'posts.read_any_protected');
+  $canReadOwnProtectedPost = voncms_role_has_capability($currentRole, 'posts.read_own_protected');
+  $canReadProtectedPost = $canReadAnyProtectedPost || $canReadOwnProtectedPost;
+  $mustOwnProtectedPost = $canReadOwnProtectedPost && !$canReadAnyProtectedPost;
   $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
   $currentTimestamp = date('Y-m-d H:i:s');
 
@@ -72,7 +76,7 @@ try {
 
   $publicStatusClause =
     "(p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?)";
-  if ($canReadProtectedPost && $currentRole === 'writer') {
+  if ($canReadProtectedPost && $mustOwnProtectedPost) {
     $statusClause = " AND (($publicStatusClause) OR p.author_id = ?)";
   } elseif ($canReadProtectedPost) {
     $statusClause = '';
@@ -93,10 +97,10 @@ try {
             WHERE p.id = ?" . $statusClause;
     $stmt = $pdo->prepare($sql);
     $params = [(int) $id];
-    if (!$canReadProtectedPost || $currentRole === 'writer') {
+    if (!$canReadProtectedPost || $mustOwnProtectedPost) {
       $params[] = $currentTimestamp;
     }
-    if ($canReadProtectedPost && $currentRole === 'writer') {
+    if ($canReadProtectedPost && $mustOwnProtectedPost) {
       $params[] = $currentUserId;
     }
     $stmt->execute($params);
@@ -113,10 +117,10 @@ try {
             WHERE p.slug = ?" . $statusClause;
     $stmt = $pdo->prepare($sql);
     $params = [$slug];
-    if (!$canReadProtectedPost || $currentRole === 'writer') {
+    if (!$canReadProtectedPost || $mustOwnProtectedPost) {
       $params[] = $currentTimestamp;
     }
-    if ($canReadProtectedPost && $currentRole === 'writer') {
+    if ($canReadProtectedPost && $mustOwnProtectedPost) {
       $params[] = $currentUserId;
     }
     $stmt->execute($params);
@@ -128,12 +132,7 @@ try {
     ResponseHelper::sendError('Post not found', 404);
   }
 
-  if (!$canReadProtectedPost) {
-    // View tracking must not change the content freshness timestamp used by editor conflict checks.
-    $pdo
-      ->prepare('UPDATE posts SET views = views + 1, updated_at = updated_at WHERE id = ?')
-      ->execute([$row['id']]);
-  }
+  // Fetching content is not a view event. track_monolithic.php owns post/page view counters.
 
   $normalized = array_change_key_case($row, CASE_LOWER);
 

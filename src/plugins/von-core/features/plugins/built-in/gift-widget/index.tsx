@@ -13,7 +13,7 @@ export const FloatingGiftPlugin: PluginDefinition = {
   id: 'vp_gift_widget',
   name: 'Holiday Gift Widget',
   description: 'Adds a floating gift icon at the bottom right corner.',
-  version: '1.26',
+  version: '1.27',
   author: 'VonCMS Team',
   render: (location: PluginLocation, props?: any) => {
     if (location !== 'footer_bottom') return null;

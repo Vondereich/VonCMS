@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.26.11 feature baseline for the After Hours line.
+> VonCMS v1.27.0 feature baseline for the OverDrive line.
 
-## Introduction to VonCMS v1.26.11 "After Hours"
+## Introduction to VonCMS v1.27.0 "OverDrive"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,11 +47,11 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.26.11 "After Hours"
+### This is v1.27.0 "OverDrive"
 
-_"After Hours" - the maintenance and modernization line, focused on moving the development toolchain forward without changing the practical PHP hosting model._
+_"OverDrive" - the deliberately paced development line for larger publisher workflows and platform capabilities._
 
-**After Hours** begins with Tailwind CSS 4, TypeScript 7 native compilation, OpenRouter SDK 1, and refreshed editor/UI dependencies while retaining the OpenGate runtime, routing, security, and packaging baseline.
+**OverDrive** begins from the stable After Hours runtime, with compatible dependency maintenance and a slower scope, implementation, verification, and canary cycle for larger changes.
 
 It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
 
@@ -132,7 +132,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail               | Value                                     |
 | -------------------- | ----------------------------------------- |
-| Development baseline | `v1.26.11 "After Hours"`                  |
+| Development baseline | `v1.27.0 "OverDrive"`                     |
 | Minimum PHP          | `8.2+`                                    |
 | Architecture         | React 19 frontend + PHP API backend       |
 | Hosting              | Shared hosting, cPanel, VPS - your choice |
@@ -164,10 +164,10 @@ The admin dashboard is where you'll spend most of your time. It should feel good
 - **Responsive administration** - navigation becomes a touch-safe drawer on smaller screens, while content, users, media, newsletter, security, settings, and maintenance tools adapt without dropping actions.
 - **Consistent public dates** - choose one long, short, numeric, or ISO-style display format in General Settings and every bundled homepage, single post, profile activity, comment timestamp, sidebar, and related-post surface follows it without changing feed, schema, permalink, or stored timestamp formats.
 - **Consistent admin dialogs** - editor previews, media lightboxes, extension settings, redirects, users, and updates share a blurred, keyboard-safe, viewport-bounded popup layer.
-- **Post manager** - create, edit, schedule, archive. Full draft workflow.
+- **Post manager** - create, edit, schedule, archive, and review Writer submissions without changing the original author.
 - **Page manager** - static pages with the same editor experience.
 - **Media manager** - upload, organize, search, regenerate thumbnails, clean orphaned files. WebP conversion built in.
-- **User manager** - admins, moderators, writers, subscribers. Role-based permissions that actually work.
+- **User manager** - Root/Admin ownership, Moderator review, Writer draft submission, and Member access use one fixed server-side capability policy.
 - **Comment moderation** - approve, reject, reply, track spam. Staff see pending comments, guests see only approved.
 - **Database manager** - inspect, export, import, and repair the active VonCMS database. See [Database Manager](DATABASE_MANAGER.md).
 - **Security dashboard** - login logs, session monitoring, security health at a glance.
@@ -343,7 +343,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The `v1.26.11` development baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The `v1.27.0` development baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -351,7 +351,7 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 ### What's behind the posture?
 
-- **83 PHP API files** - current API surface under `public/api/`, with 101 public PHP files covered by the lint gate across the public runtime.
+- **88 PHP API and helper files** - under `public/api/`, with 108 public PHP files covered by the lint gate across the public runtime. Internal helpers are not callable endpoints.
 - **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** - the `v1.26.11` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** - the `v1.27.0` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** - React talks to PHP. PHP talks to MySQL. Done.

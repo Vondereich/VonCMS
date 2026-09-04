@@ -716,6 +716,7 @@ const ProjectsSection = ({
                 loading={loadingMore}
                 hasMore={hasMore}
                 onLoadMore={onLoadMore}
+                href={publicPosts.nextPageHref}
                 label="Show More Projects"
                 style={{
                   background: colors.bgSecondary,
@@ -1723,7 +1724,11 @@ const PortfolioProfile = ({
           )}
           <span
             className="inline-block px-4 py-1 rounded-full text-sm font-medium mb-4"
-            style={{ background: colors.accentLight, color: colors.accent }}
+            style={
+              getProfileDisplayRole(currentUser, localUser, 'Creator') === 'Super Admin'
+                ? { background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444' }
+                : { background: colors.accentLight, color: colors.accent }
+            }
           >
             {getProfileDisplayRole(currentUser, localUser, 'Creator')}
           </span>

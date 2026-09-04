@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-VonCMS v1.26.11 is the current release in the **v1.26 "After Hours"** series. The series opened with v1.26.0 as a focused modernization of the development toolchain, editor structure, SEO controls, public themes, and admin experience while keeping the established PHP shared-hosting runtime. You can install the latest published Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+Current build: **v1.27.0 "OverDrive"**, available for pre-release testing. v1.26.11 remains the latest published GitHub release. You can install a published Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -13,15 +13,28 @@ VonCMS v1.26.11 is the current release in the **v1.26 "After Hours"** series. Th
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
 > [!NOTE]
-> v1.26.11 is the current release. Review its changelog, back up the site, and verify the homepage, one post, one page, and the admin dashboard after updating.
+> v1.27.0 has not yet been published on GitHub. Test pre-release ZIPs on a local or staging installation first. Before updating a production site, back up its files and database, review the changelog, and verify the homepage, one post, one page, and the admin dashboard after updating.
 >
-> v1.26.11 may be the final update in the **v1.26 "After Hours"** series. The next planned release line is **v1.27 "OverDrive"**. Its update cadence is expected to be slower as larger changes move through clearer scope, isolated development, deeper verification, and longer canary testing. Future releases will be prepared more systematically rather than following a frequent update schedule.
+> **v1.27 "OverDrive"** is now the active development line. Its update cadence is intentionally slower as larger changes move through clearer scope, isolated development, deeper verification, and longer canary testing.
 
 > [!IMPORTANT]
 > **Existing-site database repair required for v1.26.11**
-> After upgrading an existing VonCMS site through either Dashboard OTA or a manual Deploy ZIP, back up the database, sign in as the primary administrator, and run **Settings > Tools > Repair Database** once. This explicit repair reconciles the v1.26.10 schema baseline, adds and backfills the v1.26.11 `published_at` columns, and activates the protected schema capability marker. Fresh installations already create the current schema and do not need this upgrade repair. Database Repair is separate from **System Tools > Repair `.htaccess`**; the OTA updater continues to protect the live `.htaccess`, and the `.htaccess` repair remains the one-time requirement for sites that did not complete the earlier v1.25.0 managed-block migration.
+> After upgrading an existing VonCMS site through either Dashboard OTA or a manual Deploy ZIP, back up the database, sign in as the primary administrator, and run **Settings > Tools > Repair Database** once. This explicit repair reconciles the v1.26.10 schema baseline, adds and backfills the v1.26.11 `published_at` columns, and activates the protected schema capability marker. Fresh installations already create the current schema and do not need this upgrade repair. Database Repair is separate from **System Tools > Repair `.htaccess`**; the OTA updater protects the live `.htaccess`, so later routing updates can also require the separate managed-block repair described below.
 
-The **v1.26 "After Hours"** line modernizes the compiler, styling pipeline, editor structure, SEO schema controls, and bundled extension baseline while preserving the shared-hosting PHP runtime established by OpenGate. Runtime sites should install from the Deploy ZIP. Developers who want to study or modify the code should use the source repository or Source ZIP.
+### What Changes In v1.27.0
+
+- Writer draft submission and a staff review queue, with server-enforced role and account boundaries.
+- Shared AI writing with a visible model identity, bounded provider requests, and HTML-preserving copy review.
+- Clearer editor controls, enforced excerpt and keyword limits, and TechPress card readability improvements.
+- Crawlable Load More links, paginated no-JavaScript reading, and guarded public rendering helpers.
+- Consent-aware native and Google Analytics, while aggregate post/page view counters remain separate from visitor tracking.
+- Refreshed dependencies, including TipTap `3.31.3` and `lucide-react` `1.41.0`.
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete changes and their scope.
+
+> [!IMPORTANT]
+> **Existing-site routing repair for v1.27.0**
+> After installing this build over an older site, sign in as the primary administrator and run **System Tools > Repair `.htaccess`** when integrity checks report outdated rules. The update preserves your live `.htaccess`; this repair installs the current managed PHP-path and internal-helper protections while retaining hosting directives outside the VonCMS block. This is separate from Database Repair, and v1.27.0 adds no database migration. Nginx deployments must apply the equivalent server rules in [VPS Deployment](docs/VPS.md).
 
 > [!WARNING]
 >
@@ -58,9 +71,9 @@ VonCMS keeps the runtime simple:
 
 ## What Is Included
 
-**Content**: posts, pages, drafts, scheduled publishing, rich TipTap editor, media manager, categories, excerpts, metadata, keywords, responsive images, and quick edit.
+**Content**: posts, pages, drafts, Writer review submissions, scheduled publishing, rich TipTap editor, media manager, categories, excerpts, metadata, keywords, responsive images, and quick edit.
 
-**Admin**: dashboard, settings, users, role boundaries, comments moderation, contact forms, newsletter tools, database utilities, audit logs, and repair tools.
+**Admin**: dashboard, reviewer queue, settings, users, fixed-role boundaries, comments moderation, contact forms, newsletter tools, database utilities, audit logs, and repair tools.
 
 **Public site**: bundled themes, navigation menus, profiles, category views, search, comments, feeds, sitemap, robots output, `llms.txt`, JSON-LD, canonical URLs, Open Graph, and Twitter cards.
 
@@ -260,8 +273,8 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.26.11_Deploy.zip`
-- `VonCMS_v1.26.11_Source.zip`
+- `VonCMS_v1.27.0_Deploy.zip`
+- `VonCMS_v1.27.0_Source.zip`
 
 No checksum sidecar files are generated by the release script.
 
@@ -303,8 +316,9 @@ For sites older than the fixed updater baseline, use the manual Deploy ZIP repla
 3. Upload and extract the complete new Deploy ZIP, allowing its application files to replace the old release.
 4. Keep `von_config.php`, `data/`, `uploads/`, `backups/`, and the live `.htaccess` file protected from manual replacement or deletion.
 5. Visit the site and admin dashboard, then confirm the Dashboard shows the expected release version.
-6. When upgrading an existing site to v1.26.11, sign in as the primary administrator and run **Settings > Tools > Repair Database** once. Review the completed fixes and any compatibility warning, then confirm Database Status is healthy. Fresh installations skip this step.
-7. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
+6. If the site has not completed the v1.26.11 schema upgrade, sign in as the primary administrator and run **Settings > Tools > Repair Database** once. Review the completed fixes and any compatibility warning, then confirm Database Status is healthy. Fresh installations and already-healthy upgrades skip this step.
+7. For v1.27.0, run **System Tools > Repair `.htaccess`** if integrity checks flag outdated managed rules. On Nginx, apply the equivalent configuration from [VPS Deployment](docs/VPS.md).
+8. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
 
 After a site is already on the fixed updater baseline, the dashboard updater can be used for later patches when the host allows outbound release downloads. OTA activation replaces the release-managed `assets/` and `docs/` directories as complete rollback-protected units, so retired fingerprinted bundles and guides cannot remain beside the current release.
 
