@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-Current build: **v1.27.0 "OverDrive"**, available for pre-release testing. v1.26.11 remains the latest published GitHub release. You can install a published Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+Current release: **v1.27.0 "OverDrive"**. You can install the published Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -13,7 +13,7 @@ Current build: **v1.27.0 "OverDrive"**, available for pre-release testing. v1.26
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
 > [!NOTE]
-> v1.27.0 has not yet been published on GitHub. Test pre-release ZIPs on a local or staging installation first. Before updating a production site, back up its files and database, review the changelog, and verify the homepage, one post, one page, and the admin dashboard after updating.
+> Before updating a production site to v1.27.0, back up its files and database, review the changelog, and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
 >
 > **v1.27 "OverDrive"** is now the active development line. Its update cadence is intentionally slower as larger changes move through clearer scope, isolated development, deeper verification, and longer canary testing.
 
