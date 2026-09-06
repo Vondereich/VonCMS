@@ -5,6 +5,131 @@
  */
 
 /**
+ * Accept only a configured absolute site base URL suitable for token-bearing links.
+ */
+function voncms_normalize_trusted_public_base_url(mixed $value): string
+{
+  if (!is_scalar($value)) {
+    return '';
+  }
+
+  $candidate = rtrim(trim((string) $value), '/');
+  if ($candidate === '' || strlen($candidate) > 2048) {
+    return '';
+  }
+
+  $parts = parse_url($candidate);
+  $scheme = is_array($parts) ? strtolower((string) ($parts['scheme'] ?? '')) : '';
+  if (
+    !is_array($parts) ||
+    filter_var($candidate, FILTER_VALIDATE_URL) === false ||
+    !in_array($scheme, ['http', 'https'], true) ||
+    empty($parts['host']) ||
+    isset($parts['user']) ||
+    isset($parts['pass']) ||
+    isset($parts['query']) ||
+    isset($parts['fragment'])
+  ) {
+    return '';
+  }
+
+  return $candidate;
+}
+
+/**
+ * Retain request-derived URLs only for an exact loopback development host.
+ */
+function voncms_loopback_request_base_url(): string
+{
+  $environment = strtolower(trim((string) (getenv('VONCMS_ENV') ?: 'production')));
+  if (!in_array($environment, ['development', 'dev', 'local'], true)) {
+    return '';
+  }
+
+  $rawHost = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
+  if ($rawHost === '' || preg_match('/[\x00-\x20\\\\\/@?#]/', $rawHost)) {
+    return '';
+  }
+
+  $hostParts = parse_url('http://' . $rawHost);
+  if (!is_array($hostParts) || empty($hostParts['host'])) {
+    return '';
+  }
+
+  $host = strtolower(trim((string) $hostParts['host'], '[]'));
+  if (!in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+    return '';
+  }
+
+  $authority = $host === '::1' ? '[' . $host . ']' : $host;
+  if (isset($hostParts['port'])) {
+    $port = (int) $hostParts['port'];
+    if ($port < 1 || $port > 65535) {
+      return '';
+    }
+    $authority .= ':' . $port;
+  }
+
+  $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+  $basePath = preg_replace('#/api(?:/.*)?$#i', '', $scriptName);
+  $basePath = $basePath === null ? '' : '/' . trim($basePath, '/');
+  $basePath = $basePath === '/' ? '' : $basePath;
+  $https = function_exists('is_https')
+    ? is_https()
+    : isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] === '1');
+
+  return ($https ? 'https://' : 'http://') . $authority . $basePath;
+}
+
+/**
+ * Resolve one trusted base URL without accepting an arbitrary production Host header.
+ */
+function voncms_resolve_trusted_public_base_url(mixed $pdo): string
+{
+  if ($pdo instanceof PDO) {
+    try {
+      $statement = $pdo->prepare(
+        "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='domain_url' LIMIT 1",
+      );
+      $statement->execute();
+      $row = $statement->fetch(PDO::FETCH_ASSOC);
+      $configured = voncms_normalize_trusted_public_base_url($row['setting_value'] ?? '');
+      if ($configured !== '') {
+        return $configured;
+      }
+    } catch (Throwable $error) {
+      // The loopback-only fallback below keeps local development usable.
+    }
+  }
+
+  return voncms_loopback_request_base_url();
+}
+
+/**
+ * Build an account-action URL below a previously trusted site base URL.
+ *
+ * @param array<string, scalar> $query
+ */
+function voncms_build_account_action_url(string $baseUrl, string $path, array $query): string
+{
+  $trustedBase = voncms_normalize_trusted_public_base_url($baseUrl);
+  $normalizedPath = '/' . ltrim(str_replace('\\', '/', trim($path)), '/');
+  if (
+    $trustedBase === '' ||
+    $normalizedPath === '/' ||
+    str_contains($normalizedPath, '..') ||
+    preg_match('/[\x00-\x1F]/', $normalizedPath)
+  ) {
+    return '';
+  }
+
+  return $trustedBase .
+    $normalizedPath .
+    '?' .
+    http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+}
+
+/**
  * Send email using SMTP settings from database or site_settings.json
  * Falls back to PHP mail() if SMTP not configured
  *
@@ -487,36 +612,27 @@ function generateVerificationToken()
  * @param string $to
  * @param string $username
  * @param string $token
+ * @param string|null $trustedBaseUrl
  * @return array<string, mixed>
  */
-function sendVerificationEmail($pdo, $to, $username, $token)
+function sendVerificationEmail($pdo, $to, $username, $token, $trustedBaseUrl = null)
 {
-  // Build verification URL - prefer configured domain_url (prevents Host header injection)
-  $protocol = is_https() ? 'https' : 'http';
-
-  $domainUrl = '';
-  try {
-    $duStmt = $pdo->prepare(
-      "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='domain_url' LIMIT 1",
-    );
-    $duStmt->execute();
-    $duRow = $duStmt->fetch(PDO::FETCH_ASSOC);
-    $domainUrl = $duRow ? rtrim($duRow['setting_value'], '/') : '';
-  } catch (Exception $e) {
-    // DB may not be available during early install
+  $trustedBaseUrl =
+    $trustedBaseUrl === null
+      ? voncms_resolve_trusted_public_base_url($pdo)
+      : voncms_normalize_trusted_public_base_url($trustedBaseUrl);
+  $verifyUrl = voncms_build_account_action_url($trustedBaseUrl, '/api/verify_email.php', [
+    'token' => (string) $token,
+  ]);
+  if ($verifyUrl === '') {
+    return [
+      'success' => false,
+      'method' => 'configuration',
+      'message' => 'A valid canonical Domain URL is required before verification email delivery.',
+    ];
   }
 
-  if ($domainUrl) {
-    $verifyUrl = "$domainUrl/api/verify_email.php?token=$token";
-  } else {
-    // Fallback: derive from request
-    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-    $basePath = preg_replace('#/api(/.*)?$#i', '', (string) $scriptName);
-    $basePath = '/' . trim($basePath, '/');
-    $basePath = $basePath === '/' ? '' : $basePath;
-    $verifyUrl = "$protocol://$host$basePath/api/verify_email.php?token=$token";
-  }
+  $safeVerifyUrl = htmlspecialchars($verifyUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
   $subject = 'Verify Your Email - VonCMS';
 
@@ -537,13 +653,13 @@ function sendVerificationEmail($pdo, $to, $username, $token)
                 <p style="color: #666;">Thanks for registering! Please click the button below to verify your email address:</p>
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="' .
-    $verifyUrl .
+    $safeVerifyUrl .
     '" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Verify Email</a>
                 </div>
                 <p style="color: #999; font-size: 12px;">Or copy this link: <br><a href="' .
-    $verifyUrl .
+    $safeVerifyUrl .
     '" style="color: #667eea; word-break: break-all;">' .
-    $verifyUrl .
+    $safeVerifyUrl .
     '</a></p>
                 <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
                 <p style="color: #999; font-size: 11px; text-align: center;">This link expires in 24 hours. If you didn\'t create an account, ignore this email.</p>

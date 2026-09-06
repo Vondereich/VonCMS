@@ -305,16 +305,16 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   // Solid auth surface classes
   const outerClass = isModal
     ? 'flex items-center justify-center font-sans bg-transparent'
-    : 'min-h-screen flex items-center justify-center bg-slate-100 px-4 py-10 font-sans dark:bg-[#101018]';
+    : 'min-h-screen flex items-center justify-center bg-slate-100 px-4 py-10 font-sans dark:bg-admin-inset';
 
   const cardClass =
-    'max-w-lg w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]';
+    'max-w-lg w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel';
   const labelClass =
     'mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400';
   const inputClass =
-    'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#1a1b26] focus:ring-4 focus:ring-slate-500/10 dark:border-[#333544] dark:bg-[#101018] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+    'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
   const iconInputClass =
-    'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#1a1b26] focus:ring-4 focus:ring-slate-500/10 dark:border-[#333544] dark:bg-[#101018] dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+    'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
   const headerIcon =
     view === 'login' ? (
       <LogIn size={28} />
@@ -332,8 +332,8 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
     <div className={outerClass}>
       <div className={cardClass}>
         {/* Header */}
-        <div className="border-b border-slate-200 bg-[#1a1b26] p-6 text-center dark:border-[#2a2b36] dark:bg-[#1a1b26]">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#333544] bg-[#242633] text-slate-100 shadow-lg shadow-slate-950/20">
+        <div className="border-b border-slate-200 bg-admin-panel p-6 text-center dark:border-admin-border dark:bg-admin-panel">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-admin-border-strong bg-admin-hover text-slate-100 shadow-lg shadow-slate-950/20">
             {headerIcon}
           </div>
           <h2 className="mb-1 text-2xl font-bold tracking-tight text-white">
@@ -429,7 +429,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       clearForm();
                       setView('forgot');
                     }}
-                    className="text-xs font-semibold text-slate-700 transition-colors hover:text-[#1a1b26] dark:text-slate-300 dark:hover:text-white"
+                    className="text-xs font-semibold text-slate-700 transition-colors hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
                   >
                     Forgot?
                   </button>
@@ -466,7 +466,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded-sm border-slate-300 text-[#1a1b26] focus:ring-slate-500"
+                  className="h-4 w-4 cursor-pointer rounded-sm border-slate-300 text-[#202124] focus:ring-slate-500"
                 />
                 <label
                   htmlFor="remember-me"
@@ -479,7 +479,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a1b26] py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-[#242633] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#16161e] dark:text-white dark:hover:bg-[#242633]"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-admin-panel py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:text-white dark:hover:bg-admin-hover"
               >
                 {loading ? (
                   <>
@@ -502,7 +502,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       clearForm();
                       setView('register');
                     }}
-                    className="text-sm font-bold text-slate-700 hover:text-[#1a1b26] dark:text-slate-300 dark:hover:text-white"
+                    className="text-sm font-bold text-slate-700 hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
                   >
                     Create Account
                   </button>
@@ -589,7 +589,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a1b26] py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-[#242633] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#16161e] dark:hover:bg-[#242633]"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-admin-panel py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:hover:bg-admin-hover"
                 >
                   {loading ? (
                     <>
@@ -611,7 +611,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       clearForm();
                       setView('login');
                     }}
-                    className="text-sm font-bold text-slate-700 hover:text-[#1a1b26] dark:text-slate-300 dark:hover:text-white"
+                    className="text-sm font-bold text-slate-700 hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
                   >
                     Sign In
                   </button>
@@ -619,7 +619,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               </form>
             ) : (
               <div className="space-y-4 py-8 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-300">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-300">
                   <UserPlus size={32} />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">
@@ -632,7 +632,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 <button
                   type="button"
                   onClick={() => setView('login')}
-                  className="inline-flex items-center gap-2 font-bold text-slate-700 hover:text-[#1a1b26] hover:underline dark:text-slate-300 dark:hover:text-white"
+                  className="inline-flex items-center gap-2 font-bold text-slate-700 hover:text-[#202124] hover:underline dark:text-slate-300 dark:hover:text-white"
                 >
                   <ArrowLeft size={16} /> Back to Sign In
                 </button>
@@ -664,7 +664,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   clearForm();
                   setView('login');
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a1b26] py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-[#242633] dark:bg-[#16161e] dark:hover:bg-[#242633]"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-admin-panel py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover dark:bg-admin-canvas dark:hover:bg-admin-hover"
               >
                 <ArrowLeft size={18} /> Back to Sign In
               </button>
@@ -675,7 +675,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
           {view === 'forgot' && (
             <form onSubmit={handleResetSubmit} className="space-y-6">
               <div className="space-y-2 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[#1a1b26] dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-100">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[#202124] dark:border-admin-border dark:bg-admin-canvas dark:text-slate-100">
                   <Mail size={28} />
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -696,7 +696,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-[#1a1b26] py-3.5 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-[#242633] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#16161e] dark:text-white dark:hover:bg-[#242633]"
+                className="w-full rounded-xl bg-admin-panel py-3.5 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:text-white dark:hover:bg-admin-hover"
               >
                 {loading ? 'Sending...' : 'Send Recovery Link'}
               </button>
@@ -755,7 +755,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-[#1a1b26] py-3.5 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-[#242633] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#16161e] dark:hover:bg-[#242633]"
+                className="w-full rounded-xl bg-admin-panel py-3.5 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:hover:bg-admin-hover"
               >
                 {loading ? 'Resetting...' : 'Update Password'}
               </button>
@@ -764,10 +764,10 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
         </div>
 
         {/* Footer */}
-        <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-4 text-center dark:border-[#2a2b36] dark:bg-[#101018]">
+        <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-4 text-center dark:border-admin-border dark:bg-admin-inset">
           <a
             href={BASE_PATH}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors hover:text-[#1a1b26] dark:text-slate-300 dark:hover:text-white"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
           >
             <Home size={16} />
             Back to Site

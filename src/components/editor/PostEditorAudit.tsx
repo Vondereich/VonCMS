@@ -32,7 +32,7 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
   const recentLogs = logs.slice(0, 3);
 
   return (
-    <div className="bg-slate-50/50 dark:bg-[#1a1b26]/50 p-5 rounded-xl border border-slate-200 dark:border-[#2a2b36] space-y-4">
+    <div className="bg-slate-50/50 dark:bg-admin-panel/50 p-5 rounded-xl border border-slate-200 dark:border-admin-border space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <History size={16} className="text-slate-400" />
@@ -57,7 +57,7 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading edit history...</p>
       ) : latestLog ? (
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e]/60 p-4 space-y-2">
+          <div className="rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas/60 p-4 space-y-2">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
               {latestLog.summary || 'Content updated'}
             </p>
@@ -78,7 +78,7 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
               {recentLogs.slice(1).map((log) => (
                 <div
                   key={log.id}
-                  className="rounded-lg border border-slate-200 dark:border-[#2a2b36] p-3"
+                  className="rounded-lg border border-slate-200 dark:border-admin-border p-3"
                 >
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
                     {log.summary || 'Content updated'}
@@ -122,8 +122,8 @@ export const PostEditorAuditHistoryModal: React.FC<PostEditorAuditHistoryModalPr
       ariaLabel="Recent edit history"
       className="w-full max-w-3xl"
     >
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#16161e] sm:max-h-[85dvh]">
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#2a2b36] px-5 py-4">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-canvas sm:max-h-[85dvh]">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-admin-border px-5 py-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
               Recent Edit History
@@ -135,7 +135,7 @@ export const PostEditorAuditHistoryModal: React.FC<PostEditorAuditHistoryModalPr
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover"
             aria-label="Close edit history"
           >
             <X size={18} />
@@ -156,7 +156,7 @@ export const PostEditorAuditHistoryModal: React.FC<PostEditorAuditHistoryModalPr
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className="rounded-xl border border-slate-200 dark:border-[#2a2b36] p-4"
+                  className="rounded-xl border border-slate-200 dark:border-admin-border p-4"
                 >
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {log.summary || 'Content updated'}

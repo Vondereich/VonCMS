@@ -3,6 +3,14 @@
  * VonCMS - Responsive Media Helpers
  */
 
+$mediaVariantsPath = realpath(__FILE__);
+$requestedScriptPath = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''));
+if ($mediaVariantsPath !== false && $requestedScriptPath === $mediaVariantsPath) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+unset($mediaVariantsPath, $requestedScriptPath);
+
 function voncms_get_responsive_widths(int $maxWidth = 1920): array
 {
   $maxWidth = max(1, $maxWidth);

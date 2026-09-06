@@ -451,7 +451,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
               maxLength={PUBLIC_SEARCH_MAX_LENGTH}
               onChange={(e) => setSearchInput(normalizePublicSearchInput(e.target.value))}
               placeholder={type === 'post' ? 'Search articles...' : 'Search pages...'}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 text-slate-900 dark:text-white placeholder-slate-400"
+              className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-admin-panel border border-slate-200 dark:border-admin-border rounded-lg focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 text-slate-900 dark:text-white placeholder-slate-400"
             />
             {searchInput.length >= PUBLIC_SEARCH_MAX_LENGTH && (
               <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -461,7 +461,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           </div>
           <button
             type="submit"
-            className="min-h-11 px-4 py-2 text-sm bg-slate-100 dark:bg-[#242633] text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            className="min-h-11 px-4 py-2 text-sm bg-slate-100 dark:bg-admin-hover text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
           >
             Search
           </button>
@@ -490,7 +490,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 className={`min-h-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
                     ? 'border-primary-600 bg-primary-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300 hover:text-primary-600 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-slate-300'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300 hover:text-primary-600 dark:border-admin-border dark:bg-admin-panel dark:text-slate-300'
                 }`}
               >
                 {filter.label}
@@ -507,13 +507,13 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:hidden">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel lg:hidden">
             {pageItems.length === 0 ? (
               <div className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
                 {emptyMessage}
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+              <div className="divide-y divide-slate-100 dark:divide-admin-border">
                 {pageItems.map((item) => {
                   const isPost = type === 'post';
                   const itemPost = item as Post;
@@ -529,7 +529,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => toggleSelect(item.id)}
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200"
                             aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
                           >
                             {selectedItems.has(item.id) ? (
@@ -575,7 +575,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         </div>
                       </div>
 
-                      <dl className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-xs dark:bg-[#16161e]">
+                      <dl className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-xs dark:bg-admin-canvas">
                         <div className="min-w-0">
                           <dt className="text-slate-400">Author</dt>
                           <dd className="truncate font-medium text-slate-700 dark:text-slate-200">
@@ -610,7 +610,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => onToggleNav(item.id)}
-                            className="min-h-11 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-[#2a2b36]"
+                            className="min-h-11 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-admin-border"
                           >
                             {navigation &&
                             navigation.find((navItem: NavItem) => navItem.url === `page:${item.id}`)
@@ -637,7 +637,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
             )}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:block">
+          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel lg:block">
             <table
               className={`w-full ${
                 type === 'post' ? 'min-w-[1120px]' : 'min-w-[900px]'
@@ -654,7 +654,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 <col className={type === 'post' ? 'w-[10%]' : 'w-[28%]'} />
               </colgroup>
               <thead>
-                <tr className="bg-slate-50 dark:bg-[#16161e]/50 border-b border-slate-200 dark:border-[#2a2b36] text-xs uppercase text-slate-500 font-medium">
+                <tr className="bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border text-xs uppercase text-slate-500 font-medium">
                   <th className="px-4 py-4 w-12">
                     <button
                       onClick={toggleSelectAll}
@@ -677,7 +677,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                   <th className="px-4 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
                 {pageItems.length === 0 ? (
                   <tr>
                     <td
@@ -693,7 +693,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                   pageItems.map((item) => (
                     <tr
                       key={item.id}
-                      className={`hover:bg-slate-50 dark:hover:bg-[#242633]/50 transition-colors ${selectedItems.has(item.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''}`}
+                      className={`hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors ${selectedItems.has(item.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''}`}
                     >
                       <td className="px-4 py-4">
                         {canDeleteItem(item) && (
@@ -817,7 +817,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           {type === 'page' && onToggleNav && (
                             <button
                               onClick={() => onToggleNav(item.id)}
-                              className="text-sm px-3 py-1 rounded-lg border border-slate-200 dark:border-[#2a2b36] hover:bg-slate-50 dark:hover:bg-[#242633]"
+                              className="text-sm px-3 py-1 rounded-lg border border-slate-200 dark:border-admin-border hover:bg-slate-50 dark:hover:bg-admin-hover"
                             >
                               {navigation &&
                               navigation.find((n: NavItem) => n.url === `page:${item.id}`)

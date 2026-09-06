@@ -377,7 +377,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         onClick={() => openEditModal(user)}
         className={`flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm ${
           getEditRestrictionMessage(user)
-            ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-[#242633] dark:text-slate-500'
+            ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-admin-hover dark:text-slate-500'
             : 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
         }`}
         title={getEditRestrictionMessage(user) || 'Edit User'}
@@ -389,7 +389,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         <button
           type="button"
           onClick={() => toast.error(getDeleteRestrictionMessage(user))}
-          className="flex min-h-11 cursor-not-allowed items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400 dark:border-[#333544] dark:bg-[#242633] dark:text-slate-500"
+          className="flex min-h-11 cursor-not-allowed items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400 dark:border-admin-border-strong dark:bg-admin-hover dark:text-slate-500"
           title={getDeleteRestrictionMessage(user)}
         >
           {currentUserId === String(user.id) ? <UserIcon size={12} /> : <Shield size={12} />}
@@ -452,12 +452,12 @@ const UserManager: React.FC<UserManagerProps> = ({
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search users..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-white"
           />
         </div>
         <button
           type="submit"
-          className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#242633] dark:text-slate-300 dark:hover:bg-slate-600"
+          className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-slate-600"
         >
           Search
         </button>
@@ -474,7 +474,7 @@ const UserManager: React.FC<UserManagerProps> = ({
 
       {/* Add New User Form */}
       {isFormOpen && (
-        <div className="bg-slate-50 dark:bg-[#16161e] border border-slate-200 dark:border-white/10 p-6 rounded-xl animate-fade-in">
+        <div className="bg-slate-50 dark:bg-admin-canvas border border-slate-200 dark:border-white/10 p-6 rounded-xl animate-fade-in">
           <h3 className="font-bold mb-4 text-slate-800 dark:text-white">Register New User</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
@@ -484,7 +484,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               required
               type="text"
               placeholder="Username"
-              className="p-2.5 rounded-lg border border-slate-300 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] dark:text-white"
+              className="p-2.5 rounded-lg border border-slate-300 dark:border-admin-border bg-white dark:bg-admin-panel dark:text-white"
               value={newUser.username}
               onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
             />
@@ -494,7 +494,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               name="displayNamePenName"
               type="text"
               placeholder="Display name / Pen name"
-              className="p-2.5 rounded-lg border border-slate-300 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] dark:text-white"
+              className="p-2.5 rounded-lg border border-slate-300 dark:border-admin-border bg-white dark:bg-admin-panel dark:text-white"
               value={newUser.display_name}
               onChange={(e) => setNewUser({ ...newUser, display_name: e.target.value })}
             />
@@ -505,7 +505,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               required
               type="email"
               placeholder="Email"
-              className="p-2.5 rounded-lg border border-slate-300 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] dark:text-white"
+              className="p-2.5 rounded-lg border border-slate-300 dark:border-admin-border bg-white dark:bg-admin-panel dark:text-white"
               value={newUser.email}
               onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
             />
@@ -516,7 +516,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               required
               type="password"
               placeholder="Password (8+ chars, A-Z, 0-9, !@#)"
-              className={`p-2.5 rounded-lg border ${passwordError ? 'border-red-500' : 'border-slate-300 dark:border-[#2a2b36]'} bg-white dark:bg-[#1a1b26] dark:text-white`}
+              className={`p-2.5 rounded-lg border ${passwordError ? 'border-red-500' : 'border-slate-300 dark:border-admin-border'} bg-white dark:bg-admin-panel dark:text-white`}
               value={newUser.password}
               onChange={(e) => {
                 setNewUser({ ...newUser, password: e.target.value });
@@ -530,7 +530,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               name="avatarUrlOptional"
               type="text"
               placeholder="Avatar URL (Optional)"
-              className="p-2.5 rounded-lg border border-slate-300 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] dark:text-white"
+              className="p-2.5 rounded-lg border border-slate-300 dark:border-admin-border bg-white dark:bg-admin-panel dark:text-white"
               value={newUser.avatar}
               onChange={(e) => setNewUser({ ...newUser, avatar: e.target.value })}
             />
@@ -538,7 +538,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               id="usermanager-375"
               name="usermanager375"
               aria-label="Selection"
-              className="p-2.5 rounded-lg border border-slate-300 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] dark:text-white"
+              className="p-2.5 rounded-lg border border-slate-300 dark:border-admin-border bg-white dark:bg-admin-panel dark:text-white"
               value={newUser.role}
               onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
             >
@@ -552,7 +552,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                 type="button"
                 onClick={() => setIsFormOpen(false)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#242633] rounded-lg disabled:opacity-50"
+                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover rounded-lg disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -579,13 +579,13 @@ const UserManager: React.FC<UserManagerProps> = ({
           ariaLabel="Edit user"
           className="w-full max-w-md"
         >
-          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1a1b26] sm:max-h-[90dvh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-[#2a2b36]">
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-admin-panel sm:max-h-[90dvh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-admin-border">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
               <button
                 type="button"
                 onClick={() => setEditingUser(null)}
-                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
                 aria-label="Close user editor"
               >
                 <X size={20} />
@@ -596,7 +596,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6"
             >
               <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden border-4 border-white dark:border-[#333544] shadow-lg">
+                <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-admin-hover overflow-hidden border-4 border-white dark:border-admin-border-strong shadow-lg">
                   {editForm.avatar ? (
                     <img
                       src={editForm.avatar}
@@ -622,7 +622,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   id="usermanager-455"
                   name="usermanager455"
                   type="text"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
                   value={editForm.username}
                   onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
                 />
@@ -637,7 +637,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   name="editDisplayNamePenName"
                   type="text"
                   placeholder="Optional public byline"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
                   value={editForm.display_name}
                   onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
                 />
@@ -651,7 +651,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   name="usermanager466"
                   aria-label="Email"
                   type="email"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
                   value={editForm.email}
                   onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                 />
@@ -664,7 +664,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   id="edit-user-role"
                   name="editUserRole"
                   aria-label="Role"
-                  className={`w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white ${
+                  className={`w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white ${
                     isRoleChangeBlocked(editingUser) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   value={editForm.role}
@@ -698,7 +698,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   aria-label="8+ chars, A-Z, 0-9, !@#"
                   type="password"
                   placeholder="8+ chars, A-Z, 0-9, !@#"
-                  className={`w-full p-2.5 rounded-lg border ${editPasswordError ? 'border-red-500' : 'border-slate-300 dark:border-[#333544]'} bg-white dark:bg-[#242633] dark:text-white`}
+                  className={`w-full p-2.5 rounded-lg border ${editPasswordError ? 'border-red-500' : 'border-slate-300 dark:border-admin-border-strong'} bg-white dark:bg-admin-hover dark:text-white`}
                   value={editForm.password}
                   onChange={(e) => {
                     setEditForm({ ...editForm, password: e.target.value });
@@ -720,16 +720,16 @@ const UserManager: React.FC<UserManagerProps> = ({
                   aria-label="https://..."
                   type="text"
                   placeholder="https://..."
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-white dark:bg-[#242633] dark:text-white"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
                   value={editForm.avatar}
                   onChange={(e) => setEditForm({ ...editForm, avatar: e.target.value })}
                 />
               </div>
-              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 dark:border-[#2a2b36] sm:flex-row">
+              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 dark:border-admin-border sm:flex-row">
                 <button
                   type="button"
                   onClick={() => setEditingUser(null)}
-                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg sm:w-auto"
+                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-admin-hover rounded-lg sm:w-auto"
                 >
                   Cancel
                 </button>
@@ -754,7 +754,7 @@ const UserManager: React.FC<UserManagerProps> = ({
           ariaLabel="Delete user"
           className="w-full max-w-sm"
         >
-          <div className="w-full rounded-2xl bg-white p-4 text-center shadow-2xl dark:bg-[#1a1b26] sm:p-6">
+          <div className="w-full rounded-2xl bg-white p-4 text-center shadow-2xl dark:bg-admin-panel sm:p-6">
             <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="text-red-500" size={32} />
             </div>
@@ -769,7 +769,7 @@ const UserManager: React.FC<UserManagerProps> = ({
             <div className="flex flex-col-reverse justify-center gap-3 sm:flex-row">
               <button
                 onClick={() => setDeleteConfirmUser(null)}
-                className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg sm:w-auto"
+                className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-admin-hover rounded-lg sm:w-auto"
               >
                 Cancel
               </button>
@@ -785,7 +785,7 @@ const UserManager: React.FC<UserManagerProps> = ({
       )}
 
       {/* Users Table */}
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+      <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 size={20} className="animate-spin text-primary-600" />
@@ -793,11 +793,11 @@ const UserManager: React.FC<UserManagerProps> = ({
           </div>
         ) : pageUsers.length > 0 ? (
           <>
-            <div className="divide-y divide-slate-100 dark:divide-slate-700 sm:hidden">
+            <div className="divide-y divide-slate-100 dark:divide-admin-border sm:hidden">
               {pageUsers.map((user) => (
                 <article key={user.id} className="space-y-3 p-4">
                   <div className="flex items-start gap-3">
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 bg-slate-200 dark:border-[#333544] dark:bg-[#242633]">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 bg-slate-200 dark:border-admin-border-strong dark:bg-admin-hover">
                       {user.avatar ? (
                         <img
                           src={user.avatar}
@@ -827,7 +827,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                                 : user.role === 'Moderator'
                                   ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                                   : user.role === 'Member'
-                                    ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
+                                    ? 'bg-slate-100 text-slate-700 dark:bg-admin-canvas/30 dark:text-slate-400'
                                     : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                           }`}
                         >
@@ -851,7 +851,7 @@ const UserManager: React.FC<UserManagerProps> = ({
             </div>
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[720px] text-left">
-                <thead className="bg-slate-50 dark:bg-[#16161e]/50 text-xs uppercase text-slate-500 font-medium">
+                <thead className="bg-slate-50 dark:bg-admin-canvas/50 text-xs uppercase text-slate-500 font-medium">
                   <tr>
                     <th className="px-6 py-4">Profile</th>
                     <th className="px-6 py-4">User</th>
@@ -859,11 +859,11 @@ const UserManager: React.FC<UserManagerProps> = ({
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
                   {pageUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50">
+                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-admin-hover/50">
                       <td className="px-6 py-4 w-16">
-                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden border border-slate-300 dark:border-[#333544]">
+                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-admin-hover overflow-hidden border border-slate-300 dark:border-admin-border-strong">
                           {user.avatar ? (
                             <img
                               src={user.avatar}
@@ -905,7 +905,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                                               : user.role === 'Moderator'
                                                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                                                 : user.role === 'Member'
-                                                  ? 'bg-slate-100 text-slate-700 dark:bg-[#16161e]/30 dark:text-slate-400'
+                                                  ? 'bg-slate-100 text-slate-700 dark:bg-admin-canvas/30 dark:text-slate-400'
                                                   : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                         }`}
                         >
@@ -921,7 +921,7 @@ const UserManager: React.FC<UserManagerProps> = ({
           </>
         ) : (
           <div className="p-12 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-[#242633]">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-admin-hover">
               <UserIcon size={32} className="text-slate-400" />
             </div>
             <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">

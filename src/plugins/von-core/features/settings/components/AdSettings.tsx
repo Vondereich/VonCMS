@@ -9,9 +9,9 @@ interface AdSettingsProps {
 
 export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) => {
   return (
-    <div className="bg-slate-50 dark:bg-[#16161e]/50 rounded-xl p-6 space-y-8 animate-fade-in max-w-6xl mx-auto">
+    <div className="bg-slate-50 dark:bg-admin-canvas/50 rounded-xl p-6 space-y-8 animate-fade-in max-w-6xl mx-auto">
       {/* GLOBAL SWITCH */}
-      <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-2xl border border-slate-200 dark:border-[#2a2b36] shadow-xs flex items-center justify-between">
+      <div className="bg-white dark:bg-admin-panel p-6 rounded-2xl border border-slate-200 dark:border-admin-border shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
             <Zap size={20} />
@@ -32,14 +32,14 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
             onChange={(e) => onChange('adsEnabled', e.target.checked)}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-[#333544] peer-checked:bg-blue-600"></div>
+          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-admin-border-strong peer-checked:bg-blue-600"></div>
         </label>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
         {/* HEADER AD */}
-        <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-2xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2a2b36] pb-3">
+        <div className="bg-white dark:bg-admin-panel p-6 rounded-2xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-admin-border pb-3">
             <div className="flex items-center gap-2">
               <Layout className="text-blue-500" size={18} />
               <h3 className="font-bold text-slate-800 dark:text-white">Header Ad (Top Banner)</h3>
@@ -59,10 +59,10 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.headerAd}
                 onChange={(e) => onChange('headerAd', e.target.value)}
                 placeholder="<!-- Paste top ad code here -->"
-                className="w-full p-3 font-mono text-xs rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                className="w-full p-3 font-mono text-xs rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
               />
             </div>
-            <div className="bg-slate-50 dark:bg-[#16161e]/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
+            <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                 <HelpCircle size={14} className="text-blue-500" />
                 <span>Guidance</span>
@@ -106,8 +106,8 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
         </div>
 
         {/* IN-FEED AD */}
-        <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-2xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
-          <div className="flex flex-col items-start gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between dark:border-[#2a2b36]">
+        <div className="bg-white dark:bg-admin-panel p-6 rounded-2xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
+          <div className="flex flex-col items-start gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between dark:border-admin-border">
             <div className="flex items-center gap-2">
               <Image className="text-orange-500" size={18} />
               <h3 className="font-bold text-slate-800 dark:text-white">
@@ -125,7 +125,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                   aria-label="Selection"
                   value={settings.ads.inFeedFrequency || 6}
                   onChange={(e) => onChange('inFeedFrequency', parseInt(e.target.value))}
-                  className="min-w-0 grow cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 outline-hidden transition-all focus:ring-2 focus:ring-orange-500 sm:grow-0 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-300"
+                  className="min-w-0 grow cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 outline-hidden transition-all focus:ring-2 focus:ring-orange-500 sm:grow-0 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-300"
                 >
                   <option value={6}>Every 6 Posts</option>
                   <option value={8}>Every 8 Posts</option>
@@ -149,10 +149,10 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.inFeedAd}
                 onChange={(e) => onChange('inFeedAd', e.target.value)}
                 placeholder="<!-- Paste native/feed ad code here -->"
-                className="w-full p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all shadow-inner"
+                className="w-full p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all shadow-inner"
               />
             </div>
-            <div className="bg-slate-50 dark:bg-[#16161e]/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
+            <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                 <Info size={14} className="text-orange-500" />
                 <span>In-feed ad code</span>
@@ -192,8 +192,8 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
         </div>
 
         {/* POPUP AD */}
-        <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-2xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2a2b36] pb-3">
+        <div className="bg-white dark:bg-admin-panel p-6 rounded-2xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-admin-border pb-3">
             <div className="flex items-center gap-3">
               <ExternalLink className="text-purple-500" size={18} />
               <div>
@@ -214,7 +214,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 onChange={(e) => onChange('popupEnabled', e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-[#333544] peer-checked:bg-purple-600"></div>
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-admin-border-strong peer-checked:bg-purple-600"></div>
             </label>
           </div>
 
@@ -228,10 +228,10 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.popupAd}
                 onChange={(e) => onChange('popupAd', e.target.value)}
                 placeholder="<!-- Paste popup/interstitial script here -->"
-                className="w-full p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] dark:text-white focus:ring-2 focus:ring-purple-500 outline-hidden transition-all shadow-inner"
+                className="w-full p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-purple-500 outline-hidden transition-all shadow-inner"
               />
             </div>
-            <div className="bg-slate-50 dark:bg-[#16161e]/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
+            <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                 <ShieldCheck size={14} className="text-purple-500" />
                 <span>Popup ad code</span>

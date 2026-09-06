@@ -19,19 +19,27 @@
     </script>
     <style>
       /* Critical CSS to prevent FOUC before Tailwind loads */
+      html {
+        background-color: #f8fafc;
+        color-scheme: light;
+      }
       body {
         background-color: #f8fafc;
         color: #1e293b;
       }
+      html.dark {
+        background-color: #181819;
+        color-scheme: dark;
+      }
       html.dark body {
-        background-color: #020617;
+        background-color: #181819;
         color: #f1f5f9;
       }
     </style>
   </head>
 
   <body
-    class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200"
+    class="bg-slate-50 dark:bg-[#181819] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200"
   >
     <div id="root">
       <!-- Skeleton Loader (FOUC Prevention) -->

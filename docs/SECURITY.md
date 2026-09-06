@@ -1,8 +1,14 @@
-# VonCMS Security Policy v1.27.0
+# VonCMS Security Policy v1.27.1
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 
 It is written as a practical security overview, not as a penetration-test certificate.
+
+Password-reset and verification emails require a valid **General Settings > Domain URL** on public installations, including any installation subfolder. Arbitrary request Host headers are not used as email destinations; only exact loopback hosts retain a development fallback. Missing configuration stops delivery safely.
+
+Post, page, and WordPress import writes validate iframe providers on the server. Supported YouTube, Vimeo, Facebook video, TikTok, and Instagram reel embeds retain their video controls; unsupported iframe sources are removed when content is saved or imported.
+
+The local development Theme API validates ZIP entries and extracts into a fresh random directory before activation. This is a local extraction mitigation and does not establish that the underlying archive dependency has no published advisories.
 
 ## Report Dangerous Issues Privately
 

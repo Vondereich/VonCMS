@@ -156,7 +156,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       closeOnBackdrop={false}
       closeOnEscape={canDismiss}
     >
-      <div className="max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel">
         {/* Header */}
         <div className="bg-orange-600 px-6 py-4 flex items-center justify-between">
           <div className="text-white">
@@ -211,7 +211,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 </ul>
               </div>
 
-              <div className="max-h-40 overflow-y-auto p-3 bg-slate-100 dark:bg-[#16161e] rounded-lg text-sm border border-slate-200 dark:border-[#2a2b36]">
+              <div className="max-h-40 overflow-y-auto p-3 bg-slate-100 dark:bg-admin-canvas rounded-lg text-sm border border-slate-200 dark:border-admin-border">
                 <h5 className="font-bold mb-1 text-slate-700 dark:text-slate-300">
                   Release Notes:
                 </h5>
@@ -233,7 +233,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                   </span>
                   <span className="font-mono">{progress}%</span>
                 </div>
-                <div className="h-3 bg-slate-200 dark:bg-[#242633] rounded-full overflow-hidden">
+                <div className="h-3 bg-slate-200 dark:bg-admin-hover rounded-full overflow-hidden">
                   <div
                     className="h-full bg-orange-500 transition-all duration-500 ease-out"
                     style={{ width: `${progress}%` }}
@@ -242,7 +242,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
               </div>
 
               {/* Terminal Log Panel */}
-              <div className="bg-[#101018] text-green-400 p-4 rounded-xl font-mono text-xs h-48 overflow-y-auto shadow-inner border border-[#2a2b36]">
+              <div className="bg-admin-inset text-green-400 p-4 rounded-xl font-mono text-xs h-48 overflow-y-auto shadow-inner border border-admin-border">
                 {logs.map((log, i) => (
                   <div key={i} className="mb-1">
                     <span className="text-slate-500 mr-2">{'\u279C'}</span>
@@ -282,13 +282,13 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row">
           {step === 'idle' && (
             <>
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg transition-colors sm:w-auto"
+                className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg transition-colors sm:w-auto"
               >
                 Cancel
               </button>
@@ -307,7 +307,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 setLogs([]);
                 setProgress(0);
               }}
-              className="px-4 py-2 bg-slate-600 hover:bg-[#242633] text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-slate-600 hover:bg-admin-hover text-white rounded-lg transition-colors"
             >
               Try Again
             </button>

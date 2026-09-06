@@ -496,15 +496,15 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
             ariaLabel="Extension settings"
             className="w-full max-w-lg"
           >
-            <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-[#2a2b36] dark:bg-[#1a1b26]">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-[#2a2b36] sm:p-6">
+            <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-admin-border sm:p-6">
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                   Configure {allItems.find((i) => i.id === configuringPluginId)?.name}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setConfiguringPluginId(null)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-200"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200"
                   aria-label="Close extension settings"
                 >
                   <X size={24} />
@@ -533,7 +533,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                               onChange={(e) =>
                                 setTempConfig({ ...tempConfig, [key]: e.target.value })
                               }
-                              className="h-11 w-11 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-1 dark:border-[#2a2b36]"
+                              className="h-11 w-11 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-1 dark:border-admin-border"
                             />
                             <input
                               aria-label={`${key} color value`}
@@ -544,10 +544,10 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                               onChange={(e) =>
                                 setTempConfig({ ...tempConfig, [key]: e.target.value })
                               }
-                              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 font-mono uppercase text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
+                              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 font-mono uppercase text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
                             />
                             <div
-                              className="h-11 w-20 shrink-0 rounded-lg border border-slate-200 shadow-inner dark:border-[#2a2b36]"
+                              className="h-11 w-20 shrink-0 rounded-lg border border-slate-200 shadow-inner dark:border-admin-border"
                               style={{ backgroundColor: pickerValue }}
                               aria-label={`${key} preview`}
                             />
@@ -562,7 +562,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                             onChange={(e) =>
                               setTempConfig({ ...tempConfig, [key]: e.target.value })
                             }
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
                           />
                         )}
                       </div>
@@ -575,10 +575,10 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                   </div>
                 )}
               </div>
-              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row sm:p-6">
+              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row sm:p-6">
                 <button
                   onClick={() => setConfiguringPluginId(null)}
-                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
+                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
                 >
                   Cancel
                 </button>
@@ -613,22 +613,22 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
             placeholder={`Search ${activeTab}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden w-full md:w-64"
+            className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-panel text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden w-full md:w-64"
           />
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex p-1 bg-slate-200 dark:bg-[#1a1b26] rounded-xl w-fit">
+      <div className="flex p-1 bg-slate-200 dark:bg-admin-panel rounded-xl w-fit">
         <button
           onClick={() => setActiveTab('themes')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'themes' ? 'bg-white dark:bg-[#242633] text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'themes' ? 'bg-white dark:bg-admin-hover text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
         >
           <Palette size={18} /> Themes
         </button>
         <button
           onClick={() => setActiveTab('plugins')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'plugins' ? 'bg-white dark:bg-[#242633] text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'plugins' ? 'bg-white dark:bg-admin-hover text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
         >
           <Package size={18} /> Plugins
         </button>
@@ -639,7 +639,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         {paginatedItems.map((item) => (
           <div
             key={item.id}
-            className="group bg-white dark:bg-[#1a1b26] rounded-xl border border-slate-200 dark:border-[#2a2b36] overflow-hidden hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 flex flex-col h-full"
+            className="group bg-white dark:bg-admin-panel rounded-xl border border-slate-200 dark:border-admin-border overflow-hidden hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 flex flex-col h-full"
           >
             {/* Card Image (Themes only) or Icon Header (Plugins) */}
             {item.type === 'theme'
@@ -679,7 +679,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                   const gradient = getGradientByHash(item.id);
                   return (
                     <div
-                      className="h-24 border-b border-slate-100 dark:border-[#2a2b36] flex items-center justify-center relative overflow-hidden"
+                      className="h-24 border-b border-slate-100 dark:border-admin-border flex items-center justify-center relative overflow-hidden"
                       style={{
                         background: `linear-gradient(135deg, ${gradient.from}15 0%, ${gradient.to}15 100%)`,
                       }}
@@ -722,7 +722,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">
                   {item.name}
                 </h3>
-                <span className="text-xs text-slate-400 bg-slate-100 dark:bg-[#242633] px-2 py-1 rounded-sm">
+                <span className="text-xs text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-sm">
                   v{item.version}
                 </span>
               </div>
@@ -739,12 +739,12 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
               </div>
 
               {/* Actions */}
-              <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36] flex items-center justify-between gap-3">
+              <div className="pt-4 border-t border-slate-100 dark:border-admin-border flex items-center justify-between gap-3">
                 {item.status === 'not_installed' ? (
                   <button
                     onClick={() => handleInstall(item.id)}
                     disabled={mutatingExtensionId !== null}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#101018] dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:cursor-wait disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-admin-inset dark:bg-white text-white dark:text-slate-900 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:cursor-wait disabled:opacity-50"
                   >
                     <Download size={16} /> Install
                   </button>
@@ -759,7 +759,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                       className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors ${
                         item.status === 'active'
                           ? 'bg-green-50 text-green-600 cursor-default dark:bg-green-900/20 dark:text-green-400'
-                          : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:bg-[#242633] dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400'
+                          : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400'
                       }`}
                     >
                       {item.status === 'active' ? (

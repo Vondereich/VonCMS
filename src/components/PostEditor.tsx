@@ -861,7 +861,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-200 dark:hover:bg-[#1a1b26]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-200 dark:hover:bg-admin-panel"
             aria-label={`Back to ${isPage ? 'pages' : 'posts'}`}
           >
             <ArrowLeft size={20} />
@@ -879,7 +879,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
               type="button"
               onClick={handleSecondarySave}
               disabled={isSaving}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white dark:bg-admin-panel text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
             >
               <CheckCircle size={16} className={isSaving ? 'animate-spin' : ''} />
               <span>{isSaving ? 'Saving...' : secondaryActionLabel}</span>
@@ -890,7 +890,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
               type="button"
               onClick={handleSecondarySave}
               disabled={isSaving}
-              className="sm:hidden p-2 bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#242633] rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
+              className="sm:hidden p-2 bg-white dark:bg-admin-panel text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg transition-all shadow-md font-medium disabled:opacity-50"
               title={isSaving ? 'Saving...' : secondaryActionLabel}
             >
               <CheckCircle size={18} className={isSaving ? 'animate-spin' : ''} />
@@ -911,7 +911,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
       </div>
 
       <div
-        className="sticky top-0 z-30 -mx-3 flex overflow-x-auto border-y border-slate-200 bg-white/95 px-3 py-2 backdrop-blur-xl dark:border-[#2a2b36] dark:bg-[#16161e]/95 sm:-mx-4 sm:px-4 xl:hidden"
+        className="sticky top-0 z-30 -mx-3 flex overflow-x-auto border-y border-slate-200 bg-white/95 px-3 py-2 backdrop-blur-xl dark:border-admin-border dark:bg-admin-canvas/95 sm:-mx-4 sm:px-4 xl:hidden"
         aria-label="Editor sections"
       >
         {(
@@ -937,7 +937,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
             className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${
               mobilePanel === panel.id
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#242633]'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-admin-hover'
             }`}
           >
             {panel.icon}
@@ -965,7 +965,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
             disabled={isWriterLocked}
             className="flex min-w-0 flex-col gap-4 border-0 p-0 sm:gap-6"
           >
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
               <input
                 id="post-title"
                 name="title"
@@ -987,7 +987,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 {titleLength}/{TITLE_MAX_LENGTH} characters
               </p>
             </div>
-            <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-md border border-slate-200 dark:border-[#2a2b36] flex flex-col">
+            <div className="bg-white dark:bg-admin-panel rounded-xl shadow-md border border-slate-200 dark:border-admin-border flex flex-col">
               <Editor
                 key={item.id || 'new-post'}
                 initialContent={item.content || ''}
@@ -1029,9 +1029,9 @@ const PostEditor: React.FC<PostEditorProps> = ({
             className={`${mobilePanel === 'publish' ? 'space-y-6' : 'hidden'} xl:block xl:space-y-6`}
           >
             <fieldset disabled={isWriterLocked} className="contents">
-              <div className="bg-white dark:bg-[#1a1b26] p-6 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
+              <div className="bg-white dark:bg-admin-panel p-6 rounded-xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
                 <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-[#2a2b36] dark:bg-[#16161e]">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-admin-border dark:bg-admin-canvas">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                       Publish readiness
@@ -1063,14 +1063,14 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     Status
                   </label>
                   {normalizedRoleIsWriter || isReviewerPending ? (
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-200">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-200">
                       {getPostStatusLabel(item.status as PostStatus)}
                     </div>
                   ) : (
                     <select
                       id="post-status"
                       name="status"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                       value={item.status || 'draft'}
                       onChange={(e) => {
                         const newStatus = e.target.value as Post['status'];
@@ -1103,7 +1103,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     type="button"
                     onClick={handleReturnToDraft}
                     disabled={isSaving}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-[#3a3b48] dark:text-slate-200 dark:hover:bg-[#242633]"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-admin-border-strong dark:text-slate-200 dark:hover:bg-admin-hover"
                   >
                     Return to Draft
                   </button>
@@ -1120,7 +1120,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       id="post-publish-date"
                       name="scheduledAt"
                       type="datetime-local"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                       value={normalizeScheduledInputValue((item as Post).scheduledAt)}
                       onChange={(e) =>
                         setItem((prev) => (prev ? { ...prev, scheduledAt: e.target.value } : null))
@@ -1198,7 +1198,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     id="post-slug"
                     name="slug"
                     type="text"
-                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                     placeholder="url-friendly-slug"
                     value={item.slug || ''}
                     onChange={(e) =>
@@ -1228,7 +1228,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                           if (e.target.value === '__custom__') return;
                           setItem((prev) => (prev ? { ...prev, category: e.target.value } : null));
                         }}
-                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100 text-sm"
+                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-900 dark:text-slate-100 text-sm"
                       >
                         {availableCategories.map((category) => (
                           <option key={category} value={category}>
@@ -1242,7 +1242,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         name="category"
                         aria-label="Custom category"
                         type="text"
-                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                         value={(item as Post).category || ''}
                         placeholder="Uncategorized"
                         onChange={(e) =>
@@ -1284,7 +1284,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   <textarea
                     id="post-excerpt"
                     name="excerpt"
-                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
+                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
                     value={item.excerpt || ''}
                     onChange={(e) =>
                       setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
@@ -1337,7 +1337,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       <button
                         type="button"
                         onClick={openFeaturedLibrary}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-[#242633] transition-colors text-sm font-medium"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-admin-hover transition-colors text-sm font-medium"
                       >
                         <Images size={16} />
                         Browse Media Gallery
@@ -1358,7 +1358,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       name="image"
                       aria-label="Featured image URL"
                       type="text"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                       placeholder="Paste image URL if needed..."
                       value={(item as Post).image || ''}
                       onChange={(e) =>
@@ -1370,7 +1370,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         <SafeImage
                           src={(item as Post).image}
                           alt="Featured"
-                          className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-[#2a2b36]"
+                          className="w-full h-32 object-cover rounded-lg border border-slate-200 dark:border-admin-border"
                         />
                         <button
                           onClick={() => setItem((prev) => (prev ? { ...prev, image: '' } : null))}
@@ -1386,10 +1386,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
                 {/* Navigation Toggle */}
                 {isPage && (
-                  <div className="pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
+                  <div className="pt-4 border-t border-slate-100 dark:border-admin-border">
                     <label className="flex items-center gap-3 cursor-pointer group">
                       <div
-                        className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-[#16161e] border-slate-300 dark:border-[#333544]'}`}
+                        className={`w-5 h-5 rounded-sm border flex items-center justify-center transition-colors ${addToMenu ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white dark:bg-admin-canvas border-slate-300 dark:border-admin-border-strong'}`}
                       >
                         {addToMenu && <Globe size={12} />}
                       </div>
@@ -1429,13 +1429,13 @@ const PostEditor: React.FC<PostEditorProps> = ({
         </div>
       </div>
 
-      <div className="admin-safe-bottom fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-slate-200 bg-white/95 px-3 pt-3 shadow-[0_-12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-[#2a2b36] dark:bg-[#16161e]/95 xl:hidden">
+      <div className="admin-safe-bottom fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-slate-200 bg-white/95 px-3 pt-3 shadow-[0_-12px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-admin-border dark:bg-admin-canvas/95 xl:hidden">
         {!isWriterLocked && (
           <button
             type="button"
             onClick={handleSecondarySave}
             disabled={isSaving}
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-slate-200 dark:hover:bg-[#242633]"
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200 dark:hover:bg-admin-hover"
           >
             <CheckCircle size={17} className={isSaving ? 'animate-spin' : ''} />
             {secondaryActionLabel}

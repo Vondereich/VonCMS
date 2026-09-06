@@ -4,7 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-Current release: **v1.27.0 "OverDrive"**. You can install the published Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
+Current release: **v1.27.1 "OverDrive"**. You can install the published Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -13,15 +13,23 @@ Current release: **v1.27.0 "OverDrive"**. You can install the published Deploy Z
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
 > [!NOTE]
-> Before updating a production site to v1.27.0, back up its files and database, review the changelog, and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
+> Before updating a production site to v1.27.1, back up its files and database, review the changelog, and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
 >
-> **v1.27 "OverDrive"** is now the active development line. Its update cadence is intentionally slower as larger changes move through clearer scope, isolated development, deeper verification, and longer canary testing.
+> **v1.27 "OverDrive"** is the active release line. Its update cadence is intentionally slower as larger changes move through clearer scope, isolated development, deeper verification, and longer canary testing.
 
 > [!IMPORTANT]
 > **Existing-site database repair required for v1.26.11**
 > After upgrading an existing VonCMS site through either Dashboard OTA or a manual Deploy ZIP, back up the database, sign in as the primary administrator, and run **Settings > Tools > Repair Database** once. This explicit repair reconciles the v1.26.10 schema baseline, adds and backfills the v1.26.11 `published_at` columns, and activates the protected schema capability marker. Fresh installations already create the current schema and do not need this upgrade repair. Database Repair is separate from **System Tools > Repair `.htaccess`**; the OTA updater protects the live `.htaccess`, so later routing updates can also require the separate managed-block repair described below.
 
-### What Changes In v1.27.0
+### What Changes In v1.27.1
+
+- Canonical account-email origins fail closed before reset or verification data is persisted.
+- Server-side video embed and local theme ZIP validation share guarded, bounded security controls.
+- Configuration samples, media helpers, PHP routes, and OTA ownership retain explicit request boundaries.
+- Dark first paint, the installer, admin surfaces, newsletter controls, and loading skeletons share the refreshed Charcoal visual foundation.
+- Compatible dependencies are refreshed, including OpenRouter SDK `1.2.107` and DOMPurify `3.4.15`.
+
+### v1.27.0 Foundation
 
 - Writer draft submission and a staff review queue, with server-enforced role and account boundaries.
 - Shared AI writing with a visible model identity, bounded provider requests, and HTML-preserving copy review.
@@ -46,7 +54,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete changes and their scope.
 
 > [!IMPORTANT]
 > **Optional `von_config.php` feature migration for v1.26.9**
-> A normal Deploy or OTA update does not require replacing the working `von_config.php`; existing sites can keep it and continue using VonCMS normally. Migrate from the matching `von_config.sample.php` only if the site should adopt the complete current configuration features, including fail-closed environment handling and the private PHP log location. Use the sample only as a template for a new private config: copy the four complete database assignment lines from the working config, preserve required definitions such as `CRON_KEY`, run `php -l`, and activate the validated file during a short maintenance window. Never add real credentials to the tracked sample or leave a credentialed backup inside the public website directory.
+> A normal Deploy or OTA update does not require replacing the working `von_config.php`; existing sites can keep it and continue using VonCMS normally. Migrate from the matching `von_config.sample.php` only if the site should adopt the complete current configuration features, including fail-closed environment handling and the private PHP log location. Use the sample only as a template for a new private config: copy the four complete database assignment lines from the working config, preserve required definitions such as `CRON_KEY`, run `php -l`, and activate the validated file during a short maintenance window. The sample rejects direct browser execution but remains available for download and copying through the release package. Never add real credentials to the tracked sample or leave a credentialed backup inside the public website directory.
 >
 > Follow the complete backup, migration, verification, and rollback-safe procedure in [Optional `von_config.php` feature migration for v1.26.9](docs/UPGRADE.md#optional-von_configphp-feature-migration-for-v1269).
 
@@ -273,8 +281,8 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.27.0_Deploy.zip`
-- `VonCMS_v1.27.0_Source.zip`
+- `VonCMS_v1.27.1_Deploy.zip`
+- `VonCMS_v1.27.1_Source.zip`
 
 No checksum sidecar files are generated by the release script.
 
@@ -330,7 +338,7 @@ Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public deve
 
 - Posts and pages gain a stable first-publication timestamp shared by public APIs, SSR, visible dates, schema, RSS, Related Posts, and sidebar freshness.
 - Existing published content receives an idempotent backfill through the explicit primary-admin Database Repair flow, while unrepaired sites retain a compatible fallback.
-- Compatible final dependencies are refreshed for the current development baseline.
+- Compatible final dependencies are refreshed for the release baseline.
 
 ### v1.26.10 - Schema Repair Development Baseline
 

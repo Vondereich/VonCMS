@@ -64,8 +64,8 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
       ariaLabel="Default theme settings"
       className="w-full max-w-2xl"
     >
-      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1a1b26] sm:max-h-[90dvh]">
-        <div className="z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-admin-panel sm:max-h-[90dvh]">
+        <div className="z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-admin-border dark:bg-admin-panel sm:p-6">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Type size={24} className="text-primary-600" />
@@ -78,7 +78,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#242633] dark:hover:text-white"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-white"
             aria-label="Close Default theme settings"
           >
             <X size={20} />
@@ -88,7 +88,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
         <div className="flex-1 space-y-8 overflow-y-auto p-4 sm:p-6">
           {/* Brand Colors */}
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-[#2a2b36]">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-admin-border">
               Brand Identity
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -116,7 +116,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   <button
                     type="button"
                     onClick={() => handleChange('primaryColor', '#0ea5ff')}
-                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-[#242633] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                   >
                     Reset
                   </button>
@@ -162,7 +162,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                         },
                       }))
                     }
-                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-[#242633] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                   >
                     Reset
                   </button>
@@ -178,7 +178,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   name="defaultthemesettings217"
                   value={tempSettings.theme.fontFamily}
                   onChange={(e) => handleChange('fontFamily', e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
+                  className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg bg-white dark:bg-admin-panel text-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
                 >
                   <option value="Inter, sans-serif">Inter (Bundled)</option>
                   <option value="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
@@ -192,7 +192,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
 
           {/* UI Preferences */}
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-[#2a2b36]">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-admin-border">
               Design System
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -206,7 +206,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   aria-label="Border Radius"
                   value={tempSettings.theme.borderRadius}
                   onChange={(e) => handleChange('borderRadius', e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-white dark:bg-[#1a1b26] text-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
+                  className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg bg-white dark:bg-admin-panel text-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
                 >
                   <option value="0px">Square (Sharp)</option>
                   <option value="0.25rem">Small (Subtle)</option>
@@ -219,11 +219,11 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
           </section>
           {/* Feature Toggles */}
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-[#2a2b36]">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-admin-border">
               Features
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-center justify-between p-4 border border-slate-200 dark:border-[#2a2b36] rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26] transition-colors">
+              <label className="flex items-center justify-between p-4 border border-slate-200 dark:border-admin-border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel transition-colors">
                 <div>
                   <span className="block text-sm font-bold text-slate-700 dark:text-slate-200">
                     Trending Ticker
@@ -247,7 +247,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   className="w-5 h-5 text-primary-600 rounded-sm focus:ring-primary-500"
                 />
               </label>
-              <label className="flex items-center justify-between p-4 border border-slate-200 dark:border-[#2a2b36] rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26] transition-colors">
+              <label className="flex items-center justify-between p-4 border border-slate-200 dark:border-admin-border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel transition-colors">
                 <div>
                   <span className="block text-sm font-bold text-slate-700 dark:text-slate-200">
                     Marquee Animation
@@ -276,11 +276,11 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
 
           {/* Footer Settings Section */}
           <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-[#2a2b36]">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white pb-2 border-b border-slate-100 dark:border-admin-border">
               Footer Customization
             </h3>
 
-            <div className="bg-slate-50 dark:bg-[#16161e] rounded-lg p-5 border border-slate-100 dark:border-white/10">
+            <div className="bg-slate-50 dark:bg-admin-canvas rounded-lg p-5 border border-slate-100 dark:border-white/10">
               <div className="flex items-center justify-between mb-3">
                 <span className="block text-sm font-bold text-slate-700 dark:text-slate-300">
                   Footer Links
@@ -309,7 +309,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                         updateFooterLinks(links);
                       }}
                       placeholder="Label"
-                      className="flex-1 p-2 rounded-sm border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                      className="flex-1 p-2 rounded-sm border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                     />
                     <input
                       id="defaultthemesettings-469"
@@ -323,7 +323,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                         updateFooterLinks(links);
                       }}
                       placeholder="URL (e.g. / or https://...)"
-                      className="flex-1 p-2 rounded-sm border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                      className="flex-1 p-2 rounded-sm border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                     />
                     <button
                       onClick={() => updateFooterLinks(footerLinks.filter((_, i) => i !== idx))}
@@ -343,10 +343,10 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
           </section>
         </div>
 
-        <div className="admin-safe-bottom z-10 flex flex-col-reverse justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:flex-row sm:p-6">
+        <div className="admin-safe-bottom z-10 flex flex-col-reverse justify-end gap-3 rounded-b-2xl border-t border-slate-100 bg-white p-4 dark:border-admin-border dark:bg-admin-panel sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-admin-hover font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

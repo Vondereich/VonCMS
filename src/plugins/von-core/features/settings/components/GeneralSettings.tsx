@@ -114,8 +114,8 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
-      <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-[#2a2b36] pb-2">
+    <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border p-6 space-y-6 animate-fade-in">
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-admin-border pb-2">
         Site Information
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -130,7 +130,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="text"
             value={settings.siteName}
             onChange={(e) => onChange('siteName', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-lg font-medium"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-lg font-medium"
             placeholder="E.g. My Awesome Blog"
           />
           <p className="text-xs text-slate-500 mt-1">
@@ -148,7 +148,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             rows={3}
             value={settings.siteDescription}
             onChange={(e) => onChange('siteDescription', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
             placeholder="E.g. Portal sharing knowledge about technology..."
           />
         </div>
@@ -163,7 +163,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="text"
             value={settings.siteTagline || ''}
             onChange={(e) => onChange('siteTagline', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-lg"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-lg"
             placeholder="E.g. Think. Create. Share."
           />
           <p className="text-xs text-slate-500 mt-1">Short tagline shown on the homepage.</p>
@@ -182,7 +182,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="text"
             value={settings.site_language || ''}
             onChange={(e) => onChange('site_language', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-lg font-mono placeholder:font-sans"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-lg font-mono placeholder:font-sans"
             placeholder="e.g. ms, en, ar, hi"
           />
           <p className="text-xs text-slate-500 mt-1">
@@ -198,7 +198,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           </span>
           <div className="flex items-center gap-4">
             {settings.logoUrl ? (
-              <div className="relative w-20 h-20 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-slate-200 dark:border-[#2a2b36] flex items-center justify-center overflow-hidden">
+              <div className="relative w-20 h-20 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-slate-200 dark:border-admin-border flex items-center justify-center overflow-hidden">
                 <img
                   src={settings.logoUrl}
                   alt="Logo"
@@ -212,7 +212,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="w-20 h-20 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-dashed border-slate-300 dark:border-[#333544] flex items-center justify-center text-slate-400">
+              <div className="w-20 h-20 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
                 <ImageIcon size={24} />
               </div>
             )}
@@ -254,7 +254,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   id="headerIdentityMode"
                   value={headerIdentityMode}
                   onChange={handleHeaderIdentityModeChange}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#333544] dark:bg-[#1a1b26] dark:text-slate-200"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border-strong dark:bg-admin-panel dark:text-slate-200"
                 >
                   <option value="logo_and_text">Logo + Text</option>
                   <option value="logo_only">Logo Only</option>
@@ -298,7 +298,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           </span>
           <div className="flex items-center gap-4">
             {settings.faviconUrl ? (
-              <div className="relative w-12 h-12 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-slate-200 dark:border-[#2a2b36] flex items-center justify-center overflow-hidden">
+              <div className="relative w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-slate-200 dark:border-admin-border flex items-center justify-center overflow-hidden">
                 <img
                   src={settings.faviconUrl}
                   alt="Favicon"
@@ -312,12 +312,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="w-12 h-12 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-dashed border-slate-300 dark:border-[#333544] flex items-center justify-center text-slate-400">
+              <div className="w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
                 <ImageIcon size={16} />
               </div>
             )}
             <div className="flex-1">
-              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-[#242633] hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors">
+              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors">
                 {uploading === 'favicon' ? (
                   <Loader2 className="animate-spin" size={18} />
                 ) : (
@@ -353,7 +353,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               </p>
               <div className="flex items-center gap-4">
                 {settings.ogImageUrl ? (
-                  <div className="relative w-24 h-12 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-slate-200 dark:border-[#2a2b36] flex items-center justify-center overflow-hidden group">
+                  <div className="relative w-24 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-slate-200 dark:border-admin-border flex items-center justify-center overflow-hidden group">
                     <img
                       src={settings.ogImageUrl}
                       alt="Social Share Large"
@@ -367,12 +367,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="w-24 h-12 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-dashed border-slate-300 dark:border-[#333544] flex items-center justify-center text-slate-400">
+                  <div className="w-24 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
                     <ImageIcon size={20} />
                   </div>
                 )}
                 <div className="flex-1">
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-[#242633] hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
                     {uploading === 'ogImage' ? (
                       <Loader2 className="animate-spin" size={14} />
                     ) : (
@@ -403,7 +403,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               </p>
               <div className="flex items-center gap-4">
                 {settings.ogImageSquareUrl ? (
-                  <div className="relative w-12 h-12 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-slate-200 dark:border-[#2a2b36] flex items-center justify-center overflow-hidden group">
+                  <div className="relative w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-slate-200 dark:border-admin-border flex items-center justify-center overflow-hidden group">
                     <img
                       src={settings.ogImageSquareUrl}
                       alt="Social Share Square"
@@ -417,12 +417,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="w-12 h-12 bg-slate-100 dark:bg-[#16161e] rounded-lg border border-dashed border-slate-300 dark:border-[#333544] flex items-center justify-center text-slate-400">
+                  <div className="w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
                     <ImageIcon size={16} />
                   </div>
                 )}
                 <div className="flex-1">
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-[#242633] hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
                     {uploading === 'ogImageSquare' ? (
                       <Loader2 className="animate-spin" size={14} />
                     ) : (
@@ -460,7 +460,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             value={settings.domainUrl || ''}
             onChange={(e) => onChange('domainUrl', e.target.value)}
             disabled={!canManageSecrets}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
             placeholder="https://example.com"
           />
           <p className="text-xs text-slate-500 mt-1">
@@ -479,7 +479,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             aria-label="Time Zone"
             value={settings.timeZone || 'UTC'}
             onChange={(e) => onChange('timeZone', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           >
             <option value="UTC">UTC (GMT+0)</option>
             <option value="Africa/Cairo">Africa/Cairo (GMT+2)</option>
@@ -522,7 +522,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             aria-label="Date Format"
             value={settings.dateFormat || DEFAULT_SITE_DATE_FORMAT}
             onChange={(e) => onChange('dateFormat', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           >
             {SITE_DATE_FORMAT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -536,7 +536,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           </p>
         </div>
         {/* SMTP Email Configuration */}
-        <div className="md:col-span-2 border-t border-slate-200 dark:border-[#2a2b36] pt-6 mt-2">
+        <div className="md:col-span-2 border-t border-slate-200 dark:border-admin-border pt-6 mt-2">
           <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -566,7 +566,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   type="text"
                   value={settings.smtpHost || ''}
                   onChange={(e) => onChange('smtpHost', e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                   placeholder="smtp.gmail.com"
                 />
               </div>
@@ -581,7 +581,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   type="number"
                   value={settings.smtpPort || 587}
                   onChange={(e) => onChange('smtpPort', parseInt(e.target.value) || 587)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                   placeholder="587"
                 />
               </div>
@@ -596,7 +596,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   type="email"
                   value={settings.smtpUser || ''}
                   onChange={(e) => onChange('smtpUser', e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                   placeholder="your@email.com"
                 />
               </div>
@@ -611,7 +611,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   type="password"
                   value={settings.smtpPass || ''}
                   onChange={(e) => onChange('smtpPass', e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                   placeholder="••••••••"
                 />
               </div>
@@ -625,7 +625,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings515"
                   value={settings.smtpEncryption || 'tls'}
                   onChange={(e) => onChange('smtpEncryption', e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                 >
                   <option value="tls">TLS (Recommended)</option>
                   <option value="ssl">SSL</option>
@@ -643,7 +643,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   type="text"
                   value={settings.smtpFromName || ''}
                   onChange={(e) => onChange('smtpFromName', e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
                   placeholder="My Website"
                 />
               </div>
@@ -670,7 +670,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             value={postsPerPageLocal}
             onChange={(e) => setPostsPerPageLocal(e.target.value)}
             onBlur={handlePostsPerPageBlur}
-            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           />
         </div>
         <div className="flex items-center gap-3">
@@ -730,7 +730,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               'viagra, cialis, casino, lottery, prize winner, click here, buy now, free money, make money fast, earn extra cash, work from home, crypto investment, bitcoin profit, forex trading, adult content, xxx, nigerian prince, wire transfer, western union'
             }
             onChange={(e) => onChange('spamKeywords', e.target.value)}
-            className="w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white font-mono text-sm"
+            className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white font-mono text-sm"
             placeholder="viagra, casino, buy now, ..."
           />
           <p className="text-xs text-slate-500 mt-1">
@@ -748,7 +748,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             aria-label="Share Buttons Placement"
             value={settings.sharePlacement || 'bottom'}
             onChange={(e) => onChange('sharePlacement', e.target.value)}
-            className="w-full p-2 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white"
+            className="w-full p-2 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           >
             <option value="none">Disabled</option>
             <option value="top">Top of post</option>

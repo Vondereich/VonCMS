@@ -50,9 +50,9 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
       ariaLabel="TechPress settings"
       className="w-full max-w-2xl"
     >
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-admin-canvas sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:p-6">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:p-6">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">TechPress Settings</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -62,7 +62,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
             aria-label="Close TechPress settings"
           >
             <X size={24} />
@@ -94,14 +94,14 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   type="text"
                   value={tempConfig.primaryColor}
                   onChange={(e) => setTempConfig({ ...tempConfig, primaryColor: e.target.value })}
-                  className="flex-1 px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="flex-1 px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                 />
               </div>
             </div>
 
             {/* Toggles */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26]">
+              <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel">
                 <input
                   id="techpresssettings-136"
                   name="techpresssettings136"
@@ -116,7 +116,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   Enable Latest Ticker
                 </span>
               </label>
-              <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26]">
+              <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel">
                 <input
                   id="techpresssettings-149"
                   name="techpresssettings149"
@@ -134,7 +134,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                   <span className="text-[10px] text-slate-500">Smooth scrolling effect</span>
                 </div>
               </label>
-              <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26]">
+              <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel">
                 <input
                   id="techpresssettings-165"
                   name="techpresssettings165"
@@ -172,7 +172,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                         breakingNewsCount: parseInt(e.target.value),
                       })
                     }
-                    className="flex-1 h-2 bg-slate-200 dark:bg-[#242633] rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    className="flex-1 h-2 bg-slate-200 dark:bg-admin-hover rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
                   <input
                     id="techpresssettings-199"
@@ -188,7 +188,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                         breakingNewsCount: parseInt(e.target.value) || 3,
                       })
                     }
-                    className="w-20 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white text-center font-bold"
+                    className="w-20 px-3 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white text-center font-bold"
                   />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -231,7 +231,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                           newLinks[idx] = { ...newLinks[idx], label: e.target.value };
                           setTempFooterLinks(newLinks);
                         }}
-                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-sm text-sm dark:bg-[#1a1b26] dark:text-white"
+                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-admin-border rounded-sm text-sm dark:bg-admin-panel dark:text-white"
                         placeholder="Label"
                       />
                       <input
@@ -245,7 +245,7 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
                           newLinks[idx] = { ...newLinks[idx], url: e.target.value };
                           setTempFooterLinks(newLinks);
                         }}
-                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-sm text-sm dark:bg-[#1a1b26] dark:text-white"
+                        className="flex-1 px-3 py-2 border border-slate-200 dark:border-admin-border rounded-sm text-sm dark:bg-admin-panel dark:text-white"
                         placeholder="URL"
                       />
                       <button
@@ -275,10 +275,10 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

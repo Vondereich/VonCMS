@@ -493,7 +493,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
               </button>
               <button
                 onClick={() => toast.dismiss(t.id)}
-                className="mt-2 bg-slate-200 dark:bg-[#242633] text-slate-800 dark:text-slate-200 px-3 py-1 rounded-sm text-xs font-semibold hover:bg-slate-300 transition-colors"
+                className="mt-2 bg-slate-200 dark:bg-admin-hover text-slate-800 dark:text-slate-200 px-3 py-1 rounded-sm text-xs font-semibold hover:bg-slate-300 transition-colors"
               >
                 Dismiss
               </button>
@@ -661,7 +661,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div
-      className={`admin-shell flex min-h-0 overflow-hidden font-sans transition-colors duration-300 ${isDarkMode ? 'dark bg-[#16161e] text-slate-300' : 'bg-slate-50 text-slate-900'}`}
+      className={`admin-shell flex min-h-0 overflow-hidden font-sans transition-colors duration-300 ${isDarkMode ? 'dark bg-admin-canvas text-slate-300' : 'bg-slate-50 text-slate-900'}`}
     >
       {isMobileSidebarOpen && (
         <button
@@ -676,7 +676,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       <aside
         id="admin-mobile-navigation"
         ref={mobileSidebarRef}
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-white/10 bg-[#1a1b26] text-slate-300 shadow-2xl transition-[transform,width] duration-300 ease-in-out xl:relative xl:z-20 xl:max-w-none ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-white/10 bg-admin-sidebar text-slate-300 shadow-2xl transition-[transform,width] duration-300 ease-in-out xl:relative xl:z-20 xl:max-w-none ${
           isMobileSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full xl:visible'
         } ${isSidebarOpen ? 'xl:w-64' : 'xl:w-20'} xl:translate-x-0`}
         aria-label="Admin navigation"
@@ -727,7 +727,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                                     ${
                                       isActive
                                         ? 'bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/20'
-                                        : 'text-slate-400 hover:bg-[#1a1b26] hover:text-white'
+                                        : 'text-slate-400 hover:bg-admin-panel hover:text-white'
                                     }
                                 `}
                 onClick={() => setIsMobileSidebarOpen(false)}
@@ -772,7 +772,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         <div className="p-4 border-t border-white/10 space-y-2">
           <Link
             to="/"
-            className={`flex min-h-11 items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-[#1a1b26] hover:text-white transition-colors text-sm ${!isSidebarOpen && 'xl:justify-center'}`}
+            className={`flex min-h-11 items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-admin-panel hover:text-white transition-colors text-sm ${!isSidebarOpen && 'xl:justify-center'}`}
             title="Visit Site"
           >
             <Globe size={18} />
@@ -780,7 +780,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           </Link>
           <button
             onClick={onLogout}
-            className={`flex min-h-11 items-center gap-3 w-full px-3 py-2 rounded-lg text-red-400 hover:bg-[#1a1b26] hover:text-red-300 transition-colors text-sm ${!isSidebarOpen && 'xl:justify-center'}`}
+            className={`flex min-h-11 items-center gap-3 w-full px-3 py-2 rounded-lg text-red-400 hover:bg-admin-panel hover:text-red-300 transition-colors text-sm ${!isSidebarOpen && 'xl:justify-center'}`}
             title="Logout"
           >
             <LogOut size={18} />
@@ -794,14 +794,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
               <img
                 src={user.avatar}
                 alt={user.username}
-                className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b26] shadow-md object-cover"
+                className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-admin-sidebar shadow-md object-cover"
               />
             ) : (
               <Gravatar
                 email={user?.email || user?.username}
                 size={32}
                 default="identicon"
-                className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b26] shadow-md object-cover"
+                className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-admin-sidebar shadow-md object-cover"
               />
             )}
             <div className={`flex-1 overflow-hidden ${!isSidebarOpen ? 'xl:hidden' : ''}`}>
@@ -821,14 +821,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Top Header */}
         <header
           className="h-16 px-3 sm:px-4 lg:px-6 flex items-center justify-between
-                    bg-white/90 dark:bg-[#1a1b26]/90 backdrop-blur-md border-b border-slate-200 dark:border-white/10 sticky top-0 z-30 shadow-xs dark:shadow-slate-900/10"
+                    bg-white/90 dark:bg-admin-panel/90 backdrop-blur-md border-b border-slate-200 dark:border-white/10 sticky top-0 z-30 shadow-xs dark:shadow-slate-900/10"
         >
           <div className="flex items-center gap-4">
             <button
               ref={mobileMenuButtonRef}
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors xl:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover transition-colors xl:hidden"
               aria-label="Open admin navigation"
               aria-expanded={isMobileSidebarOpen}
               aria-controls="admin-mobile-navigation"
@@ -838,7 +838,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
             <button
               type="button"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="hidden h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors xl:flex"
+              className="hidden h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover transition-colors xl:flex"
               aria-label={isSidebarOpen ? 'Collapse admin navigation' : 'Expand admin navigation'}
               aria-expanded={isSidebarOpen}
             >
@@ -861,11 +861,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                 placeholder="Search admin..."
                 value={searchQuery}
                 onChange={handleSearch}
-                className="pl-9 pr-4 py-2 bg-slate-100 dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36]/50 focus:border-blue-500 dark:focus:border-blue-500 rounded-full text-sm outline-hidden transition-all w-64 focus:w-80 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-xs"
+                className="pl-9 pr-4 py-2 bg-slate-100 dark:bg-admin-canvas border border-slate-200 dark:border-admin-border/70 focus:border-blue-500 dark:focus:border-blue-500 rounded-full text-sm outline-hidden transition-all w-64 focus:w-80 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 shadow-xs"
               />
               {/* Search Results Dropdown */}
               {searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1b26] rounded-xl shadow-xl border border-slate-100 dark:border-[#2a2b36] overflow-hidden py-2 z-50">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-admin-panel rounded-xl shadow-xl border border-slate-100 dark:border-admin-border overflow-hidden py-2 z-50">
                   <div className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Navigation
                   </div>
@@ -874,7 +874,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                       key={result.path}
                       to={result.path}
                       onClick={() => handleResultClick()}
-                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-[#242633]/50 transition-colors text-sm text-slate-700 dark:text-slate-200"
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors text-sm text-slate-700 dark:text-slate-200"
                     >
                       <div className="text-slate-400 dark:text-slate-500">{result.icon}</div>
                       {result.label}
@@ -888,7 +888,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={toggleDarkMode}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover transition-colors"
               aria-label={isDarkMode ? 'Use light mode' : 'Use dark mode'}
             >
               {isDarkMode ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} />}
@@ -897,19 +897,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
             <div ref={alertsTrayRef} className="relative">
               <button
                 onClick={() => setIsAlertsOpen((prev) => !prev)}
-                className="relative flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1a1b26] transition-colors"
+                className="relative flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover transition-colors"
                 aria-label="Open system alerts"
                 aria-expanded={isAlertsOpen}
               >
                 <Bell size={20} />
                 {hasActiveAlerts && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-[#16161e]"></span>
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-admin-canvas"></span>
                 )}
               </button>
 
               {isAlertsOpen && (
-                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] bg-white dark:bg-[#1a1b26] rounded-xl shadow-xl border border-slate-100 dark:border-[#2a2b36] overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-slate-100 dark:border-[#2a2b36] flex items-start justify-between gap-3">
+                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] bg-white dark:bg-admin-panel rounded-xl shadow-xl border border-slate-100 dark:border-admin-border overflow-hidden z-50">
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-admin-border flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                         System Alerts
@@ -941,7 +941,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                           key={alert.id}
                           to={alert.actionPath}
                           onClick={() => setIsAlertsOpen(false)}
-                          className="block rounded-lg border border-slate-200 dark:border-[#2a2b36] p-3 hover:bg-slate-50 dark:hover:bg-[#242633]/40 transition-colors"
+                          className="block rounded-lg border border-slate-200 dark:border-admin-border p-3 hover:bg-slate-50 dark:hover:bg-admin-hover/40 transition-colors"
                         >
                           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                             {alert.title}
@@ -955,7 +955,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                         </Link>
                       ))
                     ) : !isPrimaryAdmin ? (
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-[#2a2b36] dark:bg-[#242633]/40">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-admin-border dark:bg-admin-hover/40">
                         <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                           Database status restricted
                         </p>
@@ -978,7 +978,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
               )}
             </div>
 
-            <div className="h-6 w-px bg-slate-200 dark:bg-[#242633] mx-1"></div>
+            <div className="h-6 w-px bg-slate-200 dark:bg-admin-hover mx-1"></div>
           </div>
         </header>
 

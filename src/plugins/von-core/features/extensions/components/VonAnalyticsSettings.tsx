@@ -52,9 +52,9 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
       ariaLabel="Analytics and privacy settings"
       className="w-full max-w-4xl"
     >
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-admin-canvas sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-blue-50 to-purple-50 p-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-900 sm:p-6">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-blue-50 to-purple-50 p-4 dark:border-white/10 dark:from-admin-canvas dark:to-admin-canvas sm:p-6">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <BarChart3 className="text-blue-600" size={28} />
@@ -67,7 +67,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
             aria-label="Close analytics settings"
           >
             <X size={24} />
@@ -89,13 +89,13 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                   your local database.
                 </p>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="text-center px-4 py-2 bg-white dark:bg-[#1a1b26] rounded-lg border border-blue-100 dark:border-blue-700">
+                  <div className="text-center px-4 py-2 bg-white dark:bg-admin-panel rounded-lg border border-blue-100 dark:border-blue-700">
                     <span className="block text-xs text-slate-500 uppercase font-bold">
                       Data Retention
                     </span>
                     <span className="text-sm font-bold text-blue-600">30 Days</span>
                   </div>
-                  <div className="text-center px-4 py-2 bg-white dark:bg-[#1a1b26] rounded-lg border border-blue-100 dark:border-blue-700">
+                  <div className="text-center px-4 py-2 bg-white dark:bg-admin-panel rounded-lg border border-blue-100 dark:border-blue-700">
                     <span className="block text-xs text-slate-500 uppercase font-bold">
                       Privacy
                     </span>
@@ -114,7 +114,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
             </h3>
 
             {/* Cookie Consent */}
-            <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26] transition-colors">
+            <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel transition-colors">
               <input
                 id="vonanalyticssettings-105"
                 name="vonanalyticssettings105"
@@ -140,7 +140,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
           </div>
 
           {/* GA Direction Box */}
-          <div className="bg-slate-100 dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg p-4">
+          <div className="bg-slate-100 dark:bg-admin-panel border border-slate-200 dark:border-admin-border rounded-lg p-4">
             <h4 className="font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
               <AlertCircle size={16} className="text-slate-500" />
               Looking for Google Analytics?
@@ -153,10 +153,10 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

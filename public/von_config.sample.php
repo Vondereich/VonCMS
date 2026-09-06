@@ -1,4 +1,14 @@
 <?php
+// This template may be copied and included as the live private configuration,
+// but it must never execute as the browser's requested entry point.
+$configSamplePath = realpath(__FILE__);
+$requestedScriptPath = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''));
+if ($configSamplePath !== false && $requestedScriptPath === $configSamplePath) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+unset($configSamplePath, $requestedScriptPath);
+
 // VonCMS Configuration
 // Generated Manually
 

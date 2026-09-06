@@ -24,7 +24,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
   isRestoring,
   result,
 }) => (
-  <div className="bg-white dark:bg-[#1a1b26] p-5 rounded-xl border border-slate-200 dark:border-[#2a2b36] shadow-xs space-y-4">
+  <div className="bg-white dark:bg-admin-panel p-5 rounded-xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
     <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
       <span className="text-blue-500">●</span> SEO Settings
     </h3>
@@ -52,7 +52,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
       <textarea
         id="post-meta-desc"
         name="metaDescription"
-        className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
+        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
         placeholder="Brief summary for search engines (max 160 chars)..."
         value={item.metaDescription || ''}
         onChange={(event) =>
@@ -89,7 +89,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         name="keywords"
         type="text"
         placeholder="comma, separated, keywords"
-        className="w-full p-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-slate-50 dark:bg-[#16161e] text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
         value={item.keywords || ''}
         onChange={(event) =>
           setItem((previous) => (previous ? { ...previous, keywords: event.target.value } : null))
@@ -109,8 +109,8 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
     </div>
 
     {isRestoring && (
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden animate-fade-in mt-6">
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-[#2a2b36] flex items-center gap-2">
+      <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden animate-fade-in mt-6">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-admin-border flex items-center gap-2">
           <Activity size={16} className="text-blue-500 animate-pulse" />
           <h3 className="font-bold text-slate-800 dark:text-white text-sm">SEO Health</h3>
         </div>
@@ -121,8 +121,8 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
     )}
 
     {result && !isRestoring && (
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden animate-fade-in mt-6">
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center">
+      <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden animate-fade-in mt-6">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-admin-border flex justify-between items-center">
           <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
             <Activity size={16} className="text-blue-500" />
             SEO Health
@@ -147,7 +147,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
               <span>Optimization</span>
               <span>{result.score}%</span>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-[#242633] rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-slate-100 dark:bg-admin-hover rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
                   result.score >= 80

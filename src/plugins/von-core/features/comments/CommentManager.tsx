@@ -64,7 +64,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
         </div>
         <button
           onClick={() => window.location.reload()}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-[#242633] dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
         >
           <RefreshCw size={16} />
           Refresh
@@ -88,14 +88,14 @@ const CommentManager: React.FC<CommentManagerProps> = ({
             setSearchQuery(e.target.value);
             setCurrentPage(1);
           }}
-          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-xl focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:text-white"
+          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-admin-panel border border-slate-200 dark:border-admin-border rounded-xl focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:text-white"
         />
       </div>
 
       {/* Comments Table */}
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+      <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
         <table className="w-full text-left">
-          <thead className="bg-slate-50 dark:bg-[#16161e]/50 text-xs uppercase text-slate-500 font-medium">
+          <thead className="bg-slate-50 dark:bg-admin-canvas/50 text-xs uppercase text-slate-500 font-medium">
             <tr>
               <th className="px-6 py-4">User</th>
               <th className="px-6 py-4">Comment</th>
@@ -104,17 +104,17 @@ const CommentManager: React.FC<CommentManagerProps> = ({
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+          <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
             {paginatedComments.length > 0 ? (
               paginatedComments.map((comment: any) => (
                 <tr
                   key={comment.id}
-                  className={`hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50 ${comment.isReply ? 'bg-slate-50/50 dark:bg-[#16161e]/30' : ''}`}
+                  className={`hover:bg-slate-50 dark:hover:bg-admin-hover/50 ${comment.isReply ? 'bg-slate-50/50 dark:bg-admin-canvas/30' : ''}`}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       {comment.isReply && <CornerDownRight size={14} className="text-slate-400" />}
-                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-[#242633] overflow-hidden shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-admin-hover overflow-hidden shrink-0">
                         {comment.userAvatar ? (
                           <img
                             src={comment.userAvatar}
@@ -138,7 +138,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
                     </p>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-xs text-slate-500 bg-slate-100 dark:bg-[#242633] px-2 py-1 rounded-sm">
+                    <span className="text-xs text-slate-500 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-sm">
                       {comment.postId || 'Unknown'}
                     </span>
                   </td>

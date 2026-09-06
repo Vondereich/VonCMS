@@ -113,7 +113,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
     normalizedRename.toLowerCase() === selectedCategory.toLowerCase();
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6">
+    <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border p-6 space-y-6">
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 dark:text-emerald-400">
           <FolderTree size={22} />
@@ -127,11 +127,11 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
-        <div className="border border-slate-200 dark:border-[#2a2b36] rounded-xl overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 dark:bg-[#16161e]/50 border-b border-slate-200 dark:border-[#2a2b36]">
+        <div className="border border-slate-200 dark:border-admin-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border">
             <h4 className="font-semibold text-slate-800 dark:text-white">Existing Categories</h4>
           </div>
-          <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-100 dark:divide-admin-border">
             {categories.map((category) => (
               <button
                 type="button"
@@ -140,14 +140,14 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
                 className={`w-full text-left px-4 py-3 transition-colors ${
                   selectedCategory === category.name
                     ? 'bg-emerald-50 dark:bg-emerald-900/20'
-                    : 'hover:bg-slate-50 dark:hover:bg-[#101018]/40'
+                    : 'hover:bg-slate-50 dark:hover:bg-admin-inset/40'
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-medium text-slate-800 dark:text-white">
                     {category.name}
                   </span>
-                  <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-[#242633] dark:text-slate-300 px-2 py-1 rounded-full">
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-admin-hover dark:text-slate-300 px-2 py-1 rounded-full">
                     {category.postCount} post{category.postCount === 1 ? '' : 's'}
                   </span>
                 </div>
@@ -160,7 +160,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
         </div>
 
         <div className="space-y-4">
-          <div className="border border-slate-200 dark:border-[#2a2b36] rounded-xl p-4 space-y-3">
+          <div className="border border-slate-200 dark:border-admin-border rounded-xl p-4 space-y-3">
             <h4 className="font-semibold text-slate-800 dark:text-white">Add Category</h4>
             <input
               aria-label="New category name"
@@ -170,7 +170,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
               placeholder="New category name"
-              className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100"
+              className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-900 dark:text-slate-100"
             />
             <button
               type="button"
@@ -183,7 +183,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
             </button>
           </div>
 
-          <div className="border border-slate-200 dark:border-[#2a2b36] rounded-xl p-4 space-y-3">
+          <div className="border border-slate-200 dark:border-admin-border rounded-xl p-4 space-y-3">
             <h4 className="font-semibold text-slate-800 dark:text-white">
               Rename Selected Category
             </h4>
@@ -198,7 +198,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
               value={renameTarget}
               onChange={(e) => setRenameTarget(e.target.value)}
               placeholder="New category name"
-              className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-900 dark:text-slate-100"
+              className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-900 dark:text-slate-100"
             />
             <button
               type="button"

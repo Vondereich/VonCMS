@@ -331,7 +331,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                     }
                   }
                 }}
-                className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#1a1b26] dark:text-slate-300 dark:hover:bg-[#242633]"
+                className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-panel dark:text-slate-300 dark:hover:bg-admin-hover"
                 title="Purge logs older than 30 days"
               >
                 <RefreshCw size={14} /> Maintenance
@@ -340,14 +340,14 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
               {/* DANGER ZONE DROPDOWN */}
               <button
                 onClick={() => setShowDangerZone(!showDangerZone)}
-                className={`flex size-11 items-center justify-center rounded-lg transition-colors ${showDangerZone ? 'bg-red-500 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1a1b26]'}`}
+                className={`flex size-11 items-center justify-center rounded-lg transition-colors ${showDangerZone ? 'bg-red-500 text-white' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-admin-hover'}`}
                 aria-label="Toggle security danger zone"
               >
                 <Settings size={18} />
               </button>
 
               {showDangerZone && (
-                <div className="animate-in fade-in slide-in-from-top-2 absolute top-full left-0 z-50 mt-2 w-52 rounded-xl border border-red-200 bg-white p-2 shadow-xl dark:border-red-900 dark:bg-[#16161e] sm:right-0 sm:left-auto">
+                <div className="animate-in fade-in slide-in-from-top-2 absolute top-full left-0 z-50 mt-2 w-52 rounded-xl border border-red-200 bg-white p-2 shadow-xl dark:border-red-900 dark:bg-admin-canvas sm:right-0 sm:left-auto">
                   <p className="text-[10px] font-bold text-red-500 px-2 py-1 uppercase tracking-wider">
                     Danger Zone
                   </p>
@@ -382,7 +382,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 </div>
               )}
 
-              <div className="h-6 w-px bg-slate-200 dark:bg-[#1a1b26] mx-1"></div>
+              <div className="h-6 w-px bg-slate-200 dark:bg-admin-panel mx-1"></div>
             </div>
           )}
           <button
@@ -395,11 +395,11 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
               });
               window.open(`${API.securityLogs}?${queryParams}`, '_blank');
             }}
-            className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#1a1b26] dark:text-slate-300 dark:hover:bg-[#242633]"
+            className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-panel dark:text-slate-300 dark:hover:bg-admin-hover"
           >
             <Download size={14} /> Export CSV
           </button>
-          <span className="flex min-h-11 items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-mono text-xs text-slate-500 dark:bg-[#1a1b26]">
+          <span className="flex min-h-11 items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-mono text-xs text-slate-500 dark:bg-admin-panel">
             <span
               className={`w-2 h-2 rounded-full ${refreshing ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}
             ></span>
@@ -407,7 +407,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           </span>
           <button
             onClick={() => fetchData(true, { includeStats: true })}
-            className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
+            className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-admin-hover"
             aria-label="Refresh security data"
           >
             <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
@@ -448,7 +448,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Line Chart - Trends */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#16161e] sm:p-5 xl:col-span-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-admin-canvas sm:p-5 xl:col-span-2">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
             Threat Trends (Last 7 Days)
           </h3>
@@ -490,7 +490,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         </div>
 
         {/* Pie Chart - Distribution */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#16161e] sm:p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-admin-canvas sm:p-5">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
             Attack Distribution
           </h3>
@@ -526,7 +526,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       </div>
 
       {/* Top source ranking */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-[#16161e] sm:p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-admin-canvas sm:p-5">
         <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white">Top Source IPs</h3>
           <span className="text-xs text-slate-400">By recorded security events</span>
@@ -582,7 +582,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       </div>
 
       {/* Live Logs Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-[#16161e]">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-admin-canvas">
         <div className="flex flex-col gap-4 border-b border-slate-200 p-4 dark:border-white/10 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
             <Activity size={18} className="text-blue-500" /> Live Security Event Log
@@ -601,7 +601,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 placeholder="Search IP or endpoint..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-panel"
               />
               <Search className="absolute left-2.5 top-1.5 text-slate-400" size={14} />
             </div>
@@ -615,7 +615,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 setFilterType(e.target.value);
                 setPage(1);
               }}
-              className="min-h-11 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 outline-hidden dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+              className="min-h-11 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 outline-hidden dark:border-admin-border dark:bg-admin-panel"
             >
               <option value="">All Events</option>
               {Object.keys(COLORS).map((type) => (
@@ -634,7 +634,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 setFilterSeverity(e.target.value);
                 setPage(1);
               }}
-              className="min-h-11 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 outline-hidden dark:border-[#2a2b36] dark:bg-[#1a1b26]"
+              className="min-h-11 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 outline-hidden dark:border-admin-border dark:bg-admin-panel"
             >
               <option value="">All Severity</option>
               <option value="low">Low</option>
@@ -660,7 +660,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           </form>
         </div>
 
-        <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+        <div className="divide-y divide-slate-100 dark:divide-admin-border md:hidden">
           {loading && logs.length === 0 ? (
             <div className="px-4 py-10 text-center text-slate-400">Loading security data...</div>
           ) : logs.length === 0 ? (
@@ -712,7 +712,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
 
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-220 w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-[#1a1b26]/50 text-slate-500 uppercase font-bold text-xs">
+            <thead className="bg-slate-50 dark:bg-admin-panel/50 text-slate-500 uppercase font-bold text-xs">
               <tr>
                 <th className="px-5 py-3">Time</th>
                 <th className="px-5 py-3">Event Type</th>
@@ -722,7 +722,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 <th className="px-5 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
               {loading && logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
@@ -739,7 +739,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 logs.map((log) => (
                   <tr
                     key={log.id}
-                    className="hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50 transition-colors"
+                    className="hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors"
                   >
                     <td className="px-5 py-3 text-slate-500 font-mono text-xs">
                       {new Date(log.created_at).toLocaleString()}
@@ -807,7 +807,7 @@ const StatCard: React.FC<{
   isText?: boolean;
   animate?: boolean;
 }> = ({ title, value, icon, color, isText, animate }) => (
-  <div className="bg-white dark:bg-[#16161e] border border-slate-200 dark:border-white/10 p-5 rounded-xl shadow-xs hover:shadow-md transition-shadow">
+  <div className="bg-white dark:bg-admin-canvas border border-slate-200 dark:border-white/10 p-5 rounded-xl shadow-xs hover:shadow-md transition-shadow">
     <div className="flex justify-between items-start mb-2">
       <div className={`p-2.5 rounded-lg ${color} ${animate ? 'animate-pulse' : ''}`}>{icon}</div>
     </div>
@@ -844,7 +844,7 @@ const SeverityBadge: React.FC<{ level: string }> = ({ level }) => {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white dark:bg-[#1a1b26] p-4 border border-slate-200 dark:border-[#2a2b36] rounded-xl shadow-xl">
+      <div className="bg-white dark:bg-admin-panel p-4 border border-slate-200 dark:border-admin-border rounded-xl shadow-xl">
         <p className="font-bold text-slate-800 dark:text-white mb-2">{label}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2 text-sm">

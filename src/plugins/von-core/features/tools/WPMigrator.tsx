@@ -331,7 +331,7 @@ export const WPMigrator: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+    <div className="animate-fade-in mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
           <Upload size={24} />
@@ -375,7 +375,7 @@ export const WPMigrator: React.FC = () => {
       {step === 'upload' && (
         <div className="space-y-6">
           <div
-            className="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-5 text-center transition-colors hover:border-blue-500 dark:border-[#333544] sm:p-8"
+            className="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-5 text-center transition-colors hover:border-blue-500 dark:border-admin-border-strong sm:p-8"
             onClick={() => fileInputRef.current?.click()}
           >
             <input
@@ -438,7 +438,7 @@ export const WPMigrator: React.FC = () => {
       {(step === 'ready' || step === 'importing' || step === 'complete') && stats && (
         <div className="space-y-6">
           {(sourceBlogUrl || sourceSiteUrl) && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-300">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-300">
               <div>
                 <strong>Detected Source:</strong> {sourceBlogUrl || sourceSiteUrl}
               </div>
@@ -450,15 +450,15 @@ export const WPMigrator: React.FC = () => {
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-            <div className="bg-slate-50 dark:bg-[#16161e] p-4 rounded-lg text-center border border-slate-200 dark:border-[#2a2b36]">
+            <div className="bg-slate-50 dark:bg-admin-canvas p-4 rounded-lg text-center border border-slate-200 dark:border-admin-border">
               <div className="text-2xl font-bold dark:text-white">{stats.posts}</div>
               <div className="text-xs text-slate-500 uppercase tracking-wider">Posts</div>
             </div>
-            <div className="bg-slate-50 dark:bg-[#16161e] p-4 rounded-lg text-center border border-slate-200 dark:border-[#2a2b36]">
+            <div className="bg-slate-50 dark:bg-admin-canvas p-4 rounded-lg text-center border border-slate-200 dark:border-admin-border">
               <div className="text-2xl font-bold dark:text-white">{stats.pages}</div>
               <div className="text-xs text-slate-500 uppercase tracking-wider">Pages</div>
             </div>
-            <div className="bg-slate-50 dark:bg-[#16161e] p-4 rounded-lg text-center border border-slate-200 dark:border-[#2a2b36]">
+            <div className="bg-slate-50 dark:bg-admin-canvas p-4 rounded-lg text-center border border-slate-200 dark:border-admin-border">
               <div className="text-2xl font-bold dark:text-white">{stats.media}</div>
               <div className="text-xs text-slate-500 uppercase tracking-wider">Media Files</div>
             </div>
@@ -482,7 +482,7 @@ export const WPMigrator: React.FC = () => {
                   <span>Progress</span>
                   <span>{progress}%</span>
                 </div>
-                <div className="h-4 bg-slate-200 dark:bg-[#242633] rounded-full overflow-hidden">
+                <div className="h-4 bg-slate-200 dark:bg-admin-hover rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-600 transition-all duration-300"
                     style={{ width: `${progress}%` }}
@@ -495,7 +495,7 @@ export const WPMigrator: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-[#101018] text-slate-300 p-4 rounded-lg font-mono text-sm h-48 overflow-y-auto">
+              <div className="bg-admin-inset text-slate-300 p-4 rounded-lg font-mono text-sm h-48 overflow-y-auto">
                 {logs.map((log, i) => (
                   <div key={i} className="mb-1 border-b border-white/10 pb-1 last:border-0">
                     <span className="text-green-500 opacity-50 mr-2">&gt;</span>
@@ -536,7 +536,7 @@ export const WPMigrator: React.FC = () => {
                   if (fileInputRef.current) fileInputRef.current.value = '';
                   setStep('upload');
                 }}
-                className="w-full py-3 bg-slate-600 hover:bg-[#242633] text-white rounded-lg font-bold transition-all"
+                className="w-full py-3 bg-slate-600 hover:bg-admin-hover text-white rounded-lg font-bold transition-all"
               >
                 Start New Import
               </button>
