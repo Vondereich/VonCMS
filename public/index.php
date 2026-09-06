@@ -1168,6 +1168,27 @@ $cssFile = $publicAssets['cssFile'];
                                 ); ?>;
   </script>
   <style>
+    /* Critical shell colours prevent a white first paint before bundled CSS loads. */
+    html {
+      background-color: #f8fafc;
+      color-scheme: light;
+    }
+
+    body {
+      background-color: #f8fafc;
+      color: #1e293b;
+    }
+
+    html.dark {
+      background-color: #181819;
+      color-scheme: dark;
+    }
+
+    html.dark body {
+      background-color: #181819;
+      color: #f1f5f9;
+    }
+
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
@@ -1217,7 +1238,7 @@ $cssFile = $publicAssets['cssFile'];
 
 </head>
 
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200">
+<body class="bg-slate-50 dark:bg-[#181819] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200">
   <?php
   $noscriptListing = voncms_build_noscript_listing_model([
     'path' => $path,

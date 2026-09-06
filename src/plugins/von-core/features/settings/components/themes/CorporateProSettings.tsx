@@ -108,7 +108,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
       className={`flex min-h-11 min-w-36 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${
         activeTab === id
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#242633]'
+          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-admin-hover'
       }`}
     >
       <Icon size={16} />
@@ -123,9 +123,9 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
       ariaLabel="Corporate Pro theme settings"
       className="w-full max-w-4xl"
     >
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1a1b26] sm:max-h-[90dvh]">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-admin-panel sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+        <div className="z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white p-4 dark:border-admin-border dark:bg-admin-panel sm:p-6">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Palette size={24} className="text-blue-600" />
@@ -138,7 +138,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#242633] dark:hover:text-white"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-white"
             aria-label="Close Corporate Pro settings"
           >
             <X size={20} />
@@ -146,7 +146,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
         </div>
 
         {/* Tabs */}
-        <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-[#2a2b36] dark:bg-[#16161e]/20 sm:px-6">
+        <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-admin-border dark:bg-admin-canvas/20 sm:px-6">
           <TabButton id="hero" label="Hero" icon={Type} />
           <TabButton id="services" label="Services" icon={CheckCircle} />
           <TabButton id="about" label="About & Stats" icon={FileText} />
@@ -198,7 +198,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                 </div>
 
                 {/* Section Visibility Toggles */}
-                <div className="bg-slate-50 dark:bg-[#16161e]/40 p-5 rounded-xl border border-slate-100 dark:border-[#2a2b36] mt-4">
+                <div className="bg-slate-50 dark:bg-admin-canvas/40 p-5 rounded-xl border border-slate-100 dark:border-admin-border mt-4">
                   <h4 className="font-bold text-sm text-slate-400 uppercase tracking-widest mb-4">
                     Section Visibility
                   </h4>
@@ -254,11 +254,11 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                   onChange={(v) => setTempSettings({ ...tempSettings, servicesSubtitle: v })}
                 />
               </div>
-              <hr className="border-slate-100 dark:border-[#2a2b36] my-4" />
+              <hr className="border-slate-100 dark:border-admin-border my-4" />
               {([1, 2, 3] as const).map((i) => (
                 <div
                   key={i}
-                  className="bg-slate-50 dark:bg-[#16161e]/40 p-5 rounded-xl border border-slate-100 dark:border-[#2a2b36] space-y-4"
+                  className="bg-slate-50 dark:bg-admin-canvas/40 p-5 rounded-xl border border-slate-100 dark:border-admin-border space-y-4"
                 >
                   <h4 className="font-bold text-sm text-slate-400 uppercase tracking-widest">
                     Service Item {i}
@@ -321,7 +321,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                 onChange={(v) => setTempSettings({ ...tempSettings, aboutImage: v })}
               />
               <div className="grid grid-cols-2 gap-4 pt-4">
-                <div className="bg-slate-50 dark:bg-[#16161e]/40 p-4 rounded-xl border border-slate-100 dark:border-[#2a2b36] space-y-3">
+                <div className="bg-slate-50 dark:bg-admin-canvas/40 p-4 rounded-xl border border-slate-100 dark:border-admin-border space-y-3">
                   <h4 className="font-bold text-xs text-blue-600 uppercase tracking-widest">
                     Statistic 1
                   </h4>
@@ -336,7 +336,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                     onChange={(v) => setTempSettings({ ...tempSettings, aboutStat1Label: v })}
                   />
                 </div>
-                <div className="bg-slate-50 dark:bg-[#16161e]/40 p-4 rounded-xl border border-slate-100 dark:border-[#2a2b36] space-y-3">
+                <div className="bg-slate-50 dark:bg-admin-canvas/40 p-4 rounded-xl border border-slate-100 dark:border-admin-border space-y-3">
                   <h4 className="font-bold text-xs text-blue-600 uppercase tracking-widest">
                     Statistic 2
                   </h4>
@@ -415,10 +415,10 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-[#2a2b36] dark:bg-[#16161e]/50 sm:flex-row sm:items-center sm:p-6">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row sm:items-center sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#242633] font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
@@ -460,7 +460,7 @@ const InputField = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-panel text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
     />
   </div>
 );
@@ -490,7 +490,7 @@ const TextAreaField = ({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden resize-none transition-all"
+      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-panel text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden resize-none transition-all"
     />
   </div>
 );
@@ -517,9 +517,9 @@ const ImagePickerField = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://..."
-        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#1a1b26] text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
+        className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-panel text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
       />
-      <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-[#2a2b36] bg-slate-100 dark:bg-[#1a1b26] overflow-hidden shrink-0">
+      <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-admin-border bg-slate-100 dark:bg-admin-panel overflow-hidden shrink-0">
         <SafeImage
           src={value}
           className="w-full h-full object-cover"

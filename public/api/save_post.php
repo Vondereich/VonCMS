@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/content_embed_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
@@ -101,6 +102,7 @@ $rawContent = preg_replace('/on[a-z]+\s*=\s*(?:["\'][^"\']*["\']|[^\s>]+)/i', ''
 
 // 3. Remove javascript: protocol FOR ALL USERS
 $rawContent = preg_replace('/javascript\s*:/i', '', $rawContent);
+$rawContent = voncms_sanitize_content_iframes($rawContent);
 
 if (function_exists('sanitize_input')) {
   $input = sanitize_input($input);

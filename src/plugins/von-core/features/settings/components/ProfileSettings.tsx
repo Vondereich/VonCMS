@@ -13,7 +13,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   readOnly = false,
 }) => {
   const profile = settings.adminProfile || { name: '', email: '', bio: '', avatar: '' };
-  const fieldClass = `w-full p-3 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white ${
+  const fieldClass = `w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white ${
     readOnly ? 'cursor-not-allowed opacity-75' : ''
   }`;
 
@@ -23,8 +23,8 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 space-y-6 animate-fade-in">
-      <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-[#2a2b36] pb-2">
+    <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border p-6 space-y-6 animate-fade-in">
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-admin-border pb-2">
         Admin Profile
       </h3>
       <p className="text-sm text-slate-500 dark:text-slate-400">

@@ -198,22 +198,22 @@ const ContactManager = () => {
             <button
               onClick={handleMigrate}
               disabled={loading}
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-slate-700 transition-all hover:bg-slate-200 dark:border-[#333544] dark:bg-[#242633] dark:text-slate-200 dark:hover:bg-[#333544] sm:flex-none"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-slate-700 transition-all hover:bg-slate-200 dark:border-admin-border-strong dark:bg-admin-hover dark:text-slate-200 dark:hover:bg-admin-hover-strong sm:flex-none"
               title="Migrate forms from old settings table"
             >
               <Database size={18} /> Migrate
             </button>
             <button
               onClick={handleCreate}
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#1a1b26] px-4 py-2 text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-[#242633] dark:bg-[#242633] dark:hover:bg-[#333544] sm:flex-none"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-admin-panel px-4 py-2 text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-admin-hover dark:bg-admin-hover dark:hover:bg-admin-hover-strong sm:flex-none"
             >
               <Plus size={18} /> Add New
             </button>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-gray-200 dark:border-[#2a2b36] overflow-hidden">
-          <div className="divide-y divide-gray-100 dark:divide-[#2a2b36] md:hidden">
+        <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-gray-200 dark:border-admin-border overflow-hidden">
+          <div className="divide-y divide-gray-100 dark:divide-admin-border md:hidden">
             {forms.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 No contact forms found. Create one to get started.
@@ -240,13 +240,13 @@ const ContactManager = () => {
                     <button
                       type="button"
                       onClick={() => copyShortcode(form.id)}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-[#101018] dark:text-gray-300"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-admin-inset dark:text-gray-300"
                       aria-label={`Copy shortcode for ${form.title}`}
                     >
                       <Copy size={17} />
                     </button>
                   </div>
-                  <code className="block break-all rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600 dark:bg-[#101018] dark:text-gray-400">
+                  <code className="block break-all rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600 dark:bg-admin-inset dark:text-gray-400">
                     {`[von-contact id="${form.id}"]`}
                   </code>
                   <div className="flex gap-2">
@@ -256,7 +256,7 @@ const ContactManager = () => {
                         setCurrentForm(form);
                         setView('edit');
                       }}
-                      className="min-h-11 flex-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-slate-700"
+                      className="min-h-11 flex-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-admin-border"
                     >
                       Edit Form
                     </button>
@@ -274,7 +274,7 @@ const ContactManager = () => {
           </div>
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-170 text-left">
-              <thead className="bg-gray-50 dark:bg-[#16161e]/70 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-[#2a2b36]">
+              <thead className="bg-gray-50 dark:bg-admin-canvas/70 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-admin-border">
                 <tr>
                   <th className="p-4 font-semibold">Title</th>
                   <th className="p-4 font-semibold">Shortcode</th>
@@ -282,7 +282,7 @@ const ContactManager = () => {
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-[#2a2b36]">
+              <tbody className="divide-y divide-gray-100 dark:divide-admin-border">
                 {forms.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-gray-500">
@@ -293,10 +293,10 @@ const ContactManager = () => {
                   forms.map((form) => (
                     <tr
                       key={form.id}
-                      className="hover:bg-gray-50 dark:hover:bg-[#242633]/50 transition-colors"
+                      className="hover:bg-gray-50 dark:hover:bg-admin-hover/50 transition-colors"
                     >
                       <td
-                        className="p-4 font-medium text-slate-800 hover:text-[#1a1b26] dark:text-slate-100 dark:hover:text-white cursor-pointer"
+                        className="p-4 font-medium text-slate-800 hover:text-[#202124] dark:text-slate-100 dark:hover:text-white cursor-pointer"
                         onClick={() => {
                           setCurrentForm(form);
                           setView('edit');
@@ -305,11 +305,11 @@ const ContactManager = () => {
                         {form.title}
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#101018] px-3 py-1 rounded-sm border border-gray-200 dark:border-[#2a2b36] w-fit text-sm font-mono text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-admin-inset px-3 py-1 rounded-sm border border-gray-200 dark:border-admin-border w-fit text-sm font-mono text-gray-600 dark:text-gray-400">
                           {`[von-contact id="${form.id}"]`}
                           <button
                             onClick={() => copyShortcode(form.id)}
-                            className="hover:text-[#1a1b26] dark:hover:text-white ml-2"
+                            className="hover:text-[#202124] dark:hover:text-white ml-2"
                             title="Copy"
                           >
                             <Copy size={14} />
@@ -326,7 +326,7 @@ const ContactManager = () => {
                               setCurrentForm(form);
                               setView('edit');
                             }}
-                            className="p-2 text-gray-500 hover:text-[#1a1b26] hover:bg-slate-100 dark:hover:bg-[#242633] dark:hover:text-white rounded-lg transition-colors"
+                            className="p-2 text-gray-500 hover:text-[#202124] hover:bg-slate-100 dark:hover:bg-admin-hover dark:hover:text-white rounded-lg transition-colors"
                           >
                             <Settings size={18} />
                           </button>
@@ -360,7 +360,7 @@ const ContactManager = () => {
           <button
             type="button"
             onClick={() => setView('list')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#242633]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-admin-hover"
             aria-label="Back to contact forms"
           >
             <ChevronLeft size={24} className="text-gray-600 dark:text-gray-300" />
@@ -377,7 +377,7 @@ const ContactManager = () => {
           />
         </div>
         <div className="flex items-center justify-end gap-3">
-          <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-[#16161e] px-4 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#2a2b36]">
+          <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-admin-canvas px-4 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-admin-border">
             <span className="font-mono selectable select-all">
               {`[von-contact id="${currentForm.id}"]`}
             </span>
@@ -389,7 +389,7 @@ const ContactManager = () => {
             type="button"
             onClick={handleSave}
             disabled={loading}
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#1a1b26] px-6 py-2 font-medium text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-[#242633] disabled:opacity-50 dark:bg-[#242633] dark:hover:bg-[#333544] sm:flex-none"
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-admin-panel px-6 py-2 font-medium text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-admin-hover disabled:opacity-50 dark:bg-admin-hover dark:hover:bg-admin-hover-strong sm:flex-none"
           >
             {loading ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
             Save
@@ -398,23 +398,23 @@ const ContactManager = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-gray-200 dark:border-[#2a2b36] overflow-hidden min-h-150 flex flex-col">
-        <div className="flex overflow-x-auto border-b border-gray-200 dark:border-[#2a2b36]">
+      <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-gray-200 dark:border-admin-border overflow-hidden min-h-150 flex flex-col">
+        <div className="flex overflow-x-auto border-b border-gray-200 dark:border-admin-border">
           <button
             onClick={() => setActiveTab('form')}
-            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'form' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'form' ? 'border-[#202124] text-[#202124] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
           >
             <Code size={18} /> Form (Template)
           </button>
           <button
             onClick={() => setActiveTab('mail')}
-            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'mail' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'mail' ? 'border-[#202124] text-[#202124] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
           >
             <Mail size={18} /> Mail
           </button>
           <button
             onClick={() => setActiveTab('messages')}
-            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'messages' ? 'border-[#1a1b26] text-[#1a1b26] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors sm:px-6 ${activeTab === 'messages' ? 'border-[#202124] text-[#202124] dark:border-slate-100 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 border-b-transparent'}`}
           >
             <MessageSquare size={18} /> Messages
           </button>
@@ -446,7 +446,7 @@ const ContactManager = () => {
                         setCurrentForm({ ...currentForm, template: newText });
                       }
                     }}
-                    className="bg-gray-100 dark:bg-[#242633] hover:bg-gray-200 px-3 py-1 rounded-sm text-xs font-mono text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#333544] dark:hover:bg-[#333544]"
+                    className="bg-gray-100 dark:bg-admin-hover hover:bg-gray-200 px-3 py-1 rounded-sm text-xs font-mono text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-admin-border-strong dark:hover:bg-admin-hover-strong"
                   >
                     [{tag}]
                   </button>
@@ -457,7 +457,7 @@ const ContactManager = () => {
                 id="form-template"
                 value={currentForm.template}
                 onChange={(e) => setCurrentForm({ ...currentForm, template: e.target.value })}
-                className="grow w-full min-h-100 font-mono text-sm p-4 bg-gray-50 dark:bg-[#16161e] border border-gray-200 dark:border-[#2a2b36] rounded-lg focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden resize-none"
+                className="grow w-full min-h-100 font-mono text-sm p-4 bg-gray-50 dark:bg-admin-canvas border border-gray-200 dark:border-admin-border rounded-lg focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden resize-none"
                 placeholder="Edit your form template here using HTML and tags..."
               />
               <p className="text-xs text-gray-500">
@@ -489,7 +489,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, to: e.target.value },
                         })
                       }
-                      className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
+                      className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden dark:text-white"
                     />
                     <button
                       onClick={() =>
@@ -498,7 +498,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, to: '[_site_email]' },
                         })
                       }
-                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-[#242633] text-slate-700 dark:text-slate-200 text-xs rounded-sm hover:bg-slate-300 dark:hover:bg-[#333544]"
+                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-admin-hover text-slate-700 dark:text-slate-200 text-xs rounded-sm hover:bg-slate-300 dark:hover:bg-admin-hover-strong"
                     >
                       Use Site Email
                     </button>
@@ -528,7 +528,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, from: e.target.value },
                         })
                       }
-                      className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
+                      className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden dark:text-white"
                     />
                     <button
                       onClick={() =>
@@ -537,7 +537,7 @@ const ContactManager = () => {
                           mail: { ...currentForm.mail, from: '[_site_email]' },
                         })
                       }
-                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-[#242633] text-slate-700 dark:text-slate-200 text-xs rounded-sm hover:bg-slate-300 dark:hover:bg-[#333544]"
+                      className="absolute right-2 top-1.5 px-2 py-1 bg-slate-200 dark:bg-admin-hover text-slate-700 dark:text-slate-200 text-xs rounded-sm hover:bg-slate-300 dark:hover:bg-admin-hover-strong"
                     >
                       Use Site Email
                     </button>
@@ -566,7 +566,7 @@ const ContactManager = () => {
                         mail: { ...currentForm.mail, subject: e.target.value },
                       })
                     }
-                    className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden dark:text-white"
                   />
                 </div>
                 <div>
@@ -585,7 +585,7 @@ const ContactManager = () => {
                         mail: { ...currentForm.mail, body: e.target.value },
                       })
                     }
-                    className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden font-mono text-sm dark:text-white"
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden font-mono text-sm dark:text-white"
                   />
                   <p className="text-xs text-gray-500 mt-2">
                     Use tags like <code>[your-name]</code> to insert field values.
@@ -614,7 +614,7 @@ const ContactManager = () => {
                       messages: { ...currentForm.messages, success: e.target.value },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden dark:text-white"
                 />
               </div>
               <div>
@@ -633,7 +633,7 @@ const ContactManager = () => {
                       messages: { ...currentForm.messages, error: e.target.value },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden dark:text-white"
                 />
               </div>
               <div>
@@ -652,7 +652,7 @@ const ContactManager = () => {
                       messages: { ...currentForm.messages, validationError: e.target.value },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-200 dark:border-[#2a2b36] rounded-lg bg-gray-50 dark:bg-[#16161e] focus:ring-2 focus:ring-slate-500/30 focus:border-[#1a1b26] dark:focus:border-slate-300 outline-hidden dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-200 dark:border-admin-border rounded-lg bg-gray-50 dark:bg-admin-canvas focus:ring-2 focus:ring-slate-500/30 focus:border-[#202124] dark:focus:border-slate-300 outline-hidden dark:text-white"
                 />
               </div>
             </div>

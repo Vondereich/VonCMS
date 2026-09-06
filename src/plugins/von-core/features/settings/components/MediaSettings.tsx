@@ -312,8 +312,8 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         </div>
       </div>
 
-      <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
-        <div className="border-b border-slate-200 p-3 sm:hidden dark:border-[#2a2b36]">
+      <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
+        <div className="border-b border-slate-200 p-3 sm:hidden dark:border-admin-border">
           <label htmlFor="media-settings-section" className="sr-only">
             Media section
           </label>
@@ -321,7 +321,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
             id="media-settings-section"
             value={activeTab}
             onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-slate-200"
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-200"
           >
             <option value="gallery">Gallery</option>
             <option value="optimization">Optimization</option>
@@ -332,7 +332,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
           </select>
         </div>
 
-        <div className="hidden border-b border-slate-200 sm:grid sm:grid-cols-3 lg:flex dark:border-[#2a2b36]">
+        <div className="hidden border-b border-slate-200 sm:grid sm:grid-cols-3 lg:flex dark:border-admin-border">
           <button
             type="button"
             onClick={() => setActiveTab('gallery')}
@@ -380,7 +380,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         <div className="p-6">
           {activeTab === 'optimization' && (
             <div className="space-y-6 max-w-2xl">
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <div>
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Enable Image Optimization
@@ -396,7 +396,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.optimization.enabled}
                     onChange={(e) => updateMedia('optimization', 'enabled', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
 
@@ -409,7 +409,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     <button
                       key={level}
                       onClick={() => updateMedia('optimization', 'compressionLevel', level)}
-                      className={`py-2 px-4 rounded-lg border text-sm font-medium capitalize transition-all ${media.optimization.compressionLevel === level ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-[#1a1b26] dark:border-[#2a2b36] dark:text-slate-400'}`}
+                      className={`py-2 px-4 rounded-lg border text-sm font-medium capitalize transition-all ${media.optimization.compressionLevel === level ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-slate-400'}`}
                     >
                       {level}
                     </button>
@@ -417,7 +417,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <div>
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Convert to WebP
@@ -435,7 +435,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.optimization.convertToWebP}
                     onChange={(e) => updateMedia('optimization', 'convertToWebP', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
             </div>
@@ -457,7 +457,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     onChange={(e) =>
                       updateMedia('optimization', 'maxWidth', parseInt(e.target.value))
                     }
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   />
                 </div>
                 <div>
@@ -473,12 +473,12 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     onChange={(e) =>
                       updateMedia('optimization', 'maxHeight', parseInt(e.target.value))
                     }
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   />
                 </div>
               </div>
 
-              <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   These limits control how large uploaded images can be after processing.
                 </p>
@@ -499,7 +499,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     name="mediasettings459"
                     value={media.storage.location}
                     onChange={(e) => updateMedia('storage', 'location', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   >
                     <option value="local">Local Server</option>
                   </select>
@@ -517,7 +517,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     aria-label="Folder Structure"
                     value={media.storage.folderStructure}
                     onChange={(e) => updateMedia('storage', 'folderStructure', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   >
                     <option value="year_month">Year / Month (e.g. 2025/12/image.jpg)</option>
                     <option value="flat">Flat (All in one folder)</option>
@@ -534,7 +534,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     type="url"
                     value={media.storage.cdnUrl || ''}
                     onChange={(e) => updateMedia('storage', 'cdnUrl', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-[#16161e] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                     placeholder="https://cdn.example.com or https://cdn.example.com/uploads"
                   />
                   <p className="text-xs text-slate-500 mt-1">
@@ -544,7 +544,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-5 space-y-4 dark:border-white/10 dark:bg-[#16161e]/50">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-5 space-y-4 dark:border-white/10 dark:bg-admin-canvas/50">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <Info size={14} className="text-blue-500" />
                   <span>CDN URL guide</span>
@@ -589,7 +589,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
 
           {activeTab === 'performance' && (
             <div className="space-y-4 max-w-2xl">
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <div>
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Lazy Load Images
@@ -605,10 +605,10 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.performance.lazyLoadImages}
                     onChange={(e) => updateMedia('performance', 'lazyLoadImages', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <div>
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Lazy Load Iframes
@@ -628,7 +628,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                       updateMedia('performance', 'lazyLoadIframes', e.target.checked)
                     }
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
             </div>
@@ -738,7 +738,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                             below before removing anything from this snapshot.
                           </p>
                           {toolResult.orphaned && toolResult.orphaned.length > 0 && (
-                            <div className="max-h-64 overflow-auto rounded-lg border border-orange-200 dark:border-orange-800 bg-white/80 dark:bg-[#101018]/40">
+                            <div className="max-h-64 overflow-auto rounded-lg border border-orange-200 dark:border-orange-800 bg-white/80 dark:bg-admin-inset/40">
                               {toolResult.orphaned.map((file) => (
                                 <div
                                   key={file.path}
@@ -771,7 +771,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                           <p className="text-sm text-red-800 dark:text-red-300 font-medium mb-3">
                             Some files could not be removed:
                           </p>
-                          <div className="max-h-48 overflow-auto rounded-lg border border-red-200 dark:border-red-800 bg-white/80 dark:bg-[#101018]/40">
+                          <div className="max-h-48 overflow-auto rounded-lg border border-red-200 dark:border-red-800 bg-white/80 dark:bg-admin-inset/40">
                             {toolResult.failedDeletions.map((path) => (
                               <div
                                 key={path}
@@ -786,7 +786,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   </div>
                 </div>
               )}
-              <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Sync Media Library
                 </h4>
@@ -824,7 +824,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   {isCleaningVariantRows ? 'Cleaning Variant Rows...' : 'Clean Old Variant Rows'}
                 </button>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Rebuild Responsive Variants
                 </h4>
@@ -841,7 +841,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   {isRebuildingVariants ? 'Processing...' : 'Start Rebuild'}
                 </button>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Responsive Variant Rollback
                 </h4>
@@ -860,7 +860,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   {isManagingVariants ? 'Scanning...' : 'Preview Generated Variants Only'}
                 </button>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-[#16161e]/50 rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+              <div className="p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Review Untracked Files
                 </h4>
@@ -889,13 +889,13 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => onChange('media', { ...media, defaultView: 'grid' })}
-                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView !== 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-[#1a1b26] dark:border-[#2a2b36] dark:text-slate-400'}`}
+                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView !== 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-slate-400'}`}
                   >
                     <Grid size={18} /> Grid View
                   </button>
                   <button
                     onClick={() => onChange('media', { ...media, defaultView: 'list' })}
-                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView === 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-[#1a1b26] dark:border-[#2a2b36] dark:text-slate-400'}`}
+                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView === 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-slate-400'}`}
                   >
                     <ListIcon size={18} /> List View
                   </button>

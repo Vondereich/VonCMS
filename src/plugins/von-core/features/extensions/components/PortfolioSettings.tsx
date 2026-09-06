@@ -80,7 +80,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
       ariaLabel="Portfolio theme settings"
       className="w-full max-w-2xl"
     >
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-admin-canvas sm:max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-purple-500 to-pink-500 p-4 dark:border-white/10 sm:p-6">
           <div>
@@ -112,7 +112,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   className={`p-4 rounded-lg border-2 transition-all text-center capitalize ${
                     tempConfig.heroStyle === style
                       ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-600'
-                      : 'border-slate-200 dark:border-[#2a2b36] hover:border-purple-300'
+                      : 'border-slate-200 dark:border-admin-border hover:border-purple-300'
                   }`}
                 >
                   <span className="text-2xl block mb-1">
@@ -146,13 +146,13 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                 type="text"
                 value={tempConfig.accentColor}
                 onChange={(e) => setTempConfig({ ...tempConfig, accentColor: e.target.value })}
-                className="flex-1 px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                className="flex-1 px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
               />
             </div>
           </div>
 
           {/* Text Fields Section */}
-          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
+          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-admin-border">
             <h4 className="font-bold text-sm text-slate-800 dark:text-white">Hero Section Text</h4>
 
             <div className="space-y-2">
@@ -166,7 +166,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                 type="text"
                 value={tempConfig.heroWelcomeText}
                 onChange={(e) => setTempConfig({ ...tempConfig, heroWelcomeText: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                 placeholder="Welcome to my portfolio"
               />
             </div>
@@ -182,14 +182,14 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                 type="text"
                 value={tempConfig.heroButtonText}
                 onChange={(e) => setTempConfig({ ...tempConfig, heroButtonText: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                 placeholder="View My Work"
               />
             </div>
           </div>
 
           {/* Projects Section Text */}
-          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
+          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-admin-border">
             <h4 className="font-bold text-sm text-slate-800 dark:text-white">Projects Section</h4>
 
             <div className="space-y-2">
@@ -203,7 +203,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                 type="text"
                 value={tempConfig.projectsTitle}
                 onChange={(e) => setTempConfig({ ...tempConfig, projectsTitle: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
               />
             </div>
 
@@ -218,7 +218,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                 value={tempConfig.projectsSubtitle}
                 onChange={(e) => setTempConfig({ ...tempConfig, projectsSubtitle: e.target.value })}
                 rows={2}
-                className="w-full px-4 py-2 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white resize-none"
+                className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white resize-none"
               />
             </div>
 
@@ -234,7 +234,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                     className={`flex-1 py-3 rounded-lg border-2 font-bold transition-all ${
                       tempConfig.projectColumns === cols
                         ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-600'
-                        : 'border-slate-200 dark:border-[#2a2b36] text-slate-600 dark:text-slate-400 hover:border-purple-300'
+                        : 'border-slate-200 dark:border-admin-border text-slate-600 dark:text-slate-400 hover:border-purple-300'
                     }`}
                   >
                     {cols} Cols
@@ -245,7 +245,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
           </div>
 
           {/* Social Links Section */}
-          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
+          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-admin-border">
             <h4 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
               🔗 Social Links
               <span className="text-xs font-normal text-slate-400">(leave empty to hide)</span>
@@ -263,7 +263,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   type="url"
                   value={tempConfig.githubUrl}
                   onChange={(e) => setTempConfig({ ...tempConfig, githubUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                   placeholder="https://github.com/username"
                 />
               </div>
@@ -279,7 +279,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   type="url"
                   value={tempConfig.linkedinUrl}
                   onChange={(e) => setTempConfig({ ...tempConfig, linkedinUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                   placeholder="https://linkedin.com/in/username"
                 />
               </div>
@@ -295,7 +295,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   type="url"
                   value={tempConfig.twitterUrl}
                   onChange={(e) => setTempConfig({ ...tempConfig, twitterUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                   placeholder="https://twitter.com/username"
                 />
               </div>
@@ -311,7 +311,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   type="url"
                   value={tempConfig.dribbbleUrl}
                   onChange={(e) => setTempConfig({ ...tempConfig, dribbbleUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                   placeholder="https://dribbble.com/username"
                 />
               </div>
@@ -327,7 +327,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   type="url"
                   value={tempConfig.instagramUrl}
                   onChange={(e) => setTempConfig({ ...tempConfig, instagramUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                   placeholder="https://instagram.com/username"
                 />
               </div>
@@ -343,7 +343,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   type="url"
                   value={tempConfig.websiteUrl}
                   onChange={(e) => setTempConfig({ ...tempConfig, websiteUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white"
                   placeholder="https://yourwebsite.com"
                 />
               </div>
@@ -351,7 +351,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
           </div>
 
           {/* Animation Style */}
-          <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-[#2a2b36]">
+          <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-admin-border">
             <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Animation Style
             </span>
@@ -363,7 +363,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   className={`p-3 rounded-lg border-2 transition-all text-center capitalize ${
                     tempConfig.animationStyle === style
                       ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-600'
-                      : 'border-slate-200 dark:border-[#2a2b36] hover:border-purple-300 text-slate-600 dark:text-slate-400'
+                      : 'border-slate-200 dark:border-admin-border hover:border-purple-300 text-slate-600 dark:text-slate-400'
                   }`}
                 >
                   {style === 'fade' ? '✨' : style === 'slide' ? '📤' : '⏸️'} {style}
@@ -374,10 +374,10 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

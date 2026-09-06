@@ -80,7 +80,7 @@ const StatCard: React.FC<{
   trend,
   color = 'bg-primary-50 text-primary-600 dark:bg-primary-900/20',
 }) => (
-  <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition-shadow hover:shadow-md dark:border-white/10 dark:bg-[#16161e]/50 sm:p-5">
+  <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition-shadow hover:shadow-md dark:border-admin-border dark:bg-admin-panel sm:p-5">
     <div className={`shrink-0 rounded-lg p-2.5 ${color}`}>{icon}</div>
     <div className="min-w-0 grow">
       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -666,7 +666,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
       {/* Checking Update Indicator */}
       {checkingUpdate && (
-        <div className="bg-slate-100 dark:bg-[#1a1b26] rounded-xl p-3 flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+        <div className="bg-slate-100 dark:bg-admin-panel rounded-xl p-3 flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
           <RefreshCw size={16} className="animate-spin" />
           Checking for updates...
         </div>
@@ -720,7 +720,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#16161e]/50 backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-white/10">
+        <div className="lg:col-span-2 bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">Visitor Traffic</h3>
@@ -736,14 +736,14 @@ const VpDashboard: React.FC<DashboardProps> = ({
               name="dashboardTrafficRange"
               value={days}
               onChange={(e) => setDays(parseInt(e.target.value))}
-              className="text-xs border-none bg-slate-100 dark:bg-[#1a1b26] rounded-lg px-3 py-1 text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
+              className="text-xs border-none bg-slate-100 dark:bg-admin-panel rounded-lg px-3 py-1 text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
             >
               <option value={7}>Last 7 Days</option>
               <option value={30}>Last 30 Days</option>
             </select>
           </div>
 
-          <div className="mb-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 px-2 py-3 dark:divide-white/10 dark:bg-[#1a1b26]/70">
+          <div className="mb-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 px-2 py-3 dark:divide-white/10 dark:bg-admin-panel/70">
             <div className="min-w-0 px-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Total visits
@@ -840,7 +840,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
               <span className="text-xs text-slate-400">{days} days</span>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-[#1a1b26]/70">
+              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Daily average
                 </p>
@@ -851,7 +851,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
                   visits
                 </p>
               </div>
-              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-[#1a1b26]/70">
+              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Peak day
                 </p>
@@ -859,7 +859,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
                   {trafficPeriodSummary.peakDay}
                 </p>
               </div>
-              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-[#1a1b26]/70">
+              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Peak visits
                 </p>
@@ -872,13 +872,13 @@ const VpDashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Audit Log */}
-        <div className="bg-white dark:bg-[#16161e]/50 backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-white/10 flex flex-col">
+        <div className="bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Recent Activity</h3>
           <div className="space-y-0 grow">
             {recentActivity.slice(0, 4).map((log, i) => (
               <div
                 key={i}
-                className="flex gap-3 items-start border-b border-slate-100 dark:border-white/10 py-4 last:border-0 hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50 transition-colors px-2 rounded-lg -mx-2"
+                className="flex gap-3 items-start border-b border-slate-100 dark:border-white/10 py-4 last:border-0 hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors px-2 rounded-lg -mx-2"
               >
                 <div className={`mt-0.5 p-1.5 rounded-full ${log.color}`}>{log.icon}</div>
                 <div className="min-w-0">
@@ -901,7 +901,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
           </div>
           <button
             onClick={() => setShowAuditLog(true)}
-            className="mt-4 w-full py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#2a2b36] rounded-lg hover:bg-slate-50 dark:hover:bg-[#1a1b26] transition-colors"
+            className="mt-4 w-full py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-admin-border rounded-lg hover:bg-slate-50 dark:hover:bg-admin-hover transition-colors"
           >
             View Activity History
           </button>
@@ -915,7 +915,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
         ariaLabel="Activity history"
         className="w-full max-w-2xl"
       >
-        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[80dvh]">
+        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-admin-canvas sm:max-h-[80dvh]">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-white/10 sm:p-6">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Activity className="text-primary-500" /> Activity History
@@ -923,7 +923,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
             <button
               type="button"
               onClick={() => setShowAuditLog(false)}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-100 dark:hover:bg-[#1a1b26]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-100 dark:hover:bg-admin-hover"
               aria-label="Close activity history"
             >
               <X size={20} className="text-slate-500" />
@@ -964,10 +964,10 @@ const VpDashboard: React.FC<DashboardProps> = ({
               </div>
             )}
           </div>
-          <div className="admin-safe-bottom flex justify-end border-t border-slate-100 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e]/50">
+          <div className="admin-safe-bottom flex justify-end border-t border-slate-100 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas/50">
             <button
               onClick={() => setShowAuditLog(false)}
-              className="min-h-11 w-full px-4 py-2 bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors sm:w-auto"
+              className="min-h-11 w-full px-4 py-2 bg-white dark:bg-admin-panel border border-slate-200 dark:border-admin-border rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors sm:w-auto"
             >
               Close Viewer
             </button>

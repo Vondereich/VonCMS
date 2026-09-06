@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/content_audit_helper.php';
+require_once __DIR__ . '/content_embed_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
@@ -108,6 +109,7 @@ if (!SessionManager::isAdmin()) {
 
 $rawContent = preg_replace('/on[a-z]+\s*=\s*(?:["\'][^"\']*["\']|[^\s>]+)/i', '', $rawContent);
 $rawContent = preg_replace('/javascript\s*:/i', '', $rawContent);
+$rawContent = voncms_sanitize_content_iframes($rawContent);
 
 if (function_exists('sanitize_input')) {
   $input = sanitize_input($input);

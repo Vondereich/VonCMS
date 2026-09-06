@@ -10,7 +10,7 @@ const AdminNotFoundPage: React.FC = () => {
       aria-labelledby="admin-not-found-title"
       className="mx-auto flex min-h-full w-full max-w-2xl items-center justify-center py-12"
     >
-      <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xs dark:border-white/10 dark:bg-[#1a1b26] sm:p-10">
+      <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xs dark:border-white/10 dark:bg-admin-panel sm:p-10">
         <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
           <TriangleAlert size={30} strokeWidth={1.75} aria-hidden="true" />
         </div>
@@ -32,7 +32,7 @@ const AdminNotFoundPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:border-white/10 dark:bg-admin-panel dark:text-slate-200 dark:hover:bg-admin-hover"
           >
             <ArrowLeft size={18} aria-hidden="true" />
             Go Back

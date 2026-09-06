@@ -53,7 +53,7 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
       ariaLabel="Prism theme settings"
       className="w-full max-w-lg"
     >
-      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-none border border-(--color-primary) bg-[#101018] shadow-[0_0_50px_rgba(0,0,0,0.5)] sm:max-h-[90dvh]">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-none border border-(--color-primary) bg-admin-inset shadow-[0_0_50px_rgba(0,0,0,0.5)] sm:max-h-[90dvh]">
         {/* Cyberpunk Header */}
         <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-cyan-500 via-purple-500 to-pink-500"></div>
 

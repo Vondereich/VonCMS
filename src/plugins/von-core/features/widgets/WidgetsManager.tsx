@@ -237,15 +237,15 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
       </div>
 
       <div className="mx-auto grid max-w-[1064px] grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)] gap-6 items-start">
-        <section className="animate-fade-in space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
-          <div className="space-y-4 border-b border-slate-100 dark:border-[#2a2b36] pb-4">
+        <section className="animate-fade-in space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
+          <div className="space-y-4 border-b border-slate-100 dark:border-admin-border pb-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                 Sidebar widget area
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 Order, titles, visibility, and custom content are stored in the shared{' '}
-                <code className="px-1.5 py-0.5 rounded-sm bg-slate-100 dark:bg-[#101018] text-xs">
+                <code className="px-1.5 py-0.5 rounded-sm bg-slate-100 dark:bg-admin-inset text-xs">
                   sidebarLayout
                 </code>{' '}
                 setting. Drag rows to reorder, expand a row to edit, or use the arrow controls.
@@ -258,7 +258,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                 aria-label="Widget type"
                 value={selectedWidgetType}
                 onChange={(event) => setSelectedWidgetType(event.target.value as WidgetType)}
-                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-[#333544] bg-slate-50 dark:bg-[#16161e] dark:text-white text-sm"
+                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
               >
                 {SUPPORTED_WIDGET_TYPES.map((option) => {
                   const alreadyAdded =
@@ -290,7 +290,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
 
           <div className="space-y-3">
             {widgets.length === 0 ? (
-              <div className="text-center py-8 border border-dashed border-slate-300 dark:border-[#333544] rounded-lg text-slate-500 dark:text-slate-400">
+              <div className="text-center py-8 border border-dashed border-slate-300 dark:border-admin-border-strong rounded-lg text-slate-500 dark:text-slate-400">
                 No sidebar blocks configured. Add a latest-posts, categories, profile, or custom
                 block.
               </div>
@@ -305,7 +305,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                     onDragStart={() => handleWidgetDragStart(index)}
                     onDragOver={(event) => handleWidgetDragOver(event, index)}
                     onDragEnd={handleWidgetDragEnd}
-                    className={`rounded-lg border bg-slate-50 dark:bg-[#16161e] border-slate-200 dark:border-[#2a2b36] transition-all ${
+                    className={`rounded-lg border bg-slate-50 dark:bg-admin-canvas border-slate-200 dark:border-admin-border transition-all ${
                       widget.isVisible === false ? 'opacity-60' : ''
                     } ${draggedWidgetIndex === index ? 'scale-[0.99] opacity-50' : ''}`}
                   >
@@ -320,7 +320,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                         type="button"
                         onClick={() => setExpandedWidgetId(isExpanded ? null : widget.id)}
                         aria-expanded={isExpanded}
-                        className="p-1.5 rounded-md text-slate-500 hover:bg-white dark:hover:bg-[#1a1b26]"
+                        className="p-1.5 rounded-md text-slate-500 hover:bg-white dark:hover:bg-admin-panel"
                         title={isExpanded ? 'Collapse widget' : 'Edit widget'}
                       >
                         <ChevronRight
@@ -328,7 +328,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                         />
                       </button>
-                      <div className="h-8 w-8 rounded-md bg-white dark:bg-[#1a1b26] border border-slate-200 dark:border-[#2a2b36] flex items-center justify-center text-blue-600 dark:text-blue-300">
+                      <div className="h-8 w-8 rounded-md bg-white dark:bg-admin-panel border border-slate-200 dark:border-admin-border flex items-center justify-center text-blue-600 dark:text-blue-300">
                         {widget.type === 'trending' ? (
                           <PanelsTopLeft size={15} />
                         ) : widget.type === 'categories' ? (
@@ -350,7 +350,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           <span
                             className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                               widget.isVisible === false
-                                ? 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                ? 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-slate-300'
                                 : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
                             }`}
                           >
@@ -367,7 +367,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           type="button"
                           onClick={() => moveWidget(index, -1)}
                           disabled={index === 0}
-                          className="p-1.5 rounded-md border border-slate-200 dark:border-[#2a2b36] text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-[#1a1b26]"
+                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-admin-panel"
                           title="Move up"
                         >
                           <ArrowUp size={16} />
@@ -376,7 +376,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           type="button"
                           onClick={() => moveWidget(index, 1)}
                           disabled={index === widgets.length - 1}
-                          className="p-1.5 rounded-md border border-slate-200 dark:border-[#2a2b36] text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-[#1a1b26]"
+                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-admin-panel"
                           title="Move down"
                         >
                           <ArrowDown size={16} />
@@ -386,9 +386,9 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           onClick={() =>
                             updateWidget(widget.id, { isVisible: widget.isVisible === false })
                           }
-                          className={`p-1.5 rounded-md border border-slate-200 dark:border-[#2a2b36] ${
+                          className={`p-1.5 rounded-md border border-slate-200 dark:border-admin-border ${
                             widget.isVisible === false ? 'text-slate-400' : 'text-green-600'
-                          } hover:bg-white dark:hover:bg-[#1a1b26]`}
+                          } hover:bg-white dark:hover:bg-admin-panel`}
                           title={widget.isVisible === false ? 'Show' : 'Hide'}
                         >
                           {widget.isVisible === false ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -396,7 +396,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                         <button
                           type="button"
                           onClick={() => removeWidget(widget.id)}
-                          className="p-1.5 rounded-md border border-slate-200 dark:border-[#2a2b36] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                           title="Remove"
                         >
                           <Trash2 size={16} />
@@ -405,7 +405,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                     </div>
 
                     {isExpanded && (
-                      <div className="border-t border-slate-200 dark:border-[#2a2b36] p-4 space-y-4 bg-white dark:bg-[#1a1b26]">
+                      <div className="border-t border-slate-200 dark:border-admin-border p-4 space-y-4 bg-white dark:bg-admin-panel">
                         <div className="space-y-2">
                           <label
                             htmlFor={`widgets-title-${widget.id}`}
@@ -421,7 +421,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                             onChange={(event) =>
                               updateWidget(widget.id, { title: event.target.value })
                             }
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#101018] text-sm font-bold text-slate-900 dark:text-white"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-inset text-sm font-bold text-slate-900 dark:text-white"
                           />
                         </div>
 
@@ -447,7 +447,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                               onChange={(event) =>
                                 updateWidget(widget.id, { itemCount: Number(event.target.value) })
                               }
-                              className="w-full sm:w-32 px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#101018] text-sm text-slate-800 dark:text-white"
+                              className="w-full sm:w-32 px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-inset text-sm text-slate-800 dark:text-white"
                             >
                               {widget.type === 'trending' ? (
                                 <>
@@ -480,7 +480,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                                 updateWidget(widget.id, { content: event.target.value })
                               }
                               rows={5}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#101018] text-sm font-mono text-slate-700 dark:text-slate-200"
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-inset text-sm font-mono text-slate-700 dark:text-slate-200"
                               placeholder="Paste sanitized HTML, ad snippets, iframe embeds, badges, counters, or plain text."
                             />
                             <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-100 space-y-1">
@@ -515,8 +515,8 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
         </section>
 
         <div className="space-y-6">
-          <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
-            <div className="border-b border-slate-100 dark:border-[#2a2b36] pb-4">
+          <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
+            <div className="border-b border-slate-100 dark:border-admin-border pb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Mail size={18} className="text-cyan-500" />
                 Newsletter sidebar placement
@@ -529,7 +529,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
             <div className="grid grid-cols-1 gap-4">
               <label
                 htmlFor="widgets-newsletter-enabled"
-                className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-[#2a2b36]"
+                className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-admin-border"
               >
                 <div>
                   <span className="block text-sm font-bold text-slate-800 dark:text-white">
@@ -573,7 +573,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                       >['position'],
                     }))
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#101018] text-sm text-slate-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-inset text-sm text-slate-800 dark:text-white"
                 >
                   <option value="footer">Footer only</option>
                   <option value="sidebar">Sidebar only</option>
@@ -609,7 +609,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           [key]: event.target.value,
                         }))
                       }
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#101018] text-sm text-slate-800 dark:text-white"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-inset text-sm text-slate-800 dark:text-white"
                     />
                   </div>
                 );

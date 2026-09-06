@@ -7,6 +7,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+:root {
+  /* Default admin preset. Future palettes only need to override these values. */
+  --admin-palette-canvas: #181819;
+  --admin-palette-sidebar: #17181b;
+  --admin-palette-panel: #202124;
+  --admin-palette-inset: #171717;
+  --admin-palette-toolbar: #252527;
+  --admin-palette-hover: #2a2a2e;
+  --admin-palette-hover-strong: #45454d;
+  --admin-palette-border: #34343a;
+  --admin-palette-border-strong: #45454d;
+}
+
 @theme {
   --font-sans: Inter, sans-serif;
 
@@ -16,6 +29,17 @@
   --color-primary-600: #0284c7;
   --color-primary-700: #0369a1;
   --color-primary-900: #0c4a6e;
+
+  /* Tailwind utilities consume the active admin preset through these aliases. */
+  --color-admin-canvas: var(--admin-palette-canvas);
+  --color-admin-sidebar: var(--admin-palette-sidebar);
+  --color-admin-panel: var(--admin-palette-panel);
+  --color-admin-inset: var(--admin-palette-inset);
+  --color-admin-toolbar: var(--admin-palette-toolbar);
+  --color-admin-hover: var(--admin-palette-hover);
+  --color-admin-hover-strong: var(--admin-palette-hover-strong);
+  --color-admin-border: var(--admin-palette-border);
+  --color-admin-border-strong: var(--admin-palette-border-strong);
 
   --animate-fade-in: fadeIn 0.5s ease-out;
   --animate-slide-up: slideUp 0.5s ease-out;

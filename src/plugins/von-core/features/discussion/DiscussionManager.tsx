@@ -121,7 +121,7 @@ const getStatusBadgeClass = (status: ModerationTab) => {
   }
 
   if (status === 'spam') {
-    return 'bg-slate-200 text-slate-700 dark:bg-[#242633] dark:text-slate-200';
+    return 'bg-slate-200 text-slate-700 dark:bg-admin-hover dark:text-slate-200';
   }
 
   return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
@@ -226,7 +226,7 @@ const DiscussionSearchBar: React.FC<SearchBarProps> = ({
         value={searchInput}
         onChange={(e) => onSearchInputChange(e.target.value)}
         placeholder="Search comments across all statuses..."
-        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-[#2a2b36] dark:bg-[#1a1b26] dark:text-white"
+        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-white"
       />
     </div>
     {(searchInput || searchQuery) && (
@@ -263,12 +263,12 @@ const DiscussionTabs: React.FC<TabsProps> = ({ activeTab, counts, isSearchMode, 
     {
       id: 'spam',
       label: 'Spam / Banned',
-      countClass: 'bg-slate-100 text-slate-500 dark:bg-[#242633]',
+      countClass: 'bg-slate-100 text-slate-500 dark:bg-admin-hover',
     },
   ];
 
   return (
-    <div className="flex overflow-x-auto border-b border-slate-200 dark:border-[#2a2b36]">
+    <div className="flex overflow-x-auto border-b border-slate-200 dark:border-admin-border">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -313,7 +313,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
   return (
     <div className="flex gap-3 p-4 sm:gap-4 sm:p-6">
       <div className="shrink-0">
-        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-[#242633]">
+        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-admin-hover">
           {comment.userAvatar ? (
             <img
               src={comment.userAvatar}
@@ -445,7 +445,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
 }) => {
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-12 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-12 shadow-xs dark:border-admin-border dark:bg-admin-panel">
         <Loader2 size={20} className="animate-spin text-primary-600" />
         <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">Loading...</span>
       </div>
@@ -453,10 +453,10 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   }
 
   return (
-    <div className="bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+    <div className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
       {pageItems.length > 0 ? (
         <>
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          <div className="divide-y divide-slate-100 dark:divide-admin-border">
             {pageItems.map((comment) => (
               <CommentRow
                 key={comment.id}
@@ -482,7 +482,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
         </>
       ) : (
         <div className="p-12 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-[#242633]">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-admin-hover">
             <MessageSquare size={32} className="text-slate-400" />
           </div>
           <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
@@ -513,7 +513,7 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
   onConfirm,
 }) => (
   <AdminModal isOpen onClose={onCancel} ariaLabel="Delete comment" className="w-full max-w-md">
-    <div className="w-full rounded-2xl bg-white p-4 shadow-2xl dark:bg-[#16161e] sm:p-6">
+    <div className="w-full rounded-2xl bg-white p-4 shadow-2xl dark:bg-admin-canvas sm:p-6">
       <div className="mb-4 flex items-start gap-3">
         <div className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/30 dark:text-red-300">
           <AlertTriangle size={18} />
@@ -532,7 +532,7 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
         </div>
       </div>
 
-      <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-[#1a1b26] dark:text-slate-300">
+      <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-admin-panel dark:text-slate-300">
         {decodeHtml(comment.content)}
       </div>
 
@@ -777,7 +777,7 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
       />
 
       {isSearchMode && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-[#2a2b36] dark:bg-[#1a1b26]/60 dark:text-slate-300">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-admin-border dark:bg-admin-panel/60 dark:text-slate-300">
           Searching all statuses for{' '}
           <span className="font-semibold text-slate-900 dark:text-white">"{searchQuery}"</span>
           <span className="ml-2 text-slate-500 dark:text-slate-400">

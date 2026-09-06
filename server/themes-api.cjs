@@ -6,6 +6,12 @@ const fs = require('fs');
 const fse = require('fs-extra');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
+const {
+  assertSafeExtractedTree,
+  assertSafeZipEntries,
+  createSecureExtractionDirectory,
+  createUnpredictableIdSuffix,
+} = require('./theme-archive-security.cjs');
 
 const app = express();
 const PORT = process.env.THEMES_API_PORT || 5000;
@@ -164,19 +170,6 @@ function normalizeThemeId(value) {
       .replace(/^-|-$/g, '')
       .slice(0, 64) || 'theme'
   );
-}
-
-function assertSafeZipEntries(zip, destDir) {
-  const unsafeEntry = zip.getEntries().find((entry) => {
-    const entryName = String(entry.entryName || '');
-    if (!entryName || path.isAbsolute(entryName) || entryName.includes('\0')) return true;
-    const target = path.resolve(destDir, entryName);
-    return !isPathInside(destDir, target);
-  });
-
-  if (unsafeEntry) {
-    throw new Error(`Unsafe zip entry rejected: ${unsafeEntry.entryName}`);
-  }
 }
 
 function findFirstRegularFile(dir) {
@@ -348,7 +341,14 @@ const verifyDevToken = (req, res, next) => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, THEMES_DIR),
   filename: (req, file, cb) => {
-    cb(null, Date.now() + '_' + sanitizeThemeFileName(file.originalname));
+    cb(
+      null,
+      Date.now() +
+        '_' +
+        createUnpredictableIdSuffix() +
+        '_' +
+        sanitizeThemeFileName(file.originalname)
+    );
   },
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
@@ -381,6 +381,9 @@ app.post(
   verifyDevToken,
   upload.single('theme'),
   async (req, res) => {
+    let uploadedPath = '';
+    let stagingDir = '';
+    let destDir = '';
     try {
       if (!req.file)
         return res
@@ -388,7 +391,7 @@ app.post(
           .json({ success: false, message: 'No file uploaded (field name "theme")' });
 
       const { originalname, size } = req.file;
-      const uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);
+      uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);
       const safeOriginalName = sanitizeThemeFileName(originalname);
       const name = req.body.name || path.parse(safeOriginalName).name;
       const version = req.body.version || '0.0.0';
@@ -405,28 +408,34 @@ app.post(
       }
 
       const idBase = normalizeThemeId(name);
-      const id = `${idBase}_${Date.now()}`;
-      const destDir = safeResolveInside(THEMES_DIR, id);
-      await fse.ensureDir(destDir);
+      const id = `${idBase}_${Date.now()}_${createUnpredictableIdSuffix()}`;
+      destDir = safeResolveInside(THEMES_DIR, id);
 
-      const destPath = safeResolveInside(destDir, safeOriginalName);
-      await fse.move(uploadedPath, destPath, { overwrite: true });
-
-      // If zip, extract
       if (ext === 'zip') {
-        try {
-          const zip = new AdmZip(destPath);
-          assertSafeZipEntries(zip, destDir);
-          zip.extractAllTo(destDir, true);
-          await fse.remove(destPath); // remove zip after extract
-        } catch (err) {
-          return res
-            .status(500)
-            .json({ success: false, message: 'Failed to extract zip archive', error: err.message });
+        stagingDir = createSecureExtractionDirectory(THEMES_DIR);
+        const zip = new AdmZip(uploadedPath);
+        assertSafeZipEntries(zip, stagingDir);
+        zip.extractAllTo(stagingDir, false);
+        assertSafeExtractedTree(stagingDir);
+        if (!findFirstRegularFile(stagingDir)) {
+          throw new Error('Theme archive does not contain a regular file');
         }
+
+        await fse.move(stagingDir, destDir, { overwrite: false });
+        stagingDir = '';
+        await fse.remove(uploadedPath);
+        uploadedPath = '';
+      } else {
+        await fse.ensureDir(destDir);
+        const destPath = safeResolveInside(destDir, safeOriginalName);
+        await fse.move(uploadedPath, destPath, { overwrite: false });
+        uploadedPath = '';
       }
 
-      const checksumTarget = findFirstRegularFile(destDir) || destPath;
+      const checksumTarget = findFirstRegularFile(destDir);
+      if (!checksumTarget) {
+        throw new Error('Theme upload does not contain a regular file');
+      }
       const checksum = computeChecksum(checksumTarget);
 
       const meta = {
@@ -455,7 +464,10 @@ app.post(
       return res.json({ success: true, message: 'Theme uploaded', theme: meta });
     } catch (err) {
       console.error('upload error', err);
-      return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+      if (uploadedPath) await fse.remove(uploadedPath).catch(() => {});
+      if (stagingDir) await fse.remove(stagingDir).catch(() => {});
+      if (destDir) await fse.remove(destDir).catch(() => {});
+      return res.status(500).json({ success: false, message: 'Theme upload failed safely' });
     }
   }
 );

@@ -92,7 +92,17 @@ if ($action === 'request') {
       exit();
     }
 
-    // Generate reset token
+    $trustedBaseUrl = voncms_resolve_trusted_public_base_url($pdo);
+    if ($trustedBaseUrl === '') {
+      error_log('Password reset email skipped: canonical Domain URL is not configured.');
+      echo json_encode([
+        'success' => true,
+        'message' => 'If this email exists, a reset link has been sent.',
+      ]);
+      exit();
+    }
+
+    // Generate reset token only after a trusted delivery origin is available.
     $token = bin2hex(random_bytes(32));
     $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
@@ -100,44 +110,11 @@ if ($action === 'request') {
     $stmt = $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?');
     $stmt->execute([$token, $expires, $user['id']]);
 
-    // Build reset URL (Standardized v1.22.0)
-    $protocol = is_https() ? 'https' : 'http';
-
-    // Prefer configured domain_url over HTTP_HOST (prevents Host header injection)
-    try {
-      $duStmt = $pdo->prepare(
-        "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='domain_url' LIMIT 1",
-      );
-      $duStmt->execute();
-      $duRow = $duStmt->fetch(PDO::FETCH_ASSOC);
-      $domainUrl = $duRow ? rtrim($duRow['setting_value'], '/') : '';
-    } catch (Exception $e) {
-      $domainUrl = '';
-    }
-
-    if ($domainUrl) {
-      $domainScheme = strtolower((string) parse_url($domainUrl, PHP_URL_SCHEME));
-      if (
-        filter_var($domainUrl, FILTER_VALIDATE_URL) === false ||
-        !in_array($domainScheme, ['http', 'https'], true)
-      ) {
-        $domainUrl = '';
-      }
-    }
-
-    if ($domainUrl) {
-      $resetUrl = "$domainUrl/login?reset_token=$token";
-    } else {
-      // Fallback: derive from request (only when domain_url is not configured)
-      $host = preg_replace(
-        '/[^a-zA-Z0-9.\-:]/',
-        '',
-        (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'),
-      );
-      $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-      $basePath = preg_replace('#/api(/.*)?$#i', '', (string) $scriptName);
-      $basePath = $basePath === '/' || $basePath === '\\' ? '' : rtrim($basePath, '/');
-      $resetUrl = "$protocol://$host$basePath/login?reset_token=$token";
+    $resetUrl = voncms_build_account_action_url($trustedBaseUrl, '/login', [
+      'reset_token' => $token,
+    ]);
+    if ($resetUrl === '') {
+      throw new RuntimeException('Unable to build trusted password reset URL.');
     }
 
     // Send email

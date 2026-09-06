@@ -157,7 +157,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-800 dark:text-white sm:text-3xl">
-            <Mail className="text-cyan-500" size={32} />
+            <Mail className="text-blue-600 dark:text-blue-400" size={32} />
             Newsletter
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
@@ -167,11 +167,11 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
-          <div className="rounded-xl bg-linear-to-r from-cyan-500 to-cyan-600 px-4 py-3 text-white sm:min-w-28">
+          <div className="rounded-xl bg-blue-600 px-4 py-3 text-white sm:min-w-28">
             <div className="text-2xl font-bold">{stats.active}</div>
-            <div className="text-xs opacity-80">Active</div>
+            <div className="text-xs">Active</div>
           </div>
-          <div className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 dark:bg-[#1a1b26] dark:text-slate-300 sm:min-w-28">
+          <div className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 dark:bg-admin-panel dark:text-slate-300 sm:min-w-28">
             <div className="text-2xl font-bold">{stats.total}</div>
             <div className="text-xs opacity-80">Total</div>
           </div>
@@ -179,16 +179,16 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       </div>
 
       {/* Tabs */}
-      <div className="settings-tab-strip mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 dark:border-[#2a2b36] sm:gap-4">
+      <div className="settings-tab-strip mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 dark:border-admin-border sm:gap-4">
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'settings' ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'settings' ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
         >
           <Settings size={18} /> Settings
         </button>
         <button
           onClick={() => setActiveTab('subscribers')}
-          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'subscribers' ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'subscribers' ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
         >
           <Users size={18} /> Subscribers
         </button>
@@ -196,7 +196,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
 
       {/* Settings Tab */}
       {activeTab === 'settings' && (
-        <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#2a2b36] dark:bg-[#1a1b26] sm:p-6">
+        <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-admin-border dark:bg-admin-panel sm:p-6">
           {/* Enable Toggle */}
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -210,13 +210,13 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   enabled: !newsletterSettings.enabled,
                 })
               }
-              className={`p-2 rounded-full transition-colors ${newsletterSettings.enabled ? 'bg-cyan-500 text-white' : 'bg-slate-200 dark:bg-[#242633] text-slate-500'}`}
+              className={`p-2 rounded-full transition-colors ${newsletterSettings.enabled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 dark:bg-admin-hover text-slate-500'}`}
             >
               {newsletterSettings.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
             </button>
           </div>
 
-          <hr className="border-slate-200 dark:border-[#2a2b36]" />
+          <hr className="border-slate-200 dark:border-admin-border" />
 
           {/* Title */}
           <div>
@@ -232,7 +232,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
               onChange={(e) =>
                 setNewsletterSettings({ ...newsletterSettings, title: e.target.value })
               }
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -250,7 +250,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 setNewsletterSettings({ ...newsletterSettings, description: e.target.value })
               }
               rows={2}
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -269,7 +269,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 onChange={(e) =>
                   setNewsletterSettings({ ...newsletterSettings, buttonText: e.target.value })
                 }
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -285,7 +285,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 onChange={(e) =>
                   setNewsletterSettings({ ...newsletterSettings, successMessage: e.target.value })
                 }
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -306,7 +306,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   position: e.target.value as 'footer' | 'sidebar' | 'both',
                 })
               }
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-[#2a2b36] bg-white dark:bg-[#16161e] text-slate-800 dark:text-white focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
             >
               <option value="footer">Footer Only</option>
               <option value="sidebar">Sidebar Only</option>
@@ -330,9 +330,9 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
 
       {/* Subscribers Tab */}
       {activeTab === 'subscribers' && (
-        <div className="bg-white dark:bg-[#1a1b26] rounded-2xl border border-slate-200 dark:border-[#2a2b36] overflow-hidden">
+        <div className="bg-white dark:bg-admin-panel rounded-2xl border border-slate-200 dark:border-admin-border overflow-hidden">
           {/* Toolbar */}
-          <div className="flex flex-col gap-4 border-b border-slate-200 p-4 dark:border-[#2a2b36] lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 border-b border-slate-200 p-4 dark:border-admin-border lg:flex-row lg:items-center lg:justify-between">
             <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
               <div className="relative min-w-0 flex-1 lg:w-64">
                 <Search
@@ -349,7 +349,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && loadSubscribers()}
-                  className="min-h-11 w-full rounded-lg border border-slate-200 bg-white py-2 pr-4 pl-10 text-sm dark:border-[#2a2b36] dark:bg-[#16161e]"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 bg-white py-2 pr-4 pl-10 text-sm dark:border-admin-border dark:bg-admin-canvas"
                 />
               </div>
               <select
@@ -360,7 +360,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 onChange={(e) =>
                   setStatusFilter(e.target.value as 'all' | 'active' | 'unsubscribed')
                 }
-                className="min-h-11 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm dark:border-[#2a2b36] dark:bg-[#16161e]"
+                className="min-h-11 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm dark:border-admin-border dark:bg-admin-canvas"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -370,7 +370,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
               <button
                 onClick={loadSubscribers}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-[#2a2b36] dark:text-slate-300 dark:hover:bg-[#242633]"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50 dark:border-admin-border dark:text-slate-300 dark:hover:bg-admin-hover"
               >
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
               </button>
@@ -384,7 +384,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
           </div>
 
           {/* Mobile subscriber cards */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-700 md:hidden">
+          <div className="divide-y divide-slate-100 dark:divide-admin-border md:hidden">
             {loading ? (
               <div className="px-4 py-12 text-center text-slate-500">Loading...</div>
             ) : subscribers.length === 0 ? (
@@ -402,7 +402,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                       </p>
                     </div>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-[#242633] dark:text-slate-400'}`}
+                      className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-slate-400'}`}
                     >
                       {sub.status}
                     </span>
@@ -421,7 +421,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
           {/* Table */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-180">
-              <thead className="bg-slate-50 dark:bg-[#16161e]">
+              <thead className="bg-slate-50 dark:bg-admin-canvas">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                     Email
@@ -440,7 +440,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
@@ -455,13 +455,13 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   </tr>
                 ) : (
                   subscribers.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-[#1a1b26]/50">
+                    <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-admin-hover/50">
                       <td className="px-6 py-4 text-slate-800 dark:text-white font-medium">
                         {sub.email}
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-[#242633] dark:text-slate-400'}`}
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-slate-400'}`}
                         >
                           {sub.status}
                         </span>
@@ -486,7 +486,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
           </div>
 
           {/* Smart Pagination Controls */}
-          <div className="p-4 border-t border-slate-200 dark:border-[#2a2b36]">
+          <div className="p-4 border-t border-slate-200 dark:border-admin-border">
             <SmartPagination
               currentPage={page}
               totalPages={totalPages}

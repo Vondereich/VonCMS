@@ -319,7 +319,7 @@ location ~* \.php/ {
 
 # Block internal API helper files. These regex blocks must appear before
 # aaPanel's generic PHP-FPM regex handler.
-location ~* ^/api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
+location ~* ^/api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
     deny all;
 }
 
@@ -476,6 +476,7 @@ for path in \
     "/api/ai_provider_helper.php" \
     "/api/analytics_consent_helper.php" \
     "/api/content_audit_helper.php" \
+    "/api/content_embed_helper.php" \
     "/api/ImageProcessor.php" \
     "/api/mail_helper.php" \
     "/api/media_library_filter_helper.php" \

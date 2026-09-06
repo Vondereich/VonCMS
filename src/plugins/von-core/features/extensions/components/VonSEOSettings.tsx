@@ -241,9 +241,9 @@ Disallow: /`;
 
   return (
     <AdminModal isOpen onClose={onClose} ariaLabel="VonSEO settings" className="w-full max-w-5xl">
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-[#16161e] sm:max-h-[90dvh]">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-admin-canvas sm:max-h-[90dvh]">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-blue-50 to-purple-50 p-4 dark:border-white/10 dark:from-slate-900 dark:to-slate-900 sm:p-6">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-linear-to-r from-blue-50 to-purple-50 p-4 dark:border-white/10 dark:from-admin-canvas dark:to-admin-canvas sm:p-6">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Search className="text-blue-600" size={28} />
@@ -256,7 +256,7 @@ Disallow: /`;
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-[#242633] dark:hover:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
             aria-label="Close VonSEO settings"
           >
             <X size={24} />
@@ -264,38 +264,38 @@ Disallow: /`;
         </div>
 
         {/* Tabs */}
-        <div className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#101018]">
+        <div className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-admin-inset">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'general' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'general' ? 'bg-white dark:bg-admin-canvas text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Globe size={18} />
             General SEO
           </button>
           <button
             onClick={() => setActiveTab('social')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'social' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'social' ? 'bg-white dark:bg-admin-canvas text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <FileText size={18} />
             Social Media
           </button>
           <button
             onClick={() => setActiveTab('advanced')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'advanced' ? 'bg-white dark:bg-[#16161e] text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'advanced' ? 'bg-white dark:bg-admin-canvas text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <SettingsIcon size={18} />
             Advanced
           </button>
           <button
             onClick={() => setActiveTab('redirects')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'redirects' ? 'bg-white dark:bg-[#16161e] text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'redirects' ? 'bg-white dark:bg-admin-canvas text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <ArrowRight size={18} />
             Redirects
           </button>
           <button
             onClick={() => setActiveTab('indexnow')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'indexnow' ? 'bg-white dark:bg-[#16161e] text-violet-600 border-b-2 border-violet-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'indexnow' ? 'bg-white dark:bg-admin-canvas text-violet-600 border-b-2 border-violet-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Zap size={18} />
             IndexNow
@@ -318,7 +318,7 @@ Disallow: /`;
                   type="text"
                   value={settings.siteName || ''}
                   readOnly
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg bg-slate-50 dark:bg-admin-canvas/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set this in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
@@ -339,7 +339,7 @@ Disallow: /`;
                   rows={4}
                   value={settings.siteDescription || ''}
                   readOnly
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 resize-none cursor-not-allowed outline-hidden transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg bg-slate-50 dark:bg-admin-canvas/40 dark:text-slate-200 resize-none cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set this in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
@@ -368,7 +368,7 @@ Disallow: /`;
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg">
+                <div className="p-4 border border-slate-200 dark:border-admin-border rounded-lg">
                   <h4 className="font-bold text-slate-900 dark:text-white mb-2">Open Graph</h4>
                   <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
                     <li>✓ og:title</li>
@@ -378,7 +378,7 @@ Disallow: /`;
                     <li>✓ og:type</li>
                   </ul>
                 </div>
-                <div className="p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg">
+                <div className="p-4 border border-slate-200 dark:border-admin-border rounded-lg">
                   <h4 className="font-bold text-slate-900 dark:text-white mb-2">Twitter Cards</h4>
                   <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
                     <li>✓ twitter:card</li>
@@ -405,7 +405,7 @@ Disallow: /`;
                   type="url"
                   value={settings.domainUrl || settings.siteUrl || ''}
                   readOnly
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg bg-slate-50 dark:bg-[#16161e]/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg bg-slate-50 dark:bg-admin-canvas/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set the Domain URL in Settings > General"
                 />
                 <p className="text-xs text-slate-500">
@@ -416,7 +416,7 @@ Disallow: /`;
 
               {/* Sitemap */}
               <div className="space-y-2">
-                <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-[#2a2b36] rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a1b26] transition-colors">
+                <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel transition-colors">
                   <input
                     id="vonseosettings-374"
                     name="vonseosettings374"
@@ -481,7 +481,7 @@ Disallow: /`;
                       robotsTxt: normalizeRobotsRules(e.target.value, false),
                     })
                   }
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#2a2b36] rounded-lg dark:bg-[#1a1b26] dark:text-white font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
                   placeholder="User-agent: *&#10;Disallow:"
                 />
                 <div className="flex justify-between items-center">
@@ -549,7 +549,7 @@ Disallow: /`;
                           articleSchemaType: normalizeArticleSchemaType(event.target.value),
                         })
                       }
-                      className="w-full mb-2 px-3 py-2 bg-white dark:bg-[#16161e] border border-green-300 dark:border-green-700 rounded-lg text-sm text-slate-900 dark:text-white"
+                      className="w-full mb-2 px-3 py-2 bg-white dark:bg-admin-canvas border border-green-300 dark:border-green-700 rounded-lg text-sm text-slate-900 dark:text-white"
                     >
                       {ARTICLE_SCHEMA_TYPES.map((schemaType) => (
                         <option key={schemaType} value={schemaType}>
@@ -627,14 +627,14 @@ Disallow: /`;
                       onChange={(e) => onUpdate({ ...settings, indexnowEnabled: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-[#242633] peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:inset-s-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:inset-s-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                   </label>
                 </div>
 
                 {settings.indexnowEnabled && (
                   <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+                      <div className="p-4 bg-white dark:bg-admin-panel rounded-lg border border-slate-200 dark:border-admin-border">
                         <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
                           API Key Status
                         </span>
@@ -648,7 +648,7 @@ Disallow: /`;
                           )}
                         </div>
                       </div>
-                      <div className="p-4 bg-white dark:bg-[#1a1b26] rounded-lg border border-slate-200 dark:border-[#2a2b36]">
+                      <div className="p-4 bg-white dark:bg-admin-panel rounded-lg border border-slate-200 dark:border-admin-border">
                         <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
                           Verification File
                         </span>
@@ -687,7 +687,7 @@ Disallow: /`;
                       )}
                     </div>
 
-                    <div className="bg-slate-100 dark:bg-[#1a1b26] rounded-lg p-4 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="bg-slate-100 dark:bg-admin-panel rounded-lg p-4 text-xs text-slate-500 dark:text-slate-400">
                       <strong>How it works:</strong> When you publish or update a post, VonCMS sends
                       a "ping" to IndexNow. Engines like Bing will prioritize crawling your site
                       instantly.
@@ -700,10 +700,10 @@ Disallow: /`;
         </div>
 
         {/* Footer */}
-        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#16161e] sm:flex-row sm:p-6">
+        <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#1a1b26] rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

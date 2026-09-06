@@ -237,7 +237,7 @@ const DatabaseManager: React.FC = () => {
   return (
     <div className="flex h-full min-w-0 flex-col space-y-6">
       {/* Header Area */}
-      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div
             className={`p-2 rounded-lg ${isConnected ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}
@@ -261,7 +261,7 @@ const DatabaseManager: React.FC = () => {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button
             onClick={handleImportClick}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-[#242633] dark:text-slate-300"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300"
           >
             {isImporting ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}{' '}
             Import SQL
@@ -286,8 +286,8 @@ const DatabaseManager: React.FC = () => {
         {/* LEFT SIDEBAR: DB List */}
         <div className="flex min-h-0 flex-col gap-6 xl:w-1/3">
           {/* Database List Box */}
-          <div className="flex min-h-0 grow flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
-            <div className="p-4 border-b border-slate-100 dark:border-[#2a2b36] flex justify-between items-center bg-slate-50 dark:bg-[#16161e]/50">
+          <div className="flex min-h-0 grow flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel">
+            <div className="p-4 border-b border-slate-100 dark:border-admin-border flex justify-between items-center bg-slate-50 dark:bg-admin-canvas/50">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tables</h3>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                 Read-only
@@ -301,7 +301,7 @@ const DatabaseManager: React.FC = () => {
                     setSelectedDb(db);
                     setQuery(`SELECT * FROM ${quoteSqlIdentifier(db)} LIMIT 50;`);
                   }}
-                  className={`group flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all ${selectedDb === db ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900' : 'hover:bg-slate-50 dark:hover:bg-[#242633]/50 text-slate-600 dark:text-slate-400'}`}
+                  className={`group flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all ${selectedDb === db ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900' : 'hover:bg-slate-50 dark:hover:bg-admin-hover/50 text-slate-600 dark:text-slate-400'}`}
                 >
                   <div className="flex items-center gap-3">
                     <Database size={16} className={selectedDb === db ? 'fill-current' : ''} />
@@ -321,9 +321,9 @@ const DatabaseManager: React.FC = () => {
         {/* RIGHT MAIN: SQL Editor & Results */}
         <div className="flex min-h-0 min-w-0 flex-col gap-6 xl:w-2/3">
           {/* SQL Editor Card */}
-          <div className="flex min-h-[380px] flex-[0.4] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#101018] shadow-xl ring-1 ring-white/5 sm:min-h-[320px] xl:min-h-[200px]">
+          <div className="flex min-h-[380px] flex-[0.4] flex-col overflow-hidden rounded-2xl border border-white/10 bg-admin-inset shadow-xl ring-1 ring-white/5 sm:min-h-[320px] xl:min-h-[200px]">
             {/* Editor Toolbar */}
-            <div className="flex flex-col gap-3 border-b border-white/10 bg-[#101018]/80 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-b border-white/10 bg-admin-inset/80 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
                 <span className="min-w-0 break-words text-[10px] font-black tracking-widest text-slate-400 uppercase">
@@ -343,18 +343,18 @@ const DatabaseManager: React.FC = () => {
                 aria-label="Text Content"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="absolute inset-0 h-full w-full resize-none bg-[#101018]/50 p-4 font-mono text-sm text-emerald-400 selection:bg-emerald-500/20 placeholder-slate-700 focus:outline-hidden sm:p-6"
+                className="absolute inset-0 h-full w-full resize-none bg-admin-inset/50 p-4 font-mono text-sm text-emerald-400 selection:bg-emerald-500/20 placeholder-slate-700 focus:outline-hidden sm:p-6"
                 spellCheck={false}
                 placeholder="-- Write your SQL query here..."
               />
             </div>
 
-            <div className="flex flex-col gap-4 border-t border-white/10 bg-[#101018]/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-col gap-4 border-t border-white/10 bg-admin-inset/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-center gap-4">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                   Ready to execute
                 </p>
-                <div className="h-1 w-12 bg-[#1a1b26] rounded-full overflow-hidden">
+                <div className="h-1 w-12 bg-admin-panel rounded-full overflow-hidden">
                   <div
                     className={`h-full bg-emerald-500 transition-all duration-1000 ${loading ? 'w-full' : 'w-0'}`}
                   ></div>
@@ -382,8 +382,8 @@ const DatabaseManager: React.FC = () => {
           </div>
 
           {/* Results Area */}
-          <div className="flex-[0.6] flex flex-col bg-white dark:bg-[#16161e] rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 overflow-hidden min-h-0 ring-1 ring-black/5 dark:ring-white/5">
-            <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-4 dark:border-white/10 dark:bg-[#101018]/50 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex-[0.6] flex flex-col bg-white dark:bg-admin-canvas rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 overflow-hidden min-h-0 ring-1 ring-black/5 dark:ring-white/5">
+            <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-4 dark:border-white/10 dark:bg-admin-inset/50 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-center gap-3">
                 <Search size={16} className="text-slate-400" />
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
@@ -402,11 +402,11 @@ const DatabaseManager: React.FC = () => {
               )}
             </div>
 
-            <div className="flex-1 overflow-auto bg-slate-50/20 dark:bg-[#16161e]/20 custom-scrollbar">
+            <div className="flex-1 overflow-auto bg-slate-50/20 dark:bg-admin-canvas/20 custom-scrollbar">
               {result ? (
                 <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full divide-y divide-slate-200 text-left dark:divide-slate-800">
-                    <thead className="bg-white dark:bg-[#101018] sticky top-0 z-10 shadow-xs">
+                  <table className="min-w-full divide-y divide-slate-200 text-left dark:divide-admin-border">
+                    <thead className="bg-white dark:bg-admin-inset sticky top-0 z-10 shadow-xs">
                       <tr>
                         {result.headers?.map((h) => (
                           <th
@@ -415,13 +415,13 @@ const DatabaseManager: React.FC = () => {
                           >
                             <div className="flex items-center gap-2">
                               {h}
-                              <div className="w-1 h-3 bg-slate-200 dark:bg-[#1a1b26] rounded-full"></div>
+                              <div className="w-1 h-3 bg-slate-200 dark:bg-admin-panel rounded-full"></div>
                             </div>
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="bg-transparent divide-y divide-slate-100 dark:divide-slate-800/50">
+                    <tbody className="bg-transparent divide-y divide-slate-100 dark:divide-admin-border/50">
                       {result.data?.map((row, i) => (
                         <tr
                           key={i}

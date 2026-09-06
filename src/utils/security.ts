@@ -90,7 +90,12 @@ const matchesHost = (host: string, domain: string): boolean =>
 const parseHttpUrl = (value: string): URL | null => {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : null;
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.port
+      ? parsed
+      : null;
   } catch {
     return null;
   }

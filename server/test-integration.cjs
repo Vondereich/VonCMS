@@ -87,13 +87,19 @@ if (!exists('server/simple-test.cjs')) {
 }
 
 const themesApiServerContent = read('server/themes-api.cjs');
+const themeArchiveSecurityContent = read('server/theme-archive-security.cjs');
 assertIncludes(
   'Theme API Dev Path Guard',
   themesApiServerContent,
   [
     'function safeResolveInside(baseDir, ...segments)',
-    'function assertSafeZipEntries(zip, destDir)',
-    'const uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);',
+    "require('./theme-archive-security.cjs')",
+    'createSecureExtractionDirectory(THEMES_DIR)',
+    'assertSafeZipEntries(zip, stagingDir)',
+    'zip.extractAllTo(stagingDir, false)',
+    'assertSafeExtractedTree(stagingDir)',
+    'await fse.move(stagingDir, destDir, { overwrite: false })',
+    'uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);',
     'sanitizeThemeFileName(file.originalname)',
     "'/api/themes/upload'",
     'verifyDevToken',
@@ -103,6 +109,29 @@ assertIncludes(
   ],
   'Theme API Dev Path Guard: upload and enable paths stay inside managed theme directories.',
   'Theme API Dev Path Guard: local theme API can still use unchecked upload or theme paths.'
+);
+
+assertIncludes(
+  'Theme Archive Extraction Boundary',
+  themeArchiveSecurityContent,
+  [
+    'fs.mkdtempSync(',
+    'zipEntryIsSymbolicLink(entry)',
+    'MAX_THEME_ZIP_ENTRIES',
+    'MAX_THEME_ZIP_ENTRY_BYTES',
+    'MAX_THEME_ZIP_TOTAL_BYTES',
+    'assertSafeExtractedTree',
+    'currentStats.isSymbolicLink()',
+  ],
+  'Theme Archive Extraction Boundary: ZIP uploads use unpredictable empty staging with size, path, symlink, and post-extraction checks.',
+  'Theme Archive Extraction Boundary: theme ZIP extraction is missing a required fail-closed archive boundary.'
+);
+assertExcludes(
+  'Theme Archive Overwrite Exclusion',
+  themesApiServerContent,
+  ['zip.extractAllTo(destDir, true)', 'zip.extractAllTo(stagingDir, true)'],
+  'Theme Archive Overwrite Exclusion: archive entries cannot overwrite an existing extraction tree.',
+  'Theme Archive Overwrite Exclusion: theme extraction still enables archive overwrite behavior.'
 );
 
 assertIncludes(
@@ -782,6 +811,7 @@ const criticalFiles = [
   'public/api/publication_time_helper.php',
   'public/api/ai_provider_helper.php',
   'public/api/analytics_consent_helper.php',
+  'public/api/content_embed_helper.php',
   'public/api/role_capability_helper.php',
   'public/api/save_settings.php',
   'public/api/get_posts.php',
@@ -799,6 +829,8 @@ const criticalFiles = [
   'server/lint-php.cjs',
   'server/copy-public-to-dist.cjs',
   'server/release-path-policy.cjs',
+  'server/theme-archive-security.cjs',
+  'server/security-boundary-smoke.cjs',
 ];
 
 criticalFiles.forEach((file) => {
@@ -1173,6 +1205,30 @@ assertIncludes(
 const rootIndexHtmlContent = read('index.html');
 const publicIndexHtmlContent = read('public/index.php');
 const distIndexHtmlContent = exists('dist/index.html') ? read('dist/index.html') : '';
+const criticalFirstPaintMarkers = [
+  'background-color: #f8fafc;',
+  'background-color: #181819;',
+  'color-scheme: light;',
+  'color-scheme: dark;',
+  'html.dark body',
+];
+if (
+  criticalFirstPaintMarkers.every(
+    (marker) => rootIndexHtmlContent.includes(marker) && publicIndexHtmlContent.includes(marker)
+  ) &&
+  rootIndexHtmlContent.indexOf('color-scheme: dark;') <
+    rootIndexHtmlContent.indexOf('<script type="module"') &&
+  publicIndexHtmlContent.indexOf('color-scheme: dark;') <
+    publicIndexHtmlContent.indexOf('$basePath . $assetPrefix . $cssFile')
+) {
+  pass(
+    'Critical Theme First Paint: static and PHP shells establish light and dark canvas colours before application CSS or JavaScript can render.'
+  );
+} else {
+  fail(
+    'Critical Theme First Paint: a shell can expose the browser white canvas before its selected theme CSS becomes available.'
+  );
+}
 assertExcludes(
   'External Font Loading Guard',
   `${rootIndexHtmlContent}\n${publicIndexHtmlContent}\n${distIndexHtmlContent}`,
@@ -1234,17 +1290,19 @@ if (
 
 if (
   skeletonFontContent.includes('.dark .sk-nav,') &&
-  skeletonFontContent.includes('background: #111827;') &&
+  skeletonFontContent.includes('background: #202124;') &&
+  skeletonFontContent.includes('border: 1px solid #34343a;') &&
   skeletonFontContent.includes('.dark .sk-nav::after,') &&
-  skeletonFontContent.includes('rgba(59, 130, 246, 0.1)') &&
-  skeletonFontContent.includes('rgba(148, 163, 184, 0.16)')
+  skeletonFontContent.includes('rgba(69, 69, 77, 0.18)') &&
+  skeletonFontContent.includes('rgba(255, 255, 255, 0.14)') &&
+  !skeletonFontContent.includes('rgba(59, 130, 246, 0.1)')
 ) {
   pass(
-    'Skeleton Dark Palette Contract: dark-mode skeleton blocks and shimmer match the slate/blue runtime surface instead of flat near-black blocks.'
+    'Skeleton Dark Palette Contract: dark-mode skeleton blocks, borders, and shimmer use the neutral charcoal loading surface without a blue trace.'
   );
 } else {
   fail(
-    'Skeleton Dark Palette Contract: dark-mode skeleton blocks still use the old mismatched flat dark palette or light shimmer.'
+    'Skeleton Dark Palette Contract: dark-mode skeleton blocks still use an old navy/blue trace or lack the charcoal loading hierarchy.'
   );
 }
 
@@ -2154,7 +2212,7 @@ assertIncludes(
     'const [isImageMenuOpen, setIsImageMenuOpen] = useState(false);',
     "document.addEventListener('keydown', closeImageMenu);",
     'bg-slate-200/80',
-    'dark:bg-[#20212b]/95',
+    'dark:bg-admin-toolbar/95',
     'aria-label={title}',
     'onClick={onClick}',
     '> figure,',
@@ -3403,6 +3461,26 @@ assertIncludes(
 
 const installContent = read('public/api/install.php');
 const configSampleContent = read('public/von_config.sample.php');
+const configSampleGuardPosition = configSampleContent.indexOf(
+  '$configSamplePath = realpath(__FILE__);'
+);
+const configSampleBodyPosition = configSampleContent.indexOf('// VonCMS Configuration');
+if (
+  configSampleGuardPosition >= 0 &&
+  configSampleBodyPosition >= 0 &&
+  configSampleGuardPosition < configSampleBodyPosition &&
+  configSampleContent.includes("$_SERVER['SCRIPT_FILENAME'] ?? ''") &&
+  configSampleContent.includes('http_response_code(403);') &&
+  configSampleContent.includes("exit('Forbidden');")
+) {
+  pass(
+    'Configuration Sample Direct Guard: direct HTTP execution stops before configuration setup while include-based use remains available.'
+  );
+} else {
+  fail(
+    'Configuration Sample Direct Guard: the tracked configuration template can execute directly or its guard runs too late.'
+  );
+}
 const runtimeStoragePathsArePrivate =
   securityContent.includes("__DIR__ . '/data/rate_limits/'") &&
   !securityContent.includes("__DIR__ . '/../data/rate_limits/'") &&
@@ -3526,7 +3604,7 @@ if (missingSensitiveBlocks.length === 0 && socialBotSensitiveBypasses.length ===
 
 const apiHelperDenyMarkers = [
   'RewriteRule ^.+\\.php/ - [R=404,L,NC]',
-  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]',
   'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
@@ -3687,6 +3765,35 @@ assertIncludes(
 
 const authLoginContent = read('src/plugins/von-core/features/auth/Login.tsx');
 const registerApiContent = read('public/api/register.php');
+const registrationTrustedOriginIndex = registerApiContent.indexOf(
+  '$trustedBaseUrl = voncms_resolve_trusted_public_base_url($pdo);'
+);
+const registrationPasswordHashIndex = registerApiContent.indexOf(
+  '$hashedPassword = password_hash($password, PASSWORD_BCRYPT);'
+);
+const registrationTokenIndex = registerApiContent.indexOf(
+  '$verificationToken = generateVerificationToken();'
+);
+const registrationInsertIndex = registerApiContent.indexOf('INSERT INTO users');
+if (
+  registrationTrustedOriginIndex !== -1 &&
+  registrationPasswordHashIndex !== -1 &&
+  registrationTokenIndex !== -1 &&
+  registrationInsertIndex !== -1 &&
+  registrationTrustedOriginIndex < registrationPasswordHashIndex &&
+  registrationTrustedOriginIndex < registrationTokenIndex &&
+  registrationTrustedOriginIndex < registrationInsertIndex &&
+  registerApiContent.includes('$verificationToken,') &&
+  registerApiContent.includes('$trustedBaseUrl,')
+) {
+  pass(
+    'Registration Email Origin Boundary: a trusted delivery origin is resolved before password hashing, token generation, or account persistence and is reused for delivery.'
+  );
+} else {
+  fail(
+    'Registration Email Origin Boundary: registration can persist an undeliverable account or token before resolving its trusted email origin.'
+  );
+}
 assertIncludes(
   'Atomic Authentication Attempt Contract',
   securityContent + '\n' + loginContent + '\n' + registerApiContent,
@@ -3882,11 +3989,12 @@ assertIncludes(
     "if ($_SERVER['REQUEST_METHOD'] !== 'POST') {",
     "header('Allow: POST, OPTIONS');",
     "ResponseHelper::sendError('Method Not Allowed', 405);",
-    '$resetUrl = "$domainUrl/login?reset_token=$token";',
-    '$resetUrl = "$protocol://$host$basePath/login?reset_token=$token";',
+    '$trustedBaseUrl = voncms_resolve_trusted_public_base_url($pdo);',
+    "'/login',",
+    "'reset_token' => $token",
   ],
-  'Password Reset Method And Route Contract: reset mail links target the real login route for root/subfolder installs and the endpoint rejects unsupported methods.',
-  'Password Reset Method And Route Contract: reset links can still target the homepage or unsupported HTTP methods can enter the endpoint.'
+  'Password Reset Method And Route Contract: reset links use the trusted canonical origin and real login route while unsupported methods are rejected.',
+  'Password Reset Method And Route Contract: reset links can still use an untrusted origin, target the homepage, or accept unsupported methods.'
 );
 assertExcludes(
   'Password Reset Homepage Link Exclusion',
@@ -3953,13 +4061,13 @@ if (
 const genericRecoveryResponseCount = (
   passwordResetRequestBranch.match(/If this email exists, a reset link has been sent\./g) || []
 ).length;
-if (genericRecoveryResponseCount === 2) {
+if (genericRecoveryResponseCount === 3) {
   pass(
     'Password Recovery Enumeration Response Parity: known and unknown addresses retain the same public success message.'
   );
 } else {
   fail(
-    'Password Recovery Enumeration Response Parity: expected two identical generic success branches.'
+    'Password Recovery Enumeration Response Parity: expected identical responses for unknown users, missing configuration, and delivery attempts.'
   );
 }
 assertIncludes(
@@ -5716,7 +5824,7 @@ assertIncludes(
     '? fieldValue',
     ": '#db2777';",
     'isColorField ? (',
-    'className="h-11 w-11 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-1 dark:border-[#2a2b36]"',
+    'className="h-11 w-11 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-transparent p-1 dark:border-admin-border"',
     'font-mono uppercase',
     'style={{ backgroundColor: pickerValue }}',
   ],
@@ -10904,6 +11012,94 @@ assertIncludes(
 );
 
 const indexCssContent = read('src/index.css');
+const adminPaletteDirectories = [
+  'src/pages/admin',
+  'src/components/admin',
+  'src/components/editor',
+  'src/plugins/von-core/features/extensions',
+  'src/plugins/von-core/features/settings',
+];
+const adminPaletteFiles = [
+  'src/components/layouts/AdminLayout.tsx',
+  'src/components/Editor.tsx',
+  'src/components/PostEditor.tsx',
+  'src/plugins/von-core/features/auth/Login.tsx',
+  'src/plugins/von-core/features/comments/CommentManager.tsx',
+  'src/plugins/von-core/features/content/ContentManager.tsx',
+  'src/plugins/von-core/features/dashboard/Dashboard.tsx',
+  'src/plugins/von-core/features/database/DatabaseManager.tsx',
+  'src/plugins/von-core/features/discussion/DiscussionManager.tsx',
+  'src/plugins/von-core/features/media/MediaManager.tsx',
+  'src/plugins/von-core/features/newsletter/NewsletterManager.tsx',
+  'src/plugins/von-core/features/plugins/built-in/ai-summary/SettingsModal.tsx',
+  'src/plugins/von-core/features/plugins/built-in/related-posts/SettingsModal.tsx',
+  'src/plugins/von-core/features/security/SecurityDashboard.tsx',
+  'src/plugins/von-core/features/setup/InstallWizard.tsx',
+  'src/plugins/von-core/features/tools/SystemTools.tsx',
+  'src/plugins/von-core/features/tools/WPMigrator.tsx',
+  'src/plugins/von-core/features/users/UserManager.tsx',
+  'src/plugins/von-core/features/widgets/WidgetsManager.tsx',
+];
+const adminPaletteSourceFiles = [
+  ...adminPaletteDirectories.flatMap((directory) =>
+    walkFiles(resolveFromRoot(directory), (file) => /\.(?:ts|tsx)$/.test(file))
+  ),
+  ...adminPaletteFiles.map(resolveFromRoot),
+];
+const adminPaletteSourceContent = adminPaletteSourceFiles
+  .map((file) => fs.readFileSync(file, 'utf8'))
+  .join('\n');
+assertIncludes(
+  'Central Admin Palette Contract',
+  indexCssContent,
+  [
+    '--admin-palette-canvas: #181819;',
+    '--admin-palette-sidebar: #17181b;',
+    '--admin-palette-panel: #202124;',
+    '--admin-palette-inset: #171717;',
+    '--admin-palette-toolbar: #252527;',
+    '--admin-palette-hover: #2a2a2e;',
+    '--admin-palette-hover-strong: #45454d;',
+    '--admin-palette-border: #34343a;',
+    '--admin-palette-border-strong: #45454d;',
+    '--color-admin-canvas: var(--admin-palette-canvas);',
+    '--color-admin-panel: var(--admin-palette-panel);',
+  ],
+  'Central Admin Palette Contract: one preset owns the shared admin canvas, sidebar, panels, controls, hover layers, and borders.',
+  'Central Admin Palette Contract: one or more shared admin palette tokens or aliases are missing.'
+);
+assertIncludes(
+  'Admin Shell Palette Consumption Contract',
+  read('src/components/layouts/AdminLayout.tsx'),
+  [
+    "isDarkMode ? 'dark bg-admin-canvas text-slate-300'",
+    'bg-admin-sidebar text-slate-300',
+    'dark:bg-admin-panel/90',
+    'dark:bg-admin-canvas',
+    'dark:border-admin-border/70',
+  ],
+  'Admin Shell Palette Consumption Contract: the root canvas, sidebar, header surfaces, search control, and border use the central palette.',
+  'Admin Shell Palette Consumption Contract: a core AdminLayout surface no longer consumes the central palette.'
+);
+assertExcludes(
+  'Central Admin Palette Raw Surface Contract',
+  adminPaletteSourceContent,
+  [
+    'bg-[#181819]',
+    'bg-[#17181b]',
+    'bg-[#202124]',
+    'bg-[#171717]',
+    'bg-[#252527]',
+    'bg-[#2a2a2e]',
+    'bg-[#34343a]',
+    'bg-[#45454d]',
+    'border-[#34343a]',
+    'border-[#45454d]',
+    'divide-[#34343a]',
+  ],
+  'Central Admin Palette Raw Surface Contract: shared admin surfaces no longer repeat hard-coded palette values.',
+  'Central Admin Palette Raw Surface Contract: one or more shared admin surfaces still bypass the central token set.'
+);
 assertIncludes(
   'Global Ad Slot Overflow Guard',
   indexCssContent,
@@ -11574,10 +11770,12 @@ if (
   skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   indexCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   indexCssContent.includes('.animate-spin,') &&
-  skeletonCssContent.includes('background: #111827;') &&
-  skeletonCssContent.includes('border: 1px solid rgba(148, 163, 184, 0.08);') &&
-  skeletonCssContent.includes('rgba(59, 130, 246, 0.1) 20%') &&
-  skeletonCssContent.includes('rgba(148, 163, 184, 0.16) 60%') &&
+  skeletonCssContent.includes('background: #202124;') &&
+  skeletonCssContent.includes('border: 1px solid #34343a;') &&
+  skeletonCssContent.includes('rgba(69, 69, 77, 0.18) 20%') &&
+  skeletonCssContent.includes('rgba(255, 255, 255, 0.14) 60%') &&
+  !skeletonCssContent.includes('rgba(59, 130, 246, 0.1)') &&
+  !skeletonCssContent.includes('rgba(15, 23, 42, 0)') &&
   !reactSkeletonContent.includes('<style>') &&
   !reactSkeletonContent.includes('style={{')
 ) {
@@ -13587,16 +13785,73 @@ assertIncludes(
 );
 
 const mailHelperContent = read('public/api/mail_helper.php');
+const contentEmbedHelperContent = read('public/api/content_embed_helper.php');
+const iframeStorageBoundaries = [
+  'public/api/save_post.php',
+  'public/api/save_page.php',
+  'public/api/tools/wp_import.php',
+];
+if (
+  contentEmbedHelperContent.includes('function voncms_is_allowed_iframe_src(mixed $value): bool') &&
+  contentEmbedHelperContent.includes(
+    'function voncms_sanitize_content_iframes(mixed $value): string'
+  ) &&
+  contentEmbedHelperContent.includes("echo 'Forbidden';") &&
+  iframeStorageBoundaries.every((file) => {
+    const content = read(file);
+    return (
+      content.includes('content_embed_helper.php') &&
+      content.includes('voncms_sanitize_content_iframes(')
+    );
+  })
+) {
+  pass(
+    'Server-Owned Embed Provider Boundary: post, page, and WordPress import writes share the same direct-protected iframe provider sanitizer.'
+  );
+} else {
+  fail(
+    'Server-Owned Embed Provider Boundary: a content write path can bypass the shared iframe provider allowlist or the helper lacks its direct boundary.'
+  );
+}
+
 assertIncludes(
-  'Verification Email Base Path Contract',
+  'Account Action URL Trust Contract',
   mailHelperContent,
   [
-    "$basePath = '/' . trim($basePath, '/');",
-    '$verifyUrl = "$protocol://$host$basePath/api/verify_email.php?token=$token";',
+    'function voncms_normalize_trusted_public_base_url(mixed $value): string',
+    'function voncms_loopback_request_base_url(): string',
+    'function voncms_resolve_trusted_public_base_url(mixed $pdo): string',
+    'function voncms_build_account_action_url(string $baseUrl, string $path, array $query): string',
+    "['localhost', '127.0.0.1', '::1']",
+    "getenv('VONCMS_ENV') ?: 'production'",
+    "['development', 'dev', 'local']",
+    "'/api/verify_email.php',",
+    "htmlspecialchars($verifyUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8')",
   ],
-  'Verification Email Base Path Contract: fallback verification links preserve subfolder installs without duplicate slashes.',
-  'Verification Email Base Path Contract: fallback verification links can duplicate or drop the deployment subfolder.'
+  'Account Action URL Trust Contract: reset and verification links use a validated configured origin with an exact-loopback development fallback.',
+  'Account Action URL Trust Contract: token-bearing email links can still inherit an arbitrary request Host or unescaped URL.'
 );
+
+const passwordResetOriginResolutionIndex = passwordResetRequestBranch.indexOf(
+  '$trustedBaseUrl = voncms_resolve_trusted_public_base_url($pdo);'
+);
+const passwordResetTokenCreationIndex = passwordResetRequestBranch.indexOf(
+  '$token = bin2hex(random_bytes(32));'
+);
+if (
+  passwordResetOriginResolutionIndex !== -1 &&
+  passwordResetTokenCreationIndex !== -1 &&
+  passwordResetOriginResolutionIndex < passwordResetTokenCreationIndex &&
+  !passwordResetRequestBranch.includes("$_SERVER['HTTP_HOST']")
+) {
+  pass(
+    'Password Reset Token Persistence Boundary: a trusted delivery origin is resolved before a reset token is persisted.'
+  );
+} else {
+  fail(
+    'Password Reset Token Persistence Boundary: reset tokens can be persisted before a trusted delivery origin is available or the request branch still trusts HTTP_HOST.'
+  );
+}
 
 assertIncludes(
   'Installer Redirect Base Path Contract',
@@ -16132,6 +16387,89 @@ if (!phpBinary) {
   warn('PHP Lint: no PHP binary found automatically; skipping syntax lint checks.');
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
+
+  const securityBoundaryProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/security-boundary-smoke.cjs'), phpBinary],
+    { encoding: 'utf8' }
+  );
+  if (
+    securityBoundaryProbe.status === 0 &&
+    securityBoundaryProbe.stdout.includes('Security boundary smoke passed.')
+  ) {
+    pass(
+      'Security Boundary Runtime: trusted account URLs, provider-owned iframe sanitation, direct helper denial, and guarded theme ZIP extraction pass executable adversarial fixtures.'
+    );
+  } else {
+    fail(
+      `Security Boundary Runtime: an account URL, iframe, helper, or archive extraction boundary regressed. ${(securityBoundaryProbe.stderr || securityBoundaryProbe.stdout || '').trim()}`
+    );
+  }
+
+  const configSampleDirectProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('public/von_config.sample.php')],
+    { encoding: 'utf8' }
+  );
+  const configSampleFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-config-sample-'));
+  const configSampleFixtureDocumentRoot = path.join(configSampleFixture, 'public');
+  fs.mkdirSync(configSampleFixtureDocumentRoot, { recursive: true });
+  const configSampleIncludeProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `putenv('VONCMS_ENV=development');
+$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(path.join(configSampleFixtureDocumentRoot, 'index.php'))};
+$_SERVER['DOCUMENT_ROOT'] = ${JSON.stringify(configSampleFixtureDocumentRoot)};
+require ${JSON.stringify(resolveFromRoot('public/von_config.sample.php'))};
+echo 'included';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  fs.rmSync(configSampleFixture, { recursive: true, force: true });
+  if (
+    configSampleDirectProbe.status === 0 &&
+    configSampleDirectProbe.stdout.trim() === 'Forbidden' &&
+    configSampleIncludeProbe.status === 0 &&
+    configSampleIncludeProbe.stdout.trim() === 'included'
+  ) {
+    pass(
+      'Configuration Sample Runtime Boundary: direct execution is forbidden while include-based configuration use remains available.'
+    );
+  } else {
+    fail(
+      `Configuration Sample Runtime Boundary: direct or include behavior regressed. Direct: ${(configSampleDirectProbe.stderr || configSampleDirectProbe.stdout || '').trim()} Include: ${(configSampleIncludeProbe.stderr || configSampleIncludeProbe.stdout || '').trim()}`
+    );
+  }
+
+  if (
+    updaterContent.includes("'von_config.php',") &&
+    !updaterContent.includes("'von_config.sample.php',")
+  ) {
+    pass(
+      'Configuration Sample OTA Ownership: the current updater refreshes the distributable sample on subsequent updates while preserving the live credential-bearing configuration.'
+    );
+  } else {
+    fail(
+      'Configuration Sample OTA Ownership: the updater can overwrite live credentials or prevent sample security fixes from reaching existing sites.'
+    );
+  }
+
+  const mediaVariantsDirectProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('public/media_variants.php')],
+    { encoding: 'utf8' }
+  );
+  if (
+    mediaVariantsDirectProbe.status === 0 &&
+    mediaVariantsDirectProbe.stdout.trim() === 'Forbidden'
+  ) {
+    pass('Responsive Media Helper Direct Boundary: direct execution is forbidden.');
+  } else {
+    fail(
+      `Responsive Media Helper Direct Boundary: direct execution did not fail closed. ${(mediaVariantsDirectProbe.stderr || mediaVariantsDirectProbe.stdout || '').trim()}`
+    );
+  }
 
   const analyticsConsentFixture = fs.mkdtempSync(
     path.join(os.tmpdir(), 'voncms-analytics-consent-')
@@ -19160,6 +19498,8 @@ echo 'ok';
     'public/api/get_post.php',
     'public/api/save_post.php',
     'public/api/save_page.php',
+    'public/api/content_embed_helper.php',
+    'public/api/mail_helper.php',
     'public/von_config.sample.php',
     'public/rss.php',
     'public/api/backup_db.php',

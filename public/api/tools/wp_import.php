@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../../security.php';
 require_once __DIR__ . '/../public_cache_helper.php';
 require_once __DIR__ . '/../publication_time_helper.php';
+require_once __DIR__ . '/../content_embed_helper.php';
 define('VONCMS_WP_IMPORT_CONTEXT', true);
 require_once __DIR__ . '/wp_wxr_reader_helper.php';
 sendApiHeaders('POST, OPTIONS');
@@ -1275,7 +1276,7 @@ function normalize_imported_content($html, $sourceBaseUrls, $targetBaseUrl)
   $cleaned = preg_replace('/<p>\s*(?:&nbsp;|\s|<br\s*\/?>)*<\/p>/i', '', $cleaned);
   $cleaned = preg_replace('/\n{3,}/', "\n\n", $cleaned);
 
-  return trim((string) $cleaned);
+  return trim(voncms_sanitize_content_iframes((string) $cleaned));
 }
 
 debug_log('Import script started');

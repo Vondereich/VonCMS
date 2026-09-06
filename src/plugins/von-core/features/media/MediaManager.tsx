@@ -369,7 +369,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
 
             {/* Navigation Buttons removed from here to be moved inside Image Column */}
 
-            <div className="flex h-full w-full flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#16161e] md:flex-row md:overflow-hidden">
+            <div className="flex h-full w-full flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-admin-canvas md:flex-row md:overflow-hidden">
               {/* IMAGE COLUMN (70%) */}
               <div className="relative flex min-h-64 flex-1 flex-col items-center justify-center bg-slate-50 p-4 dark:bg-black md:min-h-0">
                 {/* Desktop Navigation Buttons INSIDE Image Column to prevent overlap */}
@@ -382,7 +382,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                           (lightboxIndex - 1 + filteredMedia.length) % filteredMedia.length
                         );
                       }}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-[#1a1b26] rounded-full transition-all z-50 hidden md:block"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-admin-panel rounded-full transition-all z-50 hidden md:block"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -403,7 +403,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         e.stopPropagation();
                         setLightboxIndex((lightboxIndex + 1) % filteredMedia.length);
                       }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-[#1a1b26] rounded-full transition-all z-50 hidden md:block"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-admin-panel rounded-full transition-all z-50 hidden md:block"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -436,7 +436,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         (lightboxIndex - 1 + filteredMedia.length) % filteredMedia.length
                       )
                     }
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-[#1a1b26] dark:text-white"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-admin-panel dark:text-white"
                     aria-label="Previous media item"
                   >
                     <svg
@@ -456,7 +456,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                   </button>
                   <button
                     onClick={() => setLightboxIndex((lightboxIndex + 1) % filteredMedia.length)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-[#1a1b26] dark:text-white"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-admin-panel dark:text-white"
                     aria-label="Next media item"
                   >
                     <svg
@@ -483,7 +483,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               </div>
 
               {/* EDITOR COLUMN (30%) */}
-              <div className="flex h-auto w-full shrink-0 flex-col overflow-hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#16161e] md:h-full md:w-[350px] md:border-l md:border-t-0 lg:w-[400px]">
+              <div className="flex h-auto w-full shrink-0 flex-col overflow-hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-admin-canvas md:h-full md:w-[350px] md:border-l md:border-t-0 lg:w-[400px]">
                 <div className="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50 dark:bg-white/5">
                   <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <FileText className="text-blue-500" size={20} />
@@ -600,7 +600,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => fetchMedia(pagination.currentPage, searchQuery)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-[#242633] text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition"
             disabled={isLoading}
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} /> Refresh
@@ -636,12 +636,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col items-stretch justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26] lg:flex-row lg:items-center">
+      <div className="flex flex-col items-stretch justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel lg:flex-row lg:items-center">
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
           {/* Select All Checkbox */}
           <button
             onClick={toggleSelectAll}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#242633] rounded-lg transition"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-admin-hover rounded-lg transition"
             title={
               selectedItems.size === filteredMedia.length && filteredMedia.length > 0
                 ? 'Deselect All'
@@ -682,13 +682,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               maxLength={120}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-28 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-[#2a2b36] dark:bg-[#16161e] dark:text-white"
+              className="w-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-28 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
             />
             {searchInput !== '' && (
               <button
                 type="button"
                 onClick={() => setSearchInput('')}
-                className="absolute right-[4.75rem] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-[#2a2b36] dark:hover:text-white"
+                className="absolute right-[4.75rem] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-admin-border dark:hover:text-white"
                 title="Clear search"
                 aria-label="Clear media search"
               >
@@ -703,7 +703,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             </button>
           </form>
         </div>
-        <div className="flex items-center gap-2 self-end rounded-lg bg-slate-100 p-1 dark:bg-[#242633] lg:self-auto">
+        <div className="flex items-center gap-2 self-end rounded-lg bg-slate-100 p-1 dark:bg-admin-hover lg:self-auto">
           <button
             onClick={() => setViewMode('grid')}
             className={`p-2 rounded-sm ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-xs text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
@@ -728,12 +728,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         {/* File Grid */}
         <div className="lg:col-span-3">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64 bg-slate-50 dark:bg-[#16161e]/50 rounded-xl border border-dashed border-slate-300 dark:border-[#2a2b36]">
+            <div className="flex items-center justify-center h-64 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border">
               <RefreshCw size={32} className="text-slate-400 animate-spin" />
             </div>
           ) : filteredMedia.length === 0 ? (
             <div
-              className="flex flex-col items-center justify-center h-64 bg-slate-50 dark:bg-[#16161e]/50 rounded-xl border border-dashed border-slate-300 dark:border-[#2a2b36] cursor-pointer hover:border-blue-400 transition-colors"
+              className="flex flex-col items-center justify-center h-64 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border cursor-pointer hover:border-blue-400 transition-colors"
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload size={48} className="text-slate-300 mb-4" />
@@ -755,7 +755,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     }
                   }}
                   onDoubleClick={() => handleDoubleClick(item)}
-                  className={`group relative aspect-square bg-slate-100 dark:bg-[#16161e] rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'}`}
+                  className={`group relative aspect-square bg-slate-100 dark:bg-admin-canvas rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'}`}
                 >
                   {/* Checkbox */}
                   <button
@@ -801,9 +801,9 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-[#2a2b36] dark:bg-[#1a1b26]">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel">
               <table className="w-full min-w-[680px] text-sm text-left">
-                <thead className="bg-slate-50 dark:bg-[#16161e] border-b border-slate-200 dark:border-[#2a2b36] font-medium text-slate-500">
+                <thead className="bg-slate-50 dark:bg-admin-canvas border-b border-slate-200 dark:border-admin-border font-medium text-slate-500">
                   <tr>
                     <th className="p-4 w-12">
                       <button
@@ -831,7 +831,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         toggleSelection(item.id);
                       }}
                       onDoubleClick={() => handleDoubleClick(item)}
-                      className={`border-b last:border-0 border-slate-100 dark:border-white/10 cursor-pointer hover:bg-slate-50 dark:hover:bg-[#242633]/50 ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                      className={`border-b last:border-0 border-slate-100 dark:border-white/10 cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-hover/50 ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                     >
                       <td className="p-4">
                         <button
@@ -901,7 +901,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         {/* Sidebar Details */}
         {/* Details Sidebar */}
         {selectedItems.size > 0 ? (
-          <div className="lg:col-span-1 bg-white dark:bg-[#1a1b26] rounded-xl shadow-xs border border-slate-200 dark:border-[#2a2b36] p-6 sticky top-6">
+          <div className="lg:col-span-1 bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border p-6 sticky top-6">
             <h3 className="font-bold text-lg mb-4 dark:text-white">File Details</h3>
             {selectedItems.size === 1 ? (
               (() => {
@@ -910,7 +910,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                 if (!item) return null;
                 return (
                   <div className="space-y-4">
-                    <div className="aspect-video bg-slate-100 dark:bg-[#16161e] rounded-lg overflow-hidden flex items-center justify-center border border-slate-200 dark:border-[#2a2b36]">
+                    <div className="aspect-video bg-slate-100 dark:bg-admin-canvas rounded-lg overflow-hidden flex items-center justify-center border border-slate-200 dark:border-admin-border">
                       {item.type === 'image' ? (
                         <img
                           src={item.url}
@@ -931,7 +931,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         id="alternative-text-for-accessibility"
                         name="alternativeTextForAccessibility"
                         type="text"
-                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-admin-border-strong rounded-sm bg-slate-50 dark:bg-admin-canvas text-slate-800 dark:text-slate-200"
                         placeholder="Alternative text for accessibility"
                         maxLength={255}
                         value={editMeta.alt}
@@ -951,7 +951,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         name="imageCaption"
                         aria-label="Image caption..."
                         rows={2}
-                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-admin-border-strong rounded-sm bg-slate-50 dark:bg-admin-canvas text-slate-800 dark:text-slate-200"
                         placeholder="Image caption..."
                         maxLength={5000}
                         value={editMeta.caption}
@@ -970,7 +970,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         id="long-description"
                         name="longDescription"
                         rows={3}
-                        className="w-full text-sm p-2 border border-slate-300 dark:border-[#333544] rounded-sm bg-slate-50 dark:bg-[#16161e] text-slate-800 dark:text-slate-200"
+                        className="w-full text-sm p-2 border border-slate-300 dark:border-admin-border-strong rounded-sm bg-slate-50 dark:bg-admin-canvas text-slate-800 dark:text-slate-200"
                         placeholder="Long description..."
                         maxLength={10000}
                         value={editMeta.desc}
@@ -986,7 +986,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       {metaLoading ? 'Saving...' : 'Save Meta Info'}
                     </button>
 
-                    <hr className="border-slate-200 dark:border-[#2a2b36] my-4" />
+                    <hr className="border-slate-200 dark:border-admin-border my-4" />
 
                     <div className="space-y-3 text-xs text-slate-500 dark:text-slate-400">
                       <div>
@@ -1026,14 +1026,14 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                             aria-label="Media URL"
                             readOnly
                             value={item.url}
-                            className="flex-1 bg-slate-100 dark:bg-[#16161e] border border-slate-300 dark:border-[#333544] rounded-sm px-2 py-1 select-all text-slate-600 dark:text-slate-300"
+                            className="flex-1 bg-slate-100 dark:bg-admin-canvas border border-slate-300 dark:border-admin-border-strong rounded-sm px-2 py-1 select-all text-slate-600 dark:text-slate-300"
                           />
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(item.url);
                               toast.success('Copied!');
                             }}
-                            className="p-1 hover:bg-slate-200 dark:hover:bg-[#242633] rounded-sm text-slate-600 dark:text-slate-300"
+                            className="p-1 hover:bg-slate-200 dark:hover:bg-admin-hover rounded-sm text-slate-600 dark:text-slate-300"
                             title="Copy URL"
                           >
                             <Copy size={14} />
@@ -1042,7 +1042,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       </div>
                     </div>
                     {canManageMediaDestructiveActions && (
-                      <div className="mt-8 pt-4 border-t border-slate-100 dark:border-[#2a2b36]">
+                      <div className="mt-8 pt-4 border-t border-slate-100 dark:border-admin-border">
                         <button
                           onClick={() => handleDelete([item.id])} // Fixed: Pass array
                           className="w-full py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 font-medium flex items-center justify-center gap-2 transition"
@@ -1056,7 +1056,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               })()
             ) : (
               <div className="text-center py-8">
-                <div className="bg-slate-100 dark:bg-[#242633] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="bg-slate-100 dark:bg-admin-hover w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-xl font-bold text-slate-500 dark:text-slate-300">
                     {selectedItems.size}
                   </span>
@@ -1076,7 +1076,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             )}
           </div>
         ) : (
-          <div className="lg:col-span-1 bg-slate-50 dark:bg-[#16161e]/50 rounded-xl border border-dashed border-slate-300 dark:border-[#2a2b36] p-8 text-center text-slate-400 sticky top-6">
+          <div className="lg:col-span-1 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border p-8 text-center text-slate-400 sticky top-6">
             <Image size={48} className="mx-auto mb-3 opacity-50" />
             <p className="text-sm">Select a file to view details</p>
           </div>

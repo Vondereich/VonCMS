@@ -58,7 +58,6 @@ class SystemUpdater
   /** @var array<int, string> */
   private $protected = [
     'von_config.php',
-    'von_config.sample.php',
     '.htaccess',
     '.env',
     'data',

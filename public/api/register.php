@@ -18,6 +18,7 @@ if ($requestMethod !== 'POST' && $requestMethod !== 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/mail_helper.php';
 require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
@@ -146,11 +147,19 @@ try {
     ResponseHelper::sendError('Username or email already taken', 400);
   }
 
+  $trustedBaseUrl = voncms_resolve_trusted_public_base_url($pdo);
+  if ($trustedBaseUrl === '') {
+    error_log('Registration stopped: canonical Domain URL is not configured.');
+    ResponseHelper::sendError(
+      'Registration is temporarily unavailable. Please contact the site administrator.',
+      503,
+    );
+  }
+
   // Hash password
   $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
   // Verification token generation
-  require_once __DIR__ . '/mail_helper.php';
   $verificationToken = generateVerificationToken();
   $tokenExpires = date('Y-m-d H:i:s', strtotime('+24 hours'));
 
@@ -163,7 +172,13 @@ try {
   $userId = $pdo->lastInsertId();
 
   // Send verification email
-  $emailResult = sendVerificationEmail($pdo, $email, $username, $verificationToken);
+  $emailResult = sendVerificationEmail(
+    $pdo,
+    $email,
+    $username,
+    $verificationToken,
+    $trustedBaseUrl,
+  );
 
   // Create user object for response
   $user = [
