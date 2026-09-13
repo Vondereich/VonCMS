@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.27.1
+# VonCMS User Manual v1.27.2
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -90,7 +90,7 @@ The admin uses the same permissions and save paths on every viewport, but rearra
 5. Use the fixed bottom actions to save a draft or run the same Publish, Schedule, or Update action used on desktop.
 6. Use Preview from the editor toolbar before sharing a long or media-heavy article.
 
-Admin dialogs and media lightboxes stay inside the visible viewport and can normally be closed with their Close control, the backdrop, or Escape. Update progress is deliberately protected from accidental backdrop or Escape dismissal while an OTA operation is running.
+Admin dialogs and media lightboxes stay inside the visible viewport and can normally be closed with their Close control, the backdrop, or Escape. The OTA dialog presents bounded GitHub release notes as readable Markdown and reports Checking, Installing, Complete, or Failed without inventing a percentage. Update progress is deliberately protected from accidental backdrop or Escape dismissal while an OTA operation is running; a failed discovery or installation leaves the dashboard usable and provides a controlled retry path.
 
 ## Managing pages
 

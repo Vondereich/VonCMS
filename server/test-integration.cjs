@@ -2,9 +2,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const AdmZip = require('adm-zip');
 const ts = require('typescript');
 const vm = require('vm');
+const { listZipEntries } = require('./zip-archive-helper.cjs');
 
 console.log('Starting VonCMS integration smoke test...');
 
@@ -95,9 +95,7 @@ assertIncludes(
     'function safeResolveInside(baseDir, ...segments)',
     "require('./theme-archive-security.cjs')",
     'createSecureExtractionDirectory(THEMES_DIR)',
-    'assertSafeZipEntries(zip, stagingDir)',
-    'zip.extractAllTo(stagingDir, false)',
-    'assertSafeExtractedTree(stagingDir)',
+    'extractThemeArchiveSafely(uploadedPath, stagingDir)',
     'await fse.move(stagingDir, destDir, { overwrite: false })',
     'uploadedPath = safeResolveInside(THEMES_DIR, req.file.path);',
     'sanitizeThemeFileName(file.originalname)',
@@ -116,10 +114,13 @@ assertIncludes(
   themeArchiveSecurityContent,
   [
     'fs.mkdtempSync(',
-    'zipEntryIsSymbolicLink(entry)',
     'MAX_THEME_ZIP_ENTRIES',
     'MAX_THEME_ZIP_ENTRY_BYTES',
     'MAX_THEME_ZIP_TOTAL_BYTES',
+    'parseZipArchive(archivePath)',
+    'inflateZipArchive(parsedArchive, entries)',
+    'fs.constants.O_EXCL',
+    'fs.constants.O_NOFOLLOW',
     'assertSafeExtractedTree',
     'currentStats.isSymbolicLink()',
   ],
@@ -129,9 +130,9 @@ assertIncludes(
 assertExcludes(
   'Theme Archive Overwrite Exclusion',
   themesApiServerContent,
-  ['zip.extractAllTo(destDir, true)', 'zip.extractAllTo(stagingDir, true)'],
-  'Theme Archive Overwrite Exclusion: archive entries cannot overwrite an existing extraction tree.',
-  'Theme Archive Overwrite Exclusion: theme extraction still enables archive overwrite behavior.'
+  ['extractAllTo(', "require('adm-zip')"],
+  'Theme Archive Overwrite Exclusion: no library extraction sink can follow destination symlinks.',
+  'Theme Archive Overwrite Exclusion: theme extraction still uses the affected library extraction path.'
 );
 
 assertIncludes(
@@ -1052,12 +1053,18 @@ if (
 }
 
 if (
-  createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'README.md'));") &&
-  createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'LICENSE.md'));") &&
-  createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'metadata.json'));") &&
-  createReleaseContent.includes("deployZip.addLocalFile(docsFilePath, 'docs');") &&
+  createReleaseContent.includes(
+    "addReleaseFile(deployEntries, path.join(basePath, 'README.md'), 'README.md');"
+  ) &&
+  createReleaseContent.includes(
+    "addReleaseFile(deployEntries, path.join(basePath, 'LICENSE.md'), 'LICENSE.md');"
+  ) &&
+  createReleaseContent.includes(
+    "addReleaseFile(deployEntries, path.join(basePath, 'metadata.json'), 'metadata.json');"
+  ) &&
+  createReleaseContent.includes('addReleaseFile(deployEntries, docsFilePath, `docs/${file}`);') &&
   !createReleaseContent.includes("file !== 'LICENSE.md'") &&
-  !createReleaseContent.includes("deployZip.addLocalFile(path.join(basePath, 'package.json'));")
+  !createReleaseContent.includes("addReleaseFile(deployEntries, 'package.json'")
 ) {
   pass(
     'Deploy Package Hygiene: README, license, and metadata ship while package.json stays out of Deploy ZIP.'
@@ -1070,17 +1077,17 @@ if (
 
 if (
   createReleaseContent.includes(
-    "deployZip.addLocalFile(path.join(basePath, 'public', '.htaccess'), '', '.htaccess');"
+    "addReleaseFile(deployEntries, path.join(basePath, 'public', '.htaccess'), '.htaccess');"
   ) &&
   createReleaseContent.includes("path.join(basePath, 'public', 'uploads', '.htaccess')") &&
-  createReleaseContent.includes("'uploads'") &&
+  createReleaseContent.includes("'uploads/.htaccess'") &&
   createReleaseContent.includes(
-    "sourceZip.addLocalFile(path.join(basePath, '.htaccess'), '', '.htaccess');"
+    "addReleaseFile(sourceEntries, path.join(basePath, '.htaccess'), '.htaccess');"
   ) &&
   createReleaseContent.includes(
-    "sourceZip.addLocalFile(path.join(basePath, 'public', '.htaccess'), 'public', '.htaccess');"
+    "addReleaseFile(sourceEntries, path.join(basePath, 'public', '.htaccess'), 'public/.htaccess');"
   ) &&
-  createReleaseContent.includes("'public/uploads'")
+  createReleaseContent.includes("'public/uploads/.htaccess'")
 ) {
   pass(
     'Release .htaccess Packaging Contract: Deploy and Source ZIPs include explicit routing and uploads shield dotfiles.'
@@ -1120,9 +1127,9 @@ if (
 
 if (
   createReleaseContent.includes("const changelogPath = path.join(basePath, 'CHANGELOG.md');") &&
-  createReleaseContent.includes("deployZip.addLocalFile(changelogPath, '', 'CHANGELOG.md');") &&
-  !createReleaseContent.includes("deployZip.addLocalFile(changelogPath, '', 'Changelog.md');") &&
-  !createReleaseContent.includes("sourceZip.addLocalFile(changelogPath, '', 'Changelog.md');")
+  createReleaseContent.includes("addReleaseFile(deployEntries, changelogPath, 'CHANGELOG.md');") &&
+  !createReleaseContent.includes("addReleaseFile(deployEntries, changelogPath, 'Changelog.md');") &&
+  !createReleaseContent.includes("addReleaseFile(sourceEntries, changelogPath, 'Changelog.md');")
 ) {
   pass(
     'Release Changelog Casing Contract: Source and Deploy ZIPs use canonical CHANGELOG.md only.'
@@ -1160,7 +1167,7 @@ if (
 
 const sourceZipPath = resolveFromRoot(`VonCMS_v${pkg.version}_Source.zip`);
 if (fs.existsSync(sourceZipPath)) {
-  const sourceZipEntries = new AdmZip(sourceZipPath).getEntries().map((entry) => entry.entryName);
+  const sourceZipEntries = listZipEntries(sourceZipPath);
   const leakedPrivateEntries = sourceZipEntries.filter((entry) =>
     sourcePackagePrivateDenylist.some(
       (denied) => entry === denied || entry.startsWith(`${denied}/`)
@@ -14368,6 +14375,8 @@ if (
 
 const dashboardContent = read('src/plugins/von-core/features/dashboard/Dashboard.tsx');
 const updateModalContent = read('src/plugins/von-core/features/settings/UpdateModal.tsx');
+const otaReleaseContent = read('src/plugins/von-core/features/settings/otaRelease.ts');
+const releaseNotesContent = read('src/plugins/von-core/features/settings/ReleaseNotes.tsx');
 assertIncludes(
   'Public Theme Customization Fallback',
   useSettingsContent + '\n' + publicIndexContent,
@@ -14458,7 +14467,8 @@ if (
   updaterContent.includes("basename($normalized) === '.htaccess'") &&
   upgradeGuideContent.includes('If you update to `v1.25.0` through OTA') &&
   upgradeGuideContent.includes('Repair `.htaccess`') &&
-  updateModalContent.includes('System Tools &gt; Repair .htaccess')
+  updateModalContent.includes('System Tools &gt; Repair') &&
+  updateModalContent.includes('.htaccess once after updating.')
 ) {
   pass(
     'OTA .htaccess Upgrade Guidance: updater keeps live .htaccess protected while v1.25.0 docs and modal instruct admins to run the repair tool after OTA.'
@@ -14576,7 +14586,8 @@ if (
 }
 if (
   dashboardContent.includes('expectedHash?: string;') &&
-  dashboardContent.includes("expectedHash: deployAsset?.digest || deployAsset?.sha256 || ''") &&
+  otaReleaseContent.includes('expectedHash: boundedString(') &&
+  otaReleaseContent.includes('deployAsset?.digest ?? deployAsset?.sha256') &&
   dashboardContent.includes('expectedHash={updateInfo.expectedHash}') &&
   updateModalContent.includes('expectedHash?: string;') &&
   updateModalContent.includes('expected_hash: expectedHash || undefined')
@@ -14586,6 +14597,65 @@ if (
   );
 } else {
   fail('OTA Dashboard Flow: dashboard-to-updater digest wiring is incomplete.');
+}
+assertIncludes(
+  'OTA Release Response Boundary',
+  otaReleaseContent,
+  [
+    'const MAX_RELEASE_RESPONSE_BYTES = 512 * 1024;',
+    'const RELEASE_REQUEST_TIMEOUT_MS = 12_000;',
+    'export const MAX_RELEASE_NOTES_CHARS = 32 * 1024;',
+    "response.headers.get('content-length')",
+    'response.body.getReader()',
+    'await reader.cancel()',
+    'signal: controller.signal',
+    'window.clearTimeout(timeout)',
+    'payload.assets.slice(0, 100)',
+    'safeGitHubUrl(deployAsset?.browser_download_url)',
+  ],
+  'OTA Release Response Boundary: GitHub metadata, assets, notes, and URLs are bounded before dashboard use.',
+  'OTA Release Response Boundary: remote release metadata can bypass a required size, shape, or URL boundary.'
+);
+if (
+  releaseNotesContent.includes("url.protocol === 'https:' || url.protocol === 'http:'") &&
+  releaseNotesContent.includes('target="_blank"') &&
+  releaseNotesContent.includes('rel="noopener noreferrer"') &&
+  releaseNotesContent.includes("<code>{code.join('\\n')}</code>") &&
+  !releaseNotesContent.includes('dangerouslySetInnerHTML')
+) {
+  pass(
+    'OTA Safe Markdown Presentation: release headings, lists, code, and allowlisted links render as React nodes without raw HTML injection.'
+  );
+} else {
+  fail(
+    'OTA Safe Markdown Presentation: release notes can lose safe URL handling, external-link isolation, code rendering, or React-owned escaping.'
+  );
+}
+assertIncludes(
+  'OTA Truthful State And Recovery',
+  dashboardContent + '\n' + updateModalContent,
+  [
+    "type UpdateStep = 'idle' | 'checking' | 'installing' | 'success' | 'error';",
+    'The update service is unavailable. Your dashboard is still ready to use.',
+    'Checking update requirements',
+    'Installing update',
+    'Update complete',
+    'Try Again',
+    'closeOnEscape={canDismiss}',
+  ],
+  'OTA Truthful State And Recovery: the dashboard reports real operation states, preserves safe dismissal, and offers controlled retry paths.',
+  'OTA Truthful State And Recovery: update state, failure recovery, or in-progress dismissal controls have drifted.'
+);
+if (
+  !updateModalContent.includes('setProgress(') &&
+  !updateModalContent.includes('UPDATE_STEPS') &&
+  !updateModalContent.includes('dangerouslySetInnerHTML')
+) {
+  pass(
+    'OTA Honest Progress: the modal no longer fabricates a percentage for a synchronous backend operation.'
+  );
+} else {
+  fail('OTA Honest Progress: the modal still exposes simulated progress or unsafe HTML rendering.');
 }
 if (
   updaterContent.includes("isset($input['expected_hash'])") &&

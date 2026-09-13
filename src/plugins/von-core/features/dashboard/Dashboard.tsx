@@ -20,6 +20,7 @@ import {
   HardDrive,
   Clock,
   CheckCircle2,
+  AlertTriangle,
   Server,
   X,
   RefreshCw,
@@ -27,6 +28,7 @@ import {
   FileStack,
 } from 'lucide-react';
 import { UpdateModal } from '../settings/UpdateModal';
+import { fetchLatestOtaRelease, isNewerVersion } from '../settings/otaRelease';
 import { Post, User, Comment, Page, SiteSettings } from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
@@ -238,55 +240,27 @@ const VpDashboard: React.FC<DashboardProps> = ({
     latestVersion: string;
     downloadUrl: string;
     releaseNotes: string;
+    releaseUrl: string;
+    releaseNotesTruncated: boolean;
     expectedHash?: string;
   } | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-
-  // Compare semantic versions (returns true if remote > local)
-  const isNewerVersion = (local: string, remote: string): boolean => {
-    const localParts = local.replace(/^v/, '').split('.').map(Number);
-    const remoteParts = remote.replace(/^v/, '').split('.').map(Number);
-
-    for (let i = 0; i < Math.max(localParts.length, remoteParts.length); i++) {
-      const l = localParts[i] || 0;
-      const r = remoteParts[i] || 0;
-      if (r > l) return true;
-      if (r < l) return false;
-    }
-    return false;
-  };
+  const [updateCheckError, setUpdateCheckError] = useState('');
 
   // Check for updates from GitHub
   const checkForUpdates = async () => {
     if (!canManageSystem) return;
 
     setCheckingUpdate(true);
+    setUpdateCheckError('');
     try {
-      const res = await window.fetch(
-        'https://api.github.com/repos/Vondereich/VonCMS/releases/latest',
-        {
-          headers: { Accept: 'application/vnd.github.v3+json' },
-        }
-      );
-
-      if (!res.ok) throw new Error('GitHub API error');
-
-      const data = await res.json();
-      const latestVersion = (data.tag_name || '').replace(/^v\.?/, ''); // Handle both "v1.x" and "v.1.x" formats
+      const release = await fetchLatestOtaRelease();
       const currentVersion = pkg.version;
 
-      if (isNewerVersion(currentVersion, latestVersion)) {
-        // Find the Deploy.zip asset
-        const deployAsset = data.assets?.find(
-          (a: any) => a.name && a.name.includes('Deploy') && a.name.endsWith('.zip')
-        );
-
+      if (isNewerVersion(currentVersion, release.latestVersion)) {
         setUpdateInfo({
           available: true,
-          latestVersion: latestVersion, // Already cleaned at parse time
-          downloadUrl: deployAsset?.browser_download_url || '',
-          releaseNotes: data.body || 'No release notes available.',
-          expectedHash: deployAsset?.digest || deployAsset?.sha256 || '',
+          ...release,
         });
       } else {
         setUpdateInfo({
@@ -294,12 +268,16 @@ const VpDashboard: React.FC<DashboardProps> = ({
           latestVersion: '',
           downloadUrl: '',
           releaseNotes: '',
+          releaseUrl: '',
+          releaseNotesTruncated: false,
           expectedHash: '',
         });
       }
-    } catch (err) {
-      console.error('Update check failed:', err);
+    } catch {
       setUpdateInfo(null);
+      setUpdateCheckError(
+        'The update service is unavailable. Your dashboard is still ready to use.'
+      );
     } finally {
       setCheckingUpdate(false);
     }
@@ -637,30 +615,28 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
       {/* Update Available Banner - Shows when new version detected */}
       {updateInfo?.available && (
-        <div className="bg-orange-600 rounded-xl p-4 flex items-center justify-between gap-4 shadow-lg animate-fade-in">
-          <div className="flex items-center gap-3 text-white">
-            <div className="p-2 bg-white/20 rounded-lg">
+        <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm animate-fade-in dark:border-admin-border dark:bg-admin-panel sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400">
               <Download size={24} />
             </div>
-            <div>
-              <h4 className="font-bold text-lg flex items-center gap-2">
-                Update Available!
-                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                  v{updateInfo.latestVersion}
-                </span>
+            <div className="min-w-0">
+              <h4 className="font-semibold text-slate-900 dark:text-white">
+                VonCMS v{updateInfo.latestVersion} is available
               </h4>
-              <p className="text-amber-100 text-sm">A new version of VonCMS is ready to install.</p>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                Review the release notes before installing the update.
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowUpdateModal(true)}
-              className="px-5 py-2.5 bg-white text-orange-600 rounded-lg font-bold hover:bg-orange-50 transition-colors shadow-md flex items-center gap-2"
-            >
-              <RefreshCw size={16} />
-              Update Now
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowUpdateModal(true)}
+            className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary-600 px-5 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+          >
+            <RefreshCw size={16} />
+            Review Update
+          </button>
         </div>
       )}
 
@@ -672,6 +648,22 @@ const VpDashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
+      {updateCheckError && !checkingUpdate && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+            <p>{updateCheckError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={checkForUpdates}
+            className="min-h-11 shrink-0 rounded-lg px-4 py-2 font-semibold transition-colors hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 dark:hover:bg-amber-900/30"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
       {/* Update Modal */}
       {showUpdateModal && updateInfo?.available && (
         <UpdateModal
@@ -679,6 +671,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
           latestVersion={updateInfo.latestVersion}
           downloadUrl={updateInfo.downloadUrl}
           releaseNotes={updateInfo.releaseNotes}
+          releaseUrl={updateInfo.releaseUrl}
+          releaseNotesTruncated={updateInfo.releaseNotesTruncated}
           expectedHash={updateInfo.expectedHash}
           onClose={() => setShowUpdateModal(false)}
           onSuccess={() => window.location.reload()}

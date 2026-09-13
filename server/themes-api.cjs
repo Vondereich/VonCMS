@@ -5,12 +5,10 @@ const path = require('path');
 const fs = require('fs');
 const fse = require('fs-extra');
 const crypto = require('crypto');
-const AdmZip = require('adm-zip');
 const {
-  assertSafeExtractedTree,
-  assertSafeZipEntries,
   createSecureExtractionDirectory,
   createUnpredictableIdSuffix,
+  extractThemeArchiveSafely,
 } = require('./theme-archive-security.cjs');
 
 const app = express();
@@ -413,10 +411,7 @@ app.post(
 
       if (ext === 'zip') {
         stagingDir = createSecureExtractionDirectory(THEMES_DIR);
-        const zip = new AdmZip(uploadedPath);
-        assertSafeZipEntries(zip, stagingDir);
-        zip.extractAllTo(stagingDir, false);
-        assertSafeExtractedTree(stagingDir);
+        extractThemeArchiveSafely(uploadedPath, stagingDir);
         if (!findFirstRegularFile(stagingDir)) {
           throw new Error('Theme archive does not contain a regular file');
         }
