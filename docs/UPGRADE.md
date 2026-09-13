@@ -4,7 +4,7 @@ Most modern VonCMS installs can be updated from the admin panel.
 
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 
-> **Release note:** v1.27.1 "OverDrive" is the current release baseline. Existing sites that have not completed the v1.26.11 schema migration must run the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
+> **Current release:** v1.27.2 "OverDrive" is the current upgrade baseline. Existing sites that have not completed the v1.26.11 schema migration must run the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
 
 ### v1.26.11 database repair ownership
 
@@ -30,7 +30,7 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 
 ## Recommended path to v1.27.1
 
-VonCMS v1.27.1 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.2 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -42,6 +42,8 @@ VonCMS v1.27.1 is the current release. Use the complete Deploy ZIP for manual up
 8. After the site is on a fixed updater package and already passed the `v1.25.0` `.htaccess` repair step, use the admin panel updater for later releases.
 
 The OTA updater treats the shipped `assets/` and `docs/` directories as release-managed content. During activation it replaces each directory as one rollback-protected unit, which removes retired fingerprinted bundles and guides instead of leaving them beside the current release. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
+
+From v1.27.2, the dashboard reads a bounded GitHub release response and presents supported Markdown without executing raw HTML. The modal reports only operation states the synchronous updater can prove; it does not fabricate percentage progress. These presentation and discovery safeguards do not change package SHA256 verification, protected-file handling, backup creation, activation, or rollback behavior.
 
 ## Optional `von_config.php` feature migration for v1.26.9
 

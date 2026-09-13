@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.27.1 feature baseline for the OverDrive line.
+> VonCMS v1.27.2 feature baseline for the OverDrive line.
 
-## Introduction to VonCMS v1.27.1 "OverDrive"
+## Introduction to VonCMS v1.27.2 "OverDrive"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -132,7 +132,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail           | Value                                     |
 | ---------------- | ----------------------------------------- |
-| Release baseline | `v1.27.1 "OverDrive"`                     |
+| Release baseline | `v1.27.2 "OverDrive"`                     |
 | Minimum PHP      | `8.2+`                                    |
 | Architecture     | React 19 frontend + PHP API backend       |
 | Hosting          | Shared hosting, cPanel, VPS - your choice |
@@ -343,7 +343,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The `v1.27.1` release baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The `v1.27.2` release keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -353,5 +353,5 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 - **89 PHP API and helper files** - under `public/api/`, with 109 public PHP files covered by the lint gate across the public runtime. Internal helpers are not callable endpoints.
 - **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** - the `v1.27.1` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** - the `v1.27.2` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** - React talks to PHP. PHP talks to MySQL. Done.

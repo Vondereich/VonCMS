@@ -4,11 +4,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const AdmZip = require('adm-zip');
+const { zipSync } = require('fflate');
 const {
-  assertSafeExtractedTree,
-  assertSafeZipEntries,
   createSecureExtractionDirectory,
+  extractThemeArchiveSafely,
 } = require('./theme-archive-security.cjs');
 
 const rootDir = path.resolve(__dirname, '..');
@@ -205,91 +204,90 @@ function testThemeArchiveBoundary() {
     const parentDir = path.join(fixtureRoot, 'themes');
     fs.mkdirSync(parentDir);
     const zipPath = path.join(fixtureRoot, 'valid.zip');
-    const zip = new AdmZip();
-    zip.addFile('theme.json', Buffer.from('{"name":"Safe"}', 'utf8'));
-    zip.addFile('assets/theme.css', Buffer.from('body{}', 'utf8'));
-    zip.writeZip(zipPath);
+    fs.writeFileSync(
+      zipPath,
+      Buffer.from(
+        zipSync({
+          'theme.json': Buffer.from('{"name":"Safe"}', 'utf8'),
+          'assets/theme.css': Buffer.from('body{}', 'utf8'),
+        })
+      )
+    );
 
     const stagingDir = createSecureExtractionDirectory(parentDir);
-    const archive = new AdmZip(zipPath);
-    assertSafeZipEntries(archive, stagingDir);
-    archive.extractAllTo(stagingDir, false);
-    assertSafeExtractedTree(stagingDir);
+    extractThemeArchiveSafely(zipPath, stagingDir);
     assert.equal(fs.readFileSync(path.join(stagingDir, 'theme.json'), 'utf8'), '{"name":"Safe"}');
 
     const freshDir = createSecureExtractionDirectory(parentDir);
-    const forged = new AdmZip();
-    forged.addFile('expanded.txt', Buffer.alloc(1024 * 1024, 65));
-    const forgedBytes = forged.toBuffer();
+    const forgedBytes = Buffer.from(zipSync({ expanded: Buffer.alloc(1024 * 1024, 65) }));
     const central = forgedBytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
     assert(central >= 0);
     forgedBytes.writeUInt32LE(0, central + 24);
-    assert.throws(() => assertSafeZipEntries(new AdmZip(forgedBytes), freshDir));
-    assert.throws(
-      () =>
-        assertSafeZipEntries(
-          {
-            getEntries: () => [
-              {
-                entryName: 'a/../theme.css',
-                isDirectory: false,
-                header: { size: 1, method: 0 },
-                getCompressedData: () => Buffer.from('a'),
-              },
-              { entryName: 'theme.css', isDirectory: false, header: { size: 1 } },
-            ],
-          },
-          freshDir
-        ),
-      /Duplicate/
-    );
-    assert.throws(
-      () =>
-        assertSafeZipEntries(
-          {
-            getEntries: () => [
-              { entryName: '../../outside.txt', isDirectory: false, header: { size: 1 } },
-            ],
-          },
-          freshDir
-        ),
-      /escapes/
-    );
-    assert.throws(
-      () =>
-        assertSafeZipEntries(
-          {
-            getEntries: () => [
-              {
-                entryName: 'linked',
-                isDirectory: false,
-                attr: (0xa000 | 0o777) << 16,
-                header: { size: 1 },
-              },
-            ],
-          },
-          freshDir
-        ),
-      /Unsafe/
-    );
-    assert.throws(
-      () =>
-        assertSafeZipEntries(
-          {
-            getEntries: () => [
-              { entryName: 'large.bin', isDirectory: false, header: { size: 65 * 1024 * 1024 } },
-            ],
-          },
-          freshDir
-        ),
-      /size limit/
-    );
-    fs.writeFileSync(path.join(freshDir, 'existing.txt'), 'sentinel');
-    assert.throws(() => assertSafeZipEntries(archive, freshDir), /must be empty/);
+    const forgedPath = path.join(fixtureRoot, 'forged.zip');
+    fs.writeFileSync(forgedPath, forgedBytes);
+    assert.throws(() => extractThemeArchiveSafely(forgedPath, freshDir), /do not match/);
 
-    const outsideSentinel = path.join(fixtureRoot, 'outside.txt');
-    fs.writeFileSync(outsideSentinel, 'unchanged');
-    assert.equal(fs.readFileSync(outsideSentinel, 'utf8'), 'unchanged');
+    const duplicatePath = path.join(fixtureRoot, 'duplicate.zip');
+    fs.writeFileSync(
+      duplicatePath,
+      Buffer.from(
+        zipSync({
+          'a/../theme.css': Buffer.from('a'),
+          'theme.css': Buffer.from('b'),
+        })
+      )
+    );
+    assert.throws(() => extractThemeArchiveSafely(duplicatePath, freshDir), /Unsafe|Duplicate/);
+
+    const traversalPath = path.join(fixtureRoot, 'traversal.zip');
+    fs.writeFileSync(
+      traversalPath,
+      Buffer.from(zipSync({ '../../outside.txt': Buffer.from('owned') }))
+    );
+    assert.throws(() => extractThemeArchiveSafely(traversalPath, freshDir), /Unsafe|escapes/);
+
+    const symbolicLinkPath = path.join(fixtureRoot, 'symbolic-link.zip');
+    fs.writeFileSync(
+      symbolicLinkPath,
+      Buffer.from(
+        zipSync({
+          linked: [Buffer.from('../outside.txt'), { attrs: ((0xa000 | 0o777) << 16) >>> 0, os: 3 }],
+        })
+      )
+    );
+    assert.throws(() => extractThemeArchiveSafely(symbolicLinkPath, freshDir), /Unsafe/);
+
+    const oversizedBytes = Buffer.from(zipSync({ 'large.bin': Buffer.from('a') }));
+    const oversizedCentral = oversizedBytes.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    const oversizedLocal = oversizedBytes.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    const oversizedDeclaredSize = 65 * 1024 * 1024;
+    oversizedBytes.writeUInt32LE(oversizedDeclaredSize, oversizedCentral + 24);
+    oversizedBytes.writeUInt32LE(oversizedDeclaredSize, oversizedLocal + 22);
+    const oversizedPath = path.join(fixtureRoot, 'oversized.zip');
+    fs.writeFileSync(oversizedPath, oversizedBytes);
+    assert.throws(() => extractThemeArchiveSafely(oversizedPath, freshDir), /size limit/);
+
+    const corruptBytes = Buffer.from(
+      zipSync({ 'corrupt.txt': [Buffer.from('safe'), { level: 0 }] })
+    );
+    const corruptLocal = corruptBytes.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    const corruptNameLength = corruptBytes.readUInt16LE(corruptLocal + 26);
+    const corruptExtraLength = corruptBytes.readUInt16LE(corruptLocal + 28);
+    corruptBytes[corruptLocal + 30 + corruptNameLength + corruptExtraLength] ^= 0xff;
+    const corruptPath = path.join(fixtureRoot, 'corrupt.zip');
+    fs.writeFileSync(corruptPath, corruptBytes);
+    assert.throws(() => extractThemeArchiveSafely(corruptPath, freshDir), /checksum/);
+
+    fs.writeFileSync(path.join(freshDir, 'existing.txt'), 'sentinel');
+    assert.throws(() => extractThemeArchiveSafely(zipPath, freshDir), /must be empty/);
+
+    const outsideDir = path.join(fixtureRoot, 'outside');
+    const linkedDestination = path.join(parentDir, 'linked-destination');
+    fs.mkdirSync(outsideDir);
+    fs.mkdirSync(linkedDestination);
+    fs.symlinkSync(outsideDir, path.join(linkedDestination, 'assets'), 'junction');
+    assert.throws(() => extractThemeArchiveSafely(zipPath, linkedDestination), /must be empty/);
+    assert.equal(fs.existsSync(path.join(outsideDir, 'theme.css')), false);
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }

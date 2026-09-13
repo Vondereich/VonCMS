@@ -6,12 +6,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const AdmZip = require('adm-zip');
 const { execSync } = require('child_process');
 const {
   assertNoForbiddenReleasePaths,
   isForbiddenReleasePath,
 } = require('./server/release-path-policy.cjs');
+const { createZipFile } = require('./server/zip-archive-helper.cjs');
 
 const version = require('./package.json').version;
 const basePath = __dirname;
@@ -89,6 +89,14 @@ function walkSync(dir, baseDir = basePath) {
   return files;
 }
 
+function addReleaseFile(entries, sourcePath, archivePath) {
+  const normalizedArchivePath = archivePath.split(path.sep).join('/');
+  entries.set(normalizedArchivePath, {
+    sourcePath,
+    archivePath: normalizedArchivePath,
+  });
+}
+
 log(`Creating VonCMS v${version} release packages...\n`);
 
 log('Building project (npm run build)...');
@@ -144,14 +152,16 @@ oldArtifacts.forEach((artifact) => {
 });
 
 log('\nCreating Deploy zip...');
-const deployZip = new AdmZip();
-deployZip.addLocalFolder(path.join(basePath, 'dist'), '');
-deployZip.addLocalFile(path.join(basePath, 'public', '.htaccess'), '', '.htaccess');
+const deployEntries = new Map();
+distFiles.forEach(({ fullPath, relativePath }) => {
+  addReleaseFile(deployEntries, fullPath, relativePath);
+});
+addReleaseFile(deployEntries, path.join(basePath, 'public', '.htaccess'), '.htaccess');
 if (fs.existsSync(path.join(basePath, 'public', 'uploads', '.htaccess'))) {
-  deployZip.addLocalFile(
+  addReleaseFile(
+    deployEntries,
     path.join(basePath, 'public', 'uploads', '.htaccess'),
-    'uploads',
-    '.htaccess'
+    'uploads/.htaccess'
   );
 }
 const changelogPath = path.join(basePath, 'CHANGELOG.md');
@@ -161,58 +171,52 @@ if (fs.existsSync(docsPath)) {
   fs.readdirSync(docsPath).forEach((file) => {
     const docsFilePath = path.join(docsPath, file);
     if (file !== 'superpowers' && fs.statSync(docsFilePath).isFile()) {
-      deployZip.addLocalFile(docsFilePath, 'docs');
+      addReleaseFile(deployEntries, docsFilePath, `docs/${file}`);
     }
   });
 }
 
-deployZip.addLocalFile(path.join(basePath, 'README.md'));
-deployZip.addLocalFile(path.join(basePath, 'LICENSE.md'));
-deployZip.addLocalFile(path.join(basePath, 'metadata.json'));
-deployZip.addLocalFile(changelogPath, '', 'CHANGELOG.md');
-assertNoForbiddenReleasePaths(
-  deployZip.getEntries().map((entry) => entry.entryName),
-  'Deploy ZIP'
-);
+addReleaseFile(deployEntries, path.join(basePath, 'README.md'), 'README.md');
+addReleaseFile(deployEntries, path.join(basePath, 'LICENSE.md'), 'LICENSE.md');
+addReleaseFile(deployEntries, path.join(basePath, 'metadata.json'), 'metadata.json');
+addReleaseFile(deployEntries, changelogPath, 'CHANGELOG.md');
+assertNoForbiddenReleasePaths([...deployEntries.keys()], 'Deploy ZIP');
 const deployPath = path.join(basePath, `VonCMS_v${version}_Deploy.zip`);
-deployZip.writeZip(deployPath);
+createZipFile(deployPath, [...deployEntries.values()]);
 log(
   `Created: VonCMS_v${version}_Deploy.zip (${(fs.statSync(deployPath).size / 1024 / 1024).toFixed(2)} MB)`
 );
 
 log('\nCreating Source zip...');
-const sourceZip = new AdmZip();
+const sourceEntries = new Map();
 const sourceFiles = walkSync(basePath);
 assertNoForbiddenReleasePaths(
   sourceFiles.map(({ relativePath }) => relativePath),
   'Source staging tree'
 );
 sourceFiles.forEach(({ fullPath, relativePath }) => {
-  sourceZip.addLocalFile(fullPath, path.dirname(relativePath), path.basename(relativePath));
+  addReleaseFile(sourceEntries, fullPath, relativePath);
 });
 const hasUppercaseChangelog = sourceFiles.some(
   ({ relativePath }) => relativePath.split(path.sep).join('/') === 'CHANGELOG.md'
 );
 if (fs.existsSync(changelogPath) && !hasUppercaseChangelog) {
-  sourceZip.addLocalFile(changelogPath, '', 'CHANGELOG.md');
+  addReleaseFile(sourceEntries, changelogPath, 'CHANGELOG.md');
 }
-sourceZip.addLocalFile(path.join(basePath, '.htaccess'), '', '.htaccess');
-sourceZip.addLocalFile(path.join(basePath, 'public', '.htaccess'), 'public', '.htaccess');
+addReleaseFile(sourceEntries, path.join(basePath, '.htaccess'), '.htaccess');
+addReleaseFile(sourceEntries, path.join(basePath, 'public', '.htaccess'), 'public/.htaccess');
 if (fs.existsSync(path.join(basePath, 'public', 'uploads', '.htaccess'))) {
-  sourceZip.addLocalFile(
+  addReleaseFile(
+    sourceEntries,
     path.join(basePath, 'public', 'uploads', '.htaccess'),
-    'public/uploads',
-    '.htaccess'
+    'public/uploads/.htaccess'
   );
 }
 
-assertNoForbiddenReleasePaths(
-  sourceZip.getEntries().map((entry) => entry.entryName),
-  'Source ZIP'
-);
+assertNoForbiddenReleasePaths([...sourceEntries.keys()], 'Source ZIP');
 
 const sourcePath = path.join(basePath, `VonCMS_v${version}_Source.zip`);
-sourceZip.writeZip(sourcePath);
+createZipFile(sourcePath, [...sourceEntries.values()]);
 log(
   `Created: VonCMS_v${version}_Source.zip (${(fs.statSync(sourcePath).size / 1024 / 1024).toFixed(2)} MB)`
 );
