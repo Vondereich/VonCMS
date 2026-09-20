@@ -2,7 +2,7 @@
 
 # VonCMS
 
-VonCMS is a lightweight PHP and React CMS for shared hosting. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
+VonCMS is a lightweight PHP and React CMS not only for shared hosting, but on many levels that suite your needs. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
 Current release: **v1.27.3 "OverDrive"**. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
