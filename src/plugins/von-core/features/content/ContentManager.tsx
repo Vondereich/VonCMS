@@ -489,8 +489,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 aria-pressed={isActive}
                 className={`min-h-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'border-primary-600 bg-primary-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300 hover:text-primary-600 dark:border-admin-border dark:bg-admin-panel dark:text-slate-300'
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-admin-border dark:bg-admin-panel dark:text-slate-300'
                 }`}
               >
                 {filter.label}

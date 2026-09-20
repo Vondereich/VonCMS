@@ -31,6 +31,21 @@ import { isPostWriter } from './utils/contentCapabilities';
 
 const SESSION_VISIBILITY_CHECK_COOLDOWN = 60 * 1000;
 
+const canUseInjectedPublicSettings = (): boolean => {
+  if (typeof window === 'undefined' || window.__INITIAL_SETTINGS_READY__ !== true) {
+    return false;
+  }
+
+  const normalizedBasePath = BASE_PATH === '/' ? '/' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}/`;
+  let relativePath = window.location.pathname;
+  if (normalizedBasePath !== '/' && relativePath.startsWith(normalizedBasePath)) {
+    relativePath = relativePath.slice(normalizedBasePath.length - 1);
+  }
+  relativePath = relativePath.replace(/^\/+|\/+$/g, '').toLowerCase();
+
+  return !/^(admin|login|register|install)(\/|$)/.test(relativePath);
+};
+
 // Hooks
 import {
   useAuth,
@@ -83,6 +98,7 @@ const SecurityDashboard = lazy(
 import NotFoundPage from './components/NotFoundPage';
 import MaintenancePage from './components/MaintenancePage';
 import SkeletonLoader from './components/SkeletonLoader';
+import PublicRouteLoader from './components/PublicRouteLoader';
 import AdminModal from './components/admin/AdminModal';
 import AdminNotFoundPage from './components/admin/AdminNotFoundPage';
 
@@ -308,7 +324,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
     } else if (fullPostMatchesCurrentRoute) {
       currentView = 'single-post';
     } else if (isLoadingPage || isLoadingPost) {
-      return <SkeletonLoader />;
+      return <PublicRouteLoader />;
     } else {
       isNotFound = true;
     }
@@ -332,7 +348,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
 
   if (currentView === 'profile' && selectedProfile) {
     if (isLoadingProfile) {
-      return <SkeletonLoader />;
+      return <PublicRouteLoader />;
     }
     if (!resolvedPublicProfile) {
       return <NotFoundPage isDarkMode={props.isDarkMode} />;
@@ -340,11 +356,11 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   }
 
   if (currentView === 'single-post' && !selectedPost && isLoadingPost) {
-    return <SkeletonLoader />;
+    return <PublicRouteLoader />;
   }
 
   if (currentView === 'page' && !selectedPage && isLoadingPage) {
-    return <SkeletonLoader />;
+    return <PublicRouteLoader />;
   }
 
   if (isNotFound) {
@@ -598,9 +614,9 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
           onClose={requestQuickEditorClose}
           ariaLabelledBy="quick-editor-title"
           closeOnBackdrop={false}
-          className="flex h-[95vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950"
+          className="flex h-[95vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl dark:border-admin-border dark:bg-admin-canvas"
         >
-          <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-admin-border dark:bg-admin-panel/95">
             <div>
               <h3
                 id="quick-editor-title"
@@ -616,7 +632,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
               <button
                 type="button"
                 onClick={openDashboardEditorFromQuickEdit}
-                className="hidden rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 sm:inline-flex sm:items-center sm:gap-2"
+                className="hidden rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-admin-border dark:text-slate-200 dark:hover:bg-admin-hover sm:inline-flex sm:items-center sm:gap-2"
               >
                 <LayoutDashboard size={16} />
                 Open Dashboard Editor
@@ -624,7 +640,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
               <button
                 type="button"
                 onClick={requestQuickEditorClose}
-                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-admin-hover"
                 aria-label="Close quick editor"
               >
                 <X size={18} />
@@ -709,7 +725,7 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(() => !canUseInjectedPublicSettings());
   const lastSessionVisibilityCheckRef = useRef(0);
   const sessionVisibilityCheckInFlightRef = useRef(false);
 
@@ -755,9 +771,17 @@ const App: React.FC = () => {
     return () => window.removeEventListener('von:session-expired', handleSessionExpiry);
   }, [showAuthModal]);
 
-  // Load only the public settings needed to unlock the first render.
+  // Public PHP routes already carry a complete safe settings snapshot, so they can render
+  // immediately while this request refreshes state in the background. Private/dev shells still
+  // wait for the API because they may need installation and protected settings decisions.
   useEffect(() => {
     const initData = async () => {
+      const canRenderImmediately = canUseInjectedPublicSettings();
+      if (canRenderImmediately) {
+        void loadSettings();
+        return;
+      }
+
       try {
         await loadSettings();
       } catch (e) {
@@ -845,6 +869,7 @@ const App: React.FC = () => {
     posts,
     pages,
     user,
+    isAuthLoading,
     comments,
     loadPublicComments,
     loadMorePublicComments,
@@ -878,7 +903,7 @@ const App: React.FC = () => {
     '/:slug',
   ];
 
-  if (isInitialLoading) {
+  if (isInitialLoading || (settings.maintenanceMode && isAuthLoading)) {
     return <SkeletonLoader />;
   }
 

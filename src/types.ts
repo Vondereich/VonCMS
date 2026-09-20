@@ -405,6 +405,8 @@ export type SiteDateFormat =
   | 'month_day_year_numeric'
   | 'iso';
 
+export type AdminPaletteId = 'charcoal-blue' | 'meadow-gold' | 'harbour-amber';
+
 export interface SiteSettings {
   siteName: string;
   siteUrl?: string; // Base URL (supports subfolders)
@@ -441,6 +443,7 @@ export interface SiteSettings {
   domainUrl?: string;
   timeZone?: string;
   dateFormat?: SiteDateFormat;
+  adminPalette?: AdminPaletteId;
   permalinkStructure?:
     'plain' | 'slug' | 'date' | 'day_name' | 'month_name' | 'post_name' | 'category';
   adminProfile?: {

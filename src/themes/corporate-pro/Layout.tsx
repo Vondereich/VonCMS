@@ -37,6 +37,7 @@ import {
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
+import ThemeImage from '../shared/ThemeImage';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -84,6 +85,7 @@ interface ThemeLayoutProps {
   posts: Post[];
   pages?: Page[];
   user: User | null;
+  isAuthLoading?: boolean;
   comments: Comment[];
   allUsers: User[];
   settings: SiteSettings;
@@ -435,8 +437,8 @@ const CorporateProfile: React.FC<{
                 onClick={(event) => handleCrawlableLinkClick(event, () => onPostClick(post.id))}
                 className="cursor-pointer group flex gap-4"
               >
-                <div className="w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg overflow-hidden shrink-0">
-                  <img
+                <div className="relative w-24 h-24 bg-slate-200 dark:bg-neutral-800 rounded-lg overflow-hidden shrink-0">
+                  <ThemeImage
                     {...getResponsiveImageAttributes(
                       post,
                       'thumbnail96',
@@ -491,6 +493,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
     selectedPost,
     selectedPage,
     user,
+    isAuthLoading = false,
     onNavigateAdmin,
     onLogin,
     onLogout,
@@ -768,7 +771,9 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <Moon size={20} className="text-blue-400" />
             )}
           </button>
-          {user ? (
+          {isAuthLoading ? (
+            <span className="block h-10 w-28 shrink-0" aria-hidden="true" />
+          ) : user ? (
             <>
               <button
                 onClick={onNavigateAdmin}
@@ -839,7 +844,9 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 </>
               )}
             </button>
-            {user ? (
+            {isAuthLoading ? (
+              <span className="block h-6 w-full" aria-hidden="true" />
+            ) : user ? (
               <>
                 <button
                   onClick={onNavigateAdmin}
@@ -1530,7 +1537,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                                   onClick={() => onPostClick(post.id)}
                                 >
                                   <div className="aspect-16/10 overflow-hidden rounded-xl mb-6 bg-slate-100 dark:bg-neutral-800 relative">
-                                    <img
+                                    <ThemeImage
                                       {...getResponsiveImageAttributes(
                                         post,
                                         'gridThreeFromMd',

@@ -4,6 +4,7 @@ export interface ThemeLayoutProps {
   posts: Post[];
   pages?: Page[];
   user: User | null;
+  isAuthLoading?: boolean;
   comments: Comment[];
   allUsers: User[];
   settings: SiteSettings;

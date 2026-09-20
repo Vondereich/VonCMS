@@ -1,0 +1,4 @@
+# Keep the two cross-platform entry/state files on their existing checked-out baselines.
+# This overrides Windows core.autocrlf warnings without rewriting unrelated source files.
+/public/index.php text eol=crlf
+/src/hooks/usePublicSearchUrlState.ts text eol=lf

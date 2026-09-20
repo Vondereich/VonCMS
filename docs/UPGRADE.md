@@ -2,9 +2,11 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+> **Current release:** v1.27.3 "OverDrive" is the current production upgrade baseline.
+
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 
-> **Current release:** v1.27.2 "OverDrive" is the current upgrade baseline. Existing sites that have not completed the v1.26.11 schema migration must run the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
+> Existing sites that have not completed the v1.26.11 schema migration must run the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
 
 ### v1.26.11 database repair ownership
 
@@ -28,9 +30,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.1
+## Recommended path to v1.27.3
 
-VonCMS v1.27.2 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.3 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.

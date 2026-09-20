@@ -359,6 +359,16 @@ if (array_key_exists('dateFormat', $settings)) {
   }
 }
 
+if (array_key_exists('adminPalette', $settings)) {
+  $allowedAdminPalettes = ['charcoal-blue', 'meadow-gold', 'harbour-amber'];
+  if (
+    !is_string($settings['adminPalette']) ||
+    !in_array($settings['adminPalette'], $allowedAdminPalettes, true)
+  ) {
+    ResponseHelper::sendError('Invalid administration color palette.', 400);
+  }
+}
+
 if (array_key_exists('headerIdentityMode', $settings)) {
   $allowedHeaderIdentityModes = ['logo_and_text', 'logo_only', 'text_only'];
   if (
@@ -511,6 +521,7 @@ try {
     ['domainUrl', 'general', 'domain_url', 'string'],
     ['timeZone', 'general', 'time_zone', 'string'],
     ['dateFormat', 'general', 'date_format', 'string'],
+    ['adminPalette', 'general', 'admin_palette', 'string'],
     // SMTP Settings
     ['smtpHost', 'smtp', 'smtpHost', 'string'],
     ['smtpPort', 'smtp', 'smtpPort', 'number'],
@@ -667,7 +678,9 @@ try {
       }
 
       $isPublicInDb =
-        ($group === 'api' && $dbKey === 'config') || ($group === 'contact' && $dbKey === 'forms')
+        ($group === 'api' && $dbKey === 'config') ||
+        ($group === 'contact' && $dbKey === 'forms') ||
+        ($group === 'general' && $dbKey === 'admin_palette')
           ? 0
           : (SecurityHelper::isSensitiveKey($dbKey)
             ? 0

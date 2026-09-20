@@ -17,6 +17,7 @@ import {
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
+import ThemeImage from '../shared/ThemeImage';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -424,7 +425,7 @@ const HeroSplit = ({
       style={{ background: colors.gradientPrimary }}
     >
       {featuredImage && (
-        <img
+        <ThemeImage
           {...getResponsiveImageAttributes(
             { image: featuredImage, imageSrcSet: featuredImageSrcSet },
             'splitHero'
@@ -488,7 +489,7 @@ const ProjectCard = ({
       {/* Image */}
       <div className="relative aspect-4/3 overflow-hidden">
         {project.image ? (
-          <img
+          <ThemeImage
             {...getResponsiveImageAttributes(project, imageMode)}
             alt={decodeEntities(project.title)}
             loading="lazy"
@@ -800,6 +801,7 @@ const PortfolioNav = ({
   isDark,
   toggleDarkMode,
   user,
+  isAuthLoading,
   onLogin,
   onLogout,
   onNavigateAdmin,
@@ -961,7 +963,9 @@ const PortfolioNav = ({
           )}
 
           {/* User section */}
-          {user ? (
+          {isAuthLoading ? (
+            <span className="block h-10 w-20 shrink-0" aria-hidden="true" />
+          ) : user ? (
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -1920,6 +1924,7 @@ const PortfolioLayout = ({
   selectedPage,
   onBackToHome,
   user,
+  isAuthLoading = false,
   onLogin,
   onLogout,
   onNavigateAdmin,
@@ -2010,6 +2015,7 @@ const PortfolioLayout = ({
                 isDark={isDarkMode}
                 toggleDarkMode={toggleDarkMode}
                 user={user}
+                isAuthLoading={isAuthLoading}
                 onLogin={onLogin}
                 onLogout={onLogout}
                 onNavigateAdmin={onNavigateAdmin}

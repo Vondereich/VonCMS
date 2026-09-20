@@ -28,6 +28,86 @@ body {
   scroll-behavior: smooth;
 }
 
+.voncms-boot-canvas {
+  min-height: 100vh;
+  background: inherit;
+}
+
+.voncms-public-route-loader {
+  display: grid;
+  min-height: 38vh;
+  place-items: center;
+  padding: 2rem;
+}
+
+.voncms-public-route-loader-bar {
+  width: min(12rem, 42vw);
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #d1d5db;
+  position: relative;
+}
+
+.voncms-public-route-loader-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(71, 85, 105, 0.6), transparent);
+  animation: shimmer 1.25s infinite;
+}
+
+.dark .voncms-public-route-loader-bar {
+  background: #34343a;
+}
+
+.dark .voncms-public-route-loader-bar::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+}
+
+.voncms-theme-image-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  background: #e5e7eb;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.voncms-theme-image-placeholder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.58), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+.dark .voncms-theme-image-placeholder {
+  background: #27272a;
+}
+
+.dark .voncms-theme-image-placeholder::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+}
+
+.voncms-theme-image-placeholder.is-loaded,
+.voncms-theme-image-placeholder.is-failed {
+  opacity: 0;
+}
+
+.voncms-theme-image-placeholder.is-failed::after {
+  animation: none;
+}
+
+.voncms-theme-image {
+  position: relative;
+  z-index: 1;
+}
+
 .prose img {
   border-radius: 0.75rem;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
@@ -181,6 +261,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .voncms-public-route-loader-bar::after,
+  .voncms-theme-image-placeholder::after,
   .sk-nav::after,
   .sk-hero::after,
   .sk-card::after {

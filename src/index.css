@@ -18,6 +18,7 @@
   --admin-palette-hover-strong: #45454d;
   --admin-palette-border: #34343a;
   --admin-palette-border-strong: #45454d;
+  --admin-palette-backdrop: rgb(12 12 13 / 0.76);
 }
 
 @theme {
@@ -84,6 +85,44 @@
       transform: translateX(-50%);
     }
   }
+}
+
+/*
+  Admin presets are intentionally scoped to the light admin shell. Public themes and the
+  charcoal dark-mode contract keep their existing colors.
+*/
+html[data-admin-palette='meadow-gold'] .admin-shell:not(.dark),
+html[data-admin-palette='meadow-gold'] .admin-modal-layer:not(.dark) {
+  --admin-palette-sidebar: #45483f;
+  --admin-palette-panel: #5a5e50;
+  --color-blue-50: #fbfcf8;
+  --color-blue-100: #f6f8f1;
+  --color-blue-200: #d5e3bd;
+  --color-blue-300: #a6ca69;
+  --color-blue-400: #638d34;
+  --color-blue-500: #4e7a27;
+  --color-blue-600: #4e7a27;
+  --color-blue-700: #3f6321;
+  --color-blue-800: #35501f;
+  --color-blue-900: #2c431e;
+  --color-blue-950: #17230f;
+}
+
+html[data-admin-palette='harbour-amber'] .admin-shell:not(.dark),
+html[data-admin-palette='harbour-amber'] .admin-modal-layer:not(.dark) {
+  --admin-palette-sidebar: #001b2e;
+  --admin-palette-panel: #294c60;
+  --color-blue-50: #fff8eb;
+  --color-blue-100: #ffefd3;
+  --color-blue-200: #ffd59e;
+  --color-blue-300: #ffb236;
+  --color-blue-400: #d96818;
+  --color-blue-500: #c2410c;
+  --color-blue-600: #b54708;
+  --color-blue-700: #9a3412;
+  --color-blue-800: #7c2d12;
+  --color-blue-900: #652515;
+  --color-blue-950: #391208;
 }
 
 /*
@@ -212,7 +251,7 @@
   justify-content: center;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: rgb(2 6 23 / 0.72);
+  background: var(--admin-palette-backdrop);
   padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
     max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
   -webkit-backdrop-filter: blur(8px);

@@ -7,7 +7,7 @@ import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { GlobalLightbox } from '../../../../components/GlobalLightbox';
 import { CookieBanner } from '../../../../components/CookieBanner';
-import SkeletonLoader from '../../../../components/SkeletonLoader';
+import PublicRouteLoader from '../../../../components/PublicRouteLoader';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
 import { analyticsTrackingAllowed } from '../../../../utils/analyticsConsent';
 import {
@@ -21,6 +21,7 @@ interface PublicSiteProps {
   posts: Post[];
   pages?: Page[];
   user: User | null;
+  isAuthLoading?: boolean;
   comments: Comment[];
   allUsers: User[];
   settings: SiteSettings;
@@ -164,7 +165,14 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }).catch(() => {});
-  }, [props.currentView, props.selectedPost?.id, props.selectedPage?.id, props.settings]);
+  }, [
+    props.currentView,
+    props.selectedPost?.id,
+    props.selectedPage?.id,
+    analyticsPluginActive,
+    props.settings.analytics?.cookieConsent,
+    location.pathname,
+  ]);
 
   // Note: Shortcode support (e.g., [von-contact]) is now handled directly by
   // ContentRenderer in each theme. This is more reliable than DOM scanning.
@@ -183,7 +191,7 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
       {LayoutComponent ? (
         <LayoutComponent {...props} onPageClick={props.onPageClick || (() => {})} />
       ) : (
-        <SkeletonLoader />
+        <PublicRouteLoader />
       )}
 
       {/* Global Plugin Slot: Footer Bottom (Automatic for all themes) */}
