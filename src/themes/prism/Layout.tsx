@@ -31,6 +31,7 @@ import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
+import ThemeImage from '../shared/ThemeImage';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -118,6 +119,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
   posts,
   pages = [],
   user,
+  isAuthLoading = false,
   comments,
   allUsers,
   settings,
@@ -434,7 +436,9 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             </div>
 
             <div className="flex items-center gap-6">
-              {user ? (
+              {isAuthLoading ? (
+                <span className="block h-10 w-40 shrink-0" aria-hidden="true" />
+              ) : user ? (
                 <div className="relative" ref={dropdownRef}>
                   {/* User Avatar Button */}
                   <button
@@ -735,7 +739,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                           <div className="h-48 overflow-hidden relative">
                             <div className="absolute inset-0 bg-linear-to-t from-[#0a0a1f] to-transparent z-10 opacity-60"></div>
                             {post.image ? (
-                              <img
+                              <ThemeImage
                                 {...getResponsiveImageAttributes(post, 'gridThreeMd')}
                                 alt={decodeEntities(post.title)}
                                 loading={idx === 0 ? 'eager' : 'lazy'}

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Gravatar from 'react-gravatar';
 import { useLocation, Link } from 'react-router';
 import toast from 'react-hot-toast';
 import { API, DATABASE_STATUS_INVALIDATED_EVENT } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
 import { getUserDisplayRole } from '../../utils/profileUtils';
+import { applyAdminPalette, normalizeAdminPalette } from '../../utils/adminPalette';
 import {
   LayoutDashboard,
   FileText,
@@ -172,6 +173,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const rawUserRole = (user?.role || 'Writer').toLowerCase();
   const userRole = rawUserRole === 'root' ? 'admin' : rawUserRole;
   const canReviewPosts = ['root', 'admin', 'moderator'].includes(rawUserRole);
+  const adminPalette = normalizeAdminPalette(settings.adminPalette);
+
+  useLayoutEffect(() => {
+    applyAdminPalette(adminPalette);
+  }, [adminPalette]);
 
   const menuItems: AdminMenuItem[] = [
     {
@@ -661,6 +667,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   return (
     <div
+      data-admin-palette={adminPalette}
       className={`admin-shell flex min-h-0 overflow-hidden font-sans transition-colors duration-300 ${isDarkMode ? 'dark bg-admin-canvas text-slate-300' : 'bg-slate-50 text-slate-900'}`}
     >
       {isMobileSidebarOpen && (

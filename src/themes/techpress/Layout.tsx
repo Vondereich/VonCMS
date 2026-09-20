@@ -42,6 +42,7 @@ import TechPressProfile from './Profile';
 import TechPressFooter from './TechPressFooter';
 import { SafeImage } from '../../components/SafeImage';
 import ThemeLogo from '../shared/components/ThemeLogo';
+import ThemeImage from '../shared/ThemeImage';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -278,7 +279,7 @@ function HeroArticle({
           aria-label={decodeEntities(article.title)}
         >
           {article.image ? (
-            <img
+            <ThemeImage
               {...getResponsiveImageAttributes(article, 'portalHero')}
               alt={decodeEntities(article.title)}
               fetchPriority="high"
@@ -409,7 +410,7 @@ function NewsCard({
           aria-label={decodeEntities(article.title)}
         >
           {article.image && (
-            <img
+            <ThemeImage
               {...getResponsiveImageAttributes(article, 'gridFourMd')}
               alt={decodeEntities(article.title)}
               loading="lazy"
@@ -503,7 +504,7 @@ function NewsCard({
         aria-label={decodeEntities(article.title)}
       >
         {article.image && (
-          <img
+          <ThemeImage
             {...getResponsiveImageAttributes(article, 'listCard')}
             alt={decodeEntities(article.title)}
             loading="lazy"
@@ -572,6 +573,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
   selectedPost,
   selectedPage,
   user,
+  isAuthLoading = false,
   onLogin,
   onLogout,
   onNavigateAdmin,
@@ -837,7 +839,9 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             </nav>
 
             <div className="flex items-center gap-3">
-              {user ? (
+              {isAuthLoading ? (
+                <span className="block h-10 w-24 shrink-0" aria-hidden="true" />
+              ) : user ? (
                 <div className="relative" ref={dropdownRef}>
                   {/* User Avatar Button */}
                   <button

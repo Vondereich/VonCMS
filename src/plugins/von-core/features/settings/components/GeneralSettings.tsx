@@ -11,6 +11,7 @@ import {
   resolveHeaderIdentityMode,
 } from '../../../../../utils/siteUtils';
 import { Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { AdminPalettePicker } from './AdminPalettePicker';
 
 interface GeneralSettingsProps {
   settings: SiteSettings;
@@ -190,6 +191,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             <strong>en</strong>) or multiple separated by comma (e.g. <strong>ms, en</strong>). This
             helps AI crawler agents automatically index your content in the correct language.
           </p>
+        </div>
+        <div className="md:col-span-2">
+          <AdminPalettePicker
+            value={settings.adminPalette}
+            onChange={(palette) => onChange('adminPalette', palette)}
+          />
         </div>
         {/* Logo Upload */}
         <div>

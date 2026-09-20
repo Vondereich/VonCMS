@@ -31,6 +31,7 @@ import { isSystemPluginActive } from '../../utils/pluginRuntime';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
+import ThemeImage from '../shared/ThemeImage';
 
 // Theme SDK
 import {
@@ -193,6 +194,7 @@ const DefaultLayout: React.FC<
   posts,
   pages = [],
   user,
+  isAuthLoading = false,
   comments,
   settings,
   onAddComment,
@@ -481,7 +483,9 @@ const DefaultLayout: React.FC<
                   )}
                 </button>
                 <div className="h-6 w-px bg-neutral-700"></div>
-                {user ? (
+                {isAuthLoading ? (
+                  <span className="block h-10 w-24 shrink-0" aria-hidden="true" />
+                ) : user ? (
                   <div className="relative" ref={dropdownRef}>
                     {/* User Avatar Button */}
                     <button
@@ -692,7 +696,9 @@ const DefaultLayout: React.FC<
                   </PublicNavigationLink>
                 ))}
                 <hr style={{ borderColor: 'rgba(128,128,128,0.3)' }} />
-                {user ? (
+                {isAuthLoading ? (
+                  <span className="block h-14 w-full" aria-hidden="true" />
+                ) : user ? (
                   <>
                     <a
                       href={getPublicProfileHref(user.username)}
@@ -1212,7 +1218,7 @@ const HomeView: React.FC<{
                       aria-label={decodeEntities(post.title)}
                     >
                       {post.image && (
-                        <img
+                        <ThemeImage
                           {...getResponsiveImageAttributes(post, 'gridThreeMd')}
                           alt={decodeEntities(post.title)}
                           loading={index === 0 ? 'eager' : 'lazy'}

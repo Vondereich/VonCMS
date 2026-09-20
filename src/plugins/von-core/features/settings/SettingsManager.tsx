@@ -192,14 +192,21 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     try {
       const mergedDraft = mergeSettingsDraft(settings, draftBaselineRef.current, tempSettings);
       const rawAiModel = tempSettings.api?.aiModel?.trim() || '';
-      const settingsToSave: SiteSettings = {
-        ...mergedDraft,
-        api: {
-          ...tempSettings.api,
-          aiProvider: 'gemini',
-          aiModel: supportedAiModels.includes(rawAiModel) ? rawAiModel : defaultAiModel,
-        },
-      };
+      const settingsToSave: SiteSettings = canManageSecrets
+        ? {
+            ...mergedDraft,
+            api: {
+              ...tempSettings.api,
+              aiProvider: 'gemini',
+              aiModel: supportedAiModels.includes(rawAiModel) ? rawAiModel : defaultAiModel,
+            },
+          }
+        : {
+            ...mergedDraft,
+            // Keep the owner-only API group equal to the latest canonical state. This lets the
+            // top-level patch omit it when an appointed admin saves delegated settings.
+            api: settings.api,
+          };
 
       setTempSettings(settingsToSave);
       const saved = await onUpdate(settingsToSave);

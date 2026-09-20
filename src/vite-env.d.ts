@@ -29,6 +29,7 @@ declare global {
     gtag?: (...args: unknown[]) => void;
     __INITIAL_STATE__?: InitialContentState;
     __INITIAL_SETTINGS__?: Partial<SiteSettings>;
+    __INITIAL_SETTINGS_READY__?: boolean;
     __INITIAL_DATA__?: InitialPostPayload[];
     __site_settings?: SiteSettings;
     __current_post?: Post;

@@ -766,7 +766,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
           <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-2">
-              <span className="size-2 rounded-sm bg-sky-500" aria-hidden="true" />
+              <span className="size-2 rounded-sm bg-blue-500" aria-hidden="true" />
               Visits
             </span>
             <span className="flex items-center gap-2">
@@ -804,12 +804,12 @@ const VpDashboard: React.FC<DashboardProps> = ({
                     boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   }}
-                  cursor={{ fill: 'rgba(14, 165, 233, 0.1)' }}
+                  cursor={{ fill: 'var(--color-blue-100)' }}
                 />
                 <Bar
                   dataKey="visits"
                   name="Visits"
-                  fill="#0ea5e9"
+                  fill="var(--color-blue-500)"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={32}
                 />

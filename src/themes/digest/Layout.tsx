@@ -34,6 +34,7 @@ import {
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
+import ThemeImage from '../shared/ThemeImage';
 
 // Theme SDK
 import {
@@ -409,7 +410,7 @@ const DigestHero: React.FC<{
           aria-label={decodeEntities(article.title)}
         >
           {article.image ? (
-            <img
+            <ThemeImage
               {...getResponsiveImageAttributes(article, 'portalHero')}
               alt={decodeEntities(article.title)}
               fetchPriority="high"
@@ -524,7 +525,7 @@ const DigestCard: React.FC<{
     {/* Image */}
     <div className="aspect-16/10 overflow-hidden relative">
       {article.image ? (
-        <img
+        <ThemeImage
           {...getResponsiveImageAttributes(article, imageMode)}
           alt={decodeEntities(article.title)}
           loading="lazy"
@@ -1228,6 +1229,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
   onBackToHome,
   onPageClick,
   user,
+  isAuthLoading = false,
   onLogin,
   onLogout,
   onNavigateAdmin,
@@ -1481,7 +1483,9 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
             </button>
 
             {/* User Menu */}
-            {user ? (
+            {isAuthLoading ? (
+              <span className="block h-10 w-24 shrink-0" aria-hidden="true" />
+            ) : user ? (
               <div className="relative">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}

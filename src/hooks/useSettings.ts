@@ -9,22 +9,20 @@ import { getAuthHeader } from '../config/auth.config';
 import { vonFetch } from '../utils/api';
 import { normalizeArticleSchemaType } from '../utils/articleSchema';
 import { createSettingsPatch } from '../utils/settingsDraft';
+import { readStoredAdminPalette } from '../utils/adminPalette';
 import toast from 'react-hot-toast';
 
 // Initial Settings
 // Initial Settings -- Hydrated from PHP injection to prevent early-load thrashing / default fallback on bots
 const _s = typeof window !== 'undefined' ? window.__INITIAL_SETTINGS__ : null;
 
-const INITIAL_SETTINGS: SiteSettings = {
+const DEFAULT_SETTINGS: SiteSettings = {
   siteName: _s?.siteName || 'My Website',
-  siteUrl: _s?.siteUrl || '',
-  domainUrl: _s?.domainUrl || '',
+  siteDescription: _s?.siteDescription || 'A modern content management system',
+  postsPerPage: 6,
   timeZone: _s?.timeZone || 'UTC',
   dateFormat: _s?.dateFormat || 'month_day_year_long',
-  siteDescription: _s?.siteDescription || 'A modern content management system',
-  ...(_s?.activeThemeId ? { activeThemeId: _s.activeThemeId } : {}),
-  ...(_s?.permalinkStructure ? { permalinkStructure: _s.permalinkStructure } : {}),
-  postsPerPage: _s?.postsPerPage || 6,
+  adminPalette: readStoredAdminPalette(),
   maintenanceMode: false,
   emailSmtp: '',
   ads: { headerAd: '', inFeedAd: '', inFeedFrequency: 6, popupAd: '', popupEnabled: false },
@@ -79,6 +77,54 @@ const INITIAL_SETTINGS: SiteSettings = {
   footerCopyright: '',
 };
 
+const INITIAL_SETTINGS: SiteSettings = {
+  ...DEFAULT_SETTINGS,
+  ...(_s || {}),
+  ads: {
+    ...DEFAULT_SETTINGS.ads,
+    ...(_s?.ads || {}),
+  },
+  theme: {
+    ...DEFAULT_SETTINGS.theme,
+    ...(_s?.theme || {}),
+  },
+  api: {
+    ...DEFAULT_SETTINGS.api,
+    ...(_s?.api || {}),
+  },
+  media: {
+    ...DEFAULT_SETTINGS.media,
+    ...(_s?.media || {}),
+    optimization: {
+      ...DEFAULT_SETTINGS.media.optimization,
+      ...(_s?.media?.optimization || {}),
+    },
+    storage: {
+      ...DEFAULT_SETTINGS.media.storage,
+      ...(_s?.media?.storage || {}),
+    },
+    performance: {
+      ...DEFAULT_SETTINGS.media.performance,
+      ...(_s?.media?.performance || {}),
+    },
+  },
+  seo: {
+    ...DEFAULT_SETTINGS.seo,
+    ...(_s?.seo || {}),
+    articleSchemaType: normalizeArticleSchemaType(_s?.seo?.articleSchemaType),
+  },
+  sidebarLayout: Array.isArray(_s?.sidebarLayout)
+    ? _s.sidebarLayout
+    : DEFAULT_SETTINGS.sidebarLayout,
+  navigation: Array.isArray(_s?.navigation) ? _s.navigation : DEFAULT_SETTINGS.navigation,
+  categories: Array.isArray(_s?.categories) ? _s.categories : DEFAULT_SETTINGS.categories,
+  publicCategories: Array.isArray(_s?.publicCategories) ? _s.publicCategories : [],
+  activePlugins: Array.isArray(_s?.activePlugins) ? _s.activePlugins : [],
+  customPlugins: Array.isArray(_s?.customPlugins) ? _s.customPlugins : [],
+  pluginConfig: _s?.pluginConfig || DEFAULT_SETTINGS.pluginConfig,
+  footerLinks: Array.isArray(_s?.footerLinks) ? _s.footerLinks : [],
+};
+
 export function useSettings() {
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
   const settingsRef = useRef<SiteSettings>(INITIAL_SETTINGS);
@@ -107,7 +153,36 @@ export function useSettings() {
           }
 
           if (data) {
-            setSettings((prev) => ({ ...prev, ...data }));
+            setSettings((prev) => ({
+              ...prev,
+              ...data,
+              ads: { ...prev.ads, ...(data.ads || {}) },
+              theme: { ...prev.theme, ...(data.theme || {}) },
+              api: { ...prev.api, ...(data.api || {}) },
+              media: {
+                ...prev.media,
+                ...(data.media || {}),
+                optimization: {
+                  ...prev.media.optimization,
+                  ...(data.media?.optimization || {}),
+                },
+                storage: {
+                  ...prev.media.storage,
+                  ...(data.media?.storage || {}),
+                },
+                performance: {
+                  ...prev.media.performance,
+                  ...(data.media?.performance || {}),
+                },
+              },
+              seo: {
+                ...(prev.seo || {}),
+                ...(data.seo || {}),
+                articleSchemaType: normalizeArticleSchemaType(
+                  data.seo?.articleSchemaType || prev.seo?.articleSchemaType
+                ),
+              },
+            }));
             return true;
           }
         } catch (e) {

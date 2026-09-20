@@ -11,9 +11,21 @@
     <!-- Theme Guard: Instant Dark Mode detection to prevent FOUC -->
     <script>
       (function () {
-        const darkMode = localStorage.getItem('von_dark_mode') === 'true';
-        if (darkMode) {
-          document.documentElement.classList.add('dark');
+        try {
+          const darkMode = localStorage.getItem('von_dark_mode') === 'true';
+          if (darkMode) {
+            document.documentElement.classList.add('dark');
+          }
+
+          const adminMarkerIndex = window.location.pathname.lastIndexOf('/admin');
+          const adminPaletteScope =
+            adminMarkerIndex >= 0 ? window.location.pathname.slice(0, adminMarkerIndex + 1) : '/';
+          const adminPalette = localStorage.getItem(`von_admin_palette:${adminPaletteScope}`);
+          if (['charcoal-blue', 'meadow-gold', 'harbour-amber'].includes(adminPalette)) {
+            document.documentElement.dataset.adminPalette = adminPalette;
+          }
+        } catch {
+          // Storage can be unavailable in hardened browser contexts.
         }
       })();
     </script>
@@ -41,19 +53,7 @@
   <body
     class="bg-slate-50 dark:bg-[#181819] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200"
   >
-    <div id="root">
-      <!-- Skeleton Loader (FOUC Prevention) -->
-      <div class="skeleton-loader" role="status" aria-label="Loading content" aria-busy="true">
-        <div class="sk-nav"></div>
-        <div class="sk-hero"></div>
-        <div class="sk-grid">
-          <div class="sk-card"></div>
-          <div class="sk-card"></div>
-          <div class="sk-card"></div>
-          <div class="sk-card sk-card-tablet" aria-hidden="true"></div>
-        </div>
-      </div>
-    </div>
+    <div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

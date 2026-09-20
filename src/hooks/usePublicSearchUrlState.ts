@@ -25,10 +25,12 @@ export const usePublicSearchUrlState = ({
     PUBLIC_SEARCH_MAX_LENGTH
   );
   const [query, setQuery] = useState(urlQuery);
+  const queryRef = useRef(query);
   const timeoutRef = useRef<number | null>(null);
   const latestSearchParamsRef = useRef(searchParams);
   const navigationStateRef = useRef(navigationState);
 
+  queryRef.current = query;
   latestSearchParamsRef.current = searchParams;
   navigationStateRef.current = navigationState;
 
@@ -64,7 +66,17 @@ export const usePublicSearchUrlState = ({
 
   useEffect(() => {
     clearPendingUpdate();
-    setQuery(urlQuery);
+    const currentNormalizedQuery = normalizeDiscoveryQueryValue(
+      queryRef.current,
+      PUBLIC_SEARCH_MAX_LENGTH
+    );
+
+    // A debounced URL write intentionally stores the normalized search value.
+    // Keep the user's raw spacing in the controlled input when both values still
+    // describe the same search, while genuine URL navigation remains authoritative.
+    if (currentNormalizedQuery !== urlQuery || currentNormalizedQuery === '') {
+      setQuery(urlQuery);
+    }
   }, [clearPendingUpdate, navigationKey, urlQuery]);
 
   useEffect(() => clearPendingUpdate, [clearPendingUpdate]);

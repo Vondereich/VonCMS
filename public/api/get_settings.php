@@ -57,6 +57,7 @@ if ($canUsePublicSettingsCache) {
 }
 
 require_once $configFile;
+require_once __DIR__ . '/../public_render_helper.php';
 require_once __DIR__ . '/ai_provider_helper.php';
 
 // Check if user is authenticated (for sensitive settings).
@@ -68,230 +69,30 @@ if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }
 
-function voncms_project_public_admin_profile(mixed $profile): ?array
-{
-  if (!is_array($profile)) {
-    return null;
-  }
-
-  $publicProfile = [
-    'name' => trim((string) ($profile['name'] ?? '')),
-    'email' => trim((string) ($profile['email'] ?? '')),
-    'bio' => trim((string) ($profile['bio'] ?? '')),
-    'avatar' => ResponseHelper::scrubAvatarUrl((string) ($profile['avatar'] ?? '')),
-  ];
-
-  if (
-    $publicProfile['name'] === '' &&
-    $publicProfile['email'] === '' &&
-    $publicProfile['bio'] === '' &&
-    $publicProfile['avatar'] === ''
-  ) {
-    return null;
-  }
-
-  return $publicProfile;
-}
-
-/**
- * @param mixed $categories
- * @return array<int, string>
- */
-function voncms_normalize_public_categories($categories): array
-{
-  if (!is_array($categories)) {
-    return [];
-  }
-
-  $normalized = [];
-  foreach ($categories as $rawCategory) {
-    $category = trim((string) $rawCategory);
-    if ($category === '') {
-      continue;
-    }
-
-    if (function_exists('mb_substr')) {
-      $category = mb_substr($category, 0, 100, 'UTF-8');
-    } else {
-      $category = substr($category, 0, 100);
-    }
-
-    $exists = false;
-    foreach ($normalized as $existing) {
-      if (strcasecmp($existing, $category) === 0) {
-        $exists = true;
-        break;
-      }
-    }
-
-    if (!$exists) {
-      $normalized[] = $category;
-    }
-
-    if (count($normalized) >= 200) {
-      break;
-    }
-  }
-
-  return $normalized;
-}
-
-/**
- * @param mixed $navigation
- * @return array<int, array<string, mixed>>
- */
-function voncms_project_public_navigation_hrefs(PDO $pdo, $navigation): array
-{
-  if (!is_array($navigation)) {
-    return [];
-  }
-
-  $pageIds = [];
-  $postIds = [];
-  foreach ($navigation as $item) {
-    if (!is_array($item)) {
-      continue;
-    }
-    $target = trim((string) ($item['url'] ?? ''));
-    if (str_starts_with($target, 'page:')) {
-      $pageId = trim(substr($target, 5));
-      if ($pageId !== '') {
-        $pageIds[$pageId] = true;
-      }
-    } elseif (str_starts_with($target, 'post:')) {
-      $postId = trim(substr($target, 5));
-      if ($postId !== '') {
-        $postIds[$postId] = true;
-      }
-    }
-  }
-
-  $pageHrefs = [];
-  if ($pageIds !== []) {
-    try {
-      $ids = array_slice(array_keys($pageIds), 0, 100);
-      $placeholders = implode(',', array_fill(0, count($ids), '?'));
-      $stmt = $pdo->prepare(
-        "SELECT id, slug FROM pages WHERE id IN ($placeholders) AND (status = 'published' OR status IS NULL)",
-      );
-      $stmt->execute($ids);
-      foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $page) {
-        $slug = trim((string) ($page['slug'] ?? ''));
-        if ($slug !== '') {
-          $pageHrefs[(string) ($page['id'] ?? '')] = '/' . ltrim($slug, '/');
-        }
-      }
-    } catch (Throwable $e) {
-      $pageHrefs = [];
-    }
-  }
-
-  $postHrefs = [];
-  if ($postIds !== []) {
-    try {
-      $ids = array_slice(array_keys($postIds), 0, 100);
-      $placeholders = implode(',', array_fill(0, count($ids), '?'));
-      $stmt = $pdo->prepare(
-        "SELECT id FROM posts WHERE id IN ($placeholders) AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?)",
-      );
-      $stmt->execute([...$ids, date('Y-m-d H:i:s')]);
-      foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $post) {
-        $postId = trim((string) ($post['id'] ?? ''));
-        if ($postId !== '') {
-          $postHrefs[$postId] = '/post/' . rawurlencode($postId);
-        }
-      }
-    } catch (Throwable $e) {
-      $postHrefs = [];
-    }
-  }
-
-  return array_map(static function ($item) use ($pageHrefs, $postHrefs): array {
-    if (!is_array($item)) {
-      return [];
-    }
-    unset($item['resolvedHref']);
-    $target = trim((string) ($item['url'] ?? ''));
-    if ($target === 'home' || $target === '/') {
-      $item['resolvedHref'] = '/';
-    } elseif (str_starts_with($target, 'page:')) {
-      $pageId = trim(substr($target, 5));
-      if (isset($pageHrefs[$pageId])) {
-        $item['resolvedHref'] = $pageHrefs[$pageId];
-      }
-    } elseif (str_starts_with($target, 'post:')) {
-      $postId = trim(substr($target, 5));
-      if (isset($postHrefs[$postId])) {
-        $item['resolvedHref'] = $postHrefs[$postId];
-      }
-    }
-    return $item;
-  }, $navigation);
-}
-
-function voncms_normalize_plugin_settings_value(string $key, mixed $value): array
-{
-  if ($key === 'active_plugins') {
-    if (!is_array($value)) {
-      return [];
-    }
-
-    $pluginIds = array_filter(
-      $value,
-      static fn($pluginId): bool => is_string($pluginId) &&
-        $pluginId !== '' &&
-        strlen($pluginId) <= 100 &&
-        preg_match('/^[A-Za-z0-9._-]+$/', $pluginId) === 1,
-    );
-    return array_values(array_unique($pluginIds));
-  }
-
-  if ($key === 'custom_plugins') {
-    if (!is_array($value)) {
-      return [];
-    }
-
-    $allowedLocations = ['header_top', 'footer_bottom', 'sidebar_top', 'post_after'];
-    $plugins = array_filter($value, static function ($plugin) use ($allowedLocations): bool {
-      return is_array($plugin) &&
-        is_string($plugin['id'] ?? null) &&
-        is_string($plugin['name'] ?? null) &&
-        is_string($plugin['location'] ?? null) &&
-        is_string($plugin['htmlContent'] ?? null) &&
-        in_array($plugin['location'], $allowedLocations, true);
-    });
-    return array_values($plugins);
-  }
-
-  if (!is_array($value)) {
-    return [];
-  }
-
-  if ($key === 'plugin_config' && isset($value['pluginStatus'])) {
-    if (!is_array($value['pluginStatus'])) {
-      unset($value['pluginStatus']);
-      return $value;
-    }
-
-    $value['pluginStatus'] = array_filter(
-      $value['pluginStatus'],
-      static fn($status, $pluginId): bool => is_string($pluginId) &&
-        $pluginId !== '' &&
-        strlen($pluginId) <= 100 &&
-        preg_match('/^[A-Za-z0-9._-]+$/', $pluginId) === 1 &&
-        is_string($status) &&
-        in_array($status, ['active', 'inactive', 'not_installed'], true),
-      ARRAY_FILTER_USE_BOTH,
-    );
-  }
-
-  return $value;
-}
-
 /** @var PDOStatement|null $stmt */
 $stmt = null;
 
 try {
+  if (!$isAdmin) {
+    $settings = voncms_build_public_settings_projection($pdo);
+    if ($isStaff && $pdo instanceof PDO) {
+      $settings['aiAssistant'] = voncms_ai_staff_projection($pdo);
+    }
+
+    $settingsJson = json_encode($settings);
+    if (!is_string($settingsJson)) {
+      ResponseHelper::sendError('Failed to encode settings response', 500);
+    }
+
+    if ($canUsePublicSettingsCache && is_resource($publicSettingsCacheGate)) {
+      voncms_public_cache_set($publicSettingsCacheKey, $settingsJson, $publicSettingsCacheGate);
+    }
+
+    voncms_public_cache_release_gate($publicSettingsCacheGate);
+    echo $settingsJson;
+    exit();
+  }
+
   try {
     // Build query based on user role
     if ($isAdmin) {
@@ -523,6 +324,17 @@ try {
           $settings['api'] = $value;
         }
         break;
+    }
+  }
+
+  if ($isAdmin) {
+    $allowedAdminPalettes = ['charcoal-blue', 'meadow-gold', 'harbour-amber'];
+    if (
+      !isset($settings['adminPalette']) ||
+      !is_string($settings['adminPalette']) ||
+      !in_array($settings['adminPalette'], $allowedAdminPalettes, true)
+    ) {
+      $settings['adminPalette'] = 'charcoal-blue';
     }
   }
 

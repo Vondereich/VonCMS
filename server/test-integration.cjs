@@ -1410,7 +1410,7 @@ if (
   reactEntryContent.includes('admin(?:\\/|$)|login\\/?$|install\\/?$') &&
   publicSiteContent.includes('getLoadedPublicThemeLayout(requestedThemeId)') &&
   publicSiteContent.includes('let cancelled = false;') &&
-  publicSiteContent.includes('<SkeletonLoader />') &&
+  publicSiteContent.includes('<PublicRouteLoader />') &&
   !publicSiteContent.includes('React.Suspense') &&
   !publicSiteContent.includes('lazy(() => import(') &&
   !publicSiteContent.includes("import DefaultLayout from '../../../../themes/default/Layout'") &&
@@ -1423,7 +1423,7 @@ if (
   );
 } else {
   fail(
-    'Public Theme Early Preload: public routes must preload one cached dynamic theme before mount without delaying admin/login or weakening skeleton, stale-load, and chunk-error boundaries.'
+    'Public Theme Early Preload: public routes must preload one cached dynamic theme before mount without delaying admin/login or weakening route-loading, stale-load, and chunk-error boundaries.'
   );
 }
 
@@ -4442,7 +4442,8 @@ const categoryWidgetManagerContent = read(
 const categoryWidgetRendererContent = read(
   'src/plugins/von-core/features/public/components/Sidebar.tsx'
 );
-const publicSettingsCategoryContent = read('public/api/get_settings.php');
+const publicSettingsCategoryContent =
+  read('public/api/get_settings.php') + '\n' + read('public/public_render_helper.php');
 const savePostCategoryMutationContent = read('public/api/save_post.php');
 assertIncludes(
   'Categories Sidebar Widget Contract',
@@ -4494,10 +4495,10 @@ assertIncludes(
     'function voncms_normalize_public_categories($categories): array',
     "(status = 'published' OR status IS NULL)",
     'scheduled_at IS NULL OR scheduled_at <= :currentTime',
-    '$publicCategoryRows = $dbCategories;',
-    "$settings['publicCategories'] = voncms_normalize_public_categories($publicCategoryRows);",
-    "$settings['publicCategories'] = [];",
-    "array_merge($settings['categories'] ?? [], $dbCategories)",
+    '$publicCategories = voncms_normalize_public_categories(',
+    "$settings['publicCategories'] = $publicCategories;",
+    "...$settings['categories'] ?? [],",
+    '...$publicCategories,',
   ],
   'Public Categories Projection Contract: public category links are derived from currently visible posts while the editor category contract remains separate.',
   'Public Categories Projection Contract: public category links can include draft/future labels or overwrite editor categories.'
@@ -4851,13 +4852,17 @@ if (
   settingsManagerContent.includes(
     'mergeSettingsDraft(settings, draftBaselineRef.current, tempSettings)'
   ) &&
+  settingsManagerContent.includes('const settingsToSave: SiteSettings = canManageSecrets') &&
+  settingsManagerContent.includes('api: settings.api,') &&
   !settingsManagerContent.includes("formData.append('action', 'save_settings')") &&
   !settingsManagerContent.includes('vonFetch(API.api')
 ) {
-  pass('Settings Save Flow: SettingsManager uses the canonical save endpoint once.');
+  pass(
+    'Settings Save Flow: SettingsManager uses the canonical save endpoint once and appointed admins do not replay owner-only API configuration.'
+  );
 } else {
   fail(
-    'Settings Save Flow: SettingsManager still looks like it double-saves through the legacy bridge.'
+    'Settings Save Flow: SettingsManager still double-saves through the legacy bridge or appointed admins can replay owner-only API configuration.'
   );
 }
 
@@ -4872,6 +4877,7 @@ const dateFormatSettingsContract = [
   read('src/utils/siteUtils.ts'),
   saveSettingsContent,
   getSettingsContent,
+  read('public/public_render_helper.php'),
   installContent,
   read('public/index.php'),
 ].join('\n');
@@ -5685,7 +5691,9 @@ try {
           },
           useEffect: (callback) => callback(),
           isSystemPluginActive: () => active,
+          analyticsPluginActive: active,
           analyticsTrackingAllowed: () => accepted,
+          location: { pathname: '/zangetsu/article' },
           window: { location: { pathname: '/zangetsu/article' } },
           document: { referrer: 'https://referrer.example/' },
           API: { trackMonolithic: '/zangetsu/api/track_monolithic.php' },
@@ -6015,7 +6023,13 @@ if (extensionSaveAcknowledgementsComplete) {
 
 assertIncludes(
   'Plugin Settings Shape And Ownership Boundary',
-  saveSettingsContent + '\n' + getSettingsContent + '\n' + pluginRegistryContent,
+  saveSettingsContent +
+    '\n' +
+    getSettingsContent +
+    '\n' +
+    read('public/public_render_helper.php') +
+    '\n' +
+    pluginRegistryContent,
   [
     "'customPlugins',",
     'function voncms_normalize_active_plugins',
@@ -6937,11 +6951,11 @@ if (
   ) &&
   appShellContent.includes("if (currentView === 'profile' && selectedProfile)") &&
   appShellContent.includes('if (isLoadingProfile) {') &&
-  appShellContent.includes('return <SkeletonLoader />;') &&
+  appShellContent.includes('return <PublicRouteLoader />;') &&
   appShellContent.includes('if (!resolvedPublicProfile) {')
 ) {
   pass(
-    'Public Profile Route Guard: profile routes hold a pending skeleton, reject stale fetches, cache resolved users for theme handoff, and let invalid usernames fall through to a real 404.'
+    'Public Profile Route Guard: profile routes hold a pending route loader, reject stale fetches, cache resolved users for theme handoff, and let invalid usernames fall through to a real 404.'
   );
 } else {
   fail(
@@ -11069,6 +11083,7 @@ assertIncludes(
     '--admin-palette-hover-strong: #45454d;',
     '--admin-palette-border: #34343a;',
     '--admin-palette-border-strong: #45454d;',
+    '--admin-palette-backdrop: rgb(12 12 13 / 0.76);',
     '--color-admin-canvas: var(--admin-palette-canvas);',
     '--color-admin-panel: var(--admin-palette-panel);',
   ],
@@ -11106,6 +11121,194 @@ assertExcludes(
   ],
   'Central Admin Palette Raw Surface Contract: shared admin surfaces no longer repeat hard-coded palette values.',
   'Central Admin Palette Raw Surface Contract: one or more shared admin surfaces still bypass the central token set.'
+);
+const adminPaletteUtilityContent = read('src/utils/adminPalette.ts');
+const adminPalettePickerContent = read(
+  'src/plugins/von-core/features/settings/components/AdminPalettePicker.tsx'
+);
+const generalSettingsPaletteContent = read(
+  'src/plugins/von-core/features/settings/components/GeneralSettings.tsx'
+);
+const adminLayoutPaletteContent = read('src/components/layouts/AdminLayout.tsx');
+const publicPaletteProjectionContent =
+  getSettingsContent + '\n' + read('public/public_render_helper.php');
+assertIncludes(
+  'Bounded Admin Palette Preset Contract',
+  indexCssContent + '\n' + adminPaletteUtilityContent + '\n' + adminPalettePickerContent,
+  [
+    "id: 'charcoal-blue'",
+    "id: 'meadow-gold'",
+    "id: 'harbour-amber'",
+    "html[data-admin-palette='meadow-gold'] .admin-shell:not(.dark)",
+    "html[data-admin-palette='meadow-gold'] .admin-modal-layer:not(.dark)",
+    "html[data-admin-palette='harbour-amber'] .admin-shell:not(.dark)",
+    "html[data-admin-palette='harbour-amber'] .admin-modal-layer:not(.dark)",
+    '--color-blue-600: #4e7a27;',
+    '--color-blue-600: #b54708;',
+    'Dark mode keeps the Charcoal',
+    'type="radio"',
+    'name="admin-color-palette"',
+  ],
+  'Bounded Admin Palette Preset Contract: General Settings offers three allowlisted light-mode presets while dark mode stays on Charcoal.',
+  'Bounded Admin Palette Preset Contract: a preset, selector, scoped token override, or dark-mode boundary is missing.'
+);
+assertIncludes(
+  'Admin Palette Persistence Contract',
+  adminPaletteUtilityContent +
+    '\n' +
+    generalSettingsPaletteContent +
+    '\n' +
+    adminLayoutPaletteContent,
+  [
+    "ADMIN_PALETTE_STORAGE_PREFIX = 'von_admin_palette:'",
+    'getAdminPaletteStorageKey()',
+    "onChange('adminPalette', palette)",
+    'applyAdminPalette(adminPalette);',
+  ],
+  'Admin Palette Persistence Contract: the saved preset reaches AdminLayout through a base-path-scoped local first-paint hint.',
+  'Admin Palette Persistence Contract: settings wiring, layout application, or scoped storage is missing.'
+);
+assertIncludes(
+  'Static Admin Palette First-Paint Contract',
+  rootIndexHtmlContent,
+  [
+    "window.location.pathname.lastIndexOf('/admin')",
+    'von_admin_palette:${adminPaletteScope}',
+    "['charcoal-blue', 'meadow-gold', 'harbour-amber'].includes(adminPalette)",
+    'document.documentElement.dataset.adminPalette = adminPalette;',
+  ],
+  'Static Admin Palette First-Paint Contract: the static shell restores one bounded base-path-scoped palette hint.',
+  'Static Admin Palette First-Paint Contract: the static shell palette guard is incomplete.'
+);
+assertIncludes(
+  'PHP Admin Palette First-Paint Contract',
+  read('public/index.php'),
+  [
+    "'von_admin_palette:' + <?php echo json_encode($basePath",
+    "['charcoal-blue', 'meadow-gold', 'harbour-amber'].includes(adminPalette)",
+    'document.documentElement.dataset.adminPalette = adminPalette;',
+  ],
+  'PHP Admin Palette First-Paint Contract: the PHP shell restores one bounded server-base-path-scoped palette hint.',
+  'PHP Admin Palette First-Paint Contract: the PHP shell palette guard is incomplete.'
+);
+assertIncludes(
+  'Admin Palette Server Allowlist Contract',
+  saveSettingsContent + '\n' + getSettingsContent,
+  [
+    "['charcoal-blue', 'meadow-gold', 'harbour-amber']",
+    "['adminPalette', 'general', 'admin_palette', 'string']",
+    "$group === 'general' && $dbKey === 'admin_palette'",
+    "ResponseHelper::sendError('Invalid administration color palette.', 400);",
+    "$settings['adminPalette'] = 'charcoal-blue';",
+  ],
+  'Admin Palette Server Allowlist Contract: values are validated, persisted privately, and missing or invalid admin rows resolve to the canonical default.',
+  'Admin Palette Server Allowlist Contract: the palette is not fully allowlisted, mapped, private, or normalized on read.'
+);
+assertExcludes(
+  'Admin Palette Public Isolation Contract',
+  publicPaletteProjectionContent,
+  ["'admin_palette'", '"admin_palette"'],
+  'Admin Palette Public Isolation Contract: guest settings and first-paint projections do not expose an admin-only preference.',
+  'Admin Palette Public Isolation Contract: an admin-only palette preference entered a guest projection.'
+);
+const paletteRelativeLuminance = (hex) => {
+  const channels = [1, 3, 5].map(
+    (offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255
+  );
+  const [red, green, blue] = channels.map((channel) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  );
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+};
+const paletteContrastRatio = (foreground, background) => {
+  const foregroundLuminance = paletteRelativeLuminance(foreground);
+  const backgroundLuminance = paletteRelativeLuminance(background);
+  return (
+    (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+  );
+};
+const readAdminPaletteCssToken = (paletteId, tokenName) => {
+  const selector = `html[data-admin-palette='${paletteId}'] .admin-shell:not(.dark),`;
+  const selectorOffset = indexCssContent.indexOf(selector);
+  if (selectorOffset === -1) return null;
+
+  const blockStart = indexCssContent.indexOf('{', selectorOffset);
+  const blockEnd = indexCssContent.indexOf('}', blockStart);
+  if (blockStart === -1 || blockEnd === -1) return null;
+
+  const blockContent = indexCssContent.slice(blockStart + 1, blockEnd);
+  const tokenMatch = blockContent.match(new RegExp(`--${tokenName}:\\s*(#[0-9a-fA-F]{6});`));
+  return tokenMatch?.[1]?.toLowerCase() ?? null;
+};
+const adminPaletteContrastPairs = [
+  ['#ffffff', readAdminPaletteCssToken('meadow-gold', 'color-blue-600')],
+  [
+    readAdminPaletteCssToken('meadow-gold', 'color-blue-600'),
+    readAdminPaletteCssToken('meadow-gold', 'color-blue-100'),
+  ],
+  ['#ffffff', readAdminPaletteCssToken('harbour-amber', 'color-blue-600')],
+  [
+    readAdminPaletteCssToken('harbour-amber', 'color-blue-600'),
+    readAdminPaletteCssToken('harbour-amber', 'color-blue-100'),
+  ],
+];
+if (
+  adminPaletteContrastPairs.every(([foreground, background]) => {
+    return (
+      foreground !== null &&
+      background !== null &&
+      paletteContrastRatio(foreground, background) >= 4.5
+    );
+  })
+) {
+  pass(
+    'Admin Palette Contrast Contract: Meadow Gold and Harbour Amber active controls meet WCAG AA normal-text contrast in their solid and soft states.'
+  );
+} else {
+  fail(
+    'Admin Palette Contrast Contract: an active-control foreground/background pair falls below WCAG AA normal-text contrast.'
+  );
+}
+const adminDashboardPaletteContent = read('src/plugins/von-core/features/dashboard/Dashboard.tsx');
+assertIncludes(
+  'Admin Dashboard Chart Palette Contract',
+  adminDashboardPaletteContent,
+  [
+    'bg-blue-500',
+    "cursor={{ fill: 'var(--color-blue-100)' }}",
+    'fill="var(--color-blue-500)"',
+    'stroke="#8b5cf6"',
+  ],
+  'Admin Dashboard Chart Palette Contract: Visits bars, legend, and hover consume the active light palette while Unique Visitors retains a distinct series colour.',
+  'Admin Dashboard Chart Palette Contract: the traffic chart no longer follows the intended palette or series-separation boundary.'
+);
+assertExcludes(
+  'Admin Dashboard Legacy Chart Accent Guard',
+  adminDashboardPaletteContent,
+  ['bg-sky-500', 'fill="#0ea5e9"', "fill: 'rgba(14, 165, 233, 0.1)'"],
+  'Admin Dashboard Legacy Chart Accent Guard: the previous fixed cyan chart accents are absent.',
+  'Admin Dashboard Legacy Chart Accent Guard: a fixed cyan chart accent still bypasses the active admin palette.'
+);
+const adminContentManagerPaletteContent = read(
+  'src/plugins/von-core/features/content/ContentManager.tsx'
+);
+assertIncludes(
+  'Admin Post Manager Status Tab Palette Contract',
+  adminContentManagerPaletteContent,
+  ["? 'border-blue-600 bg-blue-600 text-white'", 'hover:border-blue-300 hover:text-blue-600'],
+  'Admin Post Manager Status Tab Palette Contract: every status filter uses the active admin light-palette scale.',
+  'Admin Post Manager Status Tab Palette Contract: active or hover status-tab colours bypass the active admin palette.'
+);
+assertExcludes(
+  'Admin Post Manager Legacy Status Tab Accent Guard',
+  adminContentManagerPaletteContent,
+  [
+    "? 'border-primary-600 bg-primary-600 text-white'",
+    'hover:border-primary-300 hover:text-primary-600',
+  ],
+  'Admin Post Manager Legacy Status Tab Accent Guard: fixed primary status-tab accents are absent.',
+  'Admin Post Manager Legacy Status Tab Accent Guard: a status-tab accent still bypasses the active admin palette.'
 );
 assertIncludes(
   'Global Ad Slot Overflow Guard',
@@ -11519,7 +11722,7 @@ if (
   appContent.includes('const fullPostMatchesCurrentRoute =') &&
   appContent.includes('fullPostMatchesCurrentRoute ? fullPost : null') &&
   appContent.includes("if (currentView === 'single-post' && !selectedPost && isLoadingPost)") &&
-  appContent.includes('return <SkeletonLoader />;') &&
+  appContent.includes('return <PublicRouteLoader />;') &&
   appContent.includes('if (!selectedPost && !isLoadingPost) isNotFound = true;')
 ) {
   pass(
@@ -11539,7 +11742,7 @@ if (
   !appContent.includes('(fullPostMatchesCurrentRoute ? fullPost : null) ||\n      posts.find')
 ) {
   pass(
-    'Single Post Full Payload Loading Contract: single-post routes show the route skeleton while full post content is loading instead of rendering preload-card data first.'
+    'Single Post Full Payload Loading Contract: single-post routes show the route loader while full post content is loading instead of rendering preload-card data first.'
   );
 } else {
   fail(
@@ -11561,10 +11764,10 @@ if (
   appContent.includes('if (isAmbiguousSlugRoute) {') &&
   appContent.includes('fullPageMatchesCurrentRoute') &&
   appContent.includes("if (currentView === 'page' && !selectedPage && isLoadingPage)") &&
-  appContent.includes('return <SkeletonLoader />;')
+  appContent.includes('return <PublicRouteLoader />;')
 ) {
   pass(
-    'Single Page Pending Contract: ambiguous slug routes check get_pages.php alongside get_post.php and hold the route skeleton until the current page lookup settles.'
+    'Single Page Pending Contract: ambiguous slug routes check get_pages.php alongside get_post.php and hold the route loader until the current page lookup settles.'
   );
 } else {
   fail(
@@ -11721,62 +11924,104 @@ if (
   );
 }
 
+const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
+  ? read('src/components/SkeletonLoader.tsx')
+  : '';
+const publicRouteLoaderContent = read('src/components/PublicRouteLoader.tsx');
+const themeImageContent = read('src/themes/shared/ThemeImage.tsx');
+const getSettingsSourceContent = read('public/api/get_settings.php');
+const publicThemeImageLayouts = [
+  'src/themes/default/Layout.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/techpress/Layout.tsx',
+  'src/themes/prism/Layout.tsx',
+  'src/themes/portfolio/Layout.tsx',
+  'src/themes/corporate-pro/Layout.tsx',
+].map((file) => read(file));
+const initialSkeletonStylesheetCount = (rootIndexHtmlContent.match(/skeleton\.css/g) || []).length;
+const publicSkeletonStylesheetCount = (publicIndexHtmlContent.match(/skeleton\.css/g) || []).length;
 if (
-  skeletonCssContent.includes('.skeleton-loader,') &&
-  skeletonCssContent.includes('.skeleton-loader-react {') &&
+  rootIndexHtmlContent.includes(
+    '<div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>'
+  ) &&
+  publicIndexHtmlContent.includes(
+    '<div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>'
+  ) &&
+  !rootIndexHtmlContent.includes('class="skeleton-loader"') &&
+  !publicIndexHtmlContent.includes('class="skeleton-loader"') &&
+  initialSkeletonStylesheetCount === 1 &&
+  publicSkeletonStylesheetCount === 1 &&
+  publicIndexHtmlContent.includes('window.__INITIAL_SETTINGS_READY__ =') &&
+  publicIndexHtmlContent.includes('array_merge($publicSettingsSnapshot, [') &&
+  phpPublicRenderHelperContent.includes('function voncms_build_public_settings_projection') &&
+  phpPublicRenderHelperContent.includes("setting_group = 'plugins'") &&
+  !phpPublicRenderHelperContent.includes("setting_group = 'api'") &&
+  getSettingsSourceContent.includes('$settings = voncms_build_public_settings_projection($pdo);') &&
+  !getSettingsSourceContent.includes('function voncms_project_public_admin_profile') &&
+  appContent.includes('const canUseInjectedPublicSettings = (): boolean => {') &&
+  appContent.includes('void loadSettings();') &&
+  appContent.includes('isInitialLoading || (settings.maintenanceMode && isAuthLoading)') &&
+  /user,\r?\n\s+isAuthLoading,/.test(appContent) &&
+  publicSiteContent.includes('isAuthLoading?: boolean;') &&
+  publicSettingsHookContent.includes('...(_s || {}),') &&
+  publicSettingsHookContent.includes('...(_s?.media?.optimization || {}),') &&
+  publicRouteLoaderContent.includes('className="voncms-public-route-loader"') &&
+  publicRouteLoaderContent.includes('const PUBLIC_ROUTE_LOADER_DELAY_MS = 180;') &&
+  publicRouteLoaderContent.includes(
+    'window.setTimeout(() => setIsVisible(true), PUBLIC_ROUTE_LOADER_DELAY_MS)'
+  ) &&
+  publicRouteLoaderContent.includes('return () => window.clearTimeout(timer);') &&
+  publicRouteLoaderContent.includes("aria-busy={isVisible ? 'true' : undefined}") &&
+  publicRouteLoaderContent.includes('{isVisible ? (') &&
+  publicSiteContent.includes('<PublicRouteLoader />') &&
+  publicThemeImageLayouts.every(
+    (content) =>
+      content.includes("import ThemeImage from '../shared/ThemeImage';") &&
+      content.includes('<ThemeImage') &&
+      content.includes('isAuthLoading') &&
+      content.includes('isAuthLoading ? (')
+  ) &&
+  themeImageContent.includes("import SafeImage from '../../components/SafeImage';") &&
+  themeImageContent.includes("import { normalizeImageSource } from '../../utils/siteUtils';") &&
+  themeImageContent.includes('const sourceKey =') &&
+  themeImageContent.includes('imageState.sourceKey === sourceKey') &&
+  themeImageContent.includes("setImageState({ sourceKey, status: 'loaded' })") &&
+  themeImageContent.includes("setImageState({ sourceKey, status: 'failed' })") &&
+  !themeImageContent.includes("setLoadState('loading')") &&
+  themeImageContent.includes('onLoad={handleLoad}') &&
+  themeImageContent.includes('onError={handleError}') &&
+  themeImageContent.includes("'loading' | 'loaded' | 'failed'") &&
+  publicSiteContent.includes('analyticsPluginActive,') &&
+  publicSiteContent.includes('props.settings.analytics?.cookieConsent,') &&
+  publicSiteContent.includes('location.pathname,') &&
+  !publicSiteContent.includes(
+    '[props.currentView, props.selectedPost?.id, props.selectedPage?.id, props.settings]'
+  ) &&
+  skeletonCssContent.includes('.voncms-boot-canvas {') &&
+  skeletonCssContent.includes('.voncms-public-route-loader-bar::after') &&
+  skeletonCssContent.includes('.voncms-theme-image-placeholder::after') &&
+  skeletonCssContent.includes('.voncms-theme-image-placeholder.is-failed') &&
+  !skeletonCssContent.includes('.voncms-theme-image.is-loaded {') &&
   skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
   !skeletonCssContent.includes('animation: fadeOut') &&
   !skeletonCssContent.includes('@keyframes fadeOut')
 ) {
   pass(
-    'Initial Skeleton Hold: bundled skeleton CSS no longer auto-fades on a timer before React is ready.'
+    'Public First Paint Contract: complete allowlisted settings unlock the injected public render, refresh in the background, preserve maintenance authentication gating, hold account controls until session restoration resolves, delay transient route feedback, and use image placeholders inside real theme geometry.'
   );
 } else {
   fail(
-    'Initial Skeleton Hold: skeleton CSS can still fade on a fixed timer and expose a blank app shell before React is ready.'
+    'Public First Paint Contract: injected settings, private-route gating, background refresh, account-session placeholders, delayed route feedback, shared projection ownership, or bundled theme placeholder coverage can drift.'
   );
 }
 
-const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
-  ? read('src/components/SkeletonLoader.tsx')
-  : '';
-const initialSkeletonCardCount = (rootIndexHtmlContent.match(/class="sk-card/g) || []).length;
-const publicSkeletonCardCount = (publicIndexHtmlContent.match(/class="sk-card/g) || []).length;
-const initialSkeletonStylesheetCount = (rootIndexHtmlContent.match(/skeleton\.css/g) || []).length;
-const publicSkeletonStylesheetCount = (publicIndexHtmlContent.match(/skeleton\.css/g) || []).length;
-const skeletonClassNames = ['sk-nav', 'sk-hero', 'sk-grid', 'sk-card'];
-const skeletonClassParity = skeletonClassNames.every(
-  (className) =>
-    skeletonCssContent.includes(`.${className}`) &&
-    publicIndexHtmlContent.includes(`class="${className}"`) &&
-    rootIndexHtmlContent.includes(`class="${className}"`) &&
-    reactSkeletonContent.includes(`className="${className}"`)
-);
 if (
-  initialSkeletonCardCount === 4 &&
-  publicSkeletonCardCount === 4 &&
-  initialSkeletonStylesheetCount === 1 &&
-  publicSkeletonStylesheetCount === 1 &&
-  publicIndexHtmlContent.includes('aria-label="Loading content"') &&
-  rootIndexHtmlContent.includes('aria-label="Loading content"') &&
   reactSkeletonContent.includes('Array.from({ length: 3 }') &&
-  publicIndexHtmlContent.includes('class="sk-card sk-card-tablet"') &&
-  rootIndexHtmlContent.includes('class="sk-card sk-card-tablet"') &&
   reactSkeletonContent.includes('className="sk-card sk-card-tablet"') &&
   reactSkeletonContent.includes('aria-label="Loading content"') &&
-  skeletonClassParity &&
+  skeletonCssContent.includes('.skeleton-loader,') &&
+  skeletonCssContent.includes('.skeleton-loader-react {') &&
   skeletonCssContent.includes('padding: clamp(1rem, 4vw, 2rem);') &&
-  skeletonCssContent.includes('grid-template-columns: minmax(0, 1fr);') &&
-  skeletonCssContent.includes('grid-template-columns: repeat(2, minmax(0, 1fr));') &&
-  skeletonCssContent.includes('grid-template-columns: repeat(3, minmax(0, 300px));') &&
-  skeletonCssContent.includes('justify-content: center;') &&
-  skeletonCssContent.includes('height: 240px;') &&
-  skeletonCssContent.includes('@media (min-width: 640px) and (max-width: 959px)') &&
-  skeletonCssContent.includes('@media (min-width: 960px)') &&
-  skeletonCssContent.includes('.sk-card-tablet {') &&
-  skeletonCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
-  indexCssContent.includes('@media (prefers-reduced-motion: reduce)') &&
-  indexCssContent.includes('.animate-spin,') &&
   skeletonCssContent.includes('background: #202124;') &&
   skeletonCssContent.includes('border: 1px solid #34343a;') &&
   skeletonCssContent.includes('rgba(69, 69, 77, 0.18) 20%') &&
@@ -11787,11 +12032,11 @@ if (
   !reactSkeletonContent.includes('style={{')
 ) {
   pass(
-    'React Skeleton Palette Contract: production PHP, static HTML, and React fallbacks retain matching responsive cards while one shared stylesheet owns sizing, palette, shimmer, and reduced motion.'
+    'Private Shell Skeleton Contract: admin, login, installer, and failed-bootstrap fallbacks retain the shared responsive charcoal loader and reduced-motion behavior.'
   );
 } else {
   fail(
-    'React Skeleton Palette Contract: shell markup, React fallback classes, shared stylesheet count, responsive layout, accessibility, reduced motion, or palette can drift.'
+    'Private Shell Skeleton Contract: the protected/dev fallback loader can drift from its shared responsive charcoal and accessibility contract.'
   );
 }
 
@@ -12098,6 +12343,8 @@ assertIncludes(
   'Appointed Admin Secret Boundary',
   getSettingsContent +
     '\n' +
+    phpPublicRenderHelperContent +
+    '\n' +
     read('public/api/save_settings.php') +
     '\n' +
     read('public/api/db_query.php'),
@@ -12209,6 +12456,8 @@ assertIncludes(
 assertIncludes(
   'Admin Profile Read-Only Boundary',
   getSettingsContent +
+    '\n' +
+    phpPublicRenderHelperContent +
     '\n' +
     read('public/api/save_settings.php') +
     '\n' +
@@ -13351,8 +13600,8 @@ assertIncludes(
     "$schemaData['image'] = [",
     "'@type' => 'ImageObject',",
     "'url' => $seoImage,",
-    "$runtimeSettings['general']['og_image_url'] ?? ''",
-    "$runtimeSettings['general']['og_image_square_url'] ?? ''",
+    "$publicSettingsSnapshot['ogImageUrl'] ?? ''",
+    "$publicSettingsSnapshot['ogImageSquareUrl'] ?? ''",
     "$itemImage = voncms_normalize_public_media_url($post['image_url'] ?? '');",
     "if ($itemImage !== '') {",
     "$item['image'] = voncms_absolute_public_url($itemImage, $domainUrl);",
@@ -13982,10 +14231,11 @@ assertIncludes(
   'Public Index Settings Snapshot Contract',
   phpPublicRenderHelperContent,
   [
-    '$runtimeSettings = [];',
-    'SELECT setting_group, setting_key, setting_value FROM settings',
-    "$runtimeSettings[$settingRow['setting_group']][$settingRow['setting_key']]",
-    "$generalSettings['permalink_structure'] ?? 'slug'",
+    'function voncms_build_public_settings_projection(PDO $pdo): array',
+    'SELECT setting_group, setting_key, setting_value, setting_type FROM settings',
+    '$publicSettings = voncms_build_public_settings_projection($pdo);',
+    "$publicSettings['permalinkStructure'] ?? 'slug'",
+    "'publicSettingsSnapshot' => $publicSettings",
   ],
   'Public Index Settings Snapshot Contract: SSR settings and permalink data come from one request snapshot.',
   'Public Index Settings Snapshot Contract: SSR settings remain split across repeated queries.'
@@ -14016,7 +14266,10 @@ assertIncludes(
 assertIncludes(
   'Site Name SSR Whitespace Guard',
   phpPublicRenderHelperContent,
-  ["$siteNameValue = trim((string) ($generalSettings['site_name'] ?? ''));"],
+  [
+    "$settings['siteName'] = trim((string) $value);",
+    "$siteNameValue = trim((string) ($publicSettings['siteName'] ?? ''));",
+  ],
   'Site Name SSR Whitespace Guard: legacy stored site names render without leading or trailing whitespace.',
   'Site Name SSR Whitespace Guard: legacy stored site names can still leak whitespace into public metadata.'
 );
@@ -15003,17 +15256,18 @@ const themeNavigationIssues = themeNavigationFiles.flatMap((file) => {
 
 if (
   themeNavigationHelperContent.includes('export const TABLET_NAV_VISIBLE_LIMIT = 3;') &&
+  themeNavigationHelperContent.includes('export const DESKTOP_NAV_VISIBLE_LIMIT = 4;') &&
   themeNavigationHelperContent.includes('navigation?.length || 0') &&
-  themeNavigationHelperContent.includes('slice(0, TABLET_NAV_VISIBLE_LIMIT)') &&
-  themeNavigationHelperContent.includes('slice(TABLET_NAV_VISIBLE_LIMIT)') &&
+  themeNavigationHelperContent.includes('slice(0, DESKTOP_NAV_VISIBLE_LIMIT)') &&
+  themeNavigationHelperContent.includes('slice(DESKTOP_NAV_VISIBLE_LIMIT)') &&
   themeNavigationIssues.length === 0
 ) {
   pass(
-    'Theme Tablet Menu Cutoff: bundled themes switch tablet headers to burger navigation when more than three menu items exist.'
+    'Theme Navigation Capacity: bundled themes show four desktop items before More while tablet headers switch to burger navigation above three items.'
   );
 } else {
   fail(
-    `Theme Tablet Menu Cutoff: missing helper markers or theme wiring: ${
+    `Theme Navigation Capacity: missing helper markers or theme wiring: ${
       themeNavigationIssues.length ? themeNavigationIssues.join('; ') : 'src/utils/navigation.ts'
     }`
   );
@@ -15828,6 +16082,7 @@ assertIncludes(
     '@keyframes modalEnter',
     '.modal-enter',
     'animation: modalEnter 180ms ease-out both;',
+    'background: var(--admin-palette-backdrop);',
     '-webkit-backdrop-filter: blur(8px);',
     '@media (prefers-reduced-motion: reduce)',
   ],
@@ -15981,6 +16236,9 @@ assertIncludes(
     'Discard the unsaved changes in Quick Editor?',
     'onBack={requestQuickEditorClose}',
     'onDirtyChange={setIsQuickEditDirty}',
+    'dark:border-admin-border dark:bg-admin-canvas',
+    'dark:border-admin-border dark:bg-admin-panel/95',
+    'dark:hover:bg-admin-hover',
     'hasUnsavedEditorChanges(',
     'initialAddToMenuRef.current = addToMenu;',
     'const liveItem = itemRef.current ? { ...itemRef.current, content: html } : null;',
@@ -16071,10 +16329,10 @@ assertIncludes(
     '\n' +
     v1268SocialMetadataContent,
   [
-    "'og_image_square_url'",
+    "'ogImageSquareUrl'",
     "['url' => $seoImage, 'kind' => $seoImageKind]",
-    "['url' => $runtimeSettings['general']['og_image_url'] ?? '', 'kind' => 'large']",
-    "['url' => $runtimeSettings['general']['og_image_square_url'] ?? '', 'kind' => 'square']",
+    "['url' => $publicSettingsSnapshot['ogImageUrl'] ?? '', 'kind' => 'large']",
+    "['url' => $publicSettingsSnapshot['ogImageSquareUrl'] ?? '', 'kind' => 'square']",
     "['url' => $logoUrl, 'kind' => 'logo']",
     "$twitterCard = $socialSchema['twitterCard'];",
     "if ($socialImage !== ''):",
@@ -16174,6 +16432,8 @@ if (
   v1268PublicSearchUrlContent.includes("key.startsWith('page[')") &&
   v1268PublicSearchUrlContent.includes('replace: true') &&
   v1268PublicSearchUrlContent.includes('navigationKey') &&
+  v1268PublicSearchUrlContent.includes('queryRef.current = query') &&
+  v1268PublicSearchUrlContent.includes('currentNormalizedQuery !== urlQuery') &&
   v1268PublicSiteContent.includes('publicSearchQuery?: string') &&
   read('src/App.tsx').includes('publicSearchQuery={publicSearchQuery}') &&
   v1268SearchThemeContents.every(
@@ -16182,7 +16442,7 @@ if (
   )
 ) {
   pass(
-    'Public Search URL State: supported search themes restore direct URLs, update a bounded query with replace semantics, preserve other parameters, and clear search state.'
+    'Public Search URL State: supported search themes restore direct URLs, preserve in-progress spacing, update a bounded normalized query with replace semantics, preserve other parameters, and clear search state.'
   );
 } else {
   fail(
@@ -16379,8 +16639,10 @@ if (
   v1268PublicNavigationLinkContent.includes('handleCrawlableLinkClick') &&
   v1268PublicNavigationLinkContent.includes('if (!href)') &&
   v1268SiteUtilsContent.includes('export const getPublicNavigationHref') &&
-  v1268GetSettingsContent.includes('function voncms_project_public_navigation_hrefs') &&
-  v1268GetSettingsContent.includes("$postHrefs[$postId] = '/post/' . rawurlencode($postId);") &&
+  phpPublicRenderHelperContent.includes('function voncms_project_public_navigation_hrefs') &&
+  phpPublicRenderHelperContent.includes(
+    "$postHrefs[$postId] = '/post/' . rawurlencode($postId);"
+  ) &&
   v1268PublicNavigationRuntimePass &&
   v1268SaveSettingsContent.includes('function voncms_strip_navigation_runtime_projection') &&
   v1268ThemeNavigationContents.every(
@@ -17116,12 +17378,10 @@ echo 'ok';`,
     phpBinary,
     [
       '-r',
-      `$source = file_get_contents(${JSON.stringify(resolveFromRoot('public/api/get_settings.php'))});
-$start = strpos($source, 'function voncms_project_public_navigation_hrefs');
-$end = strpos($source, 'function voncms_normalize_plugin_settings_value', $start);
-if ($start === false || $end === false) exit(31);
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/index.php'))};
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+require ${JSON.stringify(resolveFromRoot('public/public_render_helper.php'))};
 if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) { echo 'skip'; exit; }
-eval(substr($source, $start, $end - $start));
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec('CREATE TABLE pages (id TEXT PRIMARY KEY, slug TEXT, status TEXT NULL)');
@@ -18399,24 +18659,27 @@ echo 'unguarded';`,
         '-r',
         `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot(indexRelativePath))};
 $_SERVER['HTTP_HOST'] = 'example.test';
+require ${JSON.stringify(resolveFromRoot(indexRelativePath.replace(/index\.php$/, 'security.php')))};
 require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
 if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) { echo 'skip'; exit; }
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
-$insert = $pdo->prepare('INSERT INTO settings (setting_group, setting_key, setting_value) VALUES (?, ?, ?)');
+$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT, setting_type TEXT)');
+$pdo->exec('CREATE TABLE posts (id TEXT, category TEXT, status TEXT, scheduled_at TEXT)');
+$pdo->exec('CREATE TABLE pages (id TEXT, slug TEXT, status TEXT)');
+$insert = $pdo->prepare('INSERT INTO settings (setting_group, setting_key, setting_value, setting_type) VALUES (?, ?, ?, ?)');
 foreach ([
-  ['general', 'site_name', '  Example Site  '],
-  ['general', 'site_description', '<meta content="Example &amp; trusted">'],
-  ['general', 'domain_url', 'https://example.test/blog'],
-  ['general', 'header_identity_mode', 'text_only'],
-  ['general', 'site_language', 'ms-MY'],
-  ['general', 'time_zone', 'Asia/Kuala_Lumpur'],
-  ['general', 'date_format', 'day_month_year_long'],
-  ['general', 'posts_per_page', '12'],
-  ['theme', 'active_theme_id', 'theme-techpress'],
-  ['theme', 'customization', '{"primaryColor":"#123456"}'],
-  ['seo', 'site_config', '{"articleSchemaType":"NewsArticle"}'],
+  ['general', 'site_name', '  Example Site  ', 'string'],
+  ['general', 'site_description', '<meta content="Example &amp; trusted">', 'string'],
+  ['general', 'domain_url', 'https://example.test/blog', 'string'],
+  ['general', 'header_identity_mode', 'text_only', 'string'],
+  ['general', 'site_language', 'ms-MY', 'string'],
+  ['general', 'time_zone', 'Asia/Kuala_Lumpur', 'string'],
+  ['general', 'date_format', 'day_month_year_long', 'string'],
+  ['general', 'posts_per_page', '12', 'number'],
+  ['theme', 'active_theme_id', 'theme-techpress', 'string'],
+  ['theme', 'customization', '{"primaryColor":"#123456"}', 'json'],
+  ['seo', 'site_config', '{"articleSchemaType":"NewsArticle"}', 'json'],
 ] as $row) {
   $insert->execute($row);
 }
@@ -18450,6 +18713,9 @@ if (
   ($context['headerIdentityMode'] ?? '') !== 'text_only' ||
   ($context['articleSchemaType'] ?? '') !== 'NewsArticle' ||
   ($context['themeCustomization']['primaryColor'] ?? '') !== '#123456' ||
+  ($context['publicSettingsSnapshot']['siteName'] ?? '') !== 'Example Site' ||
+  ($context['publicSettingsSnapshot']['postsPerPage'] ?? 0) !== 12 ||
+  ($context['publicSettingsSnapshot']['activeThemeId'] ?? '') !== 'theme-techpress' ||
   (($context['schemaData']['@type'] ?? '') !== 'WebSite') ||
   ($assets['assetPrefix'] ?? '') !== 'assets/' ||
   !preg_match('/^index-.*\\.js$/', (string) ($assets['jsFile'] ?? '')) ||

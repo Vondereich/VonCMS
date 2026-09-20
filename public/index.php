@@ -318,7 +318,8 @@ $publicListingPageInRange = true;
 $htmlLang = 'en'; // Global fallback for site language
 $schemaLanguage = '';
 $openGraphLocale = '';
-$runtimeSettings = [];
+$publicSettingsSnapshot = [];
+$hasPublicSettingsSnapshot = false;
 $permalinkStructureValue = 'slug';
 $activeThemeId = '';
 $themeCustomization = null;
@@ -389,7 +390,8 @@ try {
         $seoTitle,
         $seoDescription,
       );
-      $runtimeSettings = $runtimeContext['runtimeSettings'];
+      $publicSettingsSnapshot = $runtimeContext['publicSettingsSnapshot'];
+      $hasPublicSettingsSnapshot = true;
       $publicContentCurrentTime = $runtimeContext['publicContentCurrentTime'];
       $permalinkStructureValue = $runtimeContext['permalinkStructureValue'];
       $publicListingLimit = $runtimeContext['publicListingLimit'];
@@ -814,8 +816,8 @@ $socialSchema = voncms_enrich_public_social_schema(
   $schemaData,
   [
     ['url' => $seoImage, 'kind' => $seoImageKind],
-    ['url' => $runtimeSettings['general']['og_image_url'] ?? '', 'kind' => 'large'],
-    ['url' => $runtimeSettings['general']['og_image_square_url'] ?? '', 'kind' => 'square'],
+    ['url' => $publicSettingsSnapshot['ogImageUrl'] ?? '', 'kind' => 'large'],
+    ['url' => $publicSettingsSnapshot['ogImageSquareUrl'] ?? '', 'kind' => 'square'],
     ['url' => $logoUrl, 'kind' => 'logo'],
   ],
   $domainUrl,
@@ -1035,29 +1037,31 @@ $cssFile = $publicAssets['cssFile'];
     <link rel="preload" as="image" href="<?php echo htmlspecialchars($heroPreloadHref, ENT_QUOTES, 'UTF-8'); ?>"<?php if ($heroPreloadSrcSet !== ''): ?> imagesrcset="<?php echo htmlspecialchars($heroPreloadSrcSet, ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> imagesizes="<?php echo htmlspecialchars($homepageHeroSizes, ENT_QUOTES, 'UTF-8'); ?>" fetchpriority="high">
   <?php endif; ?>
   <script>
-    window.__INITIAL_SETTINGS__ = <?php echo json_encode([
-                                    'siteName'             => $siteName ?? 'My Website',
-                                    'siteDescription'      => $siteDescription ?? '',
-                                    'domainUrl'            => $domainUrl ?? '',
-                                     'siteUrl'              => $domainUrl ?? '',
-                                     'activeThemeId'        => $activeThemeId ?: '',
-                                      'faviconUrl'           => $faviconUrl ?? '',
-                                      'logoUrl'              => $logoUrl ?? '',
-                                      'ogImageUrl'            => $runtimeSettings['general']['og_image_url'] ?? '',
-                                      'ogImageSquareUrl'      => $runtimeSettings['general']['og_image_square_url'] ?? '',
+    window.__INITIAL_SETTINGS__ = <?php echo json_encode(array_merge($publicSettingsSnapshot, [
+                                     'siteName'             => $siteName ?? 'My Website',
+                                     'siteDescription'      => $siteDescription ?? '',
+                                     'domainUrl'            => $domainUrl ?? '',
+                                      'siteUrl'              => $domainUrl ?? '',
+                                      'activeThemeId'        => $activeThemeId ?: '',
+                                       'faviconUrl'           => $faviconUrl ?? '',
+                                       'logoUrl'              => $logoUrl ?? '',
+                                       'ogImageUrl'            => $publicSettingsSnapshot['ogImageUrl'] ?? '',
+                                       'ogImageSquareUrl'      => $publicSettingsSnapshot['ogImageSquareUrl'] ?? '',
                                      'headerIdentityMode'   => $headerIdentityMode ?? 'logo_and_text',
                                      'useLogoAsTitle'       => $useLogoAsTitle ?? false,
                                      'invertLogoInDarkMode' => $invertLogoInDarkMode ?? false,
                                      'theme'                => $themeCustomization ?? (object)[],
-                                     'seo'                  => [
-                                       'articleSchemaType' => $articleSchemaType,
-                                     ],
-                                      'permalinkStructure'   => $permalinkStructureValue,
-                                      'timeZone'              => $timeZoneValue,
-                                      'dateFormat'            => $dateFormatValue,
-                                      'postsPerPage'           => $publicListingLimit,
-                                    'discussionEnabled'      => $discussionEnabledValue,
-                                  ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
+                                     'seo'                  => array_merge(
+                                       is_array($publicSettingsSnapshot['seo'] ?? null) ? $publicSettingsSnapshot['seo'] : [],
+                                       ['articleSchemaType' => $articleSchemaType],
+                                     ),
+                                       'permalinkStructure'   => $permalinkStructureValue,
+                                       'timeZone'              => $timeZoneValue,
+                                       'dateFormat'            => $dateFormatValue,
+                                       'postsPerPage'           => $publicListingLimit,
+                                     'discussionEnabled'      => $discussionEnabledValue,
+                                   ]), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
+    window.__INITIAL_SETTINGS_READY__ = <?php echo $hasPublicSettingsSnapshot ? 'true' : 'false'; ?>;
   </script>
   <?php if (!empty($homepagePosts)): ?>
     <!-- Homepage posts seed - prevents "No results found" on slow API -->
@@ -1228,9 +1232,20 @@ $cssFile = $publicAssets['cssFile'];
   <!-- Theme Guard: Instant Dark Mode detection to prevent FOUC -->
   <script>
     (function() {
-      const darkMode = localStorage.getItem('von_dark_mode') === 'true';
-      if (darkMode) {
-        document.documentElement.classList.add('dark');
+      try {
+        const darkMode = localStorage.getItem('von_dark_mode') === 'true';
+        if (darkMode) {
+          document.documentElement.classList.add('dark');
+        }
+
+        const adminPalette = localStorage.getItem(
+          'von_admin_palette:' + <?php echo json_encode($basePath, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
+        );
+        if (['charcoal-blue', 'meadow-gold', 'harbour-amber'].includes(adminPalette)) {
+          document.documentElement.dataset.adminPalette = adminPalette;
+        }
+      } catch {
+        // Storage can be unavailable in hardened browser contexts.
       }
     })();
   </script>
@@ -1331,18 +1346,7 @@ $cssFile = $publicAssets['cssFile'];
       }
     </style>
   </noscript>
-  <div id="root">
-    <div class="skeleton-loader" role="status" aria-label="Loading content" aria-busy="true">
-      <div class="sk-nav"></div>
-      <div class="sk-hero"></div>
-      <div class="sk-grid">
-        <div class="sk-card"></div>
-        <div class="sk-card"></div>
-        <div class="sk-card"></div>
-        <div class="sk-card sk-card-tablet" aria-hidden="true"></div>
-      </div>
-    </div>
-  </div>
+  <div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>
   <script type="module" crossorigin src="<?php echo $basePath . $assetPrefix . $jsFile; ?>"></script>
 </body>
 
