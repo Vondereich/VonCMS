@@ -13,73 +13,9 @@ Current release: **v1.27.3 "OverDrive"**. You can install the Deploy ZIP on host
 VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
 
 > [!NOTE]
-> Before updating a production site to v1.27.3, back up its files and database, review the changelog, and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
->
-> **v1.27 "OverDrive"** is the active release line. Its update cadence is intentionally slower as larger changes move through clearer scope, isolated development, deeper verification, and longer canary testing.
+> Before updating a production site, back up its files and database, review the [release notes](CHANGELOG.md), and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
 
-> [!IMPORTANT]
-> **Existing-site database repair required for v1.26.11**
-> After upgrading an existing VonCMS site through either Dashboard OTA or a manual Deploy ZIP, back up the database, sign in as the primary administrator, and run **Settings > Tools > Repair Database** once. This explicit repair reconciles the v1.26.10 schema baseline, adds and backfills the v1.26.11 `published_at` columns, and activates the protected schema capability marker. Fresh installations already create the current schema and do not need this upgrade repair. Database Repair is separate from **System Tools > Repair `.htaccess`**; the OTA updater protects the live `.htaccess`, so later routing updates can also require the separate managed-block repair described below.
-
-### What Changes In v1.27.3
-
-- Public search fields preserve in-progress spacing while keeping normalized shareable URLs.
-- Public first paint uses server-injected settings and real theme image geometry instead of a fake theme skeleton.
-- Quick Editor dark surfaces align with the shared Charcoal administration palette.
-- The light administration interface offers Von Blue, Meadow Gold, and Harbour Amber presets while dark mode remains Charcoal.
-- Dashboard traffic bars and Post Manager status tabs follow the selected administration palette.
-- Appointed admins can save delegated palette changes without replaying Primary Admin-only API settings.
-- Compatible dependencies are refreshed, including OpenRouter SDK `1.3.5`.
-
-### v1.27.2 Foundation
-
-- The dashboard OTA prompt and modal now use the neutral VonCMS admin presentation.
-- Release notes render as bounded, safe Markdown instead of raw GitHub text.
-- Update discovery and installation use honest states and controlled retry messages without changing the proven OTA engine.
-- Theme ZIP extraction and release packaging share stricter archive validation through the maintained `fflate` replacement.
-- Compatible dependencies are refreshed, including OpenRouter SDK `1.2.119` and Lucide `1.45.0`.
-
-### v1.27.1 Foundation
-
-- Canonical account-email origins fail closed before reset or verification data is persisted.
-- Server-side video embed and local theme ZIP validation share guarded, bounded security controls.
-- Configuration samples, media helpers, PHP routes, and OTA ownership retain explicit request boundaries.
-- Dark first paint, the installer, admin surfaces, newsletter controls, and loading skeletons share the refreshed Charcoal visual foundation.
-- Compatible dependencies were refreshed, including OpenRouter SDK `1.2.107` and DOMPurify `3.4.15`.
-
-### v1.27.0 Foundation
-
-- Writer draft submission and a staff review queue, with server-enforced role and account boundaries.
-- Shared AI writing with a visible model identity, bounded provider requests, and HTML-preserving copy review.
-- Clearer editor controls, enforced excerpt and keyword limits, and TechPress card readability improvements.
-- Crawlable Load More links, paginated no-JavaScript reading, and guarded public rendering helpers.
-- Consent-aware native and Google Analytics, while aggregate post/page view counters remain separate from visitor tracking.
-- Refreshed dependencies, including TipTap `3.31.3` and `lucide-react` `1.41.0`.
-
-See [CHANGELOG.md](CHANGELOG.md) for the complete changes and their scope.
-
-> [!IMPORTANT]
-> **Existing-site routing repair for v1.27.0**
-> After installing this build over an older site, sign in as the primary administrator and run **System Tools > Repair `.htaccess`** when integrity checks report outdated rules. The update preserves your live `.htaccess`; this repair installs the current managed PHP-path and internal-helper protections while retaining hosting directives outside the VonCMS block. This is separate from Database Repair, and v1.27.0 adds no database migration. Nginx deployments must apply the equivalent server rules in [VPS Deployment](docs/VPS.md).
-
-> [!WARNING]
->
-> ## Manual Update Required For Affected Builds
->
-> Sites currently running `v1.25.11`, `v1.25.12`, `v1.25.13`, `v1.26.0`, or the pre-fix `v1.26.1` package must install the latest published Deploy ZIP manually once. Those affected builds can skip GitHub release discovery when the primary administrator ID is returned as a number, so the dashboard may show no update even though a newer package exists.
->
-> Follow [Updating Existing Sites](#updating-existing-sites) and keep `von_config.php`, `data/`, `uploads/`, `backups/`, and the live `.htaccess` file protected. After the refreshed build is installed, primary-owner OTA discovery works normally for later releases.
-
-> [!IMPORTANT]
-> **Optional `von_config.php` feature migration for v1.26.9**
-> A normal Deploy or OTA update does not require replacing the working `von_config.php`; existing sites can keep it and continue using VonCMS normally. Migrate from the matching `von_config.sample.php` only if the site should adopt the complete current configuration features, including fail-closed environment handling and the private PHP log location. Use the sample only as a template for a new private config: copy the four complete database assignment lines from the working config, preserve required definitions such as `CRON_KEY`, run `php -l`, and activate the validated file during a short maintenance window. The sample rejects direct browser execution but remains available for download and copying through the release package. Never add real credentials to the tracked sample or leave a credentialed backup inside the public website directory.
->
-> Follow the complete backup, migration, verification, and rollback-safe procedure in [Optional `von_config.php` feature migration for v1.26.9](docs/UPGRADE.md#optional-von_configphp-feature-migration-for-v1269).
-
-> [!IMPORTANT]
-> **Updating an existing site to v1.25.0 through OTA?**
-> After the OTA update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
-> The OTA updater intentionally protects your live `.htaccess`, so this step is needed to apply the v1.25.0 managed routing and sensitive-file protection changes while preserving hosting rules outside the VonCMS block.
+The OverDrive release line uses a slower update cadence so larger changes receive clearer scope, isolated development, deeper verification, and longer canary testing. Exact changes belong in [CHANGELOG.md](CHANGELOG.md); version-specific upgrade and repair instructions belong in [docs/UPGRADE.md](docs/UPGRADE.md).
 
 <img width="1920" height="957" alt="126" src="https://github.com/user-attachments/assets/c0fdec1a-827f-457b-9feb-d84ce0d62c0c" />
 
@@ -299,8 +235,8 @@ node create_release.cjs
 
 `create_release.cjs` creates:
 
-- `VonCMS_v1.27.3_Deploy.zip`
-- `VonCMS_v1.27.3_Source.zip`
+- `VonCMS_v<version>_Deploy.zip`
+- `VonCMS_v<version>_Source.zip`
 
 No checksum sidecar files are generated by the release script.
 
@@ -330,119 +266,23 @@ If you find a serious security issue, do not open a public issue with exploit de
 
 ## Updating Existing Sites
 
-> [!IMPORTANT]
-> **v1.25.0 changes the VonCMS-managed `.htaccess` block.**
-> If you update from `v1.24.x` to `v1.25.0` through OTA, the old update modal cannot show this new warning yet.
-> After the update, open **System Tools** and run **Repair `.htaccess`** once.
+Read [Upgrade](docs/UPGRADE.md) before changing a production installation. It contains the supported version-specific database, configuration, routing, OTA, manual-update, and rollback instructions.
 
-For sites older than the fixed updater baseline, use the manual Deploy ZIP replacement first:
+The safe manual-update baseline is:
 
 1. Back up files and database.
 2. Delete the old `assets/` and `docs/` folders. Both contain release-managed files; neither stores uploads, posts, settings, or database content.
 3. Upload and extract the complete new Deploy ZIP, allowing its application files to replace the old release.
 4. Keep `von_config.php`, `data/`, `uploads/`, `backups/`, and the live `.htaccess` file protected from manual replacement or deletion.
 5. Visit the site and admin dashboard, then confirm the Dashboard shows the expected release version.
-6. If the site has not completed the v1.26.11 schema upgrade, sign in as the primary administrator and run **Settings > Tools > Repair Database** once. Review the completed fixes and any compatibility warning, then confirm Database Status is healthy. Fresh installations and already-healthy upgrades skip this step.
-7. For v1.27.0, run **System Tools > Repair `.htaccess`** if integrity checks flag outdated managed rules. On Nginx, apply the equivalent configuration from [VPS Deployment](docs/VPS.md).
-8. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
+6. Follow any Database Repair, `.htaccess` repair, or configuration migration instruction shown for the installed starting version in [Upgrade](docs/UPGRADE.md).
+7. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
 
 After a site is already on the fixed updater baseline, the dashboard updater can be used for later patches when the host allows outbound release downloads. OTA activation replaces the release-managed `assets/` and `docs/` directories as complete rollback-protected units, so retired fingerprinted bundles and guides cannot remain beside the current release.
 
 ## Release History
 
 Current shipped release truth lives in [CHANGELOG.md](CHANGELOG.md). Public developer guidance lives in [CONTRIBUTING.md](CONTRIBUTING.md) and the focused files under [docs/](docs/).
-
-### v1.26.11 - Canonical First Publication Time
-
-- Posts and pages gain a stable first-publication timestamp shared by public APIs, SSR, visible dates, schema, RSS, Related Posts, and sidebar freshness.
-- Existing published content receives an idempotent backfill through the explicit primary-admin Database Repair flow, while unrepaired sites retain a compatible fallback.
-- Compatible final dependencies are refreshed for the release baseline.
-
-### v1.26.10 - Schema Repair Development Baseline
-
-- Runtime schema creation moves out of ordinary traffic and into fresh installation or explicit primary-admin Database Repair.
-- Repair becomes resumable and data-preserving across owned columns, indexes, foreign keys, optional feature tables, and compatibility stops.
-- Gallery metadata, RSS interoperability, public link semantics, admin mutation acknowledgement, plugin delegation, maintenance handling, Nginx guidance, and embedded-video fullscreen persistence are aligned.
-
-### v1.26.9 - Runtime Boundary And Extension Specification
-
-- Structured request inputs fail safely before PHP string handling, authentication throttles reserve attempts atomically, and public query offsets stay bounded.
-- Upload shields, media variant paths, generated runtime configuration, private logging, credentialed CORS, and WordPress import transport boundaries are aligned and hardened.
-- Existing installations receive a one-time safe `von_config.php` migration procedure without allowing Deploy or OTA updates to overwrite live credentials.
-- Theme and plugin development now has an explicit VonCMS compatibility specification covering route/state ownership, settings, SSR/SEO, links, media, accessibility, performance, backend APIs, lifecycle, and release proof.
-
-### v1.26.8 - Public Discovery And Production Maintenance
-
-- Public search URLs persist across direct loads and reloads, all bundled themes expose crawlable navigation, and the bounded no-JavaScript reading view is usable without taking over theme rendering.
-- Media library search, responsive social metadata, related-post ranking, AI summaries, AI writing guidance, effective publish time, page pagination, and production warning paths are aligned.
-- Compatible direct dependencies and the matching lockfile graph are current for the release.
-
-### v1.26.7 - Categories And Theme UX
-
-- Default, Digest, and TechPress gain a public-safe Categories sidebar widget with crawlable links, bounded display, and empty-sidebar protection.
-- Category navigation resets the document scroll position, while TechPress and Digest preserve configured public colors across route families and failed settings fallback.
-- TechPress search receives a contrast-aware accent control, and the dashboard gains a compact clock using the configured CMS timezone.
-- OpenRouter SDK and the complete direct TipTap dependency set move to their latest compatible versions.
-- See the top [CHANGELOG.md](CHANGELOG.md) entry for the complete release detail.
-
-### v1.26.6 - Editor Legibility And Public Publish Time
-
-- The desktop Body/H1-H6 selector keeps the complete active label visible.
-- General Settings provides Logo + Text, Logo Only, and Text Only across all bundled themes without deleting a hidden uploaded logo.
-- Homepage cards and single-post views use one consistent read-time estimate without adding full article bodies to list payloads.
-- Single-post views show a fixed AM/PM publish time using the scheduled timestamp first, with stable CMS-local MySQL `DATETIME` handling and narrow-screen wrapping.
-- `lucide-react` and its lockfile graph are current at `1.31.0`.
-
-### v1.26.5 - Admin Editor Context And Publish Readiness
-
-- New and existing post/page editor routes use accurate browser titles and retain their owning admin navigation state.
-- Publish readiness now covers slug, excerpt or meta description, featured image, category, and scheduling alongside title and content.
-- Readiness remains advisory except for the established title and content publish requirements and the required date and time for Schedule; the editor now keeps its saved state aligned with the canonical status returned by the server.
-
-### v1.26.4 - Security Dashboard And Quick Editor Safety
-
-- Security trends render every recorded event type and show an honest no-events state instead of a blank chart.
-- Distribution values are normalized for Recharts and unknown security events receive stable fallback colors.
-- Quick Editor uses the shared accessible modal and confirms before unsaved work is discarded.
-- Compatible direct dependencies and the matching lockfile graph are current.
-
-### v1.26.3 - SEO Canonical And Routing Maintenance
-
-- Case-variant category discovery URLs redirect permanently to the stored category spelling.
-- Crawler endpoints resolve only at the exact root or configured subfolder root, not arbitrary nested suffixes.
-- Login, admin, install, and search routes emit explicit non-indexing directives before and after hydration.
-- Empty manual descriptions fall through to excerpt/content, and hydrated pages honor manual metadata.
-- Internal duplicate slashes collapse through the canonical redirect and shared SEO route logic lives outside the complete HTML shell.
-
-### v1.26.2 - Mobile Publishing And Admin Responsiveness
-
-- Responsive admin navigation that uses a phone/tablet drawer without changing the desktop sidebar.
-- A write, publish, and AI editor workflow with swipeable formatting controls plus safe-area Draft and Publish/Schedule/Update actions.
-- Mobile action-complete views for core content, user, newsletter, security, contact, media, settings, extension, and maintenance screens.
-- One accessible blurred admin popup layer for editor, lightbox, extension, user, redirect, and update dialogs.
-- Existing role, ownership, save, scheduling, OTA, media, and read-only database boundaries preserved.
-
-### v1.26.1 - Discovery And Schema Maintenance
-
-- Word-safe homepage and noscript excerpts that preserve complete words, Unicode, and encoded entities.
-- SSR and hydrated article schema parity for `mainEntityOfPage`, `articleSection`, and validated dynamic language values.
-- Category-specific raw HTML and `CollectionPage` output before React hydration.
-- Fingerprinted asset caching, portable security-header defaults, and rollback-protected OTA documentation replacement.
-- Compatible OpenRouter, TipTap, Node type, rate-limit, and PostCSS patch updates.
-
-### v1.26.0 - After Hours
-
-- Official opening of the v1.26 "After Hours" series.
-- Tailwind CSS 4 with its dedicated PostCSS adapter and CSS-first configuration.
-- TypeScript 7 native compilation with a TypeScript 6 API compatibility alias for current tooling.
-- React Router 8, OpenRouter SDK 1, TipTap 3, and the Node.js 22.22+ source-development baseline.
-- Focused Post Editor modules for audit history, SEO presentation, featured media, and shared text handling.
-- Selectable `Article`, `NewsArticle`, and `BlogPosting` schema types with a safe `Article` fallback.
-- Canonical Tailwind 4 utility migration across the admin, editor, plugins, and all six bundled themes.
-- Public page navigation, Default theme card/feed stability, Dashboard clarity, and Content Manager narrow-width polish.
-- Bundled themes and built-in plugins aligned to the `1.26` Extensions Manager series label.
-
-The completed v1.25.x OpenGate line remains the runtime foundation, including post ownership hardening, staff protected-content read boundaries, public discovery cleanup, public cache controls, media safety, and release packaging.
 
 ## License
 
