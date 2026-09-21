@@ -1139,9 +1139,34 @@ class SecurityHelper
    * System Integrity Check (Mandala series)
    * Detects if the Universal .htaccess or Uploads Shield is missing.
    */
+  public static function hasUnsafeHostDerivedRedirect(mixed $content): bool
+  {
+    if (!is_string($content)) {
+      return false;
+    }
+
+    $managedBlockMatch = preg_match(
+      '/^[ \t]*# BEGIN VonCMS\r?$[\s\S]*?^[ \t]*# END VonCMS\r?$/mi',
+      $content,
+      $managedBlock,
+    );
+    if ($managedBlockMatch !== 1) {
+      return false;
+    }
+
+    return preg_match(
+      '/^[ \t]*RewriteRule\b[ \t]+\S+[ \t]+["\']?https?:\/\/[^\s"\']*%(?:\{HTTP_HOST\}|[0-9])[^\s"\']*["\']?(?:[ \t]|$)/mi',
+      $managedBlock[0],
+    ) === 1;
+  }
+
   public static function hasRequiredHtaccessDirectives(mixed $content): bool
   {
     if (!is_string($content)) {
+      return false;
+    }
+
+    if (self::hasUnsafeHostDerivedRedirect($content)) {
       return false;
     }
 

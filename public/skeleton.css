@@ -29,41 +29,19 @@ body {
 }
 
 .voncms-boot-canvas {
+  display: grid;
   min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
   background: inherit;
 }
 
 .voncms-public-route-loader {
   display: grid;
-  min-height: 38vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   place-items: center;
   padding: 2rem;
-}
-
-.voncms-public-route-loader-bar {
-  width: min(12rem, 42vw);
-  height: 0.25rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #d1d5db;
-  position: relative;
-}
-
-.voncms-public-route-loader-bar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(71, 85, 105, 0.6), transparent);
-  animation: shimmer 1.25s infinite;
-}
-
-.dark .voncms-public-route-loader-bar {
-  background: #34343a;
-}
-
-.dark .voncms-public-route-loader-bar::after {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
 }
 
 .voncms-theme-image-placeholder {
@@ -261,7 +239,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .voncms-public-route-loader-bar::after,
   .voncms-theme-image-placeholder::after,
   .sk-nav::after,
   .sk-hero::after,

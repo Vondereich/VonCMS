@@ -2,11 +2,14 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-> **Current release:** v1.27.3 "OverDrive" is the current production upgrade baseline.
+> **Current release:** v1.27.4 "OverDrive" is the current production upgrade baseline.
 
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 
 > Existing sites that have not completed the v1.26.11 schema migration must run the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.
+
+> [!IMPORTANT]
+> **v1.27.4 `.htaccess` hardening:** VonCMS no longer constructs HTTPS or canonical-host redirects from the request `Host` header. Before updating, configure Force HTTPS and the preferred root or `www` hostname with a fixed domain in Cloudflare, cPanel/DirectAdmin, the reverse proxy, or the virtual host. OTA protects the live `.htaccess`, so after v1.27.4 arrives, sign in as the primary administrator and run **System Tools > Repair `.htaccess`** once. The repair replaces the unsafe legacy managed rules while preserving hosting-specific directives outside the VonCMS block.
 
 ### v1.26.11 database repair ownership
 
@@ -30,9 +33,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.3
+## Recommended path to v1.27.4
 
-VonCMS v1.27.3 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.4 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -40,8 +43,9 @@ VonCMS v1.27.3 is the current release. Use the complete Deploy ZIP for manual up
 4. If your current site is on an older version, use the latest published Deploy ZIP for the manual upgrade flow. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed. Sites on the affected `v1.25.11` through `v1.26.0` packages or the pre-fix `v1.26.1` package must complete this manual update once because Dashboard release discovery can be skipped.
 5. If you update to `v1.25.0` through OTA, open **System Tools** after the update and run **Repair `.htaccess`** once. The OTA updater protects the live `.htaccess` file, so this manual repair step applies the new v1.25.0 managed routing and sensitive-file rules while preserving host-specific rules outside the VonCMS block.
 6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to the latest published release.
-7. After the update, verify the homepage, one single post, and the admin dashboard.
-8. After the site is on a fixed updater package and already passed the `v1.25.0` `.htaccess` repair step, use the admin panel updater for later releases.
+7. When entering v1.27.4 from an older release, confirm fixed-host HTTPS/canonical redirects are active at the hosting or CDN layer, then run **System Tools > Repair `.htaccess`** once as the primary administrator.
+8. After the update, verify the homepage, one single post, and the admin dashboard.
+9. After the site is on a fixed updater package and already passed the required `.htaccess` repair steps, use the admin panel updater for later releases.
 
 The OTA updater treats the shipped `assets/` and `docs/` directories as release-managed content. During activation it replaces each directory as one rollback-protected unit, which removes retired fingerprinted bundles and guides instead of leaving them beside the current release. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
 

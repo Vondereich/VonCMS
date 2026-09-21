@@ -559,15 +559,14 @@ if (!function_exists('voncms_load_public_runtime_context')) {
       $siteDescription = $seoDescription;
     }
 
-    $domainUrl = $defaultDomainUrl;
+    $domainUrl = function_exists('voncms_resolve_public_base_url')
+      ? voncms_resolve_public_base_url($defaultDomainUrl, $basePath)
+      : trim((string) $defaultDomainUrl);
     $configuredDomainUrl = trim((string) ($publicSettings['domainUrl'] ?? ''));
-    if ($configuredDomainUrl !== '') {
+    if (function_exists('voncms_resolve_public_base_url')) {
+      $domainUrl = voncms_resolve_public_base_url($configuredDomainUrl, $basePath) ?: $domainUrl;
+    } elseif ($configuredDomainUrl !== '') {
       $domainUrl = rtrim($configuredDomainUrl, '/');
-    }
-    if ($domainUrl === '') {
-      $protocol = function_exists('is_https') && is_https() ? 'https://' : 'http://';
-      $safeHost = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-      $domainUrl = rtrim($protocol . $safeHost . $basePath, '/');
     }
 
     $logoUrl = (string) ($publicSettings['logoUrl'] ?? '');

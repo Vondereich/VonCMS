@@ -95,19 +95,14 @@ try {
   );
   $stmt->execute();
   $urlRow = $stmt->fetch(PDO::FETCH_ASSOC);
-  $baseUrl = $urlRow ? $urlRow['setting_value'] : '';
-
-  if (!$baseUrl) {
-    $protocol = is_https() ? 'https://' : 'http://';
-    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-    $scriptPath = $_SERVER['SCRIPT_NAME'];
-    $dir = str_replace('\\', '/', dirname($scriptPath));
-    if ($dir === '/') {
-      $dir = '';
-    }
-    $baseUrl = $protocol . $host . $dir;
+  $scriptPath = (string) ($_SERVER['SCRIPT_NAME'] ?? '/llms.php');
+  $scriptDir = str_replace('\\', '/', dirname($scriptPath));
+  $llmsBasePath =
+    $scriptDir === '/' || $scriptDir === '.' ? '/' : '/' . trim($scriptDir, '/') . '/';
+  $baseUrl = voncms_resolve_public_base_url($urlRow['setting_value'] ?? '', $llmsBasePath);
+  if ($baseUrl === '') {
+    throw new RuntimeException('Canonical Domain URL is not configured');
   }
-  $baseUrl = rtrim($baseUrl, '/');
 
   // Get permalink structure
   $plStmt = $pdo->prepare(

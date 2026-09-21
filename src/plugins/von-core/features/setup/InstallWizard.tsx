@@ -28,6 +28,7 @@ const InstallWizard: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [installWarnings, setInstallWarnings] = useState<string[]>([]);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [adminPassConfirm, setAdminPassConfirm] = useState('');
@@ -82,6 +83,7 @@ const InstallWizard: React.FC = () => {
 
     setLoading(true);
     setError(null);
+    setInstallWarnings([]);
 
     try {
       // In Dev mode, this might hit the Node server if not proxied, but we want it to hit PHP
@@ -104,6 +106,13 @@ const InstallWizard: React.FC = () => {
       // if (!res.ok && import.meta.env.DEV) { ... }
 
       if (data.success) {
+        setInstallWarnings(
+          Array.isArray(data.warnings)
+            ? data.warnings.filter((warning: unknown): warning is string =>
+                Boolean(typeof warning === 'string' && warning.trim())
+              )
+            : []
+        );
         setStep(3); // Success Step
       } else {
         setError(data.message || 'Installation failed.');
@@ -511,6 +520,19 @@ const InstallWizard: React.FC = () => {
                   VonCMS is installed, your database is connected, and the administrator account is
                   ready to use.
                 </p>
+                {installWarnings.length > 0 && (
+                  <div
+                    role="alert"
+                    className="mb-5 max-w-xl rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+                  >
+                    <p className="font-semibold">Server protection needs attention</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                      {installWarnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <p className="mb-8 max-w-md text-xs leading-5 text-slate-500">
                   <span className="font-semibold text-slate-700">Next:</span> Review your site
                   identity, Domain URL, and email settings from the dashboard.

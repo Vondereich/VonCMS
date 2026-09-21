@@ -36,6 +36,163 @@ if (!function_exists('voncms_request_path')) {
   }
 }
 
+if (!function_exists('voncms_normalize_public_base_url')) {
+  /**
+   * Accept only one absolute HTTP(S) site base without credentials, query, or fragment.
+   *
+   * @param mixed $candidate
+   * @return string
+   */
+  function voncms_normalize_public_base_url($candidate): string
+  {
+    $candidate = trim((string) $candidate);
+    if (
+      $candidate === '' ||
+      preg_match('/[\x00-\x20]/', $candidate) ||
+      str_contains($candidate, '\\')
+    ) {
+      return '';
+    }
+
+    $parts = parse_url($candidate);
+    if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+      return '';
+    }
+
+    $scheme = strtolower((string) $parts['scheme']);
+    if (
+      !in_array($scheme, ['http', 'https'], true) ||
+      isset($parts['user']) ||
+      isset($parts['pass']) ||
+      isset($parts['query']) ||
+      isset($parts['fragment'])
+    ) {
+      return '';
+    }
+
+    $host = strtolower(trim((string) $parts['host'], '[]'));
+    if ($host === '' || preg_match('/[^a-z0-9.:-]/i', $host)) {
+      return '';
+    }
+
+    $authority = str_contains($host, ':') ? '[' . $host . ']' : $host;
+    if (isset($parts['port'])) {
+      $port = (int) $parts['port'];
+      if ($port < 1 || $port > 65535) {
+        return '';
+      }
+      $authority .= ':' . $port;
+    }
+
+    $path = str_replace('\\', '/', (string) ($parts['path'] ?? ''));
+    $path = preg_replace('#/{2,}#', '/', $path) ?? '';
+    if (preg_match('#(^|/)\.\.?(/|$)#', $path)) {
+      return '';
+    }
+    $path = $path === '/' ? '' : '/' . trim($path, '/');
+
+    return $scheme . '://' . $authority . $path;
+  }
+}
+
+if (!function_exists('voncms_local_request_base_url')) {
+  /**
+   * Keep request-derived origins for local development only. Public installs
+   * must use General Settings > Domain URL so Host headers cannot own SEO URLs.
+   *
+   * @param mixed $basePath
+   * @return string
+   */
+  function voncms_local_request_base_url($basePath): string
+  {
+    $rawHost = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if (
+      $rawHost === '' ||
+      preg_match('/[\x00-\x20\/@?#]/', $rawHost) ||
+      str_contains($rawHost, '\\')
+    ) {
+      return '';
+    }
+
+    $parts = parse_url('http://' . $rawHost);
+    if (!is_array($parts) || empty($parts['host'])) {
+      return '';
+    }
+
+    $host = strtolower(trim((string) $parts['host'], '[]'));
+    $isLoopback = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+    $isPrivateIp =
+      filter_var($host, FILTER_VALIDATE_IP) !== false &&
+      filter_var(
+        $host,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
+      ) === false;
+    $isLocalName = preg_match('/\.(?:local|test|localhost)$/i', $host) === 1;
+    if (!$isLoopback && !$isPrivateIp && !$isLocalName) {
+      return '';
+    }
+
+    $authority = str_contains($host, ':') ? '[' . $host . ']' : $host;
+    if (isset($parts['port'])) {
+      $port = (int) $parts['port'];
+      if ($port < 1 || $port > 65535) {
+        return '';
+      }
+      $authority .= ':' . $port;
+    }
+
+    $normalizedBasePath = '/' . trim(str_replace('\\', '/', (string) $basePath), '/');
+    $normalizedBasePath = $normalizedBasePath === '/' ? '' : $normalizedBasePath;
+    $protocol = function_exists('is_https') && is_https() ? 'https://' : 'http://';
+
+    return $protocol . $authority . $normalizedBasePath;
+  }
+}
+
+if (!function_exists('voncms_resolve_public_base_url')) {
+  /**
+   * Prefer the configured canonical site URL and allow request fallback only
+   * on a local development host.
+   *
+   * @param mixed $configuredUrl
+   * @param mixed $basePath
+   * @return string
+   */
+  function voncms_resolve_public_base_url($configuredUrl, $basePath): string
+  {
+    $configured = voncms_normalize_public_base_url($configuredUrl);
+    return $configured !== '' ? $configured : voncms_local_request_base_url($basePath);
+  }
+}
+
+if (!function_exists('voncms_sitemap_page_count')) {
+  function voncms_sitemap_page_count($totalItems, $pageSize = 1000): int
+  {
+    $totalItems = max(0, (int) $totalItems);
+    $pageSize = max(1, (int) $pageSize);
+    return max(1, (int) ceil($totalItems / $pageSize));
+  }
+}
+
+if (!function_exists('voncms_sitemap_page_window')) {
+  /**
+   * @return array{valid: bool, offset: int, limit: int, pages: int}
+   */
+  function voncms_sitemap_page_window($requestedPage, $totalItems, $pageSize = 1000): array
+  {
+    $page = max(1, (int) $requestedPage);
+    $limit = max(1, (int) $pageSize);
+    $pages = voncms_sitemap_page_count($totalItems, $limit);
+    return [
+      'valid' => $page <= $pages,
+      'offset' => ($page - 1) * $limit,
+      'limit' => $limit,
+      'pages' => $pages,
+    ];
+  }
+}
+
 if (!function_exists('voncms_match_seo_endpoint')) {
   /**
    * Resolve crawler endpoints only at the installation root.

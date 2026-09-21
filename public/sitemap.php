@@ -6,7 +6,7 @@
  * Routes:
  * - /sitemap.xml - Index file (lists all sitemap chunks)
  * - /sitemap.xml?type=posts&page=1 - Posts chunk 1 (max 1,000 posts)
- * - /sitemap.xml?type=pages - All pages
+ * - /sitemap.xml?type=pages&page=1 - Pages chunk 1 (max 1,000 pages)
  */
 
 ob_start();
@@ -48,20 +48,14 @@ try {
     die('Sitemap is disabled.');
   }
 
-  // Fallback base URL
-  $baseUrl = $genRow ? $genRow['setting_value'] : '';
-  if (!$baseUrl) {
-    $protocol = is_https() ? 'https://' : 'http://';
-    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-    // Subfolder detection: Get the directory part of the current script
-    $scriptPath = $_SERVER['SCRIPT_NAME']; // e.g., /mycms/public/sitemap.php or /sitemap.php
-    $dir = str_replace('\\', '/', dirname($scriptPath));
-    if ($dir === '/') {
-      $dir = '';
-    }
-    $baseUrl = $protocol . $host . $dir;
+  $scriptPath = (string) ($_SERVER['SCRIPT_NAME'] ?? '/sitemap.php');
+  $scriptDir = str_replace('\\', '/', dirname($scriptPath));
+  $sitemapBasePath =
+    $scriptDir === '/' || $scriptDir === '.' ? '/' : '/' . trim($scriptDir, '/') . '/';
+  $baseUrl = voncms_resolve_public_base_url($genRow['setting_value'] ?? '', $sitemapBasePath);
+  if ($baseUrl === '') {
+    throw new RuntimeException('Canonical Domain URL is not configured');
   }
-  $baseUrl = rtrim($baseUrl, '/');
 
   if (!function_exists('voncms_sitemap_absolute_url')) {
     /**
@@ -124,11 +118,14 @@ try {
     $countStmt->bindValue(':currentTime', $currentTime);
     $countStmt->execute();
     $totalPosts = (int) $countStmt->fetchColumn();
-    $postPages = max(1, ceil($totalPosts / MAX_URLS_PER_SITEMAP));
+    $postPages = voncms_sitemap_page_count($totalPosts, MAX_URLS_PER_SITEMAP);
 
     // Count total pages
-    $pageCountStmt = $pdo->query("SELECT COUNT(*) FROM pages WHERE status = 'published'");
+    $pageCountStmt = $pdo->query(
+      "SELECT COUNT(*) FROM pages WHERE status = 'published' AND slug <> 'home'",
+    );
     $totalPages = (int) $pageCountStmt->fetchColumn();
+    $pagePages = voncms_sitemap_page_count($totalPages, MAX_URLS_PER_SITEMAP);
 
     // Get last modified dates
     $lastPostModStmt = $pdo->prepare(
@@ -139,7 +136,7 @@ try {
     $lastPostMod = $lastPostModStmt->fetchColumn();
     $lastPageMod = $pdo
       ->query(
-        "SELECT COALESCE(MAX(updated_at), MAX(created_at)) FROM pages WHERE status = 'published'",
+        "SELECT COALESCE(MAX(updated_at), MAX(created_at)) FROM pages WHERE status = 'published' AND slug <> 'home'",
       )
       ->fetchColumn();
 
@@ -162,12 +159,18 @@ try {
 
     // Pages sitemap (if any pages exist)
     if ($totalPages > 0) {
-      echo '<sitemap>';
-      echo '<loc>' . htmlspecialchars($baseUrl) . '/sitemap.xml?type=pages</loc>';
-      if ($lastPageMod) {
-        echo '<lastmod>' . date('c', strtotime($lastPageMod)) . '</lastmod>';
+      for ($i = 1; $i <= $pagePages; $i++) {
+        echo '<sitemap>';
+        echo '<loc>' .
+          htmlspecialchars($baseUrl) .
+          '/sitemap.xml?type=pages&amp;page=' .
+          $i .
+          '</loc>';
+        if ($lastPageMod) {
+          echo '<lastmod>' . date('c', strtotime($lastPageMod)) . '</lastmod>';
+        }
+        echo '</sitemap>';
       }
-      echo '</sitemap>';
     }
 
     echo '</sitemapindex>';
@@ -280,19 +283,34 @@ try {
   // PAGES SITEMAP
   // =====================
   if ($type === 'pages') {
+    $pageCountStmt = $pdo->query(
+      "SELECT COUNT(*) FROM pages WHERE status = 'published' AND slug <> 'home'",
+    );
+    $pageWindow = voncms_sitemap_page_window(
+      $page,
+      (int) $pageCountStmt->fetchColumn(),
+      MAX_URLS_PER_SITEMAP,
+    );
+    if (!$pageWindow['valid']) {
+      http_response_code(404);
+      echo '<?xml version="1.0" encoding="UTF-8"?>';
+      echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>';
+      exit();
+    }
+
+    $offset = $pageWindow['offset'];
+
     echo '<?xml version="1.0" encoding="UTF-8"?>';
     echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
 
     $pageStmt = $pdo->prepare(
-      "SELECT slug, updated_at, created_at FROM pages WHERE status = 'published' ORDER BY updated_at DESC",
+      "SELECT slug, updated_at, created_at FROM pages WHERE status = 'published' AND slug <> 'home' ORDER BY updated_at DESC, id DESC LIMIT :limit OFFSET :offset",
     );
+    $pageStmt->bindValue(':limit', MAX_URLS_PER_SITEMAP, PDO::PARAM_INT);
+    $pageStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $pageStmt->execute();
 
     while ($page = $pageStmt->fetch(PDO::FETCH_ASSOC)) {
-      if ($page['slug'] === 'home') {
-        continue;
-      }
-
       $path = "/{$page['slug']}";
       $date = $page['updated_at'] ?: ($page['created_at'] ?: date('c'));
       $date = date('c', strtotime($date));
@@ -310,8 +328,9 @@ try {
   // Default: redirect to index
   header("Location: {$baseUrl}/sitemap.xml");
   exit();
-} catch (Exception $e) {
-  http_response_code(500);
+} catch (Throwable $e) {
+  http_response_code(503);
+  header('Retry-After: 300');
   error_log('Sitemap Generation Error: ' . $e->getMessage());
-  echo 'Error generating sitemap.';
+  echo 'Sitemap temporarily unavailable.';
 }
