@@ -13,12 +13,11 @@ export const normalizeDiscoveryQueryValue = (
 ): string => {
   if (!value || maxLength <= 0) return '';
 
-  const template = document.createElement('template');
-  template.innerHTML = value;
-  template.content.querySelectorAll('script, style, noscript, template').forEach((element) => {
+  const parsedDocument = new DOMParser().parseFromString(value, 'text/html');
+  parsedDocument.querySelectorAll('script, style, noscript, template').forEach((element) => {
     element.remove();
   });
-  const normalized = normalizeSeoQueryWhitespace(template.content.textContent || '');
+  const normalized = normalizeSeoQueryWhitespace(parsedDocument.body.textContent || '');
 
   return Array.from(normalized).slice(0, maxLength).join('');
 };
