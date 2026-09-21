@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.27.3 "OverDrive"**
+> **VonCMS v1.27.4 "OverDrive"**
 
 ---
 
@@ -23,6 +23,8 @@ VonCMS runs on a standard **LAMP** stack:
 **Hosting:** cPanel (Apache), DirectAdmin (Apache), WAMP, XAMPP, Laragon
 
 > **Important:** VonCMS uses `.htaccess` for normal shared-hosting routing. This requires **Apache**, **LiteSpeed**, or **Apache behind an Nginx proxy** (common on cPanel/DirectAdmin). If your hosting runs **Nginx-only** with no Apache/LiteSpeed layer, `.htaccess` rules are ignored and routing/protection rules must be added manually. Ask your host which stack they use, or refer to the [VPS Guide](VPS.md) for Nginx config parity.
+
+> **HTTPS and canonical hostname:** Enable Force HTTPS and choose the preferred root or `www` hostname in Cloudflare, cPanel/DirectAdmin, the reverse proxy, or the virtual host using that fixed domain. VonCMS deliberately does not construct an absolute redirect target from the incoming request `Host` header.
 
 ---
 
@@ -161,4 +163,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.27.3 "OverDrive"_
+_VonCMS v1.27.4 "OverDrive"_

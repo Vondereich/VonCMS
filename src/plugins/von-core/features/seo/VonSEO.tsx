@@ -45,6 +45,71 @@ const setLinkCanonical = (href: string) => {
   el.setAttribute('href', href);
 };
 
+const normalizeConfiguredCanonicalBase = (value: unknown): string => {
+  const candidate = typeof value === 'string' ? value.trim() : '';
+  if (
+    !candidate ||
+    /[\u0000-\u0020\\]/.test(candidate) ||
+    /(?:^|\/)(?:\.{1,2}|%2e(?:%2e)?)(?:\/|$)/i.test(candidate)
+  ) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      !/^[a-z0-9.:-]+$/i.test(parsed.hostname.replace(/^\[|\]$/g, ''))
+    ) {
+      return '';
+    }
+
+    const path = parsed.pathname === '/' ? '' : `/${parsed.pathname.replace(/^\/+|\/+$/g, '')}`;
+    return `${parsed.origin}${path}`;
+  } catch {
+    return '';
+  }
+};
+
+const localBrowserCanonicalBase = (basePrefix: string): string => {
+  const host = window.location.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const ipv4 = host.split('.').map((part) => Number(part));
+  const isPrivateIpv4 =
+    ipv4.length === 4 &&
+    ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) &&
+    (ipv4[0] === 10 ||
+      ipv4[0] === 127 ||
+      (ipv4[0] === 169 && ipv4[1] === 254) ||
+      (ipv4[0] === 172 && ipv4[1] >= 16 && ipv4[1] <= 31) ||
+      (ipv4[0] === 192 && ipv4[1] === 168));
+  const isLocalHost =
+    host === 'localhost' ||
+    host === '::1' ||
+    host === '0.0.0.0' ||
+    isPrivateIpv4 ||
+    /\.(?:local|test|localhost)$/i.test(host) ||
+    /^(?:fc|fd)[0-9a-f]{2}:/i.test(host) ||
+    /^fe[89ab][0-9a-f]:/i.test(host);
+
+  return isLocalHost ? `${window.location.origin}${basePrefix}` : '';
+};
+
+const clearUrlBearingSeo = () => {
+  document.head.querySelector('link[rel="canonical"]')?.remove();
+  ensureMeta('og:url', 'property', '');
+  ensureMeta('og:image', 'property', '');
+  ensureMeta('og:image:alt', 'property', '');
+  ensureMeta('og:image:width', 'property', '');
+  ensureMeta('og:image:height', 'property', '');
+  ensureMeta('twitter:image', 'name', '');
+  ensureMeta('twitter:image:alt', 'name', '');
+  document.head.querySelector('script[type="application/ld+json"].vp-seo')?.remove();
+};
+
 const setJsonLd = (obj: any, schemaUrl: string) => {
   let el = document.head.querySelector('script[type="application/ld+json"].vp-seo');
   if (!el) {
@@ -173,12 +238,10 @@ const VonSEO: React.FC<VonSEOProps> = ({
 
     const basePrefix =
       BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
-    const configuredBase = (settings.domainUrl || settings.siteUrl || '')
-      .trim()
-      .replace(/\/+$/, '');
-    const canonicalBase = configuredBase || `${window.location.origin}${basePrefix}`;
+    const configuredBase = normalizeConfiguredCanonicalBase(settings.domainUrl);
+    const canonicalBase = configuredBase || localBrowserCanonicalBase(basePrefix);
     const canonicalUrl = (path = '') =>
-      `${canonicalBase}${path ? `/${path.replace(/^\/+/, '')}` : '/'}`;
+      canonicalBase ? `${canonicalBase}${path ? `/${path.replace(/^\/+/, '')}` : '/'}` : '';
     let canonical = canonicalUrl();
 
     if (currentView === 'single-post' && selectedPost) {
@@ -191,11 +254,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
         ) || description;
       routeSocialImage = { url: selectedPost.image, kind: 'featured' };
       type = 'article';
-      // Use authoritative permalink for canonical
-      canonical = getPermalink(selectedPost, settings, true);
-      if (!settings.domainUrl) {
-        canonical = canonicalUrl(getPermalink(selectedPost, settings, false, true));
-      }
+      canonical = canonicalUrl(getPermalink(selectedPost, settings, false, true));
     } else if (currentView === 'page' && selectedPage) {
       title = `${selectedPage.title} | ${siteTitle}`;
       description =
@@ -258,6 +317,24 @@ const VonSEO: React.FC<VonSEOProps> = ({
       hydratedRobots = 'noindex, follow';
     }
     description = truncateSchemaText(description, 160);
+
+    if (!canonicalBase) {
+      try {
+        document.title = title;
+      } catch (e) {}
+      ensureMeta('description', 'name', description);
+      ensureMeta('generator', 'name', 'VonSEO 3.0');
+      ensureMeta('og:title', 'property', title);
+      ensureMeta('og:description', 'property', description);
+      ensureMeta('og:site_name', 'property', settings.siteName);
+      ensureMeta('og:type', 'property', type);
+      ensureMeta('twitter:card', 'name', 'summary');
+      ensureMeta('twitter:title', 'name', title);
+      ensureMeta('twitter:description', 'name', description);
+      clearUrlBearingSeo();
+      ensureMeta('robots', 'name', 'noindex, nofollow');
+      return;
+    }
 
     // --- 2. Apply Document Title ---
     try {

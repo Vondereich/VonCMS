@@ -3103,7 +3103,7 @@ const currentReleaseLabel = `v${pkg.version}`;
 const currentSeriesLabel = `v${pkg.version} "OverDrive"`;
 const docsVersionChecks = [
   ['README.md', currentReleaseLabel],
-  ['README.md', 'v1.27 "OverDrive"'],
+  ['README.md', 'OverDrive release line'],
   ['docs/INSTALL.md', currentSeriesLabel],
   ['docs/MANUAL.md', currentReleaseLabel],
   ['docs/SECURITY.md', currentReleaseLabel],
@@ -3150,18 +3150,16 @@ if (readmeContent.includes('](LICENSE.md)')) {
 
 const upgradeGuideContent = read('docs/UPGRADE.md');
 if (
-  readmeContent.includes('Updating an existing site to v1.25.0 through OTA?') &&
-  readmeContent.includes('the old update modal cannot show this new warning yet') &&
   upgradeGuideContent.includes('v1.25.0 OTA upgrade warning') &&
   upgradeGuideContent.includes('System Tools > Repair `.htaccess`') &&
   changelogContent.includes('OTA `.htaccess` Upgrade Warning')
 ) {
   pass(
-    'OTA .htaccess Upgrade Warning: README, upgrade docs, and changelog warn v1.24.x users to repair .htaccess after updating to v1.25.0.'
+    'OTA .htaccess Upgrade Warning: upgrade docs and changelog preserve the legacy v1.24.x to v1.25.0 repair warning without duplicating it in README.'
   );
 } else {
   fail(
-    'OTA .htaccess Upgrade Warning: README/docs/changelog must warn v1.24.x users because the old OTA modal cannot show new v1.25.0 instructions.'
+    'OTA .htaccess Upgrade Warning: upgrade docs and changelog must preserve the legacy v1.24.x to v1.25.0 repair warning.'
   );
 }
 
@@ -3452,6 +3450,7 @@ assertIncludes(
   securityContent + '\n' + fixIntegrityContent,
   [
     'public static function hasRequiredHtaccessDirectives(mixed $content): bool',
+    'public static function hasUnsafeHostDerivedRedirect(mixed $content): bool',
     "preg_match_all('/^[ \\t]*# BEGIN VonCMS\\r?$/m', $content)",
     '$requiredDirectiveGroups = [',
     "'RewriteRule ^von_config\\\\.php$ - [F,L]'",
@@ -3460,6 +3459,8 @@ assertIncludes(
     "'RewriteRule ^ index.php [L,QSA]'",
     "preg_quote($directive, '/')",
     'SecurityHelper::hasRequiredHtaccessDirectives($content)',
+    'SecurityHelper::hasUnsafeHostDerivedRedirect($content)',
+    'Unsafe legacy Host-derived redirect detected inside the VonCMS managed block.',
     '!self::hasRequiredHtaccessDirectives($content)',
   ],
   'Integrity Required Directive Contract: balanced markers and essential routing/security directives are required before a managed block is healthy.',
@@ -3589,6 +3590,21 @@ if (exists('dist/api/system/repair_htaccess.php')) {
   ]);
 }
 
+const unsafeHostDerivedRedirectPattern =
+  /^[ \t]*RewriteRule\b[ \t]+\S+[ \t]+["']?https?:\/\/[^\s"']*%(?:\{HTTP_HOST\}|[0-9])[^\s"']*["']?(?:[ \t]|$)/im;
+const unsafeHostDerivedRedirectSources = htaccessSecuritySources
+  .filter(([, content]) => unsafeHostDerivedRedirectPattern.test(content))
+  .map(([file]) => file);
+if (unsafeHostDerivedRedirectSources.length === 0) {
+  pass(
+    'Trusted Host Redirect Boundary: Apache/LiteSpeed templates never construct absolute redirect targets from request Host data.'
+  );
+} else {
+  fail(
+    `Trusted Host Redirect Boundary: request Host data still owns an absolute redirect target in ${unsafeHostDerivedRedirectSources.join(', ')}.`
+  );
+}
+
 const sensitiveFileBlockPattern =
   /RewriteRule \\\.\(sql\|md\|json\|log\|bak\|env\|zip\|lock\)\$ - \[F,L\]/;
 const socialBotBypassSensitiveBlockPattern =
@@ -3606,6 +3622,30 @@ if (missingSensitiveBlocks.length === 0 && socialBotSensitiveBypasses.length ===
 } else {
   fail(
     `Sensitive File Rewrite Guard: sensitive file blocking is missing or still wrapped in a social-bot bypass. Missing: ${missingSensitiveBlocks.join(', ') || 'none'}; Social-bot bypass: ${socialBotSensitiveBypasses.join(', ') || 'none'}.`
+  );
+}
+
+const installWizardContent = read('src/plugins/von-core/features/setup/InstallWizard.tsx');
+const runtimeDataShieldContent = read('public/data/.htaccess');
+if (
+  installContent.includes(
+    "writeManagedHtaccess(__DIR__ . '/../.htaccess', $htaccessContent) === false"
+  ) &&
+  installContent.includes("'warnings' => $installWarnings") &&
+  installWizardContent.includes('Array.isArray(data.warnings)') &&
+  installWizardContent.includes('Server protection needs attention') &&
+  repairHtaccessContent.includes('function repairDataShield($publicPath)') &&
+  repairHtaccessContent.includes("$dataDir = $publicPath . '/data';") &&
+  repairHtaccessContent.includes('Runtime data .htaccess shield repaired.') &&
+  runtimeDataShieldContent.includes('Require all denied') &&
+  runtimeDataShieldContent.includes('Options -Indexes')
+) {
+  pass(
+    'Apache Protection Recovery Contract: installer write failures remain visible and Repair restores the runtime-data deny-all shield.'
+  );
+} else {
+  fail(
+    'Apache Protection Recovery Contract: installation can hide rule-write failures or Repair can leave runtime data without its deny-all shield.'
   );
 }
 
@@ -6612,7 +6652,7 @@ assertIncludes(
   modernSeoRuntimeContent + modernSeoSettingsContent,
   [
     'const canonicalBase =',
-    'getPermalink(selectedPost, settings, true)',
+    'canonicalUrl(getPermalink(selectedPost, settings, false, true))',
     'delete nextSeo.canonicalHost',
     'Canonical URLs use the Domain URL from General Settings',
   ],
@@ -6826,7 +6866,7 @@ assertExcludes(
 assertExcludes(
   'Maintenance Noindex Removal Guard',
   modernSeoRuntimeContent,
-  ['settings.maintenanceMode', "ensureMeta('robots', 'name', 'noindex, nofollow')"],
+  ['settings.maintenanceMode'],
   'Maintenance Noindex Removal Guard: temporary outages rely on HTTP 503 instead of persistent noindex metadata.',
   'Maintenance Noindex Removal Guard: client SEO can still attach noindex during temporary maintenance.'
 );
@@ -7787,6 +7827,7 @@ const phpStaticAnalysisMetadataContracts = [
       '@param string $filePath',
       '@param string $publicPath',
       'function repairUploadsShield($publicPath, $projectRoot)',
+      'function repairDataShield($publicPath)',
     ],
   },
   {
@@ -7798,6 +7839,7 @@ const phpStaticAnalysisMetadataContracts = [
       '@param string $filePath',
       '@param string $htaccessContent',
       'function writeManagedHtaccess($filePath, $htaccessContent)',
+      "'warnings' => $installWarnings",
     ],
   },
   {
@@ -10629,7 +10671,7 @@ assertIncludes(
     'Use The Open-Source Repository',
     'Local Testing',
     'VPS Deployment Guide',
-    `VonCMS_v${pkg.version}_Deploy.zip`,
+    'VonCMS_v<version>_Deploy.zip',
     'npm install',
     'npm run test:integration',
   ],
@@ -11928,6 +11970,7 @@ const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
   ? read('src/components/SkeletonLoader.tsx')
   : '';
 const publicRouteLoaderContent = read('src/components/PublicRouteLoader.tsx');
+const routeProgressBarContent = read('src/components/RouteProgressBar.tsx');
 const themeImageContent = read('src/themes/shared/ThemeImage.tsx');
 const getSettingsSourceContent = read('public/api/get_settings.php');
 const publicThemeImageLayouts = [
@@ -11942,11 +11985,15 @@ const initialSkeletonStylesheetCount = (rootIndexHtmlContent.match(/skeleton\.cs
 const publicSkeletonStylesheetCount = (publicIndexHtmlContent.match(/skeleton\.css/g) || []).length;
 if (
   rootIndexHtmlContent.includes(
-    '<div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>'
+    '<span class="voncms-loader-spinner voncms-boot-spinner"></span>'
   ) &&
   publicIndexHtmlContent.includes(
-    '<div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>'
+    '<span class="voncms-loader-spinner voncms-boot-spinner"></span>'
   ) &&
+  rootIndexHtmlContent.includes('voncms-loader-reveal 160ms 300ms ease-out forwards') &&
+  publicIndexHtmlContent.includes('voncms-loader-reveal 160ms 300ms ease-out forwards') &&
+  rootIndexHtmlContent.includes('@media (prefers-reduced-motion: reduce)') &&
+  publicIndexHtmlContent.includes('@media (prefers-reduced-motion: reduce)') &&
   !rootIndexHtmlContent.includes('class="skeleton-loader"') &&
   !publicIndexHtmlContent.includes('class="skeleton-loader"') &&
   initialSkeletonStylesheetCount === 1 &&
@@ -11966,13 +12013,22 @@ if (
   publicSettingsHookContent.includes('...(_s || {}),') &&
   publicSettingsHookContent.includes('...(_s?.media?.optimization || {}),') &&
   publicRouteLoaderContent.includes('className="voncms-public-route-loader"') &&
-  publicRouteLoaderContent.includes('const PUBLIC_ROUTE_LOADER_DELAY_MS = 180;') &&
+  publicRouteLoaderContent.includes('const PUBLIC_ROUTE_LOADER_DELAY_MS = 300;') &&
   publicRouteLoaderContent.includes(
     'window.setTimeout(() => setIsVisible(true), PUBLIC_ROUTE_LOADER_DELAY_MS)'
   ) &&
   publicRouteLoaderContent.includes('return () => window.clearTimeout(timer);') &&
   publicRouteLoaderContent.includes("aria-busy={isVisible ? 'true' : undefined}") &&
   publicRouteLoaderContent.includes('{isVisible ? (') &&
+  publicRouteLoaderContent.includes('className="voncms-loader-spinner"') &&
+  routeProgressBarContent.includes('const lastLocationRef = useRef<string | null>(null);') &&
+  routeProgressBarContent.includes('if (lastLocationRef.current === null) {') &&
+  routeProgressBarContent.includes('lastLocationRef.current = currentLocation;') &&
+  routeProgressBarContent.includes('if (lastLocationRef.current === currentLocation) return;') &&
+  routeProgressBarContent.includes('nprogress.remove();') &&
+  !routeProgressBarContent.includes('nprogress.done(true);') &&
+  routeProgressBarContent.includes('nprogress.start();') &&
+  routeProgressBarContent.includes('}, [pathname, search]);') &&
   publicSiteContent.includes('<PublicRouteLoader />') &&
   publicThemeImageLayouts.every(
     (content) =>
@@ -11998,7 +12054,8 @@ if (
     '[props.currentView, props.selectedPost?.id, props.selectedPage?.id, props.settings]'
   ) &&
   skeletonCssContent.includes('.voncms-boot-canvas {') &&
-  skeletonCssContent.includes('.voncms-public-route-loader-bar::after') &&
+  skeletonCssContent.includes('min-height: 100dvh;') &&
+  !skeletonCssContent.includes('.voncms-public-route-loader-bar') &&
   skeletonCssContent.includes('.voncms-theme-image-placeholder::after') &&
   skeletonCssContent.includes('.voncms-theme-image-placeholder.is-failed') &&
   !skeletonCssContent.includes('.voncms-theme-image.is-loaded {') &&
@@ -12007,11 +12064,11 @@ if (
   !skeletonCssContent.includes('@keyframes fadeOut')
 ) {
   pass(
-    'Public First Paint Contract: complete allowlisted settings unlock the injected public render, refresh in the background, preserve maintenance authentication gating, hold account controls until session restoration resolves, delay transient route feedback, and use image placeholders inside real theme geometry.'
+    'Public First Paint Contract: complete allowlisted settings unlock the injected public render, refresh in the background, preserve maintenance authentication gating, hold account controls until session restoration resolves, suppress simulated progress on first mount, use one delayed disposable spinner for cold starts and unresolved public routes, and use image placeholders inside real theme geometry.'
   );
 } else {
   fail(
-    'Public First Paint Contract: injected settings, private-route gating, background refresh, account-session placeholders, delayed route feedback, shared projection ownership, or bundled theme placeholder coverage can drift.'
+    'Public First Paint Contract: injected settings, private-route gating, background refresh, account-session placeholders, initial route-progress suppression, delayed route feedback, shared projection ownership, or bundled theme placeholder coverage can drift.'
   );
 }
 
@@ -13362,7 +13419,8 @@ const sharedReadTimeContract =
   contentMetricsHelperContent.includes('function voncms_content_character_count') &&
   contentMetricsHelperContent.includes("mb_strlen($content, 'UTF-8')") &&
   contentMetricsHelperContent.includes('function voncms_format_read_time') &&
-  contentMetricsHelperContent.includes('/ 1000') &&
+  contentMetricsHelperContent.includes('/ 1500') &&
+  contentMetricsHelperContent.includes('Roughly 250 words per minute') &&
   getPostContent.includes("voncms_calculate_read_time((string) ($normalized['content'] ?? ''))") &&
   publicIndexReadTimeContent.includes(
     "voncms_calculate_read_time((string) ($post['content'] ?? ''))"
@@ -13374,7 +13432,7 @@ if (
   sharedReadTimeContract
 ) {
   pass(
-    'Read Time Contract: list, homepage SSR, and single-post payloads share one character contract while discovery queries avoid transferring full article bodies.'
+    'Read Time Contract: list, homepage SSR, and single-post payloads share the calibrated 250-word-per-minute character contract while discovery queries avoid transferring full article bodies.'
   );
 } else {
   fail(
@@ -17716,13 +17774,75 @@ $commented = "# BEGIN VonCMS\\n"
 if (SecurityHelper::hasRequiredHtaccessDirectives($commented)) {
   exit(5);
 }
+$legacyHostRedirect = str_replace(
+  '# END VonCMS',
+  "RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]\n# END VonCMS",
+  $valid
+);
+if (
+  !SecurityHelper::hasUnsafeHostDerivedRedirect($legacyHostRedirect) ||
+  SecurityHelper::hasRequiredHtaccessDirectives($legacyHostRedirect)
+) {
+  exit(6);
+}
+$legacyWwwRedirect = str_replace(
+  '# END VonCMS',
+  "RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]\n# END VonCMS",
+  $valid
+);
+if (
+  !SecurityHelper::hasUnsafeHostDerivedRedirect($legacyWwwRedirect) ||
+  SecurityHelper::hasRequiredHtaccessDirectives($legacyWwwRedirect)
+) {
+  exit(7);
+}
+$legacyPrefixedRedirect = str_replace(
+  '# END VonCMS',
+  "RewriteRule ^ https://www.%1%{REQUEST_URI} [L,R=301]\n# END VonCMS",
+  $valid
+);
+if (
+  !SecurityHelper::hasUnsafeHostDerivedRedirect($legacyPrefixedRedirect) ||
+  SecurityHelper::hasRequiredHtaccessDirectives($legacyPrefixedRedirect)
+) {
+  exit(8);
+}
+$legacyUserInfoRedirect = str_replace(
+  '# END VonCMS',
+  "RewriteRule ^ https://fixed.example@%{HTTP_HOST}%{REQUEST_URI} [L,R=301]\n# END VonCMS",
+  $valid
+);
+if (
+  !SecurityHelper::hasUnsafeHostDerivedRedirect($legacyUserInfoRedirect) ||
+  SecurityHelper::hasRequiredHtaccessDirectives($legacyUserInfoRedirect)
+) {
+  exit(9);
+}
+$outsideManagedRedirect = "RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]\n" . $valid;
+if (
+  SecurityHelper::hasUnsafeHostDerivedRedirect($outsideManagedRedirect) ||
+  !SecurityHelper::hasRequiredHtaccessDirectives($outsideManagedRedirect)
+) {
+  exit(10);
+}
+$commentedLegacyRedirect = str_replace(
+  '# END VonCMS',
+  "# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]\n# END VonCMS",
+  $valid
+);
+if (
+  SecurityHelper::hasUnsafeHostDerivedRedirect($commentedLegacyRedirect) ||
+  !SecurityHelper::hasRequiredHtaccessDirectives($commentedLegacyRedirect)
+) {
+  exit(11);
+}
 echo 'ok';`,
     ],
     { encoding: 'utf8' }
   );
   if (htaccessIntegrityProbe.status === 0 && htaccessIntegrityProbe.stdout.trim() === 'ok') {
     pass(
-      'Managed .htaccess Integrity Runtime: the canonical block passes while marker-only, duplicate, and commented-out blocks fail.'
+      'Managed .htaccess Integrity Runtime: the canonical block passes, legacy Host-derived redirect variants inside it fail, and preserved custom rules outside its ownership remain out of repair scope.'
     );
   } else {
     fail(
@@ -18269,17 +18389,40 @@ if (
 ) {
   exit(14);
 }
+$publicRoot = ${JSON.stringify(resolveFromRoot('public'))};
+$expectedLocalPath = realpath(${JSON.stringify(resolveFromRoot('public/seo_schema_helper.php'))});
+if (
+  voncms_absolute_public_url('/blog/uploads/story.webp', 'https://example.com/blog') !==
+    'https://example.com/blog/uploads/story.webp' ||
+  voncms_resolve_local_public_path(
+    '/blog/seo_schema_helper.php',
+    'https://example.com/blog',
+    $publicRoot
+  ) !== $expectedLocalPath ||
+  voncms_resolve_local_public_path(
+    'https://cdn.example/seo_schema_helper.php',
+    'https://example.com/blog',
+    $publicRoot
+  ) !== '' ||
+  voncms_resolve_local_public_path(
+    '../seo_schema_helper.php',
+    'https://example.com/blog',
+    $publicRoot
+  ) !== ''
+) {
+  exit(32);
+}
 echo 'ok';`,
     ],
     { encoding: 'utf8' }
   );
   if (seoSchemaHelperProbe.status === 0 && seoSchemaHelperProbe.stdout.trim() === 'ok') {
     pass(
-      'SEO Schema Helper Runtime: PHP language rejection, entity decoding, no-JavaScript paragraph boundaries, Unicode truncation, detailed article image, category ItemList, and stable Organization/WebSite identity output match the public SSR contract.'
+      'SEO Schema Helper Runtime: PHP language rejection, entity decoding, no-JavaScript paragraph boundaries, Unicode truncation, detailed article image, subfolder-safe local media, category ItemList, and stable Organization/WebSite identity output match the public SSR contract.'
     );
   } else {
     fail(
-      `SEO Schema Helper Runtime: schema language, entity, no-JavaScript paragraphs, Unicode, detailed article image, category ItemList, or stable site identity behavior drifted. ${(seoSchemaHelperProbe.stderr || seoSchemaHelperProbe.stdout || '').trim()}`
+      `SEO Schema Helper Runtime: schema language, entity, no-JavaScript paragraphs, Unicode, detailed article image, subfolder-safe local media, category ItemList, or stable site identity behavior drifted. ${(seoSchemaHelperProbe.stderr || seoSchemaHelperProbe.stdout || '').trim()}`
     );
   }
 
@@ -18295,6 +18438,48 @@ if (
   voncms_request_path('https://example.test/blog//story?x=1') !== '/blog//story'
 ) {
   exit(2);
+}
+if (
+  voncms_normalize_public_base_url('https://Example.com/blog/') !== 'https://example.com/blog' ||
+  voncms_normalize_public_base_url('https://user@example.com/blog') !== '' ||
+  voncms_normalize_public_base_url('https://example.com/blog?host=other') !== '' ||
+  voncms_normalize_public_base_url('javascript://example.com') !== ''
+) {
+  exit(22);
+}
+$_SERVER['HTTP_HOST'] = 'attacker.example';
+if (voncms_resolve_public_base_url('', '/') !== '') {
+  exit(23);
+}
+$_SERVER['HTTP_HOST'] = 'localhost:8080';
+if (voncms_resolve_public_base_url('', '/blog/') !== 'http://localhost:8080/blog') {
+  exit(24);
+}
+$_SERVER['HTTP_HOST'] = 'attacker.example';
+if (voncms_resolve_public_base_url('https://news.example/blog/', '/') !== 'https://news.example/blog') {
+  exit(25);
+}
+if (
+  voncms_sitemap_page_count(0) !== 1 ||
+  voncms_sitemap_page_count(1000) !== 1 ||
+  voncms_sitemap_page_count(1001) !== 2
+) {
+  exit(30);
+}
+$emptyWindow = voncms_sitemap_page_window(1, 0);
+$firstFullWindow = voncms_sitemap_page_window(1, 1000);
+$secondWindow = voncms_sitemap_page_window(2, 1001);
+$overflowWindow = voncms_sitemap_page_window(3, 1001);
+if (
+  !$emptyWindow['valid'] ||
+  $emptyWindow['offset'] !== 0 ||
+  !$firstFullWindow['valid'] ||
+  $firstFullWindow['limit'] !== 1000 ||
+  !$secondWindow['valid'] ||
+  $secondWindow['offset'] !== 1000 ||
+  $overflowWindow['valid']
+) {
+  exit(31);
 }
 if (voncms_match_seo_endpoint('/robots.txt?refresh=1', '/') !== 'robots.php') {
   exit(3);
@@ -18578,6 +18763,64 @@ echo 'ok';`,
       `SEO Route Helper Runtime: Source or Deploy route/metadata behavior drifted. Source: ${(seoRouteHelperProbe.stderr || seoRouteHelperProbe.stdout || '').trim()} Deploy: ${(seoRouteHelperDistProbe.stderr || seoRouteHelperDistProbe.stdout || '').trim()}`
     );
   }
+
+  const sitemapSourceContent = read('public/sitemap.php');
+  const sitemapDeployContent = read('dist/sitemap.php');
+  const sitemapChunkContract = (content) =>
+    content.includes('$pagePages = voncms_sitemap_page_count(') &&
+    content.includes("'/sitemap.xml?type=pages&amp;page=' .") &&
+    content.includes("if (!$pageWindow['valid'])") &&
+    content.includes("slug <> 'home'") &&
+    content.includes("bindValue(':limit', MAX_URLS_PER_SITEMAP, PDO::PARAM_INT)") &&
+    content.includes("bindValue(':offset', $offset, PDO::PARAM_INT)");
+  if (sitemapChunkContract(sitemapSourceContent) && sitemapChunkContract(sitemapDeployContent)) {
+    pass(
+      'SEO Sitemap Page Chunk Contract: Source and Deploy split public pages into bounded chunks, exclude the homepage alias, and reject overflow chunks.'
+    );
+  } else {
+    fail(
+      'SEO Sitemap Page Chunk Contract: Source or Deploy can still emit an unbounded page sitemap or accept an overflow chunk.'
+    );
+  }
+
+  assertIncludes(
+    'SEO Canonical Origin Failure Contract',
+    [
+      read('public/index.php'),
+      read('public/public_render_helper.php'),
+      read('public/sitemap.php'),
+      read('public/robots.php'),
+      read('public/rss.php'),
+      read('public/llms.php'),
+      read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+    ].join('\n'),
+    [
+      "voncms_resolve_public_base_url('', $basePath)",
+      "if ($domainUrl === '')",
+      "if ($sitemapEnabled && $siteUrl !== '')",
+      "throw new RuntimeException('Canonical Domain URL is not configured')",
+      "header('Retry-After: 300')",
+      'normalizeConfiguredCanonicalBase(settings.domainUrl)',
+      'configuredBase || localBrowserCanonicalBase(basePrefix)',
+      "ensureMeta('robots', 'name', 'noindex, nofollow')",
+      'clearUrlBearingSeo()',
+    ],
+    'SEO Canonical Origin Failure Contract: public metadata and crawler documents use a configured origin, preserve local development, and fail closed when a production canonical URL is absent.',
+    'SEO Canonical Origin Failure Contract: a public crawler surface can still trust an arbitrary production Host header or publish an untrusted canonical URL.'
+  );
+
+  assertIncludes(
+    'RSS Subfolder Media Contract',
+    read('public/rss.php'),
+    [
+      "require_once __DIR__ . '/seo_schema_helper.php'",
+      'voncms_absolute_public_url($url, $domainUrl)',
+      'voncms_absolute_public_url($imgPath, $domainUrl)',
+      "voncms_resolve_local_public_path($post['image_url'], $domainUrl, __DIR__)",
+    ],
+    'RSS Subfolder Media Contract: content images and enclosures share the base-path-aware URL resolver and local paths strip the installation prefix.',
+    'RSS Subfolder Media Contract: subfolder image URLs can duplicate the install path or enclosure lookup can point outside the public root.'
+  );
 
   const seoRouteHelperDirectProbe = spawnSync(
     phpBinary,
@@ -19228,6 +19471,41 @@ echo 'unguarded';`,
   } else {
     fail(
       `Content Metrics Helper Direct Access Runtime: direct execution can pass the helper guard. ${(contentMetricsHelperDirectProbe.stderr || contentMetricsHelperDirectProbe.stdout || '').trim()}`
+    );
+  }
+
+  const contentMetricsRuntimeProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = 'voncms-content-metrics-fixture.php';
+require ${JSON.stringify(resolveFromRoot('public/content_metrics_helper.php'))};
+echo json_encode([
+  voncms_format_read_time(0),
+  voncms_format_read_time(1500),
+  voncms_format_read_time(1501),
+  voncms_calculate_read_time(str_repeat('a', 1501)),
+]);`,
+    ],
+    { encoding: 'utf8' }
+  );
+  let contentMetricsRuntimeResult = null;
+  try {
+    contentMetricsRuntimeResult = JSON.parse(contentMetricsRuntimeProbe.stdout.trim());
+  } catch {
+    contentMetricsRuntimeResult = null;
+  }
+  if (
+    contentMetricsRuntimeProbe.status === 0 &&
+    JSON.stringify(contentMetricsRuntimeResult) ===
+      JSON.stringify(['1 min read', '1 min read', '2 min read', '2 min read'])
+  ) {
+    pass(
+      'Content Metrics Runtime: the one-minute floor and calibrated 1,500-character boundary remain exact.'
+    );
+  } else {
+    fail(
+      `Content Metrics Runtime: the calibrated read-time boundary drifted. ${(contentMetricsRuntimeProbe.stderr || contentMetricsRuntimeProbe.stdout || '').trim()}`
     );
   }
 

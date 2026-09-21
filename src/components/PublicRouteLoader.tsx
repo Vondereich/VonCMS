@@ -1,6 +1,6 @@
 import React from 'react';
 
-const PUBLIC_ROUTE_LOADER_DELAY_MS = 180;
+const PUBLIC_ROUTE_LOADER_DELAY_MS = 300;
 
 const PublicRouteLoader: React.FC = () => {
   const [isVisible, setIsVisible] = React.useState(false);
@@ -20,7 +20,7 @@ const PublicRouteLoader: React.FC = () => {
     >
       {isVisible ? (
         <>
-          <span className="voncms-public-route-loader-bar" aria-hidden="true" />
+          <span className="voncms-loader-spinner" aria-hidden="true" />
           <span className="sr-only">Loading content</span>
         </>
       ) : null}

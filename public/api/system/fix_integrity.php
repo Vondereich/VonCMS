@@ -98,6 +98,7 @@ function analyzeHtaccessState($filePath, $label)
     'endMarkers' => 0,
     'legacyTemplate' => false,
     'corruptedManagedFragment' => false,
+    'unsafeHostRedirect' => false,
     'healthy' => false,
     'issues' => [],
   ];
@@ -118,6 +119,7 @@ function analyzeHtaccessState($filePath, $label)
   $state['endMarkers'] = preg_match_all('/^[ \t]*# END VonCMS\r?$/m', $content);
   $state['legacyTemplate'] = strpos($content, '## VonCMS Universal .htaccess') !== false;
   $state['corruptedManagedFragment'] = hasManagedFragmentNoise($content);
+  $state['unsafeHostRedirect'] = SecurityHelper::hasUnsafeHostDerivedRedirect($content);
   $hasRequiredDirectives = SecurityHelper::hasRequiredHtaccessDirectives($content);
 
   if ($state['beginMarkers'] === 0 || $state['endMarkers'] === 0) {
@@ -135,7 +137,11 @@ function analyzeHtaccessState($filePath, $label)
   if ($state['corruptedManagedFragment']) {
     $state['issues'][] = 'Corrupted managed fragment detected before the first VonCMS block.';
   }
-  if (!$hasRequiredDirectives) {
+  if ($state['unsafeHostRedirect']) {
+    $state['issues'][] =
+      'Unsafe legacy Host-derived redirect detected inside the VonCMS managed block. Run Repair .htaccess to replace it.';
+  }
+  if (!$hasRequiredDirectives && !$state['unsafeHostRedirect']) {
     $state['issues'][] = 'Managed VonCMS block is missing required routing or security directives.';
   }
 

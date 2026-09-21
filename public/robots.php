@@ -6,13 +6,16 @@
 ob_start();
 require_once __DIR__ . '/von_config.php';
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/seo_route_helper.php';
 ob_end_clean();
 
 // ============================================
 // URL Detection (Agnostic Birthplace)
 // ============================================
-$protocol = is_https() ? 'https://' : 'http://';
-$host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+$scriptPath = (string) ($_SERVER['SCRIPT_NAME'] ?? '/robots.php');
+$scriptDir = str_replace('\\', '/', dirname($scriptPath));
+$requestBasePath =
+  $scriptDir === '/' || $scriptDir === '.' ? '/' : '/' . trim($scriptDir, '/') . '/';
 
 // Try to get base URL from settings first
 $baseUrl = '';
@@ -30,16 +33,8 @@ if (isset($pdo)) {
   }
 }
 
-// Fallback to auto-detection (Same logic as index.php/sitemap.php)
-if (empty($baseUrl)) {
-  $scriptPath = $_SERVER['SCRIPT_NAME'] ?? '';
-  $dir = str_replace('\\', '/', dirname($scriptPath));
-  $dir = $dir === '/' ? '' : $dir;
-  $baseUrl = $protocol . $host . $dir;
-}
-
-$siteUrl = rtrim($baseUrl, '/');
-$basePath = parse_url($siteUrl, PHP_URL_PATH) ?: '';
+$siteUrl = voncms_resolve_public_base_url($baseUrl, $requestBasePath);
+$basePath = $siteUrl !== '' ? (parse_url($siteUrl, PHP_URL_PATH) ?: '') : $requestBasePath;
 $basePath = rtrim($basePath, '/') . '/';
 if ($basePath === '//') {
   $basePath = '/';
@@ -186,7 +181,7 @@ if (isset($_GET['default']) && $_GET['default'] === 'json') {
     'success' => true,
     'robots' => $DEFAULT_ROBOTS,
     'sitemapEnabled' => $sitemapEnabled,
-    'sitemap' => $sitemapEnabled ? "$siteUrl/sitemap.xml" : null,
+    'sitemap' => $sitemapEnabled && $siteUrl !== '' ? "$siteUrl/sitemap.xml" : null,
   ]);
   exit();
 }
@@ -205,7 +200,7 @@ $robotsContent = stripRobotsSitemapDirectives($robotsContent);
 
 echo $robotsContent;
 
-if ($sitemapEnabled) {
+if ($sitemapEnabled && $siteUrl !== '') {
   $sitemapUrl = "$siteUrl/sitemap.xml";
   $hasCanonicalSitemap = preg_match(
     '/^\s*Sitemap:\s*' . preg_quote($sitemapUrl, '/') . '\s*$/mi',

@@ -30,16 +30,9 @@ DirectoryIndex index.php index.html
   # NORMAL FLOW BELOW
   # =====================================================
 
-  # FORCE HTTPS (skip on localhost for local dev)
-  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]
-  RewriteCond %{HTTPS} off
-  RewriteCond %{HTTP:X-Forwarded-Proto} !https
-  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-  # WWW CANONICALIZATION (Choose ONE option below)
-  # Option A: Force non-www (DEFAULT — strip www)
-  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
-  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+  # Configure HTTPS and canonical-host redirects with a fixed hostname at the
+  # hosting panel, virtual host, reverse proxy, or CDN. Never construct an
+  # absolute redirect target from the request Host header.
 
   # Auto-detect base path (no manual RewriteBase needed!)
   RewriteCond %{REQUEST_URI}::$1 ^(/.+)/(.*)::\2$

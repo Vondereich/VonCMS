@@ -25,7 +25,10 @@ function voncms_content_character_count(string $content): int
 
 function voncms_format_read_time(int $characterCount): string
 {
-  $minutes = max(1, (int) ceil(max(0, $characterCount) / 1000));
+  // Roughly 250 words per minute at an average of six characters per word,
+  // including whitespace. Keep this character-based so list queries can use
+  // CHAR_LENGTH(content) without transferring full article bodies.
+  $minutes = max(1, (int) ceil(max(0, $characterCount) / 1500));
   return $minutes . ' min read';
 }
 

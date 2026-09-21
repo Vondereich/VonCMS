@@ -47,13 +47,62 @@
         background-color: #181819;
         color: #f1f5f9;
       }
+
+      /* Keep this boot-loader block aligned with public/index.php. */
+      .voncms-boot-canvas {
+        display: grid;
+        min-height: 100vh;
+        min-height: 100dvh;
+        place-items: center;
+        background: inherit;
+      }
+      .voncms-loader-spinner {
+        width: 26px;
+        height: 26px;
+        border: 2px solid #d8dce2;
+        border-top-color: #64748b;
+        border-radius: 50%;
+        animation: voncms-loader-spin 900ms linear infinite;
+      }
+      html.dark .voncms-loader-spinner {
+        border-color: #34343a;
+        border-top-color: #b4b4bd;
+      }
+      .voncms-boot-spinner {
+        opacity: 0;
+        animation:
+          voncms-loader-spin 900ms linear infinite,
+          voncms-loader-reveal 160ms 300ms ease-out forwards;
+      }
+      @keyframes voncms-loader-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes voncms-loader-reveal {
+        to {
+          opacity: 0.74;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .voncms-loader-spinner {
+          animation: none;
+        }
+        .voncms-boot-spinner {
+          opacity: 0.74;
+        }
+      }
     </style>
   </head>
 
   <body
     class="bg-slate-50 dark:bg-[#181819] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-200"
   >
-    <div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>
+    <div id="root">
+      <div class="voncms-boot-canvas" aria-hidden="true">
+        <span class="voncms-loader-spinner voncms-boot-spinner"></span>
+      </div>
+    </div>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

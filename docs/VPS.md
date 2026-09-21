@@ -167,7 +167,7 @@ If your panel image already enables most of these, just verify them before deplo
 3. Choose `Let's Encrypt`.
 4. Apply the certificate.
 
-Once SSL is active, open the site with `https://`. After confirming the certificate works, enable `Force HTTPS` for the site in aaPanel. Choose either the root domain or `www` as the canonical hostname and redirect the other hostname to it. The Apache `.htaccess` defaults to non-`www`, but Nginx does not read that rule.
+Once SSL is active, open the site with `https://`. After confirming the certificate works, enable `Force HTTPS` for the site in aaPanel. Choose either the root domain or `www` as the canonical hostname and redirect the other hostname to it using that fixed domain. VonCMS does not generate an authority-changing redirect from the incoming request `Host`; this remains the responsibility of aaPanel, the virtual host, reverse proxy, or CDN on both Apache and Nginx deployments.
 
 ## Step 7: Upload VonCMS
 

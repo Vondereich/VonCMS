@@ -4,7 +4,7 @@
  * VonCMS .htaccess Repair Tool
  * Usage: POST from an authenticated admin session with a CSRF token
  *
- * Purpose: Repairs VonCMS-managed .htaccess blocks and the Uploads Shield.
+ * Purpose: Repairs VonCMS-managed .htaccess blocks and runtime-data shields.
  */
 
 define('IN_API', true);
@@ -93,16 +93,9 @@ function getHtaccessContent($prefix)
     # NORMAL FLOW BELOW
     # =====================================================
 
-    # FORCE HTTPS (skip on localhost for local dev)
-    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]
-    RewriteCond %{HTTPS} off
-    RewriteCond %{HTTP:X-Forwarded-Proto} !https
-    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-    # WWW CANONICALIZATION (Choose ONE option below)
-    # Option A: Force non-www (DEFAULT - strip www)
-    RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
-    RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+    # Configure HTTPS and canonical-host redirects with a fixed hostname at the
+    # hosting panel, virtual host, reverse proxy, or CDN. Never construct an
+    # absolute redirect target from the request Host header.
 
     # Auto-detect base path (no manual RewriteBase needed!)
     RewriteCond %{REQUEST_URI}::\$1 ^(/.+)/(.*)::\\2$
@@ -491,6 +484,47 @@ function repairUploadsShield($publicPath, $projectRoot)
   ];
 }
 
+/**
+ * @param string $publicPath
+ * @return array{status: string, path: string}
+ */
+function repairDataShield($publicPath)
+{
+  $dataDir = $publicPath . '/data';
+  if (!is_dir($dataDir)) {
+    return [
+      'status' => 'skipped',
+      'path' => $dataDir,
+    ];
+  }
+
+  $shieldPath = $dataDir . '/.htaccess';
+  $shieldRule =
+    "<IfModule !mod_authz_core.c>\n  Deny from all\n</IfModule>\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n\n# Prevent directory listing\nOptions -Indexes\n";
+
+  if (file_exists($shieldPath)) {
+    $existing = (string) @file_get_contents($shieldPath);
+    if (rtrim($existing) === rtrim($shieldRule)) {
+      return [
+        'status' => 'unchanged',
+        'path' => $shieldPath,
+      ];
+    }
+  }
+
+  if (!writeHtaccessAtomically($shieldPath, $shieldRule, $shieldPath . '.bak')) {
+    return [
+      'status' => 'failed',
+      'path' => $shieldPath,
+    ];
+  }
+
+  return [
+    'status' => 'written',
+    'path' => $shieldPath,
+  ];
+}
+
 $repairs = [];
 $changesApplied = false;
 $failed = false;
@@ -537,6 +571,19 @@ if ($uploadsRepair['status'] === 'written') {
   $repairs[] = 'INFO: Uploads directory not found. Shield repair skipped.';
 } else {
   $repairs[] = 'WARN: Failed to repair Uploads Shield .htaccess.';
+  $failed = true;
+}
+
+$dataRepair = repairDataShield($publicPath);
+if ($dataRepair['status'] === 'written') {
+  $repairs[] = 'OK: Runtime data .htaccess shield repaired.';
+  $changesApplied = true;
+} elseif ($dataRepair['status'] === 'unchanged') {
+  $repairs[] = 'INFO: Runtime data .htaccess shield was already healthy.';
+} elseif ($dataRepair['status'] === 'skipped') {
+  $repairs[] = 'INFO: Runtime data directory not found. Shield repair skipped.';
+} else {
+  $repairs[] = 'WARN: Failed to repair runtime data .htaccess shield.';
   $failed = true;
 }
 

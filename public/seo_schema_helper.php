@@ -191,6 +191,68 @@ if (!function_exists('voncms_absolute_public_url')) {
   }
 }
 
+if (!function_exists('voncms_resolve_local_public_path')) {
+  /**
+   * Resolve a same-origin public URL beneath one installation root.
+   *
+   * @param mixed $url
+   * @param string $domainUrl
+   * @param string $publicRoot
+   * @return string
+   */
+  function voncms_resolve_local_public_path($url, $domainUrl, $publicRoot): string
+  {
+    $absoluteUrl = voncms_absolute_public_url($url, $domainUrl);
+    $mediaParts = parse_url($absoluteUrl);
+    $domainParts = parse_url($domainUrl);
+    if (!is_array($mediaParts) || !is_array($domainParts)) {
+      return '';
+    }
+
+    $mediaPort = $mediaParts['port'] ?? (($mediaParts['scheme'] ?? '') === 'https' ? 443 : 80);
+    $domainPort = $domainParts['port'] ?? (($domainParts['scheme'] ?? '') === 'https' ? 443 : 80);
+    if (
+      strcasecmp(
+        (string) ($mediaParts['scheme'] ?? ''),
+        (string) ($domainParts['scheme'] ?? ''),
+      ) !== 0 ||
+      strcasecmp((string) ($mediaParts['host'] ?? ''), (string) ($domainParts['host'] ?? '')) !==
+        0 ||
+      (int) $mediaPort !== (int) $domainPort
+    ) {
+      return '';
+    }
+
+    $mediaPath = '/' . ltrim((string) ($mediaParts['path'] ?? ''), '/');
+    $domainPath = '/' . trim((string) ($domainParts['path'] ?? ''), '/');
+    if (
+      $domainPath !== '/' &&
+      ($mediaPath === $domainPath || str_starts_with($mediaPath, $domainPath . '/'))
+    ) {
+      $mediaPath = substr($mediaPath, strlen($domainPath)) ?: '/';
+    }
+
+    $relativePath = ltrim($mediaPath, '/');
+    if ($relativePath === '' || preg_match('#(^|/)\.\.?(/|$)#', $relativePath)) {
+      return '';
+    }
+
+    $root = realpath($publicRoot);
+    $resolved = realpath(
+      rtrim($publicRoot, '/\\') .
+        DIRECTORY_SEPARATOR .
+        str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+    );
+    if ($root === false || $resolved === false) {
+      return '';
+    }
+
+    $rootPrefix = rtrim(str_replace('\\', '/', $root), '/') . '/';
+    $normalizedResolved = str_replace('\\', '/', $resolved);
+    return str_starts_with($normalizedResolved, $rootPrefix) ? $resolved : '';
+  }
+}
+
 if (!function_exists('voncms_normalize_public_media_url')) {
   /**
    * Validate a public media URL without fetching it. Local root/subfolder paths

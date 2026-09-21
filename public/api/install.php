@@ -550,6 +550,8 @@ function writeManagedHtaccess($filePath, $htaccessContent)
 }
 
 if (file_put_contents($configFile, $configContent)) {
+  $installWarnings = [];
+
   // Also update site_settings.json with the Site Title if possible,
   // but currently that's handled by Node/PHP API separate from this config.
   // We will return success.
@@ -589,16 +591,9 @@ if (file_put_contents($configFile, $configContent)) {
     # NORMAL FLOW BELOW
     # =====================================================
 
-    # FORCE HTTPS (skip on localhost for local dev)
-    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]
-    RewriteCond %{HTTPS} off
-    RewriteCond %{HTTP:X-Forwarded-Proto} !https
-    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-    # WWW CANONICALIZATION (Choose ONE option below)
-    # Option A: Force non-www (DEFAULT - strip www)
-    RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
-    RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+    # Configure HTTPS and canonical-host redirects with a fixed hostname at the
+    # hosting panel, virtual host, reverse proxy, or CDN. Never construct an
+    # absolute redirect target from the request Host header.
 
     # Auto-detect base path (no manual RewriteBase needed!)
     RewriteCond %{REQUEST_URI}::$1 ^(/.+)/(.*)::\\2$
@@ -706,7 +701,10 @@ if (file_put_contents($configFile, $configContent)) {
   EOT;
 
   // Write .htaccess to parent directory (root where index.php is)
-  writeManagedHtaccess(__DIR__ . '/../.htaccess', $htaccessContent);
+  if (writeManagedHtaccess(__DIR__ . '/../.htaccess', $htaccessContent) === false) {
+    $installWarnings[] =
+      'Apache rules could not be written automatically. Check .htaccess permissions or run Repair .htaccess after signing in.';
+  }
 
   // 7. Generate Uploads Shield
   $uploadsShieldPath = __DIR__ . '/../public/uploads';
@@ -717,14 +715,23 @@ if (file_put_contents($configFile, $configContent)) {
   if (is_dir($uploadsShieldPath)) {
     $shieldRule =
       "# VonCMS Uploads Security v2\n# Block all script execution in this directory\n\n<FilesMatch \"(?i)\.(php|php[0-9]+|phtml|pht|phar|phps|pl|py|jsp|asp|aspx|htm|html|shtml|sh|cgi|js|exe)$\">\n    Require all denied\n</FilesMatch>\n\nOptions -Indexes\n";
-    file_put_contents($uploadsShieldPath . '/.htaccess', $shieldRule);
+    if (file_put_contents($uploadsShieldPath . '/.htaccess', $shieldRule) === false) {
+      $installWarnings[] =
+        'The uploads execution shield could not be written. Check uploads/.htaccess permissions before accepting uploads.';
+    }
   }
 
   // 7. Create Installer Lock File (Security Patch)
   voncms_mark_publication_columns_ready();
   @file_put_contents(__DIR__ . '/../install.lock', 'VonCMS Installed: ' . date('Y-m-d H:i:s'));
 
-  echo json_encode(['success' => true, 'message' => 'Installation successful! Config written.']);
+  echo json_encode([
+    'success' => true,
+    'message' => empty($installWarnings)
+      ? 'Installation successful! Config written.'
+      : 'Installation completed with server-rule warnings.',
+    'warnings' => $installWarnings,
+  ]);
 } else {
   ResponseHelper::sendError('Failed to write von_config.php. Check permissions.', 500);
 }

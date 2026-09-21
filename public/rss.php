@@ -10,6 +10,7 @@
 require_once __DIR__ . '/von_config.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/seo_route_helper.php';
+require_once __DIR__ . '/seo_schema_helper.php';
 
 header('Content-Type: application/xml; charset=utf-8');
 
@@ -41,16 +42,16 @@ try {
 
   $siteName = $rows['site_name'] ?? 'My Website';
   $siteDesc = $rows['site_description'] ?? '';
-  $domainUrl = $rows['domain_url'] ?? '';
+  $configuredDomainUrl = $rows['domain_url'] ?? '';
   $siteLanguage = trim((string) ($rows['site_language'] ?? ''));
 
-  // Fallback domain URL
-  if (!$domainUrl) {
-    $protocol = is_https() ? 'https://' : 'http://';
-    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-    $domainUrl = rtrim($protocol . $host . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'), '/');
+  $scriptPath = (string) ($_SERVER['SCRIPT_NAME'] ?? '/rss.php');
+  $scriptDir = str_replace('\\', '/', dirname($scriptPath));
+  $rssBasePath = $scriptDir === '/' || $scriptDir === '.' ? '/' : '/' . trim($scriptDir, '/') . '/';
+  $domainUrl = voncms_resolve_public_base_url($configuredDomainUrl, $rssBasePath);
+  if ($domainUrl === '') {
+    throw new RuntimeException('Canonical Domain URL is not configured');
   }
-  $domainUrl = rtrim($domainUrl, '/');
 
   // If multiple languages (comma-separated), take the first as primary
   $primaryLanguage = preg_split('/\s*,\s*/', $siteLanguage, 2)[0];
@@ -78,7 +79,7 @@ try {
       return $scheme . ':' . $url;
     }
 
-    return $domainUrl . '/' . ltrim($url, '/');
+    return voncms_absolute_public_url($url, $domainUrl);
   };
 
   /**
@@ -336,19 +337,16 @@ try {
 <?php foreach ($posts as $post):
 
   // Normalize <img src> to absolute URLs when path is relative
-  $scheme = is_https() ? 'https://' : 'http://';
-  $currentHost = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-  $schemeAndHost = $scheme . $currentHost;
   $renderedContent = preg_replace_callback(
     '/(<img\b[^>]*src=(["\']))(\/(?!\/)[^"\']+)(\2)/i',
     /**
      * @param array<int, string> $m
      * @return string
      */
-    function ($m) use ($schemeAndHost) {
+    function ($m) use ($domainUrl) {
       $quote = $m[2];
       $imgPath = $m[3];
-      return $m[1] . $schemeAndHost . $imgPath . $quote;
+      return $m[1] . voncms_absolute_public_url($imgPath, $domainUrl) . $quote;
     },
     $post['content'],
   );
@@ -395,8 +393,8 @@ try {
 
   // Only output enclosure for local images (external/CDN images can't have known file size)
   $fileSize = 0;
-  $localPath = __DIR__ . '/' . ltrim(parse_url($post['image_url'], PHP_URL_PATH) ?? '', '/');
-  if (file_exists($localPath)) {
+  $localPath = voncms_resolve_local_public_path($post['image_url'], $domainUrl, __DIR__);
+  if ($localPath !== '' && file_exists($localPath)) {
     $fileSize = filesize($localPath);
   }
   if ($fileSize > 0): ?>
@@ -419,6 +417,8 @@ endforeach; ?>
 <?php
 } catch (Throwable $e) {
   error_log('RSS feed error: ' . $e->getMessage());
+  http_response_code(503);
+  header('Retry-After: 300');
   header('Content-Type: text/xml; charset=utf-8');
   echo '<?xml version="1.0" encoding="UTF-8"?>';
   ?>

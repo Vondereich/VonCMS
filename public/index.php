@@ -367,12 +367,10 @@ if (voncms_is_private_spa_shell_route($path)) {
   $seoRobots = 'noindex, follow';
 }
 
-// Initialize domain URL with safe default (fallback)
-// This ensures $domainUrl is available even if DB connection fails (fresh install)
-$protocol = is_https() ? 'https://' : 'http://';
-$host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
-$domainUrl = rtrim($protocol . $host . $basePath, '/');
-$seoUrl = $domainUrl . '/'; // Homepage is the canonical directory URL.
+// Public installs use the configured canonical Domain URL. Request-derived
+// origins remain available only for loopback/private development hosts.
+$domainUrl = voncms_resolve_public_base_url('', $basePath);
+$seoUrl = $domainUrl !== '' ? $domainUrl . '/' : '';
 
 // Try to load site settings from database
 try {
@@ -420,6 +418,12 @@ try {
       $seo = $runtimeContext['seo'];
       $articleSchemaType = $runtimeContext['articleSchemaType'];
       $schemaData = $runtimeContext['schemaData'];
+
+      if ($domainUrl === '') {
+        $seoRobots = 'noindex, nofollow';
+        $seoUrl = '';
+        $schemaData = null;
+      }
 
       if ($isCategoryLanding && voncms_is_homepage_path($path)) {
         $selectedCategoryName = $selectedCategoryParam;
@@ -812,6 +816,15 @@ try {
   // Silently fail - use defaults
 }
 
+// A public request without a configured canonical origin must not publish
+// request-Host-derived canonical or schema URLs. Local development retains its
+// exact loopback/private fallback through voncms_resolve_public_base_url().
+if ($domainUrl === '') {
+  $seoRobots = 'noindex, nofollow';
+  $seoUrl = '';
+  $schemaData = null;
+}
+
 $socialSchema = voncms_enrich_public_social_schema(
   $schemaData,
   [
@@ -876,9 +889,11 @@ $cssFile = $publicAssets['cssFile'];
   <meta property="og:image:height" content="<?php echo $seoImageHeight; ?>">
   <?php endif; ?>
   <?php endif; ?>
+  <?php if ($domainUrl !== '' && $seoUrl !== ''): ?>
   <meta property="og:url" content="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
   <link rel="canonical" href="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
-  <?php if (isset($domainUrl) && !empty($domainUrl)): ?>
+  <?php endif; ?>
+  <?php if (isset($domainUrl) && $domainUrl !== ''): ?>
   <link rel="alternate" type="application/rss+xml" href="<?php echo htmlspecialchars($domainUrl, ENT_COMPAT, 'UTF-8', false); ?>/rss.xml" title="<?php echo htmlspecialchars($siteName ?? 'RSS Feed', ENT_COMPAT, 'UTF-8', false); ?> RSS Feed">
   <?php endif; ?>
   <meta property="og:site_name" content="<?php echo htmlspecialchars($siteName ?? $seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
@@ -932,7 +947,7 @@ $cssFile = $publicAssets['cssFile'];
   <?php
   endif; ?>
 
-  <?php if (!empty($schemaData)): ?>
+  <?php if (!empty($schemaData) && $domainUrl !== '' && $seoUrl !== ''): ?>
     <!-- Schema.org JSON-LD (VonSEO) -->
     <script type="application/ld+json" class="vp-seo" data-voncms-schema-source="ssr" data-voncms-schema-url="<?php echo htmlspecialchars($seoUrl, ENT_QUOTES, 'UTF-8'); ?>">
       <?php
@@ -1193,6 +1208,58 @@ $cssFile = $publicAssets['cssFile'];
       color: #f1f5f9;
     }
 
+    /* Keep this boot-loader block aligned with index.html. */
+    .voncms-boot-canvas {
+      display: grid;
+      min-height: 100vh;
+      min-height: 100dvh;
+      place-items: center;
+      background: inherit;
+    }
+
+    .voncms-loader-spinner {
+      width: 26px;
+      height: 26px;
+      border: 2px solid #d8dce2;
+      border-top-color: #64748b;
+      border-radius: 50%;
+      animation: voncms-loader-spin 900ms linear infinite;
+    }
+
+    html.dark .voncms-loader-spinner {
+      border-color: #34343a;
+      border-top-color: #b4b4bd;
+    }
+
+    .voncms-boot-spinner {
+      opacity: 0;
+      animation:
+        voncms-loader-spin 900ms linear infinite,
+        voncms-loader-reveal 160ms 300ms ease-out forwards;
+    }
+
+    @keyframes voncms-loader-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes voncms-loader-reveal {
+      to {
+        opacity: 0.74;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .voncms-loader-spinner {
+        animation: none;
+      }
+
+      .voncms-boot-spinner {
+        opacity: 0.74;
+      }
+    }
+
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
@@ -1346,7 +1413,11 @@ $cssFile = $publicAssets['cssFile'];
       }
     </style>
   </noscript>
-  <div id="root"><div class="voncms-boot-canvas" aria-hidden="true"></div></div>
+  <div id="root">
+    <div class="voncms-boot-canvas" aria-hidden="true">
+      <span class="voncms-loader-spinner voncms-boot-spinner"></span>
+    </div>
+  </div>
   <script type="module" crossorigin src="<?php echo $basePath . $assetPrefix . $jsFile; ?>"></script>
 </body>
 
