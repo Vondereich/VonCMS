@@ -18440,6 +18440,8 @@ if (
   exit(2);
 }
 if (
+  voncms_normalize_public_base_url('https://Example.com') !== 'https://example.com' ||
+  voncms_normalize_public_base_url('https://Example.com/') !== 'https://example.com' ||
   voncms_normalize_public_base_url('https://Example.com/blog/') !== 'https://example.com/blog' ||
   voncms_normalize_public_base_url('https://user@example.com/blog') !== '' ||
   voncms_normalize_public_base_url('https://example.com/blog?host=other') !== '' ||
@@ -18456,6 +18458,9 @@ if (voncms_resolve_public_base_url('', '/blog/') !== 'http://localhost:8080/blog
   exit(24);
 }
 $_SERVER['HTTP_HOST'] = 'attacker.example';
+if (voncms_resolve_public_base_url('https://news.example', '/') !== 'https://news.example') {
+  exit(26);
+}
 if (voncms_resolve_public_base_url('https://news.example/blog/', '/') !== 'https://news.example/blog') {
   exit(25);
 }

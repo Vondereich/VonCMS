@@ -89,7 +89,7 @@ if (!function_exists('voncms_normalize_public_base_url')) {
     if (preg_match('#(^|/)\.\.?(/|$)#', $path)) {
       return '';
     }
-    $path = $path === '/' ? '' : '/' . trim($path, '/');
+    $path = $path === '' || $path === '/' ? '' : '/' . trim($path, '/');
 
     return $scheme . '://' . $authority . $path;
   }
@@ -167,6 +167,11 @@ if (!function_exists('voncms_resolve_public_base_url')) {
 }
 
 if (!function_exists('voncms_sitemap_page_count')) {
+  /**
+   * @param int $totalItems
+   * @param int $pageSize
+   * @return int
+   */
   function voncms_sitemap_page_count($totalItems, $pageSize = 1000): int
   {
     $totalItems = max(0, (int) $totalItems);
@@ -177,6 +182,9 @@ if (!function_exists('voncms_sitemap_page_count')) {
 
 if (!function_exists('voncms_sitemap_page_window')) {
   /**
+   * @param int $requestedPage
+   * @param int $totalItems
+   * @param int $pageSize
    * @return array{valid: bool, offset: int, limit: int, pages: int}
    */
   function voncms_sitemap_page_window($requestedPage, $totalItems, $pageSize = 1000): array
