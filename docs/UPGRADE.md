@@ -4,6 +4,8 @@ Most modern VonCMS installs can be updated from the admin panel.
 
 > **Current release:** v1.27.4 "OverDrive" is the current production upgrade baseline.
 
+> **Development version:** v1.27.6 "OverDrive" is In Development, not yet a production upgrade package.
+
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 
 > Existing sites that have not completed the v1.26.11 schema migration must run the explicit Database Repair step below after updating through OTA or a manual Deploy ZIP.

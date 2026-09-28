@@ -349,15 +349,23 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     preg_match('/[\r\n]/', $host) ||
     $port < 1 ||
     $port > 65535 ||
-    !in_array($encryption, ['tls', 'ssl', 'none'], true) ||
+    !in_array($encryption, ['tls', 'ssl'], true) ||
     !filter_var($user, FILTER_VALIDATE_EMAIL) ||
     !filter_var($fromEmail, FILTER_VALIDATE_EMAIL) ||
     !filter_var($to, FILTER_VALIDATE_EMAIL)
   ) {
+    if ($encryption === 'none') {
+      error_log(
+        'VonCMS Security: authenticated SMTP refused because transport encryption is disabled.',
+      );
+    }
     return [
       'success' => false,
       'method' => 'smtp',
-      'message' => 'SMTP configuration or recipient is invalid.',
+      'message' =>
+        $encryption === 'none'
+          ? 'SMTP authentication requires TLS or SSL encryption.'
+          : 'SMTP configuration or recipient is invalid.',
     ];
   }
 

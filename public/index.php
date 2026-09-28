@@ -88,6 +88,11 @@ if (!file_exists($configFile)) {
     die('<h1>System Locked</h1><p>Manual intervention required. Configuration missing but installation is locked. Please restore <code>von_config.php</code>.</p>');
   }
 
+  if (!InstallBootstrap::ensureKey()) {
+    http_response_code(500);
+    die('<h1>Installer unavailable</h1><p>VonCMS could not create <code>data/install_setup.key</code>. Check that the data directory is writable, then reload this page.</p>');
+  }
+
   // Allow only: /install, /api/*, /assets/*
   // We use strict checking to prevent /install/install/ loops
   $isInstall = strtolower($currentPath) === 'install';
@@ -1346,11 +1351,7 @@ $cssFile = $publicAssets['cssFile'];
   ?>
   <?php if (isset($post) && !empty($post)): ?>
     <?php
-    $noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? '');
-    $noscriptPostParagraphs = preg_split('/\n{2,}/', $noscriptPostContent, -1, PREG_SPLIT_NO_EMPTY);
-    if ($noscriptPostParagraphs === false) {
-      $noscriptPostParagraphs = $noscriptPostContent === '' ? [] : [$noscriptPostContent];
-    }
+    $noscriptPostContent = voncms_render_noscript_post_content($post['content'] ?? '');
     ?>
     <noscript>
       <article class="voncms-noscript voncms-noscript-article">
@@ -1358,11 +1359,10 @@ $cssFile = $publicAssets['cssFile'];
           <a class="voncms-noscript-home" href="<?php echo htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8'); ?>">Back to Home</a>
           <h1><?php echo htmlspecialchars($post['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?></h1>
         </header>
-        <div class="voncms-noscript-content">
-          <?php foreach ($noscriptPostParagraphs as $noscriptPostParagraph): ?>
-            <p><?php echo nl2br(htmlspecialchars(trim($noscriptPostParagraph), ENT_QUOTES, 'UTF-8')); ?></p>
-          <?php endforeach; ?>
-        </div>
+        <div class="voncms-noscript-content"><?php
+          // Constructed from escaped text and allowlisted HTML in the helper.
+          echo $noscriptPostContent;
+        ?></div>
       </article>
     </noscript>
   <?php elseif ($noscriptDiscoveryLanding): ?>

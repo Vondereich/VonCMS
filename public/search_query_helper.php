@@ -28,6 +28,36 @@ if (!function_exists('voncms_normalize_fulltext_search')) {
   }
 }
 
+if (!function_exists('voncms_build_required_fulltext_search')) {
+  /**
+   * Build a safe Boolean FULLTEXT query where every normalized term is
+   * required. The trailing wildcard preserves useful live-search behaviour
+   * while a visitor is still typing a word and keeps short terms searchable.
+   */
+  function voncms_build_required_fulltext_search(string $value): string
+  {
+    $normalized = voncms_normalize_fulltext_search($value);
+    if ($normalized === '') {
+      return '';
+    }
+
+    $terms = preg_split('/\s+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($terms)) {
+      $terms = preg_split('/\s+/', $normalized, -1, PREG_SPLIT_NO_EMPTY);
+    }
+    if (!is_array($terms)) {
+      return '';
+    }
+
+    $requiredTerms = [];
+    foreach ($terms as $term) {
+      $requiredTerms[] = '+' . $term . '*';
+    }
+
+    return implode(' ', array_values(array_unique($requiredTerms)));
+  }
+}
+
 if (!function_exists('voncms_escape_like_search')) {
   function voncms_escape_like_search(string $value): string
   {

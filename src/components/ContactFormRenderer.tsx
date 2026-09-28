@@ -10,6 +10,11 @@ interface ContactFormRendererProps {
   className?: string;
 }
 
+interface ContactAntiBotChallenge {
+  field: string;
+  token: string;
+}
+
 const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className }) => {
   const [form, setForm] = useState<ContactForm | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,20 +22,32 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
   const [message, setMessage] = useState('');
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [honeypot, setHoneypot] = useState(''); // Anti-spam honeypot
+  const [antiBotChallenge, setAntiBotChallenge] = useState<ContactAntiBotChallenge | null>(null);
 
   // Load form data
   useEffect(() => {
+    setLoading(true);
+    setForm(null);
+    setAntiBotChallenge(null);
+
     const fetchForm = async () => {
       try {
         const res = await vonFetch(`${API.getContactForm}?id=${encodeURIComponent(id)}`);
         const data = await res.json();
-        if (data.success) {
+        if (
+          data.success &&
+          typeof data.antiBot?.field === 'string' &&
+          typeof data.antiBot?.token === 'string'
+        ) {
           setForm(data.form);
+          setAntiBotChallenge(data.antiBot);
         } else {
           setForm(null);
+          setAntiBotChallenge(null);
         }
       } catch (err) {
         setForm(null);
+        setAntiBotChallenge(null);
       } finally {
         setLoading(false);
       }
@@ -184,7 +201,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form) return;
+    if (!form || !antiBotChallenge) return;
 
     setViewState('submitting');
     setMessage('');
@@ -193,7 +210,11 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
       const payload = {
         formId: form.id,
         data: formData,
-        hp_field: honeypot, // Honeypot for spam protection
+        antiBot: {
+          field: antiBotChallenge.field,
+          token: antiBotChallenge.token,
+          value: honeypot,
+        },
       };
 
       const res = await vonFetch(API.submitContact, {
@@ -226,7 +247,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
       </div>
     );
 
-  if (!form) {
+  if (!form || !antiBotChallenge) {
     return (
       <div className="relative overflow-hidden p-6 border border-red-200/50 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20 backdrop-blur-xl rounded-2xl">
         <div className="flex items-start gap-4">
@@ -256,7 +277,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
         <input
           aria-label="Hp Field"
           type="text"
-          name="hp_field"
+          name={antiBotChallenge.field}
           value={honeypot}
           onChange={(e) => setHoneypot(e.target.value)}
           style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, width: 0 }}

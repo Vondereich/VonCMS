@@ -163,6 +163,177 @@ if (!function_exists('voncms_extract_plaintext_for_noscript')) {
   }
 }
 
+if (!function_exists('voncms_noscript_safe_link_href')) {
+  function voncms_noscript_safe_link_href(mixed $href): string
+  {
+    $href = trim((string) $href);
+    if ($href === '' || str_contains($href, '\\') || preg_match('/[\x00-\x20\x7f]/', $href)) {
+      return '';
+    }
+    if (
+      str_starts_with($href, '#') ||
+      (str_starts_with($href, '/') && !str_starts_with($href, '//'))
+    ) {
+      return $href;
+    }
+
+    $parts = parse_url($href);
+    if (!is_array($parts) || !isset($parts['scheme'])) {
+      return '';
+    }
+    $scheme = strtolower((string) $parts['scheme']);
+    if (in_array($scheme, ['http', 'https'], true)) {
+      return !empty($parts['host']) && !isset($parts['user']) && !isset($parts['pass'])
+        ? $href
+        : '';
+    }
+    return in_array($scheme, ['mailto', 'tel'], true) && !empty($parts['path']) ? $href : '';
+  }
+}
+
+if (!function_exists('voncms_render_noscript_post_node')) {
+  /** Render only safe article structure; never echo stored HTML directly. */
+  function voncms_render_noscript_post_node(DOMNode $node): string
+  {
+    if ($node instanceof DOMText) {
+      return htmlspecialchars($node->nodeValue ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+    if (!($node instanceof DOMElement)) {
+      return '';
+    }
+
+    $tag = strtolower($node->tagName);
+    if (
+      in_array(
+        $tag,
+        [
+          'script',
+          'style',
+          'noscript',
+          'template',
+          'iframe',
+          'object',
+          'embed',
+          'svg',
+          'form',
+          'input',
+          'button',
+          'textarea',
+          'select',
+          'img',
+        ],
+        true,
+      )
+    ) {
+      return '';
+    }
+    if ($tag === 'br' || $tag === 'hr') {
+      return '<' . $tag . '>';
+    }
+
+    $children = '';
+    foreach ($node->childNodes as $child) {
+      $children .= voncms_render_noscript_post_node($child);
+    }
+
+    if ($tag === 'a') {
+      $href = voncms_noscript_safe_link_href($node->getAttribute('href'));
+      if ($href === '') {
+        return $children;
+      }
+      $newTab = $node->getAttribute('target') === '_blank';
+      $sourceTokens = preg_split('/\s+/', strtolower(trim($node->getAttribute('rel')))) ?: [];
+      $relTokens = $newTab ? ['noopener', 'noreferrer'] : [];
+      foreach (['sponsored', 'nofollow', 'ugc'] as $token) {
+        if (in_array($token, $sourceTokens, true)) {
+          $relTokens[] = $token;
+        }
+      }
+      $attributes = ' href="' . htmlspecialchars($href, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+      if ($newTab) {
+        $attributes .= ' target="_blank"';
+      }
+      if ($relTokens !== []) {
+        $attributes .= ' rel="' . implode(' ', $relTokens) . '"';
+      }
+      return '<a' . $attributes . '>' . $children . '</a>';
+    }
+
+    if ($tag === 'h1') {
+      $tag = 'h2';
+    }
+    if (
+      in_array(
+        $tag,
+        [
+          'p',
+          'div',
+          'h2',
+          'h3',
+          'h4',
+          'h5',
+          'h6',
+          'ul',
+          'ol',
+          'li',
+          'blockquote',
+          'pre',
+          'code',
+          'strong',
+          'b',
+          'em',
+          'i',
+          'u',
+          's',
+          'del',
+        ],
+        true,
+      )
+    ) {
+      return '<' . $tag . '>' . $children . '</' . $tag . '>';
+    }
+    return $children;
+  }
+}
+
+if (!function_exists('voncms_render_noscript_post_content')) {
+  function voncms_render_noscript_post_content(mixed $content): string
+  {
+    $content = (string) $content;
+    if ($content === '') {
+      return '';
+    }
+    if (!class_exists('DOMDocument')) {
+      $plain = voncms_extract_plaintext_for_noscript($content);
+      return $plain === ''
+        ? ''
+        : '<p>' . nl2br(htmlspecialchars($plain, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) . '</p>';
+    }
+
+    $previousLibxmlState = libxml_use_internal_errors(true);
+    $document = new DOMDocument('1.0', 'UTF-8');
+    $loaded = $document->loadHTML(
+      '<?xml encoding="UTF-8"><div id="voncms-noscript-root">' . $content . '</div>',
+      LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+    );
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousLibxmlState);
+    if (!$loaded) {
+      return '';
+    }
+
+    $root = $document->getElementsByTagName('div')->item(0);
+    if (!($root instanceof DOMElement) || $root->getAttribute('id') !== 'voncms-noscript-root') {
+      return '';
+    }
+    $rendered = '';
+    foreach ($root->childNodes as $child) {
+      $rendered .= voncms_render_noscript_post_node($child);
+    }
+    return trim($rendered);
+  }
+}
+
 if (!function_exists('voncms_absolute_public_url')) {
   /**
    * @param mixed $url

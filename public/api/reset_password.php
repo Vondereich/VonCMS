@@ -199,25 +199,30 @@ if ($action === 'request') {
   }
 
   try {
-    // Find user with valid token
-    $stmt = $pdo->prepare(
-      'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()',
-    );
-    $stmt->execute([$token]);
-    $user = $stmt->fetch();
-
-    if (!$user) {
-      ResponseHelper::sendError('Invalid or expired token', 400);
-    }
-
     $pdo->beginTransaction();
     try {
+      // Lock the bearer token row so only one concurrent reset can consume it.
+      $stmt = $pdo->prepare(
+        'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW() FOR UPDATE',
+      );
+      $stmt->execute([$token]);
+      $user = $stmt->fetch();
+
+      if (!$user) {
+        $pdo->rollBack();
+        ResponseHelper::sendError('Invalid or expired token', 400);
+      }
+
       // Update password
       $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
       $stmt = $pdo->prepare(
-        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW()',
       );
-      $stmt->execute([$hashedPassword, $user['id']]);
+      $stmt->execute([$hashedPassword, $user['id'], $token]);
+      if ($stmt->rowCount() !== 1) {
+        $pdo->rollBack();
+        ResponseHelper::sendError('Invalid or expired token', 400);
+      }
 
       $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
       $revokeRememberStmt->execute([$user['id']]);

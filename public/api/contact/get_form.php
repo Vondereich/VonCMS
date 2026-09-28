@@ -3,7 +3,10 @@
  * VonCMS - Get Public Contact Form (By ID)
  */
 require_once __DIR__ . '/../../security.php';
+require_once __DIR__ . '/../contact_honeypot_helper.php';
 sendApiHeaders('GET, OPTIONS');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit(0);
@@ -60,7 +63,11 @@ try {
     if (!$found) {
       ResponseHelper::sendError('Form not found', 404);
     }
-    echo json_encode(['success' => true, 'form' => $found]);
+    echo json_encode([
+      'success' => true,
+      'form' => $found,
+      'antiBot' => voncms_contact_honeypot_issue($id),
+    ]);
     exit();
   }
 
@@ -75,7 +82,11 @@ try {
     ],
   ];
 
-  echo json_encode(['success' => true, 'form' => $form]);
+  echo json_encode([
+    'success' => true,
+    'form' => $form,
+    'antiBot' => voncms_contact_honeypot_issue($id),
+  ]);
 } catch (Exception $e) {
   ResponseHelper::sendError('Database error', 500);
 }

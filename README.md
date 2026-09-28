@@ -6,6 +6,8 @@ VonCMS is a lightweight PHP and React CMS not only for shared hosting, but on ma
 
 Current release: **v1.27.4 "OverDrive"**. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
+Development version: **v1.27.6 "OverDrive" (In Development)**. It has not been published as a release.
+
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
 ## Project Status

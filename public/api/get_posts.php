@@ -187,7 +187,7 @@ try {
   }
 
   if ($search !== '' && strlen($search) >= 2) {
-    $fulltextSearch = voncms_normalize_fulltext_search($search);
+    $fulltextSearch = voncms_build_required_fulltext_search($search);
     $searchLike = '%' . voncms_escape_like_search($search) . '%';
     if ($fulltextSearch !== '' && strlen($fulltextSearch) >= 2) {
       $statusClause .=

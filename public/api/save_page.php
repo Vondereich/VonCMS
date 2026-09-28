@@ -4,6 +4,7 @@ require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/content_embed_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
+require_once __DIR__ . '/redirect_loop_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
@@ -187,6 +188,50 @@ try {
     $validStatuses = ['published', 'draft', 'archived'];
     if (!in_array($status, $validStatuses, true)) {
       $status = 'draft';
+    }
+
+    if (
+      voncms_should_store_public_slug_redirect(
+        (string) ($existingPage['status'] ?? ''),
+        $status,
+        false,
+        (string) ($existingPage['slug'] ?? ''),
+        (string) $input['slug'],
+      )
+    ) {
+      try {
+        $newPage = $existingPage;
+        $newPage['slug'] = $input['slug'];
+        $redirectPaths = voncms_page_slug_redirect_paths(
+          $existingPage,
+          $newPage,
+          voncms_get_redirect_loop_base_path($pdo),
+        );
+        if ($redirectPaths !== null) {
+          $redirectConflict = voncms_store_permalink_redirect($pdo, $redirectPaths);
+          if ($redirectConflict !== null) {
+            $pdo->rollBack();
+            ResponseHelper::sendError(
+              $redirectConflict === 'target'
+                ? 'The new page permalink already has a redirect. Review that rule before changing the slug.'
+                : 'The old page permalink already has a redirect. Review that rule before changing the slug.',
+              409,
+            );
+          }
+        }
+      } catch (Throwable $redirectError) {
+        if ($pdo->inTransaction()) {
+          $pdo->rollBack();
+        }
+        $isDuplicate =
+          $redirectError instanceof PDOException && (string) $redirectError->getCode() === '23000';
+        ResponseHelper::sendError(
+          $isDuplicate
+            ? 'A redirect for this page permalink appeared while saving. Review the redirects and try again.'
+            : 'Could not verify or save the page permalink redirect. The page was not changed.',
+          $isDuplicate ? 409 : 503,
+        );
+      }
     }
 
     // Update existing page

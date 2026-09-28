@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.27.4 "OverDrive"**
+> **VonCMS v1.27.6 "OverDrive" (In Development)**
 
 ---
 
@@ -25,6 +25,8 @@ VonCMS runs on a standard **LAMP** stack:
 > **Important:** VonCMS uses `.htaccess` for normal shared-hosting routing. This requires **Apache**, **LiteSpeed**, or **Apache behind an Nginx proxy** (common on cPanel/DirectAdmin). If your hosting runs **Nginx-only** with no Apache/LiteSpeed layer, `.htaccess` rules are ignored and routing/protection rules must be added manually. Ask your host which stack they use, or refer to the [VPS Guide](VPS.md) for Nginx config parity.
 
 > **HTTPS and canonical hostname:** Enable Force HTTPS and choose the preferred root or `www` hostname in Cloudflare, cPanel/DirectAdmin, the reverse proxy, or the virtual host using that fixed domain. VonCMS deliberately does not construct an absolute redirect target from the incoming request `Host` header.
+
+> **Reverse-proxy HTTPS:** If HTTPS terminates at a proxy before PHP, configure the PHP environment variable `VONCMS_TRUSTED_PROXIES` with the proxy IP addresses or CIDR ranges, separated by commas. Do not enter visitor ranges. Direct HTTPS and normal Cloudflare Full/Strict origin HTTPS need no extra setting.
 
 ---
 
@@ -83,17 +85,20 @@ inspection, but it cannot replace host-root robots configuration.
 2. Installer Wizard starts automatically
 3. Fill in:
 
-| Field          | Example           |
-| -------------- | ----------------- |
-| DB Host        | `localhost`       |
-| DB Name        | `my_site`         |
-| DB User        | `root`            |
-| DB Password    | _(your password)_ |
-| Admin Username | `admin`           |
-| Admin Email    | `admin@site.com`  |
-| Admin Password | `MyP@ss123!`      |
+| Field          | Example                  |
+| -------------- | ------------------------ |
+| DB Host        | `localhost`              |
+| DB Name        | `my_site`                |
+| DB User        | `root`                   |
+| DB Password    | _(your password)_        |
+| Setup Key      | `data/install_setup.key` |
+| Admin Username | `admin`                  |
+| Admin Email    | `admin@site.com`         |
+| Admin Password | `MyP@ss123!`             |
 
 > **Password:** 8+ chars, 1 uppercase, 1 number, 1 symbol
+
+> **Setup key:** After opening the installer, use your hosting File Manager or SFTP to open `data/install_setup.key`, then paste its 64-character value into the installer. The data directory is blocked from web access, and VonCMS removes the key after installation succeeds.
 
 4. Click **Install Now**
 5. Done! Login at `yoursite.com/admin`
@@ -163,4 +168,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.27.4 "OverDrive"_
+_VonCMS v1.27.6 "OverDrive" (In Development)_
