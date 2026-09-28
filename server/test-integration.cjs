@@ -338,6 +338,151 @@ function loadTsModuleForSmokeWithMocks(file, mocks, globals = {}) {
   return module.exports;
 }
 
+const shareUtilsRuntime = loadTsModuleForSmokeWithMocks('src/utils/share.ts', {}, { URL });
+const shareButtonsSource = read('src/components/ShareButtons.tsx');
+const sharePublicPostApiSource = read('public/api/get_post.php');
+const shareCleanCases = [
+  [
+    'https://example.com/blog/story?utm_source=test#comments',
+    'https://example.com/',
+    'https://example.com/blog/story',
+  ],
+  ['/blog/story?preview=1#top', 'https://example.com/base/', 'https://example.com/blog/story'],
+  ['javascript:alert(1)', 'https://example.com/', ''],
+  ['data:text/html,unsafe', 'https://example.com/', ''],
+  ['http://[::1', 'https://example.com/', ''],
+  [
+    undefined,
+    'https://example.com/subfolder/fakta menarik?preview=1#top',
+    'https://example.com/subfolder/fakta%20menarik',
+  ],
+  [
+    'https://example.com/berita/résumé?utm_source=test#share',
+    'https://example.com/',
+    'https://example.com/berita/r%C3%A9sum%C3%A9',
+  ],
+];
+const shareUtilsCompiled = ts.transpileModule(read('src/utils/share.ts'), {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+  },
+}).outputText;
+const shareCopyProbe = spawnSync(
+  process.execPath,
+  [
+    '-e',
+    `const vm = require('node:vm');
+const moduleState = { exports: {} };
+const context = vm.createContext({ module: moduleState, exports: moduleState.exports, URL, console });
+vm.runInContext(${JSON.stringify(shareUtilsCompiled)}, context);
+(async () => {
+  let clipboardValue = '';
+  context.navigator = { clipboard: { writeText: async (value) => { clipboardValue = value; } } };
+  if (!(await moduleState.exports.copyShareUrl('https://example.com/one')) || clipboardValue !== 'https://example.com/one') process.exit(2);
+  let appended = false;
+  let selected = false;
+  let removed = false;
+  const input = {
+    value: '',
+    style: {},
+    setAttribute() {},
+    select() { selected = true; },
+    remove() { removed = true; },
+  };
+  context.navigator = { clipboard: { writeText: async () => { throw new Error('denied'); } } };
+  context.document = {
+    createElement: (tag) => tag === 'textarea' ? input : null,
+    body: { appendChild(node) { appended = node === input; } },
+    execCommand: (command) => command === 'copy',
+  };
+  if (!(await moduleState.exports.copyShareUrl('https://example.com/two')) || input.value !== 'https://example.com/two' || !appended || !selected || !removed) process.exit(3);
+  context.navigator = { clipboard: { writeText: async () => { throw new Error('denied'); } } };
+  delete context.document;
+  if (await moduleState.exports.copyShareUrl('https://example.com/three')) process.exit(4);
+  console.log('ok');
+})().catch((error) => { console.error(error); process.exit(5); });`,
+  ],
+  { encoding: 'utf8' }
+);
+const shareThemeSources = [
+  'src/themes/default/Layout.tsx',
+  'src/themes/techpress/Layout.tsx',
+  'src/themes/digest/Layout.tsx',
+  'src/themes/prism/Layout.tsx',
+  'src/themes/portfolio/Layout.tsx',
+  'src/themes/corporate-pro/Layout.tsx',
+].map(read);
+const shareThemePlacementPass = shareThemeSources.every(
+  (source) =>
+    (source.match(/<ShareButtons/g) || []).length === 2 &&
+    source.includes("settings.sharePlacement === 'top'") &&
+    (source.includes("settings.sharePlacement === 'bottom'") ||
+      source.includes("settings.sharePlacement !== 'none'"))
+);
+if (
+  shareCleanCases.every(
+    ([candidate, currentHref, expected]) =>
+      shareUtilsRuntime.getCleanShareUrl(candidate, currentHref) === expected
+  ) &&
+  shareCopyProbe.status === 0 &&
+  shareCopyProbe.stdout.trim() === 'ok' &&
+  shareThemePlacementPass &&
+  shareButtonsSource.includes("import { copyShareUrl, getCleanShareUrl } from '../utils/share';") &&
+  shareButtonsSource.includes('await navigator.share({ title, url: shareUrl })') &&
+  shareButtonsSource.includes("error.name === 'AbortError'") &&
+  shareButtonsSource.includes('aria-label="Copy link"') &&
+  shareButtonsSource.includes('FacebookShareButton') &&
+  shareButtonsSource.includes('TwitterShareButton') &&
+  shareButtonsSource.includes('WhatsappShareButton') &&
+  shareButtonsSource.includes('LinkedinShareButton') &&
+  shareButtonsSource.includes('TelegramShareButton') &&
+  shareButtonsSource.includes('EmailShareButton') &&
+  sharePublicPostApiSource.includes(
+    "(p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?)"
+  ) &&
+  sharePublicPostApiSource.includes('if ($canReadProtectedPost && $mustOwnProtectedPost)')
+) {
+  pass(
+    'Article Sharing Contract: canonical root/subfolder URLs, Unicode encoding, malformed schemes, private-content authorization, clipboard fallback cleanup, native sharing, six fallbacks, and all bundled theme placements remain bounded.'
+  );
+} else {
+  fail(
+    'Article Sharing Contract: clean URL handling or native/social fallback wiring has regressed.'
+  );
+}
+
+const installerApiSource = read('public/api/install.php');
+const installerUiSource = read('src/plugins/von-core/features/setup/InstallWizard.tsx');
+const publicIndexSource = read('public/index.php');
+if (
+  publicIndexSource.includes('InstallBootstrap::ensureKey()') &&
+  installerUiSource.includes('name="setupKey"') &&
+  installerUiSource.includes('data/install_setup.key') &&
+  installerApiSource.includes('InstallBootstrap::claim($setupKey)') &&
+  installerApiSource.includes('InstallBootstrap::consume()') &&
+  installerApiSource.includes('writeInstallerFileAtomically($configFile, $configContent, 0600)') &&
+  installerApiSource.includes('$pdo->beginTransaction();') &&
+  installerApiSource.includes('$pdo->commit();') &&
+  installerApiSource.includes('if ($pdo->inTransaction())') &&
+  installerApiSource.indexOf('InstallBootstrap::claim($setupKey)') <
+    installerApiSource.indexOf('new PDO(') &&
+  installerApiSource.indexOf('voncms_schema_repair_runtime_capabilities($pdo);') <
+    installerApiSource.indexOf('$pdo->beginTransaction();') &&
+  installerApiSource.indexOf('$pdo->beginTransaction();') <
+    installerApiSource.indexOf('INSERT INTO users') &&
+  installerApiSource.indexOf('writeInstallerFileAtomically($configFile, $configContent, 0600)') <
+    installerApiSource.indexOf('$pdo->commit();')
+) {
+  pass(
+    'First-Run Installer Ownership Wiring: server-generated setup proof is exclusively claimed before database access, seed data remains transactional through atomic configuration activation, and proof is consumed after installation.'
+  );
+} else {
+  fail(
+    'First-Run Installer Ownership Wiring: installation can proceed before server-local setup ownership is proven.'
+  );
+}
+
 const dateFormatModule = loadTsModuleForSmoke('src/utils/dateFormat.ts');
 const dateFormatFixture = '2026-07-29T12:00:00.000Z';
 const expectedDateFormats = {
@@ -812,6 +957,7 @@ const criticalFiles = [
   'public/api/publication_time_helper.php',
   'public/api/ai_provider_helper.php',
   'public/api/analytics_consent_helper.php',
+  'public/api/contact_honeypot_helper.php',
   'public/api/content_embed_helper.php',
   'public/api/role_capability_helper.php',
   'public/api/save_settings.php',
@@ -1243,7 +1389,6 @@ assertExcludes(
   'External Font Loading Guard: runtime HTML no longer depends on Google Fonts CSS or preconnects.',
   'External Font Loading Guard: Google Fonts references can still add a remote render dependency.'
 );
-
 const localInterCssContent = read('public/fonts/inter/inter.css');
 const localInterLicenseContent = read('public/fonts/inter/LICENSE.txt');
 const publicRuntimeIndexContent = read('public/index.php');
@@ -1431,6 +1576,7 @@ const contactFormRendererContent = read('src/components/ContactFormRenderer.tsx'
 const contentRendererContent = read('src/components/ContentRenderer.tsx');
 const skeletonCssContent = read('public/skeleton.css');
 const submitContactContent = read('public/api/submit_contact.php');
+const contactHoneypotHelperContent = read('public/api/contact_honeypot_helper.php');
 const newsletterSubscribeContent = read('public/api/newsletter_subscribe.php');
 const newsletterListContent = read('public/api/newsletter_list.php');
 const newsletterExportContent = read('public/api/newsletter_export.php');
@@ -2339,7 +2485,8 @@ assertIncludes(
     read('src/components/editor/editorLinkUtils.ts'),
   [
     'export const normalizeEditorUrl = (value: string) => {',
-    "import { buildEditorLinkAttrs, normalizeEditorUrl } from './editor/editorLinkUtils';",
+    'editorLinkRelationshipFromRel,',
+    'normalizeEditorUrl,',
     'const normalizedUrl = normalizeEditorUrl(finalValue);',
     'href: normalizedUrl',
     '.editor-content .${EDITOR_SURFACE_CLASS} table {',
@@ -3651,7 +3798,7 @@ if (
 
 const apiHelperDenyMarkers = [
   'RewriteRule ^.+\\.php/ - [R=404,L,NC]',
-  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]',
   'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
@@ -4082,6 +4229,19 @@ assertExcludes(
   ['consumeFixedWindow('],
   'Password Reset Submission Quota Isolation: token submission remains outside the mail-request quotas.',
   'Password Reset Submission Quota Isolation: a valid token submission can be blocked by the recovery-mail quota.'
+);
+assertIncludes(
+  'Password Reset Atomic Token Consumption',
+  passwordResetActionBranch,
+  [
+    '$pdo->beginTransaction();',
+    'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW() FOR UPDATE',
+    'WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW()',
+    'if ($stmt->rowCount() !== 1)',
+    '$pdo->rollBack();',
+  ],
+  'Password Reset Atomic Token Consumption: the bearer-token row is locked and conditionally cleared exactly once inside the credential transaction.',
+  'Password Reset Atomic Token Consumption: concurrent requests can still validate or update outside the one-time token transaction.'
 );
 const recoveryPairConsumePosition = passwordResetRequestBranch.indexOf(
   'RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900)'
@@ -4588,7 +4748,7 @@ assertIncludes(
     "'voncms:public-categories-invalidated'",
     'const handlePublicCategoriesInvalidated = () => {',
     'void loadSettings(true);',
-    'SELECT id, author_id, title, status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
+    'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
     '$previousScheduledAt !== $savedScheduledAt',
     "'public_categories_changed' => $publicCategoriesChanged",
     "typeof data.public_categories_changed === 'boolean'",
@@ -5665,11 +5825,14 @@ assertIncludes(
   'Monolithic View Counter Timestamp Guard',
   monolithicTrackingContent,
   [
-    'UPDATE posts SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ?',
-    'UPDATE pages SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ?',
+    "UPDATE posts SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ? AND (status = 'published' OR status IS NULL)",
+    "UPDATE pages SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ? AND (status = 'published' OR status IS NULL)",
+    "ContentViewDeduplicator::claim('post', $postId)",
+    "ContentViewDeduplicator::claim('page', $pageId)",
+    "'view_throttled' => $viewThrottled",
   ],
-  'Monolithic View Counter Timestamp Guard: post/page analytics view counters preserve updated_at so SEO dateModified, sitemap lastmod, and editor conflict baselines only change on real content edits.',
-  'Monolithic View Counter Timestamp Guard: analytics view counters can mutate updated_at and create false modified dates or editor 409 conflicts.'
+  'Monolithic View Counter Boundary: published post/page counters preserve updated_at and repeated same-session views are suppressed without proxy-wide or database-backed throttling.',
+  'Monolithic View Counter Boundary: counters can mutate timestamps, count protected content, or accept repeated same-session write amplification.'
 );
 assertIncludes(
   'Optional Analytics Failure Boundary',
@@ -7590,6 +7753,9 @@ try {
     {
       dompurify: domPurifyMock,
       '../config/site.config': { BASE_PATH: '' },
+      '../components/editor/editorLinkUtils': loadTsModuleForSmoke(
+        'src/components/editor/editorLinkUtils.ts'
+      ),
     },
     { URL }
   );
@@ -7604,24 +7770,37 @@ try {
     ADD_ATTR: ['style', 'class', 'id', 'target', 'width', 'height', 'href', 'alt'],
   });
   const restrictedTags = capturedSanitizerConfig?.ADD_TAGS || [];
+  const anchorAttributes = new Map([
+    ['target', '_blank'],
+    ['rel', 'sponsored unsupported'],
+  ]);
+  domPurifyMock.sanitize = (content) => {
+    sanitizerHooks.afterSanitizeAttributes?.({
+      tagName: 'A',
+      getAttribute: (name) => anchorAttributes.get(name) || null,
+      setAttribute: (name, value) => anchorAttributes.set(name, value),
+      removeAttribute: (name) => anchorAttributes.delete(name),
+    });
+    return content;
+  };
+  editorSecurityRuntime.sanitizeHtml('<a href="https://example.test">Sponsor</a>');
   editorSanitizerConfigRuntimePass =
     defaultTags.includes('iframe') &&
     defaultAttrs.includes('allow') &&
     defaultAttrs.includes('allowfullscreen') &&
     recognizedFullscreenRestored &&
     !legacyFullscreenRestored &&
-    !restrictedTags.includes('iframe');
+    !restrictedTags.includes('iframe') &&
+    anchorAttributes.get('rel') === 'noopener noreferrer sponsored';
 } catch {
   editorSanitizerConfigRuntimePass = false;
 }
 if (editorSanitizerConfigRuntimePass) {
   pass(
-    'Editor Video Fullscreen Runtime Boundary: recognized legacy embeds recover fullscreen while custom sanitizers that exclude iframe remain closed.'
+    'Editor Sanitizer Runtime Boundary: supported new-tab link rel tokens survive while unknown tokens are removed, and iframe capabilities stay bounded.'
   );
 } else {
-  fail(
-    'Editor Video Fullscreen Runtime Boundary: legacy fullscreen recovery failed or a restricted custom sanitizer inherited iframe support.'
-  );
+  fail('Editor Sanitizer Runtime Boundary: link relationships or iframe capabilities regressed.');
 }
 if (
   !editorContent.includes("target.closest('.video-embed')") &&
@@ -8821,6 +9000,22 @@ assertIncludes(
   'SMTP Bounded Transaction And Response Contract: one deadline bounds the SMTP transaction, every delivery stage validates its response, and reset failures remain observable without changing the generic public response.',
   'SMTP Bounded Transaction And Response Contract: SMTP can still accumulate unbounded stage waits, ignore a rejected command, or hide reset delivery failure from operators.'
 );
+assertIncludes(
+  'SMTP Encrypted Authentication Contract',
+  read('public/api/mail_helper.php') +
+    '\n' +
+    read('public/api/save_settings.php') +
+    '\n' +
+    read('src/plugins/von-core/features/settings/components/GeneralSettings.tsx'),
+  [
+    "!in_array($encryption, ['tls', 'ssl'], true)",
+    'authenticated SMTP refused because transport encryption is disabled.',
+    "!in_array($smtpEncryption, ['tls', 'ssl'], true)",
+    'None (blocked: credentials would be exposed)',
+  ],
+  'SMTP Encrypted Authentication Contract: runtime, settings persistence, and UI prevent AUTH credentials from using a plaintext transport.',
+  'SMTP Encrypted Authentication Contract: an authenticated SMTP path can still persist or execute without TLS or SSL.'
+);
 
 if (
   contentManagerContent.includes('RefreshCw') ||
@@ -9258,7 +9453,7 @@ const publicBootstrapSourceMarkers = [
   '$listingPosts = $isCategoryLanding ? $categoryPosts : $homepagePosts;',
   '$initialPostPayload = [',
   "'title'            => $post['title']            ?? '',",
-  "$noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? '');",
+  "$noscriptPostContent = voncms_render_noscript_post_content($post['content'] ?? '');",
 ];
 const homepagePostsFetchCount = indexContent.split(homepagePostsFetchMarker).length - 1;
 if (
@@ -9285,7 +9480,7 @@ assertIncludes(
     'class="voncms-noscript-list"',
     'class="voncms-noscript-item"',
     'class="voncms-noscript-content"',
-    'foreach ($noscriptPostParagraphs as $noscriptPostParagraph)',
+    'echo $noscriptPostContent;',
     '.voncms-noscript-content p + p',
     '.voncms-noscript-home:focus-visible',
     '.voncms-noscript-item a:focus-visible',
@@ -11683,12 +11878,13 @@ assertIncludes(
   phpSearchQueryHelperContent + '\n' + getPostsContent + '\n' + getPagesContent,
   [
     'function voncms_normalize_fulltext_search(string $value): string',
+    'function voncms_build_required_fulltext_search(string $value): string',
     'function voncms_escape_like_search(string $value): string',
-    '$fulltextSearch = voncms_normalize_fulltext_search($search);',
+    '$fulltextSearch = voncms_build_required_fulltext_search($search);',
     'ESCAPE',
   ],
-  'Search API Boolean Payload Guard: post/page search normalize FULLTEXT terms and escape LIKE wildcards before binding.',
-  'Search API Boolean Payload Guard: post/page search can still pass raw boolean/punctuation payloads into FULLTEXT or LIKE.'
+  'Search API Boolean Payload Guard: post/page search require every normalized FULLTEXT term and escape LIKE wildcards before binding.',
+  'Search API Boolean Payload Guard: post/page search can still pass raw Boolean payloads or treat multi-word terms as optional.'
 );
 
 const appContent = read('src/App.tsx');
@@ -12484,8 +12680,8 @@ const honeypotRateGaps = honeypotRateContracts
   .map(([file]) => file);
 if (
   honeypotRateGaps.length === 0 &&
-  submitContactContent.includes("'value_length' => strlen((string) $honeypot)") &&
-  !submitContactContent.includes("'value' => $honeypot")
+  submitContactContent.includes("'value_length' => $honeypotValueLength") &&
+  !submitContactContent.includes("'value' => $honeypotValue")
 ) {
   pass(
     'Honeypot Attempt And Log Boundary: bot traps use bounded accounting and contact logs keep metadata instead of raw trap input.'
@@ -12495,6 +12691,33 @@ if (
     `Honeypot Attempt And Log Boundary: attempt accounting or raw-value logging regressed. Missing: ${honeypotRateGaps.join(', ')}`
   );
 }
+
+assertIncludes(
+  'Dynamic Contact Honeypot Contract',
+  contactHoneypotHelperContent +
+    '\n' +
+    contactGetFormContent +
+    '\n' +
+    submitContactContent +
+    '\n' +
+    contactFormRendererContent,
+  [
+    'hash_hmac',
+    'VONCMS_CONTACT_HONEYPOT_MIN_AGE',
+    'VONCMS_CONTACT_HONEYPOT_MAX_AGE',
+    'contact_honeypot_used',
+    "'antiBot' => voncms_contact_honeypot_issue($id)",
+    'voncms_contact_honeypot_validate(',
+    'voncms_contact_honeypot_mark_used(',
+    "array_key_exists('hp_field', $input)",
+    'This contact form has expired. Please refresh the page and try again.',
+    "header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');",
+    'name={antiBotChallenge.field}',
+    'token: antiBotChallenge.token',
+  ],
+  'Dynamic Contact Honeypot Contract: the uncached public form receives a session-bound signed timing challenge, submits a dynamic trap field, refreshes stale pre-update forms honestly, and successful delivery consumes the nonce.',
+  'Dynamic Contact Honeypot Contract: the contact form can cache or omit its signed challenge, silently discard a stale pre-update form, or fall back to a predictable static trap.'
+);
 
 assertIncludes(
   'Admin Profile Public Email Boundary',
@@ -13010,6 +13233,8 @@ const complexQuerySmokeUrl = editorLinkUtils.COMPLEX_QUERY_STRING_LINK_SMOKE_URL
 if (
   complexQuerySmokeUrl === 'https://example.test/link?empty=&type=phone_number&app_absent=0' &&
   editorLinkUtils.normalizeEditorUrl(complexQuerySmokeUrl) === complexQuerySmokeUrl &&
+  editorLinkUtils.normalizeEditorUrl('/\\evil.example') === '' &&
+  editorLinkUtils.normalizeEditorUrl('//evil.example') === '' &&
   editorExtensionsContent.includes("import TiptapLink from '@tiptap/extension-link';") &&
   editorExtensionsContent.includes('TiptapLink.configure({') &&
   editorExtensionsContent.includes('link: false') &&
@@ -13025,6 +13250,29 @@ if (
   );
 }
 
+const linkRelationshipCases = [
+  ['normal', 'noopener noreferrer'],
+  ['sponsored', 'noopener noreferrer sponsored'],
+  ['nofollow', 'noopener noreferrer nofollow'],
+  ['ugc', 'noopener noreferrer ugc'],
+];
+if (
+  linkRelationshipCases.every(
+    ([relationship, expected]) =>
+      editorLinkUtils.buildEditorLinkAttrs('https://example.test', relationship).rel === expected &&
+      editorLinkUtils.editorLinkRelationshipFromRel(expected) === relationship
+  ) &&
+  editorLinkUtils.normalizeEditorLinkRel('ugc unsupported Sponsored nofollow', true) ===
+    'noopener noreferrer sponsored nofollow ugc' &&
+  editorLinkUtils.normalizeEditorLinkRel('opener external', false) === ''
+) {
+  pass(
+    'Editor Link Relationship Runtime: the four choices and unsupported-token filtering are deterministic.'
+  );
+} else {
+  fail('Editor Link Relationship Runtime: link rel choices or token allowlisting drifted.');
+}
+
 const editorContentForLink = read('src/components/Editor.tsx');
 const contentRendererForLink = read('src/components/ContentRenderer.tsx');
 const globalStylesForEditor = read('src/index.css');
@@ -13037,12 +13285,13 @@ if (
   editorContentForLink.includes('insertSafeLink') &&
   editorContentForLink.includes("type: 'text'") &&
   editorContentForLink.includes("type: 'link'") &&
-  !editorInsertSafeLinkBlock.includes(".extendMarkRange('link')") &&
+  editorInsertSafeLinkBlock.includes(".extendMarkRange('link').setLink(linkAttrs)") &&
+  editorContentForLink.includes('value={linkRelationship}') &&
   contentRendererForLink.includes('.prose a, .voncms-content a') &&
   contentRendererForLink.includes('color: #2563eb')
 ) {
   pass(
-    'Editor Hyperlink Contract: link insertion uses TipTap marks directly and public light-mode links stay visibly blue.'
+    'Editor Hyperlink Contract: insert/edit use TipTap marks, relationship choices persist, and public light-mode links stay visibly blue.'
   );
 } else {
   fail(
@@ -13377,12 +13626,11 @@ assertIncludes(
   'Single Post Noscript Whitespace Contract',
   read('public/index.php'),
   [
-    "$noscriptPostParagraphs = preg_split('/\\n{2,}/', $noscriptPostContent, -1, PREG_SPLIT_NO_EMPTY);",
-    'foreach ($noscriptPostParagraphs as $noscriptPostParagraph)',
-    "htmlspecialchars(trim($noscriptPostParagraph), ENT_QUOTES, 'UTF-8')",
+    "$noscriptPostContent = voncms_render_noscript_post_content($post['content'] ?? '');",
+    'echo $noscriptPostContent;',
   ],
-  'Single Post Noscript Whitespace Contract: plaintext content retains semantic paragraph boundaries with internal line breaks.',
-  'Single Post Noscript Whitespace Contract: plaintext post content can collapse into one unstructured block.'
+  'Single Post Noscript Whitespace Contract: allowlisted HTML retains paragraph and link structure.',
+  'Single Post Noscript Whitespace Contract: the safe article renderer is no longer used.'
 );
 
 const getPostContent = read('public/api/get_post.php');
@@ -13611,17 +13859,19 @@ if (
   phpSeoSchemaHelperContent.includes(
     "'/<\\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li)>/i"
   ) &&
+  phpSeoSchemaHelperContent.includes('function voncms_render_noscript_post_content') &&
+  phpSeoSchemaHelperContent.includes('function voncms_render_noscript_post_node') &&
   publicIndexContent.includes(
-    "$noscriptPostContent = voncms_extract_plaintext_for_noscript($post['content'] ?? '');"
+    "$noscriptPostContent = voncms_render_noscript_post_content($post['content'] ?? '');"
   ) &&
   !publicIndexContent.includes("<?php echo $post['content'] ?? ''; ?>")
 ) {
   pass(
-    'Public Index Noscript Post Visibility: single-post noscript output is block-aware, entity-normalized, text-only, and escaped.'
+    'Public Index Noscript Post Visibility: single-post output uses escaped text and allowlisted article links.'
   );
 } else {
   fail(
-    'Public Index Noscript Post Visibility: single-post noscript output must normalize block breaks/entities and must not echo raw post HTML.'
+    'Public Index Noscript Post Visibility: single-post noscript output must preserve safe links without echoing raw post HTML.'
   );
 }
 
@@ -13904,7 +14154,7 @@ if (mutatingMethodGuardMissing.length === 0) {
 }
 
 const postOwnerGuardIndex = savePostContent.indexOf(
-  'SELECT id, author_id, title, status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
+  'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
 );
 const postOwnershipDecisionIndex = savePostContent.indexOf(
   "ResponseHelper::sendError('Not authorized to edit this post', 403);"
@@ -16778,6 +17028,144 @@ if (!phpBinary) {
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
 
+  const installerProxyBoundaryProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['PHP_SELF'] = 'installer-proxy-boundary-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/installer-proxy-boundary-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$fixtureDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-installer-key-' . bin2hex(random_bytes(6));
+if (!mkdir($fixtureDir, 0700, true)) exit(2);
+$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key';
+define('VONCMS_INSTALL_SETUP_KEY_PATH', $keyPath);
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+register_shutdown_function(static function () use ($keyPath, $fixtureDir) {
+  @unlink($keyPath);
+  @rmdir($fixtureDir);
+});
+if (!InstallBootstrap::ensureKey()) exit(3);
+$key = trim((string) file_get_contents($keyPath));
+if (!preg_match('/^[a-f0-9]{64}$/', $key) || !InstallBootstrap::claim($key)) exit(4);
+if (InstallBootstrap::claim($key) || InstallBootstrap::validate(str_repeat('0', 64))) exit(5);
+InstallBootstrap::consume();
+if (file_exists($keyPath)) exit(6);
+$_SESSION = [];
+if (!ContentViewDeduplicator::claim('post', 17, 1000, 300, 8)) exit(11);
+if (ContentViewDeduplicator::claim('post', 17, 1001, 300, 8)) exit(12);
+if (!ContentViewDeduplicator::claim('page', 17, 1001, 300, 8)) exit(13);
+if (ContentViewDeduplicator::claim('draft', 17, 1001, 300, 8)) exit(14);
+if (!ContentViewDeduplicator::claim('post', 17, 1301, 300, 8)) exit(15);
+for ($id = 18; $id < 40; $id++) ContentViewDeduplicator::claim('post', $id, 1301 + $id, 300, 8);
+if (count($_SESSION['voncms_content_view_claims'] ?? []) > 8) exit(16);
+require ${JSON.stringify(resolveFromRoot('public/api/mail_helper.php'))};
+$plainSmtp = sendWithSmtp('recipient@example.test', 'Test', '<p>Test</p>', 'Test', [
+  'host' => '127.0.0.1',
+  'port' => 1,
+  'user' => 'sender@example.test',
+  'pass' => 'secret',
+  'encryption' => 'none',
+  'fromEmail' => 'sender@example.test',
+  'fromName' => 'Test',
+  'authEmail' => 'sender@example.test',
+]);
+if (($plainSmtp['success'] ?? true) !== false || ($plainSmtp['message'] ?? '') !== 'SMTP authentication requires TLS or SSL encryption.') exit(17);
+$_SERVER['REMOTE_ADDR'] = '203.0.113.20';
+$_SERVER['HTTPS'] = 'on';
+$_SERVER['HTTP_X_FORWARDED_PROTO'] = 'http';
+if (!is_https()) exit(7);
+$_SERVER['HTTPS'] = 'off';
+$_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+if (is_https()) exit(8);
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+if (!is_https()) exit(9);
+$_SERVER['REMOTE_ADDR'] = '10.42.3.7';
+putenv('VONCMS_TRUSTED_PROXIES=10.42.0.0/16');
+if (!is_https()) exit(10);
+putenv('VONCMS_TRUSTED_PROXIES');
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (
+    installerProxyBoundaryProbe.status === 0 &&
+    installerProxyBoundaryProbe.stdout.trim() === 'ok'
+  ) {
+    pass(
+      'Installer, View, SMTP And Proxy Runtime: setup keys are exclusively claimed, repeated session views are bounded, plaintext SMTP is refused, and spoofed forwarded HTTPS is ignored outside trusted proxy IPs and CIDRs.'
+    );
+  } else {
+    fail(
+      `Installer And Proxy Boundary Runtime: setup-key ownership or trusted-proxy HTTPS detection regressed. ${(installerProxyBoundaryProbe.stderr || installerProxyBoundaryProbe.stdout || '').trim()}`
+    );
+  }
+
+  const installerConcurrencyProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$fixtureDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-installer-race-' . bin2hex(random_bytes(6));
+if (!mkdir($fixtureDir, 0700, true)) exit(2);
+$sessionDir = $fixtureDir . DIRECTORY_SEPARATOR . 'sessions';
+if (!mkdir($sessionDir, 0700, true)) exit(3);
+$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key';
+$workerPath = $fixtureDir . DIRECTORY_SEPARATOR . 'worker.php';
+$key = str_repeat('a', 64);
+$keyContents = $key . PHP_EOL;
+if (file_put_contents($keyPath, $keyContents, LOCK_EX) !== strlen($keyContents)) exit(4);
+$securityPath = ${JSON.stringify(resolveFromRoot('public/security.php'))};
+$worker = '<?php\n'
+  . 'ini_set("session.save_path", ' . var_export($sessionDir, true) . ');\n'
+  . '$_SERVER["PHP_SELF"] = basename(__FILE__);\n'
+  . '$_SERVER["SCRIPT_NAME"] = basename(__FILE__);\n'
+  . '$_SERVER["REQUEST_METHOD"] = "GET";\n'
+  . 'define("VONCMS_INSTALL_SETUP_KEY_PATH", $argv[1]);\n'
+  . 'require ' . var_export($securityPath, true) . ';\n'
+  . '$key = trim((string) @file_get_contents($argv[1]));\n'
+  . 'if (!InstallBootstrap::claim($key)) exit(20);\n'
+  . 'echo "claimed\\n"; flush();\n'
+  . 'if (($argv[2] ?? "") === "hold") { fgets(STDIN); exit(0); }\n'
+  . 'if (($argv[2] ?? "") === "consume") InstallBootstrap::consume();\n';
+if (file_put_contents($workerPath, $worker, LOCK_EX) !== strlen($worker)) exit(5);
+$spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+$holder = proc_open([PHP_BINARY, $workerPath, $keyPath, 'hold'], $spec, $holderPipes);
+if (!is_resource($holder) || trim((string) fgets($holderPipes[1])) !== 'claimed') exit(6);
+$runWorker = static function (string $action) use ($workerPath, $keyPath, $spec): int {
+  $process = proc_open([PHP_BINARY, $workerPath, $keyPath, $action], $spec, $pipes);
+  if (!is_resource($process)) return 99;
+  fclose($pipes[0]);
+  stream_get_contents($pipes[1]);
+  stream_get_contents($pipes[2]);
+  fclose($pipes[1]);
+  fclose($pipes[2]);
+  return proc_close($process);
+};
+if ($runWorker('claim') !== 20) exit(7);
+fclose($holderPipes[0]);
+stream_get_contents($holderPipes[1]);
+stream_get_contents($holderPipes[2]);
+fclose($holderPipes[1]);
+fclose($holderPipes[2]);
+if (proc_close($holder) !== 0) exit(8);
+if ($runWorker('consume') !== 0 || file_exists($keyPath)) exit(9);
+if ($runWorker('claim') !== 20) exit(10);
+@unlink($workerPath);
+@rmdir($sessionDir);
+@rmdir($fixtureDir);
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (installerConcurrencyProbe.status === 0 && installerConcurrencyProbe.stdout.trim() === 'ok') {
+    pass(
+      'First-Run Installer Cross-Process Claim: a held setup key rejects a competing worker, becomes retryable after an abandoned attempt, and disappears after successful consumption.'
+    );
+  } else {
+    fail(
+      `First-Run Installer Cross-Process Claim: setup-key locking or retry/consume behavior regressed (status ${installerConcurrencyProbe.status}). ${(installerConcurrencyProbe.stderr || installerConcurrencyProbe.stdout || '').trim()}`
+    );
+  }
+
   const securityBoundaryProbe = spawnSync(
     process.execPath,
     [resolveFromRoot('server/security-boundary-smoke.cjs'), phpBinary],
@@ -16893,6 +17281,20 @@ function is_https(): bool { return false; }
 class SessionManager {
   public static function isAdmin(): bool { return false; }
 }
+class ContentViewDeduplicator {
+  private const SESSION_KEY = 'voncms_content_view_claims';
+  public static function claim(string $type, int $id): bool {
+    $key = $type . ':' . $id;
+    $claims = is_array($_SESSION[self::SESSION_KEY] ?? null) ? $_SESSION[self::SESSION_KEY] : [];
+    if (isset($claims[$key])) return false;
+    $claims[$key] = time();
+    $_SESSION[self::SESSION_KEY] = $claims;
+    return true;
+  }
+  public static function release(string $type, int $id): void {
+    unset($_SESSION[self::SESSION_KEY][$type . ':' . $id]);
+  }
+}
 class ResponseHelper {
   public static function scrubAvatarUrl($url): string { return (string) $url; }
   public static function scrubUrl($url): string { return (string) $url; }
@@ -16945,7 +17347,9 @@ class VonTrackFakeStatement extends PDOStatement {
     ];
   }
   public function fetchColumn(int $column = 0): int { return 0; }
-  public function rowCount(): int { return 0; }
+  public function rowCount(): int {
+    return str_starts_with($this->sql, 'UPDATE posts SET views') || str_starts_with($this->sql, 'UPDATE pages SET views') ? 1 : 0;
+  }
   public function fetch(int $mode = PDO::FETCH_DEFAULT, int $cursorOrientation = PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): mixed {
     if (!str_contains($this->sql, 'FROM posts p')) return false;
     return ['id' => 7, 'slug' => 'view-smoke', 'title' => 'View smoke', 'content' => '<p>Content</p>', 'status' => 'published', 'views' => 12, 'created_at' => '2026-01-01 00:00:00', 'updated_at' => '2026-01-02 00:00:00'];
@@ -16972,7 +17376,14 @@ register_shutdown_function(function () use ($pdo): void {
   $views = count(array_filter($pdo->queries, fn($sql) => str_starts_with($sql, 'UPDATE posts') || str_starts_with($sql, 'UPDATE pages')));
   $analyticsQueries = count(array_filter($pdo->queries, fn($sql) => str_contains($sql, 'FROM analytics') || str_contains($sql, 'INTO analytics')));
   if ($writes !== (int) $expectVisit || $views !== (int) $expectView || (!$expectVisit && $analyticsQueries !== 0)) {
-    fwrite(STDERR, 'Unexpected analytics/view SQL side effects');
+    fwrite(STDERR, sprintf(
+      'Unexpected analytics/view SQL side effects (writes=%d expected=%d views=%d expected=%d analytics=%d)',
+      $writes,
+      (int) $expectVisit,
+      $views,
+      (int) $expectView,
+      $analyticsQueries,
+    ));
     exit(51);
   }
   foreach ($pdo->queries as $sql) {
@@ -17179,6 +17590,67 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
     } else {
       fail(`Analytics Consent Helper Direct Guard: ${relativePath} protection missing.`);
     }
+  }
+
+  for (const relativePath of [
+    'public/api/contact_honeypot_helper.php',
+    'dist/api/contact_honeypot_helper.php',
+  ]) {
+    const directProbe = spawnSync(phpBinary, [resolveFromRoot(relativePath)], { encoding: 'utf8' });
+    if (
+      directProbe.status === 0 &&
+      directProbe.stdout.trim() === 'Forbidden' &&
+      !directProbe.stderr.trim()
+    ) {
+      pass(`Contact Honeypot Helper Direct Guard: ${relativePath} rejects direct execution.`);
+    } else {
+      fail(`Contact Honeypot Helper Direct Guard: ${relativePath} protection missing.`);
+    }
+  }
+
+  const contactHoneypotSessionDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'voncms-contact-honeypot-session-')
+  );
+  try {
+    const contactHoneypotRuntimeProbe = spawnSync(
+      phpBinary,
+      [
+        '-d',
+        `session.save_path=${contactHoneypotSessionDir}`,
+        '-r',
+        `$_SERVER['SCRIPT_FILENAME'] = 'contact-honeypot-runtime-probe.php';
+session_id('voncms-contact-honeypot-probe');
+session_start();
+require ${JSON.stringify(resolveFromRoot('public/api/contact_honeypot_helper.php'))};
+$challenge = voncms_contact_honeypot_issue('contact-main');
+sleep(1);
+$valid = voncms_contact_honeypot_validate('contact-main', $challenge['field'], $challenge['token']);
+$wrongForm = voncms_contact_honeypot_validate('contact-other', $challenge['field'], $challenge['token']);
+$parts = explode('.', $challenge['token'], 2);
+$parts[1] = ($parts[1][0] === 'A' ? 'B' : 'A') . substr($parts[1], 1);
+$tampered = voncms_contact_honeypot_validate('contact-main', $challenge['field'], implode('.', $parts));
+voncms_contact_honeypot_mark_used($valid['nonce']);
+$replayed = voncms_contact_honeypot_validate('contact-main', $challenge['field'], $challenge['token']);
+if (!$valid['valid'] || $wrongForm['valid'] || $tampered['valid'] || $replayed['valid'] || $replayed['reason'] !== 'replayed') { exit(1); }
+echo 'ok';`,
+      ],
+      { encoding: 'utf8' }
+    );
+    if (
+      contactHoneypotRuntimeProbe.status === 0 &&
+      contactHoneypotRuntimeProbe.stdout.trim() === 'ok' &&
+      !contactHoneypotRuntimeProbe.stderr.trim()
+    ) {
+      pass(
+        'Dynamic Contact Honeypot Runtime: valid signed challenges pass while wrong-form, tampered, and replayed challenges fail closed.'
+      );
+    } else {
+      fail(
+        `Dynamic Contact Honeypot Runtime: signed timing or replay validation regressed. ${(contactHoneypotRuntimeProbe.stderr || contactHoneypotRuntimeProbe.stdout || '').trim()}`
+      );
+    }
+  } finally {
+    fs.rmSync(contactHoneypotSessionDir, { recursive: true, force: true });
   }
 
   const phpCgiBinary = path.join(
@@ -17674,6 +18146,8 @@ register_shutdown_function(static function () use ($rateLimitDir) {
   }
   @rmdir($rateLimitDir);
 });
+$healthyStorage = RateLimiter::getStorageHealth();
+if (($healthyStorage['healthy'] ?? false) !== true) exit(17);
 for ($attempt = 0; $attempt < 5; $attempt++) {
   if (!RateLimiter::consumeFixedWindow('password-recovery-email:a', 5, 900)) {
     exit(3);
@@ -17725,13 +18199,19 @@ if (RateLimiter::consumeAttempt('registration:ip:a')) {
 if (!RateLimiter::consumeAttempt('login:ip:a')) {
   exit(16);
 }
+$blockedPath = $rateLimitDir . DIRECTORY_SEPARATOR . 'not-a-directory';
+file_put_contents($blockedPath, 'blocked');
+$storageDir->setValue(null, $blockedPath . DIRECTORY_SEPARATOR);
+$failedStorage = RateLimiter::getStorageHealth();
+if (($failedStorage['healthy'] ?? true) !== false) exit(18);
+if (!RateLimiter::consumeAttempt('fail-open-check')) exit(19);
 echo 'ok';`,
     ],
     { encoding: 'utf8' }
   );
   if (fixedWindowRateProbe.status === 0 && fixedWindowRateProbe.stdout.trim() === 'ok') {
     pass(
-      'Rate Limiter Runtime: dedicated recovery windows and login/registration buckets remain isolated while each atomic authentication bucket accepts the threshold, rejects the next attempt, and login reset stays scoped.'
+      'Rate Limiter Runtime: dedicated buckets remain isolated, writable storage reports healthy, unavailable storage is visible and fail-open, and login reset stays scoped.'
     );
   } else {
     fail(
@@ -18192,6 +18672,28 @@ if (
   count($noscriptParagraphs) !== 4
 ) {
   exit(15);
+}
+$noscriptLinks = voncms_render_noscript_post_content(
+  '<p>See <a href="/zangetsu/news/story" target="_blank" rel="sponsored unsupported" onclick="alert(1)">story</a> and <a href="javascript:alert(1)" rel="ugc">bad</a>.</p>'
+);
+if (
+  $noscriptLinks !== '<p>See <a href="/zangetsu/news/story" target="_blank" rel="noopener noreferrer sponsored">story</a> and bad.</p>'
+) {
+  exit(18);
+}
+$rootAndUgcLinks = voncms_render_noscript_post_content(
+  '<p><a href="/news/root" rel="ugc nofollow unrelated">Root</a> <a href="https://example.test" target="_blank">Normal</a></p>'
+);
+if (
+  $rootAndUgcLinks !== '<p><a href="/news/root" rel="nofollow ugc">Root</a> <a href="https://example.test" target="_blank" rel="noopener noreferrer">Normal</a></p>'
+) {
+  exit(19);
+}
+$ambiguousInternalLink = voncms_render_noscript_post_content(
+  '<p><a href="/\\evil.example" rel="sponsored">Not internal</a></p>'
+);
+if ($ambiguousInternalLink !== '<p>Not internal</p>') {
+  exit(20);
 }
 $unicodeExcerpt = voncms_truncate_word_safe(str_repeat('😀', 205) . 'X', 200);
 if (
@@ -18856,8 +19358,9 @@ echo 'unguarded';`,
         `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/index.php'))};
 require ${JSON.stringify(resolveFromRoot(helperRelativePath))};
 $normalized = voncms_normalize_fulltext_search(' Café <b>bola</b>! 2026 ');
+$required = voncms_build_required_fulltext_search(' Café <b>bola</b>! 2026 ');
 $escaped = voncms_escape_like_search('100%_');
-if ($normalized !== 'Café bola 2026' || $escaped !== '100\\%\\_') { exit(42); }
+if ($normalized !== 'Café bola 2026' || $required !== '+Café* +bola* +2026*' || $escaped !== '100\\%\\_') { exit(42); }
 echo 'ok';`,
       ],
       { encoding: 'utf8' }
@@ -18871,7 +19374,7 @@ echo 'ok';`,
     searchQueryHelperDistProbe.stdout.trim() === 'ok'
   ) {
     pass(
-      'Search Query Helper Runtime: Source and Deploy retain Unicode full-text normalization and SQL LIKE escaping.'
+      'Search Query Helper Runtime: Source and Deploy retain Unicode normalization, required multi-term Boolean search, and SQL LIKE escaping.'
     );
   } else {
     fail(
@@ -19167,6 +19670,164 @@ echo 'ok';`,
       ],
       { encoding: 'utf8' }
     );
+  const postSlugRedirectHelperContent = read('public/api/redirect_loop_helper.php');
+  const postSlugConflictBranch = sliceBetween(
+    modernSeoSavePostContent,
+    'if ($redirectConflict !== null) {',
+    '} catch (Throwable $redirectError)'
+  );
+  if (
+    !modernSeoSavePostContent.includes('voncms_post_slug_redirect_paths(') ||
+    !modernSeoSavePostContent.includes('voncms_should_store_post_slug_redirect(') ||
+    !modernSeoSavePostContent.includes('voncms_store_post_slug_redirect($db, $redirectPaths)') ||
+    !modernSeoSavePostContent.includes('The new permalink already has a redirect.') ||
+    !modernSeoSavePostContent.includes('The old permalink already has a redirect.') ||
+    !postSlugConflictBranch.includes('$db->rollBack();') ||
+    !postSlugConflictBranch.includes('409,') ||
+    !modernSeoSavePostContent.includes('The post was not changed.') ||
+    !modernSeoSavePostContent.includes('$isDuplicate ? 409 : 503') ||
+    modernSeoSavePostContent.includes('INSERT IGNORE INTO redirects') ||
+    modernSeoSavePostContent.includes("'DELETE FROM redirects WHERE source_url = ?'") ||
+    !postSlugRedirectHelperContent.includes('function voncms_store_post_slug_redirect(') ||
+    !postSlugRedirectHelperContent.includes('function voncms_should_store_post_slug_redirect(') ||
+    !postSlugRedirectHelperContent.includes(
+      'INSERT INTO redirects (source_url, target_url, redirect_type) VALUES (?, ?, ?)'
+    ) ||
+    !modernSeoSavePostContent.includes('created_at, scheduled_at, updated_at') ||
+    modernSeoSavePostContent.indexOf('voncms_store_post_slug_redirect($db, $redirectPaths)') >
+      modernSeoSavePostContent.indexOf('UPDATE posts SET') ||
+    indexContent.indexOf('voncms_resolve_public_redirect(') >
+      indexContent.indexOf('voncms_fetch_public_post(')
+  ) {
+    fail(
+      'Published Slug Redirect Wiring: post save must reject existing redirect rules before changing the post and public routing must resolve the 301 before post lookup.'
+    );
+  } else {
+    pass(
+      'Published Slug Redirect Wiring: post save rejects redirect conflicts before update and public routing resolves the 301 before post lookup.'
+    );
+  }
+  if (
+    savePageApiContent.includes("require_once __DIR__ . '/redirect_loop_helper.php';") &&
+    savePageApiContent.includes('voncms_should_store_public_slug_redirect(') &&
+    savePageApiContent.includes('voncms_page_slug_redirect_paths(') &&
+    savePageApiContent.includes('voncms_store_permalink_redirect($pdo, $redirectPaths)') &&
+    savePageApiContent.includes('The page was not changed.') &&
+    savePageApiContent.indexOf('voncms_store_permalink_redirect($pdo, $redirectPaths)') <
+      savePageApiContent.indexOf('UPDATE pages SET')
+  ) {
+    pass(
+      'Published Page Slug Redirect Wiring: page save rejects redirect conflicts before updating the published page.'
+    );
+  } else {
+    fail(
+      'Published Page Slug Redirect Wiring: a published page slug can change without preserving or conflict-checking its old permalink.'
+    );
+  }
+  const postSlugRedirectProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/index.php'))};
+require ${JSON.stringify(resolveFromRoot('public/seo_response_helper.php'))};
+require ${JSON.stringify(resolveFromRoot('public/api/redirect_loop_helper.php'))};
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+$pdo->exec('CREATE TABLE redirects (source_url TEXT PRIMARY KEY, target_url TEXT, redirect_type INTEGER)');
+$setting = $pdo->prepare('INSERT INTO settings (setting_group, setting_key, setting_value) VALUES (?, ?, ?)');
+$setting->execute(['general', 'domain_url', 'https://example.com']);
+$insertRedirect = $pdo->prepare('INSERT INTO redirects (source_url, target_url, redirect_type) VALUES (?, ?, ?)');
+$oldPost = ['id' => 42, 'slug' => 'old-story', 'category' => 'Tech & AI', 'created_at' => '2026-09-23 12:00:00'];
+$newPost = ['id' => 42, 'slug' => 'new-story', 'category' => 'Tech & AI', 'created_at' => '2026-09-23 12:00:00'];
+$eligibilityCases = [
+  ['published', 'published', false, 'old-story', 'new-story', true],
+  ['published', 'draft', false, 'old-story', 'new-story', false],
+  ['published', 'archived', false, 'old-story', 'new-story', false],
+  ['draft', 'published', false, 'old-story', 'new-story', false],
+  ['draft', 'published', false, 'old-story', 'old-story', false],
+  ['published', 'published', true, 'old-story', 'new-story', false],
+  ['published', 'published', false, 'old-story', 'old-story', false],
+];
+foreach ($eligibilityCases as [$before, $after, $statusOnly, $oldSlug, $newSlug, $expectedDecision]) {
+  if (voncms_should_store_post_slug_redirect($before, $after, $statusOnly, $oldSlug, $newSlug) !== $expectedDecision) exit(16);
+}
+$expected = [
+  'category' => ['/tech-ai/old-story', '/tech-ai/new-story'],
+  'date' => ['/2026/09/23/old-story', '/2026/09/23/new-story'],
+  'day_name' => ['/2026/09/23/old-story', '/2026/09/23/new-story'],
+  'month_name' => ['/2026/09/old-story', '/2026/09/new-story'],
+  'slug' => ['/old-story', '/new-story'],
+  'post_name' => ['/old-story', '/new-story'],
+];
+foreach (['/' => 'https://example.com', '/blog/' => 'https://example.com/blog'] as $expectedBase => $domainUrl) {
+  $pdo->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = 'domain_url'")->execute([$domainUrl]);
+  $_SERVER['SCRIPT_NAME'] = rtrim($expectedBase, '/') . '/api/save_post.php';
+  $basePath = voncms_get_redirect_loop_base_path($pdo);
+  if ($basePath !== $expectedBase) exit(2);
+  foreach ($expected as $style => $paths) {
+    $pdo->exec('DELETE FROM redirects');
+    $rule = voncms_post_slug_redirect_paths($oldPost, $newPost, $style, $basePath);
+    $target = rtrim($expectedBase, '/') . $paths[1];
+    if (($rule['source'] ?? '') !== $paths[0] || ($rule['target'] ?? '') !== $target || ($rule['targetSource'] ?? '') !== $paths[1]) exit(3);
+    if (voncms_store_post_slug_redirect($pdo, $rule) !== null) exit(10);
+    $oldRequest = rtrim($expectedBase, '/') . $paths[0];
+    $resolved = voncms_resolve_public_redirect($pdo, $oldRequest, $basePath, 'example.com');
+    if (($resolved['status'] ?? 0) !== 301 || ($resolved['location'] ?? '') !== $target) exit(4);
+    if (voncms_resolve_public_redirect($pdo, $target, $basePath, 'example.com') !== null) exit(5);
+
+    $pdo->exec('DELETE FROM redirects');
+    $insertRedirect->execute([$rule['targetSource'], '/manual-target', 302]);
+    if (voncms_store_post_slug_redirect($pdo, $rule) !== 'target') exit(11);
+    $manualTarget = $pdo->query('SELECT source_url, target_url, redirect_type FROM redirects')->fetchAll(PDO::FETCH_ASSOC);
+    if (count($manualTarget) !== 1 || $manualTarget[0]['source_url'] !== $rule['targetSource'] || $manualTarget[0]['target_url'] !== '/manual-target' || (int) $manualTarget[0]['redirect_type'] !== 302) exit(12);
+
+    $pdo->exec('DELETE FROM redirects');
+    $insertRedirect->execute([$rule['source'], '/manual-source', 302]);
+    if (voncms_store_post_slug_redirect($pdo, $rule) !== 'source') exit(13);
+    $manualSource = $pdo->query('SELECT source_url, target_url, redirect_type FROM redirects')->fetchAll(PDO::FETCH_ASSOC);
+    if (count($manualSource) !== 1 || $manualSource[0]['source_url'] !== $rule['source'] || $manualSource[0]['target_url'] !== '/manual-source' || (int) $manualSource[0]['redirect_type'] !== 302) exit(14);
+  }
+  if (voncms_post_slug_redirect_paths($oldPost, $newPost, 'plain', $basePath) !== null) exit(6);
+  $pdo->exec('DELETE FROM redirects');
+  if (voncms_should_store_post_slug_redirect('published', 'draft', false, 'old-story', 'new-story')) {
+    voncms_store_post_slug_redirect($pdo, voncms_post_slug_redirect_paths($oldPost, $newPost, 'slug', $basePath));
+  }
+  if (voncms_should_store_post_slug_redirect('draft', 'draft', false, 'new-story', 'old-story')) exit(17);
+  if (voncms_should_store_post_slug_redirect('draft', 'published', false, 'old-story', 'old-story')) exit(19);
+  if (voncms_resolve_public_redirect($pdo, rtrim($expectedBase, '/') . '/old-story', $basePath, 'example.com') !== null) exit(18);
+  $pdo->exec('DELETE FROM redirects');
+  $forward = voncms_post_slug_redirect_paths($oldPost, $newPost, 'slug', $basePath);
+  if (voncms_store_post_slug_redirect($pdo, $forward) !== null) exit(15);
+  $back = voncms_post_slug_redirect_paths($newPost, $oldPost, 'slug', $basePath);
+  if (voncms_store_post_slug_redirect($pdo, $back) !== 'target') exit(8);
+  $retained = $pdo->query('SELECT source_url, target_url FROM redirects')->fetchAll(PDO::FETCH_ASSOC);
+  if (count($retained) !== 1 || $retained[0]['source_url'] !== $forward['source'] || $retained[0]['target_url'] !== $forward['target']) exit(9);
+}
+$newPost['category'] = 'News & Views';
+$movedCategory = voncms_post_slug_redirect_paths($oldPost, $newPost, 'category', '/blog/');
+if (($movedCategory['source'] ?? '') !== '/tech-ai/old-story' || ($movedCategory['target'] ?? '') !== '/blog/news-views/new-story') exit(7);
+$pdo->exec('DELETE FROM redirects');
+$oldPage = ['id' => 9, 'slug' => 'old-page'];
+$newPage = ['id' => 9, 'slug' => 'new-page'];
+$pageRule = voncms_page_slug_redirect_paths($oldPage, $newPage, '/blog/');
+if (($pageRule['source'] ?? '') !== '/old-page' || ($pageRule['target'] ?? '') !== '/blog/new-page') exit(20);
+if (voncms_store_permalink_redirect($pdo, $pageRule) !== null) exit(21);
+$pageResolved = voncms_resolve_public_redirect($pdo, '/blog/old-page', '/blog/', 'example.com');
+if (($pageResolved['status'] ?? 0) !== 301 || ($pageResolved['location'] ?? '') !== '/blog/new-page') exit(22);
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (postSlugRedirectProbe.status === 0 && postSlugRedirectProbe.stdout.trim() === 'ok') {
+    pass(
+      'Published Slug Redirect Runtime: post and page replacements return 301 at root and subfolder, Draft transitions leave no stale rule, conflicts remain untouched, and plain post IDs add no rule.'
+    );
+  } else {
+    fail(
+      `Published Slug Redirect Runtime: canonical redirect probe failed (${postSlugRedirectProbe.stderr.trim() || postSlugRedirectProbe.stdout.trim() || postSlugRedirectProbe.status}).`
+    );
+  }
   const seoResponseHelperProbe = runSeoResponseHelperProbe(
     'public/index.php',
     'public/seo_response_helper.php'
@@ -19999,7 +20660,7 @@ const cacheFiles = () => fs.existsSync(storage)
       "$expectedStatus = is_scalar($input['expectedStatus'] ?? null)",
       'Post status changed. Reload before applying this workflow action.',
       "$statusOnlyTransition = $workflow['status_only'];",
-      'SELECT id, author_id, title, status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
+      'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
       '!voncms_is_post_workflow_action($requestedWorkflowAction)',
       'Post version is required for this legacy workflow action.',
       '$serverTimestamp !== $clientTimestamp',
@@ -20118,6 +20779,7 @@ echo 'ok';
     'public/api/save_post.php',
     'public/api/save_page.php',
     'public/api/content_embed_helper.php',
+    'public/api/contact_honeypot_helper.php',
     'public/api/mail_helper.php',
     'public/von_config.sample.php',
     'public/rss.php',

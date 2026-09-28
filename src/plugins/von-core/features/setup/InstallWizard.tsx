@@ -53,6 +53,7 @@ const InstallWizard: React.FC = () => {
     adminUsername: '',
     adminEmail: '',
     adminPass: '',
+    setupKey: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,6 +284,35 @@ const InstallWizard: React.FC = () => {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <label htmlFor="setupKey" className="text-sm font-medium text-slate-700">
+                      Installer setup key
+                    </label>
+                    <div className="relative">
+                      <LockKeyhole
+                        size={16}
+                        aria-hidden="true"
+                        className="absolute left-3 top-3 text-slate-400"
+                      />
+                      <input
+                        aria-label="Installer setup key"
+                        id="setupKey"
+                        required
+                        type="password"
+                        autoComplete="off"
+                        name="setupKey"
+                        value={formData.setupKey}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-slate-300 bg-white py-2.5 pl-10 pr-4 font-mono text-sm text-slate-950 outline-hidden transition-colors focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15"
+                        placeholder="Paste the 64-character setup key"
+                      />
+                    </div>
+                    <p className="text-xs leading-5 text-slate-500">
+                      Open <code>data/install_setup.key</code> in your hosting File Manager and
+                      paste its value here. VonCMS deletes the key after installation succeeds.
+                    </p>
                   </div>
 
                   <p className="mt-4 text-xs leading-5 text-slate-500">

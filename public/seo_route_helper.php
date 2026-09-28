@@ -649,6 +649,62 @@ if (!function_exists('buildCanonicalContentPath')) {
   }
 }
 
+if (!function_exists('voncms_content_slug_redirect_paths')) {
+  /**
+   * Redirect Manager stores installation-relative sources, while browser-facing
+   * targets need the installation prefix for subfolder deployments.
+   *
+   * @param array<string, mixed> $oldContent
+   * @param array<string, mixed> $newContent
+   * @return array{source: string, target: string, targetSource: string}|null
+   */
+  function voncms_content_slug_redirect_paths(
+    array $oldContent,
+    array $newContent,
+    string $permalinkStyle,
+    string $basePath,
+    string $contentType,
+  ): ?array {
+    $source = buildCanonicalContentPath($oldContent, $permalinkStyle, $contentType);
+    $targetPath = buildCanonicalContentPath($newContent, $permalinkStyle, $contentType);
+    if ($source === $targetPath) {
+      return null;
+    }
+
+    $normalizedBasePath = '/' . trim(str_replace('\\', '/', $basePath), '/');
+    $basePrefix = $normalizedBasePath === '/' ? '' : $normalizedBasePath;
+    return [
+      'source' => $source,
+      'target' => $basePrefix . $targetPath,
+      'targetSource' => $targetPath,
+    ];
+  }
+}
+
+if (!function_exists('voncms_post_slug_redirect_paths')) {
+  function voncms_post_slug_redirect_paths(
+    array $oldPost,
+    array $newPost,
+    string $permalinkStyle,
+    string $basePath,
+  ): ?array {
+    return voncms_content_slug_redirect_paths(
+      $oldPost,
+      $newPost,
+      $permalinkStyle,
+      $basePath,
+      'post',
+    );
+  }
+}
+
+if (!function_exists('voncms_page_slug_redirect_paths')) {
+  function voncms_page_slug_redirect_paths(array $oldPage, array $newPage, string $basePath): ?array
+  {
+    return voncms_content_slug_redirect_paths($oldPage, $newPage, 'slug', $basePath, 'page');
+  }
+}
+
 if (!function_exists('voncms_fetch_public_post')) {
   /**
    * @param PDO $pdo
@@ -730,7 +786,7 @@ if (!function_exists('voncms_fetch_public_listing_page')) {
     }
     $normalizedSearch = trim($search);
     if ($normalizedSearch !== '' && strlen($normalizedSearch) >= 2) {
-      $fulltextSearch = voncms_normalize_fulltext_search($normalizedSearch);
+      $fulltextSearch = voncms_build_required_fulltext_search($normalizedSearch);
       $searchLike = '%' . voncms_escape_like_search($normalizedSearch) . '%';
       $driverName = (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
       if ($driverName === 'mysql' && $fulltextSearch !== '' && strlen($fulltextSearch) >= 2) {

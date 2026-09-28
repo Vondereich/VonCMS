@@ -428,12 +428,15 @@ try {
 
   // --- SERVER INFO INJECTION (Smart Check) ---
   if ($isPrimaryAdmin) {
+    $rateLimitStorage = RateLimiter::getStorageHealth();
     $settings['_serverInfo'] = [
       'phpVersion' => PHP_VERSION,
       'uploadMaxFilesize' => ini_get('upload_max_filesize'),
       'postMaxSize' => ini_get('post_max_size'),
       'memoryLimit' => ini_get('memory_limit'),
       'integrityNeeded' => SecurityHelper::isIntegrityCompromised(),
+      'rateLimitStorageHealthy' => $rateLimitStorage['healthy'],
+      'rateLimitStorageMessage' => $rateLimitStorage['message'],
     ];
   }
 

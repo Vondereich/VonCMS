@@ -6,6 +6,7 @@
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/contact_honeypot_helper.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('POST, OPTIONS');
@@ -44,27 +45,53 @@ $input = json_decode($requestBody, true);
 $input = is_array($input) ? $input : [];
 $formId = $input['formId'] ?? '';
 $formData = $input['data'] ?? [];
-$honeypot = $input['hp_field'] ?? '';
+$antiBot = $input['antiBot'] ?? null;
+$hasLegacyHoneypot = array_key_exists('hp_field', $input);
+$legacyHoneypot = $hasLegacyHoneypot ? $input['hp_field'] : null;
 
 if (!is_string($formId) || !preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $formId)) {
   RateLimiter::recordAttempt();
   ResponseHelper::sendError('Invalid form data.', 400);
 }
 
-if (!is_scalar($honeypot) && $honeypot !== null) {
-  RateLimiter::recordAttempt();
-  ResponseHelper::sendError('Invalid form data.', 400);
-}
-$honeypot = (string) $honeypot;
+// A blank legacy trap means the visitor loaded the form before an OTA update.
+// Ask for a refresh instead of silently discarding a legitimate message.
+if (!is_array($antiBot) && $hasLegacyHoneypot) {
+  if ((is_scalar($legacyHoneypot) || $legacyHoneypot === null) && (string) $legacyHoneypot === '') {
+    ResponseHelper::sendError(
+      'This contact form has expired. Please refresh the page and try again.',
+      409,
+    );
+  }
 
-// 3. Honeypot Check - bots will fill this hidden field
-if (!empty($honeypot)) {
+  $antiBot = [
+    'field' => 'hp_field',
+    'token' => '',
+    'value' => $legacyHoneypot,
+  ];
+}
+
+$antiBot = is_array($antiBot) ? $antiBot : [];
+$honeypotField = $antiBot['field'] ?? '';
+$honeypotToken = $antiBot['token'] ?? '';
+$honeypotValue = $antiBot['value'] ?? '';
+$honeypotField = is_string($honeypotField) ? $honeypotField : '';
+$honeypotToken = is_string($honeypotToken) ? $honeypotToken : '';
+$honeypotValueLength =
+  is_scalar($honeypotValue) || $honeypotValue === null ? strlen((string) $honeypotValue) : 0;
+$honeypotValue =
+  is_scalar($honeypotValue) || $honeypotValue === null ? (string) $honeypotValue : '__invalid__';
+$honeypotValidation = voncms_contact_honeypot_validate($formId, $honeypotField, $honeypotToken);
+
+// 3. Dynamic honeypot check - suspicious requests receive the established fake success.
+if (!$honeypotValidation['valid'] || $honeypotValue !== '') {
   RateLimiter::recordAttempt();
   require_once __DIR__ . '/security/SecurityLogger.php';
   SecurityLogger::log('honeypot_caught', 'medium', [
     'form_id' => $formId,
-    'field' => 'hp_field',
-    'value_length' => strlen((string) $honeypot),
+    'field' => $honeypotField !== '' ? $honeypotField : 'missing',
+    'reason' => $honeypotValue !== '' ? 'filled' : $honeypotValidation['reason'],
+    'value_length' => $honeypotValueLength,
     'context' => 'contact_form',
   ]);
   // Return fake success to not alert the bot
@@ -313,6 +340,7 @@ try {
 $result = vonSendMail($to, $subject, $body, $fromEmail, $fromName);
 
 if ($result['success']) {
+  voncms_contact_honeypot_mark_used($honeypotValidation['nonce']);
   $_SESSION['last_contact_submit'] = time();
   echo json_encode(['success' => true, 'message' => $messages['success']]);
 } else {

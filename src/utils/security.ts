@@ -1,5 +1,6 @@
 import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import { BASE_PATH } from '../config/site.config';
+import { normalizeEditorLinkRel } from '../components/editor/editorLinkUtils';
 
 // Safe CSS properties that are needed for editor alignment and layout
 const ALLOWED_STYLE_PROPS = new Set([
@@ -494,7 +495,7 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
     }
   });
 
-  // Hook: Auto-add rel="noopener noreferrer" to target="_blank" links
+  // Keep only supported link relationships and enforce new-tab safety.
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     if (
       node.tagName === 'IFRAME' &&
@@ -504,11 +505,13 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
       node.setAttribute('allowfullscreen', '');
     }
 
-    if (node.tagName === 'A' && node.getAttribute('target') === '_blank') {
-      const rel = node.getAttribute('rel');
-      if (!rel || (!rel.includes('noopener') && !rel.includes('noreferrer'))) {
-        node.setAttribute('rel', 'noopener noreferrer');
-      }
+    if (node.tagName === 'A') {
+      const rel = normalizeEditorLinkRel(
+        node.getAttribute('rel'),
+        node.getAttribute('target') === '_blank'
+      );
+      if (rel) node.setAttribute('rel', rel);
+      else node.removeAttribute('rel');
     }
   });
 

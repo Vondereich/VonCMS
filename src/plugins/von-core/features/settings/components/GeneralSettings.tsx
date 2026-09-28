@@ -636,8 +636,15 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 >
                   <option value="tls">TLS (Recommended)</option>
                   <option value="ssl">SSL</option>
-                  <option value="none">None</option>
+                  <option value="none" disabled>
+                    None (blocked: credentials would be exposed)
+                  </option>
                 </select>
+                {settings.smtpEncryption === 'none' && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    Select TLS or SSL before saving. Unencrypted SMTP authentication is blocked.
+                  </p>
+                )}
               </div>
               <div>
                 <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">

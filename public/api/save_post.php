@@ -5,11 +5,13 @@
  */
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../seo_schema_helper.php';
+require_once __DIR__ . '/../seo_route_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/content_embed_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
+require_once __DIR__ . '/redirect_loop_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -187,7 +189,7 @@ try {
 
   if ($isUpdate) {
     $checkOwner = $db->prepare(
-      "SELECT id, author_id, title, status, slug, category, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
+      "SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$postId]);
     $ownerPost = $checkOwner->fetch(PDO::FETCH_ASSOC);
@@ -400,23 +402,56 @@ try {
     }
   }
   if ($isUpdate) {
-    // SMART SLUG PROTECTION: Auto-create redirect on slug change (Gold Standard)
+    // Never send an old public permalink to a draft or other non-public status.
     if (
-      !$statusOnlyTransition &&
-      $existingPost['status'] === 'published' &&
-      !empty($existingPost['slug']) &&
-      $existingPost['slug'] !== $input['slug']
+      voncms_should_store_post_slug_redirect(
+        (string) $existingPost['status'],
+        (string) $status,
+        (bool) $statusOnlyTransition,
+        (string) ($existingPost['slug'] ?? ''),
+        (string) $input['slug'],
+      )
     ) {
       try {
-        $oldUrl = '/' . ltrim($existingPost['slug'], '/');
-        $newUrl = '/' . ltrim($input['slug'], '/');
-
-        $redirectStmt = $db->prepare(
-          'INSERT IGNORE INTO redirects (source_url, target_url, redirect_type) VALUES (?, ?, ?)',
+        $permalinkStmt = $db->prepare(
+          "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'permalink_structure' LIMIT 1",
         );
-        $redirectStmt->execute([$oldUrl, $newUrl, '301']);
-      } catch (Exception $re) {
-        // Silent fail for redirects if table missing
+        $permalinkStmt->execute();
+        $permalinkStyle = (string) ($permalinkStmt->fetchColumn() ?: 'slug');
+        $newPost = $existingPost;
+        $newPost['slug'] = $input['slug'];
+        $newPost['category'] = $category;
+        $redirectPaths = voncms_post_slug_redirect_paths(
+          $existingPost,
+          $newPost,
+          $permalinkStyle,
+          voncms_get_redirect_loop_base_path($db),
+        );
+
+        if ($redirectPaths !== null) {
+          $redirectConflict = voncms_store_post_slug_redirect($db, $redirectPaths);
+          if ($redirectConflict !== null) {
+            $db->rollBack();
+            ResponseHelper::sendError(
+              $redirectConflict === 'target'
+                ? 'The new permalink already has a redirect. Review that rule before changing the slug.'
+                : 'The old permalink already has a redirect. Review that rule before changing the slug.',
+              409,
+            );
+          }
+        }
+      } catch (Throwable $redirectError) {
+        if ($db->inTransaction()) {
+          $db->rollBack();
+        }
+        $isDuplicate =
+          $redirectError instanceof PDOException && (string) $redirectError->getCode() === '23000';
+        ResponseHelper::sendError(
+          $isDuplicate
+            ? 'A redirect for this permalink appeared while saving. Review the redirects and try again.'
+            : 'Could not verify or save the permalink redirect. The post was not changed.',
+          $isDuplicate ? 409 : 503,
+        );
       }
     }
 

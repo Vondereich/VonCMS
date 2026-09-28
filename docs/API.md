@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.27.4`
+Version: `1.27.6` (In Development)
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 

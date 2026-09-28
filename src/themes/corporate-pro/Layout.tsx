@@ -48,6 +48,7 @@ import {
 import {
   VonSEO,
   ContentRenderer,
+  ShareButtons,
   VpComments,
   VonNewsletter,
   LoadMoreButton,
@@ -1339,11 +1340,29 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                     {/* AI Summary Plugin */}
                     {aiSummaryPos === 'top' && aiSummary}
 
+                    {settings.sharePlacement === 'top' && (
+                      <div className="mb-8">
+                        <ShareButtons
+                          url={typeof window !== 'undefined' ? window.location.href : ''}
+                          title={decodeEntities(selectedPost.title)}
+                        />
+                      </div>
+                    )}
+
                     <div className="prose prose-lg prose-slate dark:prose-invert mx-auto prose-a:text-blue-600 prose-a:hover:underline prose-img:rounded-xl dark:prose-blockquote:text-neutral-300 dark:prose-blockquote:border-l-neutral-700 dark:prose-strong:text-white dark:prose-headings:text-white dark:prose-code:text-neutral-200">
                       <ContentRenderer html={selectedPost.content} />
                     </div>
 
                     {aiSummaryPos === 'bottom' && aiSummary}
+
+                    {(settings.sharePlacement === 'bottom' || !settings.sharePlacement) && (
+                      <div className="mt-12 pt-8 border-t border-slate-100 dark:border-neutral-800">
+                        <ShareButtons
+                          url={typeof window !== 'undefined' ? window.location.href : ''}
+                          title={decodeEntities(selectedPost.title)}
+                        />
+                      </div>
+                    )}
 
                     {/* Tags */}
                     {selectedPost.keywords && (

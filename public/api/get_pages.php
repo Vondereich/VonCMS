@@ -75,7 +75,7 @@ try {
   }
   if ($search !== '' && strlen($search) >= 2) {
     $hasFulltextSearch = false;
-    $fulltextSearch = voncms_normalize_fulltext_search($search);
+    $fulltextSearch = voncms_build_required_fulltext_search($search);
     $searchLike = '%' . voncms_escape_like_search($search) . '%';
 
     try {

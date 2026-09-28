@@ -84,21 +84,41 @@ if ($recordAnalytics) {
 }
 
 $viewRecorded = false;
+$viewThrottled = false;
 try {
   if ($postId) {
-    $stmt = $pdo->prepare(
-      'UPDATE posts SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ?',
-    );
-    $stmt->execute([$postId]);
-    $viewRecorded = true;
+    if (ContentViewDeduplicator::claim('post', $postId)) {
+      $stmt = $pdo->prepare(
+        "UPDATE posts SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ? AND (status = 'published' OR status IS NULL)",
+      );
+      $stmt->execute([$postId]);
+      $viewRecorded = $stmt->rowCount() === 1;
+      if (!$viewRecorded) {
+        ContentViewDeduplicator::release('post', $postId);
+      }
+    } else {
+      $viewThrottled = true;
+    }
   } elseif ($pageId) {
-    $stmt = $pdo->prepare(
-      'UPDATE pages SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ?',
-    );
-    $stmt->execute([$pageId]);
-    $viewRecorded = true;
+    if (ContentViewDeduplicator::claim('page', $pageId)) {
+      $stmt = $pdo->prepare(
+        "UPDATE pages SET views = COALESCE(views, 0) + 1, updated_at = updated_at WHERE id = ? AND (status = 'published' OR status IS NULL)",
+      );
+      $stmt->execute([$pageId]);
+      $viewRecorded = $stmt->rowCount() === 1;
+      if (!$viewRecorded) {
+        ContentViewDeduplicator::release('page', $pageId);
+      }
+    } else {
+      $viewThrottled = true;
+    }
   }
 } catch (Throwable $viewError) {
+  if ($postId) {
+    ContentViewDeduplicator::release('post', $postId);
+  } elseif ($pageId) {
+    ContentViewDeduplicator::release('page', $pageId);
+  }
   $viewRecorded = false;
 }
 
@@ -106,5 +126,6 @@ echo json_encode([
   'success' => true,
   'visit' => $visitRecorded,
   'view' => $viewRecorded,
+  'view_throttled' => $viewThrottled,
   'throttled' => $recordAnalytics && $recentLogs > 0,
 ]);

@@ -319,7 +319,7 @@ location ~* \.php/ {
 
 # Block internal API helper files. These regex blocks must appear before
 # aaPanel's generic PHP-FPM regex handler.
-location ~* ^/api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
+location ~* ^/api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
     deny all;
 }
 
@@ -419,10 +419,11 @@ Fill in:
 - admin username
 - admin email
 - admin password
+- the one-time value from `data/install_setup.key`, read through SSH or the hosting File Manager after the installer first opens
 
 The admin password must be at least 8 characters and include an uppercase letter, a number, and one special character from `!@#$%^&*(),.?":{}|<>`. For example, `MyPass1!`. Weak passwords are rejected by the installer.
 
-Complete the installation. VonCMS writes `von_config.php` and `install.lock` automatically. Direct installation attempts are blocked after both files exist.
+Complete the installation. VonCMS writes `von_config.php` and `install.lock` automatically. Direct installation attempts are blocked after both files exist. The server-local setup key is required before any database connection or administrator creation and is deleted after installation succeeds.
 
 Sign in at `/admin`.
 
@@ -475,6 +476,7 @@ check_code "/index.html" 301
 for path in \
     "/api/ai_provider_helper.php" \
     "/api/analytics_consent_helper.php" \
+    "/api/contact_honeypot_helper.php" \
     "/api/content_audit_helper.php" \
     "/api/content_embed_helper.php" \
     "/api/ImageProcessor.php" \
@@ -556,8 +558,13 @@ Check:
 - Nginx rewrite rules are present
 - PHP 8.2+ is selected
 - PHP-FPM can write `von_config.php` and `install.lock`
+- PHP-FPM can create and remove `data/install_setup.key`
 - The extracted files have the correct owner
 - The Deploy ZIP contents are directly inside the site root
+
+### HTTPS terminates at a reverse proxy
+
+Direct HTTPS needs no extra setting. If a reverse proxy sends HTTP to PHP-FPM after terminating HTTPS, set `VONCMS_TRUSTED_PROXIES` in the PHP-FPM environment to the proxy's exact IP or CIDR, for example `127.0.0.1,10.20.0.0/16`. Forwarded HTTPS headers from every other address are deliberately ignored.
 
 ### API returns 404 on VPS
 

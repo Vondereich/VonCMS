@@ -56,7 +56,12 @@ import {
   type LegacyImageMatch,
   type MediaAlignment,
 } from './editor/editorExtensions';
-import { buildEditorLinkAttrs, normalizeEditorUrl } from './editor/editorLinkUtils';
+import {
+  buildEditorLinkAttrs,
+  editorLinkRelationshipFromRel,
+  normalizeEditorUrl,
+  type EditorLinkRelationship,
+} from './editor/editorLinkUtils';
 import { normalizeImageSource } from '../utils/siteUtils';
 import {
   TABLE_MAX_DIMENSION,
@@ -169,6 +174,7 @@ const Editor: React.FC<EditorProps> = ({
   const [modalInput, setModalInput] = useState('');
   const [modalInput2, setModalInput2] = useState('');
   const [modalError, setModalError] = useState('');
+  const [linkRelationship, setLinkRelationship] = useState<EditorLinkRelationship>('normal');
   const mediaRequestIdRef = useRef(0);
 
   // Keep authored editor HTML inside the shared content allowlist.
@@ -253,14 +259,22 @@ const Editor: React.FC<EditorProps> = ({
 
   const getCurrentEditorHtml = () => editor?.getHTML() || '';
 
-  const insertSafeLink = (normalizedUrl: string) => {
+  const insertSafeLink = (
+    normalizedUrl: string,
+    relationship: EditorLinkRelationship = 'normal'
+  ) => {
     if (!editor) return;
 
     const linkAttrs = {
-      ...buildEditorLinkAttrs(normalizedUrl),
+      ...buildEditorLinkAttrs(normalizedUrl, relationship),
       href: normalizedUrl,
     };
     const chain = editor.chain().focus();
+
+    if (editor.isActive('link')) {
+      chain.extendMarkRange('link').setLink(linkAttrs).run();
+      return;
+    }
 
     if (editor.state.selection.empty) {
       chain
@@ -646,7 +660,7 @@ const Editor: React.FC<EditorProps> = ({
         return;
       }
       restoreSavedSelection();
-      insertSafeLink(normalizedUrl);
+      insertSafeLink(normalizedUrl, linkRelationship);
     } else if (activeModal === 'image') {
       const normalizedImageUrl = normalizeImageSource(modalInput);
       if (!normalizedImageUrl) {
@@ -702,6 +716,7 @@ const Editor: React.FC<EditorProps> = ({
     setModalInput('');
     setModalInput2('');
     setModalError('');
+    setLinkRelationship('normal');
   };
 
   const openModal = (type: 'link' | 'image' | 'video' | 'code' | 'table' | 'mediaLibrary') => {
@@ -717,6 +732,11 @@ const Editor: React.FC<EditorProps> = ({
     setSelectedTable(null);
     setActiveModal(type);
     setModalInput(type === 'link' ? String(editor?.getAttributes('link')['href'] || '') : '');
+    setLinkRelationship(
+      type === 'link'
+        ? editorLinkRelationshipFromRel(String(editor?.getAttributes('link')['rel'] || ''))
+        : 'normal'
+    );
     setModalInput2('');
     setModalError('');
 
@@ -2154,6 +2174,32 @@ const Editor: React.FC<EditorProps> = ({
                     activeModal === 'video' ? 'https://youtube.com/...' : 'https://example.com'
                   }
                 />
+                {activeModal === 'link' && (
+                  <div className="mt-3">
+                    <label
+                      htmlFor="editor-link-relationship"
+                      className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                    >
+                      Link relationship
+                    </label>
+                    <select
+                      id="editor-link-relationship"
+                      value={linkRelationship}
+                      onChange={(event) =>
+                        setLinkRelationship(event.target.value as EditorLinkRelationship)
+                      }
+                      className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm dark:border-admin-border-strong dark:bg-admin-canvas dark:text-white"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="sponsored">Sponsored - paid or compensated link</option>
+                      <option value="nofollow">Nofollow</option>
+                      <option value="ugc">UGC - user-generated content</option>
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Applies to this link only. It does not change article indexing.
+                    </p>
+                  </div>
+                )}
                 {activeModal === 'video' && (
                   <p className="text-xs text-slate-500 mt-1">
                     Supports YouTube, TikTok, Instagram, Facebook or supported iframe embeds.
@@ -2193,11 +2239,15 @@ const Editor: React.FC<EditorProps> = ({
               className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               <CheckCircle size={16} />
-              {activeModal === 'link' || activeModal === 'image' || activeModal === 'video'
-                ? 'Insert Object'
-                : activeModal === 'code'
-                  ? 'Insert Code'
-                  : 'Generate Table'}
+              {activeModal === 'link'
+                ? selectedLinkIsActive
+                  ? 'Update Link'
+                  : 'Insert Link'
+                : activeModal === 'image' || activeModal === 'video'
+                  ? 'Insert Object'
+                  : activeModal === 'code'
+                    ? 'Insert Code'
+                    : 'Generate Table'}
             </button>
           </div>
         </div>

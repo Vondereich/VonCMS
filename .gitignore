@@ -69,6 +69,7 @@ public/data/generated_media_variants.php.tmp.*
 public/data/media_cleanup_previews/
 public/data/schema-capabilities.json
 public/data/schema-capabilities.json.*
+public/data/install_setup.key
 logs/
 
 # Internal Planning (Private)

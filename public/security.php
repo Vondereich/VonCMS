@@ -20,18 +20,107 @@ if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
   die('Direct access not allowed');
 }
 
-if (!function_exists('is_https')) {
-  /**
-   * Standardized HTTPS Detection (Proxy-Aware)
-   * Supports cPanel, Cloudflare, and direct SSL
-   */
-  function is_https()
+if (!function_exists('voncms_ip_matches_proxy_rule')) {
+  /** Match an exact IP address or CIDR rule without trusting request headers. */
+  function voncms_ip_matches_proxy_rule(string $ip, string $rule): bool
   {
-    return (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] === 1)) ||
-      (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) &&
-        $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
-      (isset($_SERVER['HTTP_X_FORWARDED_PORT']) && $_SERVER['HTTP_X_FORWARDED_PORT'] === '443') ||
-      (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on');
+    $rule = trim($rule);
+    if ($rule === '') {
+      return false;
+    }
+
+    if (strpos($rule, '/') === false) {
+      $packedIp = @inet_pton($ip);
+      $packedRule = @inet_pton($rule);
+      return $packedIp !== false && $packedRule !== false && hash_equals($packedRule, $packedIp);
+    }
+
+    [$network, $prefixValue] = array_pad(explode('/', $rule, 2), 2, '');
+    if ($prefixValue === '' || !ctype_digit($prefixValue)) {
+      return false;
+    }
+
+    $packedIp = @inet_pton($ip);
+    $packedNetwork = @inet_pton(trim($network));
+    if (
+      $packedIp === false ||
+      $packedNetwork === false ||
+      strlen($packedIp) !== strlen($packedNetwork)
+    ) {
+      return false;
+    }
+
+    $prefix = (int) $prefixValue;
+    $maximumPrefix = strlen($packedIp) * 8;
+    if ($prefix < 0 || $prefix > $maximumPrefix) {
+      return false;
+    }
+
+    $wholeBytes = intdiv($prefix, 8);
+    $remainingBits = $prefix % 8;
+    if (
+      $wholeBytes > 0 &&
+      substr($packedIp, 0, $wholeBytes) !== substr($packedNetwork, 0, $wholeBytes)
+    ) {
+      return false;
+    }
+    if ($remainingBits === 0) {
+      return true;
+    }
+
+    $mask = (0xff << (8 - $remainingBits)) & 0xff;
+    return (ord($packedIp[$wholeBytes]) & $mask) === (ord($packedNetwork[$wholeBytes]) & $mask);
+  }
+}
+
+if (!function_exists('voncms_is_trusted_proxy_request')) {
+  /** Trust forwarded transport headers only from explicitly configured proxies. */
+  function voncms_is_trusted_proxy_request(): bool
+  {
+    $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (!is_string($remoteAddress) || filter_var($remoteAddress, FILTER_VALIDATE_IP) === false) {
+      return false;
+    }
+
+    $rules = ['127.0.0.1', '::1'];
+    $configuredRules = getenv('VONCMS_TRUSTED_PROXIES');
+    if (is_string($configuredRules) && trim($configuredRules) !== '') {
+      $extraRules = preg_split('/[\s,]+/', trim($configuredRules)) ?: [];
+      $rules = array_merge($rules, $extraRules);
+    }
+
+    foreach ($rules as $rule) {
+      if (voncms_ip_matches_proxy_rule($remoteAddress, (string) $rule)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+}
+
+if (!function_exists('is_https')) {
+  /** Standardized HTTPS detection with an explicit trusted-proxy boundary. */
+  function is_https(): bool
+  {
+    $https = $_SERVER['HTTPS'] ?? '';
+    if ($https === 1 || (is_string($https) && strtolower(trim($https)) === 'on')) {
+      return true;
+    }
+
+    if (!voncms_is_trusted_proxy_request()) {
+      return false;
+    }
+
+    $forwardedProto = strtolower(
+      trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]),
+    );
+    $forwardedPort = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PORT'] ?? ''))[0]);
+    $forwardedSsl = strtolower(
+      trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? ''))[0]),
+    );
+
+    return $forwardedProto === 'https' || $forwardedPort === '443' || $forwardedSsl === 'on';
   }
 }
 
@@ -303,6 +392,212 @@ function sendApiHeaders($methods = 'GET, OPTIONS')
       'Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token, X-Admin-Token, x-gemini-key',
     );
     header('X-Content-Type-Options: nosniff');
+  }
+}
+
+/**
+ * First-run installer ownership proof.
+ *
+ * The key is generated on the server, stored below the protected data directory,
+ * and removed after installation succeeds. A path override exists only for
+ * isolated regression tests.
+ */
+class InstallBootstrap
+{
+  /** @var resource|null $claimHandle */
+  private static $claimHandle = null;
+
+  private static function keyPath(): string
+  {
+    if (defined('VONCMS_INSTALL_SETUP_KEY_PATH')) {
+      return (string) constant('VONCMS_INSTALL_SETUP_KEY_PATH');
+    }
+
+    return __DIR__ . '/data/install_setup.key';
+  }
+
+  private static function readKey(): string
+  {
+    $path = self::keyPath();
+    if (!is_file($path)) {
+      return '';
+    }
+
+    $value = @file_get_contents($path);
+    $key = is_string($value) ? strtolower(trim($value)) : '';
+    return preg_match('/^[a-f0-9]{64}$/', $key) === 1 ? $key : '';
+  }
+
+  public static function ensureKey(): bool
+  {
+    if (self::readKey() !== '') {
+      return true;
+    }
+
+    $path = self::keyPath();
+    $directory = dirname($path);
+    if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
+      return false;
+    }
+
+    $handle = @fopen($path, 'x');
+    if ($handle === false) {
+      return self::readKey() !== '';
+    }
+
+    $key = bin2hex(random_bytes(32));
+    $written = @fwrite($handle, $key . "\n");
+    $flushed = $written === 65 && @fflush($handle);
+    @fclose($handle);
+    if (!$flushed) {
+      @unlink($path);
+      return false;
+    }
+
+    @chmod($path, 0600);
+    return true;
+  }
+
+  public static function validate(string $candidate): bool
+  {
+    $expected = self::readKey();
+    $candidate = strtolower(trim($candidate));
+    return $expected !== '' &&
+      preg_match('/^[a-f0-9]{64}$/', $candidate) === 1 &&
+      hash_equals($expected, $candidate);
+  }
+
+  /**
+   * Reserve the one-time setup key for the lifetime of this request.
+   *
+   * A non-blocking exclusive lock prevents two requests that know the same
+   * valid key from both entering the installer before either can create the
+   * configuration or install lock.
+   */
+  public static function claim(string $candidate): bool
+  {
+    if (is_resource(self::$claimHandle)) {
+      return false;
+    }
+
+    $candidate = strtolower(trim($candidate));
+    if (preg_match('/^[a-f0-9]{64}$/', $candidate) !== 1) {
+      return false;
+    }
+
+    $handle = @fopen(self::keyPath(), 'r+');
+    if ($handle === false) {
+      return false;
+    }
+
+    if (!@flock($handle, LOCK_EX | LOCK_NB)) {
+      @fclose($handle);
+      return false;
+    }
+
+    @rewind($handle);
+    $value = stream_get_contents($handle);
+    $expected = is_string($value) ? strtolower(trim($value)) : '';
+    if (
+      preg_match('/^[a-f0-9]{64}$/', $expected) !== 1 ||
+      !hash_equals($expected, $candidate)
+    ) {
+      @flock($handle, LOCK_UN);
+      @fclose($handle);
+      return false;
+    }
+
+    self::$claimHandle = $handle;
+    return true;
+  }
+
+  public static function consume(): void
+  {
+    $path = self::keyPath();
+
+    if (is_resource(self::$claimHandle)) {
+      @ftruncate(self::$claimHandle, 0);
+      @fflush(self::$claimHandle);
+      @flock(self::$claimHandle, LOCK_UN);
+      @fclose(self::$claimHandle);
+      self::$claimHandle = null;
+    }
+
+    if (is_file($path) && !@unlink($path)) {
+      error_log('VonCMS Installer: setup key could not be removed after installation.');
+    }
+  }
+}
+
+/**
+ * Lightweight replay protection for public content view counters.
+ *
+ * The current PHP session is already required for CSRF validation. Keeping a
+ * small, expiring map in that session avoids extra database or shared-cache
+ * writes and does not collapse visitors behind the same CDN or proxy IP.
+ */
+class ContentViewDeduplicator
+{
+  private const SESSION_KEY = 'voncms_content_view_claims';
+
+  public static function claim(
+    string $contentType,
+    int $contentId,
+    ?int $now = null,
+    int $windowSeconds = 300,
+    int $maxEntries = 64,
+  ): bool {
+    if (!in_array($contentType, ['post', 'page'], true) || $contentId < 1) {
+      return false;
+    }
+
+    $now = $now ?? time();
+    $windowSeconds = max(30, min(3600, $windowSeconds));
+    $maxEntries = max(8, min(256, $maxEntries));
+    $storedClaims = $_SESSION[self::SESSION_KEY] ?? [];
+    $claims = is_array($storedClaims) ? $storedClaims : [];
+    $minimumTimestamp = $now - $windowSeconds;
+
+    foreach ($claims as $key => $timestamp) {
+      if (!is_string($key) || !is_numeric($timestamp) || (int) $timestamp <= $minimumTimestamp) {
+        unset($claims[$key]);
+      } else {
+        $claims[$key] = (int) $timestamp;
+      }
+    }
+
+    $claimKey = $contentType . ':' . $contentId;
+    if (isset($claims[$claimKey])) {
+      $_SESSION[self::SESSION_KEY] = $claims;
+      return false;
+    }
+
+    arsort($claims, SORT_NUMERIC);
+    $claims = array_slice($claims, 0, $maxEntries - 1, true);
+    $claims[$claimKey] = $now;
+    $_SESSION[self::SESSION_KEY] = $claims;
+    return true;
+  }
+
+  /**
+   * Release a claim when the underlying view update did not complete.
+   *
+   * This keeps a missing/draft row or transient database error from suppressing
+   * a later legitimate view for the remainder of the deduplication window.
+   */
+  public static function release(string $contentType, int $contentId): void
+  {
+    if (!in_array($contentType, ['post', 'page'], true) || $contentId < 1) {
+      return;
+    }
+
+    $storedClaims = $_SESSION[self::SESSION_KEY] ?? [];
+    if (!is_array($storedClaims)) {
+      return;
+    }
+
+    unset($storedClaims[$contentType . ':' . $contentId]);
+    $_SESSION[self::SESSION_KEY] = $storedClaims;
   }
 }
 
@@ -776,6 +1071,31 @@ class RateLimiter
   private static $maxAttempts = 5;
   /** @var int $lockoutTime */
   private static $lockoutTime = 900; // 15 minutes in seconds
+  /** @var array<string, bool> $reportedStorageFailures */
+  private static $reportedStorageFailures = [];
+
+  private static function reportStorageFailure(string $operation): void
+  {
+    if (isset(self::$reportedStorageFailures[$operation])) {
+      return;
+    }
+
+    self::$reportedStorageFailures[$operation] = true;
+    error_log(
+      'VonCMS Security: rate-limit storage unavailable during ' .
+        $operation .
+        '; this request is temporarily fail-open.',
+    );
+  }
+
+  private static function ensureStorageDirectory(): bool
+  {
+    if (is_dir(self::$storageDir)) {
+      return is_writable(self::$storageDir);
+    }
+
+    return @mkdir(self::$storageDir, 0755, true) || is_dir(self::$storageDir);
+  }
 
   /**
    * Get client IP (secure - does NOT trust X-Forwarded-For)
@@ -790,14 +1110,53 @@ class RateLimiter
   /**
    * Get rate limit file path
    * @param string $identifier
-   * @return string
+   * @return string|null
    */
   private static function getFilePath($identifier)
   {
-    if (!is_dir(self::$storageDir)) {
-      mkdir(self::$storageDir, 0755, true);
+    if (!self::ensureStorageDirectory()) {
+      self::reportStorageFailure('directory preparation');
+      return null;
     }
     return self::$storageDir . md5($identifier) . '.json';
+  }
+
+  /**
+   * Report whether the file-backed limiter can persist and lock a probe.
+   *
+   * @return array{healthy: bool, message: string}
+   */
+  public static function getStorageHealth(): array
+  {
+    if (!self::ensureStorageDirectory()) {
+      self::reportStorageFailure('health check');
+      return ['healthy' => false, 'message' => 'Rate-limit storage is not writable.'];
+    }
+
+    $probe = self::$storageDir . '.health-' . bin2hex(random_bytes(8));
+    $handle = @fopen($probe, 'x');
+    if ($handle === false) {
+      self::reportStorageFailure('health check');
+      return ['healthy' => false, 'message' => 'Rate-limit storage is not writable.'];
+    }
+
+    $healthy = false;
+    try {
+      if (@flock($handle, LOCK_EX)) {
+        $healthy = @fwrite($handle, 'ok') === 2 && @fflush($handle);
+        @flock($handle, LOCK_UN);
+      }
+    } finally {
+      @fclose($handle);
+      @unlink($probe);
+    }
+
+    if (!$healthy) {
+      self::reportStorageFailure('health check');
+      return ['healthy' => false, 'message' => 'Rate-limit storage cannot persist locks.'];
+    }
+
+    return ['healthy' => true, 'message' => 'Rate-limit storage is healthy.'];
   }
 
   /**
@@ -814,13 +1173,18 @@ class RateLimiter
     $maxAttempts = max(1, (int) $maxAttempts);
     $windowSeconds = max(1, (int) $windowSeconds);
     $file = self::getFilePath('fixed-window:' . (string) $identifier);
+    if ($file === null) {
+      return true;
+    }
     $handle = @fopen($file, 'c+');
 
     if ($handle === false) {
+      self::reportStorageFailure('fixed-window open');
       return true;
     }
 
     if (!@flock($handle, LOCK_EX)) {
+      self::reportStorageFailure('fixed-window lock');
       @fclose($handle);
       return true;
     }
@@ -847,9 +1211,13 @@ class RateLimiter
           'window_started_at' => $windowStartedAt,
         ]);
         rewind($handle);
-        if (@ftruncate($handle, 0) && is_string($payload)) {
-          @fwrite($handle, $payload);
+        $stored =
+          is_string($payload) &&
+          @ftruncate($handle, 0) &&
+          @fwrite($handle, $payload) === strlen($payload) &&
           @fflush($handle);
+        if (!$stored) {
+          self::reportStorageFailure('fixed-window write');
         }
       }
     } finally {
@@ -872,12 +1240,17 @@ class RateLimiter
   {
     $identifier = $identifier ?? self::getClientIP();
     $file = self::getFilePath($identifier);
+    if ($file === null) {
+      return true;
+    }
     $handle = @fopen($file, 'c+');
     if ($handle === false) {
+      self::reportStorageFailure('attempt open');
       return true;
     }
 
     if (!@flock($handle, LOCK_EX)) {
+      self::reportStorageFailure('attempt lock');
       @fclose($handle);
       return true;
     }
@@ -912,12 +1285,14 @@ class RateLimiter
       }
 
       $payload = json_encode($data);
-      if (is_string($payload)) {
-        rewind($handle);
-        if (@ftruncate($handle, 0)) {
-          @fwrite($handle, $payload);
-          @fflush($handle);
-        }
+      rewind($handle);
+      $stored =
+        is_string($payload) &&
+        @ftruncate($handle, 0) &&
+        @fwrite($handle, $payload) === strlen($payload) &&
+        @fflush($handle);
+      if (!$stored) {
+        self::reportStorageFailure('attempt write');
       }
     } finally {
       @flock($handle, LOCK_UN);
@@ -936,12 +1311,21 @@ class RateLimiter
   {
     $identifier = $identifier ?? self::getClientIP();
     $file = self::getFilePath($identifier);
+    if ($file === null) {
+      return false;
+    }
 
     if (!file_exists($file)) {
       return false;
     }
 
-    $data = json_decode(file_get_contents($file), true);
+    $raw = @file_get_contents($file);
+    if (!is_string($raw)) {
+      self::reportStorageFailure('attempt read');
+      return false;
+    }
+    $data = json_decode($raw, true);
+    $data = is_array($data) ? $data : [];
     $attempts = $data['attempts'] ?? 0;
     $lockoutUntil = $data['lockout_until'] ?? 0;
 
@@ -954,7 +1338,10 @@ class RateLimiter
     if ($lockoutUntil > 0 && $lockoutUntil <= time()) {
       $data['attempts'] = 0;
       $data['lockout_until'] = 0;
-      file_put_contents($file, json_encode($data));
+      $payload = json_encode($data);
+      if (!is_string($payload) || @file_put_contents($file, $payload, LOCK_EX) === false) {
+        self::reportStorageFailure('attempt reset write');
+      }
       return false;
     }
 
@@ -980,9 +1367,12 @@ class RateLimiter
   {
     $identifier = $identifier ?? self::getClientIP();
     $file = self::getFilePath($identifier);
+    if ($file === null) {
+      return;
+    }
 
-    if (file_exists($file)) {
-      unlink($file);
+    if (file_exists($file) && !@unlink($file)) {
+      self::reportStorageFailure('attempt reset');
     }
   }
 
@@ -1183,7 +1573,7 @@ class SecurityHelper
       ['RewriteRule ^von_config\\.php$ - [F,L]'],
       ['RewriteRule ^.+\\.php/ - [R=404,L,NC]'],
       [
-        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
       ],
       ['RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]'],
       ['RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]'],

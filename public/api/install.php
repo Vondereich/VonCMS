@@ -47,8 +47,20 @@ if (file_exists($configFile) || file_exists($lockFile)) {
 
 // 1. Validate Input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
-if (!$input) {
+if (!is_array($input)) {
   ResponseHelper::sendError('No data received.', 400);
+}
+
+$setupKeyValue = $input['setupKey'] ?? '';
+$setupKey = is_string($setupKeyValue) ? trim($setupKeyValue) : '';
+if (!InstallBootstrap::ensureKey()) {
+  ResponseHelper::sendError(
+    'Installer setup key is unavailable. Check data directory permissions.',
+    503,
+  );
+}
+if (!InstallBootstrap::claim($setupKey)) {
+  ResponseHelper::sendError('Invalid installer setup key or installation already in progress.', 403);
 }
 
 $dbHost = $input['dbHost'] ?? 'localhost';
@@ -303,6 +315,10 @@ try {
   // Shared runtime capabilities are installed once here and repaired only by Database Repair.
   voncms_schema_repair_runtime_capabilities($pdo);
 
+  // DDL above can commit implicitly in MySQL. Keep all seed data transactional so
+  // a late configuration write failure can be retried without duplicate owners.
+  $pdo->beginTransaction();
+
   // 4. Create Admin User (auto-verified — no email verification needed for fresh install)
   $hashedPass = password_hash($adminPass, PASSWORD_DEFAULT);
   $stmt = $pdo->prepare(
@@ -392,7 +408,10 @@ try {
     $setting[] = $isPublic;
     $settingsStmt->execute($setting);
   }
-} catch (Exception $e) {
+} catch (Throwable $e) {
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
   ResponseHelper::sendError($e);
 }
 
@@ -549,7 +568,40 @@ function writeManagedHtaccess($filePath, $htaccessContent)
   );
 }
 
-if (file_put_contents($configFile, $configContent)) {
+/** Write a complete file through a same-directory temporary path before exposing it. */
+function writeInstallerFileAtomically(string $filePath, string $contents, int $mode = 0644): bool
+{
+  $temporaryPath = $filePath . '.tmp-' . bin2hex(random_bytes(8));
+  try {
+    $written = @file_put_contents($temporaryPath, $contents, LOCK_EX);
+    if ($written !== strlen($contents)) {
+      return false;
+    }
+    @chmod($temporaryPath, $mode);
+
+    if (file_exists($filePath) || !@rename($temporaryPath, $filePath)) {
+      return false;
+    }
+
+    return true;
+  } finally {
+    if (is_file($temporaryPath)) {
+      @unlink($temporaryPath);
+    }
+  }
+}
+
+if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
+  try {
+    $pdo->commit();
+  } catch (Throwable $commitError) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    @unlink($configFile);
+    ResponseHelper::sendError('Installation could not finalize database ownership.', 500);
+  }
+
   $installWarnings = [];
 
   // Also update site_settings.json with the Site Title if possible,
@@ -608,7 +660,7 @@ if (file_put_contents($configFile, $configContent)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
 
@@ -723,7 +775,12 @@ if (file_put_contents($configFile, $configContent)) {
 
   // 7. Create Installer Lock File (Security Patch)
   voncms_mark_publication_columns_ready();
-  @file_put_contents(__DIR__ . '/../install.lock', 'VonCMS Installed: ' . date('Y-m-d H:i:s'));
+  $lockContents = 'VonCMS Installed: ' . date('Y-m-d H:i:s') . "\n";
+  if (!writeInstallerFileAtomically($lockFile, $lockContents)) {
+    $installWarnings[] =
+      'The installer lock file could not be written. von_config.php still blocks reinstallation; check file permissions.';
+  }
+  InstallBootstrap::consume();
 
   echo json_encode([
     'success' => true,
@@ -733,5 +790,8 @@ if (file_put_contents($configFile, $configContent)) {
     'warnings' => $installWarnings,
   ]);
 } else {
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
   ResponseHelper::sendError('Failed to write von_config.php. Check permissions.', 500);
 }

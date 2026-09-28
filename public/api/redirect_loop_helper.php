@@ -26,9 +26,8 @@ function voncms_normalize_redirect_loop_authority(
 
 function voncms_get_redirect_loop_request_scheme(): string
 {
-  $forwardedProto = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
-  if ($forwardedProto === 'https' || $forwardedProto === 'http') {
-    return $forwardedProto;
+  if (function_exists('is_https')) {
+    return is_https() ? 'https' : 'http';
   }
 
   $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
@@ -255,4 +254,69 @@ function voncms_scan_redirect_loops(
     ],
     'issues' => $issues,
   ];
+}
+
+/** Only redirect an old public permalink when its replacement remains public. */
+function voncms_should_store_public_slug_redirect(
+  string $previousStatus,
+  string $nextStatus,
+  bool $statusOnlyTransition,
+  string $oldSlug,
+  string $newSlug,
+): bool {
+  return !$statusOnlyTransition &&
+    $previousStatus === 'published' &&
+    $nextStatus === 'published' &&
+    $oldSlug !== '' &&
+    $oldSlug !== $newSlug;
+}
+
+function voncms_should_store_post_slug_redirect(
+  string $previousStatus,
+  string $nextStatus,
+  bool $statusOnlyTransition,
+  string $oldSlug,
+  string $newSlug,
+): bool {
+  return voncms_should_store_public_slug_redirect(
+    $previousStatus,
+    $nextStatus,
+    $statusOnlyTransition,
+    $oldSlug,
+    $newSlug,
+  );
+}
+
+/**
+ * Preserve existing Redirect Manager rules when a published post slug changes.
+ * The caller owns the surrounding post-save transaction and conflict response.
+ *
+ * @param array{source: string, target: string, targetSource: string} $paths
+ * @return 'source'|'target'|null
+ */
+function voncms_store_permalink_redirect(PDO $pdo, array $paths): ?string
+{
+  $lookup = $pdo->prepare('SELECT source_url FROM redirects WHERE source_url = ? LIMIT 1');
+  foreach (['target' => $paths['targetSource'], 'source' => $paths['source']] as $kind => $path) {
+    if (!$lookup->execute([$path])) {
+      throw new RuntimeException('Could not check permalink redirect conflicts.');
+    }
+    if ($lookup->fetchColumn() !== false) {
+      return $kind;
+    }
+  }
+
+  $insert = $pdo->prepare(
+    'INSERT INTO redirects (source_url, target_url, redirect_type) VALUES (?, ?, ?)',
+  );
+  if (!$insert->execute([$paths['source'], $paths['target'], 301])) {
+    throw new RuntimeException('Could not save permalink redirect.');
+  }
+
+  return null;
+}
+
+function voncms_store_post_slug_redirect(PDO $pdo, array $paths): ?string
+{
+  return voncms_store_permalink_redirect($pdo, $paths);
 }

@@ -121,6 +121,14 @@ if (!$isPrimaryAdmin) {
   }
 }
 
+if (array_key_exists('smtpEncryption', $settings)) {
+  $smtpEncryption = strtolower(trim((string) $settings['smtpEncryption']));
+  if (!in_array($smtpEncryption, ['tls', 'ssl'], true)) {
+    ResponseHelper::sendError('SMTP authentication requires TLS or SSL encryption.', 400);
+  }
+  $settings['smtpEncryption'] = $smtpEncryption;
+}
+
 $maintenanceFlagFile = __DIR__ . '/../data/maintenance.flag';
 $maintenanceFlagPreviouslyEnabled = is_file($maintenanceFlagFile);
 $pendingMaintenanceMode = null;

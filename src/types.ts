@@ -485,6 +485,8 @@ export interface SiteSettings {
     postMaxSize: string;
     memoryLimit: string;
     integrityNeeded?: boolean;
+    rateLimitStorageHealthy?: boolean;
+    rateLimitStorageMessage?: string;
   };
   _canManageSecrets?: boolean;
 }

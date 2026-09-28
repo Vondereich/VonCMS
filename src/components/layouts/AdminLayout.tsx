@@ -298,6 +298,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     return item.allowedRoles.map((r) => r.toLowerCase()).includes(userRole);
   });
   const hasIntegrityAlert = !!settings?._serverInfo?.integrityNeeded;
+  const hasRateLimitStorageAlert = settings?._serverInfo?.rateLimitStorageHealthy === false;
 
   const alertItems = [
     ...(hasIntegrityAlert
@@ -307,6 +308,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
             title: 'Integrity repair needed',
             body: 'Server integrity or rewrite rules need attention before admin tools are fully healthy.',
             actionLabel: 'Open repair tools',
+            actionPath: '/admin/settings?tab=tools',
+          },
+        ]
+      : []),
+    ...(hasRateLimitStorageAlert
+      ? [
+          {
+            id: 'rate-limit-storage',
+            title: 'Rate-limit storage needs attention',
+            body:
+              settings?._serverInfo?.rateLimitStorageMessage ||
+              'The server cannot persist rate-limit data. Check data directory permissions.',
+            actionLabel: 'Open system settings',
             actionPath: '/admin/settings?tab=tools',
           },
         ]
