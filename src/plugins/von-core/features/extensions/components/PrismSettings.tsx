@@ -3,6 +3,7 @@ import { SiteSettings } from '../../../../../types';
 import { Trash2, Save, Zap, Palette, Monitor } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AdminModal from '../../../../../components/admin/AdminModal';
+import { buildThemeSettingsUpdate } from '../../../../../themes/shared/themeSettings';
 
 interface PrismSettingsProps {
   settings: SiteSettings;
@@ -20,7 +21,8 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
     fontSize: 'md',
   };
 
-  const [tempConfig, setTempConfig] = useState(initialConfig);
+  const [baseline] = useState(initialConfig);
+  const [tempConfig, setTempConfig] = useState(baseline);
   const colorSchemes: Array<{
     id: NonNullable<PrismConfig['colorScheme']>;
     label: string;
@@ -33,13 +35,7 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
   const fontSizes: Array<NonNullable<PrismConfig['fontSize']>> = ['sm', 'md', 'lg'];
 
   const handleSave = async () => {
-    const saved = await onUpdate({
-      ...settings,
-      theme: {
-        ...settings.theme,
-        prism: tempConfig,
-      },
-    });
+    const saved = await onUpdate(buildThemeSettingsUpdate(settings, 'prism', baseline, tempConfig));
     if (saved === false) return;
 
     toast.success('Prism config updated!');

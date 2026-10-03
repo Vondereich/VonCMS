@@ -19,7 +19,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
           <div>
             <h3 className="text-sm font-bold text-slate-800 dark:text-white">Master Ad Switch</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Enable or disable all ad slots globally
+              Controls Header, In-feed, Popup, and the built-in AdSense loader
             </p>
           </div>
         </div>
@@ -28,6 +28,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
             id="adsettings-27"
             name="adsettings27"
             type="checkbox"
+            aria-label="Master Ad Switch"
             checked={!!settings.ads.adsEnabled}
             onChange={(e) => onChange('adsEnabled', e.target.checked)}
             className="sr-only peer"
@@ -52,7 +53,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <textarea
-                aria-label="High Visibility"
+                aria-label="Header ad code"
                 id="adsettings-52"
                 name="adsettings52"
                 rows={6}
@@ -142,7 +143,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
               <textarea
-                aria-label="Native Placement"
+                aria-label="In-feed ad code"
                 id="adsettings-131"
                 name="adsettings131"
                 rows={6}
@@ -183,7 +184,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                     <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">
                       Scope
                     </strong>
-                    Applies to post lists only; single posts are handled by content slots.
+                    Applies to post lists only, not inside individual articles.
                   </div>
                 </li>
               </ul>
@@ -210,6 +211,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 id="adsettings-196"
                 name="adsettings196"
                 type="checkbox"
+                aria-label="Enable popup ads"
                 checked={settings.ads.popupEnabled}
                 onChange={(e) => onChange('popupEnabled', e.target.checked)}
                 className="sr-only peer"
@@ -223,7 +225,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
               <textarea
                 id="adsettings-208"
                 name="adsettings208"
-                aria-label="Text Content"
+                aria-label="Popup ad code"
                 rows={4}
                 value={settings.ads.popupAd}
                 onChange={(e) => onChange('popupAd', e.target.value)}
@@ -242,7 +244,8 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                     <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">
                       Safety
                     </strong>
-                    Use a delayed, consent-safe overlay script.
+                    Use a trusted provider. Configure any required ad consent with that provider;
+                    the analytics consent banner does not control these snippets.
                   </div>
                 </li>
                 <li className="flex gap-3 items-start">

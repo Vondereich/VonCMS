@@ -95,7 +95,7 @@ function voncms_run_database_schema_repair(PDO $pdo): array
         category VARCHAR(100) DEFAULT 'Uncategorized',
         keywords VARCHAR(255),
         meta_description TEXT,
-        views INT DEFAULT 0,
+        views BIGINT DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         posts_status_idx VARCHAR(20) GENERATED ALWAYS AS (status) VIRTUAL,
@@ -120,7 +120,7 @@ function voncms_run_database_schema_repair(PDO $pdo): array
         featured_image VARCHAR(255) DEFAULT NULL,
         keywords VARCHAR(255),
         meta_description TEXT,
-        views INT DEFAULT 0,
+        views BIGINT DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
@@ -401,7 +401,7 @@ $repairFailure = null;
 try {
   $repairResult = voncms_run_database_schema_repair($pdo);
   if (($repairResult['success'] ?? false) === true) {
-    voncms_mark_publication_columns_ready();
+    voncms_mark_publication_columns_ready(voncms_schema_listing_capabilities($pdo));
     voncms_public_cache_clear();
   }
 } catch (Throwable $repairError) {

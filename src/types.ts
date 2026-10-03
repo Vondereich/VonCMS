@@ -172,6 +172,12 @@ export interface MediaConfig {
   };
 }
 
+export interface ThemeAppearance {
+  primaryColor?: string;
+  fontFamily?: string;
+  borderRadius?: string;
+}
+
 export interface ThemeConfig {
   name?: string;
   primaryColor: string; // Hex code
@@ -179,13 +185,13 @@ export interface ThemeConfig {
   borderRadius: string;
   customCss?: string;
   // Extended Configs
-  prism?: {
+  prism?: ThemeAppearance & {
     neonEffects: boolean;
     colorScheme: 'cyan' | 'purple' | 'green';
     fontSize: 'sm' | 'md' | 'lg';
   };
 
-  default?: {
+  default?: ThemeAppearance & {
     footerLinks?: { label: string; url: string }[];
     footerCopyright?: string;
     navColor?: string; // Header & Footer background color
@@ -193,16 +199,15 @@ export interface ThemeConfig {
     enableMarquee?: boolean;
   };
 
-  techpress?: {
+  techpress?: ThemeAppearance & {
     enableBreaking?: boolean;
     enableMarquee?: boolean;
     enableDarkMode?: boolean;
-    primaryColor?: string; // Override global primary
     breakingNewsCount?: number;
     footerLinks?: { label: string; url: string }[];
   };
 
-  portfolio?: {
+  portfolio?: ThemeAppearance & {
     heroStyle?: 'fullscreen' | 'split' | 'minimal';
     heroWelcomeText?: string;
     heroButtonText?: string;
@@ -219,7 +224,7 @@ export interface ThemeConfig {
     websiteUrl?: string;
   };
 
-  digest?: {
+  digest?: ThemeAppearance & {
     accentColor?: string;
     showHero?: boolean;
     gridColumns?: 2 | 3 | 4;
@@ -229,7 +234,16 @@ export interface ThemeConfig {
     enableMarquee?: boolean;
   };
 
-  corporatePro?: {
+  corporatePro?: ThemeAppearance & {
+    sectionOrder?: ('hero' | 'services' | 'about' | 'posts' | 'cta')[];
+    showHero?: boolean;
+    showAbout?: boolean;
+    showCta?: boolean;
+    heroEyebrow?: string;
+    heroPrimaryText?: string;
+    heroSecondaryText?: string;
+    postsTitle?: string;
+    postsSubtitle?: string;
     heroImage?: string;
     aboutImage?: string;
     heroTitle?: string;

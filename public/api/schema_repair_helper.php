@@ -219,9 +219,14 @@ function voncms_schema_index_map(PDO $pdo, string $table): array
         'type' => strtoupper((string) ($row['Index_type'] ?? 'BTREE')),
         'columns' => [],
         'sub_parts' => [],
+        'usable' => true,
       ];
     }
     $indexes[$name]['columns'][$sequence] = $column;
+    $indexes[$name]['usable'] =
+      $indexes[$name]['usable'] &&
+      strtoupper((string) ($row['Visible'] ?? 'YES')) !== 'NO' &&
+      strtoupper((string) ($row['Ignored'] ?? 'NO')) !== 'YES';
     $indexes[$name]['sub_parts'][$sequence] = isset($row['Sub_part'])
       ? (int) $row['Sub_part']
       : null;
@@ -364,7 +369,7 @@ function voncms_schema_runtime_identity_specs(): array
 {
   return [
     'remember_tokens' => ['column' => 'id', 'type' => 'bigint unsigned'],
-    'analytics' => ['column' => 'id', 'type' => 'int'],
+    'analytics' => ['column' => 'id', 'type' => 'bigint'],
     'comment_likes' => ['column' => 'id', 'type' => 'int'],
     'content_audit_logs' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'security_logs' => ['column' => 'id', 'type' => 'int'],
@@ -708,10 +713,11 @@ function voncms_schema_core_column_specs(): array
       ],
       'excerpt' => ['definition' => 'TEXT NULL', 'type' => 'text', 'nullable' => true],
       'views' => [
-        'definition' => 'INT DEFAULT 0',
-        'type' => 'int',
+        'definition' => 'BIGINT DEFAULT 0',
+        'type' => 'bigint',
         'nullable' => true,
         'default' => '0',
+        'allow_populated_modify' => 'integer-widen',
       ],
     ],
     'settings' => [
@@ -754,10 +760,11 @@ function voncms_schema_core_column_specs(): array
         'default' => null,
       ],
       'views' => [
-        'definition' => 'INT DEFAULT 0',
-        'type' => 'int',
+        'definition' => 'BIGINT DEFAULT 0',
+        'type' => 'bigint',
         'nullable' => true,
         'default' => '0',
+        'allow_populated_modify' => 'integer-widen',
       ],
       'featured_image' => [
         'definition' => 'VARCHAR(255) DEFAULT NULL',
@@ -1076,7 +1083,7 @@ function voncms_schema_runtime_table_sql(): array
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     'analytics' => "CREATE TABLE IF NOT EXISTS analytics (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
       page_url VARCHAR(500),
       referrer VARCHAR(500),
       user_agent TEXT,
@@ -1179,8 +1186,8 @@ function voncms_schema_runtime_column_specs(): array
     ],
     'analytics' => [
       'id' => [
-        'definition' => 'INT NOT NULL AUTO_INCREMENT PRIMARY KEY',
-        'type' => 'int',
+        'definition' => 'BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY',
+        'type' => 'bigint',
         'safe' => false,
       ],
       'page_url' => [
@@ -1462,6 +1469,19 @@ function voncms_schema_repair_runtime_identities(PDO $pdo): array
 
     $safeTable = voncms_schema_identifier($table);
     $safeColumn = voncms_schema_identifier($columnName);
+    // Only widen the analytics integer identity. Never repair arbitrary populated PK drift.
+    $currentType = voncms_schema_normalize_column_type((string) ($column['Type'] ?? ''));
+    if (
+      $table === 'analytics' &&
+      in_array($currentType, ['int', 'int unsigned'], true) &&
+      str_contains(strtolower((string) ($column['Extra'] ?? '')), 'auto_increment') &&
+      strtoupper((string) ($column['Null'] ?? '')) === 'NO' &&
+      array_values($primary['columns'] ?? []) === ['id']
+    ) {
+      $pdo->exec('ALTER TABLE analytics MODIFY COLUMN id BIGINT NOT NULL AUTO_INCREMENT');
+      $fixes[] = 'Schema: Widened analytics.id without changing existing identities.';
+      continue;
+    }
     $countStmt = $pdo->query("SELECT COUNT(*) FROM `{$safeTable}`");
     $rowCount = (int) ($countStmt ? $countStmt->fetchColumn() : 0);
     if ($rowCount > 0) {
@@ -1800,6 +1820,147 @@ function voncms_schema_repair_optional_search_indexes(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
+/** Optional performance indexes: never replace conflicting user-defined structures. */
+function voncms_schema_listing_index_specs(): array
+{
+  return [
+    'posts' => [
+      'idx_listing_order' => [
+        'listing_at',
+        'created_at',
+        'id',
+        'status',
+        'scheduled_at',
+        'category',
+        'author_id',
+      ],
+      'idx_listing_category' => [
+        'category',
+        'listing_at',
+        'created_at',
+        'id',
+        'status',
+        'scheduled_at',
+        'author_id',
+      ],
+      'idx_listing_author' => [
+        'author_id',
+        'listing_at',
+        'created_at',
+        'id',
+        'status',
+        'scheduled_at',
+        'category',
+      ],
+      'idx_sitemap_order' => ['updated_at', 'id', 'status', 'scheduled_at'],
+    ],
+    'analytics' => [
+      'idx_visit_window' => ['ip_hash', 'created_at'],
+      'idx_visit_daily' => ['visit_date', 'ip_hash'],
+    ],
+  ];
+}
+
+function voncms_schema_listing_column_matches(PDO $pdo): bool
+{
+  $stmt = $pdo->query("SELECT DATA_TYPE, EXTRA, GENERATION_EXPRESSION FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'listing_at'");
+  $column = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+  if (!is_array($column)) {
+    return false;
+  }
+  $expression = strtolower(
+    (string) preg_replace('/[`\s]+/', '', (string) ($column['GENERATION_EXPRESSION'] ?? '')),
+  );
+  return strtolower((string) ($column['DATA_TYPE'] ?? '')) === 'datetime' &&
+    str_contains(strtolower((string) ($column['EXTRA'] ?? '')), 'virtual') &&
+    $expression === 'coalesce(published_at,scheduled_at,created_at)';
+}
+
+/** Inspect only during explicit install/repair, never on a public request. */
+function voncms_schema_listing_capabilities(PDO $pdo): array
+{
+  $capabilities = [];
+  foreach (voncms_schema_listing_index_specs() as $table => $specs) {
+    try {
+      $indexes = voncms_schema_index_map($pdo, $table);
+      $validDate = $table !== 'posts' || voncms_schema_listing_column_matches($pdo);
+      foreach ($specs as $name => $columns) {
+        $expected = ['columns' => $columns, 'unique' => false, 'type' => 'BTREE'];
+        $capabilities[$table][$name] =
+          ($validDate || $name === 'idx_sitemap_order') &&
+          isset($indexes[$name]) &&
+          ($indexes[$name]['usable'] ?? true) &&
+          voncms_schema_index_matches($indexes[$name], $expected);
+      }
+    } catch (Throwable $error) {
+      $capabilities[$table] = [];
+    }
+  }
+  return $capabilities;
+}
+
+function voncms_schema_repair_listing_indexes(PDO $pdo): array
+{
+  $fixes = [];
+  $warnings = [];
+  $validDate = false;
+  try {
+    $columns = voncms_schema_column_map($pdo, 'posts');
+    if (!isset($columns['listing_at'])) {
+      $pdo->exec(
+        'ALTER TABLE posts ADD COLUMN listing_at DATETIME GENERATED ALWAYS AS (COALESCE(published_at, scheduled_at, created_at)) VIRTUAL',
+      );
+      $fixes[] = 'Schema: Added the indexed publication-order expression.';
+    }
+    $validDate = voncms_schema_listing_column_matches($pdo);
+    if (!$validDate) {
+      $warnings[] =
+        'Posts: listing_at conflicts with the expected generated expression; existing queries remain available.';
+    }
+  } catch (Throwable $error) {
+    $warnings[] =
+      'Posts: optional indexed publication ordering is unavailable; existing queries remain available.';
+  }
+  foreach (voncms_schema_listing_index_specs() as $table => $specs) {
+    foreach ($specs as $name => $columns) {
+      if ($table === 'posts' && $name !== 'idx_sitemap_order' && !$validDate) {
+        continue;
+      }
+      try {
+        $indexes = voncms_schema_index_map($pdo, $table);
+        $expected = ['columns' => $columns, 'unique' => false, 'type' => 'BTREE'];
+        if (isset($indexes[$name])) {
+          if (
+            !($indexes[$name]['usable'] ?? true) ||
+            !voncms_schema_index_matches($indexes[$name], $expected)
+          ) {
+            $warnings[] = "{$table}: optional index {$name} has a conflicting definition and was not replaced.";
+          }
+          continue;
+        }
+        $safeColumns = array_map(
+          static fn(string $column): string => '`' . voncms_schema_identifier($column) . '`',
+          $columns,
+        );
+        $pdo->exec(
+          'ALTER TABLE `' .
+            voncms_schema_identifier($table) .
+            '` ADD INDEX `' .
+            voncms_schema_identifier($name) .
+            '` (' .
+            implode(', ', $safeColumns) .
+            ')',
+        );
+        $fixes[] = "Schema: Added optional query index {$table}.{$name}.";
+      } catch (Throwable $error) {
+        $warnings[] = "{$table}: optional query index {$name} is unavailable; existing queries remain available.";
+      }
+    }
+  }
+  return ['fixes' => $fixes, 'warnings' => $warnings];
+}
+
 function voncms_schema_repair_core_structures(PDO $pdo): array
 {
   $fixes = voncms_schema_repair_table_storage(
@@ -1837,6 +1998,9 @@ function voncms_schema_repair_core_structures(PDO $pdo): array
   $optionalResult = voncms_schema_repair_optional_search_indexes($pdo);
   $fixes = array_merge($fixes, $optionalResult['fixes']);
   $warnings = array_merge($warnings, $optionalResult['warnings']);
+  $listingResult = voncms_schema_repair_listing_indexes($pdo);
+  $fixes = array_merge($fixes, $listingResult['fixes']);
+  $warnings = array_merge($warnings, $listingResult['warnings']);
 
   $missing = voncms_schema_missing_core_repair_items($pdo);
   if ($missing !== []) {

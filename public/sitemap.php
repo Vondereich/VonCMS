@@ -215,7 +215,13 @@ try {
     $permalinkStyle = $plRow && !empty($plRow['setting_value']) ? $plRow['setting_value'] : 'slug';
 
     $postStmt = $pdo->prepare(
-      "SELECT id, slug, updated_at, created_at, category, image_url FROM posts WHERE status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) ORDER BY updated_at DESC, id DESC LIMIT :limit OFFSET :offset",
+      voncms_post_listing_sql(
+        $pdo,
+        'p.id, p.slug, p.updated_at, p.created_at, p.category, p.image_url',
+        "WHERE p.status = 'published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)",
+        false,
+        true,
+      ),
     );
     $postStmt->bindValue(':currentTime', $currentTime);
     $postStmt->bindValue(':limit', MAX_URLS_PER_SITEMAP, PDO::PARAM_INT);

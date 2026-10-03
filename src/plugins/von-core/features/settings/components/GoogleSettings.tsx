@@ -56,7 +56,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             Google Services Integration
           </h2>
           <p className="text-slate-500 dark:text-slate-400">
-            Manage your Search Console, Analytics, and AdSense connections in one place.
+            Manage your Search Console, Analytics, and AdSense configuration in one place.
           </p>
         </div>
       </div>
@@ -73,13 +73,13 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <p className="text-xs text-slate-500">Verify your site ownership with Google.</p>
             </div>
           </div>
-          {googleVerification ? (
+          {googleVerification.trim() ? (
             <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/20 px-2 py-1 rounded-full">
-              <CheckCircle size={12} /> VERIFIED
+              <CheckCircle size={12} /> CONFIGURED
             </span>
           ) : (
             <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full">
-              NOT CONNECTED
+              NOT CONFIGURED
             </span>
           )}
         </div>
@@ -104,7 +104,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
               <HelpCircle size={12} />
               <span>
-                Paste the full meta tag content or just the code code from{' '}
+                Paste the full meta tag or just the verification code from{' '}
                 <a
                   href="https://search.google.com/search-console"
                   target="_blank"
@@ -115,6 +115,10 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 </a>
                 .
               </span>
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              A configured code does not confirm ownership verification. Complete verification in
+              Google Search Console.
             </p>
           </div>
         </div>
@@ -132,13 +136,16 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <p className="text-xs text-slate-500">Track visitor traffic and behavior.</p>
             </div>
           </div>
-          {analyticsId ? (
-            <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/20 px-2 py-1 rounded-full">
-              <CheckCircle size={12} /> ACTIVE
+          {analyticsId.trim() ? (
+            <span
+              className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${settings.analytics?.enableTracking === false ? 'text-slate-500 bg-slate-100 dark:bg-admin-hover dark:text-slate-400' : 'text-green-600 bg-green-100 dark:bg-green-900/20'}`}
+            >
+              <CheckCircle size={12} />
+              {settings.analytics?.enableTracking === false ? 'TRACKING DISABLED' : 'CONFIGURED'}
             </span>
           ) : (
             <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full">
-              NOT CONNECTED
+              NOT CONFIGURED
             </span>
           )}
         </div>
@@ -161,6 +168,11 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <BarChart3 className="absolute left-3 top-3.5 text-slate-400" size={16} />
             </div>
           </div>
+
+          <p className="text-xs text-slate-500">
+            Status reflects this site's configuration, not confirmed Google data delivery. Tracking
+            also follows the site's analytics consent settings.
+          </p>
 
           <div className="flex flex-col sm:flex-row gap-4 pt-2">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -204,13 +216,13 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <p className="text-xs text-slate-500">Monetize your content with ads.</p>
             </div>
           </div>
-          {adsenseId ? (
+          {adsenseId.trim() ? (
             <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/20 px-2 py-1 rounded-full">
-              <CheckCircle size={12} /> CONNECTED
+              <CheckCircle size={12} /> CONFIGURED
             </span>
           ) : (
             <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full">
-              NOT CONNECTED
+              NOT CONFIGURED
             </span>
           )}
         </div>
@@ -221,7 +233,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             </span>
             <div className="bg-slate-50 dark:bg-admin-canvas/50 p-4 rounded-lg text-sm text-slate-600 dark:text-slate-400 mb-4 border border-slate-100 dark:border-white/10">
               <p>
-                To configure ad block placements (Header, Sidebar, etc.), please visit the{' '}
+                To configure Header, In-feed, and Popup placements, please visit the{' '}
                 <strong>Ads</strong> tab.
               </p>
             </div>
@@ -243,8 +255,9 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <DollarSign className="absolute left-3 top-3.5 text-slate-400" size={16} />
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              This code is automatically added to the <code>&lt;head&gt;</code> of every page for
-              auto-ads and verification.
+              The verification tag is added to the <code>&lt;head&gt;</code>. The AdSense loader
+              runs only when Master Ad Switch is enabled. A saved ID does not confirm Google
+              approval or ad delivery.
             </p>
           </div>
         </div>

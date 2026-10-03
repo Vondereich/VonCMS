@@ -317,9 +317,9 @@ const UserProfile: React.FC<ProfileProps> = ({
         </div>
 
         <div className="px-6 md:px-10 pb-8 relative">
-          <div className="flex flex-col md:flex-row items-center md:items-end -mt-12 md:-mt-16 gap-3 md:gap-8">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-3 md:gap-8">
             {/* Avatar */}
-            <div className="relative z-10">
+            <div className="relative z-10 -mt-12 md:-mt-16">
               <ProfileAvatar
                 url={displayUser.avatar}
                 name={displayUser.display_name || displayUser.username}
@@ -335,10 +335,10 @@ const UserProfile: React.FC<ProfileProps> = ({
             </div>
 
             {/* Info Block */}
-            <div className="grow min-w-0 text-center md:text-left mb-4 md:mb-10 w-full">
+            <div className="grow min-w-0 text-center md:text-left mb-4 md:mb-0 md:pt-6 w-full">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <h1 className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white md:text-white md:drop-shadow-xs tracking-tight wrap-anywhere">
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white tracking-tight wrap-anywhere">
                     {displayUser.display_name || displayUser.username}
                   </h1>
                   {displayUser.display_name && (

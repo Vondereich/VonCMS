@@ -391,6 +391,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <input
                     id="mediasettings-365"
                     name="mediasettings365"
+                    aria-label="Enable Image Optimization"
                     type="checkbox"
                     className="sr-only peer"
                     checked={media.optimization.enabled}
@@ -430,6 +431,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <input
                     id="mediasettings-402"
                     name="mediasettings402"
+                    aria-label="Convert to WebP"
                     type="checkbox"
                     className="sr-only peer"
                     checked={media.optimization.convertToWebP}
@@ -600,6 +602,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <input
                     id="mediasettings-511"
                     name="mediasettings511"
+                    aria-label="Lazy Load Images"
                     type="checkbox"
                     className="sr-only peer"
                     checked={media.performance.lazyLoadImages}
@@ -621,6 +624,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <input
                     id="mediasettings-530"
                     name="mediasettings530"
+                    aria-label="Lazy Load Iframes"
                     type="checkbox"
                     className="sr-only peer"
                     checked={media.performance.lazyLoadIframes}

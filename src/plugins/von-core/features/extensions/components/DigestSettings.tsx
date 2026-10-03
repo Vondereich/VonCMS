@@ -3,6 +3,7 @@ import { SiteSettings } from '../../../../../types';
 import { Palette, X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AdminModal from '../../../../../components/admin/AdminModal';
+import { buildThemeSettingsUpdate } from '../../../../../themes/shared/themeSettings';
 
 interface DigestSettingsProps {
   settings: SiteSettings;
@@ -11,7 +12,7 @@ interface DigestSettingsProps {
 }
 
 export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpdate, onClose }) => {
-  const [tempSettings, setTempSettings] = useState({
+  const [baseline] = useState({
     accentColor: settings.theme?.digest?.accentColor || '#00D1D1',
     showHero: settings.theme?.digest?.showHero !== false,
     gridColumns: settings.theme?.digest?.gridColumns || 4,
@@ -19,15 +20,12 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
     showTrending: settings.theme?.digest?.showTrending !== false,
     enableMarquee: settings.theme?.digest?.enableMarquee !== false,
   });
+  const [tempSettings, setTempSettings] = useState(baseline);
 
   const handleSave = async () => {
-    const saved = await onUpdate({
-      ...settings,
-      theme: {
-        ...settings.theme,
-        digest: tempSettings,
-      },
-    });
+    const saved = await onUpdate(
+      buildThemeSettingsUpdate(settings, 'digest', baseline, tempSettings)
+    );
     if (saved === false) return;
 
     toast.success('Digest settings saved!');

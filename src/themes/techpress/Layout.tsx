@@ -4,6 +4,7 @@ import { Post, SiteSettings, NavItem } from '../../types';
 import { Menu, X, Moon, Sun, ChevronLeft } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
 import { getUserDisplayRole } from '../../utils/profileUtils';
+import { getReadableForeground } from '../shared/themeColors';
 
 // Theme SDK
 import {
@@ -148,32 +149,6 @@ const getColors = (isDark: boolean, primaryColor: string) => {
     accent: TECHPRESS_THEME.colors.accent,
     success: TECHPRESS_THEME.colors.success,
   };
-};
-
-const getReadableForeground = (color: string): string => {
-  const compactHex = color.trim().replace(/^#/, '');
-  const normalizedHex =
-    compactHex.length === 3
-      ? compactHex
-          .split('')
-          .map((character) => `${character}${character}`)
-          .join('')
-      : compactHex;
-
-  if (!/^[0-9a-f]{6}$/i.test(normalizedHex)) {
-    return '#ffffff';
-  }
-
-  const channels = [0, 2, 4].map((offset) => parseInt(normalizedHex.slice(offset, offset + 2), 16));
-  const [red, green, blue] = channels.map((channel) => {
-    const value = channel / 255;
-    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-  const whiteContrast = 1.05 / (luminance + 0.05);
-  const darkContrast = (luminance + 0.05) / 0.055;
-
-  return whiteContrast >= darkContrast ? '#ffffff' : '#111827';
 };
 
 // ===== COMPONENTS =====
@@ -840,7 +815,12 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
             <div className="flex items-center gap-3">
               {isAuthLoading ? (
-                <span className="block h-10 w-24 shrink-0" aria-hidden="true" />
+                <span
+                  className="block h-10 w-24 shrink-0 rounded-lg border pointer-events-none"
+                  style={{ backgroundColor: colors.surfaceAlt, borderColor: colors.border }}
+                  data-auth-placeholder="true"
+                  aria-hidden="true"
+                />
               ) : user ? (
                 <div className="relative" ref={dropdownRef}>
                   {/* User Avatar Button */}

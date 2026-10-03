@@ -437,7 +437,11 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
             <div className="flex items-center gap-6">
               {isAuthLoading ? (
-                <span className="block h-10 w-40 shrink-0" aria-hidden="true" />
+                <span
+                  className="block h-10 w-40 shrink-0 rounded-sm border border-white/10 bg-white/5 pointer-events-none"
+                  data-auth-placeholder="true"
+                  aria-hidden="true"
+                />
               ) : user ? (
                 <div className="relative" ref={dropdownRef}>
                   {/* User Avatar Button */}

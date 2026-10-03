@@ -13,6 +13,20 @@ const resolveFromRoot = (file) => path.resolve(root, file);
 const exists = (file) => fs.existsSync(resolveFromRoot(file));
 const read = (file) => fs.readFileSync(resolveFromRoot(file), 'utf8');
 
+// Corporate homepage contracts span the layout and its imported section modules.
+const corporateHomepageContent = [
+  'src/themes/corporate-pro/Layout.tsx',
+  'src/themes/corporate-pro/sections/HeroSection.tsx',
+  'src/themes/corporate-pro/sections/ServicesSection.tsx',
+  'src/themes/corporate-pro/sections/AboutSection.tsx',
+  'src/themes/corporate-pro/sections/LatestPostsSection.tsx',
+  'src/themes/corporate-pro/sections/CallToActionSection.tsx',
+]
+  .map(read)
+  .join('\n');
+const readPublicThemeContract = (file) =>
+  file === 'src/themes/corporate-pro/Layout.tsx' ? corporateHomepageContent : read(file);
+
 let failed = false;
 let warningCount = 0;
 
@@ -315,6 +329,7 @@ function loadTsModuleForSmokeWithMocks(file, mocks, globals = {}) {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
     },
   }).outputText;
   const module = { exports: {} };
@@ -955,6 +970,7 @@ const criticalFiles = [
   'public/api/get_settings.php',
   'public/api/public_cache_helper.php',
   'public/api/publication_time_helper.php',
+  'public/api/post_query_helper.php',
   'public/api/ai_provider_helper.php',
   'public/api/analytics_consent_helper.php',
   'public/api/contact_honeypot_helper.php',
@@ -3798,7 +3814,7 @@ if (
 
 const apiHelperDenyMarkers = [
   'RewriteRule ^.+\\.php/ - [R=404,L,NC]',
-  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]',
   'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
@@ -5432,6 +5448,7 @@ const codeqlImageSinkGuardedFiles = [
   'src/components/PostEditor.tsx',
   'src/plugins/von-core/features/users/UserProfile.tsx',
   'src/plugins/von-core/features/settings/components/themes/CorporateProSettings.tsx',
+  'src/themes/corporate-pro/settings/Fields.tsx',
   'src/themes/digest/Layout.tsx',
   'src/themes/techpress/Profile.tsx',
   'src/themes/prism/components/PrismProfile.tsx',
@@ -7673,7 +7690,7 @@ assertIncludes(
     'In-feed ad code',
     'Runs after the selected post interval',
     'Popup ad code',
-    'Use a delayed, consent-safe overlay script',
+    'the analytics consent banner does not control these snippets',
   ],
   'Ads Manager Helper Copy: helper panels use concise, behavior-neutral copy.',
   'Ads Manager Helper Copy: concise helper copy markers are missing.'
@@ -8953,10 +8970,14 @@ assertIncludes(
     '\n' +
     read('public/rss.php') +
     '\n' +
-    read('public/sitemap.php'),
+    read('public/sitemap.php') +
+    '\n' +
+    read('public/api/post_query_helper.php'),
   [
-    'ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC',
-    'ORDER BY updated_at DESC, id DESC',
+    'voncms_post_listing_sql',
+    "voncms_publication_expression_sql($pdo, 'posts', 'p') . ' DESC, p.created_at DESC, p.id DESC'",
+    'p.listing_at DESC, p.created_at DESC, p.id DESC',
+    'p.updated_at DESC, p.id DESC',
   ],
   'Post Discovery Deterministic Pagination Contract: post lists, RSS, and sitemap use stable ID tie-breakers.',
   'Post Discovery Deterministic Pagination Contract: equal timestamps can still reorder items across pages.'
@@ -10118,7 +10139,7 @@ const bundledCategoryRefreshContracts = [
   },
   {
     name: 'Corporate Pro',
-    content: read('src/themes/corporate-pro/Layout.tsx'),
+    content: corporateHomepageContent,
     stateMarker: 'Boolean(selectedCategory) && publicPosts.isLoading && visiblePosts.length > 0;',
   },
   {
@@ -11245,14 +11266,12 @@ assertExcludes(
   'Ads Manager No Takeover Style Contract: ad visual styles stay bounded and do not allow overlay positioning.',
   'Ads Manager No Takeover Style Contract: ad visual styles still allow overlay positioning or takeover-style offsets.'
 );
-const adAddTagsMatch = sharedAdBlockContent.match(/ADD_TAGS:\s*\[([\s\S]*?)\]/);
-const adAddTags = adAddTagsMatch ? adAddTagsMatch[1] : '';
-assertExcludes(
+assertIncludes(
   'Ads Manager Style Tag Containment Contract',
-  adAddTags,
-  ["'style'"],
-  'Ads Manager Style Tag Containment Contract: ad snippets cannot inject page-wide style tags into direct rendering.',
-  'Ads Manager Style Tag Containment Contract: ad snippets can still preserve <style> tags and bypass the inline style allowlist.'
+  sharedAdBlockContent,
+  ['/<(script|iframe|style)(?:\\s|\\/?>)/i.test(safeContent)', 'if (!requiresIsolation)'],
+  'Ads Manager Style Tag Containment Contract: stylesheet tags use the same sandbox as executable snippets instead of sharing the parent page.',
+  'Ads Manager Style Tag Containment Contract: stylesheet snippets can still reach direct rendering.'
 );
 
 const popupAdContent = read('src/themes/shared/components/VonPopupAd.tsx');
@@ -11263,7 +11282,7 @@ assertIncludes(
     'overflow-y-auto',
     'max-h-[calc(100dvh-2rem)]',
     'overscroll-contain',
-    'right-2 top-2 sm:-top-4 sm:-right-4',
+    'absolute right-2 top-2 w-10 h-10',
   ],
   'Popup Ad Mobile Safety Contract: popup ads stay inside the viewport with scroll-safe mobile close behavior.',
   'Popup Ad Mobile Safety Contract: popup ads can still overflow mobile viewport or place the close button off-screen.'
@@ -11556,6 +11575,41 @@ assertIncludes(
 );
 
 const getPostsContent = read('public/api/get_posts.php');
+try {
+  const pageLimitMatch = read('src/hooks/usePublicPostsQuery.ts').match(
+    /export const PUBLIC_LISTING_MAX_PAGE = (\d+);/
+  );
+  if (!pageLimitMatch || Number(pageLimitMatch[1]) !== 1000000)
+    throw new Error('unexpected shared page ceiling');
+  for (const file of [
+    'src/plugins/von-core/features/public/PublicSite.tsx',
+    'src/plugins/von-core/features/seo/VonSEO.tsx',
+  ]) {
+    const source = read(file);
+    const expression = source.match(/const publicPage = ([\s\S]*?);/);
+    if (!expression || !expression[1].includes('PUBLIC_LISTING_MAX_PAGE'))
+      throw new Error(file + ' does not share the ceiling');
+    for (const [input, expected] of [
+      ['100001', 100001],
+      ['166667', 166667],
+      ['1000001', 1000000],
+      ['9999/3563', 1],
+    ]) {
+      const actual = vm.runInNewContext(expression[1], {
+        rawPage: input,
+        rawPublicPage: input,
+        PUBLIC_LISTING_MAX_PAGE: Number(pageLimitMatch[1]),
+      });
+      if (actual !== expected)
+        throw new Error(file + ' changed a valid page or accepted malformed input');
+    }
+  }
+  pass(
+    'Deep Public Page Hydration Boundary: PublicSite and VonSEO retain valid pages above 100000 and share the one-million ceiling.'
+  );
+} catch (error) {
+  fail('Deep Public Page Hydration Boundary: ' + error.message);
+}
 const postsApiSearchContent =
   getPostsContent +
   '\n' +
@@ -11770,6 +11824,158 @@ if (exists(publicPostsQueryHookPath)) {
   fail('Public Posts Query Contract: missing src/hooks/usePublicPostsQuery.ts.');
 }
 
+// Corporate Pro settings use the same section configuration in the customizer and homepage.
+try {
+  const assert = require('assert');
+  const themeAppearance = loadTsModuleForSmokeWithMocks('src/themes/shared/themeSettings.ts', {
+    '../../utils/settingsDraft': loadTsModuleForSmoke('src/utils/settingsDraft.ts'),
+  });
+  const corporate = loadTsModuleForSmokeWithMocks('src/themes/corporate-pro/config.ts', {
+    '../shared/themeSettings': themeAppearance,
+  });
+  const same = (actual, expected) =>
+    assert.strictEqual(JSON.stringify(actual), JSON.stringify(expected));
+  const order = ['hero', 'services', 'about', 'posts', 'cta'];
+  same(corporate.getCorporateHomeSections(), order);
+  same(corporate.normalizeCorporateSectionOrder(null), order);
+  same(corporate.normalizeCorporateSectionOrder(['posts', 'posts', 'unknown', {}, 'hero']), [
+    'posts',
+    'hero',
+    'services',
+    'about',
+    'cta',
+  ]);
+  same(corporate.getCorporateHomeSections({ showServices: false }), [
+    'hero',
+    'about',
+    'posts',
+    'cta',
+  ]);
+  same(
+    corporate.getCorporateHomeSections({
+      showHero: false,
+      showServices: false,
+      showAbout: false,
+      showPosts: false,
+      showCta: false,
+    }),
+    []
+  );
+  const initial = { heroTitle: 'Existing headline', showPosts: false, futureField: 'preserve me' };
+  const initialJson = JSON.stringify(initial);
+  const baseline = corporate.createCorporateSettingsDraft(initial);
+  assert.strictEqual(JSON.stringify(initial), initialJson);
+  assert.strictEqual(baseline.heroTitle, initial.heroTitle);
+  assert.strictEqual(baseline.showPosts, false);
+  assert.strictEqual(baseline.futureField, 'preserve me');
+  assert.strictEqual(baseline.service1Title, undefined);
+  same(corporate.moveCorporateSection(order, 'hero', -1), order);
+  same(corporate.moveCorporateSection(order, 'cta', 1), order);
+  same(corporate.moveCorporateSection(order, 'services', -1), [
+    'services',
+    'hero',
+    'about',
+    'posts',
+    'cta',
+  ]);
+  same(corporate.moveCorporateSection(order, 'hero', 1), [
+    'services',
+    'hero',
+    'about',
+    'posts',
+    'cta',
+  ]);
+  same(order, ['hero', 'services', 'about', 'posts', 'cta']);
+  const latest = {
+    siteName: 'Latest site',
+    api: { unchanged: true },
+    theme: {
+      primaryColor: '#123456',
+      digest: { keep: true },
+      corporatePro: { ...initial, contactPhone: 'Latest phone', heroTitle: 'Changed elsewhere' },
+    },
+  };
+  const draft = {
+    ...baseline,
+    showServices: false,
+    sectionOrder: ['posts', 'hero', 'services', 'about', 'cta'],
+  };
+  const saved = corporate.buildCorporateSettingsUpdate(latest, baseline, draft);
+  assert.strictEqual(saved.theme.corporatePro.heroTitle, 'Changed elsewhere');
+  assert.strictEqual(saved.theme.corporatePro.contactPhone, 'Latest phone');
+  assert.strictEqual(saved.theme.corporatePro.futureField, 'preserve me');
+  assert.strictEqual(saved.theme.corporatePro.showServices, false);
+  assert.strictEqual(saved.theme.corporatePro.service1Title, undefined);
+  assert.strictEqual(saved.theme.digest.keep, latest.theme.digest.keep);
+  same(
+    themeAppearance.getThemeAppearance(saved, 'digest'),
+    themeAppearance.getThemeAppearance(latest, 'digest')
+  );
+  assert.strictEqual(saved.api, latest.api);
+  same(corporate.getCorporateHomeSections(JSON.parse(JSON.stringify(saved.theme.corporatePro))), [
+    'hero',
+    'about',
+    'cta',
+  ]);
+  same(corporate.buildCorporateSettingsUpdate(latest, baseline, baseline), {
+    ...latest,
+    theme: themeAppearance.initializeThemeAppearance(latest),
+  });
+  const layout = read('src/themes/corporate-pro/Layout.tsx');
+  assert.ok(layout.includes('getCorporateHomeSections(settings.theme?.corporatePro)'));
+  assert.ok(layout.includes("selectedCategory ? (['posts'] as const) : homeSectionIds"));
+  for (const section of [
+    'HeroSection',
+    'ServicesSection',
+    'AboutSection',
+    'LatestPostsSection',
+    'CallToActionSection',
+  ]) {
+    assert.ok(layout.includes('import ' + section + ' from'));
+    assert.ok(layout.includes('<' + section));
+  }
+  const customizer = read(
+    'src/plugins/von-core/features/settings/components/themes/CorporateProSettings.tsx'
+  );
+  assert.ok(customizer.includes('buildCorporateSettingsUpdate(settings, baseline, tempSettings)'));
+  assert.ok(customizer.includes('if (savingRef.current) return;'));
+  assert.ok(customizer.includes('if (saved === false) return;'));
+  assert.ok(customizer.includes('disabled={isSaving}'));
+  assert.ok(customizer.includes('Keep at least one homepage section visible.'));
+  const serviceIcon = loadTsModuleForSmokeWithMocks(
+    'src/themes/corporate-pro/sections/ServiceIcon.tsx',
+    { 'lucide-react': require('lucide-react'), 'react/jsx-runtime': require('react/jsx-runtime') }
+  );
+  assert.strictEqual(
+    serviceIcon.default({ name: 'Shield' }).type,
+    serviceIcon.SERVICE_ICONS.Shield
+  );
+  for (const name of ['Unknown', 'constructor', '__proto__', 'toString']) {
+    assert.strictEqual(serviceIcon.default({ name }).type, serviceIcon.SERVICE_ICONS.HelpCircle);
+  }
+  const about = read('src/themes/corporate-pro/sections/AboutSection.tsx');
+  assert.ok(about.includes('truncateText(htmlToPlainText(aboutPage?.content), 300)'));
+  assert.ok(!about.includes('content.substring'));
+  pass(
+    'Corporate Pro Modular Settings Runtime: legacy defaults, visibility, deduplicated order, bounded movement, draft isolation, JSON round-trip, latest-field merge, category independence, guarded saves, and safe icon fallbacks pass.'
+  );
+} catch (error) {
+  fail('Corporate Pro Modular Settings Runtime: ' + error.message);
+}
+
+const themeMaintenanceSmoke = spawnSync(
+  process.execPath,
+  [resolveFromRoot('server/test-theme-maintenance.cjs')],
+  { cwd: root, encoding: 'utf8' }
+);
+if (themeMaintenanceSmoke.status === 0) {
+  pass(themeMaintenanceSmoke.stdout.trim().replace(/^PASS /, ''));
+} else {
+  fail(
+    'Theme Maintenance Runtime: ' + (themeMaintenanceSmoke.stderr || themeMaintenanceSmoke.error)
+  );
+}
+
 const crawlableLoadMoreContent = read('src/components/LoadMoreButton.tsx');
 const crawlablePaginationThemeContents = [
   read('src/themes/default/Layout.tsx'),
@@ -11777,7 +11983,7 @@ const crawlablePaginationThemeContents = [
   read('src/themes/digest/Layout.tsx'),
   read('src/themes/prism/Layout.tsx'),
   read('src/themes/portfolio/Layout.tsx'),
-  read('src/themes/corporate-pro/Layout.tsx'),
+  corporateHomepageContent,
 ];
 if (
   publicPostsQueryContent.includes('useSearchParams') &&
@@ -11797,7 +12003,8 @@ if (
   phpSeoRouteHelperContent.includes('function voncms_fetch_public_listing_page(') &&
   phpSeoRouteHelperContent.includes("'inRange' => false") &&
   phpSeoRouteHelperContent.includes('SELECT COUNT(*) FROM posts p') &&
-  phpSeoRouteHelperContent.includes('LIMIT :limit OFFSET :offset') &&
+  phpSeoRouteHelperContent.includes('voncms_post_listing_sql($pdo, $projection, $where)') &&
+  read('public/api/post_query_helper.php').includes('LIMIT :limit OFFSET :offset') &&
   vonSeoContent.includes('const isPaginatedDiscovery =') &&
   vonSeoContent.includes('existingCanonicalPage === String(publicPage)') &&
   vonSeoContent.includes('hydratedRobots = existingRobots || hydratedRobots;') &&
@@ -12165,6 +12372,8 @@ if (
 const reactSkeletonContent = exists('src/components/SkeletonLoader.tsx')
   ? read('src/components/SkeletonLoader.tsx')
   : '';
+const privateEntryLoaderContent = read('src/components/PrivateEntryLoader.tsx');
+const protectedRouteContent = read('src/components/ProtectedRoute.tsx');
 const publicRouteLoaderContent = read('src/components/PublicRouteLoader.tsx');
 const routeProgressBarContent = read('src/components/RouteProgressBar.tsx');
 const themeImageContent = read('src/themes/shared/ThemeImage.tsx');
@@ -12231,7 +12440,20 @@ if (
       content.includes("import ThemeImage from '../shared/ThemeImage';") &&
       content.includes('<ThemeImage') &&
       content.includes('isAuthLoading') &&
-      content.includes('isAuthLoading ? (')
+      content.includes('isAuthLoading ? (') &&
+      [...content.matchAll(/isAuthLoading \? \(\s*(<span[\s\S]*?\/>)\s*\) : user \? \(/g)]
+        .length === [...content.matchAll(/isAuthLoading \? \(/g)].length &&
+      [...content.matchAll(/isAuthLoading \? \(\s*(<span[\s\S]*?\/>)\s*\) : user \? \(/g)].every(
+        ([, placeholder]) =>
+          placeholder.includes('data-auth-placeholder="true"') &&
+          placeholder.includes('aria-hidden="true"') &&
+          placeholder.includes('pointer-events-none') &&
+          /\bh-\d+\b/.test(placeholder) &&
+          /\bw-(?:\d+|full)\b/.test(placeholder) &&
+          /\bborder\b/.test(placeholder) &&
+          /backgroundColor:|\bbg-white\/5\b/.test(placeholder) &&
+          !/animate-|onClick|tabIndex|href=/.test(placeholder)
+      )
   ) &&
   themeImageContent.includes("import SafeImage from '../../components/SafeImage';") &&
   themeImageContent.includes("import { normalizeImageSource } from '../../utils/siteUtils';") &&
@@ -12285,11 +12507,32 @@ if (
   !reactSkeletonContent.includes('style={{')
 ) {
   pass(
-    'Private Shell Skeleton Contract: admin, login, installer, and failed-bootstrap fallbacks retain the shared responsive charcoal loader and reduced-motion behavior.'
+    'Authenticated Admin Skeleton Contract: lazy admin content retains the shared responsive charcoal loader and reduced-motion behavior.'
   );
 } else {
   fail(
-    'Private Shell Skeleton Contract: the protected/dev fallback loader can drift from its shared responsive charcoal and accessibility contract.'
+    'Authenticated Admin Skeleton Contract: the lazy admin fallback loader can drift from its shared responsive charcoal and accessibility contract.'
+  );
+}
+
+if (
+  appContent.includes("import PrivateEntryLoader from './components/PrivateEntryLoader';") &&
+  appContent.includes('return <PrivateEntryLoader />;') &&
+  appContent.includes('<Suspense fallback={<SkeletonLoader />}>') &&
+  protectedRouteContent.includes("import PrivateEntryLoader from './PrivateEntryLoader';") &&
+  protectedRouteContent.includes('<PrivateEntryLoader label="Verifying session" />') &&
+  privateEntryLoaderContent.includes('const PRIVATE_ENTRY_LOADER_DELAY_MS = 180;') &&
+  privateEntryLoaderContent.includes('dark:bg-admin-inset') &&
+  privateEntryLoaderContent.includes('motion-reduce:animate-none') &&
+  privateEntryLoaderContent.includes('aria-busy="true"') &&
+  !privateEntryLoaderContent.includes('SkeletonLoader')
+) {
+  pass(
+    'Private Entry Loading Contract: initial private setup and session checks use one delayed neutral loader while authenticated lazy admin screens retain the content skeleton.'
+  );
+} else {
+  fail(
+    'Private Entry Loading Contract: login discovery can regress to a content skeleton or lose its delayed accessible session feedback.'
   );
 }
 
@@ -12405,7 +12648,7 @@ const publicDiscoveryThemeContracts = [
 
 const publicDiscoveryIssues = publicDiscoveryThemeContracts.flatMap(
   ({ file, requires, forbids = [] }) => {
-    const content = read(file);
+    const content = readPublicThemeContract(file);
     const missing = requires.filter((marker) => !content.includes(marker));
     const forbiddenHits = forbids.filter((marker) => content.includes(marker));
 
@@ -13396,7 +13639,7 @@ if (
 
 const missingDiscoveryLoading = remainingDiscoveryLoadingContracts.flatMap(
   ({ name, file, marker, loader }) => {
-    const content = read(file);
+    const content = readPublicThemeContract(file);
     return content.includes(marker) && content.includes(loader) ? [] : [`${name} (${file})`];
   }
 );
@@ -13798,9 +14041,10 @@ if (
   schedulerHelperContent.includes('updated_at = scheduled_at') &&
   getPostsContent.includes('voncms_publication_expression_sql') &&
   getPostsContent.includes('AS effective_publish_at') &&
-  getPostsContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC') &&
-  phpSeoRouteHelperContent.includes(
-    'ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC'
+  getPostsContent.includes('voncms_post_listing_sql($db, $projection, $statusClause)') &&
+  phpSeoRouteHelperContent.includes('voncms_post_listing_sql($pdo, $projection, $where)') &&
+  read('public/api/post_query_helper.php').includes(
+    "voncms_publication_expression_sql($pdo, 'posts', 'p') . ' DESC, p.created_at DESC, p.id DESC'"
   ) &&
   read('src/utils/dateFormat.ts').includes('post.publishedAt ||')
 ) {
@@ -13818,7 +14062,10 @@ const llmsContent = read('public/llms.php');
 const rssContent = read('public/rss.php');
 if (
   rssContent.includes("voncms_publication_expression_sql($pdo, 'posts', 'p')") &&
-  rssContent.includes('ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC') &&
+  rssContent.includes('voncms_post_listing_sql($pdo, $projection, $where)') &&
+  read('public/api/post_query_helper.php').includes(
+    "voncms_publication_expression_sql($pdo, 'posts', 'p') . ' DESC, p.created_at DESC, p.id DESC'"
+  ) &&
   rssContent.includes("$post['effective_publish_at'] ?? $post['created_at']")
 ) {
   pass(
@@ -14969,7 +15216,7 @@ assertIncludes(
   'TechPress Search Accent Control',
   techPressLayoutContent,
   [
-    'const getReadableForeground = (color: string): string =>',
+    "import { getReadableForeground } from '../shared/themeColors';",
     'pr-16 pl-5',
     'flex w-14 items-center justify-center',
     'style={{ background: colors.primary, color: searchControlForeground }}',
@@ -14982,6 +15229,17 @@ assertIncludes(
   ],
   'TechPress Search Accent Control: the fixed theme-color end control remains contrast-aware, keyboard-visible, and clearable without input overlap.',
   'TechPress Search Accent Control: the search end control can lose contrast, semantics, focus visibility, or input clearance.'
+);
+
+assertIncludes(
+  'Shared Theme Accent Contrast',
+  read('src/themes/shared/themeColors.ts'),
+  [
+    'export const getReadableForeground = (color: string): string =>',
+    'whiteContrast >= darkContrast',
+  ],
+  'Shared Theme Accent Contrast: configurable public accents retain one contrast-aware foreground owner.',
+  'Shared Theme Accent Contrast: the shared contrast-aware foreground owner is missing.'
 );
 
 assertIncludes(
@@ -15324,7 +15582,7 @@ const themeResponsiveContracts = {
   ],
 };
 const incompleteThemeResponsiveContracts = Object.entries(themeResponsiveContracts).filter(
-  ([file, markers]) => markers.some((marker) => !read(file).includes(marker))
+  ([file, markers]) => markers.some((marker) => !readPublicThemeContract(file).includes(marker))
 );
 if (incompleteThemeResponsiveContracts.length === 0) {
   pass(
@@ -15681,8 +15939,15 @@ const profileOverflowContent = read('src/plugins/von-core/features/users/UserPro
 assertIncludes(
   'Default Profile Long Name Containment',
   profileOverflowContent,
-  ['gap-3 md:gap-8', 'mb-4 md:mb-10', 'grow min-w-0', 'md:text-white', 'wrap-anywhere'],
-  'Default Profile Long Name Containment: mobile spacing stays close, desktop names sit above the cover boundary, and long display names stay inside the header.',
+  [
+    'gap-3 md:gap-8',
+    'items-center md:items-start',
+    'relative z-10 -mt-12 md:-mt-16',
+    'mb-4 md:mb-0 md:pt-6',
+    'grow min-w-0',
+    'text-neutral-900 dark:text-white tracking-tight wrap-anywhere',
+  ],
+  'Default Profile Long Name Containment: only the avatar overlaps the cover, profile text remains in the lower panel in both color modes, and long names stay contained.',
   'Default Profile Long Name Containment: profile identity spacing or heading containment can still drift.'
 );
 
@@ -15701,7 +15966,7 @@ assertIncludes(
   [
     'grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16',
     'className="min-w-0"',
-    'className="shrink-0 text-blue-600"',
+    'className="shrink-0 text-(--corporate-link)"',
     'className="min-w-0 break-words"',
   ],
   'Corporate Footer Tablet Containment: tablet widths use two columns while long contact email values wrap inside the footer.',
@@ -16773,7 +17038,7 @@ const v1268ThemeNavigationContents = [
 ];
 const v1268DefaultNavigationContent = v1268ThemeNavigationContents[0];
 const v1268TechPressNavigationContent = v1268ThemeNavigationContents[1];
-const v1268CorporateNavigationContent = v1268ThemeNavigationContents[5];
+const v1268CorporateNavigationContent = corporateHomepageContent;
 const v1268DropdownLinkClassMarkers = [
   'className="block w-full px-4 py-2 text-left text-sm transition-opacity opacity-70 hover:opacity-100"',
   'className="block w-full px-4 py-2 text-left text-sm hover:opacity-70 transition"',
@@ -17023,6 +17288,53 @@ if (
 }
 
 const phpBinary = findPhpBinary();
+if (phpBinary) {
+  const postScaleProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/post-scale.php')],
+    {
+      encoding: 'utf8',
+    }
+  );
+  if (postScaleProbe.status === 0 && postScaleProbe.stdout.includes('focused checks')) {
+    pass(
+      'Large-Archive SQL Contract: legacy fallback, bounded row selection, ownership, search stability and page boundaries pass.'
+    );
+  } else {
+    fail('Large-Archive SQL Contract: ' + (postScaleProbe.stderr || postScaleProbe.stdout));
+  }
+  const adHeadStart = publicIndexSource.indexOf('<?php if (!empty($adsenseVerification)):');
+  const adHeadEnd = publicIndexSource.indexOf('<?php if (!empty($schemaData)', adHeadStart);
+  const adHeadTemplate = publicIndexSource.slice(adHeadStart, adHeadEnd);
+  const adHeadCases = [
+    { enabled: false, publisher: 'ca-pub-1234567890123456', meta: true, loader: false },
+    { enabled: true, publisher: 'ca-pub-1234567890123456', meta: true, loader: true },
+    { enabled: true, publisher: '', meta: false, loader: false },
+  ];
+  const adHeadResults = adHeadCases.map((testCase) => {
+    const probe = spawnSync(phpBinary, ['-n'], {
+      input:
+        `<?php $adsenseVerification='${testCase.publisher}';` +
+        `$publicSettingsSnapshot=['ads'=>['adsEnabled'=>${testCase.enabled ? 'true' : 'false'}]]; ?>` +
+        adHeadTemplate,
+      encoding: 'utf8',
+    });
+    return (
+      adHeadStart >= 0 &&
+      adHeadEnd > adHeadStart &&
+      probe.status === 0 &&
+      probe.stdout.includes('google-adsense-account') === testCase.meta &&
+      probe.stdout.includes('adsbygoogle.js') === testCase.loader
+    );
+  });
+  if (adHeadResults.every(Boolean)) {
+    pass(
+      'Ads Manager PHP Head Runtime: master-off keeps verification but omits the AdSense loader; enabled and empty-ID controls pass.'
+    );
+  } else {
+    fail('Ads Manager PHP Head Runtime: AdSense discovery and master-switch gating regressed.');
+  }
+}
 if (!phpBinary) {
   warn('PHP Lint: no PHP binary found automatically; skipping syntax lint checks.');
 } else {
@@ -17261,6 +17573,7 @@ echo 'included';`,
     'get_post.php',
     'role_capability_helper.php',
     'publication_time_helper.php',
+    'post_query_helper.php',
     'public_cache_helper.php',
   ]) {
     fs.copyFileSync(resolveFromRoot(`public/api/${file}`), path.join(analyticsConsentApiDir, file));
@@ -19047,6 +19360,9 @@ if (
   voncms_normalize_public_page('0002') !== 2 ||
   voncms_normalize_public_page('-1') !== 1 ||
   voncms_normalize_public_page(['2']) !== 1 ||
+  voncms_normalize_public_page('100001') !== 100001 ||
+  voncms_normalize_public_page('166667') !== 166667 ||
+  voncms_normalize_public_page('99999999') !== 1000000 ||
   voncms_build_public_page_query(
     'category=Sukan&page=2&page=9&search=bola',
     3,

@@ -2,9 +2,9 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-> **Current release:** v1.27.4 "OverDrive" is the current production upgrade baseline.
+> **Current release:** v1.27.6 "OverDrive" is the current production upgrade baseline.
 
-> **Development version:** v1.27.6 "OverDrive" is In Development, not yet a production upgrade package.
+> **Development version:** v1.27.7 "OverDrive" is In Development, not yet a production upgrade package.
 
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 
@@ -12,6 +12,14 @@ Most modern VonCMS installs can be updated from the admin panel.
 
 > [!IMPORTANT]
 > **v1.27.4 `.htaccess` hardening:** VonCMS no longer constructs HTTPS or canonical-host redirects from the request `Host` header. Before updating, configure Force HTTPS and the preferred root or `www` hostname with a fixed domain in Cloudflare, cPanel/DirectAdmin, the reverse proxy, or the virtual host. OTA protects the live `.htaccess`, so after v1.27.4 arrives, sign in as the primary administrator and run **System Tools > Repair `.htaccess`** once. The repair replaces the unsafe legacy managed rules while preserving hosting-specific directives outside the VonCMS block.
+
+### v1.27.7 large-archive indexes and counters
+
+After installing v1.27.7, back up the database and run **Settings > Tools > Repair Database** once during a quiet period. Repair adds optional publication-order, category, author, sitemap, and analytics indexes, and safely widens existing post/page view counters and analytics IDs. It does not reset content, views, or analytics IDs. Index construction on a large database can take time and may wait for database locks; use a maintenance window and follow the existing repair guidance if hosting interrupts it.
+
+Only indexes and generated expressions verified by install/repair are activated through the protected schema-capability marker. Uploading files alone does not activate the new query plans, and ordinary public requests never alter the schema. Conflicting optional definitions are left untouched and produce warnings; unrepaired or unsupported installations keep their previous SQL paths. Search is unchanged and has not been certified efficient at million-record scale. SQL fixture results are not a whole-site throughput guarantee.
+
+The post API still caps each response at 200; Posts Per Page remains 6-50 and numbered `?page=` URLs and Load More are unchanged. The page ceiling is now 1,000,000. Analytics still expires logs using the 30-day cutoff, but cleanup drains expired backlog in batches of up to 1,000 rows on the existing opportunistic schedule; it is not a guarantee that every expired row disappears exactly at day 30.
 
 ### v1.26.11 database repair ownership
 
@@ -35,9 +43,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.4
+## Recommended path to v1.27.6
 
-VonCMS v1.27.4 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.6 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.

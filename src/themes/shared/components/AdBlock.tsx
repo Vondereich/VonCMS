@@ -49,12 +49,14 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     [content]
   );
 
-  // Smart Detection: Check if content contains script or iframe tags
-  const hasExecutable = useMemo(() => /<(script|iframe)/i.test(safeContent), [safeContent]);
+  // Stylesheets can affect the parent page even without scripts. Keep them isolated too.
+  const requiresIsolation = useMemo(
+    () => /<(script|iframe|style)(?:\s|\/?>)/i.test(safeContent),
+    [safeContent]
+  );
 
   useEffect(() => {
-    // Only use Iframe Isolation for Script/Iframe based ads
-    if (!hasExecutable || !containerRef.current || !safeContent) return;
+    if (!requiresIsolation || !containerRef.current || !safeContent) return;
 
     const iframe = document.createElement('iframe');
     iframe.style.width = '100%';
@@ -158,12 +160,12 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
       window.removeEventListener('message', handleMessage);
       if (containerRef.current) containerRef.current.replaceChildren();
     };
-  }, [safeContent, pathname, hasExecutable]);
+  }, [safeContent, pathname, requiresIsolation]);
 
   if (!safeContent) return null;
 
+  const wrapperKey = pathname + (slotId || '');
   const wrapperProps = {
-    key: pathname + (slotId || ''),
     id: slotId ? `ad-slot-${slotId}` : undefined,
     className: `ad-slot-wrapper ${slotId ? `ad-slot-${slotId}` : ''} ${className || ''}`,
     style: {
@@ -180,10 +182,11 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     },
   };
 
-  // If NO scripts, render directly to allow theme CSS integration
-  if (!hasExecutable) {
+  // Only sanitized markup without scripts, frames, or stylesheet tags may share theme CSS.
+  if (!requiresIsolation) {
     return (
       <div
+        key={wrapperKey}
         {...wrapperProps}
         className={`${wrapperProps.className} **:box-border **:min-w-0 [&_a]:inline-block [&_a]:max-w-full [&_div]:max-w-full [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:align-middle [&_img]:inline-block [&_img]:h-auto [&_img]:max-w-full [&_ins]:inline-block [&_ins]:w-full [&_ins]:max-w-full`}
         style={{
@@ -196,8 +199,8 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     );
   }
 
-  // If Scripts found, use the isolated container handled by useEffect
-  return <div {...wrapperProps} ref={containerRef} />;
+  // Active content and stylesheets use the isolated container handled by useEffect.
+  return <div key={wrapperKey} {...wrapperProps} ref={containerRef} />;
 };
 
 export default AdBlock;

@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS posts (
     category VARCHAR(100) DEFAULT 'Uncategorized',
     keywords VARCHAR(255),
     meta_description TEXT,
-    views INT DEFAULT 0,
+    views BIGINT DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     posts_status_idx VARCHAR(20) GENERATED ALWAYS AS (status) VIRTUAL,
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS pages (
     featured_image VARCHAR(255) DEFAULT NULL,
     keywords VARCHAR(255),
     meta_description TEXT,
-    views INT DEFAULT 0,
+    views BIGINT DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
 -- Analytics Table (Smart Session)
 -- Tracks page visits with throttling and auto-purge
 CREATE TABLE IF NOT EXISTS analytics (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     page_url VARCHAR(500),
     referrer VARCHAR(500),
     user_agent TEXT,

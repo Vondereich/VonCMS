@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Mail,
   Settings,
@@ -46,10 +46,13 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'unsubscribed'>('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [saving, setSaving] = useState(false);
+  const subscribersRequestId = useRef(0);
 
   // Load subscribers
   const loadSubscribers = async () => {
+    const requestId = ++subscribersRequestId.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -60,22 +63,29 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       });
       const res = await vonFetch(`${BASE_PATH}api/newsletter_list.php?${params.toString()}`);
       const data = await res.json();
+      if (requestId !== subscribersRequestId.current) return;
       if (data.success) {
         setSubscribers(data.subscribers || []);
         setStats(data.stats || { total: 0, active: 0, unsubscribed: 0 });
         setTotalPages(data.pagination?.pages || 1);
+        setTotalItems(Math.max(0, Number(data.pagination?.total) || 0));
       }
     } catch (error) {
+      if (requestId !== subscribersRequestId.current) return;
       console.error('Failed to load subscribers:', error);
       toast.error('Failed to load subscribers data');
+    } finally {
+      if (requestId === subscribersRequestId.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (activeTab === 'subscribers') {
       loadSubscribers();
     }
+    return () => {
+      subscribersRequestId.current += 1;
+    };
   }, [activeTab, page, statusFilter]);
 
   // Reset page when filter or search changes
@@ -492,7 +502,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
               totalPages={totalPages}
               onPageChange={(newPage) => setPage(newPage)}
               itemsPerPage={NEWSLETTER_SUBSCRIBERS_PER_PAGE}
-              totalItems={stats.total}
+              totalItems={totalItems}
             />
           </div>
         </div>

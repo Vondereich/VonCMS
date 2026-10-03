@@ -276,12 +276,8 @@ try {
 
   $publishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
   $publicationExpression = voncms_publication_expression_sql($pdo, 'posts', 'p');
-  $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.category, p.author, p.author_id, p.keywords, p.image_url, p.created_at, p.updated_at, p.scheduled_at, {$publishedAtSql}, {$publicationExpression} AS effective_publish_at, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name
-    FROM posts p
-    LEFT JOIN users u ON p.author_id = u.id
-    $where
-    ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC
-    LIMIT :limit OFFSET :offset";
+  $projection = "p.id, p.title, p.slug, p.excerpt, p.content, p.category, p.author, p.author_id, p.keywords, p.image_url, p.created_at, p.updated_at, p.scheduled_at, {$publishedAtSql}, {$publicationExpression} AS effective_publish_at, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name";
+  $sql = voncms_post_listing_sql($pdo, $projection, $where);
 
   $stmt = $pdo->prepare($sql);
   $stmt->bindValue(':currentTime', $currentTime);

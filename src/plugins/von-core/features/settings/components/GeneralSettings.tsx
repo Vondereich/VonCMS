@@ -703,7 +703,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
         </div>{' '}
         <div className="flex items-center gap-3">
           <input
-            aria-label="Maintenance Mode"
+            aria-label="Allow Public Discussion on Posts"
             id="generalsettings-569"
             name="generalsettings569"
             type="checkbox"
@@ -719,7 +719,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           <input
             id="generalsettings-580"
             name="generalsettings580"
-            aria-label="Allow Public Discussion on Posts"
+            aria-label="Membership: Anyone can register"
             type="checkbox"
             checked={settings.registrationEnabled ?? true}
             onChange={(e) => onChange('registrationEnabled', e.target.checked)}

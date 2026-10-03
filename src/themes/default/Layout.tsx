@@ -326,6 +326,7 @@ const DefaultLayout: React.FC<
       style={
         {
           '--color-primary': settings.theme.primaryColor || '#0ea5ff',
+          '--border-radius': settings.theme.borderRadius || '0.5rem',
           '--bg-nav': navColor,
           '--text-nav': navTextColor,
           '--bg-body': isDarkMode ? '#0a0a0a' : '#f8fafc',
@@ -484,7 +485,15 @@ const DefaultLayout: React.FC<
                 </button>
                 <div className="h-6 w-px bg-neutral-700"></div>
                 {isAuthLoading ? (
-                  <span className="block h-10 w-24 shrink-0" aria-hidden="true" />
+                  <span
+                    className="block h-10 w-24 shrink-0 rounded-lg border pointer-events-none"
+                    style={{
+                      backgroundColor: `${navTextColor}14`,
+                      borderColor: `${navTextColor}29`,
+                    }}
+                    data-auth-placeholder="true"
+                    aria-hidden="true"
+                  />
                 ) : user ? (
                   <div className="relative" ref={dropdownRef}>
                     {/* User Avatar Button */}
@@ -697,7 +706,15 @@ const DefaultLayout: React.FC<
                 ))}
                 <hr style={{ borderColor: 'rgba(128,128,128,0.3)' }} />
                 {isAuthLoading ? (
-                  <span className="block h-14 w-full" aria-hidden="true" />
+                  <span
+                    className="block h-14 w-full rounded-xl border pointer-events-none"
+                    style={{
+                      backgroundColor: `${navTextColor}14`,
+                      borderColor: `${navTextColor}29`,
+                    }}
+                    data-auth-placeholder="true"
+                    aria-hidden="true"
+                  />
                 ) : user ? (
                   <>
                     <a

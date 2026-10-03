@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 import { Post, User, Comment, SiteSettings, Page } from '../../../../types';
 import { useTheme } from '../themes/ThemeContext';
@@ -10,6 +10,8 @@ import { CookieBanner } from '../../../../components/CookieBanner';
 import PublicRouteLoader from '../../../../components/PublicRouteLoader';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
 import { analyticsTrackingAllowed } from '../../../../utils/analyticsConsent';
+import { resolvePublicThemeSettings } from '../../../../themes/shared/themeSettings';
+import { PUBLIC_LISTING_MAX_PAGE } from '../../../../hooks/usePublicPostsQuery';
 import {
   getLoadedPublicThemeLayout,
   loadPublicThemeLayout,
@@ -56,6 +58,10 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
   const location = useLocation();
   const analyticsPluginActive = isSystemPluginActive(props.settings, 'vp_analytics');
   const requestedThemeId = resolvePublicThemeId(activeTheme.id);
+  const themeSettings = useMemo(
+    () => resolvePublicThemeSettings(props.settings, requestedThemeId),
+    [props.settings, requestedThemeId]
+  );
   const [loadedThemeLayout, setLoadedThemeLayout] = useState<{
     themeId: string;
     Component: PublicThemeLayoutComponent;
@@ -110,7 +116,9 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
       profileTitle;
     const siteTitle = props.settings.siteName || 'VonCMS';
     const rawPage = new URLSearchParams(location.search).get('page')?.trim() || '';
-    const publicPage = /^\d+$/.test(rawPage) ? Math.max(1, Math.min(100000, Number(rawPage))) : 1;
+    const publicPage = /^\d+$/.test(rawPage)
+      ? Math.max(1, Math.min(PUBLIC_LISTING_MAX_PAGE, Number(rawPage)))
+      : 1;
     const discoveryTitle =
       publicPage > 1 && (props.currentView === 'home' || props.currentView === 'category')
         ? props.currentView === 'category' && props.selectedCategory
@@ -189,7 +197,11 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
       />
 
       {LayoutComponent ? (
-        <LayoutComponent {...props} onPageClick={props.onPageClick || (() => {})} />
+        <LayoutComponent
+          {...props}
+          settings={themeSettings}
+          onPageClick={props.onPageClick || (() => {})}
+        />
       ) : (
         <PublicRouteLoader />
       )}

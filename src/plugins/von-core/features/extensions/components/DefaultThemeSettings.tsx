@@ -3,6 +3,10 @@ import { SiteSettings } from '../../../../../types';
 import { Trash2, Save, Plus, Type, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AdminModal from '../../../../../components/admin/AdminModal';
+import {
+  buildThemeSettingsUpdate,
+  getThemeAppearance,
+} from '../../../../../themes/shared/themeSettings';
 
 interface DefaultThemeSettingsProps {
   settings: SiteSettings;
@@ -17,20 +21,26 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
 }) => {
   // Initialize temporary state with current settings or defaults
   // Ensure we have the deep structure for independent footer links
-  const [tempSettings, setTempSettings] = useState<SiteSettings>({
+  const [draftBaseline] = useState<SiteSettings>(() => ({
     ...settings,
     theme: {
       ...settings.theme,
-      default: settings.theme.default || {
+      default: {
         footerLinks: [],
         showTrending: true,
         enableMarquee: true,
+        ...getThemeAppearance(settings, 'default'),
+        ...settings.theme.default,
       },
     },
-  });
+  }));
+  const [tempSettings, setTempSettings] = useState(draftBaseline);
 
   const handleChange = (key: string, value: any) => {
-    setTempSettings((prev) => ({ ...prev, theme: { ...prev.theme, [key]: value } }));
+    setTempSettings((prev) => ({
+      ...prev,
+      theme: { ...prev.theme, default: { ...prev.theme.default, [key]: value } },
+    }));
   };
 
   // Helper for footer links to keep code clean
@@ -50,7 +60,14 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
   };
 
   const handleSave = async () => {
-    const saved = await onUpdate(tempSettings);
+    const saved = await onUpdate(
+      buildThemeSettingsUpdate(
+        settings,
+        'default',
+        draftBaseline.theme.default || {},
+        tempSettings.theme.default || {}
+      )
+    );
     if (saved === false) return;
 
     toast.success('Theme settings saved!');
@@ -106,12 +123,12 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                     id="defaultthemesettings-152"
                     name="defaultthemesettings152"
                     type="color"
-                    value={tempSettings.theme.primaryColor}
+                    value={tempSettings.theme.default?.primaryColor}
                     onChange={(e) => handleChange('primaryColor', e.target.value)}
                     className="h-10 w-14 rounded-sm cursor-pointer border-0 p-0"
                   />
                   <span className="text-sm font-mono text-slate-600 dark:text-slate-400 uppercase">
-                    {tempSettings.theme.primaryColor}
+                    {tempSettings.theme.default?.primaryColor}
                   </span>
                   <button
                     type="button"
@@ -176,7 +193,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   aria-label="Font Family"
                   id="defaultthemesettings-217"
                   name="defaultthemesettings217"
-                  value={tempSettings.theme.fontFamily}
+                  value={tempSettings.theme.default?.fontFamily}
                   onChange={(e) => handleChange('fontFamily', e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg bg-white dark:bg-admin-panel text-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
                 >
@@ -204,7 +221,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   id="defaultthemesettings-241"
                   name="defaultthemesettings241"
                   aria-label="Border Radius"
-                  value={tempSettings.theme.borderRadius}
+                  value={tempSettings.theme.default?.borderRadius}
                   onChange={(e) => handleChange('borderRadius', e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 dark:border-admin-border rounded-lg bg-white dark:bg-admin-panel text-slate-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
                 >

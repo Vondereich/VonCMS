@@ -498,10 +498,7 @@ class InstallBootstrap
     @rewind($handle);
     $value = stream_get_contents($handle);
     $expected = is_string($value) ? strtolower(trim($value)) : '';
-    if (
-      preg_match('/^[a-f0-9]{64}$/', $expected) !== 1 ||
-      !hash_equals($expected, $candidate)
-    ) {
+    if (preg_match('/^[a-f0-9]{64}$/', $expected) !== 1 || !hash_equals($expected, $candidate)) {
       @flock($handle, LOCK_UN);
       @fclose($handle);
       return false;
@@ -1573,7 +1570,7 @@ class SecurityHelper
       ['RewriteRule ^von_config\\.php$ - [F,L]'],
       ['RewriteRule ^.+\\.php/ - [R=404,L,NC]'],
       [
-        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
       ],
       ['RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]'],
       ['RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]'],

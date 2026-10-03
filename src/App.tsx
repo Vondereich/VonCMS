@@ -98,6 +98,7 @@ const SecurityDashboard = lazy(
 import NotFoundPage from './components/NotFoundPage';
 import MaintenancePage from './components/MaintenancePage';
 import SkeletonLoader from './components/SkeletonLoader';
+import PrivateEntryLoader from './components/PrivateEntryLoader';
 import PublicRouteLoader from './components/PublicRouteLoader';
 import AdminModal from './components/admin/AdminModal';
 import AdminNotFoundPage from './components/admin/AdminNotFoundPage';
@@ -904,7 +905,7 @@ const App: React.FC = () => {
   ];
 
   if (isInitialLoading || (settings.maintenanceMode && isAuthLoading)) {
-    return <SkeletonLoader />;
+    return <PrivateEntryLoader />;
   }
 
   return (

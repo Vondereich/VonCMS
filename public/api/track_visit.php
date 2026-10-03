@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/analytics_consent_helper.php';
+require_once __DIR__ . '/post_query_helper.php';
 sendApiHeaders('GET, POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -58,7 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ============================================
 if (rand(1, 100) === 1) {
   try {
-    $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
+    $pdo->exec(
+      'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
+    );
   } catch (Throwable $e) {
     // Analytics is optional; missing storage must not affect or spam public requests.
   }
@@ -80,10 +83,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $throttleMinutes = 30;
 
   try {
+    $visitIndexHint = voncms_query_index_hint($pdo, 'analytics', 'idx_visit_window');
     $stmt = $pdo->prepare("
-            SELECT COUNT(*) FROM analytics 
+            SELECT 1 FROM analytics{$visitIndexHint}
             WHERE ip_hash = ? 
             AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)
+            LIMIT 1
         ");
     $stmt->execute([$ipHash, $throttleMinutes]);
     $recentLogs = $stmt->fetchColumn();
@@ -106,11 +111,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   try {
     $days = isset($_GET['days']) ? (int) $_GET['days'] : 7;
     $days = max(1, min(365, $days));
+    $dailyIndexHint = voncms_query_index_hint($pdo, 'analytics', 'idx_visit_daily');
 
     // Get visits per day
     $stmt = $pdo->prepare("
             SELECT visit_date, COUNT(*) as visits, COUNT(DISTINCT ip_hash) as unique_visitors
-            FROM analytics 
+            FROM analytics{$dailyIndexHint}
             WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL (? - 1) DAY)
             GROUP BY visit_date
             ORDER BY visit_date ASC
@@ -123,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             SELECT 
                 COUNT(*) as total_views,
                 COUNT(DISTINCT ip_hash) as unique_visitors
-            FROM analytics 
+            FROM analytics{$dailyIndexHint}
             WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL (? - 1) DAY)
         ");
     $stmt->execute([$days]);
