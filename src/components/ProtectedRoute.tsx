@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router';
 import { User, UserRole } from '../types';
+import PrivateEntryLoader from './PrivateEntryLoader';
 
 interface ProtectedRouteProps {
   user: User | null;
@@ -27,14 +28,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   // Wait for auth check to complete before making decision
   if (isAuthLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 dark:text-slate-400">Verifying session...</p>
-        </div>
-      </div>
-    );
+    return <PrivateEntryLoader label="Verifying session" />;
   }
 
   // Check if user is logged in

@@ -3,6 +3,10 @@ import { SiteSettings } from '../../../../../types';
 import { X, Save, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AdminModal from '../../../../../components/admin/AdminModal';
+import {
+  buildThemeSettingsUpdate,
+  getThemeAppearance,
+} from '../../../../../themes/shared/themeSettings';
 
 interface TechPressSettingsProps {
   settings: SiteSettings;
@@ -15,28 +19,26 @@ export const TechPressSettings: React.FC<TechPressSettingsProps> = ({
   onUpdate,
   onClose,
 }) => {
-  const initialConfig = settings.theme.techpress || {
-    primaryColor: '#0066cc',
+  const initialConfig = {
+    primaryColor: getThemeAppearance(settings, 'techpress').primaryColor,
     enableBreaking: true,
     enableDarkMode: true,
     breakingNewsCount: 3,
     footerLinks: [],
+    ...settings.theme.techpress,
   };
 
-  const [tempConfig, setTempConfig] = useState(initialConfig);
+  const [baseline] = useState(initialConfig);
+  const [tempConfig, setTempConfig] = useState(baseline);
   const [tempFooterLinks, setTempFooterLinks] = useState(initialConfig.footerLinks || []);
 
   const handleSave = async () => {
-    const saved = await onUpdate({
-      ...settings,
-      theme: {
-        ...settings.theme,
-        techpress: {
-          ...tempConfig,
-          footerLinks: tempFooterLinks,
-        },
-      },
-    });
+    const saved = await onUpdate(
+      buildThemeSettingsUpdate(settings, 'techpress', baseline, {
+        ...tempConfig,
+        footerLinks: tempFooterLinks,
+      })
+    );
     if (saved === false) return;
 
     toast.success('TechPress settings saved!');

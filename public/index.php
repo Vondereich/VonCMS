@@ -948,7 +948,9 @@ $cssFile = $publicAssets['cssFile'];
   ?>
     <!-- Google AdSense Verification -->
     <meta name="google-adsense-account" content="<?php echo htmlspecialchars($adv, ENT_COMPAT, 'UTF-8', false); ?>">
+    <?php if (!empty($publicSettingsSnapshot['ads']['adsEnabled'])): ?>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<?php echo htmlspecialchars($adv, ENT_COMPAT, 'UTF-8', false); ?>" crossorigin="anonymous"></script>
+    <?php endif; ?>
   <?php
   endif; ?>
 

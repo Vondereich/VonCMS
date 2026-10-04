@@ -43,7 +43,7 @@ if (file_exists($settingsFile)) {
 }
 
 $forcePublic = filter_var($queryValue('public', 'false'), FILTER_VALIDATE_BOOLEAN);
-$page = max(1, min(100000, (int) $queryValue('page', '1')));
+$page = max(1, min(1000000, (int) $queryValue('page', '1')));
 $requestedLimit = (int) $queryValue('limit', (string) $defaultLimit);
 $limit = max(1, min(200, $requestedLimit));
 $offset = ($page - 1) * $limit;
@@ -123,6 +123,7 @@ require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
 require_once __DIR__ . '/../search_query_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
+require_once __DIR__ . '/post_query_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
 
 try {
@@ -212,8 +213,7 @@ try {
 
   if ($countOnly || !$canSkipTotal) {
     // Count total for admin, profile activity, and callers that need numbered pagination.
-    $countSql =
-      'SELECT COUNT(*) FROM posts p LEFT JOIN users u ON p.author_id = u.id ' . $countStatusClause;
+    $countSql = voncms_post_count_sql($countStatusClause);
     $totalStmt = $db->prepare($countSql);
     if (strpos($countSql, ':currentUserId') !== false) {
       $totalStmt->bindValue(':currentUserId', $currentUserId);
@@ -278,7 +278,7 @@ try {
   // Keep list payloads bounded: full content is intentionally left to get_post.php.
   $publishedAtSql = voncms_publication_column_sql($db, 'posts', 'p');
   $publicationExpression = voncms_publication_expression_sql($db, 'posts', 'p');
-  $sql = "SELECT
+  $projection = "
     p.id,
     p.title,
     p.slug,
@@ -299,12 +299,8 @@ try {
     $authorNameSql AS author_name,
     u.username AS author_username,
     $authorDisplayNameSql AS author_display_name,
-    u.avatar AS author_avatar
-  FROM posts p
-  LEFT JOIN users u ON p.author_id = u.id
-  $statusClause
-  ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC
-  LIMIT :limit OFFSET :offset";
+    u.avatar AS author_avatar";
+  $sql = voncms_post_listing_sql($db, $projection, $statusClause);
 
   $stmt = $db->prepare($sql);
   $stmt->bindValue(':limit', $queryLimit, PDO::PARAM_INT);

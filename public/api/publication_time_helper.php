@@ -50,7 +50,7 @@ if (!function_exists('voncms_has_publication_column')) {
     return ($capabilities['published_at'][$table] ?? false) === true;
   }
 
-  function voncms_mark_publication_columns_ready(): void
+  function voncms_mark_publication_columns_ready(array $queryIndexes = []): void
   {
     $path = voncms_publication_capability_path();
     $directory = dirname($path);
@@ -62,6 +62,7 @@ if (!function_exists('voncms_has_publication_column')) {
       [
         'version' => 1,
         'published_at' => ['posts' => true, 'pages' => true],
+        'query_indexes' => $queryIndexes,
       ],
       JSON_UNESCAPED_SLASHES,
     );

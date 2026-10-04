@@ -4,9 +4,7 @@
 
 VonCMS is a lightweight PHP and React CMS not only for shared hosting, but on many levels that suite your needs. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-Current release: **v1.27.4 "OverDrive"**. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
-
-Development version: **v1.27.6 "OverDrive" (In Development)**. It has not been published as a release.
+Current release: **v1.27.7 "OverDrive"**. You can install the Deploy ZIP on hosting, or fork the source repository to build your own themes, plugins, extensions, fixes, and release packages.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
@@ -279,6 +277,9 @@ The safe manual-update baseline is:
 5. Visit the site and admin dashboard, then confirm the Dashboard shows the expected release version.
 6. Follow any Database Repair, `.htaccess` repair, or configuration migration instruction shown for the installed starting version in [Upgrade](docs/UPGRADE.md).
 7. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
+
+> [!IMPORTANT]
+> **v1.27.7 database step:** To activate the new large-archive indexes on an existing site, back up the database, sign in as the primary administrator, and run **Database > Schema Repair** once during a quiet period. This updates the schema, not `OPTIMIZE TABLE`, and preserves existing content, views, and analytics IDs. Until repair succeeds, the site keeps its previous query paths. Fresh installations receive the structures automatically. See [Upgrade](docs/UPGRADE.md#v1277-large-archive-indexes-and-counters) for compatibility warnings and large-database precautions.
 
 After a site is already on the fixed updater baseline, the dashboard updater can be used for later patches when the host allows outbound release downloads. OTA activation replaces the release-managed `assets/` and `docs/` directories as complete rollback-protected units, so retired fingerprinted bundles and guides cannot remain beside the current release.
 

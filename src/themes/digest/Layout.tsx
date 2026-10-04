@@ -1334,7 +1334,8 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     Boolean(selectedCategory) && publicPosts.isLoading && displayedPosts.length > 0;
 
   // Hero article (first post when not searching)
-  const heroArticle = !searchQuery && !selectedCategory && displayedPosts[0];
+  const heroArticle =
+    digestSettings.showHero && !searchQuery && !selectedCategory && displayedPosts[0];
   const gridPosts = heroArticle ? paginatedPosts.slice(1) : paginatedPosts;
 
   // Navigation handler
@@ -1484,7 +1485,12 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* User Menu */}
             {isAuthLoading ? (
-              <span className="block h-10 w-24 shrink-0" aria-hidden="true" />
+              <span
+                className="block h-10 w-24 shrink-0 rounded-full border pointer-events-none"
+                style={{ backgroundColor: colors.surfaceAlt, borderColor: colors.border }}
+                data-auth-placeholder="true"
+                aria-hidden="true"
+              />
             ) : user ? (
               <div className="relative">
                 <button

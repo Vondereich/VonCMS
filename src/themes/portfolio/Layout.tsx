@@ -259,17 +259,19 @@ const SocialLinks = ({ settings, colors }: { settings: PortfolioSettings; colors
 };
 
 // ===== ANIMATION CLASSES =====
-const getAnimationClass = (style: string, delay: number = 0) => {
-  const baseDelay = `animation-delay: ${delay * 100}ms;`;
+const getAnimationClass = (style: string) => {
   switch (style) {
     case 'fade':
-      return `opacity-0 animate-[fadeIn_0.6s_ease-out_forwards] ${baseDelay}`;
+      return 'opacity-0 animate-[fadeIn_0.6s_ease-out_forwards]';
     case 'slide':
-      return `opacity-0 translate-y-8 animate-[slideUp_0.6s_ease-out_forwards] ${baseDelay}`;
+      return 'opacity-0 translate-y-8 animate-[slideUp_0.6s_ease-out_forwards]';
     default:
       return '';
   }
 };
+
+const getAnimationStyle = (style: string, delay = 0): React.CSSProperties =>
+  style === 'fade' || style === 'slide' ? { animationDelay: `${delay * 100}ms` } : {};
 
 // ===== HERO COMPONENTS =====
 
@@ -300,7 +302,10 @@ const HeroFullscreen = ({ settings, name, tagline, colors }: any) => (
 
     {/* Content */}
     <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-      <div className={getAnimationClass(settings.animationStyle, 0)}>
+      <div
+        className={getAnimationClass(settings.animationStyle)}
+        style={getAnimationStyle(settings.animationStyle, 0)}
+      >
         <span
           className="inline-block px-4 py-2 rounded-full text-sm font-medium mb-6"
           style={{
@@ -313,20 +318,23 @@ const HeroFullscreen = ({ settings, name, tagline, colors }: any) => (
       </div>
 
       <h1
-        className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 ${getAnimationClass(settings.animationStyle, 1)}`}
-        style={{ color: colors.text }}
+        className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 ${getAnimationClass(settings.animationStyle)}`}
+        style={{ color: colors.text, ...getAnimationStyle(settings.animationStyle, 1) }}
       >
         {name || 'Creative Portfolio'}
       </h1>
 
       <p
-        className={`text-xl md:text-2xl max-w-2xl mx-auto mb-10 ${getAnimationClass(settings.animationStyle, 2)}`}
-        style={{ color: colors.textSecondary }}
+        className={`text-xl md:text-2xl max-w-2xl mx-auto mb-10 ${getAnimationClass(settings.animationStyle)}`}
+        style={{ color: colors.textSecondary, ...getAnimationStyle(settings.animationStyle, 2) }}
       >
         {tagline || 'Showcasing creative works and professional projects'}
       </p>
 
-      <div className={getAnimationClass(settings.animationStyle, 3)}>
+      <div
+        className={getAnimationClass(settings.animationStyle)}
+        style={getAnimationStyle(settings.animationStyle, 3)}
+      >
         <a
           href="#projects"
           className="inline-flex items-center gap-2 px-8 py-4 rounded-full font-semibold text-white transition-all hover:scale-105 hover:shadow-lg"
@@ -345,7 +353,10 @@ const HeroFullscreen = ({ settings, name, tagline, colors }: any) => (
       </div>
 
       {/* Social Links */}
-      <div className={getAnimationClass(settings.animationStyle, 4)}>
+      <div
+        className={getAnimationClass(settings.animationStyle)}
+        style={getAnimationStyle(settings.animationStyle, 4)}
+      >
         <SocialLinks settings={settings} colors={colors} />
       </div>
     </div>
@@ -379,30 +390,34 @@ const HeroSplit = ({
     <div className="flex items-center justify-center p-8 md:p-16 order-2 md:order-1">
       <div className="max-w-lg">
         <span
-          className={`inline-block px-4 py-2 rounded-full text-sm font-medium mb-6 ${getAnimationClass(settings.animationStyle, 0)}`}
+          className={`inline-block px-4 py-2 rounded-full text-sm font-medium mb-6 ${getAnimationClass(settings.animationStyle)}`}
           style={{
             background: colors.accentLight,
             color: colors.accent,
+            ...getAnimationStyle(settings.animationStyle, 0),
           }}
         >
           Portfolio
         </span>
 
         <h1
-          className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 ${getAnimationClass(settings.animationStyle, 1)}`}
-          style={{ color: colors.text }}
+          className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 ${getAnimationClass(settings.animationStyle)}`}
+          style={{ color: colors.text, ...getAnimationStyle(settings.animationStyle, 1) }}
         >
           {name || 'Creative Portfolio'}
         </h1>
 
         <p
-          className={`text-lg mb-8 ${getAnimationClass(settings.animationStyle, 2)}`}
-          style={{ color: colors.textSecondary }}
+          className={`text-lg mb-8 ${getAnimationClass(settings.animationStyle)}`}
+          style={{ color: colors.textSecondary, ...getAnimationStyle(settings.animationStyle, 2) }}
         >
           {tagline || 'Showcasing creative works and professional projects'}
         </p>
 
-        <div className={`flex gap-4 ${getAnimationClass(settings.animationStyle, 3)}`}>
+        <div
+          className={`flex gap-4 ${getAnimationClass(settings.animationStyle)}`}
+          style={getAnimationStyle(settings.animationStyle, 3)}
+        >
           <a
             href="#projects"
             className="px-6 py-3 rounded-full font-medium text-white transition-all hover:scale-105"
@@ -413,7 +428,10 @@ const HeroSplit = ({
         </div>
 
         {/* Social Links */}
-        <div className={getAnimationClass(settings.animationStyle, 4)}>
+        <div
+          className={getAnimationClass(settings.animationStyle)}
+          style={getAnimationStyle(settings.animationStyle, 4)}
+        >
           <SocialLinks settings={settings} colors={colors} />
         </div>
       </div>
@@ -446,14 +464,14 @@ const HeroMinimal = ({ settings, name, tagline, colors }: any) => (
   <section className="py-20 px-6" style={{ background: colors.bg }}>
     <div className="max-w-4xl mx-auto text-center">
       <h1
-        className={`text-2xl sm:text-3xl md:text-4xl font-bold mb-4 ${getAnimationClass(settings.animationStyle, 0)}`}
-        style={{ color: colors.text }}
+        className={`text-2xl sm:text-3xl md:text-4xl font-bold mb-4 ${getAnimationClass(settings.animationStyle)}`}
+        style={{ color: colors.text, ...getAnimationStyle(settings.animationStyle, 0) }}
       >
         {name || 'Portfolio'}
       </h1>
       <p
-        className={`text-lg ${getAnimationClass(settings.animationStyle, 1)}`}
-        style={{ color: colors.textSecondary }}
+        className={`text-lg ${getAnimationClass(settings.animationStyle)}`}
+        style={{ color: colors.textSecondary, ...getAnimationStyle(settings.animationStyle, 1) }}
       >
         {tagline || 'Creative works & projects'}
       </p>
@@ -475,12 +493,13 @@ const ProjectCard = ({
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 ${getAnimationClass(settings.animationStyle, index)}`}
+      className={`group relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-500 ${getAnimationClass(settings.animationStyle)}`}
       style={{
         background: colors.bgSecondary,
         border: `1px solid ${colors.cardBorder}`,
         boxShadow: isHovered ? colors.cardGlow : colors.cardShadow,
         transform: isHovered ? 'translateY(-8px) scale(1.02)' : 'translateY(0) scale(1)',
+        ...getAnimationStyle(settings.animationStyle, Math.min(index, 2)),
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -606,7 +625,7 @@ const ProjectsSection = ({
   }, [projects]);
 
   // Pagination State (Respects Global 'Posts Per Page' setting)
-  const perPage = settings.postsPerPage || 6;
+  const perPage = siteSettings.postsPerPage || 6;
   const publicPosts = usePublicPostsQuery({
     initialPosts: projects,
     category: activeCategory === 'all' ? null : activeCategory,
@@ -692,22 +711,31 @@ const ProjectsSection = ({
             {/* Projects grid */}
             <div className={`grid ${gridCols[settings.projectColumns as 2 | 3 | 4]} gap-8`}>
               {filteredProjects.map((project: Post, index: number) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  colors={colors}
-                  settings={settings}
-                  siteSettings={siteSettings}
-                  index={index}
-                  onClick={onProjectClick}
-                  imageMode={
-                    settings.projectColumns === 4
-                      ? 'gridFourMd'
-                      : settings.projectColumns === 3
-                        ? 'gridThreeMd'
-                        : 'gridTwoMd'
-                  }
-                />
+                <React.Fragment key={project.id}>
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    colors={colors}
+                    settings={settings}
+                    siteSettings={siteSettings}
+                    index={index}
+                    onClick={onProjectClick}
+                    imageMode={
+                      settings.projectColumns === 4
+                        ? 'gridFourMd'
+                        : settings.projectColumns === 3
+                          ? 'gridThreeMd'
+                          : 'gridTwoMd'
+                    }
+                  />
+                  {siteSettings.ads?.adsEnabled &&
+                    siteSettings.ads?.inFeedAd &&
+                    (index + 1) % (siteSettings.ads.inFeedFrequency || 6) === 0 && (
+                      <div className="col-span-full min-w-0 py-4 ad-slot-flex">
+                        <AdBlock content={siteSettings.ads.inFeedAd} slotId={`infeed-${index}`} />
+                      </div>
+                    )}
+                </React.Fragment>
               ))}
             </div>
 
@@ -964,7 +992,12 @@ const PortfolioNav = ({
 
           {/* User section */}
           {isAuthLoading ? (
-            <span className="block h-10 w-20 shrink-0" aria-hidden="true" />
+            <span
+              className="block h-10 w-20 shrink-0 rounded-full border pointer-events-none"
+              style={{ backgroundColor: colors.bgTertiary, borderColor: colors.cardBorder }}
+              data-auth-placeholder="true"
+              aria-hidden="true"
+            />
           ) : user ? (
             <div className="relative">
               <button
@@ -1934,6 +1967,10 @@ const PortfolioLayout = ({
   onLikeComment,
   onReplyComment,
   selectedProfile,
+  onLoadMoreComments,
+  hasMoreComments,
+  commentsLoading,
+  commentsError,
   selectedCategory,
   onCategoryClick,
   allUsers,
@@ -1990,6 +2027,14 @@ const PortfolioLayout = ({
     >
       <VonPopupAd show={showPopup} onClose={closePopup} content={siteSettings.ads.popupAd} />
 
+      {siteSettings.ads?.adsEnabled && siteSettings.ads?.headerAd && (
+        <div className="pt-24 pb-6">
+          <div className="max-w-7xl mx-auto px-6 ad-slot-flex">
+            <AdBlock content={siteSettings.ads.headerAd} slotId="header" />
+          </div>
+        </div>
+      )}
+
       {(() => {
         // Render based on current view
         if (currentView === 'single-post' && selectedPost) {
@@ -2038,20 +2083,15 @@ const PortfolioLayout = ({
                   onAddComment={onAddComment}
                   onLikeComment={onLikeComment}
                   onReplyComment={onReplyComment}
+                  onLoadMoreComments={onLoadMoreComments}
+                  hasMoreComments={hasMoreComments}
+                  commentsLoading={commentsLoading}
+                  commentsError={commentsError}
                   onLogin={onLogin}
                   onViewProfile={onViewProfile}
                   posts={posts}
                   onPostClick={onPostClick}
                 />
-
-                {/* Bottom Header Ad Slot */}
-                {siteSettings.ads?.adsEnabled && siteSettings.ads?.headerAd && (
-                  <div className="pb-8">
-                    <div className="max-w-7xl mx-auto px-6 ad-slot-flex">
-                      <AdBlock content={siteSettings.ads.headerAd} slotId="header" />
-                    </div>
-                  </div>
-                )}
               </div>
               <PortfolioFooter colors={colors} settings={siteSettings} />
             </>
@@ -2081,6 +2121,7 @@ const PortfolioLayout = ({
                 isDark={isDarkMode}
                 toggleDarkMode={toggleDarkMode}
                 user={user}
+                isAuthLoading={isAuthLoading}
                 onLogin={onLogin}
                 onLogout={onLogout}
                 onNavigateAdmin={onNavigateAdmin}
@@ -2123,6 +2164,7 @@ const PortfolioLayout = ({
                 isDark={isDarkMode}
                 toggleDarkMode={toggleDarkMode}
                 user={user}
+                isAuthLoading={isAuthLoading}
                 onLogin={onLogin}
                 onLogout={onLogout}
                 onNavigateAdmin={onNavigateAdmin}
@@ -2183,6 +2225,7 @@ const PortfolioLayout = ({
               isDark={isDarkMode}
               toggleDarkMode={toggleDarkMode}
               user={user}
+              isAuthLoading={isAuthLoading}
               onLogin={onLogin}
               onLogout={onLogout}
               onNavigateAdmin={onNavigateAdmin}
@@ -2217,15 +2260,6 @@ const PortfolioLayout = ({
                 selectedCategory={selectedCategory}
                 onCategoryClick={onCategoryClick}
               />
-
-              {/* Footer Ad Slot */}
-              {siteSettings.ads?.adsEnabled && siteSettings.ads?.headerAd && (
-                <div className="pb-8 pt-20">
-                  <div className="max-w-7xl mx-auto px-6 ad-slot-flex">
-                    <AdBlock content={siteSettings.ads.headerAd} slotId="header" />
-                  </div>
-                </div>
-              )}
             </div>
 
             <PortfolioFooter colors={colors} settings={siteSettings} />

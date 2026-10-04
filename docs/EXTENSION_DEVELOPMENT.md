@@ -1,6 +1,6 @@
-# VonCMS Extension Development Guide v1.27.6
+# VonCMS Extension Development Guide v1.27.7
 
-This guide describes the v1.27.6 development baseline. v1.27.4 remains the published release.
+This guide describes the v1.27.7 release baseline.
 
 This guide is the public source of truth for VonCMS theme and plugin development in the OverDrive line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 
@@ -101,7 +101,7 @@ Themes normally should not create mutating API calls at all. If a theme or plugi
 
 ## RBAC and Private Data Boundaries
 
-VonCMS v1.27.6 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
+VonCMS v1.27.7 separates normal appointed Admin access from primary-admin ownership. Extensions must respect that split.
 
 Current rules:
 
@@ -116,7 +116,7 @@ For comments, appointed Admin/Moderator/Writer payloads may expose only `hasEmai
 
 Public theme props and public plugin payloads are already shaped by PHP response helpers before they reach React. Do not rebuild public privacy rules inside an extension.
 
-The v1.27.6 public contract is:
+The v1.27.7 public contract is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -350,16 +350,21 @@ Profile views must use `useProfileActivity` for author article totals, article p
 
 Keep site-wide and theme-specific settings separate:
 
-| Setting kind                        | Owner                                                                                   |
-| ----------------------------------- | --------------------------------------------------------------------------------------- |
-| Site name, tagline, logo, favicon   | General Settings top-level fields                                                       |
-| Header identity and logo dark mode  | `headerIdentityMode`, legacy synchronization, and `invertLogoInDarkMode`                |
-| Shared theme tokens                 | `settings.theme.primaryColor`, `fontFamily`, `borderRadius`, and reviewed shared fields |
-| Theme-specific options              | A stable `settings.theme.<themeNamespace>` object                                       |
-| Theme registration defaults         | `ThemeDefinition.config` and `extendedConfig`                                           |
-| Optional performance preload signal | The matching `theme.json` manifest                                                      |
+| Setting kind                        | Owner                                                                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Site name, tagline, logo, favicon   | General Settings top-level fields                                                                        |
+| Header identity and logo dark mode  | `headerIdentityMode`, legacy synchronization, and `invertLogoInDarkMode`                                 |
+| Legacy appearance defaults          | Top-level `settings.theme.primaryColor`, `fontFamily`, and `borderRadius`; not controls owned by Default |
+| Bundled-theme appearance            | Each theme's namespace; resolved by `src/themes/shared/themeSettings.ts`                                 |
+| Theme-specific options              | A stable `settings.theme.<themeNamespace>` object                                                        |
+| Theme registration defaults         | `ThemeDefinition.config` and `extendedConfig`                                                            |
+| Optional performance preload signal | The matching `theme.json` manifest                                                                       |
 
-When saving one theme namespace, spread the current `settings.theme` object and the current namespace before applying changed fields. Replacing the complete `theme` object can erase the settings of inactive themes. A new namespace must be added to `ThemeConfig`, validated by its settings UI, bounded on the server when it accepts URLs, HTML, lists, or large text, and preserved by unrelated saves.
+Bundled customizers use `buildThemeSettingsUpdate(latestSettings, namespace, baseline, draft)` to merge only edited fields into the latest namespace. On the first save, the helper pins legacy appearance values for all six themes without changing their effective appearance. Default now owns `theme.default.primaryColor`, `fontFamily`, and `borderRadius`; Corporate Pro and TechPress own their primary colors, while Portfolio and Digest keep `accentColor` and Prism keeps `colorScheme`. No database repair is needed.
+
+`PublicSite` passes `resolvePublicThemeSettings(settings, activeThemeId)` to the active layout so existing layout and shared comment components receive that theme's appearance. This is a read-only render projection, not a settings object to persist. General Settings, plugin slots, navigation, Posts Per Page, ads, widgets, and newsletter keep their site-wide owners.
+
+Replacing the complete `theme` object can erase the settings of inactive themes. A new bundled namespace must be added to `ThemeConfig` and `THEME_SETTINGS_KEYS`, validated by its settings UI, bounded on the server when it accepts URLs, HTML, lists, or large text, and preserved by unrelated saves.
 
 Do not store site identity again under a theme namespace. A theme may choose how to display `siteName`, `siteTagline`, `logoUrl`, and the resolved header identity state, but General Settings remains their only owner.
 
@@ -710,7 +715,7 @@ src/plugins/von-core/features/plugins/built-in/[plugin]/SettingsModal.tsx
 
 Then wire the modal from `ExtensionsManager.tsx`.
 
-Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.27.6 development baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
+Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.27.7 release baseline keeps per-extension config in Extensions, while site identity stays in General Settings.
 
 Secret-bearing configuration does not belong in public plugin config. Store it in a protected settings group or dedicated backend path, let `get_settings.php` mask it for non-primary admins, and make save paths ignore protected secret keys from non-primary admins.
 

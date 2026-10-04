@@ -2,9 +2,7 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-> **Current release:** v1.27.4 "OverDrive" is the current production upgrade baseline.
-
-> **Development version:** v1.27.6 "OverDrive" is In Development, not yet a production upgrade package.
+> **Current release:** v1.27.7 "OverDrive" is the current production upgrade baseline.
 
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 
@@ -13,13 +11,21 @@ Most modern VonCMS installs can be updated from the admin panel.
 > [!IMPORTANT]
 > **v1.27.4 `.htaccess` hardening:** VonCMS no longer constructs HTTPS or canonical-host redirects from the request `Host` header. Before updating, configure Force HTTPS and the preferred root or `www` hostname with a fixed domain in Cloudflare, cPanel/DirectAdmin, the reverse proxy, or the virtual host. OTA protects the live `.htaccess`, so after v1.27.4 arrives, sign in as the primary administrator and run **System Tools > Repair `.htaccess`** once. The repair replaces the unsafe legacy managed rules while preserving hosting-specific directives outside the VonCMS block.
 
+### v1.27.7 large-archive indexes and counters
+
+After upgrading an existing site to v1.27.7, back up the database, sign in as the primary administrator, and run **Database > Schema Repair** once during a quiet period. This is a schema update, not an `OPTIMIZE TABLE` operation. Repair adds optional publication-order, category, author, sitemap, and analytics indexes, and safely widens existing post/page view counters and analytics IDs. It does not reset content, views, or analytics IDs. Fresh installations receive these structures automatically. Index construction on a large database can take time and may wait for database locks; use a maintenance window and follow the existing repair guidance if hosting interrupts it.
+
+Only indexes and generated expressions verified by install/repair are activated through the protected schema-capability marker. Uploading files alone does not activate the new query plans, and ordinary public requests never alter the schema. Conflicting optional definitions are left untouched and produce warnings; unrepaired or unsupported installations keep their previous SQL paths. Search is unchanged and has not been certified efficient at million-record scale. SQL fixture results are not a whole-site throughput guarantee.
+
+The post API still caps each response at 200; Posts Per Page remains 6-50 and numbered `?page=` URLs and Load More are unchanged. The page ceiling is now 1,000,000. Analytics still expires logs using the 30-day cutoff, but cleanup drains expired backlog in batches of up to 1,000 rows on the existing opportunistic schedule; it is not a guarantee that every expired row disappears exactly at day 30.
+
 ### v1.26.11 database repair ownership
 
 The v1.26.11 development line removes permanent table and column creation from ordinary registration, recovery, profile, comment, analytics, audit, and security-log request paths. After upgrading an existing site:
 
 1. back up the database
 2. sign in as the primary administrator
-3. follow any database status notice to **Settings > Tools > Repair Database**
+3. follow any database status notice to **Database > Schema Repair**
 4. review both completed fixes and compatibility warnings
 5. if hosting interrupts a DDL statement or the repair reports a controlled stop, correct the reported database condition and run the same repair again
 
@@ -35,9 +41,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.4
+## Recommended path to v1.27.7
 
-VonCMS v1.27.4 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.7 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -46,6 +52,7 @@ VonCMS v1.27.4 is the current release. Use the complete Deploy ZIP for manual up
 5. If you update to `v1.25.0` through OTA, open **System Tools** after the update and run **Repair `.htaccess`** once. The OTA updater protects the live `.htaccess` file, so this manual repair step applies the new v1.25.0 managed routing and sensitive-file rules while preserving host-specific rules outside the VonCMS block.
 6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to the latest published release.
 7. When entering v1.27.4 from an older release, confirm fixed-host HTTPS/canonical redirects are active at the hosting or CDN layer, then run **System Tools > Repair `.htaccess`** once as the primary administrator.
+   When upgrading an existing site to v1.27.7, also complete **Database > Schema Repair** once to activate the verified large-archive indexes and counter changes described above.
 8. After the update, verify the homepage, one single post, and the admin dashboard.
 9. After the site is on a fixed updater package and already passed the required `.htaccess` repair steps, use the admin panel updater for later releases.
 

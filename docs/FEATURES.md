@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.27.6 feature baseline for the OverDrive line. This version is In Development; v1.27.4 remains the published release.
+> VonCMS v1.27.7 feature baseline for the OverDrive line.
 
-## Introduction to VonCMS v1.27.6 "OverDrive"
+## Introduction to VonCMS v1.27.7 "OverDrive"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,7 +47,7 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.27.6 "OverDrive" (In Development)
+### This is v1.27.7 "OverDrive"
 
 _"OverDrive" - the deliberately paced development line for larger publisher workflows and platform capabilities._
 
@@ -130,13 +130,13 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 ### Current product state
 
-| Detail               | Value                                     |
-| -------------------- | ----------------------------------------- |
-| Development baseline | `v1.27.6 "OverDrive"`                     |
-| Minimum PHP          | `8.2+`                                    |
-| Architecture         | React 19 frontend + PHP API backend       |
-| Hosting              | Shared hosting, cPanel, VPS - your choice |
-| Full changelog       | [CHANGELOG.md](../CHANGELOG.md)           |
+| Detail          | Value                                     |
+| --------------- | ----------------------------------------- |
+| Release version | `v1.27.7 "OverDrive"`                     |
+| Minimum PHP     | `8.2+`                                    |
+| Architecture    | React 19 frontend + PHP API backend       |
+| Hosting         | Shared hosting, cPanel, VPS - your choice |
+| Full changelog  | [CHANGELOG.md](../CHANGELOG.md)           |
 
 ### Bottom line
 
@@ -343,7 +343,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The `v1.27.6` development baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The `v1.27.7` release baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -353,5 +353,5 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 - **89 PHP API and helper files** - under `public/api/`, with 109 public PHP files covered by the lint gate across the public runtime. Internal helpers are not callable endpoints.
 - **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** - the `v1.27.6` development package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** - the `v1.27.7` release package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** - React talks to PHP. PHP talks to MySQL. Done.

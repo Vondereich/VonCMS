@@ -42,7 +42,7 @@ interface UsePublicPostsQueryResult {
 
 const publicPostCache = new Map<string, Post>();
 export const PUBLIC_SEARCH_MAX_LENGTH = 120;
-export const PUBLIC_LISTING_MAX_PAGE = 100000;
+export const PUBLIC_LISTING_MAX_PAGE = 1000000;
 
 export const normalizePublicSearchInput = (value: string) =>
   value.slice(0, PUBLIC_SEARCH_MAX_LENGTH);

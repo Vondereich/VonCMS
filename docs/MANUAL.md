@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.27.6 (In Development)
+# VonCMS User Manual v1.27.7
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -249,6 +249,14 @@ Depending on your enabled modules, you may also manage:
 - extension-specific settings
 
 Treat these as presentation tools. Keep them tidy so they support content instead of fighting it.
+
+Ads Settings provides Header, In-feed, and Popup snippets. The in-feed interval applies to
+listed posts, not the body of an individual article. Master Ad Switch controls these slots
+and the built-in AdSense loader; a saved AdSense verification tag remains available when
+ads are disabled. Script, iframe, and stylesheet snippets run in an isolated sandbox.
+Configure any advertising consent required by your provider separately: the analytics
+consent banner does not gate ad snippets, and a configured Publisher ID does not prove
+Google approval or ad delivery. Custom sidebar widgets remain independently controlled.
 
 ### Extensions and plugins
 

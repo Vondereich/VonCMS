@@ -13,6 +13,7 @@ if ($seoRouteHelperPath !== false && $requestedScriptPath === $seoRouteHelperPat
 unset($seoRouteHelperPath, $requestedScriptPath);
 
 require_once __DIR__ . '/api/publication_time_helper.php';
+require_once __DIR__ . '/api/post_query_helper.php';
 require_once __DIR__ . '/search_query_helper.php';
 
 if (!function_exists('voncms_request_path')) {
@@ -428,7 +429,7 @@ if (!function_exists('voncms_normalize_public_page')) {
    * @param int $maxPage
    * @return int
    */
-  function voncms_normalize_public_page($value, int $maxPage = 100000): int
+  function voncms_normalize_public_page($value, int $maxPage = 1000000): int
   {
     if (!is_scalar($value) || is_bool($value)) {
       return 1;
@@ -838,7 +839,7 @@ if (!function_exists('voncms_fetch_public_listing_page')) {
       }
     }
 
-    $listingSql = "SELECT p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars,
+    $projection = "p.id, p.title, p.slug, CHAR_LENGTH(p.content) AS content_chars,
               COALESCE(NULLIF(p.excerpt, ''), SUBSTRING(p.content, 1, 200)) AS excerpt,
               p.author, p.author_id, p.meta_description, p.keywords, p.image_url,
               p.category, p.created_at, p.updated_at, p.scheduled_at,
@@ -847,12 +848,8 @@ if (!function_exists('voncms_fetch_public_listing_page')) {
               {$authorNameSql} AS author_name,
               u.username AS author_username,
               {$authorDisplayNameSql} AS author_display_name,
-              u.avatar AS author_avatar
-       FROM posts p
-       LEFT JOIN users u ON p.author_id = u.id
-       {$where}
-       ORDER BY effective_publish_at DESC, p.created_at DESC, p.id DESC
-       LIMIT :limit OFFSET :offset";
+              u.avatar AS author_avatar";
+    $listingSql = voncms_post_listing_sql($pdo, $projection, $where);
     $statement = $pdo->prepare($listingSql);
     $bindDiscoveryValues($statement, $listingSql);
     $statement->bindValue(':limit', $normalizedLimit + 1, PDO::PARAM_INT);

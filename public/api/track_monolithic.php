@@ -7,6 +7,7 @@
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/analytics_consent_helper.php';
+require_once __DIR__ . '/post_query_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -58,10 +59,12 @@ $visitRecorded = false;
 if ($recordAnalytics) {
   $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));
   try {
+    $visitIndexHint = voncms_query_index_hint($pdo, 'analytics', 'idx_visit_window');
     $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM analytics
+      SELECT 1 FROM analytics{$visitIndexHint}
       WHERE ip_hash = ?
       AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)
+      LIMIT 1
   ");
     $stmt->execute([$ipHash, $throttleMinutes]);
     $recentLogs = (int) $stmt->fetchColumn();
@@ -75,7 +78,9 @@ if ($recordAnalytics) {
     }
 
     if (rand(1, 100) === 1) {
-      $pdo->exec('DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
+      $pdo->exec(
+        'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
+      );
     }
   } catch (Throwable $analyticsError) {
     $recentLogs = 0;

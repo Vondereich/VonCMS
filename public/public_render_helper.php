@@ -411,8 +411,9 @@ if (!function_exists('voncms_build_public_settings_projection')) {
     }
 
     $currentTime = date('Y-m-d H:i:s');
+    $categoryIndexHint = voncms_query_index_hint($pdo, 'posts', 'idx_listing_category');
     $categoryStmt = $pdo->prepare(
-      "SELECT DISTINCT category FROM posts
+      "SELECT DISTINCT category FROM posts{$categoryIndexHint}
        WHERE (status = 'published' OR status IS NULL)
          AND (scheduled_at IS NULL OR scheduled_at <= :currentTime)
          AND category IS NOT NULL

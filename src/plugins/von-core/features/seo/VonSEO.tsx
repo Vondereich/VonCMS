@@ -9,6 +9,7 @@ import {
 import { API, BASE_PATH } from '../../../../config/site.config';
 import { htmlToPlainText } from '../../../../utils/security';
 import { hasNonemptySeoQueryValue } from '../../../../utils/seoQuery';
+import { PUBLIC_LISTING_MAX_PAGE } from '../../../../hooks/usePublicPostsQuery';
 import {
   normalizeArticleSchemaType,
   normalizeSchemaLanguage,
@@ -208,7 +209,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     const queryParams = new URLSearchParams(location.search);
     const rawPublicPage = queryParams.get('page')?.trim() || '';
     const publicPage = /^\d+$/.test(rawPublicPage)
-      ? Math.max(1, Math.min(100000, Number(rawPublicPage)))
+      ? Math.max(1, Math.min(PUBLIC_LISTING_MAX_PAGE, Number(rawPublicPage)))
       : 1;
     const existingRobots =
       document.head.querySelector('meta[name="robots"]')?.getAttribute('content') || '';

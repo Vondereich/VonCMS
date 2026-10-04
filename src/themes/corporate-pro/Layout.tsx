@@ -2,42 +2,19 @@ import React, { useState, useCallback, useRef } from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { Post, Page, User, Comment, SiteSettings } from '../../types';
-import {
-  Menu,
-  X,
-  ChevronRight,
-  Mail,
-  Phone,
-  MapPin,
-  Edit2,
-  Rss,
-  Target,
-  Cpu,
-  BarChart,
-  Sun,
-  Moon,
-  HelpCircle,
-  Briefcase,
-  Users,
-  Shield,
-  Globe,
-  Award,
-  Zap,
-  Activity,
-  ArrowRight,
-  CheckCircle,
-  Clock,
-} from 'lucide-react';
-import {
-  getBasePathPrefix,
-  getPermalink,
-  getPublicCategoryHref,
-  getPublicHomeHref,
-} from '../../utils/siteUtils';
+import { Menu, X, Mail, Phone, MapPin, Edit2, Rss, Sun, Moon } from 'lucide-react';
+import { getBasePathPrefix, getPermalink, getPublicHomeHref } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import ThemeImage from '../shared/ThemeImage';
+import { getCorporateHomeSections } from './config';
+import { getReadableForeground } from '../shared/themeColors';
+import HeroSection from './sections/HeroSection';
+import ServicesSection from './sections/ServicesSection';
+import AboutSection from './sections/AboutSection';
+import LatestPostsSection from './sections/LatestPostsSection';
+import CallToActionSection from './sections/CallToActionSection';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -56,8 +33,6 @@ import {
   useAdsPopup,
   useClickOutside,
   usePublicPostsQuery,
-  PublicDiscoverySkeleton,
-  PublicDiscoveryRefreshStatus,
   useProfileActivity,
   useAISummary,
   useRelatedPosts,
@@ -250,7 +225,7 @@ const CorporateProfile: React.FC<{
             {isOwnProfile && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="absolute bottom-0 right-0 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition shadow-md"
+                className="absolute bottom-0 right-0 p-2 bg-(--corporate-accent) text-(--corporate-on-accent) rounded-full hover:bg-(--corporate-accent-strong) transition shadow-md"
               >
                 <Edit2 size={16} />
               </button>
@@ -303,7 +278,7 @@ const CorporateProfile: React.FC<{
                   aria-label="Display name / Pen name"
                   id="layout-display-name"
                   name="layoutDisplayName"
-                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-(--corporate-accent)"
                   value={editDisplayName}
                   onChange={(e) => setEditDisplayName(e.target.value)}
                   placeholder="Public author name"
@@ -317,7 +292,7 @@ const CorporateProfile: React.FC<{
                   aria-label="Avatar URL"
                   id="layout-229"
                   name="layout229"
-                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-(--corporate-accent)"
                   value={editAvatar}
                   onChange={(e) => setEditAvatar(e.target.value)}
                   placeholder="https://..."
@@ -331,7 +306,7 @@ const CorporateProfile: React.FC<{
                   id="layout-240"
                   name="layout240"
                   aria-label="Bio"
-                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-800 dark:border-neutral-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-(--corporate-accent)"
                   rows={3}
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
@@ -342,7 +317,7 @@ const CorporateProfile: React.FC<{
               <div className="pt-4 border-t border-slate-100 dark:border-neutral-800">
                 <button
                   onClick={() => setShowPasswordFields(!showPasswordFields)}
-                  className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2"
+                  className="text-sm font-bold text-(--corporate-link) dark:text-(--corporate-accent-light) hover:underline flex items-center gap-2"
                 >
                   <Edit2 size={14} />
                   {showPasswordFields ? 'Cancel Password Change' : 'Change Password'}
@@ -358,7 +333,7 @@ const CorporateProfile: React.FC<{
                         id="layout-263"
                         name="layout263"
                         type="password"
-                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-(--corporate-accent) outline-hidden"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
                       />
@@ -373,7 +348,7 @@ const CorporateProfile: React.FC<{
                         aria-label="8+ chars, Upper, Number, Symbol"
                         type="password"
                         placeholder="8+ chars, Upper, Number, Symbol"
-                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-(--corporate-accent) outline-hidden"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                       />
@@ -387,7 +362,7 @@ const CorporateProfile: React.FC<{
                         name="layout286"
                         aria-label="Confirm Password"
                         type="password"
-                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                        className="w-full px-3 py-2 border rounded-sm bg-white dark:bg-neutral-900 dark:border-neutral-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-(--corporate-accent) outline-hidden"
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                       />
@@ -405,7 +380,7 @@ const CorporateProfile: React.FC<{
               </button>
               <button
                 onClick={handleSaveProfile}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm shadow-lg transition-colors font-bold"
+                className="px-4 py-2 bg-(--corporate-accent) hover:bg-(--corporate-accent-strong) text-(--corporate-on-accent) rounded-sm shadow-lg transition-colors font-bold"
               >
                 Save Changes
               </button>
@@ -451,7 +426,7 @@ const CorporateProfile: React.FC<{
                   />
                 </div>
                 <div>
-                  <h4 className="font-bold group-hover:text-blue-600 transition line-clamp-2 text-slate-900 dark:text-white">
+                  <h4 className="font-bold group-hover:text-(--corporate-link) transition line-clamp-2 text-slate-900 dark:text-white">
                     {decodeEntities(post.title)}
                   </h4>
                   <span className="text-xs text-slate-500">
@@ -556,9 +531,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const visiblePosts = publicPosts.posts;
-  const hasMore = publicPosts.hasMore;
-  const loadingMore = publicPosts.loadingMore;
-  const handleLoadMore = publicPosts.loadMore;
+  const homeSectionIds = getCorporateHomeSections(settings.theme?.corporatePro);
   const isInitialDiscoveryLoading = publicPosts.isLoading && visiblePosts.length === 0;
   const isCategoryRefreshing =
     Boolean(selectedCategory) && publicPosts.isLoading && visiblePosts.length > 0;
@@ -581,37 +554,6 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
   );
 
   // --- Helpers ---
-  const LucideIconMap: Record<string, React.FC<any>> = {
-    Menu,
-    X,
-    ChevronRight,
-    Mail,
-    Phone,
-    MapPin,
-    Edit2,
-    Rss,
-    Target,
-    Cpu,
-    BarChart,
-    Sun,
-    Moon,
-    HelpCircle,
-    Briefcase,
-    Users,
-    Shield,
-    Globe,
-    Award,
-    Zap,
-    Activity,
-    ArrowRight,
-    CheckCircle,
-    Clock,
-  };
-
-  const IconComponent = ({ name, size = 20 }: { name: string; size?: number }) => {
-    const Icon = LucideIconMap[name] || HelpCircle;
-    return <Icon size={size} />;
-  };
 
   const handleNavigationItem = (url: string | undefined) => {
     if (!url) return;
@@ -676,14 +618,14 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               className="transition-all duration-300"
             />
           ) : headerIdentity.showFallbackMark ? (
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:bg-blue-700 transition-colors">
+            <div className="w-10 h-10 bg-(--corporate-accent) rounded-lg flex items-center justify-center text-(--corporate-on-accent) font-bold text-xl shadow-lg group-hover:bg-(--corporate-accent-strong) transition-colors">
               {settings.siteName.charAt(0)}
             </div>
           ) : null}
 
           {headerIdentity.showTitle && (
             <span
-              className={`text-xl font-bold tracking-tight transition-colors group-hover:text-blue-600 ${
+              className={`text-xl font-bold tracking-tight transition-colors group-hover:text-(--corporate-link) ${
                 currentView === 'home' && !scrolled && !isDarkMode
                   ? 'text-slate-900'
                   : 'text-slate-900 dark:text-white'
@@ -704,7 +646,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               posts={posts}
               pages={pages}
               onNavigate={() => handleNavigationItem(item.url)}
-              className={`font-medium transition-colors hover:text-blue-600 ${
+              className={`font-medium transition-colors hover:text-(--corporate-link) ${
                 currentView === 'home' && !scrolled && !isDarkMode
                   ? 'text-slate-700'
                   : 'text-slate-700 dark:text-neutral-300'
@@ -716,7 +658,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           {overflowNavigationItems.length > 0 && (
             <div className="relative group">
               <button
-                className={`font-medium transition-colors hover:text-blue-600 flex items-center gap-1 ${
+                className={`font-medium transition-colors hover:text-(--corporate-link) flex items-center gap-1 ${
                   currentView === 'home' && !scrolled && !isDarkMode
                     ? 'text-slate-700'
                     : 'text-slate-700 dark:text-neutral-300'
@@ -769,16 +711,24 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
             {isDarkMode ? (
               <Sun size={20} className="text-amber-500" />
             ) : (
-              <Moon size={20} className="text-blue-400" />
+              <Moon size={20} className="text-(--corporate-accent-light)" />
             )}
           </button>
           {isAuthLoading ? (
-            <span className="block h-10 w-28 shrink-0" aria-hidden="true" />
+            <span
+              className="block h-10 w-28 shrink-0 rounded-lg border pointer-events-none"
+              style={{
+                backgroundColor: isDarkMode ? '#1a1a1a' : '#f8fafc',
+                borderColor: isDarkMode ? '#2a2a2a' : '#e2e8f0',
+              }}
+              data-auth-placeholder="true"
+              aria-hidden="true"
+            />
           ) : user ? (
             <>
               <button
                 onClick={onNavigateAdmin}
-                className="text-sm font-medium text-slate-600 hover:text-blue-600 dark:text-neutral-300 dark:hover:text-blue-400"
+                className="text-sm font-medium text-slate-600 hover:text-(--corporate-link) dark:text-neutral-300 dark:hover:text-(--corporate-accent-light)"
               >
                 Dashboard
               </button>
@@ -792,7 +742,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           ) : (
             <button
               onClick={onLogin}
-              className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-full hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+              className="px-5 py-2 bg-(--corporate-accent) text-(--corporate-on-accent) text-sm font-medium rounded-full hover:bg-(--corporate-accent-strong) transition-colors shadow-lg shadow-(color:--corporate-accent)/30"
             >
               Client Login
             </button>
@@ -821,7 +771,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               settings={settings}
               posts={posts}
               pages={pages}
-              className="font-bold text-slate-800 dark:text-neutral-200 hover:text-blue-600"
+              className="font-bold text-slate-800 dark:text-neutral-200 hover:text-(--corporate-link)"
               onNavigate={() => handleNavigationItem(item.url)}
             >
               {item.label}
@@ -841,12 +791,20 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 </>
               ) : (
                 <>
-                  <Moon size={18} className="text-blue-400" /> Dark Mode
+                  <Moon size={18} className="text-(--corporate-accent-light)" /> Dark Mode
                 </>
               )}
             </button>
             {isAuthLoading ? (
-              <span className="block h-6 w-full" aria-hidden="true" />
+              <span
+                className="block h-6 w-full rounded-lg border pointer-events-none"
+                style={{
+                  backgroundColor: isDarkMode ? '#1a1a1a' : '#f8fafc',
+                  borderColor: isDarkMode ? '#2a2a2a' : '#e2e8f0',
+                }}
+                data-auth-placeholder="true"
+                aria-hidden="true"
+              />
             ) : user ? (
               <>
                 <button
@@ -860,7 +818,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 </button>
               </>
             ) : (
-              <button onClick={onLogin} className="text-left font-medium text-blue-600">
+              <button onClick={onLogin} className="text-left font-medium text-(--corporate-link)">
                 Login
               </button>
             )}
@@ -878,266 +836,6 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
         </div>
       </div>
     ) : null;
-
-  const Hero = () => (
-    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-slate-50 dark:bg-neutral-900">
-      {/* Background Pattern */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
-        <div className="absolute right-0 top-0 w-1/2 h-full bg-blue-600 transform skew-x-12 translate-x-32"></div>
-      </div>
-
-      {settings.theme?.corporatePro?.heroImage && (
-        <img
-          src={settings.theme.corporatePro.heroImage}
-          className="absolute inset-0 w-full h-full object-cover opacity-10 dark:opacity-20 mix-blend-overlay pointer-events-none"
-          alt="Hero Background"
-        />
-      )}
-      <div className="max-w-7xl mx-auto px-5 relative z-10">
-        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-          <div className="lg:w-1/2 animate-slide-up">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-bold tracking-wide mb-6">
-              CORPORATE SOLUTIONS
-            </span>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white leading-tight mb-8">
-              {settings.theme?.corporatePro?.heroTitle || (
-                <>
-                  Elevate Your Business to <span className="text-blue-600">Next Level</span>
-                </>
-              )}
-            </h1>
-            <p className="text-xl text-slate-600 dark:text-neutral-300 mb-10 leading-relaxed max-w-2xl">
-              {settings.theme?.corporatePro?.heroText ||
-                'We provide cutting-edge solutions to help your business grow. Professional, reliable, and scalable strategies for modern enterprises.'}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-5 pt-4">
-              <PublicNavigationLink
-                nav={{
-                  id: 'corporate-hero-primary',
-                  label: 'Get a Quote',
-                  url: settings.theme?.corporatePro?.heroPrimaryLink || '',
-                  type: 'internal',
-                }}
-                settings={settings}
-                posts={posts}
-                pages={pages}
-                onNavigate={() =>
-                  handleNavigationItem(settings.theme?.corporatePro?.heroPrimaryLink)
-                }
-                className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg shadow-blue-600/30 transition-all hover:scale-105"
-              >
-                Get a Quote
-              </PublicNavigationLink>
-              <PublicNavigationLink
-                nav={{
-                  id: 'corporate-hero-secondary',
-                  label: 'Learn More',
-                  url: settings.theme?.corporatePro?.heroSecondaryLink || '',
-                  type: 'internal',
-                }}
-                settings={settings}
-                posts={posts}
-                pages={pages}
-                onNavigate={() =>
-                  handleNavigationItem(settings.theme?.corporatePro?.heroSecondaryLink)
-                }
-                className="px-8 py-4 bg-white/10 hover:bg-white/20 text-slate-700 dark:text-white font-bold rounded-lg backdrop-blur-md border border-slate-200 dark:border-white/20 transition-all hover:scale-105"
-              >
-                Learn More
-              </PublicNavigationLink>
-            </div>
-          </div>
-
-          {/* Hero Featured Image */}
-          <div className="lg:w-1/2 relative hidden lg:block animate-slide-in-right">
-            <div className="relative z-10 rounded-2xl overflow-hidden shadow-2xl border-8 border-white dark:border-neutral-800 rotate-2 hover:rotate-0 transition-transform duration-500">
-              <img
-                src={
-                  settings.theme?.corporatePro?.heroImage ||
-                  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1000'
-                }
-                className="w-full h-[500px] object-cover"
-                alt="Hero Featured"
-              />
-            </div>
-            {/* Decorative Elements */}
-            <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-blue-600 rounded-2xl -z-10 opacity-20 animate-pulse"></div>
-            <div className="absolute -top-6 -right-6 w-32 h-32 bg-blue-400 rounded-full -z-10 opacity-20"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-
-  const Services = () => (
-    <section className="py-20 bg-white dark:bg-neutral-950">
-      <div className="max-w-7xl mx-auto px-5">
-        <div className="text-center mb-16 max-w-2xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-            {settings.theme?.corporatePro?.servicesTitle || 'Our Premium Services'}
-          </h2>
-          <p className="text-slate-600 dark:text-neutral-400">
-            {settings.theme?.corporatePro?.servicesSubtitle ||
-              'Comprehensive layouts and features designed for your success.'}
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            {
-              title: settings.theme?.corporatePro?.service1Title || 'Strategic Planning',
-              icon: settings.theme?.corporatePro?.service1Icon || 'Target',
-              desc:
-                settings.theme?.corporatePro?.service1Desc ||
-                'Expert guidance to define your business roadmap and achieve long-term goals.',
-              link: settings.theme?.corporatePro?.service1Link || '',
-            },
-            {
-              title: settings.theme?.corporatePro?.service2Title || 'Digital Transformation',
-              icon: settings.theme?.corporatePro?.service2Icon || 'Cpu',
-              desc:
-                settings.theme?.corporatePro?.service2Desc ||
-                'Modernize your operations with cutting-edge technology solutions.',
-              link: settings.theme?.corporatePro?.service2Link || '',
-            },
-            {
-              title: settings.theme?.corporatePro?.service3Title || 'Market Analysis',
-              icon: settings.theme?.corporatePro?.service3Icon || 'BarChart',
-              desc:
-                settings.theme?.corporatePro?.service3Desc ||
-                'In-depth insights into market trends to keep you ahead of the competition.',
-              link: settings.theme?.corporatePro?.service3Link || '',
-            },
-          ].map((service, idx) => (
-            <div
-              key={idx}
-              className="p-8 rounded-2xl bg-slate-50 dark:bg-neutral-900 border border-slate-100 dark:border-neutral-800 hover:shadow-xl transition-all hover:-translate-y-1 group"
-            >
-              <div className="w-14 h-14 bg-white dark:bg-neutral-800 rounded-xl shadow-xs border border-slate-100 dark:border-neutral-700 flex items-center justify-center mb-6 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <IconComponent name={service.icon} size={28} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
-                {service.title}
-              </h3>
-              <p className="text-slate-600 dark:text-neutral-400 leading-relaxed">{service.desc}</p>
-              <PublicNavigationLink
-                nav={{
-                  id: `corporate-service-${idx + 1}`,
-                  label: service.title,
-                  url: service.link,
-                  type: 'internal',
-                }}
-                settings={settings}
-                posts={posts}
-                pages={pages}
-                onNavigate={() => handleNavigationItem(service.link)}
-                className="inline-flex items-center gap-2 text-blue-600 font-bold mt-6 hover:gap-3 transition-all"
-              >
-                Learn More <ChevronRight size={16} />
-              </PublicNavigationLink>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-
-  const About = () => {
-    // Try to find an "About" page, otherwise show static
-    const aboutPage = pages?.find((p) => p.title?.toLowerCase().includes('about'));
-
-    return (
-      <section className="py-20 bg-slate-50 dark:bg-neutral-900 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-5 flex flex-col md:flex-row items-center gap-16">
-          <div className="md:w-1/2 relative">
-            <div className="aspect-square bg-blue-600 rounded-2xl absolute -top-4 -left-4 w-full h-full opacity-10"></div>
-            <img
-              src={
-                settings.theme?.corporatePro?.aboutImage ||
-                'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000'
-              }
-              alt="About Us"
-              loading="lazy"
-              className="rounded-2xl shadow-2xl relative z-10 w-full object-cover aspect-4/3"
-            />
-          </div>
-          <div className="md:w-1/2">
-            <span className="text-blue-600 font-bold tracking-wider uppercase text-sm mb-2 block">
-              Who We Are
-            </span>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-6">
-              {settings.theme?.corporatePro?.aboutTitle ||
-                'Leading the Way in Corporate Excellence'}
-            </h2>
-            <div className="text-slate-600 dark:text-neutral-300 space-y-4 mb-8 text-lg font-light">
-              {settings.theme?.corporatePro?.aboutSubtitle ? (
-                <p>{settings.theme.corporatePro.aboutSubtitle}</p>
-              ) : aboutPage ? (
-                <ContentRenderer
-                  html={aboutPage.content.substring(0, 300) + '...'}
-                  className="prose dark:prose-invert"
-                />
-              ) : (
-                <p>
-                  With over a decade of experience, we help businesses navigate the complex
-                  landscape of modern commerce. Our team of dedicated professionals is committed to
-                  delivering results that exceed expectations.
-                </p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="flex flex-col">
-                <span className="text-4xl font-bold text-blue-600">
-                  {settings.theme?.corporatePro?.aboutStat1Number || '500+'}
-                </span>
-                <span className="text-slate-600 dark:text-neutral-400 font-medium">
-                  {settings.theme?.corporatePro?.aboutStat1Label || 'Clients Served'}
-                </span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-4xl font-bold text-blue-600">
-                  {settings.theme?.corporatePro?.aboutStat2Number || '98%'}
-                </span>
-                <span className="text-slate-600 dark:text-neutral-400 font-medium">
-                  {settings.theme?.corporatePro?.aboutStat2Label || 'Satisfaction Rate'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  };
-
-  const CTA = () => (
-    <section className="py-24 bg-slate-900 text-white relative overflow-hidden">
-      <div className="absolute inset-0 bg-blue-600/20 mix-blend-overlay"></div>
-      <div className="max-w-4xl mx-auto px-5 text-center relative z-10">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-          {settings.theme?.corporatePro?.ctaTitle || 'Ready to Transform Your Business?'}
-        </h2>
-        <p className="text-xl text-slate-300 mb-10 font-light">
-          {settings.theme?.corporatePro?.ctaSubtitle ||
-            'Join hundreds of successful companies that trust us with their corporate strategy.'}
-        </p>
-        <PublicNavigationLink
-          nav={{
-            id: 'corporate-footer-cta',
-            label: settings.theme?.corporatePro?.ctaButtonText || 'Start Your Project Today',
-            url: settings.theme?.corporatePro?.ctaButtonLink || '',
-            type: 'internal',
-          }}
-          settings={settings}
-          posts={posts}
-          pages={pages}
-          onNavigate={() => handleNavigationItem(settings.theme?.corporatePro?.ctaButtonLink)}
-          className="px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-xl shadow-blue-600/30 transition-all hover:scale-105"
-        >
-          {settings.theme?.corporatePro?.ctaButtonText || 'Start Your Project Today'}
-        </PublicNavigationLink>
-      </div>
-    </section>
-  );
 
   const Footer = () => {
     const rssPath = `${getBasePathPrefix()}/rss`;
@@ -1188,7 +886,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                       posts={posts}
                       pages={pages}
                       onNavigate={() => handleNavigationItem(item.url)}
-                      className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400"
+                      className="text-slate-600 dark:text-neutral-400 hover:text-(--corporate-link) dark:hover:text-(--corporate-accent-light)"
                     >
                       {item.label}
                     </PublicNavigationLink>
@@ -1199,7 +897,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                     <a
                       href={getPublicHomeHref()}
                       onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
-                      className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400"
+                      className="text-slate-600 dark:text-neutral-400 hover:text-(--corporate-link) dark:hover:text-(--corporate-accent-light)"
                     >
                       Home
                     </a>
@@ -1211,12 +909,12 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <h4 className="font-bold text-slate-900 dark:text-white mb-6">Resources</h4>
               <ul className="space-y-4">
                 <li>
-                  <span className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400">
+                  <span className="text-slate-600 dark:text-neutral-400 hover:text-(--corporate-link) dark:hover:text-(--corporate-accent-light)">
                     Documentation
                   </span>
                 </li>
                 <li>
-                  <span className="text-slate-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400">
+                  <span className="text-slate-600 dark:text-neutral-400 hover:text-(--corporate-link) dark:hover:text-(--corporate-accent-light)">
                     Support
                   </span>
                 </li>
@@ -1226,17 +924,17 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <h4 className="font-bold text-slate-900 dark:text-white mb-6">Contact</h4>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3 text-slate-600 dark:text-neutral-400">
-                  <Mail size={18} className="shrink-0 text-blue-600" />
+                  <Mail size={18} className="shrink-0 text-(--corporate-link)" />
                   <span className="min-w-0 break-words">
                     {settings.theme?.corporatePro?.contactEmail || 'info@corporatepro.com'}
                   </span>
                 </li>
                 <li className="flex items-center gap-3 text-slate-600 dark:text-neutral-400">
-                  <Phone size={18} className="text-blue-600" />
+                  <Phone size={18} className="text-(--corporate-link)" />
                   {settings.theme?.corporatePro?.contactPhone || '+1 (555) 123-4567'}
                 </li>
                 <li className="flex items-center gap-3 text-slate-600 dark:text-neutral-400">
-                  <MapPin size={18} className="text-blue-600" />
+                  <MapPin size={18} className="text-(--corporate-link)" />
                   {settings.theme?.corporatePro?.contactAddress || 'Business District, City'}
                 </li>
               </ul>
@@ -1270,11 +968,23 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
   };
 
   // --- Main Render Logic ---
+  const accent = settings.theme.primaryColor || '#2563eb';
+  const accentForeground = getReadableForeground(accent);
+  const accentStyle = {
+    '--corporate-accent': accent,
+    '--corporate-on-accent': accentForeground,
+    '--corporate-accent-hover': `color-mix(in srgb, ${accent} 90%, #000000)`,
+    '--corporate-accent-strong': `color-mix(in srgb, ${accent} 75%, #000000)`,
+    '--corporate-accent-light': `color-mix(in srgb, ${accent} 55%, #ffffff)`,
+    '--corporate-accent-soft': `color-mix(in srgb, ${accent} 12%, #ffffff)`,
+    '--corporate-link':
+      accentForeground === '#ffffff' ? accent : `color-mix(in srgb, ${accent} 45%, #0f172a)`,
+  } as React.CSSProperties;
 
   // Main Render with persistence
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
-      <div className="font-sans antialiased text-slate-900 dark:text-neutral-300 bg-white dark:bg-neutral-950 selection:bg-blue-100 selection:text-blue-900 min-h-screen">
+    <div className={isDarkMode ? 'dark' : ''} style={accentStyle} data-corporate-theme>
+      <div className="font-sans antialiased text-slate-900 dark:text-neutral-300 bg-white dark:bg-neutral-950 selection:bg-(--corporate-accent-soft) selection:text-(--corporate-link) min-h-screen">
         <VonPopupAd show={showPopup} onClose={closePopup} content={settings.ads.popupAd} />
 
         {(() => {
@@ -1349,7 +1059,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                       </div>
                     )}
 
-                    <div className="prose prose-lg prose-slate dark:prose-invert mx-auto prose-a:text-blue-600 prose-a:hover:underline prose-img:rounded-xl dark:prose-blockquote:text-neutral-300 dark:prose-blockquote:border-l-neutral-700 dark:prose-strong:text-white dark:prose-headings:text-white dark:prose-code:text-neutral-200">
+                    <div className="prose prose-lg prose-slate dark:prose-invert mx-auto prose-a:text-(--corporate-link) prose-a:hover:underline prose-img:rounded-xl dark:prose-blockquote:text-neutral-300 dark:prose-blockquote:border-l-neutral-700 dark:prose-strong:text-white dark:prose-headings:text-white dark:prose-code:text-neutral-200">
                       <ContentRenderer html={selectedPost.content} />
                     </div>
 
@@ -1480,146 +1190,44 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <ProseDarkModeStyles />
               <Header />
               <HeaderAd />
-              <main>
-                <Hero />
-                <Services />
-                <About />
-
-                {/* Latest News */}
-                {settings.theme?.corporatePro?.showPosts !== false && (
-                  <section
-                    className="py-20 bg-white dark:bg-neutral-950"
-                    aria-busy={isCategoryRefreshing || undefined}
-                  >
-                    <div className="max-w-7xl mx-auto px-5">
-                      <div className="flex justify-between items-end mb-12">
-                        <div>
-                          <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-                            Latest Insights
-                          </h2>
-                          <p className="text-slate-600 dark:text-neutral-400">
-                            News and updates from our experts.
-                          </p>
-                        </div>
-                      </div>
-                      {selectedCategory && (
-                        <div className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                                Category: <span className="text-blue-600">{selectedCategory}</span>
-                              </h3>
-                              <p className="text-sm text-slate-500 dark:text-neutral-400">
-                                Showing server-backed results beyond the homepage preload.
-                              </p>
-                              <PublicDiscoveryRefreshStatus
-                                active={isCategoryRefreshing}
-                                className="mt-3 text-blue-600 dark:text-blue-400"
-                              />
-                            </div>
-                            {onCategoryClick && (
-                              <a
-                                href={getPublicHomeHref()}
-                                onClick={(event) =>
-                                  handleCrawlableLinkClick(event, () => onCategoryClick(''))
-                                }
-                                className="text-sm font-semibold text-blue-600 transition-colors hover:text-blue-500"
-                              >
-                                View All Articles
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {isInitialDiscoveryLoading ? (
-                        <PublicDiscoverySkeleton />
-                      ) : (
-                        <>
-                          <div className="grid md:grid-cols-3 gap-8">
-                            {visiblePosts.map((post, index) => (
-                              <React.Fragment key={post.id}>
-                                {/* In-Feed Ad Every 6 Posts */}
-                                {(index + 1) % (settings.ads.inFeedFrequency || 6) === 0 &&
-                                  settings.ads.adsEnabled &&
-                                  settings.ads.inFeedAd && (
-                                    <div className="col-span-full py-12 border-y border-slate-100 dark:border-neutral-800 bg-transparent">
-                                      <div className="max-w-7xl mx-auto px-5 ad-slot-flex">
-                                        <AdBlock
-                                          content={settings.ads.inFeedAd}
-                                          slotId={`infeed-${index}`}
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-                                <article
-                                  className="group cursor-pointer"
-                                  onClick={() => onPostClick(post.id)}
-                                >
-                                  <div className="aspect-16/10 overflow-hidden rounded-xl mb-6 bg-slate-100 dark:bg-neutral-800 relative">
-                                    <ThemeImage
-                                      {...getResponsiveImageAttributes(
-                                        post,
-                                        'gridThreeFromMd',
-                                        'https://via.placeholder.com/800x600'
-                                      )}
-                                      alt={decodeEntities(post.title)}
-                                      loading="lazy"
-                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                    />
-                                    <a
-                                      href={getPublicCategoryHref(post.category)}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleCrawlableLinkClick(event, () =>
-                                          onCategoryClick?.(post.category)
-                                        );
-                                      }}
-                                      className="absolute top-4 left-4 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xs px-3 py-1 rounded-sm text-xs font-bold uppercase tracking-wider text-slate-800 transition-colors hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-400"
-                                    >
-                                      {post.category}
-                                    </a>
-                                  </div>
-                                  <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 transition-colors line-clamp-2 text-slate-900 dark:text-white">
-                                    <a
-                                      href={getPermalink(post, settings)}
-                                      onClick={(event) =>
-                                        handleCrawlableLinkClick(event, () => {
-                                          onPostClick(post.id);
-                                        })
-                                      }
-                                    >
-                                      {decodeEntities(post.title)}
-                                    </a>
-                                  </h3>
-                                  <p className="text-slate-600 dark:text-neutral-400 mb-4 line-clamp-3 text-sm">
-                                    {post.excerpt}
-                                  </p>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm font-bold text-slate-400 dark:text-neutral-500 group-hover:text-blue-600 transition-colors uppercase tracking-wide">
-                                      Read Article
-                                    </span>
-                                    <span className="text-xs font-semibold text-slate-400 dark:text-neutral-500">
-                                      {post.readTime || '5 min read'}
-                                    </span>
-                                  </div>
-                                </article>
-                              </React.Fragment>
-                            ))}
-                          </div>
-                          <div className="mt-12">
-                            <LoadMoreButton
-                              loading={loadingMore}
-                              hasMore={hasMore}
-                              onLoadMore={handleLoadMore}
-                              href={publicPosts.nextPageHref}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </section>
+              <main
+                className={selectedCategory || homeSectionIds[0] !== 'hero' ? 'pt-24' : undefined}
+              >
+                {!selectedCategory && !homeSectionIds.includes('hero') && (
+                  <h1 className="sr-only">{settings.siteName}</h1>
                 )}
-                <CTA />
+                {(selectedCategory ? (['posts'] as const) : homeSectionIds).map((sectionId) => {
+                  const sectionProps = { settings, posts, pages, onNavigate: handleNavigationItem };
+                  switch (sectionId) {
+                    case 'hero':
+                      return (
+                        <HeroSection
+                          key={sectionId}
+                          {...sectionProps}
+                          isFirst={homeSectionIds[0] === sectionId}
+                        />
+                      );
+                    case 'services':
+                      return <ServicesSection key={sectionId} {...sectionProps} />;
+                    case 'about':
+                      return <AboutSection key={sectionId} settings={settings} pages={pages} />;
+                    case 'posts':
+                      return (
+                        <LatestPostsSection
+                          key={sectionId}
+                          {...sectionProps}
+                          publicPosts={publicPosts}
+                          selectedCategory={selectedCategory}
+                          onCategoryClick={onCategoryClick}
+                          onPostClick={onPostClick}
+                          isInitialDiscoveryLoading={isInitialDiscoveryLoading}
+                          isCategoryRefreshing={isCategoryRefreshing}
+                        />
+                      );
+                    case 'cta':
+                      return <CallToActionSection key={sectionId} {...sectionProps} />;
+                  }
+                })}
               </main>
               <Footer />
             </>

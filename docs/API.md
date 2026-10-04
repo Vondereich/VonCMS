@@ -1,12 +1,14 @@
 # VonCMS API Guide
 
-Version: `1.27.6` (In Development)
+Version: `1.27.7`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
 This guide is a practical map of the current API surface. It focuses on the endpoint structure that exists in the project today instead of trying to document every response field in exhaustive detail.
 
 ## How the API is organized
+
+`get_posts.php` keeps a maximum of 200 records per response. Public themes use the Posts Per Page setting (6-50) and numbered pagination, with a maximum page number of 1,000,000. This is a navigation boundary, not a limit on stored articles. Existing sites activate optional large-archive query indexes through Database Repair; unrepaired schemas keep the original queries and search behavior is unchanged.
 
 VonCMS mainly uses file-based PHP endpoints.
 

@@ -43,8 +43,9 @@ export const VonPopupAd: React.FC<VonPopupAdProps> = ({ show, onClose, content }
         }`}
       >
         <button
+          type="button"
           onClick={onClose}
-          className="absolute right-2 top-2 sm:-top-4 sm:-right-4 w-10 h-10 bg-white dark:bg-slate-800 rounded-full shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-all z-60 group border border-slate-100 dark:border-slate-700"
+          className="absolute right-2 top-2 w-10 h-10 bg-white dark:bg-slate-800 rounded-full shadow-lg flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-all z-60 group border border-slate-100 dark:border-slate-700"
           aria-label="Close Ad"
         >
           <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />

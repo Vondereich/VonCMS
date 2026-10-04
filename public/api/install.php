@@ -60,7 +60,10 @@ if (!InstallBootstrap::ensureKey()) {
   );
 }
 if (!InstallBootstrap::claim($setupKey)) {
-  ResponseHelper::sendError('Invalid installer setup key or installation already in progress.', 403);
+  ResponseHelper::sendError(
+    'Invalid installer setup key or installation already in progress.',
+    403,
+  );
 }
 
 $dbHost = $input['dbHost'] ?? 'localhost';
@@ -136,7 +139,7 @@ try {
         category VARCHAR(100) DEFAULT 'Uncategorized',
         keywords VARCHAR(255),
         meta_description TEXT,
-        views INT DEFAULT 0,
+        views BIGINT DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         posts_status_idx VARCHAR(20) GENERATED ALWAYS AS (status) VIRTUAL,
@@ -162,7 +165,7 @@ try {
         featured_image VARCHAR(255) DEFAULT NULL,
         keywords VARCHAR(255),
         meta_description TEXT,
-        views INT DEFAULT 0,
+        views BIGINT DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -314,6 +317,7 @@ try {
 
   // Shared runtime capabilities are installed once here and repaired only by Database Repair.
   voncms_schema_repair_runtime_capabilities($pdo);
+  $listingIndexResult = voncms_schema_repair_listing_indexes($pdo);
 
   // DDL above can commit implicitly in MySQL. Keep all seed data transactional so
   // a late configuration write failure can be retried without duplicate owners.
@@ -602,7 +606,7 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
     ResponseHelper::sendError('Installation could not finalize database ownership.', 500);
   }
 
-  $installWarnings = [];
+  $installWarnings = $listingIndexResult['warnings'];
 
   // Also update site_settings.json with the Site Title if possible,
   // but currently that's handled by Node/PHP API separate from this config.
@@ -660,7 +664,7 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
 
@@ -774,7 +778,7 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
   }
 
   // 7. Create Installer Lock File (Security Patch)
-  voncms_mark_publication_columns_ready();
+  voncms_mark_publication_columns_ready(voncms_schema_listing_capabilities($pdo));
   $lockContents = 'VonCMS Installed: ' . date('Y-m-d H:i:s') . "\n";
   if (!writeInstallerFileAtomically($lockFile, $lockContents)) {
     $installWarnings[] =

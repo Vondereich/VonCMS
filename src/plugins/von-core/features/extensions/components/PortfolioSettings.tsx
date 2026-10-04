@@ -3,6 +3,7 @@ import { SiteSettings } from '../../../../../types';
 import { X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AdminModal from '../../../../../components/admin/AdminModal';
+import { buildThemeSettingsUpdate } from '../../../../../themes/shared/themeSettings';
 
 interface PortfolioSettingsProps {
   settings: SiteSettings;
@@ -57,16 +58,13 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
     ...(settings.theme?.portfolio || {}),
   };
 
-  const [tempConfig, setTempConfig] = useState<PortfolioConfig>(initialConfig);
+  const [baseline] = useState(initialConfig);
+  const [tempConfig, setTempConfig] = useState<PortfolioConfig>(baseline);
 
   const handleSave = async () => {
-    const saved = await onUpdate({
-      ...settings,
-      theme: {
-        ...settings.theme,
-        portfolio: tempConfig,
-      },
-    });
+    const saved = await onUpdate(
+      buildThemeSettingsUpdate(settings, 'portfolio', baseline, tempConfig)
+    );
     if (saved === false) return;
 
     toast.success('Portfolio settings saved!');
