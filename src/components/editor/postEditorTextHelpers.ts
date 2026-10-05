@@ -1,3 +1,5 @@
+import { decodeEntities } from '../../utils/textUtils';
+
 export const getPostEditorCleanText = (html: string, limit?: number) => {
   if (!html) return '';
 
@@ -6,8 +8,7 @@ export const getPostEditorCleanText = (html: string, limit?: number) => {
   let text = doc.body.textContent || '';
 
   if (text.match(/&[#a-zA-Z0-9]+;/)) {
-    const decodedDoc = new DOMParser().parseFromString(text, 'text/html');
-    text = decodedDoc.body.textContent || text;
+    text = decodeEntities(text);
   }
 
   text = text.replace(/\s+/g, ' ').trim();
