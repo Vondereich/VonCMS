@@ -3,14 +3,20 @@
  * Centralized functions for text processing across all themes
  */
 
+import DOMPurify from 'dompurify';
+
 /**
  * Decode HTML entities for display (e.g. &#039; -> ')
- * Uses DOMParser for robust, XSS-safe decoding
+ * Decode one entity layer without interpreting literal text as HTML markup.
  */
 export const decodeEntities = (text: string | undefined): string => {
   if (!text) return '';
-  const doc = new DOMParser().parseFromString(text, 'text/html');
-  return doc.body.textContent || text;
+  const decoded = DOMPurify.sanitize(text.replace(/</g, '&lt;'), {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+    RETURN_DOM_FRAGMENT: true,
+  });
+  return decoded.textContent ?? '';
 };
 
 /**
