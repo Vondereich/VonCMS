@@ -169,12 +169,11 @@ if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
     if (file_exists($settingsFile)) {
       $allSettings = json_decode(file_get_contents($settingsFile), true);
       if (is_array($allSettings)) {
-        $legacyDomainUrl =
-          isset($allSettings['system']) && is_array($allSettings['system'])
-            ? (string) ($allSettings['system']['domainUrl'] ?? '')
-            : '';
-        $directDomainUrl = (string) ($allSettings['domainUrl'] ?? '');
-        $configuredDomainUrl = $legacyDomainUrl !== '' ? $legacyDomainUrl : $directDomainUrl;
+        // Nested legacy aliases are not trusted redirect configuration. Settings
+        // saves rebuild this flat value from the owner-guarded database setting.
+        $configuredDomainUrl = is_string($allSettings['domainUrl'] ?? null)
+          ? $allSettings['domainUrl']
+          : '';
 
         if ($configuredDomainUrl !== '') {
           $expectedHostRaw = parse_url($configuredDomainUrl, PHP_URL_HOST);
@@ -1071,7 +1070,7 @@ class RateLimiter
   /** @var array<string, bool> $reportedStorageFailures */
   private static $reportedStorageFailures = [];
 
-  private static function reportStorageFailure(string $operation): void
+  private static function reportStorageFailure(string $operation, bool $failOpen = true): void
   {
     if (isset(self::$reportedStorageFailures[$operation])) {
       return;
@@ -1081,7 +1080,9 @@ class RateLimiter
     error_log(
       'VonCMS Security: rate-limit storage unavailable during ' .
         $operation .
-        '; this request is temporarily fail-open.',
+        ($failOpen
+          ? '; this request is temporarily fail-open.'
+          : '; password recovery is temporarily refused.'),
     );
   }
 
@@ -1109,10 +1110,10 @@ class RateLimiter
    * @param string $identifier
    * @return string|null
    */
-  private static function getFilePath($identifier)
+  private static function getFilePath($identifier, bool $failOpen = true)
   {
     if (!self::ensureStorageDirectory()) {
-      self::reportStorageFailure('directory preparation');
+      self::reportStorageFailure('directory preparation', $failOpen);
       return null;
     }
     return self::$storageDir . md5($identifier) . '.json';
@@ -1157,8 +1158,9 @@ class RateLimiter
   }
 
   /**
-   * Consume one attempt from an isolated fixed-window quota.
-   * Storage failures stay fail-open so account recovery is not taken offline.
+   * Consume one recovery attempt from a bounded, expiry-pruned ledger.
+   * A single locked file prevents attacker-selected emails/IPs creating files.
+   * Storage failures refuse recovery only; login storage remains independent.
    *
    * @param string $identifier
    * @param int $maxAttempts
@@ -1169,54 +1171,117 @@ class RateLimiter
   {
     $maxAttempts = max(1, (int) $maxAttempts);
     $windowSeconds = max(1, (int) $windowSeconds);
-    $file = self::getFilePath('fixed-window:' . (string) $identifier);
+    $file = self::getFilePath('fixed-window-ledger:v1', false);
     if ($file === null) {
-      return true;
+      return false;
     }
     $handle = @fopen($file, 'c+');
 
     if ($handle === false) {
-      self::reportStorageFailure('fixed-window open');
-      return true;
+      self::reportStorageFailure('fixed-window open', false);
+      return false;
     }
 
     if (!@flock($handle, LOCK_EX)) {
-      self::reportStorageFailure('fixed-window lock');
+      self::reportStorageFailure('fixed-window lock', false);
       @fclose($handle);
-      return true;
+      return false;
     }
 
-    $accepted = true;
+    $accepted = false;
     try {
       rewind($handle);
-      $raw = stream_get_contents($handle);
-      $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
-      $now = time();
-      $windowStartedAt = is_array($data) ? (int) ($data['window_started_at'] ?? 0) : 0;
-      $attempts = is_array($data) ? (int) ($data['attempts'] ?? 0) : 0;
-
-      if ($windowStartedAt <= 0 || $windowStartedAt + $windowSeconds <= $now) {
-        $windowStartedAt = $now;
-        $attempts = 0;
+      $raw = stream_get_contents($handle, 1048577);
+      $data = $raw === '' ? [] : json_decode(is_string($raw) ? $raw : '', true);
+      if (!is_string($raw) || strlen($raw) > 1048576 || !is_array($data) || count($data) > 4096) {
+        throw new RuntimeException('Invalid recovery ledger.');
       }
-
-      if ($attempts >= $maxAttempts) {
-        $accepted = false;
-      } else {
-        $payload = json_encode([
-          'attempts' => $attempts + 1,
-          'window_started_at' => $windowStartedAt,
-        ]);
-        rewind($handle);
-        $stored =
-          is_string($payload) &&
-          @ftruncate($handle, 0) &&
-          @fwrite($handle, $payload) === strlen($payload) &&
-          @fflush($handle);
-        if (!$stored) {
-          self::reportStorageFailure('fixed-window write');
+      $now = time();
+      foreach ($data as $key => $bucket) {
+        if (
+          !is_string($key) ||
+          strlen($key) !== 64 ||
+          !ctype_xdigit($key) ||
+          !is_array($bucket) ||
+          !is_int($bucket['attempts'] ?? null) ||
+          $bucket['attempts'] < 0 ||
+          !is_int($bucket['window_started_at'] ?? null) ||
+          $bucket['window_started_at'] <= 0 ||
+          !is_int($bucket['window_seconds'] ?? null) ||
+          $bucket['window_seconds'] < 1
+        ) {
+          throw new RuntimeException('Invalid recovery bucket.');
+        }
+        if ($bucket['window_started_at'] <= $now - $bucket['window_seconds']) {
+          unset($data[$key]);
         }
       }
+      $key = hash('sha256', (string) $identifier);
+      if (!isset($data[$key]) && count($data) < 4096) {
+        $bucket = [
+          'attempts' => 0,
+          'window_started_at' => $now,
+          'window_seconds' => $windowSeconds,
+        ];
+        // Preserve active pre-upgrade quotas, without creating or deleting legacy files.
+        $legacyFile = self::$storageDir . md5('fixed-window:' . (string) $identifier) . '.json';
+        if (is_file($legacyFile)) {
+          $legacyHandle = @fopen($legacyFile, 'r');
+          if ($legacyHandle === false) {
+            throw new RuntimeException('Unreadable legacy recovery quota.');
+          }
+          try {
+            if (!@flock($legacyHandle, LOCK_SH)) {
+              throw new RuntimeException('Unavailable legacy recovery lock.');
+            }
+            $legacyRaw = stream_get_contents($legacyHandle, 1025);
+            $legacy = is_string($legacyRaw) ? json_decode($legacyRaw, true) : null;
+            if (
+              !is_string($legacyRaw) ||
+              strlen($legacyRaw) > 1024 ||
+              !is_array($legacy) ||
+              !is_int($legacy['attempts'] ?? null) ||
+              $legacy['attempts'] < 0 ||
+              !is_int($legacy['window_started_at'] ?? null) ||
+              $legacy['window_started_at'] <= 0
+            ) {
+              throw new RuntimeException('Invalid legacy recovery quota.');
+            }
+            if ($legacy['window_started_at'] > $now - $windowSeconds) {
+              $bucket['attempts'] = $legacy['attempts'];
+              $bucket['window_started_at'] = $legacy['window_started_at'];
+            }
+          } finally {
+            @flock($legacyHandle, LOCK_UN);
+            @fclose($legacyHandle);
+          }
+        }
+        $data[$key] = $bucket;
+      }
+      // Do not evict live quotas when full: existing buckets keep their allowance.
+      if (isset($data[$key]) && $data[$key]['attempts'] < $maxAttempts) {
+        $data[$key]['attempts']++;
+        $accepted = true;
+      }
+      $payload = json_encode($data);
+      rewind($handle);
+      if (!is_string($payload) || strlen($payload) > 1048576 || !@ftruncate($handle, 0)) {
+        throw new RuntimeException('Cannot persist recovery ledger.');
+      }
+      $written = 0;
+      while ($written < strlen($payload)) {
+        $bytes = @fwrite($handle, substr($payload, $written));
+        if ($bytes === false || $bytes === 0) {
+          throw new RuntimeException('Incomplete recovery ledger write.');
+        }
+        $written += $bytes;
+      }
+      if (!@fflush($handle)) {
+        throw new RuntimeException('Cannot flush recovery ledger.');
+      }
+    } catch (Throwable $e) {
+      self::reportStorageFailure('fixed-window ledger', false);
+      $accepted = false;
     } finally {
       @flock($handle, LOCK_UN);
       @fclose($handle);

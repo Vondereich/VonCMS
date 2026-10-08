@@ -15,6 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ResponseHelper::sendError('Method Not Allowed', 405);
 }
 
+// Login changes session identity; guest writers already receive a token via vonFetch.
+CSRFProtection::requireToken();
+
 if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
@@ -47,7 +50,7 @@ if (strlen($username) > 254 || strlen($password) > 4096) {
 }
 
 // Honeypot check - bots will fill this hidden field
-if (!empty($honeypot)) {
+if ($honeypot !== '') {
   // Log suspicious activity but don't reveal it's a honeypot
   SecurityLogger::log(
     'honeypot_caught',

@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.27.7`
+Version: `1.27.8`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -58,6 +58,8 @@ await vonFetch(API.savePost, {
 - `verify_email.php`
 
 When remember-me is enabled, `login.php` issues a dedicated selector/validator cookie, `check_auth.php` restores and rotates that token, and `logout.php` revokes it. Persistent authentication does not store the raw PHP session ID in the remember cookie.
+
+Login POSTs require a CSRF token from the same guest session before credentials are processed. The app's `vonFetch` obtains it automatically; custom clients must first call `/api.php?action=get_csrf_token`, retain that session cookie, and send the token in `X-CSRF-Token`. Missing or invalid tokens return `403`; login GET remains `405`.
 
 PHP entry points accept their documented file path plus query parameters only. Appending path segments after a PHP script, such as `/api/verify_email.php/anything` or `/rss.php/anything`, returns `404`; valid verification links continue to use `/api/verify_email.php?token=...`. Internal helper PHP files are not endpoints and return `403` when requested directly.
 
