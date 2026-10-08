@@ -66,7 +66,7 @@ $honeypot = (string) $honeypot;
 RateLimiter::recordAttempt($rateIdentifier);
 
 // Honeypot check
-if (!empty($honeypot)) {
+if ($honeypot !== '') {
   error_log(
     'Honeypot triggered during newsletter subscription from IP: ' .
       ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),

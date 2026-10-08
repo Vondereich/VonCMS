@@ -55,6 +55,15 @@ $action = isset($input['action']) ? (string) $input['action'] : null;
 $commentRateIdentifier = null;
 $hasValidSession = false;
 
+$isLegacyBulkMigration = isset($input['comments']) && is_array($input['comments']);
+if (array_key_exists('comments', $input) && !$isLegacyBulkMigration) {
+  ResponseHelper::sendError('Invalid comments migration payload', 400);
+}
+// Single-action writes and collection migrations have separate authorization contracts.
+if ($isLegacyBulkMigration && $action !== null) {
+  ResponseHelper::sendError('Cannot combine comment actions with migration payloads', 400);
+}
+
 if ($action !== null) {
   $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
 
@@ -80,11 +89,7 @@ if ($action !== null && !in_array($action, $allowedActions, true)) {
   ResponseHelper::sendError('Unknown action or invalid input', 400);
 }
 
-$isLegacyBulkMigration = isset($input['comments']) && is_array($input['comments']);
-if (array_key_exists('comments', $input) && !$isLegacyBulkMigration) {
-  ResponseHelper::sendError('Invalid comments migration payload', 400);
-}
-if ($action === null && $isLegacyBulkMigration) {
+if ($isLegacyBulkMigration) {
   SessionManager::requireAdmin();
   CSRFProtection::requireToken();
 

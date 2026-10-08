@@ -37,7 +37,7 @@ $clientIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
 $recoveryTrapIdentifier = 'password-recovery-trap:' . $clientIp;
 
 // Honeypot check
-if (!empty($honeypot)) {
+if ($honeypot !== '') {
   $shouldLogTrap = RateLimiter::consumeFixedWindow($recoveryTrapIdentifier, 20, 900);
   if ($shouldLogTrap) {
     error_log(

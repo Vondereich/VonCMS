@@ -58,6 +58,39 @@ if (!$settings || !is_array($settings)) {
   ResponseHelper::sendError('Invalid settings data', 400);
 }
 
+function voncms_normalize_legacy_domain_setting(array &$settings): void
+{
+  if (!isset($settings['system']) || !is_array($settings['system'])) {
+    return;
+  }
+  if (!array_key_exists('domainUrl', $settings['system'])) {
+    return;
+  }
+
+  $legacyDomainUrl = $settings['system']['domainUrl'];
+  if (!is_string($legacyDomainUrl)) {
+    ResponseHelper::sendError('Invalid legacy Domain URL.', 400);
+  }
+  $legacyDomainUrl = rtrim(trim($legacyDomainUrl), '/');
+  if (array_key_exists('domainUrl', $settings)) {
+    if (
+      !is_string($settings['domainUrl']) ||
+      rtrim(trim($settings['domainUrl']), '/') !== $legacyDomainUrl
+    ) {
+      ResponseHelper::sendError('Conflicting Domain URL settings.', 400);
+    }
+  } else {
+    $settings['domainUrl'] = $legacyDomainUrl;
+  }
+  unset($settings['system']['domainUrl']);
+  if ($settings['system'] === []) {
+    unset($settings['system']);
+  }
+}
+
+// Legacy input must cross the same owner-only boundary as the canonical field.
+voncms_normalize_legacy_domain_setting($settings);
+
 function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings): array
 {
   $restrictedTopLevelKeys = [
@@ -446,6 +479,18 @@ function voncms_write_settings_json_mirror(string $settingsFile, array $settings
       @unlink($tempFile);
     }
   }
+}
+
+function voncms_prepare_settings_domain_mirror(array $settingsForFile, string $domainUrl): array
+{
+  $settingsForFile['domainUrl'] = rtrim(trim($domainUrl), '/');
+  if (isset($settingsForFile['system']) && is_array($settingsForFile['system'])) {
+    unset($settingsForFile['system']['domainUrl']);
+    if ($settingsForFile['system'] === []) {
+      unset($settingsForFile['system']);
+    }
+  }
+  return $settingsForFile;
 }
 
 function voncms_preserve_admin_profile_email_placeholder(PDO $pdo, array &$settings): void
@@ -943,6 +988,16 @@ try {
   }
 
   try {
+    // Only the owner-guarded database value may control canonical redirects.
+    $domainMirrorStmt = $pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'domain_url' LIMIT 1",
+    );
+    $domainMirrorStmt->execute();
+    $canonicalDomainUrl = $domainMirrorStmt->fetchColumn();
+    if (!is_string($canonicalDomainUrl)) {
+      throw new RuntimeException('Canonical Domain URL is unavailable for the settings mirror.');
+    }
+    $settingsForFile = voncms_prepare_settings_domain_mirror($settingsForFile, $canonicalDomainUrl);
     voncms_write_settings_json_mirror($settingsFile, $settingsForFile);
   } catch (Throwable $mirrorError) {
     $mirrorWarning =

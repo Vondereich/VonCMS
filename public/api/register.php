@@ -84,7 +84,7 @@ $confirmPassword = (string) ($input['confirmPassword'] ?? '');
 $honeypot = (string) ($input['hp_field'] ?? '');
 
 // Honeypot check
-if (!empty($honeypot)) {
+if ($honeypot !== '') {
   error_log(
     'Honeypot triggered during registration from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
   );

@@ -17340,6 +17340,509 @@ if (!phpBinary) {
 } else {
   pass(`PHP Binary: using ${phpBinary}`);
 
+  // Login CSRF and legacy comment payload runtime boundary.
+  const loginCommentFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-auth-comment-'));
+  try {
+    for (const directory of ['api/security', 'data', 'sessions', 'rate']) {
+      fs.mkdirSync(path.join(loginCommentFixture, directory), { recursive: true });
+    }
+    for (const relativePath of [
+      'security.php',
+      'api/login.php',
+      'api/save_comments.php',
+      'api/register.php',
+      'api/newsletter_subscribe.php',
+      'api/reset_password.php',
+      'api/mail_helper.php',
+      'api/schema_repair_helper.php',
+      'api/security/SecurityLogger.php',
+      'api.php',
+      'post.php',
+      'media_variants.php',
+      'content_metrics_helper.php',
+      'scheduler_helper.php',
+      'api/get_post.php',
+      'api/save_settings.php',
+      'api/settings_audit_helper.php',
+      'api/role_capability_helper.php',
+      'api/public_cache_helper.php',
+      'api/publication_time_helper.php',
+    ]) {
+      fs.copyFileSync(
+        resolveFromRoot(`public/${relativePath}`),
+        path.join(loginCommentFixture, relativePath)
+      );
+    }
+    fs.writeFileSync(
+      path.join(loginCommentFixture, 'von_config.php'),
+      '<?php $pdo = $GLOBALS["fixturePdo"] ?? null;'
+    );
+    const loginCommentCases = [
+      ['login-plain', 403, false],
+      ['login-missing-token', 403, false],
+      ['login-foreign-token', 403, false],
+      ['login-header', 200, true],
+      ['login-body', 200, true],
+      ['login-remember', 200, true],
+      ['login-wrong-password', 401, false],
+      ['login-get', 405, false],
+      ['login-options', 200, false],
+      ['comment-mixed-add', 400, false],
+      ['comment-mixed-like', 400, false],
+      ['comment-mixed-delete', 400, false],
+      ['comment-mixed-updateStatus', 400, false],
+      ['comment-guest-bulk', 401, false],
+      ['comment-member-bulk', 403, false],
+      ['comment-admin-bulk', 200, true],
+      ['comment-guest-add', 200, true],
+    ];
+    const loginCommentResults = loginCommentCases.map(([mode, expectedStatus, expectedSuccess]) => {
+      const legacySentinel = '{"comments":[{"id":"preserve-fixture"}]}';
+      fs.writeFileSync(path.join(loginCommentFixture, 'data/comments.json'), legacySentinel);
+      const probe = spawnSync(
+        phpBinary,
+        [
+          '-d',
+          `session.save_path=${path.join(loginCommentFixture, 'sessions')}`,
+          '-r',
+          `
+$mode = $argv[1];
+$isLogin = str_starts_with($mode, 'login-');
+$endpoint = $isLogin ? 'login.php' : 'save_comments.php';
+$_SERVER['PHP_SELF'] = $endpoint;
+$_SERVER['SCRIPT_NAME'] = '/blog/api/' . $endpoint;
+$_SERVER['REQUEST_METHOD'] = $mode === 'login-get' ? 'GET' : ($mode === 'login-options' ? 'OPTIONS' : 'POST');
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-auth-comment-fixture';
+$_SERVER['CONTENT_TYPE'] = $mode === 'login-plain' ? 'text/plain' : 'application/json; charset=UTF-8';
+if (in_array($mode, ['login-plain', 'login-missing-token', 'login-foreign-token'], true)) {
+  $_SERVER['HTTP_ORIGIN'] = 'https://attacker.example';
+}
+require ${JSON.stringify(path.join(loginCommentFixture, 'security.php'))};
+$rateProperty = (new ReflectionClass(RateLimiter::class))->getProperty('storageDir');
+$rateProperty->setValue(null, ${JSON.stringify(path.join(loginCommentFixture, 'rate') + path.sep)});
+$passwordHash = password_hash('FixturePass1!', PASSWORD_BCRYPT);
+$pdo = null;
+if (!str_starts_with($mode, 'comment-mixed-') && $mode !== 'comment-guest-bulk') {
+  if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) { fwrite(STDERR, 'pdo_sqlite required'); exit(2); }
+  $pdo = new PDO('sqlite::memory:');
+  $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $pdo->sqliteCreateFunction('NOW', static fn() => date('Y-m-d H:i:s'));
+  $pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, role TEXT, password TEXT, avatar TEXT, bio TEXT, created_at TEXT, email_verified INTEGER, verification_token TEXT)');
+  $pdo->prepare('INSERT INTO users VALUES (7, ?, ?, ?, ?, NULL, NULL, ?, 1, NULL)')->execute(['fixture', 'fixture@example.test', 'admin', $passwordHash, '2026-10-07']);
+  $pdo->exec('CREATE TABLE remember_tokens (user_id INTEGER, selector TEXT, token_hash TEXT, expires_at TEXT)');
+  $pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+  $pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, status TEXT, scheduled_at TEXT)');
+  $pdo->exec("INSERT INTO posts VALUES (1, 'published', NULL)");
+  $pdo->exec('CREATE TABLE comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER, user_id INTEGER, parent_id INTEGER, user_name TEXT, user_avatar TEXT, content TEXT, likes INTEGER, status TEXT, created_at TEXT)');
+}
+$GLOBALS['fixturePdo'] = $pdo;
+if (in_array($mode, ['comment-admin-bulk', 'comment-member-bulk'], true)) {
+  $role = $mode === 'comment-admin-bulk' ? 'admin' : 'member';
+  $pdo->prepare('UPDATE users SET role = ? WHERE id = 7')->execute([$role]);
+  SessionManager::establishAuthenticatedSession(['id' => 7, 'username' => 'fixture', 'role' => $role], $passwordHash);
+}
+$token = CSRFProtection::generateToken();
+if (!in_array($mode, ['login-plain', 'login-missing-token', 'login-foreign-token', 'login-body'], true)) {
+  $_SERVER['HTTP_X_CSRF_TOKEN'] = $token;
+}
+$input = $isLogin ? ['username' => 'fixture', 'password' => 'FixturePass1!', 'remember_me' => $mode === 'login-remember'] : [
+  'comments' => [['postId' => 1, 'username' => 'QA', 'content' => 'Fixture migration']],
+];
+if ($mode === 'login-body') $input['csrf_token'] = $token;
+if ($mode === 'login-foreign-token') $input['csrf_token'] = str_repeat('a', 64);
+if ($mode === 'login-wrong-password') $input['password'] = 'WrongFixture1!';
+if (str_starts_with($mode, 'comment-mixed-')) $input['action'] = substr($mode, strlen('comment-mixed-'));
+if ($mode === 'comment-guest-add') $input = ['action' => 'add', 'postId' => 1, 'username' => 'QA Guest', 'content' => 'Legitimate fixture comment'];
+// An HTML form can produce valid JSON in a text/plain body by placing '=' in an ignored string field.
+$body = $mode === 'login-plain' ? '{"username":"fixture","password":"FixturePass1!","padding":"="}' . "\\r\\n" : json_encode($input);
+$cachedInput = (new ReflectionClass(CSRFProtection::class))->getProperty('cachedInput');
+$cachedInput->setValue(null, $body);
+ob_start();
+register_shutdown_function(static function () use ($pdo, $mode, $isLogin) {
+  $payload = json_decode((string) ob_get_clean(), true);
+  $success = ($payload['success'] ?? false) === true;
+  $authenticated = isset($_SESSION['user']) && $isLogin;
+  $rememberRows = $pdo ? (int) $pdo->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() : 0;
+  $commentRows = $pdo ? (int) $pdo->query('SELECT COUNT(*) FROM comments')->fetchColumn() : 0;
+  echo json_encode(['status' => http_response_code() ?: 200, 'success' => $success, 'authenticated' => $authenticated, 'rememberRows' => $rememberRows, 'commentRows' => $commentRows]);
+});
+require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEPARATOR . $endpoint;
+`,
+          mode,
+        ],
+        { encoding: 'utf8' }
+      );
+      let result;
+      try {
+        result = JSON.parse(probe.stdout.trim());
+      } catch {
+        result = null;
+      }
+      const matches =
+        probe.status === 0 &&
+        result?.status === expectedStatus &&
+        result?.success === expectedSuccess &&
+        (!mode.startsWith('login-') || result.authenticated === expectedSuccess) &&
+        result?.rememberRows === (mode === 'login-remember' ? 1 : 0) &&
+        result?.commentRows ===
+          (['comment-admin-bulk', 'comment-guest-add'].includes(mode) ? 1 : 0) &&
+        fs.readFileSync(path.join(loginCommentFixture, 'data/comments.json'), 'utf8') ===
+          legacySentinel;
+      if (!matches)
+        fail(
+          `Login/Comment Boundary Runtime (${mode}): ${(probe.stderr || probe.stdout || '').trim()}`
+        );
+      return matches;
+    });
+    if (loginCommentResults.every(Boolean)) {
+      pass(
+        'Login/Comment Boundary Runtime: cross-site plain and tokenless login fail; normal login, remember-me, guest comments, and admin-only migration remain valid; mixed payloads cannot write legacy JSON.'
+      );
+    }
+    const legacyShimCases = [
+      ['post-draft', 'post.php', 'GET', 404],
+      ['post-published', 'post.php', 'GET', 200],
+      ['post-method', 'post.php', 'POST', 405],
+      ['save-guest', 'api.php', 'POST', 401],
+      ['save-method', 'api.php', 'GET', 405],
+      ['csrf-guest', 'api.php', 'GET', 200],
+      ['invalid-action', 'api.php', 'GET', 400],
+    ];
+    const legacyShimResults = legacyShimCases.map(([mode, entry, method, expectedStatus]) => {
+      const probe = spawnSync(
+        phpBinary,
+        [
+          '-d',
+          `session.save_path=${path.join(loginCommentFixture, 'sessions')}`,
+          '-r',
+          `
+$_SERVER['PHP_SELF'] = $argv[2];
+$_SERVER['SCRIPT_NAME'] = '/blog/' . $argv[2];
+$_SERVER['REQUEST_METHOD'] = $argv[3];
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['REMOTE_ADDR'] = '192.0.2.89';
+require ${JSON.stringify(path.join(loginCommentFixture, 'security.php'))};
+$pdo = new PDO('sqlite::memory:');
+$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, avatar TEXT)');
+$pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, slug TEXT, title TEXT, content TEXT, status TEXT, author_id INTEGER, created_at TEXT, updated_at TEXT, scheduled_at TEXT)');
+$pdo->exec("INSERT INTO posts VALUES (1, 'private', 'Private draft', 'DO-NOT-EXPOSE', 'draft', NULL, '2026-01-01', '2026-01-01', NULL)");
+$pdo->exec("INSERT INTO posts VALUES (2, 'public', 'Published article', 'Public content', 'published', NULL, '2026-01-01', '2026-01-01', NULL)");
+$GLOBALS['fixturePdo'] = $pdo;
+$_SESSION = [];
+$_GET = $argv[2] === 'post.php' ? ['id' => $argv[1] === 'post-published' ? '2' : '1'] : ['action' => str_starts_with($argv[1], 'save-') ? 'save_settings' : ($argv[1] === 'csrf-guest' ? 'get_csrf_token' : ['save_settings'])];
+ob_start();
+register_shutdown_function(static function () use ($pdo) {
+  $raw = '';
+  while (ob_get_level() > 0) $raw = (string) ob_get_clean() . $raw;
+  echo json_encode(['status' => http_response_code() ?: 200, 'body' => json_decode($raw, true), 'leaked' => str_contains($raw, 'DO-NOT-EXPOSE'), 'settings_rows' => (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn()]);
+});
+require ${JSON.stringify(loginCommentFixture + path.sep)} . $argv[2];`,
+          mode,
+          entry,
+          method,
+        ],
+        { encoding: 'utf8' }
+      );
+      let result;
+      try {
+        result = JSON.parse(probe.stdout.trim());
+      } catch {
+        result = null;
+      }
+      const matches =
+        probe.status === 0 &&
+        result?.status === expectedStatus &&
+        result?.leaked === false &&
+        result?.settings_rows === 0 &&
+        (mode !== 'post-published' || result?.body?.post?.id === '2') &&
+        (mode !== 'csrf-guest' || typeof result?.body?.csrf_token === 'string');
+      if (!matches)
+        fail(`Legacy Shim Runtime (${mode}): ${(probe.stderr || probe.stdout || '').trim()}`);
+      return matches;
+    });
+    if (legacyShimResults.every(Boolean))
+      pass(
+        'Legacy Shim Runtime: api.php preserves save authentication/method checks and safe action dispatch; post.php rejects guest drafts and unsupported methods while returning published content.'
+      );
+    const honeypotEndpoints = [
+      ['login.php', 'Login failed', 'Username and password required'],
+      ['register.php', 'Registration failed', 'Username must be at least'],
+      ['newsletter_subscribe.php', 'Subscription failed', 'Invalid email address'],
+      ['reset_password.php', 'If this email exists', 'Valid email required'],
+    ];
+    const honeypotValues = [
+      ['missing', undefined],
+      ['empty', ''],
+      ['text', 'bot-filled-this'],
+      ['string-zero', '0'],
+      ['numeric-zero', 0],
+    ];
+    const honeypotResults = honeypotEndpoints.flatMap(([endpoint, blockedText, normalText]) =>
+      honeypotValues.map(([mode, value]) => {
+        const trapped = mode !== 'missing' && mode !== 'empty';
+        const expectedStatus = trapped && endpoint === 'reset_password.php' ? 200 : 400;
+        const probe = spawnSync(
+          phpBinary,
+          [
+            '-d',
+            `session.save_path=${path.join(loginCommentFixture, 'sessions')}`,
+            '-r',
+            `
+$endpoint = $argv[1];
+$mode = $argv[2];
+$_SERVER['PHP_SELF'] = $endpoint;
+$_SERVER['SCRIPT_NAME'] = '/blog/api/' . $endpoint;
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['REMOTE_ADDR'] = '192.0.2.42';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-honeypot-regression';
+$_SERVER['CONTENT_TYPE'] = 'application/json';
+require ${JSON.stringify(path.join(loginCommentFixture, 'security.php'))};
+$rateProperty = (new ReflectionClass(RateLimiter::class))->getProperty('storageDir');
+$rateProperty->setValue(null, ${JSON.stringify(path.join(loginCommentFixture, 'rate') + path.sep)} . $endpoint . '-' . $mode . DIRECTORY_SEPARATOR);
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+$pdo->prepare('INSERT INTO settings VALUES (?, ?, ?)')->execute(['general', 'registration_enabled', 'true']);
+$pdo->prepare('INSERT INTO settings VALUES (?, ?, ?)')->execute(['newsletter', 'newsletter_config', json_encode(['enabled' => true])]);
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY)');
+$pdo->exec('CREATE TABLE newsletter_subscribers (id INTEGER PRIMARY KEY)');
+$pdo->exec('CREATE TABLE security_logs (event_type TEXT, ip_address TEXT, user_agent TEXT, endpoint TEXT, severity TEXT, details TEXT, blocked INTEGER)');
+$GLOBALS['fixturePdo'] = $pdo;
+$_SERVER['HTTP_X_CSRF_TOKEN'] = CSRFProtection::getToken();
+$input = ['username' => '', 'password' => '', 'email' => 'not-an-email', 'action' => 'request'];
+if ($mode !== 'missing') $input['hp_field'] = json_decode($argv[3], true);
+$cachedInput = (new ReflectionClass(CSRFProtection::class))->getProperty('cachedInput');
+$cachedInput->setValue(null, json_encode($input));
+ob_start();
+register_shutdown_function(static function () use ($pdo) {
+  $raw = '';
+  while (ob_get_level() > 0) $raw = (string) ob_get_clean() . $raw;
+  $body = json_decode($raw, true);
+  $rows = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() + (int) $pdo->query('SELECT COUNT(*) FROM newsletter_subscribers')->fetchColumn();
+  echo json_encode(['status' => http_response_code() ?: 200, 'response' => $body['error'] ?? $body['message'] ?? '', 'authenticated' => isset($_SESSION['user']), 'rows' => $rows]);
+});
+require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEPARATOR . $endpoint;
+`,
+            endpoint,
+            mode,
+            JSON.stringify(value ?? null),
+          ],
+          { encoding: 'utf8' }
+        );
+        let result;
+        try {
+          result = JSON.parse(probe.stdout.trim());
+        } catch {
+          result = null;
+        }
+        const matches =
+          probe.status === 0 &&
+          result?.status === expectedStatus &&
+          typeof result?.response === 'string' &&
+          result.response.includes(trapped ? blockedText : normalText) &&
+          result.authenticated === false &&
+          result.rows === 0;
+        if (!matches)
+          fail(
+            `Honeypot Value Runtime (${endpoint}, ${mode}): ${(probe.stderr || probe.stdout || '').trim()}`
+          );
+        return matches;
+      })
+    );
+    if (honeypotResults.every(Boolean)) {
+      pass(
+        'Honeypot Value Runtime: all four endpoints reject string/numeric zero and text traps while omitted/empty fields retain normal validation, without authentication or account/subscription writes.'
+      );
+    }
+    const recoveryCases = [
+      ...Array.from({ length: 30 }, (_, i) => [
+        'rotating',
+        `unknown-${i}@example.test`,
+        '192.0.2.55',
+        200,
+      ]),
+      ...Array.from({ length: 6 }, (_, i) => [
+        'email',
+        i % 2 ? 'QUOTA@example.test' : 'quota@example.test',
+        `192.0.2.${60 + i}`,
+        i < 5 ? 200 : 429,
+      ]),
+      ...Array.from({ length: 4 }, (_, i) => [
+        'pair',
+        'pair@example.test',
+        '192.0.2.70',
+        i < 3 ? 200 : 429,
+      ]),
+      ['known', 'known@example.test', '192.0.2.71', 200],
+    ];
+    const recoveryResults = recoveryCases.map(([group, email, ip, expectedStatus]) => {
+      const probe = spawnSync(
+        phpBinary,
+        [
+          '-d',
+          `session.save_path=${path.join(loginCommentFixture, 'sessions')}`,
+          '-r',
+          `$_SERVER['PHP_SELF'] = 'reset_password.php';
+$_SERVER['SCRIPT_NAME'] = '/blog/api/reset_password.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['REMOTE_ADDR'] = $argv[3];
+require ${JSON.stringify(path.join(loginCommentFixture, 'security.php'))};
+(new ReflectionClass(RateLimiter::class))->getProperty('storageDir')->setValue(null, ${JSON.stringify(path.join(loginCommentFixture, 'rate') + path.sep)} . 'recovery-' . $argv[1] . DIRECTORY_SEPARATOR);
+$pdo = new PDO('sqlite::memory:');
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT)');
+$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+if ($argv[1] === 'known') $pdo->exec("INSERT INTO users VALUES (1, 'fixture', 'known@example.test')");
+$GLOBALS['fixturePdo'] = $pdo;
+$_SERVER['HTTP_X_CSRF_TOKEN'] = CSRFProtection::getToken();
+(new ReflectionClass(CSRFProtection::class))->getProperty('cachedInput')->setValue(null, json_encode(['action' => 'request', 'email' => $argv[2], 'hp_field' => '']));
+ob_start();
+register_shutdown_function(static function () {
+  $raw = '';
+  while (ob_get_level() > 0) $raw = (string) ob_get_clean() . $raw;
+  echo json_encode(['status' => http_response_code() ?: 200, 'body' => json_decode($raw, true), 'authenticated' => isset($_SESSION['user'])]);
+});
+require ${JSON.stringify(path.join(loginCommentFixture, 'api/reset_password.php'))};`,
+          group,
+          email,
+          ip,
+        ],
+        { encoding: 'utf8' }
+      );
+      let result;
+      try {
+        result = JSON.parse(probe.stdout.trim());
+      } catch {
+        result = null;
+      }
+      const matches =
+        probe.status === 0 &&
+        result?.status === expectedStatus &&
+        result?.authenticated === false &&
+        (expectedStatus === 200
+          ? result?.body?.message === 'If this email exists, a reset link has been sent.'
+          : result?.body?.success === false);
+      if (!matches)
+        fail(
+          `Recovery Endpoint Storage Runtime (${group}, ${expectedStatus}): ${(probe.stderr || probe.stdout || '').trim()}`
+        );
+      return matches;
+    });
+    const rotatingDir = path.join(loginCommentFixture, 'rate', 'recovery-rotating');
+    const rotatingFiles = fs.existsSync(rotatingDir) ? fs.readdirSync(rotatingDir) : [];
+    const rotatingLedger =
+      rotatingFiles.length === 1
+        ? JSON.parse(fs.readFileSync(path.join(rotatingDir, rotatingFiles[0]), 'utf8'))
+        : {};
+    if (
+      recoveryResults.every(Boolean) &&
+      rotatingFiles.length === 1 &&
+      Object.keys(rotatingLedger).length === 60
+    ) {
+      pass(
+        'Recovery Endpoint Storage Runtime: 30 real-CSRF unknown-address requests behind one proxy IP create one ledger without a new shared-IP restriction, pair/email budgets and case folding remain enforced, and known/unknown responses stay generic without SMTP.'
+      );
+    } else {
+      fail(
+        'Recovery Endpoint Storage Runtime: rotating emails can grow files or bypass dedicated quotas, or ordinary recovery changed.'
+      );
+    }
+  } finally {
+    if (!path.resolve(loginCommentFixture).startsWith(path.resolve(os.tmpdir()) + path.sep)) {
+      throw new Error('Unsafe auth/comment fixture cleanup path');
+    }
+    fs.rmSync(loginCommentFixture, { recursive: true, force: true });
+  }
+
+  const domainAliasNormalizer = extractPhpFunctionSource(
+    saveSettingsContent,
+    'function voncms_normalize_legacy_domain_setting'
+  );
+  const domainOwnerGuard = extractPhpFunctionSource(
+    saveSettingsContent,
+    'function voncms_guard_restricted_settings_for_non_primary_admin'
+  );
+  const domainMirrorNormalizer = extractPhpFunctionSource(
+    saveSettingsContent,
+    'function voncms_prepare_settings_domain_mirror'
+  );
+  const domainUrlValidation = sliceBetween(
+    saveSettingsContent,
+    "if (isset($settings['domainUrl']))",
+    '\nfunction voncms_normalize_active_plugins'
+  );
+  const canonicalDomainReader = securityContent.match(
+    /\$configuredDomainUrl = is_string\([\s\S]*?: '';/
+  )?.[0];
+  const domainOwnershipProbe = spawnSync(phpBinary, ['-n'], {
+    input: `<?php
+class ResponseHelper {
+  public static function sendError($message, $status) { throw new RuntimeException($message, $status); }
+}
+${domainAliasNormalizer}
+${domainOwnerGuard}
+${domainMirrorNormalizer}
+$attack = ['system' => ['domainUrl' => 'https://attacker.example']];
+voncms_normalize_legacy_domain_setting($attack);
+$ignored = voncms_guard_restricted_settings_for_non_primary_admin($attack);
+if ($attack !== [] || $ignored !== ['domainUrl']) exit(1);
+$mixed = ['adminPalette' => 'meadow-gold', 'system' => ['domainUrl' => 'https://attacker.example']];
+voncms_normalize_legacy_domain_setting($mixed);
+if (voncms_guard_restricted_settings_for_non_primary_admin($mixed) !== ['domainUrl'] || $mixed !== ['adminPalette' => 'meadow-gold']) exit(2);
+$owner = ['system' => ['domainUrl' => ' https://example.test/blog/ ', 'other' => true]];
+voncms_normalize_legacy_domain_setting($owner);
+if ($owner !== ['system' => ['other' => true], 'domainUrl' => 'https://example.test/blog']) exit(3);
+$settings = $owner;
+${domainUrlValidation}
+if ($settings['domainUrl'] !== 'https://example.test/blog') exit(11);
+$settings = ['system' => ['domainUrl' => 'javascript:alert(1)']];
+voncms_normalize_legacy_domain_setting($settings);
+try { ${domainUrlValidation} exit(12); }
+catch (RuntimeException $error) { if ($error->getCode() !== 400) exit(13); }
+$same = ['domainUrl' => 'https://example.test/blog', 'system' => ['domainUrl' => 'https://example.test/blog/']];
+voncms_normalize_legacy_domain_setting($same);
+if ($same !== ['domainUrl' => 'https://example.test/blog']) exit(4);
+foreach ([null, [], 123] as $malformed) {
+  $settings = ['system' => ['domainUrl' => $malformed]];
+  try { voncms_normalize_legacy_domain_setting($settings); exit(5); }
+  catch (RuntimeException $error) { if ($error->getCode() !== 400) exit(6); }
+}
+$conflict = ['domainUrl' => 'https://example.test', 'system' => ['domainUrl' => 'https://attacker.example']];
+try { voncms_normalize_legacy_domain_setting($conflict); exit(7); }
+catch (RuntimeException $error) { if ($error->getCode() !== 400) exit(8); }
+$mirror = voncms_prepare_settings_domain_mirror(['siteName' => 'Site', 'domainUrl' => 'https://attacker.example', 'system' => ['domainUrl' => 'https://attacker.example', 'other' => true]], 'https://example.test/blog/');
+if ($mirror !== ['siteName' => 'Site', 'domainUrl' => 'https://example.test/blog', 'system' => ['other' => true]]) exit(9);
+foreach ([$mirror, ['domainUrl' => 'https://example.test', 'system' => ['domainUrl' => 'https://attacker.example']], ['system' => ['domainUrl' => 'https://attacker.example']], ['domainUrl' => []]] as $allSettings) {
+  ${canonicalDomainReader || "throw new RuntimeException('Canonical reader missing');"}
+  $expected = is_string($allSettings['domainUrl'] ?? null) ? $allSettings['domainUrl'] : '';
+  if ($configuredDomainUrl !== $expected || str_contains($configuredDomainUrl, 'attacker.example')) exit(10);
+}
+echo 'ok';`,
+    encoding: 'utf8',
+  });
+  if (
+    domainOwnershipProbe.status === 0 &&
+    domainOwnershipProbe.stdout.trim() === 'ok' &&
+    saveSettingsContent.indexOf('voncms_normalize_legacy_domain_setting($settings);') <
+      saveSettingsContent.indexOf(
+        '$ignoredSettingsKeys = voncms_guard_restricted_settings_for_non_primary_admin($settings);'
+      ) &&
+    saveSettingsContent.includes('$canonicalDomainUrl = $domainMirrorStmt->fetchColumn();') &&
+    saveSettingsContent.includes('if (!is_string($canonicalDomainUrl))')
+  ) {
+    pass(
+      'Canonical Domain Ownership Runtime: legacy aliases share the owner guard, permitted saves survive, malformed/conflicting aliases fail, and stale nested mirrors cannot redirect visitors.'
+    );
+  } else {
+    fail(
+      `Canonical Domain Ownership Runtime: permission or compatibility boundary regressed. ${(domainOwnershipProbe.stderr || domainOwnershipProbe.stdout || '').trim()}`
+    );
+  }
+
   const installerProxyBoundaryProbe = spawnSync(
     phpBinary,
     [
@@ -18518,18 +19021,128 @@ $storageDir->setValue(null, $blockedPath . DIRECTORY_SEPARATOR);
 $failedStorage = RateLimiter::getStorageHealth();
 if (($failedStorage['healthy'] ?? true) !== false) exit(18);
 if (!RateLimiter::consumeAttempt('fail-open-check')) exit(19);
+if (RateLimiter::consumeFixedWindow('fail-closed-recovery', 5, 900)) exit(20);
 echo 'ok';`,
     ],
     { encoding: 'utf8' }
   );
   if (fixedWindowRateProbe.status === 0 && fixedWindowRateProbe.stdout.trim() === 'ok') {
     pass(
-      'Rate Limiter Runtime: dedicated buckets remain isolated, writable storage reports healthy, unavailable storage is visible and fail-open, and login reset stays scoped.'
+      'Rate Limiter Runtime: recovery quotas remain isolated and fail closed on unavailable storage; login remains fail-open and its reset stays scoped.'
     );
   } else {
     fail(
       `Dedicated Fixed-Window Rate Runtime: bounded recovery windows or login-bucket isolation regressed. ${(fixedWindowRateProbe.stderr || fixedWindowRateProbe.stdout || '').trim()}`
     );
+  }
+
+  const recoveryLedgerProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `
+$_SERVER['PHP_SELF'] = 'recovery-ledger-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/recovery-ledger-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+$dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-recovery-ledger-' . bin2hex(random_bytes(6));
+if (!mkdir($dir, 0700, true)) exit(2);
+(new ReflectionClass(RateLimiter::class))->getProperty('storageDir')->setValue(null, $dir . DIRECTORY_SEPARATOR);
+register_shutdown_function(static function () use ($dir) {
+  foreach (glob($dir . DIRECTORY_SEPARATOR . '*') ?: [] as $file) @unlink($file);
+  @rmdir($dir);
+});
+$file = $dir . DIRECTORY_SEPARATOR . md5('fixed-window-ledger:v1') . '.json';
+$legacyFile = $dir . DIRECTORY_SEPARATOR . md5('fixed-window:legacy-active') . '.json';
+$legacy = json_encode(['attempts' => 5, 'window_started_at' => time()]);
+file_put_contents($legacyFile, $legacy);
+if (RateLimiter::consumeFixedWindow('legacy-active', 5, 900) || file_get_contents($legacyFile) !== $legacy) exit(3);
+$data = [];
+for ($i = 0; $i < 4096; $i++) $data[hash('sha256', 'slot-' . $i)] = ['attempts' => 1, 'window_started_at' => time(), 'window_seconds' => 900];
+file_put_contents($file, json_encode($data));
+if (RateLimiter::consumeFixedWindow('new-at-capacity', 3, 900)) exit(4);
+if (!RateLimiter::consumeFixedWindow('slot-0', 3, 900) || !RateLimiter::consumeFixedWindow('slot-0', 3, 900) || RateLimiter::consumeFixedWindow('slot-0', 3, 900)) exit(5);
+$stored = json_decode(file_get_contents($file), true);
+if (count($stored) !== 4096 || $stored[hash('sha256', 'slot-0')]['attempts'] !== 3 || filesize($file) > 1048576) exit(6);
+foreach ($data as &$bucket) $bucket['window_started_at'] = time() - 901;
+unset($bucket);
+file_put_contents($file, json_encode($data));
+if (!RateLimiter::consumeFixedWindow('after-expiry', 3, 900) || count(json_decode(file_get_contents($file), true)) !== 1) exit(7);
+file_put_contents($file, '{broken');
+if (RateLimiter::consumeFixedWindow('corrupt-storage', 3, 900)) exit(8);
+file_put_contents($file, str_repeat('x', 1048577));
+if (RateLimiter::consumeFixedWindow('oversized-storage', 3, 900)) exit(9);
+file_put_contents($file, '{}');
+for ($i = 0; $i < 500; $i++) if (!RateLimiter::consumeFixedWindow('password-recovery-trap:' . $i, 20, 900)) exit(10);
+if (count(glob($dir . DIRECTORY_SEPARATOR . '*.json')) !== 2 || count(json_decode(file_get_contents($file), true)) !== 500) exit(11);
+echo 'ok';`,
+    ],
+    { encoding: 'utf8' }
+  );
+  if (recoveryLedgerProbe.status === 0 && recoveryLedgerProbe.stdout.trim() === 'ok') {
+    pass(
+      'Recovery Ledger Runtime: active legacy quotas survive, 4096 live slots are capped without eviction, existing allowance works at capacity, expiry reclaims slots, corrupt/oversized storage is refused, and rotating trap identifiers create no extra files.'
+    );
+  } else {
+    fail(
+      `Recovery Ledger Runtime: bounded storage, expiry, upgrade or failure behavior regressed (exit ${recoveryLedgerProbe.status}). ${(recoveryLedgerProbe.stderr || recoveryLedgerProbe.stdout || '').trim()}`
+    );
+  }
+
+  const recoveryConcurrentDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'voncms-recovery-concurrent-')
+  );
+  try {
+    fs.mkdirSync(path.join(recoveryConcurrentDir, 'sessions'));
+    const worker = `$_SERVER['PHP_SELF'] = 'recovery-concurrent-probe.php';
+$_SERVER['SCRIPT_NAME'] = '/api/recovery-concurrent-probe.php';
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['HTTP_HOST'] = 'localhost';
+require ${JSON.stringify(resolveFromRoot('public/security.php'))};
+session_write_close();
+(new ReflectionClass(RateLimiter::class))->getProperty('storageDir')->setValue(null, $argv[1] . DIRECTORY_SEPARATOR . 'rate' . DIRECTORY_SEPARATOR);
+echo RateLimiter::consumeFixedWindow('shared-recovery-email', 5, 900) ? 'accepted' : 'denied';`;
+    const probe = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `
+const { spawn } = require('node:child_process');
+const [php, dir, worker] = process.argv.slice(1);
+Promise.all(Array.from({ length: 24 }, () => new Promise((resolve, reject) => {
+  const child = spawn(php, ['-d', 'session.save_path=' + require('node:path').join(dir, 'sessions'), '-r', worker, dir]);
+  let output = '', error = '';
+  child.stdout.on('data', chunk => output += chunk);
+  child.stderr.on('data', chunk => error += chunk);
+  child.on('error', reject);
+  child.on('close', code => code === 0 ? resolve(output.trim()) : reject(new Error(error)));
+}))).then(results => {
+  if (results.filter(value => value === 'accepted').length !== 5 || results.filter(value => value === 'denied').length !== 19) process.exitCode = 1;
+  else process.stdout.write('ok');
+}).catch(error => { process.stderr.write(error.message); process.exitCode = 1; });`,
+        phpBinary,
+        recoveryConcurrentDir,
+        worker,
+      ],
+      { encoding: 'utf8', timeout: 30000 }
+    );
+    const rateFiles = fs.existsSync(path.join(recoveryConcurrentDir, 'rate'))
+      ? fs.readdirSync(path.join(recoveryConcurrentDir, 'rate'))
+      : [];
+    if (probe.status === 0 && probe.stdout === 'ok' && rateFiles.length === 1) {
+      pass(
+        'Recovery Ledger Concurrency Runtime: 24 parallel writers admit exactly five requests to the shared email quota and retain one ledger.'
+      );
+    } else {
+      fail(
+        `Recovery Ledger Concurrency Runtime: quota updates raced or storage grew. ${(probe.stderr || probe.stdout || '').trim()}`
+      );
+    }
+  } finally {
+    if (!path.resolve(recoveryConcurrentDir).startsWith(path.resolve(os.tmpdir()) + path.sep))
+      throw new Error('Unsafe recovery concurrency cleanup path');
+    fs.rmSync(recoveryConcurrentDir, { recursive: true, force: true });
   }
 
   const htaccessIntegrityProbe = spawnSync(
