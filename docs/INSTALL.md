@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.27.8 "OverDrive"**
+> **VonCMS v1.27.9 "OverDrive"**
 
 ---
 
@@ -168,4 +168,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.27.8 "OverDrive"_
+_VonCMS v1.27.9 "OverDrive"_

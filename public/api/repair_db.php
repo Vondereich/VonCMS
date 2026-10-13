@@ -401,7 +401,10 @@ $repairFailure = null;
 try {
   $repairResult = voncms_run_database_schema_repair($pdo);
   if (($repairResult['success'] ?? false) === true) {
-    voncms_mark_publication_columns_ready(voncms_schema_listing_capabilities($pdo));
+    voncms_mark_publication_columns_ready(
+      voncms_schema_listing_capabilities($pdo),
+      voncms_schema_has_capability($pdo, 'post_daily_views'),
+    );
     voncms_public_cache_clear();
   }
 } catch (Throwable $repairError) {

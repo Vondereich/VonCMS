@@ -4,17 +4,17 @@ import toast from 'react-hot-toast';
 import { copyShareUrl, getCleanShareUrl } from '../utils/share';
 import {
   FacebookShareButton,
-  TwitterShareButton,
+  XShareButton,
   WhatsappShareButton,
   LinkedinShareButton,
   TelegramShareButton,
   EmailShareButton,
-  FacebookIcon,
-  TwitterIcon,
-  WhatsappIcon,
-  LinkedinIcon,
-  TelegramIcon,
-  EmailIcon,
+  FacebookLegacyIcon as FacebookIcon,
+  XLegacyIcon as XIcon,
+  WhatsappLegacyIcon as WhatsappIcon,
+  LinkedinLegacyIcon as LinkedinIcon,
+  TelegramLegacyIcon as TelegramIcon,
+  EmailLegacyIcon as EmailIcon,
 } from 'react-share';
 
 interface ShareButtonsProps {
@@ -90,11 +90,11 @@ const ShareButtons: React.FC<ShareButtonsProps> = ({
         <FacebookIcon size={size} round={round} />
       </FacebookShareButton>
 
-      <TwitterShareButton url={shareUrl} title={title}>
-        <TwitterIcon size={size} round={round} />
-      </TwitterShareButton>
+      <XShareButton url={shareUrl} text={title}>
+        <XIcon size={size} round={round} />
+      </XShareButton>
 
-      <WhatsappShareButton url={shareUrl} title={title} separator=":: ">
+      <WhatsappShareButton url={shareUrl} message={title} separator=":: ">
         <WhatsappIcon size={size} round={round} />
       </WhatsappShareButton>
 
@@ -102,7 +102,7 @@ const ShareButtons: React.FC<ShareButtonsProps> = ({
         <LinkedinIcon size={size} round={round} />
       </LinkedinShareButton>
 
-      <TelegramShareButton url={shareUrl} title={title}>
+      <TelegramShareButton url={shareUrl} text={title}>
         <TelegramIcon size={size} round={round} />
       </TelegramShareButton>
 

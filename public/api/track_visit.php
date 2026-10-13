@@ -39,6 +39,27 @@ if (!isset($pdo) || $pdo === null) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
+// Reuse the authorized GET report boundary; visitor tracking and its consent policy are unchanged.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['report'] ?? '') === 'articles') {
+  require_once __DIR__ . '/post_views_helper.php';
+  try {
+    $days = (int) ($_GET['days'] ?? 7);
+    $basePath = dirname(dirname(str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''))));
+    echo json_encode([
+      'success' => true,
+      'articleViews' => voncms_top_articles($pdo, $days, $basePath),
+    ]);
+  } catch (Throwable $error) {
+    ResponseHelper::sendError(
+      voncms_post_views_ready()
+        ? 'Article view report is temporarily unavailable.'
+        : 'Run Database Repair to enable daily article views.',
+      503,
+    );
+  }
+  exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $input = json_decode(CSRFProtection::getRequestBody(), true);
   if (!is_array($input)) {

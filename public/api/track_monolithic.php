@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/analytics_consent_helper.php';
 require_once __DIR__ . '/post_query_helper.php';
+require_once __DIR__ . '/post_views_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -98,6 +99,16 @@ try {
       );
       $stmt->execute([$postId]);
       $viewRecorded = $stmt->rowCount() === 1;
+      if ($viewRecorded) {
+        try {
+          voncms_record_daily_post_view($pdo, $postId);
+        } catch (Throwable $dailyViewError) {
+          // Optional reporting must not undo a recorded lifetime view or release its claim.
+          if (rand(1, 100) === 1) {
+            error_log('VonCMS daily article views: aggregate write unavailable');
+          }
+        }
+      }
       if (!$viewRecorded) {
         ContentViewDeduplicator::release('post', $postId);
       }

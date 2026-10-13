@@ -1,12 +1,14 @@
 # VonCMS API Guide
 
-Version: `1.27.8`
+Version: `1.27.9`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
 This guide is a practical map of the current API surface. It focuses on the endpoint structure that exists in the project today instead of trying to document every response field in exhaustive detail.
 
 ## How the API is organized
+
+Dashboard article report: `GET /api/track_visit.php?report=articles&days=7` returns up to 10 published articles ranked by daily views (7 or 30 days, including today). It retains the existing staff-only permission. Existing sites must run Database Repair to enable `post_daily_views`; fresh installation creates it automatically. Unavailable storage returns 503 rather than a misleading zero result. These anonymous counts follow accepted, session-deduplicated article views, independently of consent-gated visitor logs; no reader identifiers are stored. Lifetime counts are not backfilled, and aggregate writes are best-effort so reporting faults cannot break the existing counters. Dates use the configured site timezone, and bounded opportunistic cleanup removes expired daily rows.
 
 `get_posts.php` keeps a maximum of 200 records per response. Public themes use the Posts Per Page setting (6-50) and numbered pagination, with a maximum page number of 1,000,000. This is a navigation boundary, not a limit on stored articles. Existing sites activate optional large-archive query indexes through Database Repair; unrepaired schemas keep the original queries and search behavior is unchanged.
 

@@ -312,6 +312,10 @@ function voncms_schema_runtime_index_specs(): array
       ['name' => 'idx_date', 'columns' => ['visit_date'], 'unique' => false],
       ['name' => 'idx_ip_date', 'columns' => ['ip_hash', 'visit_date'], 'unique' => false],
     ],
+    'post_daily_views' => [
+      ['name' => 'unique_post_daily', 'columns' => ['post_id', 'view_date'], 'unique' => true],
+      ['name' => 'idx_post_daily_date', 'columns' => ['view_date', 'post_id'], 'unique' => false],
+    ],
     'comment_likes' => [
       ['name' => 'unique_comment_like', 'columns' => ['comment_id', 'user_id'], 'unique' => true],
       ['name' => 'idx_comment_likes_comment', 'columns' => ['comment_id'], 'unique' => false],
@@ -588,6 +592,10 @@ function voncms_schema_capability_manifest(): array
         'visit_time',
         'created_at',
       ],
+    ],
+    'post_daily_views' => [
+      'table' => 'post_daily_views',
+      'columns' => ['post_id', 'view_date', 'views'],
     ],
     'comment_likes' => [
       'table' => 'comment_likes',
@@ -1070,6 +1078,13 @@ function voncms_schema_has_capability(PDO $pdo, string $capability): bool
 function voncms_schema_runtime_table_sql(): array
 {
   return [
+    'post_daily_views' => "CREATE TABLE IF NOT EXISTS post_daily_views (
+      post_id INT NOT NULL,
+      view_date DATE NOT NULL,
+      views BIGINT UNSIGNED NOT NULL DEFAULT 0,
+      PRIMARY KEY (post_id, view_date),
+      INDEX idx_post_daily_date (view_date, post_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     'remember_tokens' => "CREATE TABLE IF NOT EXISTS remember_tokens (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -1140,6 +1155,27 @@ function voncms_schema_runtime_table_sql(): array
 function voncms_schema_runtime_column_specs(): array
 {
   return [
+    'post_daily_views' => [
+      'post_id' => [
+        'definition' => 'INT NOT NULL',
+        'type' => 'int',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'view_date' => [
+        'definition' => 'DATE NOT NULL',
+        'type' => 'date',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'views' => [
+        'definition' => 'BIGINT UNSIGNED NOT NULL DEFAULT 0',
+        'type' => 'bigint unsigned',
+        'nullable' => false,
+        'default' => '0',
+        'safe' => true,
+      ],
+    ],
     'remember_tokens' => [
       'id' => [
         'definition' => 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',

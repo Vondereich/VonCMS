@@ -2,7 +2,9 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-> **Current release:** v1.27.8 "OverDrive" includes compatible dependency updates and focused authentication, settings, and recovery hardening, with no additional database migration. Sites upgrading from before v1.27.7 still need the one-time Schema Repair described below; already-repaired sites do not need to repeat it for this maintenance update.
+v1.27.9: the new Dashboard Top Articles tab needs one explicit Database Repair after updating an existing site. Fresh installs create its anonymous daily-count table automatically. Until repair, lifetime article/page views continue normally and the new tab explains that storage is not enabled. Daily history begins at activation; existing lifetime views cannot be reconstructed into 7/30-day totals. Repair `.htaccess` when prompted to include the new private reporting helper in the managed deny rule.
+
+> **v1.27.9 upgrade:** "OverDrive" adds Dashboard Top Articles and a new daily aggregate table. Existing sites, including already-repaired v1.27.7/v1.27.8 installations, must run Database Repair once to activate daily tracking.
 
 > **v1.27.1 sample note:** Updaters released before v1.27.1 protected `von_config.sample.php` alongside the live config, so the first OTA transition may retain the older blank-credential sample. This does not expose or alter `von_config.php`. To adopt the direct-access guard immediately, copy the matching blank sample manually from the v1.27.1 Deploy package; later updates treat the sample as release-managed content.
 

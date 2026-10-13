@@ -664,7 +664,7 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
 
@@ -778,7 +778,10 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
   }
 
   // 7. Create Installer Lock File (Security Patch)
-  voncms_mark_publication_columns_ready(voncms_schema_listing_capabilities($pdo));
+  voncms_mark_publication_columns_ready(
+    voncms_schema_listing_capabilities($pdo),
+    voncms_schema_has_capability($pdo, 'post_daily_views'),
+  );
   $lockContents = 'VonCMS Installed: ' . date('Y-m-d H:i:s') . "\n";
   if (!writeInstallerFileAtomically($lockFile, $lockContents)) {
     $installWarnings[] =
