@@ -263,6 +263,15 @@ CREATE TABLE IF NOT EXISTS analytics (
     INDEX idx_ip_date (ip_hash, visit_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Anonymous daily article counts; retained for 30 days by bounded cleanup.
+CREATE TABLE IF NOT EXISTS post_daily_views (
+    post_id INT NOT NULL,
+    view_date DATE NOT NULL,
+    views BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (post_id, view_date),
+    INDEX idx_post_daily_date (view_date, post_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Contact Forms Table
 CREATE TABLE IF NOT EXISTS contact_forms (
     id VARCHAR(50) PRIMARY KEY,

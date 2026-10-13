@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.27.8
+# VonCMS User Manual v1.27.9
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -30,6 +30,8 @@ Before you start publishing, check these basics:
 7. Make a backup once the site is configured.
 
 ## Dashboard
+
+The Analytics card offers Visitor Traffic and Top Articles. Top Articles lists up to 10 currently published articles by recorded views for the last 7 or 30 calendar days, including today in the site's timezone. These are anonymous aggregate views, not unique readers. Existing sites need Database Repair once to activate daily storage; the tab shows its activation date because previous lifetime views cannot be backfilled. Temporary reporting faults do not change lifetime article/page counters.
 
 The dashboard is your control center. It usually gives you a quick read on:
 

@@ -50,19 +50,26 @@ if (!function_exists('voncms_has_publication_column')) {
     return ($capabilities['published_at'][$table] ?? false) === true;
   }
 
-  function voncms_mark_publication_columns_ready(array $queryIndexes = []): void
-  {
+  function voncms_mark_publication_columns_ready(
+    array $queryIndexes = [],
+    bool $postDailyViews = false,
+  ): void {
     $path = voncms_publication_capability_path();
     $directory = dirname($path);
     if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
       throw new RuntimeException('Could not create the protected schema capability directory.');
     }
 
+    $previous = voncms_read_publication_capabilities();
     $payload = json_encode(
       [
         'version' => 1,
         'published_at' => ['posts' => true, 'pages' => true],
         'query_indexes' => $queryIndexes,
+        'post_daily_views' => $postDailyViews,
+        'post_daily_views_since' => $postDailyViews
+          ? (int) ($previous['post_daily_views_since'] ?? time())
+          : null,
       ],
       JSON_UNESCAPED_SLASHES,
     );

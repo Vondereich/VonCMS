@@ -53,6 +53,7 @@ try {
     'profile_display_name' => 'Profile display-name schema',
     'remember_tokens' => 'Remember-token storage',
     'analytics' => 'Analytics storage',
+    'post_daily_views' => 'Daily article view storage',
     'comment_likes' => 'Comment-like storage',
     'content_audit' => 'Content audit storage',
     'security_logs' => 'Security log storage',

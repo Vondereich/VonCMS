@@ -34,6 +34,7 @@ import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { flattenComments } from '../../../../utils/siteUtils';
 import AdminModal from '../../../../components/admin/AdminModal';
+import TopArticles from './TopArticles';
 
 interface DashboardProps {
   posts: Post[];
@@ -223,6 +224,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
     pages: true,
   });
   const [days, setDays] = useState(7);
+  const [analyticsTab, setAnalyticsTab] = useState<'traffic' | 'articles'>('traffic');
   const [chartData, setChartData] = useState<TrafficChartPoint[]>([]);
   const [trafficSummary, setTrafficSummary] = useState<TrafficSummary>({
     totalVisits: 0,
@@ -453,9 +455,12 @@ const VpDashboard: React.FC<DashboardProps> = ({
 
   // Fetch analytics when the selected reporting period changes.
   useEffect(() => {
+    if (analyticsTab !== 'traffic') return;
+    let cancelled = false;
     vonFetch(`${API.trackVisit}?days=${days}`)
       .then((res) => res.json())
       .then((data) => {
+        if (cancelled) return;
         if (data.success && Array.isArray(data.analytics?.daily)) {
           const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -512,10 +517,14 @@ const VpDashboard: React.FC<DashboardProps> = ({
         }
       })
       .catch(() => {
+        if (cancelled) return;
         setChartData(getDefaultChart(days));
         setTrafficSummary({ totalVisits: 0, uniqueVisitors: 0 });
       });
-  }, [days]);
+    return () => {
+      cancelled = true;
+    };
+  }, [days, analyticsTab]);
 
   const getDefaultChart = (range: number): TrafficChartPoint[] => {
     const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -717,13 +726,15 @@ const VpDashboard: React.FC<DashboardProps> = ({
         <div className="lg:col-span-2 bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Visitor Traffic</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Analytics</h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Visits and unique visitors recorded by the existing analytics log.
+                {analyticsTab === 'traffic'
+                  ? 'Visits and unique visitors recorded by the existing analytics log.'
+                  : 'Top 10 articles by recorded daily views.'}
               </p>
             </div>
             <label htmlFor="dashboard-traffic-range" className="sr-only">
-              Visitor traffic date range
+              Analytics date range
             </label>
             <select
               id="dashboard-traffic-range"
@@ -737,132 +748,155 @@ const VpDashboard: React.FC<DashboardProps> = ({
             </select>
           </div>
 
-          <div className="mb-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 px-2 py-3 dark:divide-white/10 dark:bg-admin-panel/70">
-            <div className="min-w-0 px-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Total visits
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
-                {trafficSummary.totalVisits.toLocaleString()}
-              </p>
-            </div>
-            <div className="min-w-0 px-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Unique visitors
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
-                {trafficSummary.uniqueVisitors.toLocaleString()}
-              </p>
-            </div>
-            <div className="min-w-0 px-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Active days
-              </p>
-              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
-                {trafficPeriodSummary.activeDays}/{chartData.length || days}
-              </p>
-            </div>
+          <div
+            className="mb-5 flex gap-1 border-b border-slate-200 dark:border-admin-border"
+            role="group"
+            aria-label="Analytics report"
+          >
+            {(['traffic', 'articles'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                aria-pressed={analyticsTab === tab}
+                onClick={() => setAnalyticsTab(tab)}
+                className={`border-b-2 px-3 py-2 text-sm font-semibold transition-colors ${analyticsTab === tab ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}
+              >
+                {tab === 'traffic' ? 'Visitor Traffic' : 'Top Articles'}
+              </button>
+            ))}
           </div>
-
-          <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-2">
-              <span className="size-2 rounded-sm bg-blue-500" aria-hidden="true" />
-              Visits
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="h-0.5 w-4 bg-violet-500" aria-hidden="true" />
-              Unique visitors
-            </span>
-          </div>
-
-          <div className="h-52 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#e2e8f0"
-                  opacity={0.3}
-                />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                  dy={10}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: '8px',
-                    border: 'none',
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  }}
-                  cursor={{ fill: 'var(--color-blue-100)' }}
-                />
-                <Bar
-                  dataKey="visits"
-                  name="Visits"
-                  fill="var(--color-blue-500)"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={32}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="uniqueVisitors"
-                  name="Unique visitors"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
-            <div className="flex items-center justify-between gap-4">
-              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                Period Summary
-              </h4>
-              <span className="text-xs text-slate-400">{days} days</span>
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Daily average
-                </p>
-                <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
-                  {trafficPeriodSummary.dailyAverage.toLocaleString(undefined, {
-                    maximumFractionDigits: 1,
-                  })}{' '}
-                  visits
-                </p>
+          {analyticsTab === 'articles' ? (
+            <TopArticles days={days} />
+          ) : (
+            <>
+              <div className="mb-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 px-2 py-3 dark:divide-white/10 dark:bg-admin-panel/70">
+                <div className="min-w-0 px-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Total visits
+                  </p>
+                  <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                    {trafficSummary.totalVisits.toLocaleString()}
+                  </p>
+                </div>
+                <div className="min-w-0 px-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Unique visitors
+                  </p>
+                  <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                    {trafficSummary.uniqueVisitors.toLocaleString()}
+                  </p>
+                </div>
+                <div className="min-w-0 px-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Active days
+                  </p>
+                  <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                    {trafficPeriodSummary.activeDays}/{chartData.length || days}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Peak day
-                </p>
-                <p className="mt-1 truncate text-sm font-bold text-slate-800 dark:text-white">
-                  {trafficPeriodSummary.peakDay}
-                </p>
+
+              <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <span className="flex items-center gap-2">
+                  <span className="size-2 rounded-sm bg-blue-500" aria-hidden="true" />
+                  Visits
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="h-0.5 w-4 bg-violet-500" aria-hidden="true" />
+                  Unique visitors
+                </span>
               </div>
-              <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Peak visits
-                </p>
-                <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
-                  {trafficPeriodSummary.peakVisits.toLocaleString()}
-                </p>
+
+              <div className="h-52 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#e2e8f0"
+                      opacity={0.3}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      dy={10}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '8px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      }}
+                      cursor={{ fill: 'var(--color-blue-100)' }}
+                    />
+                    <Bar
+                      dataKey="visits"
+                      name="Visits"
+                      fill="var(--color-blue-500)"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={32}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="uniqueVisitors"
+                      name="Unique visitors"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-          </div>
+
+              <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
+                <div className="flex items-center justify-between gap-4">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    Period Summary
+                  </h4>
+                  <span className="text-xs text-slate-400">{days} days</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Daily average
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
+                      {trafficPeriodSummary.dailyAverage.toLocaleString(undefined, {
+                        maximumFractionDigits: 1,
+                      })}{' '}
+                      visits
+                    </p>
+                  </div>
+                  <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Peak day
+                    </p>
+                    <p className="mt-1 truncate text-sm font-bold text-slate-800 dark:text-white">
+                      {trafficPeriodSummary.peakDay}
+                    </p>
+                  </div>
+                  <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-admin-panel/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Peak visits
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
+                      {trafficPeriodSummary.peakVisits.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Audit Log */}

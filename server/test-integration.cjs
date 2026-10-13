@@ -448,7 +448,7 @@ if (
   shareButtonsSource.includes("error.name === 'AbortError'") &&
   shareButtonsSource.includes('aria-label="Copy link"') &&
   shareButtonsSource.includes('FacebookShareButton') &&
-  shareButtonsSource.includes('TwitterShareButton') &&
+  shareButtonsSource.includes('XShareButton') &&
   shareButtonsSource.includes('WhatsappShareButton') &&
   shareButtonsSource.includes('LinkedinShareButton') &&
   shareButtonsSource.includes('TelegramShareButton') &&
@@ -465,6 +465,84 @@ if (
   fail(
     'Article Sharing Contract: clean URL handling or native/social fallback wiring has regressed.'
   );
+}
+
+try {
+  const React = require('react');
+  const sharing = require('react-share');
+  const component = loadTsModuleForSmokeWithMocks('src/components/ShareButtons.tsx', {
+    react: React,
+    'react/jsx-runtime': require('react/jsx-runtime'),
+    'react-share': sharing,
+    'lucide-react': require('lucide-react'),
+    'react-hot-toast': {},
+    '../utils/share': shareUtilsRuntime,
+  }).default;
+  const canonical = 'https://example.com/zangetsu/artikel';
+  const title = 'Berita & fakta + 测试';
+  const tree = component({ url: canonical + '?tracking=1#comments', title, size: 32 });
+  const cases = [
+    [sharing.FacebookShareButton, sharing.buildFacebookShareUrl, sharing.FacebookLegacyIcon, 'u'],
+    [sharing.XShareButton, sharing.buildXShareUrl, sharing.XLegacyIcon, 'url', 'text'],
+    [
+      sharing.WhatsappShareButton,
+      sharing.buildWhatsappShareUrl,
+      sharing.WhatsappLegacyIcon,
+      null,
+      'message',
+    ],
+    [sharing.LinkedinShareButton, sharing.buildLinkedinShareUrl, sharing.LinkedinLegacyIcon, 'url'],
+    [
+      sharing.TelegramShareButton,
+      sharing.buildTelegramShareUrl,
+      sharing.TelegramLegacyIcon,
+      'url',
+      'text',
+    ],
+    [
+      sharing.EmailShareButton,
+      sharing.buildEmailShareUrl,
+      sharing.EmailLegacyIcon,
+      null,
+      'subject',
+    ],
+  ];
+  const children = React.Children.toArray(tree.props.children);
+  for (const [type, buildUrl, icon, urlParameter, titleParameter] of cases) {
+    const button = children.find((child) => child.type === type);
+    if (!button || button.props.url !== canonical) throw new Error('Canonical share URL lost');
+    if (titleParameter && button.props[titleParameter] !== title) {
+      throw new Error('Share title not mapped to the current API');
+    }
+    const badge = button.props.children;
+    if (badge.type !== icon || badge.props.size !== 32 || badge.props.round !== true) {
+      throw new Error('Share badge sizing or style changed');
+    }
+    const generated = new URL(buildUrl(button.props.url, button.props));
+    if (urlParameter && generated.searchParams.get(urlParameter) !== canonical) {
+      throw new Error('Encoded share URL changed');
+    }
+    if (type === sharing.XShareButton || type === sharing.TelegramShareButton) {
+      if (generated.searchParams.get('text') !== title) throw new Error('Encoded title changed');
+    } else if (type === sharing.WhatsappShareButton) {
+      if (generated.searchParams.get('text') !== title + ':: ' + canonical) {
+        throw new Error('WhatsApp title or separator changed');
+      }
+    } else if (type === sharing.EmailShareButton) {
+      if (
+        generated.protocol !== 'mailto:' ||
+        generated.searchParams.get('subject') !== title ||
+        generated.searchParams.get('body') !== 'Check this out:\n' + canonical
+      ) {
+        throw new Error('Email subject or body changed');
+      }
+    }
+  }
+  pass(
+    'Sharing Dependency Runtime: six real buttons preserve canonical URLs, Unicode titles, encoding, separators, and badge styling with React Share 6.'
+  );
+} catch (error) {
+  fail(`Sharing Dependency Runtime: ${error.message}`);
 }
 
 const installerApiSource = read('public/api/install.php');
@@ -973,6 +1051,7 @@ const criticalFiles = [
   'public/api/post_query_helper.php',
   'public/api/ai_provider_helper.php',
   'public/api/analytics_consent_helper.php',
+  'public/api/post_views_helper.php',
   'public/api/contact_honeypot_helper.php',
   'public/api/content_embed_helper.php',
   'public/api/role_capability_helper.php',
@@ -3814,7 +3893,7 @@ if (
 
 const apiHelperDenyMarkers = [
   'RewriteRule ^.+\\.php/ - [R=404,L,NC]',
-  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]',
   'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
@@ -15276,7 +15355,7 @@ assertIncludes(
     'Storage scans the upload tree, so keep it independent from analytics period changes.',
     '}, [currentUser?.role]);',
     'Fetch analytics when the selected reporting period changes.',
-    '}, [days]);',
+    '}, [days, analyticsTab]);',
   ],
   'Dashboard Media Scan Budget: upload traversal is independent from traffic-period changes.',
   'Dashboard Media Scan Budget: changing analytics periods can trigger another upload traversal.'
@@ -17288,7 +17367,34 @@ if (
 }
 
 const phpBinary = findPhpBinary();
+const topArticlesUiProbe = spawnSync(
+  process.execPath,
+  [resolveFromRoot('server/test-top-articles.cjs')],
+  { encoding: 'utf8' }
+);
+if (topArticlesUiProbe.status === 0) {
+  pass(
+    'Top Articles UI: request races, unavailable states, text escaping and internal canonical links pass.'
+  );
+} else {
+  fail('Top Articles UI: ' + (topArticlesUiProbe.stderr || topArticlesUiProbe.stdout));
+}
 if (phpBinary) {
+  const dailyViewsProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/post-views.php')],
+    { encoding: 'utf8' }
+  );
+  if (
+    dailyViewsProbe.status === 0 &&
+    dailyViewsProbe.stdout.includes('focused daily view checks')
+  ) {
+    pass(
+      'Daily Article Views: atomic write, timezone, canonical URLs, bounded periods and unrepaired fallback pass.'
+    );
+  } else {
+    fail('Daily Article Views: ' + (dailyViewsProbe.stderr || dailyViewsProbe.stdout));
+  }
   const postScaleProbe = spawnSync(
     phpBinary,
     [resolveFromRoot('server/integration/post-scale.php')],
@@ -18077,6 +18183,7 @@ echo 'included';`,
     'role_capability_helper.php',
     'publication_time_helper.php',
     'post_query_helper.php',
+    'post_views_helper.php',
     'public_cache_helper.php',
   ]) {
     fs.copyFileSync(resolveFromRoot(`public/api/${file}`), path.join(analyticsConsentApiDir, file));
@@ -18185,12 +18292,19 @@ class VonTrackFakePdo extends PDO {
   public function exec(string $sql): int|false { $this->queries[] = $sql; return 0; }
 }
 $pdo = new VonTrackFakePdo();
+$GLOBALS['voncms_publication_capability_cache'] = ['version' => 1, 'post_daily_views' => true];
 register_shutdown_function(function () use ($pdo): void {
   $expectVisit = getenv('VON_TRACK_EXPECT_VISIT') === '1';
   $expectView = getenv('VON_TRACK_EXPECT_VIEW') === '1';
   $writes = count(array_filter($pdo->queries, fn($sql) => str_contains($sql, 'INSERT INTO analytics')));
   $views = count(array_filter($pdo->queries, fn($sql) => str_starts_with($sql, 'UPDATE posts') || str_starts_with($sql, 'UPDATE pages')));
   $analyticsQueries = count(array_filter($pdo->queries, fn($sql) => str_contains($sql, 'FROM analytics') || str_contains($sql, 'INTO analytics')));
+  $dailyWrites = count(array_filter($pdo->queries, fn($sql) => str_contains($sql, 'INSERT INTO post_daily_views')));
+  $expectedDaily = $expectView && isset($GLOBALS['input']['postId']);
+  if ($dailyWrites !== (int) $expectedDaily) {
+    fwrite(STDERR, 'Daily article aggregate did not match the accepted post event');
+    exit(55);
+  }
   if ($writes !== (int) $expectVisit || $views !== (int) $expectView || (!$expectVisit && $analyticsQueries !== 0)) {
     fwrite(STDERR, sprintf(
       'Unexpected analytics/view SQL side effects (writes=%d expected=%d views=%d expected=%d analytics=%d)',
@@ -18395,6 +18509,8 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
   for (const relativePath of [
     'public/api/analytics_consent_helper.php',
     'dist/api/analytics_consent_helper.php',
+    'public/api/post_views_helper.php',
+    'dist/api/post_views_helper.php',
   ]) {
     const directProbe = spawnSync(phpBinary, [resolveFromRoot(relativePath)], { encoding: 'utf8' });
     if (
