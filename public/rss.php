@@ -87,7 +87,7 @@ try {
    * stored post body or the public article. Inline presentation is removed and
    * remote embeds become ordinary links because many readers strip both.
    */
-  $sanitizeRssContent = function (?string $content): string {
+  $sanitizeRssContent = function (?string $content) use ($buildAbsoluteUrl): string {
     $content = trim((string) $content);
     if ($content === '') {
       return '';
@@ -128,7 +128,7 @@ try {
     }
 
     $blockedNodes = $xpath->query(
-      '//script|//style|//object|//embed|//link|//meta|//noscript|//template|//form|//input|//button',
+      '//script|//style|//object|//embed|//link|//meta|//noscript|//template|//form|//input|//button|//svg|//math',
       $root,
     );
     if ($blockedNodes instanceof DOMNodeList) {
@@ -171,6 +171,7 @@ try {
       }
     }
 
+    $urlAttributes = ['href', 'src', 'poster', 'cite', 'background', 'longdesc', 'xlink:href'];
     $elements = $xpath->query('.//*', $root);
     if ($elements instanceof DOMNodeList) {
       foreach ($elements as $element) {
@@ -184,9 +185,35 @@ try {
           if (
             $attributeName === 'style' ||
             $attributeName === 'srcdoc' ||
+            $attributeName === 'srcset' ||
+            $attributeName === 'ping' ||
             str_starts_with($attributeName, 'on')
           ) {
             $element->removeAttribute($attributeName);
+          } elseif (in_array($attributeName, $urlAttributes, true)) {
+            // DOM has decoded HTML entities: validate the final URL, not raw markup.
+            $url = trim((string) $attribute->nodeValue);
+            $parts = parse_url($url);
+            $path = preg_split('/[?#]/', $url, 2)[0];
+            if (
+              $url !== '' &&
+              is_array($parts) &&
+              !isset($parts['scheme']) &&
+              !str_starts_with($url, '#') &&
+              !str_contains($path, ':') &&
+              !str_contains($url, '\\') &&
+              !preg_match('/[\x00-\x20\x7f]/', $url)
+            ) {
+              $url = $buildAbsoluteUrl($url);
+            }
+            $safeUrl = in_array($attributeName, ['href', 'xlink:href'], true)
+              ? voncms_noscript_safe_link_href($url)
+              : voncms_normalize_public_media_url($url);
+            if ($safeUrl === '') {
+              $element->removeAttribute($attributeName);
+            } else {
+              $element->setAttribute($attributeName, $safeUrl);
+            }
           }
         }
       }

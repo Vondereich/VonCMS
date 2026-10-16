@@ -304,17 +304,73 @@ function loadSmtpSettings()
  * @param string $fromName
  * @return array<string, mixed>
  */
+/** RFC 2047 encoded words, folded without splitting UTF-8 code points. */
+function voncms_encode_mail_header(string $value): string
+{
+  $value = str_replace(["\r", "\n", "\0"], '', $value);
+  $characters = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+  if ($characters === false) {
+    $characters = str_split($value);
+  }
+  $words = [];
+  $chunk = '';
+  foreach ($characters as $character) {
+    if (strlen($chunk . $character) > 42) {
+      $words[] = '=?UTF-8?B?' . base64_encode($chunk) . '?=';
+      $chunk = '';
+    }
+    $chunk .= $character;
+  }
+  if ($chunk !== '') {
+    $words[] = '=?UTF-8?B?' . base64_encode($chunk) . '?=';
+  }
+  return implode("\r\n ", $words);
+}
+
+/** @return array{subject: string, headers: array<int, string>, body: string} */
+function voncms_build_mail_message(
+  string $subject,
+  string $htmlBody,
+  string $fromEmail,
+  string $fromName,
+  string $replyTo,
+): array {
+  foreach ([$fromEmail, $replyTo] as $address) {
+    if (!filter_var($address, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n\0]/', $address)) {
+      throw new InvalidArgumentException('Invalid mail header address.');
+    }
+  }
+  $body = preg_replace('/\r\n|\r|\n/', "\r\n", $htmlBody);
+  return [
+    'subject' => voncms_encode_mail_header($subject),
+    'headers' => [
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      'From: ' . voncms_encode_mail_header($fromName) . ' <' . $fromEmail . '>',
+      'Reply-To: ' . $replyTo,
+      'X-Mailer: VonCMS',
+    ],
+    'body' => rtrim(chunk_split(base64_encode($body ?? ''), 76, "\r\n"), "\r\n"),
+  ];
+}
+
 function sendWithPhpMail($to, $subject, $htmlBody, $fromEmail, $fromName)
 {
-  $headers = [
-    'MIME-Version: 1.0',
-    'Content-type: text/html; charset=UTF-8',
-    'From: ' . $fromName . ' <' . $fromEmail . '>',
-    'Reply-To: ' . $fromEmail,
-    'X-Mailer: VonCMS',
-  ];
-
-  $result = mail($to, $subject, $htmlBody, implode("\r\n", $headers));
+  try {
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n\0]/', $to)) {
+      throw new InvalidArgumentException('Invalid recipient.');
+    }
+    $message = voncms_build_mail_message($subject, $htmlBody, $fromEmail, $fromName, $fromEmail);
+    $result = mail(
+      $to,
+      $message['subject'],
+      $message['body'],
+      implode("\r\n", $message['headers']),
+    );
+  } catch (Throwable $error) {
+    $result = false;
+  }
 
   return [
     'success' => $result,
@@ -553,26 +609,17 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     $expectResponse($dataResp, [354], 'DATA');
 
     // Email content
-    $email = "From: $fromName <$fromEmail>\r\n";
-    $email .= "To: $to\r\n";
-    $email .= "Subject: $subject\r\n";
-    $email .= "MIME-Version: 1.0\r\n";
-    $email .= "Content-Type: text/html; charset=UTF-8\r\n";
-
-    // Add Reply-To if provided Robustness
-    $replyTo = $config['replyTo'] ?? $fromEmail;
-    if ($replyTo) {
-      $email .= "Reply-To: $replyTo\r\n";
-    }
-
-    $email .= "X-Mailer: VonCMS\r\n";
-    $email .= "\r\n";
-
-    // RFC 5321 Dot-Stuffing: If body contains a line starting with '.', prepend another '.'
-    $safeHtmlBody = preg_replace('/^\./m', '..', $htmlBody);
-
-    $email .= $safeHtmlBody;
-    $email .= "\r\n.\r\n";
+    $message = voncms_build_mail_message(
+      $subject,
+      $htmlBody,
+      $fromEmail,
+      $fromName,
+      (string) ($config['replyTo'] ?? $fromEmail),
+    );
+    $email = 'To: ' . $to . "\r\nSubject: " . $message['subject'] . "\r\n";
+    $email .= implode("\r\n", $message['headers']) . "\r\n\r\n";
+    // Base64 lines cannot contain a SMTP terminator; keep final dot-stuffing explicit.
+    $email .= preg_replace('/^\./m', '..', $message['body']) . "\r\n.\r\n";
 
     $writeSocket($email);
     $dataResponse = $getResponse();

@@ -319,7 +319,11 @@ location ~* \.php/ {
 
 # Block internal API helper files. These regex blocks must appear before
 # aaPanel's generic PHP-FPM regex handler.
-location ~* ^/api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
+location ~* ^/(?:public/)?core(?:/|$) {
+    deny all;
+}
+
+location ~* ^/api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
     deny all;
 }
 
@@ -484,6 +488,11 @@ for path in \
     "/api/media_library_filter_helper.php" \
     "/api/publication_time_helper.php" \
     "/api/post_query_helper.php" \
+    "/core/RateLimiter.php" \
+    "/core/ContentViewDeduplicator.php" \
+    "/core/InstallBootstrap.php" \
+    "/core/ResponseHelper.php" \
+    "/api/post_views_helper.php" \
     "/api/public_cache_helper.php" \
     "/api/redirect_loop_helper.php" \
     "/api/role_capability_helper.php" \

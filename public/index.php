@@ -984,7 +984,7 @@ $cssFile = $publicAssets['cssFile'];
 
 
   <script>
-    window.VON_BASE = '<?php echo $basePath; ?>';
+    window.VON_BASE = <?php echo json_encode($basePath, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
   </script>
   <?php
   // 1.20.0 FIX: Settings Hydration to prevent default fallbacks in bot crawls

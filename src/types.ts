@@ -422,6 +422,8 @@ export type SiteDateFormat =
 export type AdminPaletteId = 'charcoal-blue' | 'meadow-gold' | 'harbour-amber';
 
 export interface SiteSettings {
+  /** Runtime-only read scope; never an authorization grant or a persisted setting. */
+  _settingsScope?: 'public' | 'admin';
   siteName: string;
   siteUrl?: string; // Base URL (supports subfolders)
   site_language?: string; // ISO language code

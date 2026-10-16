@@ -40,6 +40,7 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
                 ALLOW_DATA_ATTR: true,
                 FORCE_BODY: true,
                 styleAllowlist: AD_ALLOWED_STYLE_PROPS,
+                sandboxedAdContent: true,
               });
             } catch {
               return '';
@@ -51,7 +52,7 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
 
   // Stylesheets can affect the parent page even without scripts. Keep them isolated too.
   const requiresIsolation = useMemo(
-    () => /<(script|iframe|style)(?:\s|\/?>)/i.test(safeContent),
+    () => /<(script|iframe|style|form|input|button|select|textarea)(?:\s|\/?>)/i.test(safeContent),
     [safeContent]
   );
 

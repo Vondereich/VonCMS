@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Post, Page, type PostStatus, type UserRole } from '../../../../types';
-import { sanitizeHtml } from '../../../../utils/security';
+import { decodeEntities } from '../../../../utils/textUtils';
 import { vonFetch } from '../../../../utils/api';
 import { API } from '../../../../config/site.config';
 import { Plus, CheckSquare, Square, Trash2, Search } from 'lucide-react';
@@ -540,10 +540,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           </button>
                         )}
                         <div className="min-w-0 flex-1">
-                          <h3
-                            className="font-semibold leading-snug text-slate-900 dark:text-white"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.title) }}
-                          />
+                          <h3 className="font-semibold leading-snug text-slate-900 dark:text-white">
+                            {decodeEntities(item.title)}
+                          </h3>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -711,10 +710,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         )}
                       </td>
                       <td className="px-4 py-4 pr-8 min-w-0">
-                        <p
-                          className="font-semibold text-slate-900 dark:text-white truncate max-w-full leading-snug"
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.title) }}
-                        />
+                        <p className="font-semibold text-slate-900 dark:text-white truncate max-w-full leading-snug">
+                          {decodeEntities(item.title)}
+                        </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-full mt-1">
                           {(() => {
                             const html = 'excerpt' in item ? item.excerpt || '' : '';

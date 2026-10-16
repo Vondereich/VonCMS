@@ -74,6 +74,7 @@ function getHtaccessContent($prefix)
 
     # Reject PHP PATH_INFO aliases before any crawler or file fast-path can exit.
     RewriteRule ^.+\.php/ - [R=404,L,NC]
+    RewriteRule ^(?:public/)?core(/.*)?$ - [F,L,NC]
 
     # =====================================================
     # PRIORITY 1 - VVIP LANE FOR SOCIAL CRAWLERS
@@ -488,9 +489,13 @@ function repairUploadsShield($publicPath, $projectRoot)
  * @param string $publicPath
  * @return array{status: string, path: string}
  */
-function repairDataShield($publicPath)
+/** @param 'data'|'core' $directory */
+function repairDataShield($publicPath, $directory = 'data')
 {
-  $dataDir = $publicPath . '/data';
+  if (!in_array($directory, ['data', 'core'], true)) {
+    throw new InvalidArgumentException('Invalid internal shield directory.');
+  }
+  $dataDir = $publicPath . '/' . $directory;
   if (!is_dir($dataDir)) {
     return [
       'status' => 'skipped',
@@ -584,6 +589,19 @@ if ($dataRepair['status'] === 'written') {
   $repairs[] = 'INFO: Runtime data directory not found. Shield repair skipped.';
 } else {
   $repairs[] = 'WARN: Failed to repair runtime data .htaccess shield.';
+  $failed = true;
+}
+
+$coreRepair = repairDataShield($publicPath, 'core');
+if ($coreRepair['status'] === 'written') {
+  $repairs[] = 'OK: Internal core .htaccess shield repaired.';
+  $changesApplied = true;
+} elseif ($coreRepair['status'] === 'unchanged') {
+  $repairs[] = 'INFO: Internal core .htaccess shield was already healthy.';
+} elseif ($coreRepair['status'] === 'skipped') {
+  $repairs[] = 'INFO: Internal core directory not found. Shield repair skipped.';
+} else {
+  $repairs[] = 'WARN: Failed to repair internal core .htaccess shield.';
   $failed = true;
 }
 

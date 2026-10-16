@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../security.php';
 require_once __DIR__ . '/../public_cache_helper.php';
 require_once __DIR__ . '/../publication_time_helper.php';
 require_once __DIR__ . '/../content_embed_helper.php';
+require_once __DIR__ . '/../../seo_schema_helper.php';
 define('VONCMS_WP_IMPORT_CONTEXT', true);
 require_once __DIR__ . '/wp_wxr_reader_helper.php';
 sendApiHeaders('POST, OPTIONS');
@@ -359,22 +360,40 @@ function import_remote_ip_is_public($ip)
     return false;
   }
 
-  if (stripos($ip, '::ffff:') === 0) {
-    $mappedIp = substr($ip, 7);
-    if (filter_var($mappedIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-      return filter_var(
-        $mappedIp,
-        FILTER_VALIDATE_IP,
-        FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
-      ) !== false;
+  $packedIp = @inet_pton($ip);
+  if ($packedIp === false) {
+    return false;
+  }
+
+  // HTTP media origins must be unicast, not multicast destinations.
+  if (strlen($packedIp) === 4 && (ord($packedIp[0]) & 0xf0) === 0xe0) {
+    return false;
+  }
+  if (strlen($packedIp) === 16) {
+    // Inspect embedded IPv4 bytes, including hexadecimal mapped-address aliases.
+    $prefix = substr($packedIp, 0, 12);
+    if (
+      $prefix === str_repeat("\0", 10) . "\xff\xff" ||
+      $prefix === hex2bin('0064ff9b0000000000000000')
+    ) {
+      return import_remote_ip_is_public(inet_ntop(substr($packedIp, 12)));
+    }
+    // Local-use translation, deprecated tunnels and IPv4-compatible addresses
+    // are not ordinary globally routable media origins.
+    if (
+      $prefix === str_repeat("\0", 12) ||
+      (ord($packedIp[0]) & 0xe0) !== 0x20 ||
+      (substr($packedIp, 0, 2) === hex2bin('3fff') && (ord($packedIp[2]) & 0xf0) === 0) ||
+      substr($packedIp, 0, 6) === hex2bin('0064ff9b0001') ||
+      substr($packedIp, 0, 2) === hex2bin('2002') ||
+      substr($packedIp, 0, 4) === hex2bin('20010000')
+    ) {
+      return false;
     }
   }
 
-  return filter_var(
-    $ip,
-    FILTER_VALIDATE_IP,
-    FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
-  ) !== false;
+  // PHP 8.2+ excludes shared, documentation and benchmark ranges as well as LANs.
+  return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_GLOBAL_RANGE) !== false;
 }
 
 /**
@@ -1262,7 +1281,96 @@ function remap_internal_links($html, $sourceBaseUrls, $targetBaseUrl)
   );
 }
 
+/** Strip active imported HTML before storage; public rendering retains its own safeguards. */
+function sanitize_imported_content_html(string $html): string
+{
+  if ($html === '') {
+    return '';
+  }
+  if (!class_exists('DOMDocument') || !class_exists('DOMXPath')) {
+    throw new RuntimeException('WordPress HTML import requires the PHP DOM extension.');
+  }
+
+  $previousErrors = libxml_use_internal_errors(true);
+  $document = new DOMDocument('1.0', 'UTF-8');
+  try {
+    $loaded = $document->loadHTML(
+      '<?xml encoding="UTF-8"><html><body>' . $html . '</body></html>',
+      LIBXML_HTML_NODEFDTD | LIBXML_NONET,
+    );
+  } finally {
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousErrors);
+  }
+  $root = $document->getElementsByTagName('body')->item(0);
+  if (!$loaded || !($root instanceof DOMElement)) {
+    throw new RuntimeException('WordPress HTML content could not be sanitized.');
+  }
+
+  $xpath = new DOMXPath($document);
+  $blocked = $xpath->query(
+    '//script|//style|//object|//embed|//link|//meta|//base|//noscript|//template|//svg|//math|//form|//input|//button|//select|//option|//textarea|//frame|//frameset|//applet',
+  );
+  if ($blocked instanceof DOMNodeList) {
+    foreach (array_reverse(iterator_to_array($blocked)) as $node) {
+      $node->parentNode?->removeChild($node);
+    }
+  }
+
+  foreach ($xpath->query('.//*', $root) ?: [] as $element) {
+    if (!($element instanceof DOMElement)) {
+      continue;
+    }
+    foreach (array_reverse(iterator_to_array($element->attributes)) as $attribute) {
+      $name = strtolower($attribute->nodeName);
+      if (
+        str_starts_with($name, 'on') ||
+        in_array($name, ['srcdoc', 'srcset', 'ping', 'xlink:href'], true)
+      ) {
+        $element->removeAttributeNode($attribute);
+      } elseif (
+        in_array(
+          $name,
+          [
+            'href',
+            'src',
+            'poster',
+            'cite',
+            'background',
+            'longdesc',
+            'action',
+            'formaction',
+            'data',
+          ],
+          true,
+        )
+      ) {
+        $url = trim($attribute->nodeValue);
+        if (str_starts_with($url, '//')) {
+          $url = 'https:' . $url;
+        }
+        $safe = $name === 'href' ? voncms_noscript_safe_link_href($url) : '';
+        if ($safe === '') {
+          $safe = voncms_normalize_public_media_url($url);
+        }
+        if ($safe === '') {
+          $element->removeAttributeNode($attribute);
+        } else {
+          $element->setAttribute($attribute->nodeName, $safe);
+        }
+      }
+    }
+  }
+
+  $result = '';
+  foreach ($root->childNodes as $node) {
+    $result .= $document->saveHTML($node);
+  }
+  return $result;
+}
+
 /**
+ * Normalize both post/page imports before their prepared INSERT statements.
  * @param string $html
  * @param array<int, string> $sourceBaseUrls
  * @param string $targetBaseUrl
@@ -1276,7 +1384,7 @@ function normalize_imported_content($html, $sourceBaseUrls, $targetBaseUrl)
   $cleaned = preg_replace('/<p>\s*(?:&nbsp;|\s|<br\s*\/?>)*<\/p>/i', '', $cleaned);
   $cleaned = preg_replace('/\n{3,}/', "\n\n", $cleaned);
 
-  return trim(voncms_sanitize_content_iframes((string) $cleaned));
+  return trim(sanitize_imported_content_html(voncms_sanitize_content_iframes((string) $cleaned)));
 }
 
 debug_log('Import script started');

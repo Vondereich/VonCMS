@@ -63,6 +63,13 @@ function normalizeAdminReadQuery(string $sql): string
     );
   }
 
+  if (preg_match('/^EXPLAIN\s+(?:FORMAT\s*=\s*(?:TREE|JSON|TRADITIONAL)\s+)?ANALYZE\b/i', $sql)) {
+    ResponseHelper::sendError(
+      'EXPLAIN ANALYZE executes SQL and is not allowed in read-only inspection.',
+      403,
+    );
+  }
+
   if (
     preg_match(
       '/\b(INTO\s+OUTFILE|INTO\s+DUMPFILE|LOAD_FILE|LOAD\s+DATA|BENCHMARK|SLEEP)\b/i',
@@ -73,6 +80,17 @@ function normalizeAdminReadQuery(string $sql): string
   }
 
   return $sql;
+}
+
+/** The database, not just the SQL prefix, must enforce the inspection contract. */
+function beginAdminReadTransaction(PDO $pdo): void
+{
+  if ($pdo->inTransaction() || $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') {
+    throw new RuntimeException(
+      'Read-only inspection requires an independent MySQL/MariaDB transaction.',
+    );
+  }
+  $pdo->exec('START TRANSACTION READ ONLY');
 }
 
 /**
@@ -101,6 +119,7 @@ try {
   // Mode 1: Raw admin read query used by Database Manager.
   if (isset($input['query'])) {
     $sql = normalizeAdminReadQuery((string) $input['query']);
+    beginAdminReadTransaction($pdo);
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
 
@@ -111,6 +130,8 @@ try {
     }
 
     $result = fetchLimitedRows($stmt);
+    $stmt->closeCursor();
+    $pdo->rollBack();
     $message = 'Query executed successfully';
     if ($result['truncated']) {
       $message .= ' (limited to first 500 rows)';
@@ -161,5 +182,8 @@ try {
 
   ResponseHelper::sendError('Invalid request format. "query" or "table" is required.', 400);
 } catch (Throwable $e) {
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
   ResponseHelper::sendError($e);
 }

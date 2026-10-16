@@ -129,79 +129,96 @@ export function useSettings() {
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
   const settingsRef = useRef<SiteSettings>(INITIAL_SETTINGS);
   const loadSettingsInFlightRef = useRef<Promise<boolean> | null>(null);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(false);
+  const [settingsLoadFailed, setSettingsLoadFailed] = useState(false);
 
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
 
-  const executeSettingsRequest = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await vonFetch(API.settings);
-      if (res.ok) {
-        const text = await res.text();
-        try {
-          const data = JSON.parse(text);
+  const executeSettingsRequest = useCallback(
+    async (requireAdminScope: boolean): Promise<boolean> => {
+      let loaded = false;
+      setIsSettingsLoading(true);
+      setSettingsLoadFailed(false);
+      try {
+        const res = await vonFetch(API.settings);
+        if (res.ok) {
+          const text = await res.text();
+          try {
+            const data = JSON.parse(text);
 
-          // Check installation status
-          if (data && data.installed === false) {
-            console.warn('System not installed. Redirecting to installer...');
-            const currentPath = window.location.pathname;
-            if (!currentPath.endsWith('/install')) {
-              window.location.href = `${BASE_PATH}install`;
-              return true;
+            // Check installation status
+            if (data && data.installed === false) {
+              console.warn('System not installed. Redirecting to installer...');
+              const currentPath = window.location.pathname;
+              if (!currentPath.endsWith('/install')) {
+                window.location.href = `${BASE_PATH}install`;
+                loaded = true;
+                return true;
+              }
             }
-          }
 
-          if (data) {
-            setSettings((prev) => ({
-              ...prev,
-              ...data,
-              ads: { ...prev.ads, ...(data.ads || {}) },
-              theme: { ...prev.theme, ...(data.theme || {}) },
-              api: { ...prev.api, ...(data.api || {}) },
-              media: {
-                ...prev.media,
-                ...(data.media || {}),
-                optimization: {
-                  ...prev.media.optimization,
-                  ...(data.media?.optimization || {}),
+            if (data) {
+              setSettings((prev) => ({
+                ...prev,
+                ...data,
+                _settingsScope: data._settingsScope === 'admin' ? 'admin' : 'public',
+                ads: { ...prev.ads, ...(data.ads || {}) },
+                theme: { ...prev.theme, ...(data.theme || {}) },
+                api: { ...prev.api, ...(data.api || {}) },
+                media: {
+                  ...prev.media,
+                  ...(data.media || {}),
+                  optimization: {
+                    ...prev.media.optimization,
+                    ...(data.media?.optimization || {}),
+                  },
+                  storage: {
+                    ...prev.media.storage,
+                    ...(data.media?.storage || {}),
+                  },
+                  performance: {
+                    ...prev.media.performance,
+                    ...(data.media?.performance || {}),
+                  },
                 },
-                storage: {
-                  ...prev.media.storage,
-                  ...(data.media?.storage || {}),
+                seo: {
+                  ...(prev.seo || {}),
+                  ...(data.seo || {}),
+                  articleSchemaType: normalizeArticleSchemaType(
+                    data.seo?.articleSchemaType || prev.seo?.articleSchemaType
+                  ),
                 },
-                performance: {
-                  ...prev.media.performance,
-                  ...(data.media?.performance || {}),
-                },
-              },
-              seo: {
-                ...(prev.seo || {}),
-                ...(data.seo || {}),
-                articleSchemaType: normalizeArticleSchemaType(
-                  data.seo?.articleSchemaType || prev.seo?.articleSchemaType
-                ),
-              },
-            }));
-            return true;
+              }));
+              loaded = !requireAdminScope || data._settingsScope === 'admin';
+              return loaded;
+            }
+          } catch (e) {
+            console.error('Failed to parse settings JSON:', e);
+            return false;
           }
-        } catch (e) {
-          console.error('Failed to parse settings JSON:', e);
-          return false;
+        } else {
+          console.warn('Failed to load settings from database, status:', res.status);
         }
-      } else {
-        console.warn('Failed to load settings from database, status:', res.status);
+      } catch (e) {
+        console.error('Failed to load settings from database:', e);
+      } finally {
+        setIsSettingsLoading(false);
+        setSettingsLoadFailed(!loaded);
       }
-    } catch (e) {
-      console.error('Failed to load settings from database:', e);
-    }
-    return false;
-  }, []);
+      return false;
+    },
+    []
+  );
 
   // Load settings from database. Same-scope callers share one request, while login can queue a
   // protected refresh after a guest request that was already in flight.
   const loadSettings = useCallback(
-    async (forceRefresh = false): Promise<boolean> => {
+    async (
+      forceRefresh = false,
+      requireAdminScope = settingsRef.current._settingsScope === 'admin'
+    ): Promise<boolean> => {
       const activeRequest = loadSettingsInFlightRef.current;
       if (activeRequest) {
         const activeRequestSucceeded = await activeRequest;
@@ -210,7 +227,7 @@ export function useSettings() {
         }
       }
 
-      const request = executeSettingsRequest();
+      const request = executeSettingsRequest(requireAdminScope);
       loadSettingsInFlightRef.current = request;
       try {
         return await request;
@@ -265,6 +282,11 @@ export function useSettings() {
     async (newSettings: SiteSettings, options: { optimistic?: boolean } = {}): Promise<boolean> => {
       const optimistic = options.optimistic !== false;
       const previousSettings: SiteSettings = settingsRef.current;
+      // Both the current state and the form draft must originate from a complete admin read.
+      if (previousSettings._settingsScope !== 'admin' || newSettings._settingsScope !== 'admin') {
+        toast.error('Admin settings are not ready. Reload settings before saving.');
+        return false;
+      }
       const settingsPatch = createSettingsPatch(previousSettings, newSettings);
       if (Object.keys(settingsPatch).length === 0) {
         return true;
@@ -406,6 +428,8 @@ export function useSettings() {
     settings,
     setSettings,
     loadSettings,
+    isSettingsLoading,
+    settingsLoadFailed,
     handleUpdateSettings,
     onToggleNav,
     INITIAL_SETTINGS,

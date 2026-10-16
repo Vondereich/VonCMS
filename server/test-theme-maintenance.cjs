@@ -1030,9 +1030,338 @@ async function checkNewsletterPagination() {
   );
 }
 
+function checkPublicPluginHydration() {
+  const projected = {
+    discussionEnabled: false,
+    sidebarLayout: [],
+    navigation: [],
+    activePlugins: ['vp_related_posts'],
+    pluginConfig: { vp_related_posts: { enabled: false, count: 0, titleText: '' } },
+  };
+  let hydrated;
+  const hook = load(
+    'src/hooks/useSettings.ts',
+    {
+      ...React,
+      useState: (initial) => {
+        if (hydrated === undefined) hydrated = initial;
+        return [initial, noop];
+      },
+      useRef: (initial) => ({ current: initial }),
+      useCallback: (callback) => callback,
+      useEffect: noop,
+    },
+    {},
+    { window: { __INITIAL_SETTINGS__: projected } }
+  );
+  hook.useSettings();
+  assert.equal(hydrated.discussionEnabled, false);
+  assert.deepEqual(Array.from(hydrated.sidebarLayout), []);
+  assert.deepEqual(Array.from(hydrated.navigation), []);
+  assert.equal(hydrated.pluginConfig.vp_related_posts.enabled, false);
+  assert.equal(hydrated.pluginConfig.vp_related_posts.count, 0);
+  assert.equal(hydrated.pluginConfig.vp_related_posts.titleText, '');
+  const isActive = load('src/utils/pluginRuntime.ts').isSystemPluginActive;
+  assert.equal(isActive(hydrated, 'vp_promo_bar'), false);
+  assert.equal(isActive(hydrated, 'vp_related_posts'), true);
+}
+
+async function checkAdminSettingsReadiness() {
+  const slots = [];
+  const reads = [];
+  const writes = [];
+  const errors = [];
+  let cursor = 0,
+    effects = [],
+    dirty = false,
+    current;
+  const same = (a, b) =>
+    a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
+  const hooks = {
+    ...React,
+    useState(initial) {
+      const i = cursor++;
+      if (!(i in slots)) slots[i] = { value: initial };
+      return [
+        slots[i].value,
+        (next) => {
+          slots[i].value = typeof next === 'function' ? next(slots[i].value) : next;
+          dirty = true;
+        },
+      ];
+    },
+    useRef(initial) {
+      const i = cursor++;
+      if (!(i in slots)) slots[i] = { current: initial };
+      return slots[i];
+    },
+    useCallback(callback, deps) {
+      const i = cursor++;
+      if (!slots[i] || !same(slots[i].deps, deps)) slots[i] = { value: callback, deps };
+      return slots[i].value;
+    },
+    useEffect(effect, deps) {
+      const i = cursor++;
+      if (!slots[i] || !same(slots[i].deps, deps)) {
+        slots[i] = { deps };
+        effects.push(effect);
+      }
+    },
+  };
+  const publicState = {
+    discussionEnabled: false,
+    activePlugins: ['vp_related_posts'],
+    pluginConfig: {
+      pluginStatus: { vp_related_posts: 'active' },
+      vp_related_posts: { enabled: true },
+    },
+    sidebarLayout: [],
+    navigation: [],
+  };
+  const fullState = {
+    ...publicState,
+    _settingsScope: 'admin',
+    pluginConfig: {
+      ...publicState.pluginConfig,
+      pluginStatus: {
+        vp_related_posts: 'active',
+        vp_promo_bar: 'inactive',
+        vp_gift_widget: 'inactive',
+      },
+      vp_promo_bar: { text: 'SAVED_RAYA_TEXT' },
+      vp_gift_widget: { targetUrl: 'https://example.test/gift' },
+    },
+  };
+  const hook = load(
+    'src/hooks/useSettings.ts',
+    hooks,
+    {
+      '../config/site.config': {
+        API: { settings: 'settings', saveSettings: 'save' },
+        BASE_PATH: '/zangetsu/',
+      },
+      '../config/auth.config': { getAuthHeader: () => null },
+      '../utils/api': {
+        vonFetch: (url, options) => {
+          if (url === 'settings') return new Promise((resolve) => reads.push({ resolve }));
+          assert.equal(url, 'save');
+          writes.push(JSON.parse(options.body));
+          return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
+        },
+      },
+      'react-hot-toast': {
+        __esModule: true,
+        default: { error: (value) => errors.push(value), success: noop },
+      },
+    },
+    {
+      window: {
+        __INITIAL_SETTINGS__: publicState,
+        addEventListener: noop,
+        removeEventListener: noop,
+      },
+      console: { error: noop, warn: noop },
+    }
+  );
+  const draw = () => {
+    let count = 0;
+    do {
+      assert.ok(count++ < 10);
+      cursor = 0;
+      dirty = false;
+      effects = [];
+      current = hook.useSettings();
+      effects.forEach((effect) => effect());
+    } while (dirty);
+    return current;
+  };
+  const response = (data) => ({ ok: true, text: async () => JSON.stringify(data) });
+  draw();
+  const staleDraft = { ...current.settings, activePlugins: ['vp_related_posts', 'vp_promo_bar'] };
+  assert.equal(await current.handleUpdateSettings(staleDraft), false);
+  const guest = current.loadSettings();
+  const admin = current.loadSettings(true, true);
+  draw();
+  assert.equal(current.isSettingsLoading, true);
+  assert.equal(await current.handleUpdateSettings(staleDraft), false);
+  reads[0].resolve(response(publicState));
+  await guest;
+  for (let i = 0; i < 4; i++) await Promise.resolve();
+  assert.equal(reads.length, 2);
+  draw();
+  assert.equal(current.settings._settingsScope, 'public');
+  reads[1].resolve({ ok: false, status: 503 });
+  assert.equal(await admin, false);
+  draw();
+  assert.equal(current.settingsLoadFailed, true);
+  assert.equal(await current.handleUpdateSettings(staleDraft), false);
+  assert.equal(writes.length, 0);
+  const expiredSession = current.loadSettings(true, true);
+  reads[2].resolve(response(publicState));
+  assert.equal(await expiredSession, false, 'A public response cannot satisfy an admin read');
+  draw();
+  assert.equal(current.settingsLoadFailed, true);
+  assert.equal(current.isSettingsLoading, false);
+  assert.equal(await current.handleUpdateSettings(staleDraft), false);
+  assert.equal(writes.length, 0);
+  const retry = current.loadSettings(true, true);
+  draw();
+  assert.equal(current.settingsLoadFailed, false);
+  reads[3].resolve(response(fullState));
+  assert.equal(await retry, true);
+  draw();
+  assert.equal(current.settings._settingsScope, 'admin');
+  assert.equal(
+    await current.handleUpdateSettings(staleDraft),
+    false,
+    'Old public drafts remain unsafe after refresh'
+  );
+  assert.equal(writes.length, 0);
+  const next = {
+    ...current.settings,
+    activePlugins: ['vp_related_posts', 'vp_promo_bar'],
+    pluginConfig: {
+      ...current.settings.pluginConfig,
+      pluginStatus: { ...current.settings.pluginConfig.pluginStatus, vp_promo_bar: 'active' },
+    },
+  };
+  assert.equal(await current.handleUpdateSettings(next, { optimistic: false }), true);
+  assert.equal(writes[0].pluginConfig.vp_promo_bar.text, 'SAVED_RAYA_TEXT');
+  assert.equal(writes[0].pluginConfig.vp_gift_widget.targetUrl, 'https://example.test/gift');
+  draw();
+  assert.equal(
+    await current.handleUpdateSettings({ ...current.settings, siteTagline: 'Identity edit' }),
+    true
+  );
+  assert.equal(writes[1].pluginConfig, undefined);
+  assert.equal(current.settings.discussionEnabled, false);
+  assert.ok(errors.length >= 4);
+
+  const Loader = () => null,
+    Navigate = () => null;
+  const Gate = load('src/components/ProtectedRoute.tsx', React, {
+    './PrivateEntryLoader': { __esModule: true, default: Loader },
+    'react-router': { Navigate },
+  }).default;
+  for (const role of ['Root', 'Admin']) {
+    const props = {
+      user: { ...user, role },
+      areSettingsReady: false,
+      children: 'PRIVATE_SETTINGS',
+    };
+    assert.equal(Gate(props).type, Loader);
+    const failed = Gate({ ...props, settingsLoadFailed: true, onRetrySettings: noop });
+    assert.doesNotMatch(renderToStaticMarkup(failed), /PRIVATE_SETTINGS/);
+    assert.match(renderToStaticMarkup(failed), /Try again/);
+    assert.equal(Gate({ ...props, areSettingsReady: true }).props.children, 'PRIVATE_SETTINGS');
+  }
+  assert.equal(Gate({ user: null, areSettingsReady: false, children: 'PRIVATE' }).type, Navigate);
+  for (const role of ['Moderator', 'Writer']) {
+    assert.equal(
+      Gate({ user: { ...user, role }, children: 'STAFF_CONTENT' }).props.children,
+      'STAFF_CONTENT'
+    );
+  }
+  console.log(
+    'PASS Admin Settings Readiness: pending/failed/retried full reads block partial and stale drafts; saved inactive config, identity-only edits, comments OFF and staff route permissions remain intact.'
+  );
+}
+
+function checkCategoryFolderAdvisory() {
+  const siteUtils = load('src/utils/siteUtils.ts', React, {
+    '../config/site.config': { BASE_PATH: '/zangetsu/' },
+  });
+  for (const folder of [
+    'api',
+    'assets',
+    'backups',
+    'core',
+    'data',
+    'docs',
+    'fonts',
+    'themes',
+    'uploads',
+  ]) {
+    for (const category of [folder, folder.toUpperCase(), ` _${folder}_ `, `${folder}!`]) {
+      assert.equal(siteUtils.getCategoryFolderConflict(category), folder);
+    }
+  }
+  for (const category of [
+    undefined,
+    null,
+    '',
+    'News',
+    'Core News',
+    'database',
+    'my-core',
+    'temporary_update',
+  ]) {
+    assert.equal(siteUtils.getCategoryFolderConflict(category), null);
+  }
+  const PostEditor = load('src/components/PostEditor.tsx', React, {
+    '../utils/siteUtils': siteUtils,
+    '../utils/contentCapabilities': load('src/utils/contentCapabilities.ts'),
+    '../hooks/useDebouncedSearchQuery': {
+      useDebouncedSearchQuery: () => ({ query: '', commit: noop }),
+    },
+    '../hooks/useAiWriting': { useAiWriting: () => ({}) },
+    './editor/postEditorSaveHelpers': load('src/components/editor/postEditorSaveHelpers.ts'),
+    './editor/postEditorTextHelpers': { getPostEditorCleanText: (value) => value },
+  }).default;
+  const props = {
+    initialItem: { ...posts[0], status: 'draft', category: 'Core' },
+    initialItemIsComplete: true,
+    isPage: false,
+    navigation: [],
+    settings,
+    userRole: 'Admin',
+    onSave: noop,
+    onBack: noop,
+  };
+  for (const permalinkStructure of ['slug', 'category']) {
+    const html = render(PostEditor, { ...props, settings: { ...settings, permalinkStructure } });
+    assert.match(html, /id="post-category-path-warning" role="status" aria-live="polite"/);
+    assert.match(html, /The \/core\/ path is used by a VonCMS folder/);
+    assert.match(html, /Category &amp; Name permalinks can conflict/);
+    assert.match(html, /aria-describedby="post-category-help post-category-path-warning"/);
+    assert.match(html, /saving remains available/);
+    assert.doesNotMatch(html, /aria-invalid=/);
+    const publishButtons = Array.from(
+      html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)
+    ).filter(([, , content]) => content === '<span>Publish</span>');
+    assert.ok(publishButtons.length > 0);
+    for (const [, attributes] of publishButtons) {
+      assert.doesNotMatch(attributes, /(?:^|\s)disabled(?:\s|=|$)/);
+    }
+  }
+  for (const category of ['News', '', 'Core News']) {
+    const html = render(PostEditor, { ...props, initialItem: { ...props.initialItem, category } });
+    assert.doesNotMatch(html, /id="post-category-path-warning"/);
+    assert.match(html, /aria-describedby="post-category-help"/);
+  }
+  assert.doesNotMatch(render(PostEditor, { ...props, isPage: true }), /id="post-category/);
+  const post = { ...posts[0], category: 'Core' };
+  assert.equal(
+    siteUtils.getPermalink(post, { permalinkStructure: 'category' }),
+    '/zangetsu/core/qa-1'
+  );
+  assert.equal(siteUtils.getPermalink(post, { permalinkStructure: 'slug' }), '/zangetsu/qa-1');
+  const rootUtils = load('src/utils/siteUtils.ts', React, {
+    '../config/site.config': { BASE_PATH: '/' },
+  });
+  assert.equal(rootUtils.getPermalink(post, { permalinkStructure: 'category' }), '/core/qa-1');
+  assert.equal(rootUtils.getCategoryFolderConflict('Core'), 'core');
+  console.log(
+    'PASS Category Folder Advisory: normalized folder matches, accessible editor warning, ordinary categories/pages, enabled Publish and unchanged root/subfolder permalink behavior.'
+  );
+}
+
+checkCategoryFolderAdvisory();
+checkPublicPluginHydration();
 checkSettingsPresentation();
 checkAdsManager();
-checkSettings()
+checkAdminSettingsReadiness()
+  .then(checkSettings)
   .then(checkOtherCustomizers)
   .then(checkNewsletterPagination)
   .then(() => {

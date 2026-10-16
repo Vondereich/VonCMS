@@ -628,6 +628,7 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
 
     # Reject PHP PATH_INFO aliases before any crawler or file fast-path can exit.
     RewriteRule ^.+\.php/ - [R=404,L,NC]
+    RewriteRule ^(?:public/)?core(/.*)?$ - [F,L,NC]
 
     # =====================================================
     # PRIORITY 1 - VVIP LANE FOR SOCIAL CRAWLERS

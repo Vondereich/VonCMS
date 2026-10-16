@@ -171,7 +171,7 @@ class SystemUpdater
       }
 
       // 0. Security Validation
-      $this->validateUrl($downloadUrl);
+      $this->validateOfficialReleaseUrl((string) $version, (string) $downloadUrl);
       $normalizedVersion = preg_replace('/^v\.?/i', '', trim((string) $version));
       if (!is_string($normalizedVersion) || !preg_match('/^\d+\.\d+\.\d+$/', $normalizedVersion)) {
         throw new Exception('Invalid update version.');
@@ -276,7 +276,17 @@ class SystemUpdater
    */
   private function validateUrl($url)
   {
-    $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
+    $parts = parse_url((string) $url);
+    if (
+      !is_array($parts) ||
+      isset($parts['user']) ||
+      isset($parts['pass']) ||
+      isset($parts['port']) ||
+      isset($parts['fragment'])
+    ) {
+      throw new Exception('Invalid update URL.');
+    }
+    $host = (string) ($parts['host'] ?? '');
     $allowedHosts = [
       'github.com',
       'api.github.com',
@@ -465,9 +475,27 @@ class SystemUpdater
   }
 
   /**
-   * @param mixed $value
-   * @return string|null
+   * @return string Official release tag selected by the canonical Deploy URL.
    */
+  private function validateOfficialReleaseUrl(string $version, string $downloadUrl): string
+  {
+    $normalized = preg_replace('/^v\.?/i', '', trim($version));
+    if (!is_string($normalized) || !preg_match('/^\d+\.\d+\.\d+$/D', $normalized)) {
+      throw new Exception('Invalid update version.');
+    }
+    $asset = 'VonCMS_v' . $normalized . '_Deploy.zip';
+    foreach ([$normalized, 'v' . $normalized, 'v.' . $normalized] as $tag) {
+      if (
+        $downloadUrl ===
+        'https://github.com/Vondereich/VonCMS/releases/download/' . $tag . '/' . $asset
+      ) {
+        return $tag;
+      }
+    }
+    throw new Exception('Only the official VonCMS Deploy release asset is allowed.');
+  }
+
+  /** @param mixed $value */
   private function normalizeSha256($value)
   {
     $value = strtolower(trim((string) $value));
@@ -483,9 +511,9 @@ class SystemUpdater
    * @param string $accept
    * @return array{status: int, body: string}
    */
-  private function downloadRemoteBody($url, $accept = 'application/octet-stream')
+  protected function downloadRemoteBody($url, $accept = 'application/octet-stream')
   {
-    return $this->fetchWithValidatedRedirects($url, $accept, null, 60, 15);
+    return $this->fetchWithValidatedRedirects($url, $accept, null, 60, 15, 2097152);
   }
 
   /**
@@ -496,73 +524,54 @@ class SystemUpdater
    */
   private function resolveExpectedHash($version, $downloadUrl, $expectedHash = null)
   {
-    $normalizedHash = $this->normalizeSha256($expectedHash);
-    if ($normalizedHash) {
-      $this->log('Using caller-supplied SHA256 digest.');
-      return $normalizedHash;
-    }
-
-    $sidecarUrl = $downloadUrl . '.sha256';
-    try {
-      $sidecar = $this->downloadRemoteBody($sidecarUrl, 'text/plain');
-      if (
-        $sidecar['status'] === 200 &&
-        preg_match('/([a-fA-F0-9]{64})/', $sidecar['body'], $matches)
-      ) {
-        $sidecarHash = $this->normalizeSha256($matches[1]);
-        if ($sidecarHash) {
-          $this->log('Resolved SHA256 digest from sidecar checksum asset.');
-          return $sidecarHash;
-        }
-      }
-    } catch (Throwable $e) {
-      $this->log('Sidecar checksum lookup skipped: ' . $e->getMessage());
-    }
-
-    $normalizedVersion = preg_replace('/^v\.?/i', '', (string) $version);
-    $tagCandidates = array_values(
-      array_unique(
-        array_filter([
-          $version,
-          $normalizedVersion !== '' ? 'v' . $normalizedVersion : '',
-          $normalizedVersion !== '' ? 'v.' . $normalizedVersion : '',
-        ]),
-      ),
+    // The request selects a release, never its trust anchor or checksum.
+    $tag = $this->validateOfficialReleaseUrl((string) $version, (string) $downloadUrl);
+    $release = $this->downloadRemoteBody(
+      'https://api.github.com/repos/Vondereich/VonCMS/releases/tags/' . rawurlencode($tag),
+      'application/vnd.github+json',
     );
-
-    foreach ($tagCandidates as $tag) {
-      try {
-        $release = $this->downloadRemoteBody(
-          'https://api.github.com/repos/Vondereich/VonCMS/releases/tags/' . rawurlencode($tag),
-          'application/vnd.github+json',
-        );
-
-        if ($release['status'] !== 200) {
-          continue;
-        }
-
-        $releaseData = json_decode($release['body'], true);
+    $releaseData = json_decode($release['body'], true);
+    if (
+      $release['status'] !== 200 ||
+      !is_array($releaseData) ||
+      ($releaseData['tag_name'] ?? '') !== $tag ||
+      !empty($releaseData['draft']) ||
+      !is_array($releaseData['assets'] ?? null)
+    ) {
+      throw new Exception('Official release metadata could not be verified.');
+    }
+    foreach ($releaseData['assets'] as $asset) {
+      if (
+        !is_array($asset) ||
+        ($asset['browser_download_url'] ?? '') !== $downloadUrl ||
+        ($asset['name'] ?? '') !== basename($downloadUrl)
+      ) {
+        continue;
+      }
+      $assetHash = $this->normalizeSha256($asset['digest'] ?? ($asset['sha256'] ?? ''));
+      if ($assetHash) {
+        $this->log('Resolved SHA256 digest from official GitHub release metadata.');
+        return $assetHash;
+      }
+      $sidecarUrl = $downloadUrl . '.sha256';
+      foreach ($releaseData['assets'] as $sidecarAsset) {
         if (
-          !is_array($releaseData) ||
-          !isset($releaseData['assets']) ||
-          !is_array($releaseData['assets'])
+          !is_array($sidecarAsset) ||
+          ($sidecarAsset['browser_download_url'] ?? '') !== $sidecarUrl
         ) {
           continue;
         }
-
-        foreach ($releaseData['assets'] as $asset) {
-          if (($asset['browser_download_url'] ?? '') !== $downloadUrl) {
-            continue;
-          }
-
-          $assetHash = $this->normalizeSha256($asset['digest'] ?? ($asset['sha256'] ?? ''));
-          if ($assetHash) {
-            $this->log('Resolved SHA256 digest from GitHub release metadata.');
-            return $assetHash;
-          }
+        $sidecar = $this->downloadRemoteBody($sidecarUrl, 'text/plain');
+        if (
+          $sidecar['status'] === 200 &&
+          preg_match(
+            '/^([a-fA-F0-9]{64})(?:\\s+[^\\r\\n]+)?\\s*$/D',
+            trim($sidecar['body']),
+            $matches,
+          )
+        ) {
+          return strtolower($matches[1]);
         }
-      } catch (Throwable $e) {
-        $this->log('GitHub release digest lookup skipped for ' . $tag . ': ' . $e->getMessage());
       }
     }
 

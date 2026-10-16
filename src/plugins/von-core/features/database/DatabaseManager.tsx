@@ -282,6 +282,11 @@ const DatabaseManager: React.FC = () => {
         </div>
       </div>
 
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Import only your own trusted VonCMS backup. SQL restores can replace users, permissions, and
+        content.
+      </p>
+
       <div className="flex h-full min-h-[500px] grow flex-col gap-6 xl:flex-row">
         {/* LEFT SIDEBAR: DB List */}
         <div className="flex min-h-0 flex-col gap-6 xl:w-1/3">
