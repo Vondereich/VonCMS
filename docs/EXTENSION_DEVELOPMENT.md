@@ -1,6 +1,6 @@
 # VonCMS Extension Development Guide v1.27.10
 
-This guide describes the v1.27.10 development package baseline.
+This guide describes the v1.27.10 release baseline.
 
 This guide is the public source of truth for VonCMS theme and plugin development in the OverDrive line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 

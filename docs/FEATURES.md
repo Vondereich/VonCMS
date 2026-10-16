@@ -1,6 +1,6 @@
 # VonCMS Features
 
-> VonCMS v1.27.10 feature baseline for the OverDrive line. This development maintenance package omits inactive plugin data from public settings without changing stored configuration or OFF controls. Dashboard Top Articles retains its 7/30-day rankings; sites that have not activated daily storage still need the existing Database Repair step, and previous lifetime views are not backfilled.
+> VonCMS v1.27.10 feature baseline for the OverDrive line. This maintenance release omits inactive plugin data from public settings without changing stored configuration or OFF controls. Dashboard Top Articles retains its 7/30-day rankings; sites that have not activated daily storage still need the existing Database Repair step, and previous lifetime views are not backfilled.
 
 ## Introduction to VonCMS v1.27.10 "OverDrive"
 
