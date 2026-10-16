@@ -47,7 +47,7 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 
 ## Recommended path to v1.27.10
 
-VonCMS v1.27.10 is the current development package. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.10 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.

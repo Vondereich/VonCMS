@@ -2,7 +2,7 @@
 
 Current release history for the v1.27 series. See the [Changelog Archive](docs/CHANGELOG-ARCHIVE.md) for v1.26.x and earlier release notes.
 
-### [v1.27.10] - In Development
+### [v1.27.10] - 2026-10-16
 
 - **Editor Toolbar Colours**: Light mode uses a pale-grey toolbar with charcoal controls, while dark mode retains the dark-grey palette with shared lime accents. Toolbar top corners follow the editor frame in both modes. Existing button shapes, sizes, order, menus, responsive wrapping and sticky behavior remain unchanged, as do the writing canvas and light/dark dialogs.
 - **Editor Maintenance**: Separated styling, controlled Insert and Media Library dialogs, and image/video/table tool views into focused components. Editor state, validation, selection restoration, undo history, media requests, content synchronization and save behavior remain owned by the main editor, with no layout or feature change.
