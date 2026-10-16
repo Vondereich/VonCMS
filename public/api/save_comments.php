@@ -79,8 +79,7 @@ if ($action !== null) {
     $commentRateIdentifier = $hasValidSession
       ? 'comment:user:' . (string) ($_SESSION['user']['id'] ?? 0)
       : 'comment:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-    RateLimiter::requireNotLimited($commentRateIdentifier);
-    RateLimiter::recordAttempt($commentRateIdentifier);
+    RateLimiter::requireAttempt($commentRateIdentifier);
   }
 }
 

@@ -417,6 +417,8 @@ try {
   }
 
   $settings['_canManageSecrets'] = $isPrimaryAdmin;
+  // Readiness hint only: appointed admins also receive complete, secret-masked settings.
+  $settings['_settingsScope'] = 'admin';
   $adminProfilePublicEmail = null;
   if (
     isset($settings['adminProfile']) &&

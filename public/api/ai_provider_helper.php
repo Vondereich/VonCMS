@@ -274,6 +274,16 @@ function voncms_ai_generate_with_fallback(
   array $payload,
   int $timeoutSeconds,
 ): array {
+  if ($apiKey === '' || preg_match('/[\x00-\x20\x7f]/', $apiKey)) {
+    return [
+      'ok' => false,
+      'http_code' => 400,
+      'data' => [],
+      'model' => $model,
+      'fallback_used' => false,
+      'error_code' => 'AI_AUTH_FAILED',
+    ];
+  }
   $fallbackModel = 'gemini-flash-latest';
   $models = array_values(array_unique([$model, $fallbackModel]));
 
@@ -281,13 +291,12 @@ function voncms_ai_generate_with_fallback(
     $url =
       'https://generativelanguage.googleapis.com/v1beta/models/' .
       rawurlencode($candidateModel) .
-      ':generateContent?key=' .
-      rawurlencode($apiKey);
+      ':generateContent';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
       CURLOPT_RETURNTRANSFER => true,
       CURLOPT_POST => true,
-      CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+      CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-goog-api-key: ' . $apiKey],
       CURLOPT_POSTFIELDS => json_encode($payload),
       CURLOPT_TIMEOUT => $timeoutSeconds,
       CURLOPT_SSL_VERIFYPEER => true,

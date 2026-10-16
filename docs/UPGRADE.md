@@ -2,6 +2,8 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+v1.27.10 is a maintenance package: inactive plugin data is omitted from public settings, while saved admin configuration and meaningful OFF/empty values remain intact. Internal helpers now load from the protected `core/` folder through the existing `security.php` entry point; no database migration is required. OTA preserves existing `.htaccess` files, so run Repair `.htaccess` if Integrity Check prompts you to restore the new core shield. Existing installations that completed earlier database repair steps can update normally; the guest settings cache may retain the previous payload until its existing 60-second lifetime expires.
+
 v1.27.9: the new Dashboard Top Articles tab needs one explicit Database Repair after updating an existing site. Fresh installs create its anonymous daily-count table automatically. Until repair, lifetime article/page views continue normally and the new tab explains that storage is not enabled. Daily history begins at activation; existing lifetime views cannot be reconstructed into 7/30-day totals. Repair `.htaccess` when prompted to include the new private reporting helper in the managed deny rule.
 
 > **v1.27.9 upgrade:** "OverDrive" adds Dashboard Top Articles and a new daily aggregate table. Existing sites, including already-repaired v1.27.7/v1.27.8 installations, must run Database Repair once to activate daily tracking.
@@ -43,9 +45,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.7
+## Recommended path to v1.27.10
 
-VonCMS v1.27.7 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+VonCMS v1.27.10 is the current development package. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.

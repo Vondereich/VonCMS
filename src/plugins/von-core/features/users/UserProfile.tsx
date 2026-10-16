@@ -9,7 +9,7 @@ import {
   ThumbsUp,
   LayoutDashboard,
 } from 'lucide-react';
-import { sanitizeHtml } from '../../../../utils/security';
+import { decodeEntities } from '../../../../utils/textUtils';
 import { LoadMoreButton } from '../../../../components/LoadMoreButton';
 import { useProfileActivity } from '../../../../hooks/useProfileActivity';
 import { useProfileEditor } from '../../../../hooks/useProfileEditor';
@@ -457,10 +457,9 @@ const UserProfile: React.FC<ProfileProps> = ({
                       <span className="text-[10px] uppercase font-bold text-primary-600 mb-1">
                         {post.category}
                       </span>
-                      <h3
-                        className="font-bold text-neutral-900 dark:text-white leading-tight mb-2 group-hover:text-primary-600 transition-colors line-clamp-2"
-                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.title) }}
-                      />
+                      <h3 className="font-bold text-neutral-900 dark:text-white leading-tight mb-2 group-hover:text-primary-600 transition-colors line-clamp-2">
+                        {decodeEntities(post.title)}
+                      </h3>
                       <p className="text-xs text-neutral-400">
                         {post.readTime || '5 min read'} •{' '}
                         {formatDate(

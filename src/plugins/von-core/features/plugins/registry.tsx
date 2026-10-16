@@ -39,6 +39,7 @@ const sanitizeCustomPluginHtml = (htmlContent: string): string => {
     ADD_TAGS: ['style', 'span', 'a', 'img', 'div'],
     ALLOW_DATA_ATTR: true,
     FORCE_BODY: true,
+    trustedPluginStyles: true,
   });
 
   if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {

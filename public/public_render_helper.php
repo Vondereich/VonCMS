@@ -241,6 +241,42 @@ if (!function_exists('voncms_normalize_plugin_settings_value')) {
   }
 }
 
+if (!function_exists('voncms_project_public_plugin_settings')) {
+  /**
+   * Omit inactive plugin payloads without changing stored/admin settings or meaningful empty values.
+   * @param array<string, mixed> $settings Normalized public settings.
+   * @return array<string, mixed>
+   */
+  function voncms_project_public_plugin_settings(array $settings): array
+  {
+    $config = $settings['pluginConfig'] ?? [];
+    $statuses = $config['pluginStatus'] ?? [];
+    $activePlugins = array_values(
+      array_filter(
+        $settings['activePlugins'] ?? [],
+        static fn(string $pluginId): bool => !isset($statuses[$pluginId]) ||
+          $statuses[$pluginId] === 'active',
+      ),
+    );
+    $activeKeys = array_fill_keys($activePlugins, true);
+    $publicConfig = array_intersect_key($config, $activeKeys);
+    $publicStatuses = array_intersect_key($statuses, $activeKeys);
+    if ($publicStatuses !== []) {
+      $publicConfig['pluginStatus'] = $publicStatuses;
+    }
+
+    $settings['activePlugins'] = $activePlugins;
+    $settings['pluginConfig'] = $publicConfig === [] ? new stdClass() : $publicConfig;
+    $settings['customPlugins'] = array_values(
+      array_filter(
+        $settings['customPlugins'] ?? [],
+        static fn(array $plugin): bool => ($plugin['enabled'] ?? false) === true,
+      ),
+    );
+    return $settings;
+  }
+}
+
 if (!function_exists('voncms_decode_public_setting_value')) {
   function voncms_decode_public_setting_value(mixed $value, string $type): mixed
   {
@@ -457,7 +493,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
     }
     $settings['_canManageSecrets'] = false;
 
-    return $settings;
+    return voncms_project_public_plugin_settings($settings);
   }
 }
 

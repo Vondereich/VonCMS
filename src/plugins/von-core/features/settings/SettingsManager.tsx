@@ -18,7 +18,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { SiteSettings } from '../../../../types';
-import { sanitizeHtml } from '../../../../utils/security';
+import { decodeEntities } from '../../../../utils/textUtils';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { mergeSettingsDraft } from '../../../../utils/settingsDraft';
@@ -625,10 +625,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                               aria-label={`Add page ${page.title} to menu`}
                               className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500"
                             />
-                            <span
-                              className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]"
-                              dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.title) }}
-                            />
+                            <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                              {decodeEntities(page.title)}
+                            </span>
                           </div>
                           {isLinked && (
                             <span className="text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
@@ -692,10 +691,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                               aria-label={`Add post ${post.title} to menu`}
                               className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500"
                             />
-                            <span
-                              className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]"
-                              dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.title) }}
-                            />
+                            <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                              {decodeEntities(post.title)}
+                            </span>
                           </div>
                           {isLinked && (
                             <span className="text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">

@@ -5,7 +5,7 @@ import { API } from '../../../../../config/site.config';
 import { vonFetch } from '../../../../../utils/api';
 import SafeImage from '../../../../../components/SafeImage';
 import AdBlock from '../../../../../themes/shared/components/AdBlock';
-import { sanitizeHtml } from '../../../../../utils/security';
+import { decodeEntities } from '../../../../../utils/textUtils';
 import {
   formatDate,
   getPermalink,
@@ -216,8 +216,9 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                             ? 'text-(--color-primary)'
                             : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
                         }`}
-                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.title) }}
-                      />
+                      >
+                        {decodeEntities(post.title)}
+                      </p>
                       <div
                         className={`mt-2 h-0.5 bg-(--color-primary) transition-all duration-500 opacity-50 ${
                           isCurrentPost ? 'w-full' : 'w-0 group-hover:w-full'

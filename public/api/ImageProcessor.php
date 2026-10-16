@@ -104,6 +104,18 @@ class ImageProcessor
       return $result;
     }
 
+    // GD only decodes a GIF's first frame. Preserve GIF bytes and animation.
+    // Without EXIF support, preserve JPEG orientation metadata rather than flattening it.
+    if (
+      $mimeType === 'image/gif' ||
+      ($mimeType === 'image/jpeg' && !function_exists('exif_read_data'))
+    ) {
+      $result['success'] = true;
+      $result['message'] = 'Original image preserved for animation or orientation compatibility.';
+      $result['responsiveVariantStatus'] = 'fallback_original';
+      return $result;
+    }
+
     if (!self::hasProcessingMemoryBudget($originalWidth, $originalHeight)) {
       $result['success'] = true;
       $result['message'] =
@@ -120,6 +132,9 @@ class ImageProcessor
       $result['message'] = 'Failed to create image resource.';
       return $result;
     }
+
+    $originalWidth = imagesx($sourceImage);
+    $originalHeight = imagesy($sourceImage);
 
     // Preserve transparency for PNG/GIF/WebP
     if ($mimeType !== 'image/jpeg') {
@@ -255,7 +270,35 @@ class ImageProcessor
       default => false,
     };
 
-    return $image !== false ? $image : null;
+    if ($image === false) {
+      return null;
+    }
+    if ($mimeType === 'image/jpeg' && function_exists('exif_read_data')) {
+      $exif = @exif_read_data($filePath, 'IFD0');
+      $orientation = is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1;
+      if (in_array($orientation, [2, 4, 5, 7], true)) {
+        imageflip(
+          $image,
+          in_array($orientation, [2, 5, 7], true) ? IMG_FLIP_HORIZONTAL : IMG_FLIP_VERTICAL,
+        );
+      }
+      $angle = match ($orientation) {
+        3 => 180,
+        5, 8 => 90,
+        6, 7 => -90,
+        default => 0,
+      };
+      if ($angle !== 0) {
+        $rotated = imagerotate($image, $angle, 0);
+        if ($rotated === false) {
+          imagedestroy($image);
+          return null;
+        }
+        imagedestroy($image);
+        $image = $rotated;
+      }
+    }
+    return $image;
   }
 
   /**
@@ -358,7 +401,11 @@ class ImageProcessor
     $sourceWidth = (int) $imageInfo[0];
     $sourceHeight = (int) $imageInfo[1];
 
-    if (!isset(self::SUPPORTED_TYPES[$mimeType])) {
+    if (
+      !isset(self::SUPPORTED_TYPES[$mimeType]) ||
+      $mimeType === 'image/gif' ||
+      ($mimeType === 'image/jpeg' && !function_exists('exif_read_data'))
+    ) {
       return [];
     }
 
@@ -399,6 +446,8 @@ class ImageProcessor
     if ($sourceImage === null) {
       return [];
     }
+    $sourceWidth = imagesx($sourceImage);
+    $sourceHeight = imagesy($sourceImage);
 
     $uniqueWidths = array_values(array_unique(array_map('intval', $widths)));
     sort($uniqueWidths, SORT_NUMERIC);

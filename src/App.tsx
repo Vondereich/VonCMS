@@ -678,7 +678,15 @@ const App: React.FC = () => {
 
   // Use custom hooks - Refactored from Inline Logic
   const { user, isAuthLoading, handleLogin, handleLogout, handleUpdateUser } = useAuth();
-  const { settings, loadSettings, handleUpdateSettings, onToggleNav } = useSettings();
+  const {
+    settings,
+    loadSettings,
+    handleUpdateSettings,
+    onToggleNav,
+    isSettingsLoading,
+    settingsLoadFailed,
+  } = useSettings();
+  const requiresAdminSettings = ['admin', 'root'].includes(String(user?.role || '').toLowerCase());
   const {
     posts,
     setPosts,
@@ -849,7 +857,7 @@ const App: React.FC = () => {
         loadUsers();
       }
       // A guest settings request may have started before session restoration or interactive login.
-      loadSettings(true);
+      loadSettings(true, requiresAdminSettings);
     }
   }, [user]);
 
@@ -979,6 +987,13 @@ const App: React.FC = () => {
                       user={user}
                       isAuthLoading={isAuthLoading}
                       allowedRoles={['Admin', 'Moderator', 'Writer']}
+                      areSettingsReady={
+                        !requiresAdminSettings || settings._settingsScope === 'admin'
+                      }
+                      settingsLoadFailed={settingsLoadFailed && !isSettingsLoading}
+                      onRetrySettings={() => {
+                        void loadSettings(true, requiresAdminSettings);
+                      }}
                     >
                       <AdminLayout
                         settings={settings}

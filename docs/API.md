@@ -1,10 +1,14 @@
 # VonCMS API Guide
 
-Version: `1.27.9`
+Version: `1.27.10`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
 This guide is a practical map of the current API surface. It focuses on the endpoint structure that exists in the project today instead of trying to document every response field in exhaustive detail.
+
+Guest settings and initial HTML use the same public projection. Inactive system-plugin configuration and disabled custom HTML plugins are omitted; authorized admin settings retain their saved configuration. Meaningful OFF flags and empty lists are preserved.
+
+Complete Admin settings responses carry the runtime-only `_settingsScope: "admin"` readiness hint, including secret-masked responses for appointed Admins. It is not an authorization grant or persisted setting. The frontend waits for this response before showing Admin settings screens and rejects public-only/stale drafts; session, role and CSRF checks remain enforced by the server.
 
 ## How the API is organized
 

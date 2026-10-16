@@ -51,7 +51,6 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
   releaseNotes,
   releaseUrl,
   releaseNotesTruncated,
-  expectedHash,
   onClose,
   onSuccess,
 }) => {
@@ -124,7 +123,6 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           body: JSON.stringify({
             version: latestVersion,
             download_url: downloadUrl,
-            expected_hash: expectedHash || undefined,
             csrf_token: csrfToken,
           }),
         }

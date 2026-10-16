@@ -12,6 +12,17 @@ const root = path.resolve(__dirname, '..');
 const resolveFromRoot = (file) => path.resolve(root, file);
 const exists = (file) => fs.existsSync(resolveFromRoot(file));
 const read = (file) => fs.readFileSync(resolveFromRoot(file), 'utf8');
+const coreSecurityModules = [
+  'InstallBootstrap',
+  'ContentViewDeduplicator',
+  'RateLimiter',
+  'ResponseHelper',
+];
+const readSecurityContract = () =>
+  [
+    read('public/security.php'),
+    ...coreSecurityModules.map((name) => read('public/core/' + name + '.php')),
+  ].join('\n');
 
 // Corporate homepage contracts span the layout and its imported section modules.
 const corporateHomepageContent = [
@@ -251,7 +262,7 @@ assertIncludes(
 
 assertIncludes(
   'API Header Method Preservation Guard',
-  read('public/security.php'),
+  readSecurityContract(),
   [
     '$requestedMethods = trim((string) $methods);',
     "$GLOBALS['voncms_api_allowed_methods']",
@@ -263,7 +274,7 @@ assertIncludes(
 );
 assertIncludes(
   'Credentialed CORS Origin Tuple Guard',
-  read('public/security.php'),
+  readSecurityContract(),
   [
     "$currentScheme = is_https() ? 'https' : 'http';",
     '$samePort = $originPort === $serverPort;',
@@ -1344,7 +1355,7 @@ const uploadsShieldContractContents = [
   read('public/api/install.php'),
   read('public/api/system/repair_htaccess.php'),
   read('public/api/system/fix_integrity.php'),
-  read('public/security.php'),
+  readSecurityContract(),
 ];
 if (
   uploadsShieldContractContents.every((content) =>
@@ -1715,13 +1726,91 @@ if (
 }
 const adSettingsContent = read('src/plugins/von-core/features/settings/components/AdSettings.tsx');
 const publicProfileHookContent = read('src/hooks/usePublicProfile.ts');
-const editorContent = read('src/components/Editor.tsx');
+const editorParentContent = read('src/components/Editor.tsx');
+const editorSurfaceStylesContent = read('src/components/editor/EditorSurfaceStyles.tsx');
+const editorInsertModalContent = read('src/components/editor/EditorInsertModal.tsx');
+const editorMediaLibraryContent = read('src/components/editor/EditorMediaLibraryModal.tsx');
+const editorBubbleMenusContent = read('src/components/editor/EditorBubbleMenus.tsx');
+const editorContent = [
+  editorParentContent,
+  editorSurfaceStylesContent,
+  editorInsertModalContent,
+  editorMediaLibraryContent,
+  editorBubbleMenusContent,
+].join('\n');
 const editorTableUtilsContent = read('src/components/editor/editorTableUtils.ts');
 const editorToolbarPrimitivesContent = read('src/components/editor/EditorToolbarPrimitives.tsx');
 const editorImageUtilsContent = read('src/components/editor/editorImageUtils.ts');
 const editorVideoContractsContent = read('src/components/editor/editorVideoContracts.ts');
 const editorVideoUtilsContent = read('src/components/editor/editorVideoUtils.ts');
 const editorPreviewModalContent = read('src/components/editor/EditorPreviewModal.tsx');
+assertIncludes(
+  'Editor Presentational Module Ownership',
+  editorParentContent,
+  [
+    "from './editor/EditorSurfaceStyles'",
+    "from './editor/EditorInsertModal'",
+    "from './editor/EditorMediaLibraryModal'",
+    "from './editor/EditorBubbleMenus'",
+    'const restoreSavedSelection =',
+    'const handleModalConfirm =',
+    'const requestId = ++mediaRequestIdRef.current;',
+    'const updateBubblePosition =',
+    'onConfirm={handleModalConfirm}',
+    'onSelect={handleMediaSelect}',
+    'onPageChange={(page) => fetchMedia(page, mediaSearchQuery)}',
+    '{selectedImage && (',
+    '{selectedVideoEmbed && (',
+    '{selectedTable && (',
+    'onClose={() => setSelectedImage(null)}',
+    'onClose={() => setSelectedVideoEmbed(null)}',
+    'onClose={() => setSelectedTable(null)}',
+  ],
+  'Editor Presentational Module Ownership: rendering is extracted while selection, validation, requests, visibility and DOM mutations remain parent-owned.',
+  'Editor Presentational Module Ownership: a control callback or parent-owned editor boundary is missing.'
+);
+assertExcludes(
+  'Editor Presentational Leaf Isolation',
+  [
+    editorSurfaceStylesContent,
+    editorInsertModalContent,
+    editorMediaLibraryContent,
+    editorBubbleMenusContent,
+  ].join('\n'),
+  [
+    'useState(',
+    'useEffect(',
+    'useEditor(',
+    'createPortal(',
+    'restoreSavedSelection',
+    'syncEditorFromDom',
+    'vonFetch(',
+    'editor.commands',
+    'editor.chain(',
+  ],
+  'Editor Presentational Leaf Isolation: extracted views introduce no local lifecycle, editor instance, request, portal or mutation owner.',
+  'Editor Presentational Leaf Isolation: extracted views acquired editor lifecycle or data/mutation responsibilities.'
+);
+if (
+  /<DarkModeStyles prefix="editor"\s*\/>\s*<EditorSurfaceStyles\s*\/>/.test(editorParentContent) &&
+  /export const EditorSurfaceStyles = \(\) => \(\s*<style>/.test(editorSurfaceStylesContent) &&
+  !editorParentContent.includes('<style>') &&
+  !editorParentContent.includes('aria-label="Close insert dialog"') &&
+  editorInsertModalContent.includes('onClose={onClose}') &&
+  editorInsertModalContent.includes('onClick={onConfirm}') &&
+  editorInsertModalContent.includes("e.key === 'Enter' && onConfirm()") &&
+  editorMediaLibraryContent.includes('onClick={() => onSelect(file)}') &&
+  editorBubbleMenusContent.includes('Math.max(10, bubblePosition.left)') &&
+  editorBubbleMenusContent.includes('left: bubblePosition.left')
+) {
+  pass(
+    'Editor View Placement Contract: styles retain cascade position; original dialog events, media metadata and shell-relative bubble geometry are preserved.'
+  );
+} else {
+  fail(
+    'Editor View Placement Contract: style placement, dialog event wiring, media metadata or bubble positioning drifted during extraction.'
+  );
+}
 const editorAutosaveUtilsContent = read('src/components/editor/editorAutosaveUtils.ts');
 const editorExtensionsPath = 'src/components/editor/editorExtensions.ts';
 const editorExtensionsContent = exists(editorExtensionsPath) ? read(editorExtensionsPath) : '';
@@ -2109,7 +2198,7 @@ if (
   contentLoadPerformanceContent.includes('pageLoadInFlightRef') &&
   settingsLoadPerformanceContent.includes('loadSettingsInFlightRef') &&
   settingsLoadPerformanceContent.includes('if (!forceRefresh)') &&
-  appShellContent.includes('loadSettings(true);') &&
+  appShellContent.includes('loadSettings(true, requiresAdminSettings);') &&
   !editorContent.includes("from '../hooks/useSettings'") &&
   !editorContent.includes('loadSettings()')
 ) {
@@ -3144,6 +3233,7 @@ if (genericAriaLabelIssues.length === 0) {
 }
 
 const changelogContent = read('CHANGELOG.md');
+const changelogHistoryContent = changelogContent + read('docs/CHANGELOG-ARCHIVE.md');
 const topReleaseEntry = getReleaseEntry(changelogContent, pkg.version);
 const changelogMarkersByVersion = {
   '1.25.1': [
@@ -3394,7 +3484,7 @@ const upgradeGuideContent = read('docs/UPGRADE.md');
 if (
   upgradeGuideContent.includes('v1.25.0 OTA upgrade warning') &&
   upgradeGuideContent.includes('System Tools > Repair `.htaccess`') &&
-  changelogContent.includes('OTA `.htaccess` Upgrade Warning')
+  changelogHistoryContent.includes('OTA `.htaccess` Upgrade Warning')
 ) {
   pass(
     'OTA .htaccess Upgrade Warning: upgrade docs and changelog preserve the legacy v1.24.x to v1.25.0 repair warning without duplicating it in README.'
@@ -3552,7 +3642,7 @@ if (removedBenchmarkSnapshotMarkers.length === 0 && !exists('BENCHMARK.md')) {
   );
 }
 
-const securityContent = read('public/security.php');
+const securityContent = readSecurityContract();
 assertIncludes(
   'Security Logic',
   securityContent,
@@ -3732,8 +3822,8 @@ if (
   );
 }
 const runtimeStoragePathsArePrivate =
-  securityContent.includes("__DIR__ . '/data/rate_limits/'") &&
-  !securityContent.includes("__DIR__ . '/../data/rate_limits/'") &&
+  read('public/core/RateLimiter.php').includes("__DIR__ . '/../data/rate_limits/'") &&
+  !read('public/security.php').includes("__DIR__ . '/../data/rate_limits/'") &&
   configSampleContent.includes("$_SERVER['DOCUMENT_ROOT']") &&
   configSampleContent.includes("dirname($documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
   configSampleContent.includes("rtrim(sys_get_temp_dir(), '/\\\\')") &&
@@ -3876,8 +3966,9 @@ if (
   installContent.includes("'warnings' => $installWarnings") &&
   installWizardContent.includes('Array.isArray(data.warnings)') &&
   installWizardContent.includes('Server protection needs attention') &&
-  repairHtaccessContent.includes('function repairDataShield($publicPath)') &&
-  repairHtaccessContent.includes("$dataDir = $publicPath . '/data';") &&
+  repairHtaccessContent.includes("function repairDataShield($publicPath, $directory = 'data')") &&
+  repairHtaccessContent.includes("$dataDir = $publicPath . '/' . $directory;") &&
+  repairHtaccessContent.includes("repairDataShield($publicPath, 'core')") &&
   repairHtaccessContent.includes('Runtime data .htaccess shield repaired.') &&
   runtimeDataShieldContent.includes('Require all denied') &&
   runtimeDataShieldContent.includes('Options -Indexes')
@@ -4034,9 +4125,10 @@ assertIncludes(
   'Login Hardening',
   loginContent,
   [
-    "$loginRateIdentifier = 'login:ip:'",
+    '$loginRateIdentifier =',
+    "'login:ip:' . RateLimiter::normalizeLoginAddress",
     'RateLimiter::requireAttempt($loginRateIdentifier)',
-    'RateLimiter::reset($loginRateIdentifier)',
+    "RateLimiter::consumeFixedWindow('login:account:' . $user['id'], 20, 900, 'login')",
     'session_regenerate_id(true)',
     "ResponseHelper::sendError('Invalid credentials', 401)",
     "ResponseHelper::sendError('Login failed', 400)",
@@ -4089,7 +4181,8 @@ assertIncludes(
   [
     'public static function consumeAttempt($identifier = null)',
     'public static function requireAttempt($identifier = null)',
-    "$loginRateIdentifier = 'login:ip:'",
+    '$loginRateIdentifier =',
+    "'login:ip:' . RateLimiter::normalizeLoginAddress",
     '$registrationRateIdentifier =',
     "'registration:ip:'",
     'RateLimiter::requireAttempt($loginRateIdentifier);',
@@ -4299,7 +4392,8 @@ assertIncludes(
   'Password Recovery Dedicated Throttle Contract',
   securityContent + '\n' + passwordResetRequestBranch,
   [
-    'public static function consumeFixedWindow($identifier, $maxAttempts, $windowSeconds)',
+    'public static function consumeFixedWindow(',
+    "$namespace = 'recovery'",
     'flock($handle, LOCK_EX)',
     "'password-recovery-pair:'",
     "'password-recovery-email:'",
@@ -7008,8 +7102,10 @@ assertIncludes(
     '$requestEndpointKey = strtolower($requestEndpoint);',
     "['rss', 'rss.xml', 'feed', 'feed.xml', 'rss.php']",
     'strlen($queryString) <= 2048',
-    '$sanitizeRssContent = function (?string $content): string',
-    "'//script|//style|//object|//embed|//link|//meta|//noscript|//template|//form|//input|//button'",
+    '$sanitizeRssContent = function (?string $content) use ($buildAbsoluteUrl): string',
+    "'//script|//style|//object|//embed|//link|//meta|//noscript|//template|//form|//input|//button|//svg|//math'",
+    'voncms_noscript_safe_link_href($url)',
+    'voncms_normalize_public_media_url($url)',
     "['http', 'https']",
     "'View embedded media'",
     "$attributeName === 'style'",
@@ -7393,8 +7489,8 @@ if (
   importDbContent.includes('$statement = stripLeadingSqlComments($rawStatement);') &&
   importDbContent.includes('function getAllowedImportStatementType') &&
   importDbContent.includes('$columnList =') &&
-  importDbContent.includes('AS\\s+SELECT') &&
-  importDbContent.includes('VALUES\\s*\\(') &&
+  importDbContent.includes('function maskImportSqlQuotes') &&
+  importDbContent.includes('Executable SQL comments and optimizer hints are not allowed.') &&
   !importDbContent.includes("explode(';', $sql)")
 ) {
   pass(
@@ -7513,7 +7609,7 @@ assertIncludes(
     'function import_remote_resolve_public_ips',
     'function import_remote_host_resolves_publicly',
     'dns_get_record',
-    'FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE',
+    'FILTER_FLAG_GLOBAL_RANGE',
     'function fetch_import_image_url_with_redirect_validation',
     'CURLOPT_RESOLVE',
     'cURL is required for DNS-pinned remote fetch',
@@ -7677,14 +7773,14 @@ assertIncludes(
   'Editor Image Alignment Node Attribute Contract: image alignment still risks reparsing the ProseMirror DOM and accumulating empty paragraphs.'
 );
 const imageBubbleSection = (() => {
-  const start = editorContent.indexOf('{/* Image Bubble Menu */}');
-  const end = editorContent.indexOf('{/* Video Bubble Menu */}');
-  return start >= 0 && end > start ? editorContent.slice(start, end) : '';
+  const start = editorBubbleMenusContent.indexOf('export const EditorImageBubble');
+  const end = editorBubbleMenusContent.indexOf('export const EditorVideoBubble');
+  return start >= 0 && end > start ? editorBubbleMenusContent.slice(start, end) : '';
 })();
 const videoBubbleSection = (() => {
-  const start = editorContent.indexOf('{/* Video Bubble Menu */}');
-  const end = editorContent.indexOf('{/* Table Bubble Menu */}', start);
-  return start >= 0 && end > start ? editorContent.slice(start, end) : '';
+  const start = editorBubbleMenusContent.indexOf('export const EditorVideoBubble');
+  const end = editorBubbleMenusContent.indexOf('export const EditorTableBubble', start);
+  return start >= 0 && end > start ? editorBubbleMenusContent.slice(start, end) : '';
 })();
 assertIncludes(
   'Editor Image Explicit State Contract',
@@ -7840,6 +7936,7 @@ try {
         setAttribute: (name) => {
           if (name === 'allowfullscreen') legacyFullscreenRestored = true;
         },
+        remove: () => {},
       });
       return content;
     },
@@ -8102,7 +8199,7 @@ const phpStaticAnalysisMetadataContracts = [
       '@param string $filePath',
       '@param string $publicPath',
       'function repairUploadsShield($publicPath, $projectRoot)',
-      'function repairDataShield($publicPath)',
+      "function repairDataShield($publicPath, $directory = 'data')",
     ],
   },
   {
@@ -8203,7 +8300,8 @@ const phpStaticAnalysisMetadataContracts = [
 ];
 const missingStaticAnalysisMetadata = [];
 for (const contract of phpStaticAnalysisMetadataContracts) {
-  const content = read(contract.file);
+  const content =
+    contract.file === 'public/security.php' ? readSecurityContract() : read(contract.file);
   for (const marker of contract.markers) {
     if (!content.includes(marker)) {
       missingStaticAnalysisMetadata.push(`${contract.file}: ${marker}`);
@@ -8806,7 +8904,7 @@ if (
   saveCommentsContent.includes('INSERT IGNORE INTO comment_likes') &&
   saveCommentsContent.includes('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?') &&
   saveCommentsContent.includes('CSRFProtection::requireToken();') &&
-  saveCommentsContent.includes('RateLimiter::requireNotLimited($commentRateIdentifier);') &&
+  saveCommentsContent.includes('RateLimiter::requireAttempt($commentRateIdentifier);') &&
   useCommentsContent.includes('const delta = wasJustLiked ? -1 : 1;') &&
   useCommentsContent.includes('setComments(originalComments);') &&
   useCommentsContent.includes(
@@ -11153,7 +11251,7 @@ assertExcludes(
 
 const mediaFilterHelperContent = read('public/api/media_library_filter_helper.php');
 const galleryMediaManagerContent = read('src/plugins/von-core/features/media/MediaManager.tsx');
-const editorMediaLibraryContent = read('src/components/Editor.tsx');
+const editorMediaSearchContent = editorParentContent + '\n' + editorMediaLibraryContent;
 const featuredMediaLibraryContent = postEditorContent + '\n' + featuredMediaLibraryModalContent;
 assertIncludes(
   'Media Library Server Search Contract',
@@ -11171,11 +11269,7 @@ assertIncludes(
 );
 assertIncludes(
   'Media Library Search UI Parity',
-  galleryMediaManagerContent +
-    '\n' +
-    editorMediaLibraryContent +
-    '\n' +
-    featuredMediaLibraryContent,
+  galleryMediaManagerContent + '\n' + editorMediaSearchContent + '\n' + featuredMediaLibraryContent,
   [
     'const params = new URLSearchParams',
     "params.set('search', search)",
@@ -11348,7 +11442,10 @@ assertExcludes(
 assertIncludes(
   'Ads Manager Style Tag Containment Contract',
   sharedAdBlockContent,
-  ['/<(script|iframe|style)(?:\\s|\\/?>)/i.test(safeContent)', 'if (!requiresIsolation)'],
+  [
+    '/<(script|iframe|style|form|input|button|select|textarea)(?:\\s|\\/?>)/i.test(safeContent)',
+    'if (!requiresIsolation)',
+  ],
   'Ads Manager Style Tag Containment Contract: stylesheet tags use the same sandbox as executable snippets instead of sharing the parent page.',
   'Ads Manager Style Tag Containment Contract: stylesheet snippets can still reach direct rendering.'
 );
@@ -12373,7 +12470,7 @@ if (
     "import AdBlock from '../../../../../themes/shared/components/AdBlock';"
   ) &&
   publicSidebarWidgetContent.includes(
-    "import { sanitizeHtml } from '../../../../../utils/security';"
+    "import { decodeEntities } from '../../../../../utils/textUtils';"
   ) &&
   !publicSidebarWidgetContent.includes("from '../../../../../themes/shared';")
 ) {
@@ -13348,7 +13445,7 @@ const getPostsPublicPrivacyContent = read('public/api/get_posts.php');
 const getPostPublicPrivacyContent = read('public/api/get_post.php');
 const getPagesPublicPrivacyContent = read('public/api/get_pages.php');
 const getCommentsPublicPrivacyContent = read('public/api/get_comments.php');
-const sharedPrivacyHelperContent = read('public/security.php');
+const sharedPrivacyHelperContent = readSecurityContract();
 if (
   !publicProfileContent.includes('SELECT id, username, role') &&
   !publicProfileContent.includes('created_at AS createdAt') &&
@@ -13595,7 +13692,7 @@ if (
   fail('Editor Link Relationship Runtime: link rel choices or token allowlisting drifted.');
 }
 
-const editorContentForLink = read('src/components/Editor.tsx');
+const editorContentForLink = editorContent;
 const contentRendererForLink = read('src/components/ContentRenderer.tsx');
 const globalStylesForEditor = read('src/index.css');
 const editorInsertSafeLinkBlock = sliceBetween(
@@ -14430,7 +14527,7 @@ assertIncludes(
   'Post Object Authorization Guard: post update/delete can still skip owner or elevated-role checks.'
 );
 
-const v1255ChangelogContent = read('CHANGELOG.md');
+const v1255ChangelogContent = changelogHistoryContent;
 if (
   !v1255ChangelogContent.includes('Bounded Public Comment Hydration') &&
   !v1255ChangelogContent.includes('under the old first-page cap') &&
@@ -15488,10 +15585,10 @@ if (
   otaReleaseContent.includes('deployAsset?.digest ?? deployAsset?.sha256') &&
   dashboardContent.includes('expectedHash={updateInfo.expectedHash}') &&
   updateModalContent.includes('expectedHash?: string;') &&
-  updateModalContent.includes('expected_hash: expectedHash || undefined')
+  !updateModalContent.includes('expected_hash: expectedHash || undefined')
 ) {
   pass(
-    'OTA Dashboard Flow: release digest is passed from GitHub release metadata into the updater request.'
+    'OTA Dashboard Flow: official release discovery is retained without trusting a caller-supplied digest.'
   );
 } else {
   fail('OTA Dashboard Flow: dashboard-to-updater digest wiring is incomplete.');
@@ -15557,9 +15654,13 @@ if (
 }
 if (
   updaterContent.includes("isset($input['expected_hash'])") &&
-  updaterContent.includes('$result = $updater->startUpdate($version, $url, $expectedHash);')
+  updaterContent.includes('$result = $updater->startUpdate($version, $url, $expectedHash);') &&
+  updaterContent.includes('validateOfficialReleaseUrl') &&
+  !updaterContent.includes('Using caller-supplied SHA256 digest.')
 ) {
-  pass('OTA Direct Endpoint Digest Flow: direct updater start requests forward caller SHA256.');
+  pass(
+    'OTA Direct Endpoint Digest Flow: legacy digest inputs cannot replace the server-owned official trust anchor.'
+  );
 } else {
   fail(
     'OTA Direct Endpoint Digest Flow: public/api/system/updater.php?action=start still drops expected_hash before startUpdate().'
@@ -16524,7 +16625,7 @@ assertIncludes(
   read('public/api/save_comments.php') + '\n' + read('public/api/get_comments.php'),
   [
     'comment:user:',
-    'RateLimiter::recordAttempt($commentRateIdentifier)',
+    'RateLimiter::requireAttempt($commentRateIdentifier)',
     'Post is not available for comments',
     'Comment is too long. Maximum 5000 characters allowed.',
     'EXISTS (SELECT 1 FROM posts p WHERE p.id = c.post_id',
@@ -16552,17 +16653,10 @@ assertIncludes(
   'Comment Pagination Deterministic Order Contract: equal timestamps can still reorder across pages.'
 );
 const commentRateLimitIndex = saveCommentsContent.indexOf(
-  'RateLimiter::requireNotLimited($commentRateIdentifier);'
-);
-const commentRateRecordIndex = saveCommentsContent.indexOf(
-  'RateLimiter::recordAttempt($commentRateIdentifier);'
+  'RateLimiter::requireAttempt($commentRateIdentifier);'
 );
 const commentValidationIndex = saveCommentsContent.indexOf('$postIdRaw =');
-if (
-  commentRateLimitIndex >= 0 &&
-  commentRateRecordIndex > commentRateLimitIndex &&
-  commentRateRecordIndex < commentValidationIndex
-) {
+if (commentRateLimitIndex >= 0 && commentRateLimitIndex < commentValidationIndex) {
   pass(
     'Comment Rejected Attempt Rate Contract: add attempts consume the bounded quota before validation exits.'
   );
@@ -17021,7 +17115,7 @@ if (
 }
 
 const v1268DebouncedMediaSearchContent = read('src/hooks/useDebouncedSearchQuery.ts');
-const v1268EditorContent = read('src/components/Editor.tsx');
+const v1268EditorContent = editorParentContent + '\n' + editorMediaLibraryContent;
 const v1268PostEditorContent = read('src/components/PostEditor.tsx');
 const v1268FeaturedMediaModalContent = read('src/components/editor/FeaturedMediaLibraryModal.tsx');
 const v1268MediaManagerContent = read('src/plugins/von-core/features/media/MediaManager.tsx');
@@ -17367,6 +17461,46 @@ if (
 }
 
 const phpBinary = findPhpBinary();
+if (phpBinary) {
+  const coreProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/test-core-modules.cjs'), phpBinary],
+    { encoding: 'utf8' }
+  );
+  if (coreProbe.status === 0)
+    pass(
+      'Internal Core Modules: root, Source, subdomain/subfolder storage paths, unchanged bootstrap contracts, release copying and direct-access denial pass.'
+    );
+  else fail('Internal Core Modules: ' + (coreProbe.stderr || coreProbe.stdout).trim());
+}
+if (phpBinary) {
+  const hardeningProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/test-security-hardening.cjs'), phpBinary],
+    { encoding: 'utf8' }
+  );
+  if (hardeningProbe.status === 0)
+    pass(
+      'Security Hardening Runtime: isolated SQL, login, OTA, mirror, MIME, image and actual title rendering regressions pass.'
+    );
+  else
+    fail('Security Hardening Runtime: ' + (hardeningProbe.stderr || hardeningProbe.stdout).trim());
+}
+if (phpBinary) {
+  const publicPluginSettingsProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/public-plugin-settings.php')],
+    { encoding: 'utf8' }
+  );
+  if (publicPluginSettingsProbe.status === 0) {
+    pass(publicPluginSettingsProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail(
+      'Public plugin settings: ' +
+        (publicPluginSettingsProbe.stderr || publicPluginSettingsProbe.stdout)
+    );
+  }
+}
 const topArticlesUiProbe = spawnSync(
   process.execPath,
   [resolveFromRoot('server/test-top-articles.cjs')],
@@ -17449,11 +17583,12 @@ if (!phpBinary) {
   // Login CSRF and legacy comment payload runtime boundary.
   const loginCommentFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-auth-comment-'));
   try {
-    for (const directory of ['api/security', 'data', 'sessions', 'rate']) {
+    for (const directory of ['api/security', 'core', 'data', 'sessions', 'rate']) {
       fs.mkdirSync(path.join(loginCommentFixture, directory), { recursive: true });
     }
     for (const relativePath of [
       'security.php',
+      ...coreSecurityModules.map((name) => 'core/' + name + '.php'),
       'api/login.php',
       'api/save_comments.php',
       'api/register.php',
@@ -19396,11 +19531,17 @@ register_shutdown_function(static function () use ($tempDir) {
   @unlink($tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php');
   @unlink($tempDir . DIRECTORY_SEPARATOR . 'von_config.php');
   @unlink($tempDir . DIRECTORY_SEPARATOR . 'security.php');
+  foreach (['InstallBootstrap', 'ContentViewDeduplicator', 'RateLimiter', 'ResponseHelper'] as $module) @unlink($tempDir . '/core/' . $module . '.php');
+  @rmdir($tempDir . '/core');
   @rmdir($tempDir . DIRECTORY_SEPARATOR . 'api');
   @rmdir($tempDir);
 });
 if (!copy(${JSON.stringify(resolveFromRoot('public/security.php'))}, $tempDir . DIRECTORY_SEPARATOR . 'security.php')) {
   exit(4);
+}
+if (!mkdir($tempDir . '/core', 0700, true)) exit(8);
+foreach (['InstallBootstrap', 'ContentViewDeduplicator', 'RateLimiter', 'ResponseHelper'] as $module) {
+  if (!copy(${JSON.stringify(resolveFromRoot('public/core'))} . '/' . $module . '.php', $tempDir . '/core/' . $module . '.php')) exit(9);
 }
 if (!copy(${JSON.stringify(resolveFromRoot('public/api/get_storage.php'))}, $tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php')) {
   exit(5);
@@ -21403,6 +21544,7 @@ echo 'ok';
   fs.mkdirSync(earlyCacheSessionDirectory, { recursive: true });
   for (const relativeFile of [
     'public/security.php',
+    ...coreSecurityModules.map((name) => 'public/core/' + name + '.php'),
     'public/api/public_cache_helper.php',
     'public/api/get_posts.php',
     'public/api/get_settings.php',

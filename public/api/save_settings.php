@@ -438,6 +438,21 @@ if (array_key_exists('headerIdentityMode', $settings)) {
 // Remove metadata fields
 unset($settings['_source'], $settings['_access_level'], $settings['_warning']);
 
+/** SMTP fallback remains private; AI/IndexNow credentials have no mirror consumer. */
+function voncms_filter_settings_mirror(array $settings): array
+{
+  foreach ($settings as $key => $value) {
+    if (
+      in_array(strtolower(str_replace('_', '', (string) $key)), ['aiapikey', 'indexnowkey'], true)
+    ) {
+      unset($settings[$key]);
+    } elseif (is_array($value)) {
+      $settings[$key] = voncms_filter_settings_mirror($value);
+    }
+  }
+  return $settings;
+}
+
 function voncms_write_settings_json_mirror(string $settingsFile, array $settingsForFile): void
 {
   $settingsDir = dirname($settingsFile);
@@ -446,7 +461,7 @@ function voncms_write_settings_json_mirror(string $settingsFile, array $settings
   }
 
   $json = json_encode(
-    $settingsForFile,
+    voncms_filter_settings_mirror($settingsForFile),
     JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
   );
 
@@ -457,22 +472,40 @@ function voncms_write_settings_json_mirror(string $settingsFile, array $settings
   $tempFile = $settingsFile . '.' . bin2hex(random_bytes(6)) . '.tmp';
 
   try {
-    $bytesWritten = file_put_contents($tempFile, $json, LOCK_EX);
-    if ($bytesWritten === false || $bytesWritten !== strlen($json)) {
-      throw new Exception('Could not write complete settings mirror file.');
+    // Create empty private staging before writing any credential bytes.
+    $previousUmask = umask(0077);
+    try {
+      $handle = fopen($tempFile, 'x+b');
+    } finally {
+      umask($previousUmask);
     }
-
-    clearstatcache(true, $tempFile);
-    if (!file_exists($tempFile) || filesize($tempFile) <= 0) {
-      throw new Exception('Temp settings mirror write failed (empty).');
+    if ($handle === false) {
+      throw new Exception('Could not create private settings mirror.');
     }
-
-    if (!rename($tempFile, $settingsFile)) {
-      if (copy($tempFile, $settingsFile)) {
-        unlink($tempFile);
-      } else {
-        throw new Exception('Failed to commit settings mirror file.');
+    try {
+      if (!chmod($tempFile, 0600)) {
+        throw new Exception('Could not protect settings mirror.');
       }
+      $written = 0;
+      while ($written < strlen($json)) {
+        $bytes = fwrite($handle, substr($json, $written));
+        if ($bytes === false || $bytes === 0) {
+          throw new Exception('Incomplete settings mirror write.');
+        }
+        $written += $bytes;
+      }
+      if (!fflush($handle)) {
+        throw new Exception('Could not flush settings mirror.');
+      }
+    } finally {
+      fclose($handle);
+    }
+    if (file_exists($settingsFile) && !chmod($settingsFile, 0600)) {
+      throw new Exception('Could not protect existing settings mirror.');
+    }
+    // Do not copy secret bytes into a potentially public destination on rename failure.
+    if (!rename($tempFile, $settingsFile)) {
+      throw new Exception('Failed to commit private settings mirror.');
     }
   } finally {
     if (isset($tempFile) && file_exists($tempFile)) {

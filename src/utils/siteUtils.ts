@@ -36,6 +36,24 @@ export const getCategorySlug = (category: string | null | undefined): string => 
   return slug || 'uncategorized';
 };
 
+// Advisory only: these public folders can collide with Category & Name permalinks.
+const CATEGORY_FOLDER_PATHS = new Set([
+  'api',
+  'assets',
+  'backups',
+  'core',
+  'data',
+  'docs',
+  'fonts',
+  'themes',
+  'uploads',
+]);
+
+export const getCategoryFolderConflict = (category: string | null | undefined): string | null => {
+  const slug = getCategorySlug(category);
+  return CATEGORY_FOLDER_PATHS.has(slug) ? slug : null;
+};
+
 export const getPermalink = (
   post: Post,
   settings: SiteSettings,

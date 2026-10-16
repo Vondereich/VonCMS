@@ -24,12 +24,9 @@ import {
   AlignJustify,
   Images,
   X,
-  CheckCircle,
-  Sparkles,
   ChevronDown,
   Eye,
   Braces,
-  Search,
   Plus,
   MoreHorizontal,
 } from 'lucide-react';
@@ -37,7 +34,6 @@ import type { MediaItem } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { DarkModeStyles } from '../styles/DarkModeStyles';
-import SmartPagination from './SmartPagination';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import AdminModal from './admin/AdminModal';
 import { sanitizeHTML } from '../utils/colorSanitizer';
@@ -75,6 +71,14 @@ import { buildEditorImageHtml, type EditorImageInput } from './editor/editorImag
 import { buildEditorVideoEmbedHtml, inferVideoAspectMode } from './editor/editorVideoUtils';
 import type { VideoAspectMode } from './editor/editorVideoContracts';
 import { EditorPreviewModal } from './editor/EditorPreviewModal';
+import { EditorSurfaceStyles } from './editor/EditorSurfaceStyles';
+import { EditorInsertModal } from './editor/EditorInsertModal';
+import { EditorMediaLibraryModal } from './editor/EditorMediaLibraryModal';
+import {
+  EditorImageBubble,
+  EditorVideoBubble,
+  EditorTableBubble,
+} from './editor/EditorBubbleMenus';
 
 interface EditorProps {
   initialContent: string;
@@ -1360,160 +1364,7 @@ const Editor: React.FC<EditorProps> = ({
       className="relative flex flex-col overflow-visible rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel"
     >
       <DarkModeStyles prefix="editor" />
-      <style>{`
-        .editor-content .${EDITOR_SURFACE_CLASS} {
-          min-height: 320px;
-          padding: 1.5rem 1.25rem 4rem;
-          outline: none;
-          color: #0f172a;
-          line-height: 1.75;
-          caret-color: #2563eb;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} > *:first-child { margin-top: 0; }
-        .editor-content .${EDITOR_SURFACE_CLASS} > *:last-child { margin-bottom: 0; }
-        .editor-content .${EDITOR_SURFACE_CLASS} p { margin-bottom: 1rem; }
-        .editor-content .${EDITOR_SURFACE_CLASS} a {
-          color: #0284c7;
-          text-decoration: underline;
-          text-underline-offset: 3px;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} ul {
-          list-style: disc;
-          list-style-position: outside;
-          margin: 1rem 0 1rem 1.5rem;
-          padding-left: 1.25rem;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} ol {
-          list-style: decimal;
-          list-style-position: outside;
-          margin: 1rem 0 1rem 1.5rem;
-          padding-left: 1.25rem;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} li {
-          margin: 0.35rem 0;
-          padding-left: 0.25rem;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} blockquote {
-          border-left: 4px solid #3b82f6;
-          background: #eff6ff;
-          color: #475569;
-          font-style: italic;
-          margin: 1.25rem 0;
-          padding: 0.85rem 1rem;
-          border-radius: 0 0.75rem 0.75rem 0;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} pre {
-          background: #0f172a;
-          color: #e2e8f0;
-          border-radius: 0.75rem;
-          padding: 1rem;
-          margin: 1.25rem 0;
-          overflow-x: auto;
-          font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', monospace;
-          font-size: 0.875rem;
-          line-height: 1.65;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} code {
-          background: #f1f5f9;
-          color: #b45309;
-          border-radius: 0.375rem;
-          padding: 0.15rem 0.35rem;
-          font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', monospace;
-          font-size: 0.9em;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} pre code {
-          background: transparent;
-          color: inherit;
-          border-radius: 0;
-          padding: 0;
-          font-size: inherit;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} > figure,
-        .editor-content .${EDITOR_SURFACE_CLASS} > img,
-        .editor-content .${EDITOR_SURFACE_CLASS} > iframe {
-          margin: 1.5rem 0;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} figure {
-          max-width: 100%;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} figure img {
-          margin-top: 0;
-          margin-bottom: 0;
-          width: revert-layer;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 1.5rem 0;
-          overflow: hidden;
-          border-radius: 0.75rem;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} th,
-        .editor-content .${EDITOR_SURFACE_CLASS} td {
-          border: 1px solid #cbd5e1;
-          padding: 0.75rem;
-          vertical-align: top;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} th {
-          background: #f8fafc;
-          font-weight: 700;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {
-          content: 'Start Writing';
-          color: #cbd5e1;
-          float: left;
-          height: 0;
-          pointer-events: none;
-          font-size: 0.875rem;
-          font-weight: 600;
-          line-height: inherit;
-        }
-        .editor-content .${EDITOR_SURFACE_CLASS} img { cursor: pointer; }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} {
-          color: #e2e8f0;
-          caret-color: #60a5fa;
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} a { color: #38bdf8; }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} blockquote {
-          background: var(--color-admin-canvas);
-          color: #cbd5e1;
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} pre {
-          background: var(--color-admin-inset);
-          color: #e2e8f0;
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} code {
-          background: var(--color-admin-hover);
-          color: #fbbf24;
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} pre code {
-          background: transparent;
-          color: inherit;
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} th,
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} td {
-          border-color: var(--color-admin-border-strong);
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} th {
-          background: var(--color-admin-hover);
-        }
-        .dark .editor-content .${EDITOR_SURFACE_CLASS} > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {
-          color: #475569;
-        }
-        @media (min-width: 640px) {
-          .editor-content .${EDITOR_SURFACE_CLASS} {
-            padding: 1.75rem 1.5rem 4rem;
-          }
-        }
-        .editor-content h1 { font-size: 2.25rem !important; font-weight: 800; line-height: 1.2; margin-bottom: 0.8em; }
-        .editor-content h2 { font-size: 1.875rem !important; font-weight: 700; line-height: 1.3; margin-top: 1.5em; margin-bottom: 0.6em; }
-        .editor-content h3 { font-size: 1.5rem !important; font-weight: 600; line-height: 1.4; margin-top: 1.2em; margin-bottom: 0.5em; }
-        .editor-content h4 { font-size: 1.25rem !important; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; }
-        .editor-content h5 { font-size: 1.125rem !important; font-weight: 600; text-transform: uppercase; color: #64748b; margin-top: 1em; margin-bottom: 0.4em; }
-        .editor-content h6 { font-size: 1rem !important; font-weight: 700; letter-spacing: 0.05em; color: #475569; margin-top: 1em; }
-        .dark .editor-content h5 { color: #94a3b8; }
-        .dark .editor-content h6 { color: #cbd5e1; }
-      `}</style>
+      <EditorSurfaceStyles />
       {/* Main Toolbar - Sticky */}
       <div ref={toolbarSentinelRef} className="h-px" aria-hidden="true" />
       <div
@@ -2042,593 +1893,82 @@ const Editor: React.FC<EditorProps> = ({
       />
 
       {/* Editor Input Modal (Link, Video, Code, Table) */}
-      <AdminModal
-        isOpen={Boolean(activeModal && activeModal !== 'mediaLibrary')}
+      <EditorInsertModal
+        activeModal={activeModal}
+        modalInput={modalInput}
+        modalInput2={modalInput2}
+        modalError={modalError}
+        linkRelationship={linkRelationship}
+        modalCanSubmit={modalCanSubmit}
+        selectedLinkIsActive={selectedLinkIsActive}
+        onInputChange={(value) => {
+          setModalInput(value);
+          setModalError('');
+        }}
+        onSecondInputChange={(value) => {
+          setModalInput2(value);
+          setModalError('');
+        }}
+        onRelationshipChange={setLinkRelationship}
+        onConfirm={handleModalConfirm}
+        onRemoveLink={removeSelectedLink}
         onClose={closeModal}
-        ariaLabel={`Insert ${activeModal || 'content'}`}
-        className="w-full max-w-md"
-      >
-        <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl transition-all dark:border-admin-border dark:bg-admin-panel">
-          <div className="p-4 border-b border-slate-100 dark:border-admin-border flex justify-between items-center bg-slate-50 dark:bg-admin-canvas/50">
-            <h3 className="font-bold text-slate-800 dark:text-white capitalize flex items-center gap-2">
-              {activeModal === 'link' && <Link size={18} className="text-blue-500" />}
-              {activeModal === 'image' && <Image size={18} className="text-green-500" />}
-              {activeModal === 'video' && <Video size={18} className="text-red-500" />}
-              {activeModal === 'code' && <Code size={18} className="text-amber-500" />}
-              {activeModal === 'table' && <Table size={18} className="text-indigo-500" />}
-              Insert {activeModal}
-            </h3>
-            <button
-              type="button"
-              onClick={closeModal}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
-              aria-label="Close insert dialog"
-              title="Close insert dialog"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="space-y-4 p-4 sm:p-6">
-            {activeModal === 'table' ? (
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Rows
-                    </span>
-                    <input
-                      aria-label="Rows"
-                      id="editor-1288"
-                      name="editor1288"
-                      type="number"
-                      min={TABLE_MIN_DIMENSION}
-                      max={TABLE_MAX_DIMENSION}
-                      required
-                      value={modalInput}
-                      onChange={(e) => {
-                        setModalInput(e.target.value);
-                        setModalError('');
-                      }}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Columns
-                    </span>
-                    <input
-                      id="editor-1300"
-                      name="editor1300"
-                      aria-label="Columns"
-                      type="number"
-                      min={TABLE_MIN_DIMENSION}
-                      max={TABLE_MAX_DIMENSION}
-                      required
-                      value={modalInput2}
-                      onChange={(e) => {
-                        setModalInput2(e.target.value);
-                        setModalError('');
-                      }}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Use {TABLE_MIN_DIMENSION} to {TABLE_MAX_DIMENSION} rows and columns.
-                </p>
-              </div>
-            ) : activeModal === 'code' ? (
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Code Content
-                </span>
-                <textarea
-                  aria-label="Code Content"
-                  id="editor-1314"
-                  name="editor1314"
-                  autoFocus
-                  rows={6}
-                  required
-                  maxLength={100000}
-                  value={modalInput}
-                  onChange={(e) => {
-                    setModalInput(e.target.value);
-                    setModalError('');
-                  }}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm"
-                  placeholder="Paste your code here..."
-                />
-              </div>
-            ) : (
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  {activeModal === 'link'
-                    ? 'URL'
-                    : activeModal === 'image'
-                      ? 'Image URL'
-                      : 'Video URL or Embed Code'}
-                </span>
-                <input
-                  id="editor-1332"
-                  name="editor1332"
-                  aria-label={
-                    activeModal === 'link'
-                      ? 'Link URL'
-                      : activeModal === 'image'
-                        ? 'Image URL'
-                        : 'Video URL or embed code'
-                  }
-                  autoFocus
-                  type="text"
-                  required
-                  maxLength={activeModal === 'video' ? 12000 : 2048}
-                  value={modalInput}
-                  onChange={(e) => {
-                    setModalInput(e.target.value);
-                    setModalError('');
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleModalConfirm()}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-                  placeholder={
-                    activeModal === 'video' ? 'https://youtube.com/...' : 'https://example.com'
-                  }
-                />
-                {activeModal === 'link' && (
-                  <div className="mt-3">
-                    <label
-                      htmlFor="editor-link-relationship"
-                      className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-                    >
-                      Link relationship
-                    </label>
-                    <select
-                      id="editor-link-relationship"
-                      value={linkRelationship}
-                      onChange={(event) =>
-                        setLinkRelationship(event.target.value as EditorLinkRelationship)
-                      }
-                      className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm dark:border-admin-border-strong dark:bg-admin-canvas dark:text-white"
-                    >
-                      <option value="normal">Normal</option>
-                      <option value="sponsored">Sponsored - paid or compensated link</option>
-                      <option value="nofollow">Nofollow</option>
-                      <option value="ugc">UGC - user-generated content</option>
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Applies to this link only. It does not change article indexing.
-                    </p>
-                  </div>
-                )}
-                {activeModal === 'video' && (
-                  <p className="text-xs text-slate-500 mt-1">
-                    Supports YouTube, TikTok, Instagram, Facebook or supported iframe embeds.
-                  </p>
-                )}
-              </div>
-            )}
-            {modalError && (
-              <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
-                {modalError}
-              </p>
-            )}
-          </div>
-
-          {/* Modal Footer with Quick Release Button */}
-          <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="min-h-11 w-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-admin-hover rounded-lg transition-colors sm:w-auto"
-            >
-              Cancel
-            </button>
-            {selectedLinkIsActive && (
-              <button
-                type="button"
-                onClick={removeSelectedLink}
-                className="min-h-11 w-full rounded-lg px-4 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 sm:w-auto"
-              >
-                Remove link
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleModalConfirm}
-              disabled={!modalCanSubmit}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-            >
-              <CheckCircle size={16} />
-              {activeModal === 'link'
-                ? selectedLinkIsActive
-                  ? 'Update Link'
-                  : 'Insert Link'
-                : activeModal === 'image' || activeModal === 'video'
-                  ? 'Insert Object'
-                  : activeModal === 'code'
-                    ? 'Insert Code'
-                    : 'Generate Table'}
-            </button>
-          </div>
-        </div>
-      </AdminModal>
+      />
 
       {/* Media Library Modal */}
-      <AdminModal
+      <EditorMediaLibraryModal
         isOpen={activeModal === 'mediaLibrary'}
+        mediaFiles={mediaFiles}
+        loadingMedia={loadingMedia}
+        mediaPagination={mediaPagination}
+        mediaSearchInput={mediaSearchInput}
+        onSearchInputChange={setMediaSearchInput}
+        onSearch={handleMediaSearch}
+        onSelect={handleMediaSelect}
+        onPageChange={(page) => fetchMedia(page, mediaSearchQuery)}
         onClose={closeModal}
-        ariaLabel="Media library"
-        className="w-full max-w-4xl"
-      >
-        <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel sm:max-h-[85dvh]">
-          <div className="p-4 border-b border-slate-100 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas/50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-              <Images size={18} className="text-blue-500" />
-              Media Library
-            </h3>
-            <button
-              type="button"
-              onClick={closeModal}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
-              title="Close"
-              aria-label="Close media library"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <form
-            onSubmit={handleMediaSearch}
-            className="flex flex-col gap-2 border-b border-slate-100 bg-white p-3 dark:border-admin-border dark:bg-admin-panel sm:flex-row"
-          >
-            <div className="relative flex-1">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                id="editor-media-search"
-                name="editorMediaSearch"
-                type="text"
-                inputMode="search"
-                value={mediaSearchInput}
-                maxLength={120}
-                aria-label="Search media library"
-                onChange={(event) => setMediaSearchInput(event.target.value)}
-                placeholder="Search filename, alt text or caption..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-10 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
-              />
-              {mediaSearchInput !== '' && (
-                <button
-                  type="button"
-                  onClick={() => setMediaSearchInput('')}
-                  className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-admin-border dark:hover:text-white"
-                  title="Clear search"
-                  aria-label="Clear media library search"
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-            <button
-              type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
-            >
-              Search
-            </button>
-          </form>
-
-          <div className="grow overflow-y-auto p-4 bg-slate-100 dark:bg-admin-canvas custom-scrollbar">
-            {loadingMedia ? (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
-                Loading library...
-              </div>
-            ) : mediaFiles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                <Images size={48} className="opacity-20 mb-2" />
-                <p>No images found in library</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 lg:gap-4">
-                {mediaFiles.map((file, idx) => (
-                  <button
-                    type="button"
-                    key={file.id || file.url || idx}
-                    onClick={() => handleMediaSelect(file)}
-                    aria-label={`Insert ${file.altText || file.name || 'image'}`}
-                    className="group cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-xs transition-all hover:ring-2 hover:ring-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-admin-border dark:bg-admin-panel"
-                  >
-                    <div className="aspect-square relative bg-slate-100 dark:bg-admin-canvas">
-                      <img
-                        src={file.webpUrl || file.url}
-                        alt={file.altText || file.name || ''}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-colors group-hover:bg-black/20 group-hover:opacity-100 group-focus-visible:bg-black/20 group-focus-visible:opacity-100">
-                        <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg">
-                          Select
-                        </span>
-                      </div>
-                    </div>
-                    <div className="p-2 text-xs truncate text-slate-600 dark:text-slate-300 font-medium">
-                      {file.name}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 border-t border-slate-100 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas/50">
-            <SmartPagination
-              currentPage={mediaPagination.currentPage}
-              totalPages={mediaPagination.totalPages}
-              onPageChange={(page) => fetchMedia(page, mediaSearchQuery)}
-              itemsPerPage={mediaPagination.limit}
-              totalItems={mediaPagination.totalItems}
-            />
-            <div className="flex justify-end mt-4">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="min-h-11 px-4 py-2 bg-white dark:bg-admin-panel border border-slate-300 dark:border-admin-border-strong rounded-lg hover:bg-slate-50 dark:hover:bg-admin-hover transition-colors text-xs font-bold dark:text-slate-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      </AdminModal>
+      />
 
       {/* Image Bubble Menu */}
       {selectedImage && (
-        <div
-          className="absolute z-70 bg-white dark:bg-admin-panel shadow-xl border border-slate-200 dark:border-admin-border rounded-lg p-2 flex flex-col gap-2 w-72 animate-fade-in"
-          style={{ top: bubblePosition.top, left: Math.max(10, bubblePosition.left) }}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold text-slate-500 uppercase">Image Tools</span>
-            <button
-              type="button"
-              onClick={() => setSelectedImage(null)}
-              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
-              aria-label="Close image tools"
-              title="Close image tools"
-            >
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-admin-canvas rounded-sm p-1">
-            <ToolButton
-              icon={<AlignLeft size={14} />}
-              onClick={() => alignImage('left')}
-              title="Align Left"
-              active={selectedImageAlignment === 'left'}
-            />
-            <ToolButton
-              icon={<AlignCenter size={14} />}
-              onClick={() => alignImage('center')}
-              title="Align Center"
-              active={selectedImageAlignment === 'center'}
-            />
-            <ToolButton
-              icon={<AlignRight size={14} />}
-              onClick={() => alignImage('right')}
-              title="Align Right"
-              active={selectedImageAlignment === 'right'}
-            />
-          </div>
-
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-admin-canvas rounded-sm p-1">
-            <span className="text-[10px] text-slate-500 font-semibold px-1">SIZE</span>
-            {(['25', '50', '75', '100'] as const).map((size) => (
-              <button
-                key={size}
-                type="button"
-                onClick={() => resizeImage(size)}
-                className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
-                  selectedImageSize === size
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-admin-panel'
-                }`}
-                title={`Resize to ${size}%`}
-              >
-                {size === '25' ? 'S' : size === '50' ? 'M' : size === '75' ? 'L' : 'Full'}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-500 font-semibold">ALT TEXT (SEO)</span>
-            <div className="flex gap-1">
-              <input
-                aria-label="ALT TEXT (SEO)"
-                id="editor-1513"
-                name="editor1513"
-                value={bubbleAlt}
-                onChange={(e) => setBubbleAlt(e.target.value)}
-                className="grow text-xs p-1.5 border border-slate-300 dark:border-admin-border-strong rounded-sm bg-slate-50 dark:bg-admin-canvas dark:text-white"
-                placeholder="Describe image..."
-              />
-              <button
-                type="button"
-                onClick={updateImageAlt}
-                className="bg-blue-600 text-white p-1.5 rounded-sm hover:bg-blue-700"
-                title="Save Alt Text"
-              >
-                <CheckCircle size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-500 font-semibold">CREDIT / ATTRIBUTION</span>
-            <div className="flex gap-1">
-              <input
-                id="editor-1532"
-                name="editor1532"
-                aria-label="CREDIT / ATTRIBUTION"
-                value={bubbleCredit}
-                onChange={(e) => setBubbleCredit(e.target.value)}
-                className="grow text-xs p-1.5 border border-slate-300 dark:border-admin-border-strong rounded-sm bg-slate-50 dark:bg-admin-canvas dark:text-white"
-                placeholder="e.g. Bernama, Reuters, AP, AFP..."
-              />
-              <button
-                type="button"
-                onClick={updateImageCredit}
-                className="bg-cyan-600 text-white p-1.5 rounded-sm hover:bg-cyan-700"
-                title="Save Credit"
-              >
-                <CheckCircle size={14} />
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={setAsFeaturedIndex}
-            className="text-xs p-1.5 bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-100 flex items-center justify-center gap-1 font-medium mt-1"
-          >
-            <Sparkles size={14} /> Set as Featured Image
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={removeSelectedImage}
-            className="flex min-h-10 items-center justify-center rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/35"
-          >
-            Remove image
-          </button>
-        </div>
+        <EditorImageBubble
+          bubblePosition={bubblePosition}
+          selectedImageAlignment={selectedImageAlignment}
+          selectedImageSize={selectedImageSize}
+          bubbleAlt={bubbleAlt}
+          bubbleCredit={bubbleCredit}
+          alignImage={alignImage}
+          resizeImage={resizeImage}
+          setBubbleAlt={setBubbleAlt}
+          setBubbleCredit={setBubbleCredit}
+          updateImageAlt={updateImageAlt}
+          updateImageCredit={updateImageCredit}
+          setAsFeaturedIndex={setAsFeaturedIndex}
+          removeSelectedImage={removeSelectedImage}
+          onClose={() => setSelectedImage(null)}
+        />
       )}
 
       {/* Video Bubble Menu */}
       {selectedVideoEmbed && (
-        <div
-          className="absolute z-70 bg-white dark:bg-admin-panel shadow-xl border border-slate-200 dark:border-admin-border rounded-lg p-2 flex flex-col gap-2 w-72 animate-fade-in"
-          style={{ top: bubblePosition.top, left: Math.max(10, bubblePosition.left) }}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold text-slate-500 uppercase">Video Tools</span>
-            <button
-              type="button"
-              onClick={() => setSelectedVideoEmbed(null)}
-              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
-              aria-label="Close video tools"
-              title="Close video tools"
-            >
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-admin-canvas rounded-sm p-1">
-            <ToolButton
-              icon={<AlignLeft size={14} />}
-              onClick={() => alignImage('left')}
-              title="Align Left"
-              active={selectedVideoAlignment === 'left'}
-            />
-            <ToolButton
-              icon={<AlignCenter size={14} />}
-              onClick={() => alignImage('center')}
-              title="Align Center"
-              active={selectedVideoAlignment === 'center'}
-            />
-            <ToolButton
-              icon={<AlignRight size={14} />}
-              onClick={() => alignImage('right')}
-              title="Align Right"
-              active={selectedVideoAlignment === 'right'}
-            />
-          </div>
-
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-admin-canvas rounded-sm p-1">
-            <span className="text-[10px] text-slate-500 font-semibold px-1">ASPECT</span>
-            {(
-              [
-                ['auto', 'Auto'],
-                ['portrait', '9:16'],
-                ['landscape', '16:9'],
-              ] as const
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => applyVideoAspectMode(mode)}
-                className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
-                  selectedVideoAspect === mode
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-admin-panel'
-                }`}
-                title={`Set video aspect to ${label}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={removeSelectedVideo}
-            className="flex min-h-10 items-center justify-center rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/35"
-          >
-            Remove video
-          </button>
-        </div>
+        <EditorVideoBubble
+          bubblePosition={bubblePosition}
+          selectedVideoAlignment={selectedVideoAlignment}
+          selectedVideoAspect={selectedVideoAspect}
+          alignImage={alignImage}
+          applyVideoAspectMode={applyVideoAspectMode}
+          removeSelectedVideo={removeSelectedVideo}
+          onClose={() => setSelectedVideoEmbed(null)}
+        />
       )}
 
       {/* Table Bubble Menu */}
       {selectedTable && (
-        <div
-          className="absolute z-70 flex w-72 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-xl animate-fade-in dark:border-admin-border dark:bg-admin-panel"
-          style={{ top: bubblePosition.top, left: bubblePosition.left }}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-slate-500">Table Tools</span>
-            <button
-              type="button"
-              onClick={() => setSelectedTable(null)}
-              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
-              aria-label="Close table tools"
-              title="Close table tools"
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {(
-              [
-                ['addRowBefore', 'Add row above'],
-                ['addRowAfter', 'Add row below'],
-                ['deleteRow', 'Delete row'],
-                ['addColumnBefore', 'Add column left'],
-                ['addColumnAfter', 'Add column right'],
-                ['deleteColumn', 'Delete column'],
-              ] as const
-            ).map(([command, label]) => (
-              <button
-                key={command}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => runTableCommand(command)}
-                className="min-h-10 rounded-lg bg-slate-100 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-canvas dark:text-slate-200 dark:hover:bg-white/10"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => runTableCommand('deleteTable')}
-            className="min-h-10 rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/35"
-          >
-            Delete table
-          </button>
-        </div>
+        <EditorTableBubble
+          bubblePosition={bubblePosition}
+          runTableCommand={runTableCommand}
+          onClose={() => setSelectedTable(null)}
+        />
       )}
     </div>
   );

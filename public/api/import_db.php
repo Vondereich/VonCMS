@@ -68,6 +68,28 @@ function getImportMysqlBufferedQueryAttribute(): ?int
   return null;
 }
 
+/** Reject connection dialects that disagree with the backup parser's quote rules. */
+function requireCompatibleImportSqlMode(PDO $pdo): void
+{
+  try {
+    $statement = $pdo->query('SELECT @@SESSION.sql_mode');
+    $mode = $statement ? $statement->fetchColumn() : false;
+  } catch (Throwable $error) {
+    ResponseHelper::sendError('Cannot verify the SQL restore mode. No data was imported.', 503);
+  }
+
+  if (!is_string($mode)) {
+    ResponseHelper::sendError('Cannot verify the SQL restore mode. No data was imported.', 503);
+  }
+  $modes = array_map('trim', explode(',', strtoupper($mode)));
+  if (array_intersect(['NO_BACKSLASH_ESCAPES', 'ANSI_QUOTES'], $modes) !== []) {
+    ResponseHelper::sendError(
+      'This SQL mode is incompatible with the VonCMS backup parser (NO_BACKSLASH_ESCAPES or ANSI_QUOTES). Restore trusted backups using a matching database tool instead. No data was imported.',
+      409,
+    );
+  }
+}
+
 function quoteImportBackupMysqlIdentifier(string $identifier): string
 {
   return '`' . str_replace('`', '``', $identifier) . '`';
@@ -84,31 +106,97 @@ function sanitizeImportBackupCommentLabel(string $value): string
  */
 function stripLeadingSqlComments($statement)
 {
-  $statement = trim($statement);
-
-  while ($statement !== '') {
-    if (strpos($statement, '--') === 0 || strpos($statement, '#') === 0) {
-      $lineBreak = strpos($statement, "\n");
-      if ($lineBreak === false) {
-        return '';
+  // Strip ordinary comments everywhere, but reject MySQL/MariaDB executable comments.
+  // Quoted content is copied literally, including comment-looking article text.
+  $sql = (string) $statement;
+  $result = '';
+  $quote = null;
+  $length = strlen($sql);
+  for ($i = 0; $i < $length; $i++) {
+    $char = $sql[$i];
+    $next = $sql[$i + 1] ?? '';
+    if ($quote !== null) {
+      $result .= $char;
+      if ($char === '\\' && $quote !== '`' && $i + 1 < $length) {
+        $result .= $sql[++$i];
+      } elseif ($char === $quote) {
+        if ($next === $quote) {
+          $result .= $sql[++$i];
+        } else {
+          $quote = null;
+        }
       }
-      $statement = ltrim(substr($statement, $lineBreak + 1));
       continue;
     }
-
-    if (strpos($statement, '/*') === 0) {
-      $commentEnd = strpos($statement, '*/');
-      if ($commentEnd === false) {
-        return '';
-      }
-      $statement = ltrim(substr($statement, $commentEnd + 2));
+    if (in_array($char, ["'", '"', '`'], true)) {
+      $quote = $char;
+      $result .= $char;
       continue;
     }
-
-    break;
+    if ($char === '/' && $next === '*') {
+      if (preg_match('/^\/\*(?:!|\+|M!)/i', substr($sql, $i, 5))) {
+        throw new RuntimeException('Executable SQL comments and optimizer hints are not allowed.');
+      }
+      $end = strpos($sql, '*/', $i + 2);
+      if ($end === false) {
+        throw new RuntimeException('Unterminated SQL comment.');
+      }
+      $result .= ' ';
+      $i = $end + 1;
+      continue;
+    }
+    if (
+      $char === '#' ||
+      ($char === '-' && $next === '-' && (!isset($sql[$i + 2]) || ctype_space($sql[$i + 2])))
+    ) {
+      while ($i < $length && $sql[$i] !== "\n" && $sql[$i] !== "\r") {
+        $i++;
+      }
+      $result .= ' ';
+      continue;
+    }
+    if ($char === ';') {
+      throw new RuntimeException('Only a single SQL statement is allowed.');
+    }
+    $result .= $char;
   }
+  if ($quote !== null) {
+    throw new RuntimeException('Unterminated SQL value or identifier.');
+  }
+  return trim($result);
+}
 
-  return $statement;
+/** Mask quoted literals/identifiers for structural checks, never for execution. */
+function maskImportSqlQuotes(string $statement): string
+{
+  // Scan in linear time: repeated PCRE alternatives exhaust JIT stack on normal long articles.
+  $result = '';
+  $length = strlen($statement);
+  for ($i = 0; $i < $length; $i++) {
+    $quote = $statement[$i];
+    if (!in_array($quote, ["'", '"', '`'], true)) {
+      $result .= $quote;
+      continue;
+    }
+    $result .= $quote === '`' ? 'quoted_identifier' : '0';
+    $closed = false;
+    for ($i++; $i < $length; $i++) {
+      if ($statement[$i] === '\\' && $quote !== '`') {
+        $i++;
+      } elseif ($statement[$i] === $quote) {
+        if (($statement[$i + 1] ?? '') === $quote) {
+          $i++;
+        } else {
+          $closed = true;
+          break;
+        }
+      }
+    }
+    if (!$closed) {
+      throw new RuntimeException('Unterminated SQL value or identifier.');
+    }
+  }
+  return $result;
 }
 
 /**
@@ -271,7 +359,8 @@ function iterateSqlStatementsFromFile($path)
  */
 function getAllowedImportStatementType($statement)
 {
-  $statement = trim($statement);
+  $statement = stripLeadingSqlComments($statement);
+  $structure = maskImportSqlQuotes($statement);
 
   $identifier = '(?:`(?:``|[^`])+`|[a-zA-Z0-9_$]+)';
   $columnList = $identifier . '(?:\s*,\s*' . $identifier . ')*';
@@ -285,15 +374,25 @@ function getAllowedImportStatementType($statement)
       '/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?' . $identifier . '\s*\(/is',
       $statement,
     ) &&
-    !preg_match('/\b(?:AS\s+SELECT|DATA\s+DIRECTORY|INDEX\s+DIRECTORY|TABLESPACE)\b/i', $statement)
+    !preg_match('/\b(?:SELECT|DATA\s+DIRECTORY|INDEX\s+DIRECTORY|TABLESPACE)\b/i', $structure)
   ) {
     return 'create_table';
   }
 
+  $value = '(?:NULL|[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?)';
+  $tuple = '\(\s*' . $value . '(?:\s*,\s*' . $value . ')*\s*\)';
   if (
     preg_match(
-      '/^INSERT\s+INTO\s+' . $identifier . '\s*\(\s*' . $columnList . '\s*\)\s+VALUES\s*\(/is',
-      $statement,
+      '/^INSERT\s+INTO\s+' .
+        $identifier .
+        '\s*\(\s*' .
+        $columnList .
+        '\s*\)\s+VALUES\s*' .
+        $tuple .
+        '(?:\s*,\s*' .
+        $tuple .
+        ')*\s*$/is',
+      $structure,
     )
   ) {
     return 'insert';
@@ -568,6 +667,9 @@ function safeRollbackImport($pdo)
     $pdo->rollBack();
   }
 }
+
+// Reject before backup, preflight or import cleanup can have any side effect.
+requireCompatibleImportSqlMode($pdo);
 
 try {
   if (($file['size'] ?? 0) <= 0) {

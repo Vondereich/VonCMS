@@ -15,8 +15,10 @@ import { API } from '../config/site.config';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
+import { getCategoryFolderConflict } from '../utils/siteUtils';
 import {
   Activity,
+  AlertTriangle,
   ArrowLeft,
   CheckCircle,
   FileText,
@@ -114,6 +116,11 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const initialAddToMenuRef = React.useRef(false);
   const titleLength = item?.title?.length || 0;
   const excerptLength = item?.excerpt?.length || 0;
+  const categoryFolderConflict =
+    !isPage && item ? getCategoryFolderConflict((item as Post).category) : null;
+  const categoryDescription = categoryFolderConflict
+    ? 'post-category-help post-category-path-warning'
+    : 'post-category-help';
 
   const availableCategories: string[] = [];
   for (const rawCategory of [
@@ -1219,6 +1226,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         id="post-category-select"
                         name="categoryPreset"
                         aria-label="Choose existing category"
+                        aria-describedby={categoryDescription}
                         value={
                           availableCategories.includes((item as Post).category || '')
                             ? (item as Post).category || 'Uncategorized'
@@ -1241,19 +1249,37 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         id="post-category"
                         name="category"
                         aria-label="Custom category"
+                        aria-describedby={categoryDescription}
                         type="text"
                         className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
                         value={(item as Post).category || ''}
-                        placeholder="Uncategorized"
+                        placeholder="e.g. News or Technology"
                         onChange={(e) =>
                           setItem((prev) => (prev ? { ...prev, category: e.target.value } : null))
                         }
                       />
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p id="post-category-help" className="mt-1 text-xs text-slate-400">
                       Pick an existing category or type a new one. Empty values still save as{' '}
-                      Uncategorized.
+                      Uncategorized. Avoid names matching VonCMS folders when using Category &amp;
+                      Name permalinks.
                     </p>
+                    {categoryFolderConflict && (
+                      <div
+                        id="post-category-path-warning"
+                        role="status"
+                        aria-live="polite"
+                        className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                      >
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <span>
+                          The /{categoryFolderConflict}/ path is used by a VonCMS folder. Category
+                          &amp; Name permalinks can conflict with this path. Choose a different
+                          category name or keep Post Name permalinks. This is a warning only; saving
+                          remains available.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>

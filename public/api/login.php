@@ -24,8 +24,41 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 require_once __DIR__ . '/security/SecurityLogger.php';
 
+/** Quota exhaustion and incorrect credentials share the ordinary failure path. */
+function voncms_verify_login_candidate(array|false $user, string $password): bool
+{
+  // IDs cover username/email aliases; unknown names never allocate account buckets.
+  $allowed =
+    !$user || RateLimiter::consumeFixedWindow('login:account:' . $user['id'], 20, 900, 'login');
+  // Match PHP 8.4's native bcrypt work even for legacy PHP cost-10 hashes.
+  // Only the login check is padded; stored credentials and quota policy stay intact.
+  $workCost = max(12, PASSWORD_BCRYPT_DEFAULT_COST);
+  $dummyHash =
+    '$2y$' .
+    str_pad((string) $workCost, 2, '0', STR_PAD_LEFT) .
+    '$Y/WenUfcK5/BYcJfj1jW6u4aC30x72xhTV3Kgot/qgPhh/ANxj3zC';
+  $hasHash = $user !== false && is_string($user['password'] ?? null);
+  $hash = $hasHash ? $user['password'] : $dummyHash;
+  $hashInfo = password_get_info($hash);
+  if ($hashInfo['algoName'] === 'unknown') {
+    $hasHash = false;
+    $hash = $dummyHash;
+    $hashInfo = password_get_info($hash);
+  }
+  $matches = password_verify($password, $hash);
+  if ($hashInfo['algoName'] === 'bcrypt') {
+    $cost = (int) $hashInfo['options']['cost'];
+    $remainingChecks = (1 << max(0, $workCost - $cost)) - 1;
+    while ($remainingChecks-- > 0) {
+      password_verify($password, $hash);
+    }
+  }
+  return $allowed && $hasHash && $matches;
+}
+
 // Reserve the attempt atomically before authentication work begins.
-$loginRateIdentifier = 'login:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+$loginRateIdentifier =
+  'login:ip:' . RateLimiter::normalizeLoginAddress((string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
 RateLimiter::requireAttempt($loginRateIdentifier);
 
 // Get JSON input
@@ -92,7 +125,7 @@ try {
   $stmt->execute([$username, $username]);
   $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-  if ($user && password_verify($password, $user['password'])) {
+  if (voncms_verify_login_candidate($user, $password)) {
     $authPasswordHash = (string) $user['password'];
     try {
       $verificationStmt = $pdo->prepare(
@@ -128,8 +161,8 @@ try {
     // Generate CSRF token for this session
     $csrfToken = CSRFProtection::generateToken();
 
-    // Reset rate limiter on successful login
-    RateLimiter::reset($loginRateIdentifier);
+    // Success must not erase the shared-IP attack budget.
+    RateLimiter::refundSuccessfulAttempt($loginRateIdentifier);
 
     // HANDLE REMEMBER ME (30 Days)
     $rememberCookieName = 'voncms_remember';

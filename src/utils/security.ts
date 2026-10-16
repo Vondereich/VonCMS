@@ -456,6 +456,8 @@ const filterPasteStyles = (styleValue: string): string =>
  */
 interface SanitizeHtmlOptions extends DOMPurifyConfig {
   styleAllowlist?: Set<string>;
+  sandboxedAdContent?: boolean;
+  trustedPluginStyles?: boolean;
 }
 
 const SAFE_IFRAME_ATTRS = [
@@ -470,7 +472,12 @@ const SAFE_IFRAME_ATTRS = [
 
 export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): string => {
   if (!content) return '';
-  const { styleAllowlist, ...purifyOptions } = options || {};
+  const {
+    styleAllowlist,
+    sandboxedAdContent = false,
+    trustedPluginStyles = false,
+    ...purifyOptions
+  } = options || {};
   const hasStrictAllowlist = Boolean(purifyOptions.ALLOWED_TAGS || purifyOptions.ALLOWED_ATTR);
   const config: DOMPurifyConfig = hasStrictAllowlist
     ? { ...purifyOptions }
@@ -479,6 +486,26 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
         ADD_ATTR: SAFE_IFRAME_ATTRS,
         ...purifyOptions,
       };
+  // Public/editor HTML is not an interactive form surface.
+  if (!sandboxedAdContent)
+    config.FORBID_TAGS = [
+      ...new Set([
+        ...(config.FORBID_TAGS || []),
+        'form',
+        'input',
+        'button',
+        'select',
+        'option',
+        'textarea',
+      ]),
+    ];
+  // Stored/imported articles must not install global rules or activate application classes.
+  // Keep fragment IDs and safe inline formatting; only owner-authored plugins or isolated ads
+  // deliberately opt into stylesheet/class support, without loosening the other HTML policies.
+  if (!sandboxedAdContent && !trustedPluginStyles) {
+    config.FORBID_TAGS = [...new Set([...(config.FORBID_TAGS || []), 'style', 'link'])];
+    config.FORBID_ATTR = [...new Set([...(config.FORBID_ATTR || []), 'class'])];
+  }
   const activeStyleAllowlist = styleAllowlist || ALLOWED_STYLE_PROPS;
 
   // Hook: filter inline styles to whitelist-only safe properties
@@ -497,12 +524,12 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
 
   // Keep only supported link relationships and enforce new-tab safety.
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-    if (
-      node.tagName === 'IFRAME' &&
-      isAllowedIframeSrc(node.getAttribute('src') || '') &&
-      !node.hasAttribute('allowfullscreen')
-    ) {
-      node.setAttribute('allowfullscreen', '');
+    if (node.tagName === 'IFRAME') {
+      if (!sandboxedAdContent && !isAllowedIframeSrc(node.getAttribute('src') || '')) {
+        node.remove();
+        return;
+      }
+      if (!node.hasAttribute('allowfullscreen')) node.setAttribute('allowfullscreen', '');
     }
 
     if (node.tagName === 'A') {
