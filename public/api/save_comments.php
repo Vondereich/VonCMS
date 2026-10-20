@@ -462,10 +462,13 @@ try {
       ResponseHelper::sendError('Not authorized to delete this comment', 403);
     }
 
+    // Both deletions succeed together, or the outer error handler rolls them back.
+    $pdo->beginTransaction();
     // Delete replies first
     $pdo->prepare('DELETE FROM comments WHERE parent_id = ?')->execute([$commentId]);
     // Delete comment
     $pdo->prepare('DELETE FROM comments WHERE id = ?')->execute([$commentId]);
+    $pdo->commit();
 
     echo json_encode(['success' => true, 'message' => 'Comment deleted', 'source' => 'database']);
     exit();

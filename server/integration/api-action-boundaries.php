@@ -54,7 +54,14 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
 {
   public function prepare(string $query, array $options = []): PDOStatement|false
   {
-    return parent::prepare(str_replace(' FOR UPDATE', '', $query), $options);
+    return parent::prepare(
+      str_replace(
+        [' FOR UPDATE', 'DATE_ADD(NOW(), INTERVAL 1 HOUR)'],
+        ['', "datetime('now', '+1 hour')"],
+        $query,
+      ),
+      $options,
+    );
   }
 
   public function exec(string $statement): int|false
@@ -123,6 +130,11 @@ if (($argv[1] ?? '') === '--worker') {
   {
     return [];
   }
+  // These probes do not exercise site timezone configuration.
+  function voncms_apply_site_timezone($pdo): ?string
+  {
+    return null;
+  }
   class SessionManager
   {
     public static function requireValidSession(): void {}
@@ -133,6 +145,18 @@ if (($argv[1] ?? '') === '--worker') {
     public static function isAdmin(): bool
     {
       return self::isPrimaryAdmin();
+    }
+    public static function isValid(): bool
+    {
+      return isset($_SESSION['user']);
+    }
+    public static function isStaff(): bool
+    {
+      return self::isPrimaryAdmin();
+    }
+    public static function establishAuthenticatedSession(array $user, string $passwordHash): void
+    {
+      $_SESSION['user'] = $user;
     }
   }
   class SecurityLogger
@@ -189,6 +213,31 @@ if (($argv[1] ?? '') === '--worker') {
       $input['current_password'] = $case === 'wrong-password' ? 'Wrong1!Password' : 'Old1!Password';
       $input['new_password'] = 'New1!Password';
     }
+  } elseif ($endpoint === 'login.php') {
+    $input = ['username' => 'qa_member', 'password' => $options['password'] ?? 'Wrong1!Password'];
+  } elseif ($endpoint === 'reset_password.php') {
+    foreach (
+      [
+        'voncms_normalize_trusted_public_base_url',
+        'voncms_loopback_request_base_url',
+        'voncms_resolve_trusted_public_base_url',
+        'voncms_build_account_action_url',
+      ]
+      as $name
+    ) {
+      eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function ' . $name . '('));
+    }
+    function vonSendMail($to, ...$arguments): array
+    {
+      global $pdo;
+      $pdo->prepare('INSERT INTO mail_calls(recipient) VALUES (?)')->execute([$to]);
+      return ['success' => true];
+    }
+    $input = ['action' => 'request', 'email' => $options['email'] ?? 'qa@example.invalid'];
+    $input['hp_field'] = $case === 'bot' ? '0' : '';
+  } elseif ($endpoint === 'save_comments.php') {
+    $_SESSION['user'] = ['id' => '2', 'role' => 'Member'];
+    $input = ['action' => 'delete', 'commentId' => $case === 'not-owner' ? '12' : '10'];
   } else {
     $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
     $input = [
@@ -202,6 +251,18 @@ if (($argv[1] ?? '') === '--worker') {
     if ($case === 'email-change') {
       $input['email'] = 'changed@example.invalid';
     }
+    if (str_starts_with($case, 'password-')) {
+      $input['password'] = match ($case) {
+        'password-zero' => '0',
+        'password-array' => [],
+        'password-object' => ['value' => 'New1!Password'],
+        'password-null' => null,
+        default => '',
+      };
+      if ($case === 'password-omitted') {
+        unset($input['password']);
+      }
+    }
   }
   $_SERVER['HTTP_X_CSRF_TOKEN'] = $case === 'csrf' ? 'forged' : CSRFProtection::getToken();
   $cachedInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
@@ -209,6 +270,22 @@ if (($argv[1] ?? '') === '--worker') {
   $source = file_get_contents($root . '/public/api/' . $endpoint);
   $source = preg_replace('/^<\?php\s*/', '', $source, 1);
   $source = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $source);
+  if (!empty($options['unknownBatch'])) {
+    // Execute the real endpoint repeatedly; replace exit only to retain this disposable worker.
+    $source = str_replace('exit();', 'return;', $source);
+    for ($unknownIndex = 0; $unknownIndex < $options['unknownBatch']; $unknownIndex++) {
+      $input['email'] = 'unknown-' . $unknownIndex . '@example.invalid';
+      $cachedInput->setValue(null, json_encode($input, JSON_THROW_ON_ERROR));
+      ob_start();
+      eval($source);
+      $response = json_decode(ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+      if (empty($response['success']) || (http_response_code() ?: 200) !== 200) {
+        throw new RuntimeException('Unknown recovery response changed');
+      }
+    }
+    echo json_encode(['success' => true, 'tested' => $unknownIndex]);
+    exit();
+  }
   if (!empty($options['barrier'])) {
     $barrier =
       '$barrierDirectory = ' .
@@ -222,7 +299,10 @@ if (($argv[1] ?? '') === '--worker') {
       'if (microtime(true) > $deadline) throw new RuntimeException("Admission barrier timeout");' .
       'usleep(10000); clearstatcache(); }';
     // Scheduler hook AFTER real admission but BEFORE input-dependent work and side effects.
-    $needle = '$input = json_decode($requestBody, true);';
+    $needle =
+      $endpoint === 'reset_password.php'
+        ? '    // Unknown addresses allocate no state.'
+        : '$input = json_decode($requestBody, true);';
     if (!str_contains($source, $needle)) {
       throw new RuntimeException('Missing admission probe point');
     }
@@ -254,6 +334,7 @@ function actionFixture(string $label): string
   $pdo = actionDatabase($directory);
   $pdo->exec('CREATE TABLE settings(setting_group TEXT,setting_key TEXT,setting_value TEXT)');
   $pdo->exec("INSERT INTO settings VALUES('newsletter','newsletter_config','{\"enabled\":true}')");
+  $pdo->exec("INSERT INTO settings VALUES('general','domain_url','https://qa.invalid/blog')");
   $pdo->exec(
     "CREATE TABLE newsletter_subscribers(id INTEGER PRIMARY KEY,email TEXT UNIQUE,ip_address TEXT,source TEXT,status TEXT DEFAULT 'subscribed')",
   );
@@ -268,11 +349,11 @@ function actionFixture(string $label): string
   );
   $pdo->exec('CREATE TABLE mail_calls(id INTEGER PRIMARY KEY,recipient TEXT)');
   $pdo->exec(
-    'CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT UNIQUE,email TEXT UNIQUE,password TEXT,display_name TEXT,bio TEXT,avatar TEXT,role TEXT,email_verified INT,reset_token TEXT,reset_token_expires TEXT,verification_token TEXT,verification_token_expires TEXT)',
+    'CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT UNIQUE,email TEXT UNIQUE,password TEXT,display_name TEXT,bio TEXT,avatar TEXT,role TEXT,email_verified INT,reset_token TEXT,reset_token_expires TEXT,verification_token TEXT,verification_token_expires TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
   );
   $pdo->exec('CREATE TABLE remember_tokens(user_id INT)');
   $pdo
-    ->prepare('INSERT INTO users VALUES(2,?,?,?,?,?,?,?,?,?,?,?,?)')
+    ->prepare('INSERT INTO users VALUES(2,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)')
     ->execute([
       'qa_member',
       'qa@example.invalid',
@@ -288,6 +369,8 @@ function actionFixture(string $label): string
       null,
     ]);
   $pdo->exec('INSERT INTO remember_tokens VALUES(2)');
+  $pdo->exec('CREATE TABLE comments(id INTEGER PRIMARY KEY,user_id INT,parent_id INT)');
+  $pdo->exec('INSERT INTO comments VALUES(10,2,NULL),(11,3,10),(12,3,NULL)');
   return $directory;
 }
 
@@ -524,6 +607,145 @@ try {
         'Old bearer authority survived password replacement',
       );
     }
+  }
+  $directory = actionFixture('distributed-login');
+  for ($attempt = 1; $attempt <= 21; $attempt++) {
+    $result = actionRun($directory, [
+      ['endpoint' => 'login.php', 'ip' => '198.51.100.' . $attempt],
+    ])[0];
+    actionCheck($result['status'] === 401, 'Wrong distributed login accepted');
+  }
+  $result = actionRun($directory, [
+    ['endpoint' => 'login.php', 'ip' => '198.51.100.99', 'password' => 'Old1!Password'],
+  ])[0];
+  actionCheck(
+    $result['status'] === 200 && ($result['body']['user']['id'] ?? null) === 2,
+    'Distributed failures locked out the correct owner on a new IP',
+  );
+  foreach (['zero', 'array', 'object', 'null', 'omitted'] as $kind) {
+    $directory = actionFixture('managed-password-' . $kind);
+    $result = actionRun($directory, [
+      ['endpoint' => 'save_user.php', 'case' => 'password-' . $kind],
+    ])[0];
+    actionCheck(
+      $result['status'] === (in_array($kind, ['null', 'omitted'], true) ? 200 : 400),
+      'Managed password input was skipped or crashed: ' . $kind,
+    );
+    $pdo = actionDatabase($directory);
+    actionCheck(
+      password_verify('Old1!Password', $pdo->query('SELECT password FROM users')->fetchColumn()) &&
+        $pdo->query('SELECT reset_token FROM users')->fetchColumn() === str_repeat('a', 64) &&
+        (int) $pdo->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 1,
+      'Rejected/omitted managed password changed credentials: ' . $kind,
+    );
+  }
+  $directory = actionFixture('recovery-unknown-saturation');
+  $result = actionRun($directory, [
+    ['endpoint' => 'reset_password.php', 'unknownBatch' => 2100],
+  ])[0];
+  actionCheck(($result['body']['tested'] ?? 0) === 2100, 'Unknown recovery flood incomplete');
+  actionCheck(glob($directory . '/rates/*.json') === [], 'Unknown emails allocated quota keys');
+  actionCheck(
+    actionDatabase($directory)->query('SELECT reset_token FROM users')->fetchColumn() ===
+      str_repeat('a', 64),
+    'Unknown recovery changed credentials',
+  );
+  $full = [];
+  for ($slot = 0; $slot < 4096; $slot++) {
+    $full[hash('sha256', 'old-slot-' . $slot)] = [
+      'attempts' => 1,
+      'window_started_at' => time(),
+      'window_seconds' => 900,
+    ];
+  }
+  file_put_contents(
+    $directory . '/rates/' . md5('recovery-trap-ledger:v1') . '.json',
+    json_encode($full),
+  );
+  $generic = ['success' => true, 'message' => 'If this email exists, a reset link has been sent.'];
+  $ledgerFile = $directory . '/rates/' . md5('fixed-window-ledger:v1') . '.json';
+  foreach (['ip1', 'ip1', 'ip1', 'ip1', 'ip2', 'ip2', 'ip3'] as $index => $ip) {
+    $result = actionRun($directory, [['endpoint' => 'reset_password.php', 'ip' => $ip]])[0];
+    actionCheck(
+      $result['status'] === 200 && $result['body'] === $generic,
+      'Recovery status oracle',
+    );
+    actionCheck(
+      (int) actionDatabase($directory)->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() ===
+        [1, 2, 3, 3, 4, 5, 5][$index],
+      'Pair/email quotas changed or full trap ledger blocked recovery',
+    );
+  }
+  $before = file_get_contents($ledgerFile);
+  $tokenBefore = actionDatabase($directory)->query('SELECT reset_token FROM users')->fetchColumn();
+  for ($index = 0; $index < 12; $index++) {
+    $result = actionRun($directory, [
+      ['endpoint' => 'reset_password.php', 'ip' => 'rotating-' . $index],
+    ])[0];
+    actionCheck($result['body'] === $generic, 'Denied rotating request exposed account state');
+  }
+  actionCheck(file_get_contents($ledgerFile) === $before, 'Denied requests allocated pair keys');
+  actionCheck(
+    actionDatabase($directory)->query('SELECT reset_token FROM users')->fetchColumn() ===
+      $tokenBefore,
+    'Denied recovery replaced the active bearer token',
+  );
+  foreach (['full', 'corrupt', 'unwritable'] as $fault) {
+    $directory = actionFixture('recovery-' . $fault);
+    $ledgerFile = $directory . '/rates/' . md5('fixed-window-ledger:v1') . '.json';
+    if ($fault === 'unwritable') {
+      mkdir($ledgerFile);
+    } else {
+      file_put_contents($ledgerFile, $fault === 'full' ? json_encode($full) : '{broken');
+    }
+    $result = actionRun($directory, [['endpoint' => 'reset_password.php']])[0];
+    actionCheck($result['status'] === 200 && $result['body'] === $generic, 'Storage fault oracle');
+    actionCheck(
+      (int) actionDatabase($directory)->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() ===
+        0 &&
+        actionDatabase($directory)->query('SELECT reset_token FROM users')->fetchColumn() ===
+          str_repeat('a', 64),
+      'Unavailable recovery storage caused mail/token side effects',
+    );
+  }
+  foreach (['pair' => 3, 'email' => 5] as $quota => $maximum) {
+    $directory = actionFixture('recovery-race-' . $quota);
+    $requests = [];
+    for ($index = 0; $index < 8; $index++) {
+      $requests[] = [
+        'endpoint' => 'reset_password.php',
+        'barrier' => true,
+        'ip' => $quota === 'pair' ? '198.51.100.22' : '198.51.100.' . $index,
+      ];
+    }
+    foreach (actionRun($directory, $requests) as $result) {
+      actionCheck($result['body'] === $generic, 'Concurrent recovery response differs');
+    }
+    actionCheck(
+      (int) actionDatabase($directory)->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() ===
+        $maximum,
+      'Concurrent recovery exceeded/underfilled ' . $quota . ' quota',
+    );
+  }
+  foreach (['normal', 'failure', 'not-owner', 'csrf'] as $case) {
+    $directory = actionFixture('comment-delete-' . $case);
+    if ($case === 'failure') {
+      actionDatabase($directory)->exec(
+        "CREATE TRIGGER fail_parent BEFORE DELETE ON comments WHEN OLD.id=10 BEGIN SELECT RAISE(ABORT, 'QA parent delete failure'); END",
+      );
+    }
+    $result = actionRun($directory, [['endpoint' => 'save_comments.php', 'case' => $case]])[0];
+    $expectedStatus = match ($case) {
+      'failure' => 500,
+      'not-owner', 'csrf' => 403,
+      default => 200,
+    };
+    actionCheck($result['status'] === $expectedStatus, 'Comment delete status: ' . $case);
+    actionCheck(
+      (int) actionDatabase($directory)->query('SELECT COUNT(*) FROM comments')->fetchColumn() ===
+        ($case === 'normal' ? 1 : 3),
+      'Comment delete partially committed or changed another thread: ' . $case,
+    );
   }
   $directory = actionFixture('profile-wrong-password');
   actionCheck(

@@ -4131,7 +4131,7 @@ assertIncludes(
     '$loginRateIdentifier =',
     "'login:ip:' . RateLimiter::normalizeLoginAddress",
     'RateLimiter::requireAttempt($loginRateIdentifier)',
-    "RateLimiter::consumeFixedWindow('login:account:' . $user['id'], 20, 900, 'login')",
+    'RateLimiter::refundSuccessfulAttempt($loginRateIdentifier)',
     'session_regenerate_id(true)',
     "ResponseHelper::sendError('Invalid credentials', 401)",
     "ResponseHelper::sendError('Login failed', 400)",
@@ -4401,11 +4401,11 @@ assertIncludes(
     "'password-recovery-pair:'",
     "'password-recovery-email:'",
     '$normalizedEmail = strtolower($email);',
-    'RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900)',
-    'RateLimiter::consumeFixedWindow($recoveryEmailIdentifier, 5, 900)',
-    'Too many requests. Please try again later.',
+    'RateLimiter::consumeFixedWindows([',
+    '$recoveryPairIdentifier => [3, 900]',
+    '$recoveryEmailIdentifier => [5, 900]',
   ],
-  'Password Recovery Dedicated Throttle Contract: accepted known/unknown requests consume bounded IP-email pair and normalized-email windows without using the login bucket.',
+  'Password Recovery Dedicated Throttle Contract: recognized requests reserve both bounded IP-email pair and normalized-email windows atomically without using the login bucket.',
   'Password Recovery Dedicated Throttle Contract: recovery requests are not protected by isolated bounded pair and normalized-email quotas.'
 );
 assertExcludes(
@@ -4436,46 +4436,47 @@ assertIncludes(
   'Password Reset Atomic Token Consumption: concurrent requests can still validate or update outside the one-time token transaction.'
 );
 const recoveryPairConsumePosition = passwordResetRequestBranch.indexOf(
-  'RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900)'
+  '$recoveryPairIdentifier => [3, 900]'
 );
 const recoveryEmailConsumePosition = passwordResetRequestBranch.indexOf(
-  'RateLimiter::consumeFixedWindow($recoveryEmailIdentifier, 5, 900)'
+  '$recoveryEmailIdentifier => [5, 900]'
 );
 const recoveryUserLookupPosition = passwordResetRequestBranch.indexOf(
   'SELECT id, username, email FROM users WHERE email = ?'
 );
 if (
-  recoveryPairConsumePosition !== -1 &&
+  recoveryUserLookupPosition !== -1 &&
+  recoveryPairConsumePosition > recoveryUserLookupPosition &&
   recoveryEmailConsumePosition > recoveryPairConsumePosition &&
-  recoveryUserLookupPosition > recoveryEmailConsumePosition
+  passwordResetRequestBranch.indexOf('if (!$user)') < recoveryPairConsumePosition
 ) {
   pass(
-    'Password Recovery Enumeration Budget Order: both dedicated quotas are consumed before account existence is queried.'
+    'Password Recovery Enumeration Budget Order: unknown addresses exit without allocating quotas; recognized requests reserve both quotas together.'
   );
 } else {
   fail(
-    'Password Recovery Enumeration Budget Order: known and unknown addresses can still follow different throttle accounting paths.'
+    'Password Recovery Enumeration Budget Order: unknown addresses can still fill the recognized recovery ledger.'
   );
 }
 const genericRecoveryResponseCount = (
   passwordResetRequestBranch.match(/If this email exists, a reset link has been sent\./g) || []
 ).length;
-if (genericRecoveryResponseCount === 3) {
+if (genericRecoveryResponseCount === 4) {
   pass(
     'Password Recovery Enumeration Response Parity: known and unknown addresses retain the same public success message.'
   );
 } else {
   fail(
-    'Password Recovery Enumeration Response Parity: expected identical responses for unknown users, missing configuration, and delivery attempts.'
+    'Password Recovery Enumeration Response Parity: expected identical responses for unknown users, denied quotas, missing configuration, and delivery attempts.'
   );
 }
 assertIncludes(
   'Password Recovery Honeypot Log Budget',
-  passwordResetContent,
+  passwordResetContent.replace(/\s+/g, ''),
   [
-    '$shouldLogTrap = RateLimiter::consumeFixedWindow($recoveryTrapIdentifier, 20, 900);',
-    'if ($shouldLogTrap) {',
-    'If this email exists, a reset link has been sent.',
+    "$shouldLogTrap=RateLimiter::consumeFixedWindow($recoveryTrapIdentifier,20,900,'recovery-trap',);",
+    'if($shouldLogTrap){',
+    'Ifthisemailexists,aresetlinkhasbeensent.',
   ],
   'Password Recovery Honeypot Log Budget: trap responses remain generic while repeated bot hits stop amplifying the error log.',
   'Password Recovery Honeypot Log Budget: the trap can reveal itself or keep amplifying logs after its bounded window closes.'
@@ -13261,7 +13262,7 @@ const honeypotRateContracts = [
   ['public/api/register.php', /RateLimiter::requireAttempt\([^)]*\);/],
   [
     'public/api/reset_password.php',
-    /RateLimiter::consumeFixedWindow\(\$recoveryTrapIdentifier, 20, 900\)/,
+    /RateLimiter::consumeFixedWindow\(\s*\$recoveryTrapIdentifier,\s*20,\s*900,\s*'recovery-trap',?\s*\)/,
   ],
   ['public/api/newsletter_subscribe.php', /RateLimiter::requireAttempt\([^)]*\);/],
 ];
@@ -18221,14 +18222,9 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEP
         'email',
         i % 2 ? 'QUOTA@example.test' : 'quota@example.test',
         `192.0.2.${60 + i}`,
-        i < 5 ? 200 : 429,
+        200,
       ]),
-      ...Array.from({ length: 4 }, (_, i) => [
-        'pair',
-        'pair@example.test',
-        '192.0.2.70',
-        i < 3 ? 200 : 429,
-      ]),
+      ...Array.from({ length: 4 }, (_, i) => ['pair', 'pair@example.test', '192.0.2.70', 200]),
       ['known', 'known@example.test', '192.0.2.71', 200],
     ];
     const recoveryResults = recoveryCases.map(([group, email, ip, expectedStatus]) => {
@@ -18246,9 +18242,12 @@ $_SERVER['REMOTE_ADDR'] = $argv[3];
 require ${JSON.stringify(path.join(loginCommentFixture, 'security.php'))};
 (new ReflectionClass(RateLimiter::class))->getProperty('storageDir')->setValue(null, ${JSON.stringify(path.join(loginCommentFixture, 'rate') + path.sep)} . 'recovery-' . $argv[1] . DIRECTORY_SEPARATOR);
 $pdo = new PDO('sqlite::memory:');
-$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT)');
+$pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT COLLATE NOCASE)');
 $pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
-if ($argv[1] === 'known') $pdo->exec("INSERT INTO users VALUES (1, 'fixture', 'known@example.test')");
+if ($argv[1] !== 'rotating') {
+  $insert = $pdo->prepare('INSERT INTO users VALUES (1, ?, ?)');
+  $insert->execute(['fixture', $argv[2]]);
+}
 $GLOBALS['fixturePdo'] = $pdo;
 $_SERVER['HTTP_X_CSRF_TOKEN'] = CSRFProtection::getToken();
 (new ReflectionClass(CSRFProtection::class))->getProperty('cachedInput')->setValue(null, json_encode(['action' => 'request', 'email' => $argv[2], 'hp_field' => '']));
@@ -18292,11 +18291,11 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api/reset_password.php'
         : {};
     if (
       recoveryResults.every(Boolean) &&
-      rotatingFiles.length === 1 &&
-      Object.keys(rotatingLedger).length === 60
+      rotatingFiles.length === 0 &&
+      Object.keys(rotatingLedger).length === 0
     ) {
       pass(
-        'Recovery Endpoint Storage Runtime: 30 real-CSRF unknown-address requests behind one proxy IP create one ledger without a new shared-IP restriction, pair/email budgets and case folding remain enforced, and known/unknown responses stay generic without SMTP.'
+        'Recovery Endpoint Storage Runtime: unknown addresses allocate no files; recognized, unknown and denied requests return generic responses without SMTP. Atomic quota and delivery behavior is tested separately.'
       );
     } else {
       fail(

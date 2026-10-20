@@ -75,7 +75,8 @@ if (function_exists('sanitize_input')) {
 
 $input['username'] = $rawUsername;
 $input['email'] = $rawEmail;
-if (isset($input['password']) && $input['password'] !== '') {
+$hasNewPassword = isset($input['password']) && $input['password'] !== '';
+if ($hasNewPassword) {
   SecurityHelper::requireNewPasswordLength($input['password']);
 }
 
@@ -313,12 +314,12 @@ try {
     } elseif ($emailChanged) {
       $sql .= ', email_verified = 0, verification_token = NULL, verification_token_expires = NULL';
     }
-    if ($emailChanged || !empty($input['password'])) {
+    if ($emailChanged || $hasNewPassword) {
       $sql .= ', reset_token = NULL, reset_token_expires = NULL';
     }
 
     // Only update password if provided
-    if (!empty($input['password'])) {
+    if ($hasNewPassword) {
       // Validate password strength
       $password = $input['password'];
       if (
@@ -366,7 +367,7 @@ try {
       exit();
     }
 
-    if (!empty($input['password'])) {
+    if ($hasNewPassword) {
       $revokeRememberStmt = $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = ?');
       $revokeRememberStmt->execute([$inputId]);
     }

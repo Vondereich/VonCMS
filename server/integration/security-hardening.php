@@ -909,8 +909,8 @@ try {
     'Known quota reveals account existence through the return contract.',
   );
   check(
-    !voncms_verify_login_candidate($knownUser, 'qa-only-password'),
-    'Spent quota permits correct credentials.',
+    voncms_verify_login_candidate($knownUser, 'qa-only-password'),
+    'Distributed failures locked out correct credentials.',
   );
   check(
     voncms_verify_login_candidate(

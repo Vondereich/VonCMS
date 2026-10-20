@@ -128,15 +128,31 @@ class RateLimiter
     $windowSeconds,
     $namespace = 'recovery',
   ) {
-    if (!in_array($namespace, ['recovery', 'login'], true)) {
+    return self::consumeFixedWindows(
+      [(string) $identifier => [$maxAttempts, $windowSeconds]],
+      $namespace,
+    );
+  }
+
+  /** Reserve every related quota together, without allocating keys on a denial.
+   * @param array<string, array{0: int, 1: int}> $limits Identifier => [maximum, window seconds].
+   */
+  public static function consumeFixedWindows(array $limits, string $namespace = 'recovery'): bool
+  {
+    if (
+      $limits === [] ||
+      count($limits) > 8 ||
+      !in_array($namespace, ['recovery', 'recovery-trap', 'login'], true)
+    ) {
       return false;
     }
-    $maxAttempts = max(1, (int) $maxAttempts);
-    $windowSeconds = max(1, (int) $windowSeconds);
-    $file = self::getFilePath(
-      $namespace === 'login' ? 'login-account-ledger:v1' : 'fixed-window-ledger:v1',
-      false,
-    );
+    // Keep the old login namespace for partial upgrades/rollback; new login code does not use it.
+    $ledger = match ($namespace) {
+      'login' => 'login-account-ledger:v1',
+      'recovery-trap' => 'recovery-trap-ledger:v1',
+      default => 'fixed-window-ledger:v1',
+    };
+    $file = self::getFilePath($ledger, false);
     if ($file === null) {
       return false;
     }
@@ -181,8 +197,20 @@ class RateLimiter
           unset($data[$key]);
         }
       }
-      $key = hash('sha256', (string) $identifier);
-      if (!isset($data[$key]) && count($data) < 4096) {
+      $pending = [];
+      foreach ($limits as $identifier => [$maxAttempts, $windowSeconds]) {
+        $maxAttempts = max(1, (int) $maxAttempts);
+        $windowSeconds = max(1, (int) $windowSeconds);
+        $key = hash('sha256', (string) $identifier);
+        if (isset($data[$key])) {
+          if ($data[$key]['attempts'] >= $maxAttempts) {
+            return false;
+          }
+          continue;
+        }
+        if (count($data) + count($pending) >= 4096) {
+          return false;
+        }
         $bucket = [
           'attempts' => 0,
           'window_started_at' => $now,
@@ -221,12 +249,16 @@ class RateLimiter
             @fclose($legacyHandle);
           }
         }
-        $data[$key] = $bucket;
+        if ($bucket['attempts'] >= $maxAttempts) {
+          return false;
+        }
+        $pending[$key] = $bucket;
       }
-      // Do not evict live quotas when full: existing buckets keep their allowance.
-      if (isset($data[$key]) && $data[$key]['attempts'] < $maxAttempts) {
+      // Admit all quotas or none. Rotating IPs cannot allocate pair keys after email denial.
+      $data += $pending;
+      foreach ($limits as $identifier => $limit) {
+        $key = hash('sha256', (string) $identifier);
         $data[$key]['attempts']++;
-        $accepted = true;
       }
       $payload = json_encode($data);
       rewind($handle);
@@ -244,6 +276,7 @@ class RateLimiter
       if (!@fflush($handle)) {
         throw new RuntimeException('Cannot flush recovery ledger.');
       }
+      $accepted = true;
     } catch (Throwable $e) {
       self::reportStorageFailure('fixed-window ledger', false);
       $accepted = false;

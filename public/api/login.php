@@ -24,14 +24,11 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 require_once __DIR__ . '/security/SecurityLogger.php';
 
-/** Quota exhaustion and incorrect credentials share the ordinary failure path. */
+/** Verify credentials with identical bcrypt work for known and unknown names. */
 function voncms_verify_login_candidate(array|false $user, string $password): bool
 {
-  // IDs cover username/email aliases; unknown names never allocate account buckets.
-  $allowed =
-    !$user || RateLimiter::consumeFixedWindow('login:account:' . $user['id'], 20, 900, 'login');
   // Match PHP 8.4's native bcrypt work even for legacy PHP cost-10 hashes.
-  // Only the login check is padded; stored credentials and quota policy stay intact.
+  // Only the login check is padded; stored credentials stay intact.
   $workCost = max(12, PASSWORD_BCRYPT_DEFAULT_COST);
   $dummyHash =
     '$2y$' .
@@ -53,7 +50,7 @@ function voncms_verify_login_candidate(array|false $user, string $password): boo
       password_verify($password, $hash);
     }
   }
-  return $allowed && $hasHash && $matches;
+  return $hasHash && $matches;
 }
 
 // Reserve the attempt atomically before authentication work begins.
