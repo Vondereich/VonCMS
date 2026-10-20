@@ -53,7 +53,10 @@ const setLinkCanonical = (href: string) => {
   el.setAttribute('href', href);
 };
 
-const normalizeConfiguredCanonicalBase = (value: unknown): string => {
+const normalizeConfiguredCanonicalBase = (
+  value: unknown,
+  mode: 'base' | 'document' = 'base'
+): string => {
   const candidate = typeof value === 'string' ? value.trim() : '';
   if (
     !candidate ||
@@ -69,12 +72,15 @@ const normalizeConfiguredCanonicalBase = (value: unknown): string => {
       !['http:', 'https:'].includes(parsed.protocol) ||
       parsed.username ||
       parsed.password ||
-      parsed.search ||
+      (mode === 'base' && parsed.search) ||
       parsed.hash ||
       !/^[a-z0-9.:-]+$/i.test(parsed.hostname.replace(/^\[|\]$/g, ''))
     ) {
       return '';
     }
+
+    // A document canonical retains pagination/category queries and directory slashes.
+    if (mode === 'document') return `${parsed.origin}${parsed.pathname}${parsed.search}`;
 
     const path = parsed.pathname === '/' ? '' : `/${parsed.pathname.replace(/^\/+|\/+$/g, '')}`;
     return `${parsed.origin}${path}`;
@@ -189,7 +195,7 @@ const getSsrSeoSnapshot = (): SsrSeoSnapshot | null => {
     robots?.getAttribute('data-voncms-ssr-canonical') ||
     script?.getAttribute('data-voncms-schema-url') ||
     '';
-  const canonical = normalizeConfiguredCanonicalBase(rawCanonical);
+  const canonical = normalizeConfiguredCanonicalBase(rawCanonical, 'document');
   let snapshot: SsrSeoSnapshot | null = null;
   if (canonical) {
     try {
