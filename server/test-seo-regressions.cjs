@@ -24,14 +24,14 @@ const ast = ts.createSourceFile(
   true,
   ts.ScriptKind.JS
 );
-function initializer(name) {
+function initializer(name, sourceAst = ast) {
   let result;
   function visit(node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name)
-      result = node.initializer.getText(ast);
+    if (ts.isVariableDeclaration(node) && node.name.getText(sourceAst) === name)
+      result = node.initializer.getText(sourceAst);
     ts.forEachChild(node, visit);
   }
-  visit(ast);
+  visit(sourceAst);
   if (!result) throw new Error('Missing probe initializer: ' + name);
   return result;
 }
@@ -193,6 +193,72 @@ function makeHead() {
   return { document, add, nodes };
 }
 
+// Exercise the real setter without exporting a production-only test hook.
+const canonicalSetterAst = ts.createSourceFile(
+  'VonSEO.tsx',
+  read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX
+);
+const canonicalSetterCode = ts.transpileModule(
+  `const setter = ${initializer('setLinkCanonical', canonicalSetterAst)}; setter;`,
+  { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+).outputText;
+const acceptedCanonicalCases = [
+  ['https://example.test/', 'https://example.test/'],
+  ['http://localhost/zangetsu/?page=2', 'http://localhost/zangetsu/?page=2'],
+  ['https://news.example.test/cms/', 'https://news.example.test/cms/'],
+  ['HTTPS://EXAMPLE.TEST:443/news/', 'https://example.test/news/'],
+  ['https://example.test/news/?', 'https://example.test/news/?'],
+  ['https://example.test/news/#', 'https://example.test/news/#'],
+  ['http://[::1]:8080/zangetsu/?page=2', 'http://[::1]:8080/zangetsu/?page=2'],
+  ['https://example.test/a%2fb%2Fc%252f', 'https://example.test/a%2fb%2Fc%252f'],
+  [
+    'https://example.test/?category=Tech%20%26%20AI&page=2&x=&x=+&x=%20',
+    'https://example.test/?category=Tech%20%26%20AI&page=2&x=&x=+&x=%20',
+  ],
+  ['https://example.test/berita/é?x=✓', 'https://example.test/berita/%C3%A9?x=%E2%9C%93'],
+  ['https://bücher.example/', 'https://xn--bcher-kva.example/'],
+  ['https://example.test/"<test>?x="<y', 'https://example.test/%22%3Ctest%3E?x=%22%3Cy'],
+];
+const rejectedCanonicalCases = [
+  '',
+  '/post/56',
+  '//example.test/post/56',
+  'javascript:alert(1)',
+  'JaVaScRiPt:alert(1)',
+  'java\nscript:alert(1)',
+  'javascript&#58;alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  'file:///tmp/test',
+  'https://',
+  'https://[invalid]/',
+  'https://user@example.test/',
+  'https://user:pass@example.test/',
+  'https://example.test@attacker.test/',
+];
+for (const existing of [false, true]) {
+  for (const [input, expected] of [
+    ...acceptedCanonicalCases,
+    ...rejectedCanonicalCases.map((value) => [value, null]),
+  ]) {
+    const dom = makeHead();
+    const previous = 'https://example.test/unchanged';
+    if (existing) dom.add('link', { rel: 'canonical', href: previous });
+    const setter = vm.runInNewContext(canonicalSetterCode, { document: dom.document, URL });
+    setter(input);
+    const links = dom.nodes.filter((node) => node.tagName === 'link');
+    const actual = links[0]?.getAttribute('href') ?? null;
+    check(
+      `canonical setter ${existing ? 'update' : 'create'}:${input}`,
+      actual === (expected ?? (existing ? previous : null)) &&
+        links.length === (expected !== null || existing ? 1 : 0),
+      { input, expected, actual, links: links.length }
+    );
+  }
+}
+
 function makeRuntime(domain, base) {
   const dom = makeHead(),
     effects = [],
@@ -293,6 +359,7 @@ for (const [domain, base] of [
   check(
     'direct page 2 metadata:' + domain,
     direct.title === 'Audit Site - Page 2' &&
+      direct.canonical === domain + '/?page=2' &&
       direct.robots.startsWith('index') &&
       direct.schemaCount === 1,
     direct
@@ -305,6 +372,7 @@ for (const [domain, base] of [
   check(
     'Back to valid page 2 restores index/title/schema:' + domain,
     restored.robots.startsWith('index') &&
+      restored.canonical === domain + '/?page=2' &&
       restored.title === 'Audit Site - Page 2' &&
       restored.schemaCount === 1,
     restored
@@ -386,6 +454,39 @@ for (const [domain, base] of [
       restored.title === 'Not Found - Audit Site',
     restored
   );
+}
+for (const [domain, base] of [
+  ['https://example.test', '/'],
+  ['http://localhost/zangetsu', '/zangetsu/'],
+]) {
+  for (const source of ['robots', 'schema']) {
+    const runtime = makeRuntime(domain, base);
+    const query = '?category=Tech%20%26%20AI&page=2';
+    const canonical = domain + '/' + query;
+    const element = runtime.dom.document.head.querySelector(
+      source === 'robots' ? 'meta[name="robots"]' : 'script[type="application/ld+json"]'
+    );
+    element.setAttribute(
+      source === 'robots' ? 'data-voncms-ssr-canonical' : 'data-voncms-schema-url',
+      canonical
+    );
+    const direct = runtime.render(query, 'category', {
+      selectedCategory: 'Tech & AI',
+      categoryPostCount: 40,
+    });
+    runtime.render('?search=other');
+    const restored = runtime.render(query, 'category', {
+      selectedCategory: 'Tech & AI',
+      categoryPostCount: 40,
+    });
+    check(
+      `SSR ${source} canonical survives hydration and cached restoration:${domain}`,
+      direct.canonical === canonical &&
+        restored.canonical === canonical &&
+        restored.robots.startsWith('index'),
+      { canonical, direct, restored }
+    );
+  }
 }
 const fingerprintFiles = [
   'public/index.php',

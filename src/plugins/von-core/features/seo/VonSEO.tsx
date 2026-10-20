@@ -38,19 +38,23 @@ const ensureMeta = (nameOrProp: string, attr: 'name' | 'property', content: stri
 const setLinkCanonical = (href: string) => {
   // Canonicals must remain absolute HTTP(S) URLs, including when restored from DOM attributes.
   if (!/^https?:\/\//i.test(href)) return;
+  let canonicalHref: string;
   try {
     const parsed = new URL(href);
     if (parsed.username || parsed.password) return;
+    canonicalHref = parsed.href;
   } catch {
     return;
   }
+  // Check the serialized value that is written, not the original DOM attribute text.
+  if (!canonicalHref.startsWith('https://') && !canonicalHref.startsWith('http://')) return;
   let el = document.head.querySelector('link[rel="canonical"]');
   if (!el) {
     el = document.createElement('link');
     el.setAttribute('rel', 'canonical');
     document.head.appendChild(el);
   }
-  el.setAttribute('href', href);
+  el.setAttribute('href', canonicalHref);
 };
 
 const normalizeConfiguredCanonicalBase = (
