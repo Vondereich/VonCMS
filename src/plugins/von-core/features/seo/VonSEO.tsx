@@ -185,10 +185,11 @@ const getSsrSeoSnapshot = (): SsrSeoSnapshot | null => {
   const script = document.head.querySelector(
     'script[type="application/ld+json"].vp-seo[data-voncms-schema-source="ssr"]'
   );
-  const canonical =
+  const rawCanonical =
     robots?.getAttribute('data-voncms-ssr-canonical') ||
     script?.getAttribute('data-voncms-schema-url') ||
     '';
+  const canonical = normalizeConfiguredCanonicalBase(rawCanonical);
   let snapshot: SsrSeoSnapshot | null = null;
   if (canonical) {
     try {
