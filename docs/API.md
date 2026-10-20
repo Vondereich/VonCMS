@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.27.10`
+Version: `1.27.11`
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
 
@@ -82,6 +82,8 @@ PHP entry points accept their documented file path plus query parameters only. A
 `get_post.php` does not increment view counters when fetching content. Public content views use the existing `track_monolithic.php` POST for both SPA navigation and hydrated direct loads. Aggregate post/page counters remain available when visitor analytics is disabled or consent is declined; those requests omit analytics URL and referrer fields. Staff reads retain the existing due-scheduler behavior.
 
 `save_post.php` accepts the normal post payload plus an explicit `workflowAction`. Supported actions are `save_draft`, `save_review`, `submit_review`, `withdraw_review`, `return_draft`, `publish`, `schedule`, and `archive`. Existing-post transitions also send `expectedStatus`; if another reviewer has already changed the stored state, the endpoint returns `409` and requires a reload instead of overwriting the newer decision.
+
+Post and Page slugs share a reservation across both content types. Saving a conflicting slug returns `409` with a request to choose another slug; review publication and scheduling enforce the same rule. WordPress import reports conflicting items without replacing the existing owner. Existing cross-type collisions are not renamed automatically, and public routing priority remains unchanged. Same-type editor collisions retain the existing suffix behavior.
 
 `get_posts.php?status=pending_review&scope=all` is reviewer-only. `countOnly=true` returns the pending total used by the admin navigation badge without transferring post bodies. Writers can read only their own protected posts, and `delete_post.php` permits a Writer to delete only an owned Draft. The server capability helper is the authority for every mutation; hiding a frontend button is not treated as permission.
 

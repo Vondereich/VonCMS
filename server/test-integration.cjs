@@ -1967,8 +1967,8 @@ assertIncludes(
 
 if (
   newsletterSubscribeContent.includes("$rateIdentifier = 'newsletter:' . $clientIP;") &&
-  newsletterSubscribeContent.includes('RateLimiter::requireNotLimited($rateIdentifier);') &&
-  newsletterSubscribeContent.includes('RateLimiter::recordAttempt($rateIdentifier);') &&
+  newsletterSubscribeContent.includes('RateLimiter::requireAttempt($rateIdentifier);') &&
+  !newsletterSubscribeContent.includes('RateLimiter::recordAttempt($rateIdentifier);') &&
   newsletterSubscribeContent.includes('strlen($requestBody) > 8192') &&
   newsletterSubscribeContent.includes(
     'If this address is eligible, your subscription request has been received.'
@@ -3031,8 +3031,8 @@ assertIncludes(
     'aria-describedby="post-excerpt-help"',
     '{excerptLength}/{EXCERPT_MAX_LENGTH} characters',
     'Recommended: 160-200 characters',
-    'const characters = Array.from(text);',
-    'let truncatedCharacters = characters.slice(0, contentLimit);',
+    "import { truncateSchemaText } from '../../utils/articleSchema';",
+    'return limit ? truncateSchemaText(text, limit) : text;',
   ],
   'PostEditor Excerpt Guidance Boundary: excerpt typography, 220-character input boundary, guidance, and word-safe Auto Fill remain aligned.',
   'PostEditor Excerpt Guidance Boundary: excerpt typography, hard limit, guidance, or word-safe Auto Fill markers are missing.'
@@ -3057,9 +3057,9 @@ assertIncludes(
   postEditorContent,
   [
     'initialItemRef.current = savedSnapshot;',
-    'itemRef.current = savedSnapshot;',
-    "contentRef.current = savedSnapshot.content || '';",
-    'setItem((prev) => (prev ? { ...prev, ...savedSnapshot } : savedSnapshot));',
+    'itemRef.current = currentSnapshot;',
+    "contentRef.current = currentSnapshot.content || '';",
+    'mergeSavedEditorChanges(itemForSave, savedSnapshot, prev, contentRef.current)',
   ],
   'PostEditor Save Baseline Timestamp Sync: successful autosave/manual save refreshes local updated_at baseline before the next publish.',
   'PostEditor Save Baseline Timestamp Sync: saved IDs can update without refreshing the local updated_at baseline, causing false 409 conflicts.'
@@ -3097,13 +3097,16 @@ if (
   aiSummaryExtractorsContent.includes('parseFromString(cleanHtml,') &&
   aiSummaryExtractorsContent.includes('parseFromString(h,') &&
   !aiSummaryExtractorsContent.includes('parser.innerHTML') &&
-  discussionScannerContent.includes('parseFromString(`<textarea>${content}</textarea>`,') &&
+  !discussionScannerContent.includes('parseFromString(') &&
+  discussionScannerContent.includes('{comment.content}') &&
+  read('public/core/ResponseHelper.php').includes('html_entity_decode($payload[$field]') &&
   !discussionScannerContent.includes('textarea.innerHTML = content') &&
   ((editorContent.includes('p.appendChild(document.createElement') &&
     !editorContent.includes("p.innerHTML = '<br>'") &&
     !editorContent.includes("p.innerHTML = blockNode.innerHTML || '<br>'") &&
     !editorContent.includes("blockNode.innerHTML === '<br>'")) ||
-    (editorContent.includes('const domHtml = root?.innerHTML || getCurrentEditorHtml();') &&
+    (editorContent.includes('const domHtml = contentDom?.innerHTML ?? getCurrentEditorHtml();') &&
+      editorContent.includes('br.ProseMirror-trailingBreak, img.ProseMirror-separator') &&
       editorContent.includes('editor.commands.setContent(sanitized, { emitUpdate: false });')))
 ) {
   pass('InnerHTML Scanner Polish: low-risk false-positive surfaces use DOM-safe APIs.');
@@ -3984,7 +3987,7 @@ if (
 
 const apiHelperDenyMarkers = [
   'RewriteRule ^.+\\.php/ - [R=404,L,NC]',
-  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+  'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|content_slug_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]',
   'RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]',
   'RewriteRule ^api/public-cache(/.*)?$ - [R=404,L,NC]',
@@ -7399,6 +7402,24 @@ if (
 }
 
 const databaseManagerContent = read('src/plugins/von-core/features/database/DatabaseManager.tsx');
+const databaseSqlEditorContent = sliceBetween(
+  databaseManagerContent,
+  '{/* SQL Editor Card */}',
+  '{/* Results Area */}'
+);
+assertIncludes(
+  'Database Query Action Visibility',
+  databaseSqlEditorContent,
+  [
+    'flex shrink-0 flex-col gap-3 border-b',
+    'group relative min-h-0 flex-1',
+    'flex shrink-0 flex-col gap-4 border-t',
+    'onClick={handleRunQuery}',
+    'disabled={loading}',
+  ],
+  'Database Query Action Visibility: SQL input yields vertical space while toolbar/footer retain their height, keeping Run Query inside the card.',
+  'Database Query Action Visibility: SQL input can force the Run Query footer outside the clipped card.'
+);
 assertIncludes(
   'Database Manager Read-Only UI Contract',
   databaseManagerContent,
@@ -8980,9 +9001,10 @@ assertIncludes(
   'Comment Reply Parent Post Boundary',
   saveCommentsContent,
   [
-    'SELECT post_id FROM comments WHERE id = ?',
+    'SELECT post_id, status FROM comments WHERE id = ?',
     "(string) ($parentComment['post_id'] ?? '') !== (string) $postId",
     'Parent comment does not belong to this post',
+    'Parent comment is not available for replies',
   ],
   'Comment Reply Parent Post Boundary: replies must target an existing parent on the same post.',
   'Comment Reply Parent Post Boundary: replies can still be attached to parents from other posts.'
@@ -9038,7 +9060,7 @@ assertIncludes(
     '\n' +
     read('src/plugins/von-core/features/users/UserManager.tsx'),
   [
-    'email_verified, verification_token IS NOT NULL AS has_pending_verification',
+    'email_verified, (email_verified = 0 OR verification_token IS NOT NULL) AS has_pending_verification',
     "$approveEmail = !empty($input['approve_email']);",
     'email_verified = 1, verification_token = NULL, verification_token_expires = NULL',
     'const handleApproveEmail = async (user: User) => {',
@@ -9329,15 +9351,15 @@ assertIncludes(
     'overflow-x-auto',
     "type === 'post' ? 'min-w-[1120px]' : 'min-w-[900px]'",
     '<colgroup>',
-    "<col className={type === 'post' ? 'w-[34%]' : 'w-[34%]'} />",
-    "<col className={type === 'post' ? 'w-[10%]' : 'w-[28%]'} />",
+    '<col className="w-24" />',
+    "<col className={type === 'post' ? 'w-56' : 'w-80'} />",
     '<th className="px-4 py-4 pr-8">Title</th>',
     '<th className="px-4 py-4">Author</th>',
     '<td className="px-4 py-4 pr-8 min-w-0">',
     'className="font-semibold text-slate-900 dark:text-white truncate max-w-full leading-snug"',
     'className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-full mt-1"',
     'className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap"',
-    "type === 'page' ? 'gap-2' : 'gap-3'",
+    'ml-3 border-l border-slate-200 pl-3',
     "{getAuthorName(item) || '-'}",
   ],
   'Content Manager Author Column: posts and pages show a stable, balanced author column.',
@@ -9700,7 +9722,9 @@ assertIncludes(
     "public: 'true',",
     'const categoryHasPosts =',
     "typeof categoryPostCount === 'number'",
-    "typeof fetchedCategoryPostCount === 'number'",
+    'fetchedListingCount?.key === countKey',
+    'const ssrSnapshot = getSsrSeoSnapshot();',
+    'const matchesSsrRoute = ssrSnapshot?.route === requestRoute;',
     'let hydratedRobots =',
     'hydratedRobots = categoryHasPosts',
     "ensureMeta('robots', 'name', hydratedRobots);",
@@ -9853,6 +9877,83 @@ assertIncludes(
   'SSR JSON-LD Script Escape Boundary: schema JSON-LD can still emit raw script-breaking characters.'
 );
 
+const boundedSummaryCases = [
+  ['short complete text', 'Short complete excerpt.', 160, 'Short complete excerpt.'],
+  ['complete word before a budget-ending space', 'one two next', 11, 'one two...'],
+  ['one-character limit', 'abcdef', 1, '.'],
+  ['two-character limit', 'abcdef', 2, '..'],
+  ['three-character limit', 'abcdef', 3, '...'],
+  ['four-character limit', 'abcdef', 4, 'a...'],
+  ['bounded manual punctuation', 'Manual text....', 160, 'Manual text....'],
+];
+const { markupCases: summaryMarkupCases } = require('./summary-text-cases.cjs');
+for (const limit of [160, 200, 220]) {
+  const punctuationPrefix = 'x'.repeat(limit - 14);
+  const longWordText = 'Ringkasan pendek ' + 'x'.repeat(240);
+  const longUrlText = 'Baca https://example.test/' + 'long-path-'.repeat(40);
+  const unicodeText = 'Teks ' + '😀'.repeat(240);
+  const cjkText = 'Berita ' + '新'.repeat(240);
+  boundedSummaryCases.push(
+    [
+      `period suffix ${limit}`,
+      punctuationPrefix + '. ' + 'word'.repeat(80),
+      limit,
+      punctuationPrefix + '...',
+    ],
+    [
+      `dots suffix ${limit}`,
+      punctuationPrefix + '... ' + 'word'.repeat(80),
+      limit,
+      punctuationPrefix + '...',
+    ],
+    [
+      `Unicode suffix ${limit}`,
+      punctuationPrefix + '… ' + 'word'.repeat(80),
+      limit,
+      punctuationPrefix + '...',
+    ],
+    [
+      `spaced dots ${limit}`,
+      punctuationPrefix + '. . ' + 'word'.repeat(80),
+      limit,
+      punctuationPrefix + '...',
+    ],
+    [`exact ${limit}`, 'x'.repeat(limit), limit, 'x'.repeat(limit)],
+    [`long word ${limit}`, longWordText, limit, longWordText.slice(0, limit - 3) + '...'],
+    [`long URL ${limit}`, longUrlText, limit, longUrlText.slice(0, limit - 3) + '...'],
+    [
+      `emoji ${limit}`,
+      unicodeText,
+      limit,
+      Array.from(unicodeText)
+        .slice(0, limit - 3)
+        .join('') + '...',
+    ],
+    [
+      `CJK ${limit}`,
+      cjkText,
+      limit,
+      Array.from(cjkText)
+        .slice(0, limit - 3)
+        .join('') + '...',
+    ]
+  );
+}
+boundedSummaryCases.push(
+  [
+    'backtrack at the allowed boundary',
+    'x'.repeat(178) + ' ' + 'y'.repeat(50),
+    200,
+    'x'.repeat(178) + '...',
+  ],
+  [
+    'backtrack beyond the allowed boundary',
+    'x'.repeat(177) + ' ' + 'y'.repeat(50),
+    200,
+    'x'.repeat(177) + ' ' + 'y'.repeat(19) + '...',
+  ]
+);
+
 try {
   const { normalizeArticleSchemaType, normalizeSchemaLanguage, truncateSchemaText } =
     loadTsModuleForSmoke('src/utils/articleSchema.ts');
@@ -9921,6 +10022,46 @@ try {
       'Schema Text Truncation: excerpt output can exceed its ceiling, split a word/code point, or alter already bounded text.'
     );
   }
+  const { getPostEditorCleanText } = loadTsModuleForSmokeWithMocks(
+    'src/components/editor/postEditorTextHelpers.ts',
+    {
+      '../../utils/articleSchema': { truncateSchemaText },
+      '../../utils/textUtils': { decodeEntities: (text) => text },
+      '../../utils/security': { htmlToPlainText: (text) => text },
+    },
+    {
+      // These fixtures cover truncation only; real DOM HTML cases run in the browser fixture.
+      DOMParser: class {
+        parseFromString(text) {
+          return { body: { textContent: text } };
+        }
+      },
+    }
+  );
+  for (const [label, text, limit, expected] of boundedSummaryCases) {
+    const schemaSummary = truncateSchemaText(text, limit);
+    const editorSummary = getPostEditorCleanText(text, limit);
+    if (
+      schemaSummary !== expected ||
+      editorSummary !== expected ||
+      Array.from(schemaSummary).length > limit ||
+      Buffer.from(schemaSummary, 'utf8').toString('utf8') !== schemaSummary
+    ) {
+      throw new Error(`Bounded summary mismatch: ${label}`);
+    }
+    if (truncateSchemaText(schemaSummary, limit) !== schemaSummary) {
+      throw new Error(`Repeated truncation changed an already bounded result: ${label}`);
+    }
+  }
+  if (
+    truncateSchemaText('x'.repeat(146) + '. ' + 'word'.repeat(80), 160, ' [more]') !==
+    'x'.repeat(146) + '. [more]'
+  ) {
+    throw new Error('Custom truncation suffix punctuation changed');
+  }
+  pass(
+    `Bounded Summary Truncation Runtime: ${boundedSummaryCases.length} frontend and plain-text Auto Fill cases preserve ordinary words, short limits, exact caps, long tokens, URLs, emoji, and CJK without excessive backtracking.`
+  );
 } catch (error) {
   fail(`Article Schema Utility Runtime: ${error.message}`);
 }
@@ -11081,6 +11222,20 @@ assertIncludes(
   'Nginx Publication Helper Guard: the VPS rule and verification probe block the internal publication helper before PHP-FPM.',
   'Nginx Publication Helper Guard: the VPS example can expose the internal publication helper to PHP-FPM without an explicit deny.'
 );
+if (
+  /^[ \t]*location ~\* \^\/api\/\([^\r\n]*\|content_slug_helper\|[^\r\n]*\)\\\.php\$ \{\r?\n[ \t]+deny all;\r?\n[ \t]*\}/m.test(
+    vpsGuideContent
+  ) &&
+  vpsGuideContent.split(/\r?\n/).some((line) => line.trim() === '"/api/content_slug_helper.php" \\')
+) {
+  pass(
+    'Nginx Slug Helper Guard: active pre-PHP denial and its verification probe include the shared slug helper.'
+  );
+} else {
+  fail(
+    'Nginx Slug Helper Guard: the shared slug helper is missing from an active deny block or verification probe.'
+  );
+}
 const activeNginxPhpPathInfoBlockPattern =
   /^[ \t]*location ~\* \\\.php\/ \{\r?\n[ \t]+return 404;\r?\n[ \t]*\}/m;
 const nginxPhpPathInfoBlockFixture = 'location ~* \\.php/ {\n    return 404;\n}';
@@ -12139,6 +12294,18 @@ try {
   fail('Corporate Pro Modular Settings Runtime: ' + error.message);
 }
 
+const editorRegressionSmoke = spawnSync(
+  process.execPath,
+  [resolveFromRoot('server/test-editor-regressions.cjs')],
+  { cwd: root, encoding: 'utf8' }
+);
+if (editorRegressionSmoke.status === 0)
+  pass(editorRegressionSmoke.stdout.trim().replace(/^PASS /, ''));
+else
+  fail(
+    'Editor Regressions Runtime: ' + (editorRegressionSmoke.stderr || editorRegressionSmoke.error)
+  );
+
 const themeMaintenanceSmoke = spawnSync(
   process.execPath,
   [resolveFromRoot('server/test-theme-maintenance.cjs')],
@@ -12182,8 +12349,12 @@ if (
   phpSeoRouteHelperContent.includes('voncms_post_listing_sql($pdo, $projection, $where)') &&
   read('public/api/post_query_helper.php').includes('LIMIT :limit OFFSET :offset') &&
   vonSeoContent.includes('const isPaginatedDiscovery =') &&
-  vonSeoContent.includes('existingCanonicalPage === String(publicPage)') &&
-  vonSeoContent.includes('hydratedRobots = existingRobots || hydratedRobots;') &&
+  vonSeoContent.includes('const matchesSsrRoute = ssrSnapshot?.route === requestRoute;') &&
+  vonSeoContent.includes('canonical = ssrSnapshot.canonical;') &&
+  vonSeoContent.includes(
+    "hydratedRobots = isPaginatedOverflow ? 'noindex, follow' : hydratedRobots;"
+  ) &&
+  !vonSeoContent.includes('hydratedRobots = existingRobots || hydratedRobots;') &&
   vonSeoContent.includes('const shouldPreservePaginatedSsrSchema =') &&
   vonSeoContent.includes(
     "existingSsrSchema?.getAttribute('data-voncms-schema-url') === canonical"
@@ -13092,7 +13263,7 @@ const honeypotRateContracts = [
     'public/api/reset_password.php',
     /RateLimiter::consumeFixedWindow\(\$recoveryTrapIdentifier, 20, 900\)/,
   ],
-  ['public/api/newsletter_subscribe.php', /RateLimiter::recordAttempt\([^)]*\);/],
+  ['public/api/newsletter_subscribe.php', /RateLimiter::requireAttempt\([^)]*\);/],
 ];
 const honeypotRateGaps = honeypotRateContracts
   .filter(([file, contract]) => !contract.test(read(file)))
@@ -13592,7 +13763,7 @@ const profileTransactionOrder = [
   '$pdo->beginTransaction();',
   'SELECT password FROM users WHERE id = ? FOR UPDATE',
   'password_verify($currentPasswordValue',
-  'UPDATE users SET password = ? WHERE id = ?',
+  'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
   'DELETE FROM remember_tokens WHERE user_id = ?',
   'UPDATE users SET display_name = ?, bio = ?, avatar = ? WHERE id = ?',
   '$pdo->commit();',
@@ -13647,7 +13818,11 @@ if (!techPressProfileContent.includes('grainy-gradients.vercel.app/noise.svg')) 
   );
 }
 
-const editorLinkUtils = loadTsModuleForSmoke('src/components/editor/editorLinkUtils.ts');
+const editorLinkUtils = loadTsModuleForSmokeWithMocks(
+  'src/components/editor/editorLinkUtils.ts',
+  {},
+  { URL }
+);
 const complexQuerySmokeUrl = editorLinkUtils.COMPLEX_QUERY_STRING_LINK_SMOKE_URL;
 if (
   complexQuerySmokeUrl === 'https://example.test/link?empty=&type=phone_number&app_absent=0' &&
@@ -14142,7 +14317,7 @@ const publicIndexContent = read('public/index.php');
 const publicPostLookupBlock = sliceBetween(
   phpSeoRouteHelperContent,
   'function voncms_fetch_public_post(',
-  'return is_array($post) ? $post : null;'
+  "if (!function_exists('voncms_fetch_public_listing_page'))"
 );
 const initialPostPayloadBlock = sliceBetween(
   publicIndexContent,
@@ -14278,10 +14453,8 @@ if (
   phpSeoSchemaHelperContent.includes('@return string') &&
   phpSeoSchemaHelperContent.includes('function voncms_extract_plaintext_for_noscript') &&
   phpSeoSchemaHelperContent.includes('html_entity_decode($content') &&
-  phpSeoSchemaHelperContent.includes("preg_replace('/<(br|hr)\\s*\\/?>/i") &&
-  phpSeoSchemaHelperContent.includes(
-    "'/<\\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li)>/i"
-  ) &&
+  phpSeoSchemaHelperContent.includes('function voncms_preserve_description_spacing(') &&
+  phpSeoSchemaHelperContent.includes('$content = voncms_preserve_description_spacing($content);') &&
   phpSeoSchemaHelperContent.includes('function voncms_render_noscript_post_content') &&
   phpSeoSchemaHelperContent.includes('function voncms_render_noscript_post_node') &&
   publicIndexContent.includes(
@@ -14304,7 +14477,8 @@ assertIncludes(
   [
     '$publicContentCurrentTime = date(',
     "AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1",
-    '$stmt->execute([$slugOrId, $currentTime]);',
+    '$stmt->bindValue(2, $currentTime, PDO::PARAM_STR);',
+    '$stmt->execute();',
     'voncms_fetch_public_post(',
     "$pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');",
     "WHERE p.slug = ? AND p.status = 'published' LIMIT 1",
@@ -15270,6 +15444,89 @@ assertExcludes(
   'SEO Description Pre-truncation Drift: hydrated metadata filters semantic emptiness and applies word-safe truncation only once.',
   'SEO Description Pre-truncation Drift: hydrated metadata can still stop on empty markup or cut content before word-safe truncation.'
 );
+
+try {
+  // Check the actual opt-in preparation and sanitizer boundary; real DOM output is browser-tested.
+  const sanitizerCalls = [];
+  const { htmlToPlainText } = loadTsModuleForSmokeWithMocks(
+    'src/utils/security.ts',
+    {
+      dompurify: {
+        __esModule: true,
+        default: {
+          sanitize: (text, config) => {
+            sanitizerCalls.push({ text, config });
+            return text;
+          },
+        },
+      },
+      '../config/site.config': { BASE_PATH: '/' },
+      '../components/editor/editorLinkUtils': { normalizeEditorLinkRel: (value) => value },
+    },
+    { document: { createElement: () => ({ innerHTML: '', value: '' }) } }
+  );
+  const comparisonCases = [
+    ['x<y remains text', 'x&lt;y remains text'],
+    ['x<y, use z>k', 'x&lt;y, use z>k'],
+    ['2 < 3 and 4 > 1', '2 &lt; 3 and 4 > 1'],
+    ['<p>Rich <strong>text</strong></p>', '<p>Rich <strong>text</strong></p>'],
+    ['&lt;tag&gt; &amp; text', '&lt;tag&gt; &amp; text'],
+    ['<!-- hidden -->x<y', 'x&lt;y'],
+    ['<?hidden?><!DOCTYPE html>x<y', 'x&lt;y'],
+    ['<script>hidden</script><p>Visible</p>', '<script>hidden</script><p>Visible</p>'],
+    [
+      '<input disabled><span title="x">Visible</span>',
+      '<input disabled><span title="x">Visible</span>',
+    ],
+  ];
+  for (const [input, prepared] of comparisonCases) {
+    htmlToPlainText(input, { preserveLiteralComparisons: true });
+    const actual = sanitizerCalls.at(-1);
+    if (
+      actual.text !== prepared ||
+      actual.config.ALLOWED_TAGS.length !== 0 ||
+      actual.config.ALLOWED_ATTR.length !== 0
+    ) {
+      throw new Error('Comparison preparation or sanitizer configuration drifted');
+    }
+  }
+  htmlToPlainText('x<y remains text');
+  if (sanitizerCalls.at(-1).text !== 'x<y remains text') {
+    throw new Error('The default plain-text conversion changed for unrelated callers');
+  }
+  htmlToPlainText('<section>Satu</section><table><tr><td>Dua</td><td>Tiga</td></tr></table>', {
+    preserveLiteralComparisons: true,
+    preserveBlockSpacing: true,
+  });
+  if (
+    !sanitizerCalls.at(-1).text.includes('Satu ') ||
+    !sanitizerCalls.at(-1).text.includes('Dua ')
+  ) {
+    throw new Error('Opt-in block/cell boundaries were lost before sanitization');
+  }
+  htmlToPlainText(
+    '<script>Hidden</script><style>Hidden</style><noscript>Hidden</noscript><template>Hidden</template>',
+    {
+      preserveLiteralComparisons: true,
+      preserveBlockSpacing: true,
+    }
+  );
+  if (sanitizerCalls.at(-1).text !== '') {
+    throw new Error('Hidden-only summary input survived opt-in preparation');
+  }
+  if (
+    !/htmlToPlainText\(contentAttribute \|\| rawValue,\s*\{\s*preserveLiteralComparisons: true,\s*preserveBlockSpacing: true,?\s*\}\)/.test(
+      read('src/plugins/von-core/features/seo/VonSEO.tsx')
+    )
+  ) {
+    throw new Error('VonSEO no longer opts into literal comparison preservation');
+  }
+  pass(
+    'SEO Literal Comparison Preparation Runtime: 9 actual-helper cases preserve text, keep markup on the sanitizer path, remove invisible declarations, and leave default callers unchanged.'
+  );
+} catch (error) {
+  fail(`SEO Literal Comparison Preparation Runtime: ${error.message}`);
+}
 
 assertIncludes(
   'Double Slash Canonical Contract',
@@ -16361,7 +16618,7 @@ assertIncludes(
     'JOIN users u ON u.id = rt.user_id',
     'hash_equals(',
     'session_regenerate_id(true)',
-    'SET token_hash = ?, expires_at = ?, last_used_at = NOW()',
+    'SET token_hash = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 DAY), last_used_at = NOW()',
     "'voncms_remember'",
     "'csrf_token' => $csrfToken",
   ],
@@ -16850,8 +17107,15 @@ if (
 assertIncludes(
   'Database Mobile Editor Contract',
   databaseManagerContent,
-  ['max-h-72', 'sm:max-h-96', 'min-h-[380px]', 'sm:min-h-[320px]', 'min-h-40'],
-  'Database Mobile Editor Contract: the table list is bounded and the phone/tablet SQL canvas retains a usable typing area.',
+  [
+    'max-h-72',
+    'sm:max-h-96',
+    'min-h-[380px]',
+    'sm:min-h-[320px]',
+    'group relative min-h-0 flex-1',
+    'flex shrink-0 flex-col gap-4 border-t',
+  ],
+  'Database Mobile Editor Contract: the table list is bounded, phone/tablet card heights remain usable, and the SQL input yields space to the action footer.',
   'Database Mobile Editor Contract: the table list or SQL canvas can still collapse the mobile inspection workflow.'
 );
 assertIncludes(
@@ -16986,7 +17250,7 @@ assertIncludes(
     'dark:border-admin-border dark:bg-admin-panel/95',
     'dark:hover:bg-admin-hover',
     'hasUnsavedEditorChanges(',
-    'initialAddToMenuRef.current = addToMenu;',
+    'initialAddToMenuRef.current = submittedAddToMenu;',
     'const liveItem = itemRef.current ? { ...itemRef.current, content: html } : null;',
   ],
   'Quick Editor Unsaved Exit Contract: close, Escape, Back, and dashboard handoff preserve dirty drafts behind confirmation while shared modal safety remains active.',
@@ -17247,6 +17511,8 @@ try {
     'src/utils/siteUtils.ts',
     {
       '../config/site.config': { BASE_PATH: '/zangetsu' },
+      '../components/editor/editorVideoUtils': editorVideoUtils,
+      './textUtils': { decodeEntities: (value) => value || '' },
       './dateFormat': {
         DEFAULT_SITE_DATE_FORMAT: 'MMMM d, yyyy',
         SITE_DATE_FORMAT_OPTIONS: [],
@@ -17462,6 +17728,20 @@ if (
 
 const phpBinary = findPhpBinary();
 if (phpBinary) {
+  const numericRoutesProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/public-numeric-routes.php')],
+    { encoding: 'utf8' }
+  );
+  if (numericRoutesProbe.status === 0 && numericRoutesProbe.stdout.startsWith('PASS ')) {
+    pass(numericRoutesProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail(
+      'Public Numeric Routes: ' + (numericRoutesProbe.stderr || numericRoutesProbe.stdout).trim()
+    );
+  }
+}
+if (phpBinary) {
   const coreProbe = spawnSync(
     process.execPath,
     [resolveFromRoot('server/test-core-modules.cjs'), phpBinary],
@@ -17485,6 +17765,30 @@ if (phpBinary) {
     );
   else
     fail('Security Hardening Runtime: ' + (hardeningProbe.stderr || hardeningProbe.stdout).trim());
+}
+if (phpBinary) {
+  const maintenanceProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/maintenance-boundaries.php')],
+    { encoding: 'utf8' }
+  );
+  if (maintenanceProbe.status === 0) pass(maintenanceProbe.stdout.trim().replace(/^PASS /, ''));
+  else
+    fail('Maintenance Boundaries: ' + (maintenanceProbe.stderr || maintenanceProbe.stdout).trim());
+}
+if (phpBinary) {
+  const actionBoundariesProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/api-action-boundaries.php')],
+    { encoding: 'utf8' }
+  );
+  if (actionBoundariesProbe.status === 0)
+    pass(actionBoundariesProbe.stdout.trim().replace(/^PASS /, ''));
+  else
+    fail(
+      'API Action Boundaries: ' +
+        (actionBoundariesProbe.stderr || actionBoundariesProbe.stdout).trim()
+    );
 }
 if (phpBinary) {
   const publicPluginSettingsProbe = spawnSync(
@@ -17667,9 +17971,16 @@ $passwordHash = password_hash('FixturePass1!', PASSWORD_BCRYPT);
 $pdo = null;
 if (!str_starts_with($mode, 'comment-mixed-') && $mode !== 'comment-guest-bulk') {
   if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) { fwrite(STDERR, 'pdo_sqlite required'); exit(2); }
-  $pdo = new PDO('sqlite::memory:');
+  // SQLite models the MySQL-owned expiry clock; the real SQL is also covered by --mysql.
+  require_once ${JSON.stringify(resolveFromRoot('server/integration/sqlite-compat.php'))};
+  class LoginCommentProbePdo extends VonCmsFixtureSqlitePDO {
+    public function prepare(string $query, array $options = []): PDOStatement|false {
+      return parent::prepare(str_replace('DATE_ADD(NOW(), INTERVAL 30 DAY)', "datetime('now', '+30 days')", $query), $options);
+    }
+  }
+  $pdo = new LoginCommentProbePdo('sqlite::memory:');
   $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $pdo->sqliteCreateFunction('NOW', static fn() => date('Y-m-d H:i:s'));
+  $pdo->createFunction('NOW', static fn() => date('Y-m-d H:i:s'));
   $pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, role TEXT, password TEXT, avatar TEXT, bio TEXT, created_at TEXT, email_verified INTEGER, verification_token TEXT)');
   $pdo->prepare('INSERT INTO users VALUES (7, ?, ?, ?, ?, NULL, NULL, ?, 1, NULL)')->execute(['fixture', 'fixture@example.test', 'admin', $passwordHash, '2026-10-07']);
   $pdo->exec('CREATE TABLE remember_tokens (user_id INTEGER, selector TEXT, token_hash TEXT, expires_at TEXT)');
@@ -18206,6 +18517,9 @@ if (proc_close($holder) !== 0) exit(8);
 if ($runWorker('consume') !== 0 || file_exists($keyPath)) exit(9);
 if ($runWorker('claim') !== 20) exit(10);
 @unlink($workerPath);
+foreach (glob($sessionDir . DIRECTORY_SEPARATOR . 'sess_*') ?: [] as $sessionFile) {
+  @unlink($sessionFile);
+}
 @rmdir($sessionDir);
 @rmdir($fixtureDir);
 echo 'ok';`,
@@ -19409,6 +19723,10 @@ $valid = file_get_contents(${JSON.stringify(resolveFromRoot('public/.htaccess'))
 if ($valid === false || !SecurityHelper::hasRequiredHtaccessDirectives($valid)) {
   exit(2);
 }
+$missingSlugShield = str_replace('|content_slug_helper', '', $valid);
+if (SecurityHelper::hasRequiredHtaccessDirectives($missingSlugShield)) {
+  exit(12);
+}
 $markerOnly = "# BEGIN VonCMS\\n# END VonCMS\\n";
 if (SecurityHelper::hasRequiredHtaccessDirectives($markerOnly)) {
   exit(3);
@@ -19751,9 +20069,10 @@ if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
   echo 'skip';
   exit(0);
 }
-$pdo = new PDO('sqlite::memory:');
+require_once ${JSON.stringify(resolveFromRoot('server/integration/sqlite-compat.php'))};
+$pdo = new VonCmsFixtureSqlitePDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->sqliteCreateFunction('NOW', static fn() => date('Y-m-d H:i:s'));
+$pdo->createFunction('NOW', static fn() => date('Y-m-d H:i:s'));
 $pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL, role TEXT NOT NULL, password TEXT NOT NULL)');
 $pdo->exec('CREATE TABLE settings (setting_key TEXT PRIMARY KEY, setting_value TEXT)');
 $pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, status TEXT, scheduled_at TEXT)');
@@ -19822,12 +20141,229 @@ require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
     );
   }
 
+  const pageReadCases = [
+    ['guest', {}, 200, 222, 1, 200, 222, true],
+    ['guest', { page: 2 }, 22, 222, 2, 200, 22, false],
+    ['guest', { limit: 999 }, 200, 222, 1, 200, 222, true],
+    ['guest', { limit: 0 }, 1, 222, 1, 1, 222, true],
+    ['guest', { page: 2, limit: 7 }, 7, 222, 2, 7, 215, true],
+    ['guest', { page: 18, limit: 13 }, 1, 222, 18, 13, 1, false],
+    ['guest', { page: 19, limit: 13 }, 0, 222, 19, 13, null, false],
+    ['guest', { id: 1, limit: 1 }, 1, 1, 1, 1, 1, false],
+    ['guest', { slug: '00123', limit: 1 }, 1, 1, 1, 1, 221, false],
+    ['guest', { slug: '123', limit: 1 }, 1, 1, 1, 1, 222, false],
+    ['guest', { slug: 'missing' }, 0, 0, 1, 200, null, false],
+    ['guest', { id: 223 }, 0, 0, 1, 200, null, false],
+    ['writer', { id: 223 }, 0, 0, 1, 200, null, false],
+    ['member', { id: 223 }, 0, 0, 1, 200, null, false],
+    ['admin', { id: 223 }, 1, 1, 1, 200, 223, false],
+    ['moderator', { id: 223 }, 1, 1, 1, 200, 223, false],
+    ['root', {}, 200, 224, 1, 200, 224, true],
+  ];
+  for (const [role, query, count, total, page, limit, firstId, hasMore] of pageReadCases) {
+    const pageReadProbe = spawnSync(
+      phpBinary,
+      [resolveFromRoot('server/integration/page-read.php'), JSON.stringify(query), role],
+      { encoding: 'utf8' }
+    );
+    if (pageReadProbe.status === 0 && pageReadProbe.stdout.trim() === 'skip') {
+      warn('Page Read Runtime: pdo_sqlite unavailable.');
+      break;
+    }
+    const pageReadPayload = (() => {
+      try {
+        return JSON.parse(pageReadProbe.stdout);
+      } catch {
+        return null;
+      }
+    })();
+    const pageReadMeta = pageReadPayload?.meta;
+    const pageReadRows = pageReadPayload?.pages;
+    if (
+      pageReadProbe.status === 0 &&
+      pageReadPayload?.success === true &&
+      pageReadRows?.length === count &&
+      pageReadMeta?.total === total &&
+      pageReadMeta?.page === page &&
+      pageReadMeta?.limit === limit &&
+      pageReadMeta?.totalPages === Math.max(1, Math.ceil(total / limit)) &&
+      pageReadMeta?.hasMore === hasMore &&
+      (firstId === null || pageReadRows[0]?.id === String(firstId)) &&
+      pageReadRows.every(
+        (row) =>
+          row.content === 'Complete page body 😀. '.repeat(40) &&
+          row.excerpt === 'Page excerpt 中文 😀' &&
+          row.meta_description === 'Explicit page meta description.' &&
+          (['root', 'admin', 'moderator'].includes(role) ||
+            (row.status === 'published' && !row.author_id))
+      )
+    ) {
+      pass(
+        `Page Read Runtime: ${role} ${JSON.stringify(query)} preserves lookup, pagination, full editor fields, and the protected-page boundary.`
+      );
+    } else {
+      fail(
+        `Page Read Runtime: ${role} ${JSON.stringify(query)} drifted. ${(pageReadProbe.stderr || pageReadProbe.stdout || '').trim()}`
+      );
+    }
+  }
+
+  const boundedSummaryPhpProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `require ${JSON.stringify(resolveFromRoot('public/seo_schema_helper.php'))};
+$cases = json_decode((string) file_get_contents('php://stdin'), true, 512, JSON_THROW_ON_ERROR);
+foreach ($cases as [$label, $text, $limit, $expected]) {
+  $summary = voncms_truncate_word_safe($text, $limit);
+  if ($summary !== $expected || mb_strlen($summary) > $limit || !mb_check_encoding($summary, 'UTF-8')) {
+    fwrite(STDERR, 'Bounded PHP summary mismatch: ' . $label);
+    exit(2);
+  }
+  json_encode(['summary' => $summary], JSON_THROW_ON_ERROR);
+}
+echo 'ok';`,
+    ],
+    { encoding: 'utf8', input: JSON.stringify(boundedSummaryCases) }
+  );
+  if (boundedSummaryPhpProbe.status === 0 && boundedSummaryPhpProbe.stdout.trim() === 'ok') {
+    pass(
+      `Bounded PHP Summary Runtime: ${boundedSummaryCases.length} shared fixtures match the frontend, including long-token backtracking and complete words before trailing budget spaces.`
+    );
+  } else {
+    fail(
+      `Bounded PHP Summary Runtime: output drifted. ${(boundedSummaryPhpProbe.stderr || boundedSummaryPhpProbe.stdout || '').trim()}`
+    );
+  }
+
+  const rssSummaryAssignment = rssContent.match(
+    /  \$excerpt = voncms_pick_rss_description\(\$post, \$renderedContent\);/
+  )?.[0];
+  const summaryTextProbe = spawnSync(
+    phpBinary,
+    [
+      '-r',
+      `
+require ${JSON.stringify(resolveFromRoot('public/seo_schema_helper.php'))};
+$cases=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);
+foreach($cases as $case){
+  [$label,$html,$expected]=$case;
+  $expectedMeta=$case[3]??$expected;
+  if(voncms_clean_seo_description($html,160,true)!==$expected || voncms_clean_seo_description($html,160)!==$expectedMeta){
+    fwrite(STDERR,'Summary markup mismatch: '.$label);exit(2);
+  }
+}
+$rssSummary=static function(array $post,string $renderedContent): string {
+  ${rssSummaryAssignment || 'throw new RuntimeException("RSS summary assignment not found");'}
+  return $excerpt;
+};
+$rssCases=[
+  [['excerpt'=>'Nilai x<y kekal.'],'<p>Other body</p>','Nilai x<y kekal.'],
+  [['excerpt'=>'0'],'<p>Other body</p>','0'],
+  [['excerpt'=>'<p>&nbsp;</p>'],'<p>Body fallback</p>','Body fallback'],
+  [['excerpt'=>''],'<p>Satu</p><p>Dua &amp; tiga</p>','Satu Dua & tiga'],
+  [['excerpt'=>'Contoh &lt;tag&gt;.'],'','Contoh <tag>.'],
+  [['excerpt'=>str_repeat('x',400)],'Other',str_repeat('x',400)],
+  [['excerpt'=>''],'<p>'.str_repeat('x',400).'</p>',str_repeat('x',297).'...'],
+];
+foreach($rssCases as [$post,$body,$expected]){
+  $summary=$rssSummary($post,$body);
+  $xml=new DOMDocument();
+  if($summary!==$expected || !$xml->loadXML('<rss><description>'.htmlspecialchars($summary,ENT_XML1,'UTF-8').'</description></rss>') || $xml->getElementsByTagName('description')->item(0)->textContent!==$expected){
+    fwrite(STDERR,'RSS summary or XML roundtrip mismatch');exit(3);
+  }
+}
+if(voncms_truncate_word_safe(str_repeat('x',146).'. '.str_repeat('word',80),160,' [more]')!==str_repeat('x',146).'. [more]'){exit(4);}
+echo count($cases).' markup + '.count($rssCases).' RSS cases';
+`,
+    ],
+    { encoding: 'utf8', input: JSON.stringify(summaryMarkupCases) }
+  );
+  if (summaryTextProbe.status === 0) {
+    pass(
+      'Summary Text Runtime: ' +
+        summaryTextProbe.stdout.trim() +
+        ' preserve block/cell boundaries, hidden-content exclusion, literal comparisons, zero, legacy explicit length and XML text.'
+    );
+  } else {
+    fail('Summary Text Runtime: ' + (summaryTextProbe.stderr || summaryTextProbe.stdout).trim());
+  }
+
+  const automaticPostExcerptBlock = sliceBetween(
+    read('public/api/save_post.php'),
+    '// Auto-generate excerpt from content if not provided',
+    '$db = null;'
+  );
+  const automaticPageExcerptBlock = sliceBetween(
+    read('public/api/save_page.php'),
+    '// Auto-generate excerpt from content if not provided',
+    'try {'
+  );
   const seoSchemaHelperProbe = spawnSync(
     phpBinary,
     [
       '-r',
       `$_SERVER['SCRIPT_FILENAME'] = ${JSON.stringify(resolveFromRoot('public/index.php'))};
 require ${JSON.stringify(resolveFromRoot('public/seo_schema_helper.php'))};
+$automaticExcerptGenerators = [
+  'post' => static function ($providedExcerpt, $content) {
+    $input = ['excerpt' => $providedExcerpt];
+    $rawContent = $content;
+    ${automaticPostExcerptBlock}
+    return $excerpt;
+  },
+  'page' => static function ($providedExcerpt, $content) {
+    $input = ['excerpt' => $providedExcerpt];
+    $rawContent = $content;
+    ${automaticPageExcerptBlock}
+    return $input['excerpt'] ?? '';
+  },
+];
+$automaticExcerptCases = [
+  [null, '<p>Short complete body.</p>', 'Short complete body.'],
+  ['', '<p>Short complete body.</p>', 'Short complete body.'],
+  [" \t\n", '<p>Body from a blank field.</p>', 'Body from a blank field.'],
+  ['', '', ''],
+  ['  ', '', '  '],
+  ['0', '<p>Different body.</p>', '0'],
+  [' 0 ', '<p>Different body.</p>', ' 0 '],
+  ['00', '<p>Different body.</p>', '00'],
+  ['', '0', '0'],
+  ['  Manual &amp; unchanged.  ', '<p>Different body.</p>', '  Manual &amp; unchanged.  '],
+  [str_repeat('x', 220), '<p>Different body.</p>', str_repeat('x', 220)],
+  ['Previously saved summary...', '<p>Different body.</p>', 'Previously saved summary...'],
+  ['Ringkasan 😀 中文', '<p>Different body.</p>', 'Ringkasan 😀 中文'],
+  ['', '<p>First paragraph.</p><p>Second<br>line.</p>', 'First paragraph. Second line.'],
+  ['', '<script>Hidden code</script><style>Hidden CSS</style><noscript>Hidden fallback</noscript><template>Hidden template</template><p>Visible body.</p>', 'Visible body.'],
+  ['', '<p>&nbsp;Tom &amp; Jerry &#8212; berita&nbsp;terkini.</p>', 'Tom & Jerry — berita terkini.'],
+  ['', '<p>Gunakan &lt;tag&gt; apabila menulis HTML.</p>', 'Gunakan <tag> apabila menulis HTML.'],
+  ['', '<pre><code>&lt;section&gt;Contoh&lt;/section&gt;</code></pre>', '<section>Contoh</section>'],
+  ['', '<p>Gunakan &#60;tag&#62; dan &#x3C;code&#x3E;.</p>', 'Gunakan <tag> dan <code>.'],
+  ['', '<p>&amp;lt;tag&amp;gt; &amp;amp; teks.</p>', '<tag> & teks.'],
+  ['', '<script>Hidden</script><p>Literal &lt;script&gt;contoh&lt;/script&gt;.</p>', 'Literal <script>contoh</script>.'],
+  ['', 'a' . str_repeat('😀', 60), 'a' . str_repeat('😀', 60)],
+  ['', 'a' . str_repeat('😀', 220), 'a' . str_repeat('😀', 196) . '...'],
+  ['', str_repeat('新', 220), str_repeat('新', 197) . '...'],
+  ['', str_repeat('x', 200), str_repeat('x', 200)],
+  ['', str_repeat('word ', 40) . 'tail', rtrim(str_repeat('word ', 39)) . '...'],
+  ['', '<script>Hidden code only</script>', ''],
+  ['', 'Ringkasan pendek ' . str_repeat('x', 210), 'Ringkasan pendek ' . str_repeat('x', 180) . '...'],
+  ['', str_repeat('x', 192) . ' abc ' . str_repeat('z', 20), str_repeat('x', 192) . ' abc...'],
+];
+foreach ($automaticExcerptGenerators as $contentType => $generateAutomaticExcerpt) {
+  foreach ($automaticExcerptCases as $caseIndex => [$providedExcerpt, $content, $expectedExcerpt]) {
+    $actualExcerpt = $generateAutomaticExcerpt($providedExcerpt, $content);
+    if (
+      $actualExcerpt !== $expectedExcerpt ||
+      !mb_check_encoding($actualExcerpt, 'UTF-8') ||
+      (trim((string) $providedExcerpt) === '' && mb_strlen($actualExcerpt) > 200)
+    ) {
+      fwrite(STDERR, 'Automatic ' . $contentType . ' excerpt mismatch in case ' . $caseIndex);
+      exit(23);
+    }
+    json_encode(['excerpt' => $actualExcerpt], JSON_THROW_ON_ERROR);
+  }
+}
 if (voncms_normalize_schema_language('ms-MY') !== 'ms-MY') {
   exit(2);
 }
@@ -19844,6 +20380,13 @@ $encodedExcerpt = htmlspecialchars(
 );
 if ($encodedExcerpt !== 'Tom &amp; Jerry') {
   exit(5);
+}
+if (
+  voncms_extract_plaintext_for_noscript('&lt;p&gt;Legacy &amp;amp; text&lt;/p&gt;') !==
+    'Legacy & text'
+) {
+  fwrite(STDERR, 'The default legacy no-JavaScript extraction mode changed');
+  exit(24);
 }
 $noscriptParagraphText = voncms_extract_plaintext_for_noscript(
   '<p>First paragraph</p><p>Second line<br>continued</p><ul><li>Third item</li><li>Fourth item</li></ul>'
@@ -19967,6 +20510,76 @@ if (
     'NewsArticle'
 ) {
   exit(17);
+}
+$listingDescriptionCases = [
+  [['meta_description' => '<p>Manual &amp; tepat</p>', 'excerpt' => 'Different excerpt'], 'Manual & tepat'],
+  [['meta_description' => '<p>&nbsp;</p>', 'excerpt' => '<p>Ringkasan &amp; lengkap.</p>'], 'Ringkasan & lengkap.'],
+  [['meta_description' => '<script>Hidden payload</script>', 'excerpt' => 'Visible excerpt'], 'Visible excerpt'],
+  [['meta_description' => '<meta CONTENT="Manual &amp; exact">', 'excerpt' => 'Different excerpt'], 'Manual & exact'],
+  [['content' => 'Do not expose the full article through an empty listing summary'], ''],
+  [['meta_description' => str_repeat('Manual ', 30), 'excerpt' => 'Different excerpt'], voncms_clean_seo_description(str_repeat('Manual ', 30))],
+  [['excerpt' => '<p>First sentence.</p><p>Second sentence.</p>'], 'First sentence. Second sentence.'],
+  [['excerpt' => 'First<br>Second<hr>Third'], 'First Second Third'],
+  [['excerpt' => '0'], '0'],
+  [['excerpt' => '<p>Gunakan &lt;tag&gt;.</p>'], 'Gunakan <tag>.'],
+  [['excerpt' => '<pre><code>&lt;section&gt;Contoh&lt;/section&gt;</code></pre>'], '<section>Contoh</section>'],
+  [['excerpt' => '<p>&#60;tag&#62; &amp; &#x3C;code&#x3E;</p>'], '<tag> & <code>'],
+  [['excerpt' => '<p>&amp;lt;tag&amp;gt;</p>'], '<tag>'],
+  [['excerpt' => '<script>Hidden payload</script><style>Hidden CSS</style><p>Visible</p><p>excerpt &amp; details.</p>'], 'Visible excerpt & details.'],
+];
+foreach ([160, 200, 201, 202, 219, 220] as $excerptLength) {
+  $fullExcerpt = str_repeat('x', $excerptLength - mb_strlen(' tamat.')) . ' tamat.';
+  $listingDescriptionCases[] = [['excerpt' => $fullExcerpt], $fullExcerpt];
+}
+$unicodeListingExcerpt = str_repeat('😀', 213) . ' tamat.';
+$listingDescriptionCases[] = [['excerpt' => $unicodeListingExcerpt], $unicodeListingExcerpt];
+$legacyListingExcerpt = str_repeat('Legacy ', 40);
+$listingDescriptionCases[] = [
+  ['excerpt' => $legacyListingExcerpt],
+  voncms_clean_seo_description($legacyListingExcerpt, 220),
+];
+foreach (['https://example.com', 'https://news.example.com', 'https://example.com/blog'] as $listingOrigin) {
+  foreach ($listingDescriptionCases as $caseIndex => [$fields, $expectedDescription]) {
+    $listingPost = array_merge([
+      'title' => 'Listing description story',
+      'url' => '/news/listing-story',
+      'image_url' => '',
+    ], $fields);
+    $listingCategorySchema = ['@type' => 'CollectionPage'];
+    voncms_apply_category_collection_items(
+      $listingCategorySchema, [$listingPost], 1, 'NewsArticle', $listingOrigin
+    );
+    $listingHomepageGraph = voncms_build_public_schema_graph(
+      ['@type' => 'WebSite'],
+      [
+        'path' => '',
+        'domainUrl' => $listingOrigin,
+        'articleSchemaType' => 'NewsArticle',
+        'homepagePosts' => [$listingPost],
+      ]
+    );
+    $listingHomepageCollection = null;
+    foreach ($listingHomepageGraph['@graph'] ?? [] as $listingNode) {
+      if (($listingNode['@type'] ?? '') === 'CollectionPage') {
+        $listingHomepageCollection = $listingNode;
+      }
+    }
+    foreach ([$listingCategorySchema, $listingHomepageCollection] as $listingSchema) {
+      $listingArticle = $listingSchema['mainEntity']['itemListElement'][0]['item'] ?? [];
+      if (
+        ($listingArticle['description'] ?? null) !== $expectedDescription ||
+        ($listingArticle['url'] ?? '') !== $listingOrigin . '/news/listing-story' ||
+        !mb_check_encoding($listingArticle['description'] ?? '', 'UTF-8')
+      ) {
+        fwrite(STDERR, 'Listing description mismatch in case ' . $caseIndex . ' at ' . $listingOrigin);
+        exit(21);
+      }
+    }
+  }
+}
+if (mb_strlen(voncms_clean_seo_description(str_repeat('x', 180))) !== 160) {
+  fwrite(STDERR, 'The existing single-post description limit changed');
+  exit(22);
 }
 $semanticFallback = voncms_pick_seo_description([
   'meta_description' => '<p>&nbsp;</p>',
@@ -20104,6 +20717,12 @@ echo 'ok';`,
   if (seoSchemaHelperProbe.status === 0 && seoSchemaHelperProbe.stdout.trim() === 'ok') {
     pass(
       'SEO Schema Helper Runtime: PHP language rejection, entity decoding, no-JavaScript paragraph boundaries, Unicode truncation, detailed article image, subfolder-safe local media, category ItemList, and stable Organization/WebSite identity output match the public SSR contract.'
+    );
+    pass(
+      'SEO Listing Description Runtime: 132 homepage/category cases preserve manual SEO precedence, 160-220-character excerpts, block spacing, Unicode, literal encoded code, safe text, empty fallbacks, and root/subdomain/subfolder URLs while keeping the single-post limit unchanged.'
+    );
+    pass(
+      'Automatic Content Excerpt Runtime: 58 actual post/page API-branch cases preserve explicit excerpts including zero and generate blank-field summaries with valid Unicode, a 200-character limit, bounded word backtracking, block spacing, literal encoded code, decoded entities, and hidden-content exclusion.'
     );
   } else {
     fail(
@@ -20327,9 +20946,10 @@ $scheduledPost = voncms_fetch_public_post(
 if (($scheduledPost['scheduled_at'] ?? '') !== '2026-08-09 19:20:00') {
   exit(17);
 }
-$categoryPdo = new PDO('sqlite::memory:');
+require_once ${JSON.stringify(resolveFromRoot('server/integration/sqlite-compat.php'))};
+$categoryPdo = new VonCmsFixtureSqlitePDO('sqlite::memory:');
 $categoryPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$categoryPdo->sqliteCreateFunction('CHAR_LENGTH', 'strlen', 1);
+$categoryPdo->createFunction('CHAR_LENGTH', 'strlen', 1);
 $categoryPdo->exec(
   'CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, avatar TEXT)'
 );
@@ -21879,7 +22499,7 @@ const cacheFiles = () => fs.existsSync(storage)
       "'Withdraw to Draft'",
       'Return to Draft',
       "'Save Review'",
-      'readOnly={isWriterLocked}',
+      'readOnly={isWriterLocked || isSaving}',
       'editor.setEditable(!isCodeView && !readOnly);',
       '? { workflowAction: saveOptions.workflowAction }',
       '? { expectedStatus: saveOptions.expectedStatus }',
@@ -22014,6 +22634,38 @@ echo 'ok';
       fail(`PHP Lint: ${file} :: ${(lint.stderr || lint.stdout || '').trim()}`);
     }
   });
+}
+
+const seoRegressionProbe = spawnSync(
+  process.execPath,
+  [resolveFromRoot('server/test-seo-regressions.cjs')],
+  {
+    encoding: 'utf8',
+    env: { ...process.env, PHP_BIN: phpBinary },
+    maxBuffer: 8 * 1024 * 1024,
+  }
+);
+try {
+  const seoRegressionResult = JSON.parse(seoRegressionProbe.stdout);
+  if (
+    seoRegressionProbe.status !== 0 ||
+    seoRegressionResult.failed !== 0 ||
+    seoRegressionProbe.stderr.trim()
+  ) {
+    fail(
+      'SEO Runtime Regressions: ' +
+        JSON.stringify(seoRegressionResult.results.filter((entry) => !entry.ok)) +
+        seoRegressionProbe.stderr
+    );
+  } else {
+    pass(
+      `SEO Runtime Regressions: ${seoRegressionResult.passed} controlled PHP/client groups passed.`
+    );
+  }
+} catch {
+  fail(
+    'SEO Runtime Regressions: ' + (seoRegressionProbe.stderr || seoRegressionProbe.stdout).trim()
+  );
 }
 
 if (failed) {

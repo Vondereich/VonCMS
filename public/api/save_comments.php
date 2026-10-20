@@ -248,6 +248,12 @@ try {
           'UTF-8',
         )
         : 'Anonymous';
+      if (mb_strlen($username) > 100) {
+        ResponseHelper::sendError(
+          'Name is too long after encoding. Please use a shorter name.',
+          400,
+        );
+      }
       $userAvatar = ResponseHelper::scrubAvatarUrl($input['userAvatar'] ?? '');
     }
 
@@ -255,7 +261,7 @@ try {
     $parentIdRaw = isset($input['parentId']) ? (string) $input['parentId'] : null;
     $parentId = $parentIdRaw ? intval(preg_replace('/[^0-9]/', '', $parentIdRaw)) : null;
     if ($parentId) {
-      $parentStmt = $pdo->prepare('SELECT post_id FROM comments WHERE id = ?');
+      $parentStmt = $pdo->prepare('SELECT post_id, status FROM comments WHERE id = ?');
       $parentStmt->execute([$parentId]);
       $parentComment = $parentStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -266,11 +272,12 @@ try {
       if ((string) ($parentComment['post_id'] ?? '') !== (string) $postId) {
         ResponseHelper::sendError('Parent comment does not belong to this post', 400);
       }
+      if (!SessionManager::isStaff() && ($parentComment['status'] ?? '') !== 'approved') {
+        ResponseHelper::sendError('Parent comment is not available for replies', 404);
+      }
     }
 
-    $content = isset($input['content'])
-      ? htmlspecialchars((string) $input['content'], ENT_QUOTES, 'UTF-8')
-      : '';
+    $content = isset($input['content']) ? (string) $input['content'] : '';
     if (empty($content)) {
       ResponseHelper::sendError('Comment content is required', 400);
     }
@@ -282,6 +289,8 @@ try {
     if (mb_strlen($content) > 5000) {
       ResponseHelper::sendError('Comment is too long. Maximum 5000 characters allowed.', 400);
     }
+    // Keep the existing encoded storage format, but measure the text the reader typed.
+    $content = htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
 
     // ============================================
     // AUTO SPAM DETECTION SYSTEM
@@ -327,7 +336,9 @@ try {
     $contentLower = strtolower($content);
     foreach ($spamKeywords as $keyword) {
       if (strpos($contentLower, $keyword) !== false) {
-        $status = 'pending'; // Always needs review if keyword matches
+        if ($status !== 'spam') {
+          $status = 'pending';
+        }
         $spamReasons[] = "keyword:$keyword";
         break;
       }
@@ -341,7 +352,9 @@ try {
         $status = 'spam'; // Excessive links = spam
         $spamReasons[] = "spam_links:$linkCount";
       } elseif ($linkCount > 2) {
-        $status = 'pending'; // Moderate links = review
+        if ($status !== 'spam') {
+          $status = 'pending';
+        }
         $spamReasons[] = "links:$linkCount";
       }
 
@@ -349,7 +362,9 @@ try {
       $upperCount = preg_match_all('/[A-Z]/', $content);
       $letterCount = preg_match_all('/[a-zA-Z]/', $content);
       if ($letterCount > 10 && $upperCount / $letterCount > 0.5) {
-        $status = 'pending';
+        if ($status !== 'spam') {
+          $status = 'pending';
+        }
         $spamReasons[] = 'allcaps';
       }
     }
@@ -516,6 +531,7 @@ try {
 
   // Legacy: Bulk save all comments (for migration from JSON)
   if (isset($input['comments']) && is_array($input['comments'])) {
+    $pdo->beginTransaction();
     $count = 0;
     foreach ($input['comments'] as $comment) {
       $postId = isset($comment['postId'])
@@ -576,6 +592,7 @@ try {
       }
     }
 
+    $pdo->commit();
     echo json_encode([
       'success' => true,
       'message' => "Migrated $count comments to database",

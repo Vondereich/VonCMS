@@ -78,11 +78,10 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
           $nextTokenHash = hash('sha256', $nextValidator);
           $nextExpiresAt = time() + 86400 * 30;
           $rotateStmt = $pdo->prepare(
-            'UPDATE remember_tokens SET token_hash = ?, expires_at = ?, last_used_at = NOW() WHERE id = ? AND token_hash = ?',
+            'UPDATE remember_tokens SET token_hash = ?, expires_at = DATE_ADD(NOW(), INTERVAL 30 DAY), last_used_at = NOW() WHERE id = ? AND token_hash = ?',
           );
           $rotateStmt->execute([
             $nextTokenHash,
-            date('Y-m-d H:i:s', $nextExpiresAt),
             $rememberUser['remember_token_id'],
             $rememberUser['token_hash'],
           ]);

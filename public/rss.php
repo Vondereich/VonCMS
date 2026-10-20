@@ -376,11 +376,7 @@ try {
   $renderedContent = $sanitizeRssContent($renderedContent);
 
   $postUrl = $buildPostUrl($post);
-  $excerpt = !empty($post['excerpt'])
-    ? strip_tags($post['excerpt'])
-    : (!empty($renderedContent)
-      ? mb_substr(strip_tags($renderedContent), 0, 300)
-      : '');
+  $excerpt = voncms_pick_rss_description($post, $renderedContent);
   $author = $post['author_name'] ?? ($post['author'] ?? 'Unknown');
   $pubDate = date('r', strtotime($post['effective_publish_at'] ?? $post['created_at']));
   ?>

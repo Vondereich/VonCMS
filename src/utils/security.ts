@@ -628,10 +628,37 @@ export const sanitizePastedHtml = (content: string): string => {
   });
 };
 
-export const htmlToPlainText = (content?: string | null): string => {
+export const htmlToPlainText = (
+  content?: string | null,
+  options: { preserveLiteralComparisons?: boolean; preserveBlockSpacing?: boolean } = {}
+): string => {
   if (!content) return '';
 
-  const sanitized = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }) as string;
+  let normalizedContent = content;
+  if (options.preserveBlockSpacing) {
+    normalizedContent = normalizedContent
+      .replace(/<(script|style|noscript|template)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
+      .replace(/<(br|hr)(?=[\s\/>])(?:[^<>"']|"[^"]*"|'[^']*')*>/gi, ' ')
+      .replace(
+        /<\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li|tr|td|th|table|ul|ol|pre|dl|dt|dd)\s*>/gi,
+        ' '
+      );
+  }
+  if (options.preserveLiteralComparisons) {
+    // Match PHP description parsing: incomplete comparisons are text, not HTML tags.
+    normalizedContent = normalizedContent.replace(
+      /<!--[\s\S]*?(?:-->|$)|<\?[\s\S]*?(?:\?>|$)|<!DOCTYPE[^>]*>/gi,
+      ''
+    );
+    normalizedContent = normalizedContent.replace(
+      /<(?!(?=[^<>]*>)\/?[a-z][a-z0-9:-]*(?:\s*\/?>|\s+[a-z_:][a-z0-9_.:-]*\s*=|\s+(?:allowfullscreen|autoplay|checked|controls|disabled|hidden|itemscope|loop|multiple|muted|open|readonly|required|selected)(?=[\s\/>])))/gi,
+      '&lt;'
+    );
+  }
+  const sanitized = DOMPurify.sanitize(normalizedContent, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+  }) as string;
   const decoder = document.createElement('textarea');
   decoder.innerHTML = sanitized;
 

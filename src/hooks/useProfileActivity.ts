@@ -70,6 +70,7 @@ export function useProfileActivity(targetUser: User, limit: number = 6) {
         page: String(page),
         limit: String(limit),
         author: targetUser.username,
+        public: '1',
       });
 
       setArticles((prev) => ({ ...prev, loading: true, error: null }));

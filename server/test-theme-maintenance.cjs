@@ -114,6 +114,7 @@ function load(file, react = React, mocks = {}, runtime = {}) {
           return load(candidate + extension, react);
     }
     if (name.endsWith('site.config')) return { API: {} };
+    if (file === 'src/utils/siteUtils.ts' && name === './textUtils') return shared;
     if (name.includes('/utils/') || name.includes('/hooks/')) return proxy;
     return new Proxy({ __esModule: true, default: Blank }, { get: (o, key) => o[key] ?? Blank });
   };
@@ -1356,11 +1357,425 @@ function checkCategoryFolderAdvisory() {
   );
 }
 
+async function checkPublicProfileArticles() {
+  for (const base of ['', '/zangetsu']) {
+    const slots = [];
+    const requests = [];
+    let cursor = 0,
+      effects = [],
+      dirty = false,
+      current;
+    let target = { id: '10', username: 'alice' };
+    const same = (a, b) =>
+      a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
+    const hooks = {
+      ...React,
+      useState(initial) {
+        const i = cursor++;
+        if (!(i in slots)) slots[i] = { value: initial };
+        return [
+          slots[i].value,
+          (next) => {
+            slots[i].value = typeof next === 'function' ? next(slots[i].value) : next;
+            dirty = true;
+          },
+        ];
+      },
+      useRef(initial) {
+        const i = cursor++;
+        if (!(i in slots)) slots[i] = { current: initial };
+        return slots[i];
+      },
+      useCallback(callback, deps) {
+        const i = cursor++;
+        if (!slots[i] || !same(slots[i].deps, deps)) slots[i] = { value: callback, deps };
+        return slots[i].value;
+      },
+      useEffect(effect, deps) {
+        const i = cursor++;
+        const previous = slots[i];
+        if (!previous || !same(previous.deps, deps)) {
+          effects.push(() => {
+            previous?.cleanup?.();
+            slots[i] = { deps, cleanup: effect() };
+          });
+        }
+      },
+    };
+    const hook = load(
+      'src/hooks/useProfileActivity.ts',
+      hooks,
+      {
+        '../config/site.config': {
+          API: {
+            getPosts: `${base}/api/get_posts.php`,
+            getComments: `${base}/api/get_comments.php`,
+          },
+        },
+        '../utils/api': {
+          vonFetch: (url) => new Promise((resolve) => requests.push({ url, resolve })),
+        },
+      },
+      { URLSearchParams }
+    );
+    const draw = () => {
+      let count = 0;
+      do {
+        assert.ok(count++ < 10, 'Profile activity effects must settle');
+        cursor = 0;
+        dirty = false;
+        effects = [];
+        current = hook.useProfileActivity(target, 13);
+        effects.forEach((effect) => effect());
+      } while (dirty);
+      return current;
+    };
+    const articleRequest = () => requests.filter(({ url }) => url.includes('get_posts.php')).at(-1);
+    const checkRequest = (request, author, page) => {
+      const url = new URL(request.url, 'https://qa.invalid');
+      assert.equal(url.pathname, `${base}/api/get_posts.php`);
+      assert.equal(
+        url.searchParams.get('public'),
+        '1',
+        'Public profiles must not inherit staff visibility'
+      );
+      assert.equal(url.searchParams.get('author'), author);
+      assert.equal(url.searchParams.get('page'), String(page));
+      assert.equal(url.searchParams.get('limit'), '13');
+    };
+    const respond = async (request, ids, page = 1, hasMore = false) => {
+      request.resolve({
+        ok: true,
+        json: async () => ({
+          posts: ids.map((id) => ({ id, status: 'published', image_url: 'qa.webp' })),
+          meta: { page, limit: 13, total: 15, hasMore },
+        }),
+      });
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+      return draw();
+    };
+
+    draw();
+    assert.equal(requests.length, 2, 'Initial profile requests must stay bounded');
+    checkRequest(articleRequest(), 'alice', 1);
+    await respond(articleRequest(), ['a1', 'a2'], 1, true);
+    assert.equal(current.articleTotal, 15);
+    const more = current.loadMoreArticles();
+    draw();
+    checkRequest(articleRequest(), 'alice', 2);
+    await respond(articleRequest(), ['a2', 'a3'], 2);
+    await more;
+    assert.deepEqual(
+      Array.from(current.articlePosts, (post) => post.id),
+      ['a1', 'a2', 'a3']
+    );
+    assert.equal(current.articleHasMore, false);
+    assert.equal(current.articleTotal, 15);
+    assert.equal(current.articlePosts[0].image, 'qa.webp');
+    const count = requests.length;
+    await current.loadMoreArticles();
+    assert.equal(requests.length, count, 'An exhausted list must not request another page');
+
+    target = { id: '20', username: 'bob' };
+    draw();
+    const stale = articleRequest();
+    checkRequest(stale, 'bob', 1);
+    target = { id: '30', username: 'carol.name' };
+    draw();
+    const latest = articleRequest();
+    checkRequest(latest, 'carol.name', 1);
+    await respond(stale, ['stale']);
+    assert.equal(current.articlePosts.length, 0);
+    assert.equal(current.articlesLoading, true);
+    await respond(latest, ['current']);
+    assert.deepEqual(
+      Array.from(current.articlePosts, (post) => post.id),
+      ['current']
+    );
+    assert.equal(current.articlesLoading, false);
+    const comments = new URL(requests.at(-1).url, 'https://qa.invalid');
+    assert.equal(comments.pathname, `${base}/api/get_comments.php`);
+    assert.equal(comments.searchParams.get('user_id'), '30');
+    assert.equal(comments.searchParams.get('user'), 'carol.name');
+  }
+  console.log(
+    'PASS Public Profile Articles Runtime: explicit public reads, unchanged author/limit/totals, deduplicated Load More and stale-profile guards at root and subfolder API paths.'
+  );
+}
+
+function checkContentManagerExcerpts() {
+  const cases = [
+    ['Syarat QA: jika x<y maka teks mesti kekal. Simbol < dan > tamat.', undefined],
+    ['literal <strong>text</strong>', undefined],
+    ['<img src=x onerror=alert(1)>', undefined],
+    ['<script>alert(1)</script>', undefined],
+    ['Tom &amp; Jerry', 'Tom & Jerry'],
+    ['&lt;b&gt;literal&lt;/b&gt;', '<b>literal</b>'],
+    ['&amp;lt;b&amp;gt;', '&lt;b&gt;'],
+    ['Teks Melayu, 中文 dan emoji 😀', undefined],
+    ['0', undefined],
+    ['', undefined],
+    [undefined, undefined],
+  ];
+  for (const type of ['post', 'page']) {
+    for (const [excerpt, decoded] of cases) {
+      const item = { ...posts[0], excerpt };
+      if (excerpt === undefined) delete item.excerpt;
+      const original = JSON.stringify(item);
+      const calls = [];
+      let stateIndex = 0;
+      const fixtureReact = {
+        ...React,
+        useState(initial) {
+          const index = stateIndex++;
+          if (index === 0) return [[item], noop];
+          if (index === 2) return [false, noop];
+          return [typeof initial === 'function' ? initial() : initial, noop];
+        },
+      };
+      // Render the real manager, isolating its existing text-decoder contract.
+      // React must escape the decoder's output, never parse it again as HTML.
+      const Manager = load(
+        'src/plugins/von-core/features/content/ContentManager.tsx',
+        fixtureReact,
+        {
+          '../../../../utils/textUtils': {
+            decodeEntities(value) {
+              calls.push(value);
+              return value === item.title ? value : (decoded ?? value ?? '');
+            },
+          },
+          '../../../../utils/contentCapabilities': load('src/utils/contentCapabilities.ts'),
+        }
+      ).default;
+      const output = render(Manager, {
+        type,
+        posts: [],
+        settings,
+        onEdit: noop,
+        userRole: 'admin',
+      });
+      const expected = renderToStaticMarkup(
+        React.createElement('span', null, decoded ?? excerpt ?? '')
+      );
+      const escapedText = expected.slice('<span>'.length, -'</span>'.length);
+      assert.ok(calls.includes(excerpt ?? ''), `${type}: excerpt must use the shared decoder`);
+      assert.ok(output.includes(`mt-1">${escapedText}</p>`), `${type}: excerpt text changed`);
+      assert.ok(!output.includes('<script>') && !output.includes('<img src="x"'));
+      assert.equal(JSON.stringify(item), original, `${type}: rendering must not mutate saved data`);
+    }
+  }
+  console.log(
+    `PASS Content Manager Excerpt Runtime: ${cases.length * 2} post/page renders preserve comparisons, literal markup, decoder output, Unicode and empty values as escaped text without mutating data.`
+  );
+}
+
+function checkContentManagerActions() {
+  const file = 'src/plugins/von-core/features/content/ContentManager.tsx';
+  const capabilities = load('src/utils/contentCapabilities.ts');
+  const walk = (node, match) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, match));
+    return [...(match(node) ? [node] : []), ...walk(node.props?.children, match)];
+  };
+  let cases = 0;
+  for (const basePath of ['/', '/zangetsu/']) {
+    const actualSiteUtils = load('src/utils/siteUtils.ts', React, {
+      '../config/site.config': { BASE_PATH: basePath },
+      './dateFormat': load('src/utils/dateFormat.ts'),
+    });
+    for (const type of ['post', 'page']) {
+      for (const permalink of ['slug', 'category', 'day_name', 'month_name', 'plain']) {
+        for (const role of ['admin', 'writer']) {
+          const published = { ...posts[0], id: '801', slug: '2026', category: 'Technology' };
+          const draft = { ...published, id: '802', slug: 'draft-only', status: 'draft' };
+          const future = { ...published, id: '803', slug: 'future-only', status: 'scheduled' };
+          const deferred = {
+            ...published,
+            id: '804',
+            slug: 'deferred-only',
+            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+          const autoPublished = {
+            ...published,
+            id: '805',
+            slug: 'auto-published',
+            scheduledAt: '2000-01-01T00:00:00Z',
+          };
+          const autoPublishedSql = {
+            ...published,
+            id: '806',
+            slug: 'auto-published-sql',
+            scheduled_at: '2000-01-01 00:00:00',
+          };
+          const malformed = {
+            ...published,
+            id: '807',
+            slug: 'malformed',
+            scheduled_at: 'invalid-date',
+          };
+          const items = [
+            published,
+            draft,
+            future,
+            ...(type === 'post' ? [deferred, autoPublished, autoPublishedSql, malformed] : []),
+          ];
+          const before = JSON.stringify(items);
+          let stateIndex = 0;
+          let tree;
+          let confirmed = false;
+          const edits = [];
+          const deletes = [];
+          const navChanges = [];
+          const fixtureReact = {
+            ...React,
+            useState(initial) {
+              const index = stateIndex++;
+              if (index === 0) return [items, noop];
+              if (index === 2) return [false, noop];
+              return [typeof initial === 'function' ? initial() : initial, noop];
+            },
+          };
+          const Manager = load(
+            file,
+            fixtureReact,
+            {
+              '../../../../utils/siteUtils': actualSiteUtils,
+              '../../../../utils/contentCapabilities': capabilities,
+              '../../../../utils/textUtils': { decodeEntities: (value) => value || '' },
+            },
+            { confirm: () => confirmed }
+          ).default;
+          const fixtureSettings = {
+            ...settings,
+            permalinkStructure: permalink,
+            timeZone: 'Asia/Kuala_Lumpur',
+          };
+          const Capture = () => {
+            tree = Manager({
+              type,
+              posts: [],
+              settings: fixtureSettings,
+              userRole: role,
+              onEdit: (...args) => edits.push(args),
+              onDelete: (...args) => deletes.push(args),
+              onToggleNav: (id) => navChanges.push(id),
+              navigation: [{ url: `page:${published.id}` }],
+            });
+            return tree;
+          };
+          const output = render(Capture, {});
+          const desktopTree = walk(tree, (node) => node.type === 'table')[0];
+          const mobileTree = walk(tree, (node) => node.type === 'article');
+          for (const layout of [desktopTree, mobileTree]) {
+            const live = walk(
+              layout,
+              (node) => node.type === 'a' && node.props['aria-label']?.startsWith('View live')
+            );
+            assert.equal(
+              live.length,
+              type === 'post' ? 3 : 1,
+              `${type}/${role}: past auto-publications stay live; drafts, scheduled, future and invalid timestamps do not`
+            );
+            const expected =
+              type === 'post'
+                ? actualSiteUtils.getPermalink(published, fixtureSettings)
+                : `${basePath}2026`;
+            assert.equal(live[0].props.href, expected);
+            assert.equal(live[0].props.target, '_blank');
+            assert.equal(live[0].props.rel, 'noopener noreferrer');
+            const firstRow = Array.isArray(layout)
+              ? layout[0]
+              : walk(layout, (node) => node.type === 'tr')[1];
+            const rowActions = walk(
+              firstRow,
+              (node) =>
+                ['a', 'button'].includes(node.type) &&
+                /^(Edit|View|Delete) (post|page):|^View live /.test(node.props['aria-label'] || '')
+            );
+            assert.equal(
+              rowActions.at(-1).props.href,
+              expected,
+              'View live must be the last action beside Delete'
+            );
+            const editorLabel = `${role === 'writer' && type === 'post' ? 'View' : 'Edit'} ${type}: ${published.title}`;
+            const edit = walk(
+              layout,
+              (node) => node.type === 'button' && node.props['aria-label'] === editorLabel
+            )[0];
+            assert.ok(edit, 'existing writer read-only editor label must be preserved');
+            edit.props.onClick();
+            assert.deepEqual(edits.at(-1), [published.id, type === 'page']);
+            const deleteButtons = walk(
+              layout,
+              (node) =>
+                node.type === 'button' && node.props['aria-label']?.startsWith(`Delete ${type}:`)
+            );
+            assert.equal(
+              deleteButtons.length,
+              role === 'writer' && type === 'post' ? 1 : items.length
+            );
+            assert.ok(output.includes('ml-3 border-l border-slate-200 pl-3'));
+            if (Array.isArray(layout)) {
+              const actions = walk(firstRow, (node) =>
+                node.props?.className?.includes('grid-flow-col')
+              )[0];
+              assert.ok(actions, 'mobile/tablet actions use equal automatic columns');
+              assert.ok(output.includes('max-w-90'), 'tablet action group stays bounded');
+              assert.ok(
+                walk(edit, (node) => node.type === 'span').some(
+                  (node) =>
+                    node.props.children === (role === 'writer' && type === 'post' ? 'View' : 'Edit')
+                ),
+                'mobile/tablet editor action must keep its visible role-aware label'
+              );
+              assert.equal(walk(live[0], (node) => node.type === 'span')[0].props.children, 'Live');
+              assert.equal(
+                walk(actions, (node) => ['button', 'a'].includes(node.type)).length,
+                role === 'writer' && type === 'post' ? 2 : 3,
+                'only permitted actions occupy equal slots; no disabled live placeholder'
+              );
+            }
+            const previousDeletes = deletes.length;
+            confirmed = false;
+            deleteButtons[0].props.onClick();
+            assert.equal(deletes.length, previousDeletes, 'cancelled confirmation must not delete');
+            confirmed = true;
+            deleteButtons[0].props.onClick();
+            assert.equal(deletes.length, previousDeletes + 1);
+            assert.equal(deletes.at(-1)[1], type === 'page');
+            if (type === 'page') {
+              const nav = walk(
+                layout,
+                (node) =>
+                  node.type === 'button' &&
+                  (node.props.children === 'Remove Nav' ||
+                    node.props['aria-label'] === `Remove from navigation: ${published.title}`)
+              )[0];
+              assert.ok(nav, 'existing navigation assignment keeps a compact Remove Nav action');
+              nav.props.onClick();
+              assert.equal(navChanges.at(-1), published.id);
+            }
+          }
+          assert.equal(JSON.stringify(items), before, 'render/actions must not mutate fixtures');
+          cases++;
+        }
+      }
+    }
+  }
+  console.log(
+    `PASS Content Manager Actions Runtime: ${cases} root/subfolder, post/page, permalink and role cases in both layouts preserve past auto-publications, future exclusion, safe new-tab links, edit dispatch, Nav dispatch, delete permission and confirmation.`
+  );
+}
+
+checkContentManagerActions();
+checkContentManagerExcerpts();
 checkCategoryFolderAdvisory();
 checkPublicPluginHydration();
 checkSettingsPresentation();
 checkAdsManager();
 checkAdminSettingsReadiness()
+  .then(checkPublicProfileArticles)
   .then(checkSettings)
   .then(checkOtherCustomizers)
   .then(checkNewsletterPagination)

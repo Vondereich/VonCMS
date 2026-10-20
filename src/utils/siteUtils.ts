@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 import type { SiteSettings, Post, Comment, Page, NavItem } from '../types';
 import { BASE_PATH } from '../config/site.config';
+import { extractYouTubeVideo } from '../components/editor/editorVideoUtils';
+import { decodeEntities } from './textUtils';
 
 export {
   DEFAULT_SITE_DATE_FORMAT,
@@ -22,7 +24,7 @@ export const getBasePathPrefix = (): string =>
   BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
 
 export const getCategorySlug = (category: string | null | undefined): string => {
-  const raw = String(category || '').trim();
+  const raw = decodeEntities(String(category || '').trim());
   if (!raw) return 'uncategorized';
 
   const slug = raw
@@ -257,28 +259,20 @@ export const normalizeImageSource = (url?: string, fallback: string = ''): strin
 
 /**
  * Extracts a thumbnail URL from the first video embed found in the HTML content.
- * Supports YouTube and Vimeo.
+ * Uses the editor's YouTube URL parser. Vimeo has no synchronous thumbnail URL.
  */
 export const extractVideoThumbnail = (content: string): string | null => {
   if (!content) return null;
 
-  // YouTube (iframe or short link)
-  const ytMatch = content.match(
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+  const doc = new DOMParser().parseFromString(content, 'text/html');
+  doc.querySelectorAll('script,style,template').forEach((node) => node.remove());
+  const urls = Array.from(doc.querySelectorAll('iframe[src],a[href]')).map(
+    (node) => node.getAttribute(node.tagName === 'IFRAME' ? 'src' : 'href') || ''
   );
-  if (ytMatch && ytMatch[1]) {
-    return `https://img.youtube.com/vi/${ytMatch[1]}/maxresdefault.jpg`;
-  }
-
-  // Vimeo
-  const vimeoMatch = content.match(/player\.vimeo\.com\/video\/([0-9]+)/);
-  if (vimeoMatch && vimeoMatch[1]) {
-    // Vimeo requires an API call to get the thumbnail, but we can't do async easily in sync flow sometimes.
-    // However, we can return a specialized URL that the frontend or a service worker might handle,
-    // OR just rely on saving it at runtime if we make this async.
-    // For now, let's stick to YouTube which is 90% of use cases, or use a placeholder/generic vimeo logic if known.
-    // Actually, without async fetching from Vimeo API, we can't guess the jpg.
-    return null;
+  urls.push(...((doc.body.textContent || '').match(/https?:\/\/[^\s<>"']+/g) || []));
+  for (const url of urls) {
+    const video = extractYouTubeVideo(url);
+    if (video) return `https://img.youtube.com/vi/${video.id}/maxresdefault.jpg`;
   }
 
   return null;

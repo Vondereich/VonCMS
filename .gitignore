@@ -41,6 +41,9 @@ dist-ssr
 # Server logs
 server-*.log
 
+# Local PHP test runtime (keep server scripts and integration fixtures tracked)
+/server/.php-test-ini/
+
 # Backup files
 *.bak
 

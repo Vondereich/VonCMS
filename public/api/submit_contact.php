@@ -30,15 +30,17 @@ if (time() - $lastSubmit < 30) {
   ResponseHelper::sendError('Please wait a moment before sending another message.', 429);
 }
 
-RateLimiter::requireNotLimited();
+$contactRateIdentifier = 'contact:' . ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
 
 $requestBody = CSRFProtection::getRequestBody();
 if (!is_string($requestBody) || strlen($requestBody) > 32768) {
-  RateLimiter::recordAttempt();
+  RateLimiter::requireAttempt($contactRateIdentifier);
   ResponseHelper::sendError('Contact form payload is too large.', 413);
 }
 
 CSRFProtection::requireToken();
+// Reserve once across guest sessions before validation, lead storage or mail delivery.
+RateLimiter::requireAttempt($contactRateIdentifier);
 
 // 2. Parse Input
 $input = json_decode($requestBody, true);
@@ -50,7 +52,6 @@ $hasLegacyHoneypot = array_key_exists('hp_field', $input);
 $legacyHoneypot = $hasLegacyHoneypot ? $input['hp_field'] : null;
 
 if (!is_string($formId) || !preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $formId)) {
-  RateLimiter::recordAttempt();
   ResponseHelper::sendError('Invalid form data.', 400);
 }
 
@@ -85,7 +86,6 @@ $honeypotValidation = voncms_contact_honeypot_validate($formId, $honeypotField, 
 
 // 3. Dynamic honeypot check - suspicious requests receive the established fake success.
 if (!$honeypotValidation['valid'] || $honeypotValue !== '') {
-  RateLimiter::recordAttempt();
   require_once __DIR__ . '/security/SecurityLogger.php';
   SecurityLogger::log('honeypot_caught', 'medium', [
     'form_id' => $formId,
@@ -100,7 +100,6 @@ if (!$honeypotValidation['valid'] || $honeypotValue !== '') {
 }
 
 if (!is_array($formData) || empty($formData)) {
-  RateLimiter::recordAttempt();
   ResponseHelper::sendError('Invalid form data.', 400);
 }
 
@@ -233,7 +232,6 @@ foreach ($declaredFields as $fieldName => $fieldDefinition) {
 }
 
 if (empty($declaredFields) || empty($normalizedFormData) || !empty($invalidFields)) {
-  RateLimiter::recordAttempt();
   ResponseHelper::sendError($messages['validationError'] ?: 'Invalid form data.', 400);
 }
 

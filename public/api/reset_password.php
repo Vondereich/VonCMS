@@ -104,11 +104,11 @@ if ($action === 'request') {
 
     // Generate reset token only after a trusted delivery origin is available.
     $token = bin2hex(random_bytes(32));
-    $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
-
     // Store token
-    $stmt = $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?');
-    $stmt->execute([$token, $expires, $user['id']]);
+    $stmt = $pdo->prepare(
+      'UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?',
+    );
+    $stmt->execute([$token, $user['id']]);
 
     $resetUrl = voncms_build_account_action_url($trustedBaseUrl, '/login', [
       'reset_token' => $token,
@@ -186,6 +186,7 @@ if ($action === 'request') {
   }
 
   // Password strength validation
+  SecurityHelper::requireNewPasswordLength($newPassword);
   if (
     strlen($newPassword) < 8 ||
     !preg_match('/[A-Z]/', $newPassword) ||

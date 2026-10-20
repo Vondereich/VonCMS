@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../security.php';
 require_once __DIR__ . '/../public_cache_helper.php';
 require_once __DIR__ . '/../publication_time_helper.php';
 require_once __DIR__ . '/../content_embed_helper.php';
+require_once __DIR__ . '/../content_slug_helper.php';
 require_once __DIR__ . '/../../seo_schema_helper.php';
 define('VONCMS_WP_IMPORT_CONTEXT', true);
 require_once __DIR__ . '/wp_wxr_reader_helper.php';
@@ -1824,7 +1825,7 @@ try {
             if ($hasPostPublishedAt) {
               $postInsertValues[] = $targetStatus === 'published' ? $date : null;
             }
-            $insert->execute($postInsertValues);
+            voncms_insert_with_slug_reservation($conn, 'post', $slug, $insert, $postInsertValues);
             $insertedId = (string) $conn->lastInsertId();
             $imported++;
             debug_log("Imported Post: $title" . ($imageUrl ? ' [Has Image]' : ''));
@@ -1849,7 +1850,7 @@ try {
             if ($hasPagePublishedAt) {
               $pageInsertValues[] = $targetStatus === 'published' ? $date : null;
             }
-            $insert->execute($pageInsertValues);
+            voncms_insert_with_slug_reservation($conn, 'page', $slug, $insert, $pageInsertValues);
             $insertedId = (string) $conn->lastInsertId();
             $imported++;
             debug_log("Imported Page: $title");

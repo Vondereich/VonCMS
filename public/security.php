@@ -870,6 +870,20 @@ class SessionManager
 class SecurityHelper
 {
   /**
+   * New bcrypt credentials must not silently discard a suffix. Legacy login stays compatible.
+   * @param mixed $password Raw input is validated here before string operations.
+   */
+  public static function requireNewPasswordLength($password): void
+  {
+    if (!is_string($password) || str_contains($password, "\0")) {
+      ResponseHelper::sendError('Invalid password input', 400);
+    }
+    if (strlen($password) > 72) {
+      ResponseHelper::sendError('New passwords must not exceed 72 bytes (UTF-8).', 400);
+    }
+  }
+
+  /**
    * Keys that should NEVER be exposed to public (Regex Patterns)
    * @var array<int, string> $sensitivePatterns
    */
@@ -1022,7 +1036,7 @@ class SecurityHelper
       ['RewriteRule ^von_config\\.php$ - [F,L]'],
       ['RewriteRule ^.+\\.php/ - [R=404,L,NC]'],
       [
-        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
+        'RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|content_slug_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\\.php$ - [F,L,NC]',
       ],
       ['RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]'],
       ['RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]'],

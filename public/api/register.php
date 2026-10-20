@@ -92,6 +92,7 @@ if ($honeypot !== '') {
 }
 
 // Validation
+SecurityHelper::requireNewPasswordLength($password);
 $errors = [];
 
 if (empty($username) || strlen($username) < 3) {

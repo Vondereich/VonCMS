@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/content_embed_helper.php';
+require_once __DIR__ . '/content_slug_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
 require_once __DIR__ . '/redirect_loop_helper.php';
@@ -124,11 +126,20 @@ $input['metaDescription'] = $rawMeta;
 $input['meta_description'] = $rawMeta;
 $input['keywords'] = $rawKeywords;
 
+// Auto-generate excerpt from content if not provided
+if (trim($input['excerpt'] ?? '') === '' && $rawContent !== '') {
+  // Match the editor's 200-character Auto Fill target without cutting UTF-8 bytes.
+  $input['excerpt'] = voncms_clean_seo_description($rawContent, 200, true);
+}
+
+$contentSlugLock = null;
 try {
   if (!isset($pdo)) {
     ResponseHelper::sendError('Database not configured', 503);
   }
 
+  // Use the same namespace lock as Post saves, before taking transaction row locks.
+  $contentSlugLock = VonCmsContentSlugLock::acquire($pdo);
   // Start Transaction (Critical for Atomic Slug Check)
   $pdo->beginTransaction();
 
@@ -142,7 +153,6 @@ try {
     // Collision detected - append timestamp
     $input['slug'] .= '-' . time();
   }
-
   // Get meta description and keywords
   $metaDescription = $input['meta_description'] ?? '';
   $keywords = $input['keywords'] ?? '';
@@ -183,7 +193,18 @@ try {
         exit();
       }
     }
+  }
 
+  if (voncms_content_slug_conflicts($pdo, 'page', $input['slug'])) {
+    $pdo->rollBack();
+    $contentSlugLock->release();
+    ResponseHelper::sendError(
+      'This slug is already reserved by a post. Choose a different slug.',
+      409,
+    );
+  }
+
+  if ($isUpdate) {
     $status = $input['status'] ?? 'draft';
     $validStatuses = ['published', 'draft', 'archived'];
     if (!in_array($status, $validStatuses, true)) {
@@ -308,6 +329,7 @@ try {
     $savedPublishedAt = $savedTimestamps['published_at'] ?? null;
 
     $pdo->commit();
+    $contentSlugLock->release();
     voncms_public_cache_clear();
 
     if (ob_get_length()) {
@@ -386,6 +408,7 @@ try {
     $savedPublishedAt = $savedTimestamps['published_at'] ?? null;
 
     $pdo->commit();
+    $contentSlugLock->release();
     voncms_public_cache_clear();
 
     if (ob_get_length()) {
@@ -408,5 +431,6 @@ try {
   if (isset($pdo) && $pdo->inTransaction()) {
     $pdo->rollBack();
   }
+  $contentSlugLock?->release();
   ResponseHelper::sendError($e);
 }

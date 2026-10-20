@@ -44,7 +44,7 @@ const extractInstagramReelId = (input: string) => {
     : null;
 };
 
-const extractYouTubeVideo = (input: string): { id: string; isShorts: boolean } | null => {
+export const extractYouTubeVideo = (input: string): { id: string; isShorts: boolean } | null => {
   const parsed = parseVideoUrl(input);
   if (!parsed) return null;
 

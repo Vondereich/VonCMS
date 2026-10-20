@@ -48,7 +48,7 @@ if (!$newsletterEnabled) {
 
 $clientIP = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 $rateIdentifier = 'newsletter:' . $clientIP;
-RateLimiter::requireNotLimited($rateIdentifier);
+RateLimiter::requireAttempt($rateIdentifier);
 
 // Get and validate input
 $input = json_decode($requestBody, true);
@@ -57,13 +57,11 @@ $email = $input['email'] ?? '';
 $honeypot = $input['hp_field'] ?? '';
 
 if ((!is_scalar($email) && $email !== null) || (!is_scalar($honeypot) && $honeypot !== null)) {
-  RateLimiter::recordAttempt($rateIdentifier);
   ResponseHelper::sendError('Invalid subscription data', 400);
 }
 
 $email = trim((string) $email);
 $honeypot = (string) $honeypot;
-RateLimiter::recordAttempt($rateIdentifier);
 
 // Honeypot check
 if ($honeypot !== '') {

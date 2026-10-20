@@ -215,7 +215,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     $allSettings = json_decode(file_get_contents($settingsFile), true);
     if (isset($allSettings['media']['optimization'])) {
       $opt = $allSettings['media']['optimization'];
-      $mediaSettings['enabled'] = $opt['enabled'] ?? false;
+      $mediaSettings['enabled'] = $opt['enabled'] ?? true;
       $mediaSettings['maxWidth'] = (int) ($opt['maxWidth'] ?? 1920);
       $mediaSettings['maxHeight'] = (int) ($opt['maxHeight'] ?? 1080);
       // Convert compressionLevel (low/medium/high) to numeric quality

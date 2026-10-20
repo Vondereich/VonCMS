@@ -63,6 +63,10 @@ echo json_encode(compact('configured', 'action', 'loopback', 'ipv6', 'lookalike'
 }
 
 function testRegistrationStopsBeforePersistence() {
+  const passwordLengthGuard = fs
+    .readFileSync(path.join(rootDir, 'public/security.php'), 'utf8')
+    .match(/^  public static function requireNewPasswordLength[\s\S]*?^  }/m);
+  assert(passwordLengthGuard, 'Actual new-password guard must be available to the fixture');
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-register-origin-'));
   const apiDir = path.join(fixtureRoot, 'api');
   const databasePath = path.join(fixtureRoot, 'registration.sqlite').replace(/\\/g, '/');
@@ -86,6 +90,7 @@ class CSRFProtection {
   public static function getRequestBody(): string { return (string) getenv('VON_REGISTER_BODY'); }
 }
 class RateLimiter { public static function requireAttempt($identifier = null): void {} }
+class SecurityHelper { ${passwordLengthGuard[0]} }
 class ResponseHelper {
   public static function sendError($message, int $status = 400): never {
     if ($message instanceof Throwable) $message = $message->getMessage();
@@ -191,11 +196,13 @@ echo json_encode([
   assert.match(result.malformed, /<p>after<\/p>/);
   assert.match(result.malformed, /youtube\.com/);
 
-  const direct = spawnSync(phpBinary, [phpPath('public/api/content_embed_helper.php')], {
-    encoding: 'utf8',
-  });
-  assert.equal(direct.status, 0);
-  assert.equal(direct.stdout.trim(), 'Forbidden');
+  for (const helper of ['content_embed_helper.php', 'content_slug_helper.php']) {
+    const direct = spawnSync(phpBinary, [phpPath(`public/api/${helper}`)], {
+      encoding: 'utf8',
+    });
+    assert.equal(direct.status, 0);
+    assert.equal(direct.stdout.trim(), 'Forbidden');
+  }
 }
 
 function testThemeArchiveBoundary() {

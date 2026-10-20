@@ -47,6 +47,7 @@ import {
   hasUnsavedEditorChanges,
   buildSaveStatusLabel,
   buildSavedSnapshot,
+  mergeSavedEditorChanges,
   formatScheduledTarget,
   getSaveStatusClassName,
   normalizeScheduledAtForSave,
@@ -114,6 +115,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const featuredImageInputRef = React.useRef<HTMLInputElement>(null);
   const featuredMediaRequestIdRef = React.useRef(0);
   const initialAddToMenuRef = React.useRef(false);
+  const addToMenuRef = React.useRef(addToMenu);
+  useEffect(() => {
+    addToMenuRef.current = addToMenu;
+  }, [addToMenu]);
   const titleLength = item?.title?.length || 0;
   const excerptLength = item?.excerpt?.length || 0;
   const categoryFolderConflict =
@@ -467,17 +472,33 @@ const PostEditor: React.FC<PostEditorProps> = ({
         status
       );
 
-      const savedData = await onSave(itemToSave as Post | Page, addToMenu, isAutoSave, {
+      const submittedAddToMenu = addToMenuRef.current;
+      const savedData = await onSave(itemToSave as Post | Page, submittedAddToMenu, isAutoSave, {
         workflowAction,
         ...(!isPage && itemForSave.id ? { expectedStatus } : {}),
       });
       const savedSnapshot = buildSavedSnapshot(itemToSave as Post | Page, savedData);
       const savedStatus = savedSnapshot.status || status;
+      const currentSnapshot = mergeSavedEditorChanges(
+        itemForSave,
+        savedSnapshot,
+        itemRef.current,
+        contentRef.current
+      );
+      const hasNewerChanges = hasUnsavedEditorChanges(
+        currentSnapshot,
+        savedSnapshot,
+        currentSnapshot.content || '',
+        addToMenuRef.current,
+        submittedAddToMenu
+      );
       initialItemRef.current = savedSnapshot;
-      initialAddToMenuRef.current = addToMenu;
-      itemRef.current = savedSnapshot;
-      contentRef.current = savedSnapshot.content || '';
-      setItem((prev) => (prev ? { ...prev, ...savedSnapshot } : savedSnapshot));
+      initialAddToMenuRef.current = submittedAddToMenu;
+      itemRef.current = currentSnapshot;
+      contentRef.current = currentSnapshot.content || '';
+      setItem((prev) =>
+        mergeSavedEditorChanges(itemForSave, savedSnapshot, prev, contentRef.current)
+      );
 
       if (savedData && savedData.id) {
         void loadAuditLogs(String(savedData.id), isPage);
@@ -511,8 +532,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
       }
 
       setLastSaved(new Date());
-      setSaveStatus('saved');
-      onDirtyChange?.(false);
+      setSaveStatus(hasNewerChanges ? 'idle' : 'saved');
+      onDirtyChange?.(hasNewerChanges);
       if (saveStatusResetRef.current !== null) {
         window.clearTimeout(saveStatusResetRef.current);
       }
@@ -868,6 +889,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
           <button
             type="button"
             onClick={onBack}
+            disabled={isSaving}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-slate-200 dark:hover:bg-admin-panel"
             aria-label={`Back to ${isPage ? 'pages' : 'posts'}`}
           >
@@ -969,7 +991,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
           className={`${mobilePanel === 'write' ? 'block' : 'hidden'} min-w-0 space-y-4 sm:space-y-6 xl:col-span-2 xl:block`}
         >
           <fieldset
-            disabled={isWriterLocked}
+            disabled={isWriterLocked || isSaving}
             className="flex min-w-0 flex-col gap-4 border-0 p-0 sm:gap-6"
           >
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
@@ -1002,7 +1024,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 onChange={handleEditorChange}
                 onImmediateChange={handleEditorImmediateChange}
                 onImageClick={handleEditorImageClick}
-                readOnly={isWriterLocked}
+                readOnly={isWriterLocked || isSaving}
               />
             </div>
           </fieldset>
@@ -1010,7 +1032,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
         <div className="min-w-0 space-y-6">
           <div className={`${mobilePanel === 'ai' ? 'block' : 'hidden'} xl:block`}>
-            <fieldset disabled={isWriterLocked} className="contents">
+            <fieldset disabled={isWriterLocked || isSaving} className="contents">
               <AiWritingPanel
                 title={item.title || ''}
                 hasContent={Boolean(getPostEditorCleanText(item.content || ''))}
@@ -1035,7 +1057,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
           <div
             className={`${mobilePanel === 'publish' ? 'space-y-6' : 'hidden'} xl:block xl:space-y-6`}
           >
-            <fieldset disabled={isWriterLocked} className="contents">
+            <fieldset disabled={isWriterLocked || isSaving} className="contents">
               <div className="bg-white dark:bg-admin-panel p-6 rounded-xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
                 <h3 className="font-bold text-slate-900 dark:text-white">Publishing</h3>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-admin-border dark:bg-admin-canvas">
@@ -1443,7 +1465,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
               onOpenHistory={() => setIsAuditHistoryOpen(true)}
             />
 
-            <fieldset disabled={isWriterLocked} className="contents">
+            <fieldset disabled={isWriterLocked || isSaving} className="contents">
               <PostEditorSeoPanel
                 item={item}
                 setItem={setItem}

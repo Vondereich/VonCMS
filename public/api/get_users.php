@@ -68,7 +68,7 @@ try {
   $offset = ($page - 1) * $limit;
 
   $stmt = $pdo->prepare(
-    "SELECT id, username, $displayNameSelect, email, role, avatar, bio, email_verified, verification_token IS NOT NULL AS has_pending_verification, created_at AS createdAt FROM users" .
+    "SELECT id, username, $displayNameSelect, email, role, avatar, bio, email_verified, (email_verified = 0 OR verification_token IS NOT NULL) AS has_pending_verification, created_at AS createdAt FROM users" .
       $where .
       ' ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset',
   );

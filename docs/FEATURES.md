@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.27.10 feature baseline for the OverDrive line. This maintenance release omits inactive plugin data from public settings without changing stored configuration or OFF controls. Dashboard Top Articles retains its 7/30-day rankings; sites that have not activated daily storage still need the existing Database Repair step, and previous lifetime views are not backfilled.
+> VonCMS v1.27.11 feature baseline for the OverDrive line. This is the planned final maintenance release of the v1.27.x series, covering account and public-form validation, post/page metadata and excerpts, and numeric-slug routing. Inactive plugin data remains omitted from public settings without changing saved configuration or OFF controls. Dashboard Top Articles retains its 7/30-day rankings; earlier Database Repair requirements still apply, and previous lifetime views are not backfilled.
 
-## Introduction to VonCMS v1.27.10 "OverDrive"
+## Introduction to VonCMS v1.27.11 "OverDrive"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,11 +47,11 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.27.10 "OverDrive"
+### This is v1.27.11 "OverDrive" - Series Closeout
 
 _"OverDrive" - the deliberately paced development line for larger publisher workflows and platform capabilities._
 
-**OverDrive** begins from the stable After Hours runtime, with compatible dependency maintenance and a slower scope, implementation, verification, and canary cycle for larger changes.
+**OverDrive** builds on the After Hours runtime. Version 1.27.11 closes the series' planned maintenance scope with compatible dependency updates and focused corrections. New feature development is planned for v1.28.x; necessary corrective or security patches may still follow in v1.27.x.
 
 It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
 
@@ -132,7 +132,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Package version | `v1.27.10 "OverDrive"`                    |
+| Package version | `v1.27.11 "OverDrive"`                    |
 | Minimum PHP     | `8.2+`                                    |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |
@@ -343,7 +343,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The `v1.27.10` baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The `v1.27.11` baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -351,7 +351,7 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 ### What's behind the posture?
 
-- **92 PHP API and helper files** - under `public/api/`, with 112 public PHP files covered by the lint gate across the public runtime. Internal helpers are not callable endpoints.
-- **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes were all reviewed in the current release pass.
-- **Light package surface** - the `v1.27.10` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **92 PHP API and helper files** - under `public/api/`, with 116 public PHP files covered by the lint gate across the public runtime, including the protected core modules. Internal helpers are not callable endpoints.
+- **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes have regression coverage. Source checks, isolated runtime fixtures and local staging tests are separate evidence; they do not certify every hosting setup, payload or production load.
+- **Light package surface** - the `v1.27.11` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
 - **Direct API calls** - React talks to PHP. PHP talks to MySQL. Done.

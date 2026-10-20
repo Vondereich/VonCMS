@@ -122,6 +122,7 @@ require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
 require_once __DIR__ . '/../search_query_helper.php';
+require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
 require_once __DIR__ . '/post_query_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
@@ -284,6 +285,7 @@ try {
     p.slug,
     CHAR_LENGTH(p.content) AS content_chars,
     COALESCE(NULLIF(p.excerpt, ''), SUBSTRING(p.content, 1, 200)) as excerpt,
+    (NULLIF(p.excerpt, '') IS NULL) AS excerpt_from_content,
     p.status,
     p.image_url,
     p.category,
@@ -358,11 +360,25 @@ try {
       dirname(__DIR__) . '/uploads/',
     );
 
+    $rawExcerpt = (string) ($row['excerpt'] ?? '');
+    // Body prefixes may end inside a tag; preserve their existing strict HTML cleanup.
+    // Closing tags also identify legacy rich excerpts rather than plain comparisons.
+    $isLegacyHtml =
+      !empty($row['excerpt_from_content']) || preg_match('/<\/[a-z][a-z0-9:-]*\s*>/i', $rawExcerpt);
+    // Keep stored entities intact; themes already decode them once for display.
+    $excerpt = $isLegacyHtml
+      ? strip_tags($rawExcerpt)
+      : html_entity_decode(
+        voncms_strip_description_tags(str_replace('&', '&amp;', $rawExcerpt)),
+        ENT_QUOTES | ENT_HTML5,
+        'UTF-8',
+      );
+
     $post = [
       'id' => (string) ($row['id'] ?? ''),
       'title' => $row['title'] ?? '',
       'slug' => $row['slug'] ?? '',
-      'excerpt' => strip_tags($row['excerpt'] ?? ''),
+      'excerpt' => $excerpt,
       'readTime' => $readTime,
       'status' => $row['status'] ?? 'published',
       'category' => $row['category'] ?? 'Uncategorized',
