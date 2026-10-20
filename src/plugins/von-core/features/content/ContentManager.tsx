@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Post, Page, type PostStatus, type UserRole } from '../../../../types';
+import { Post, Page, type PostStatus, type SiteSettings, type UserRole } from '../../../../types';
 import { decodeEntities } from '../../../../utils/textUtils';
 import { vonFetch } from '../../../../utils/api';
 import { API } from '../../../../config/site.config';
-import { Plus, CheckSquare, Square, Trash2, Search } from 'lucide-react';
+import {
+  Plus,
+  CheckSquare,
+  Square,
+  Trash2,
+  Search,
+  ExternalLink,
+  SquarePen,
+  Eye,
+} from 'lucide-react';
+import {
+  getPermalink,
+  normalizeSchemaDateTime,
+  normalizeSiteUrl,
+} from '../../../../utils/siteUtils';
 import SmartPagination from '../../../../components/SmartPagination';
 import {
   PUBLIC_SEARCH_MAX_LENGTH,
@@ -27,6 +41,7 @@ interface ContentManagerProps {
   type: 'post' | 'page';
   posts: Post[];
   pages?: Page[];
+  settings: SiteSettings;
   navigation?: NavItem[];
   onEdit: (id: string | null, isPage?: boolean) => void;
   onDelete?: (id: string, isPage?: boolean, skipConfirm?: boolean) => void;
@@ -138,6 +153,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
   type,
   posts: _posts,
   pages: _pages = [],
+  settings,
   onEdit,
   onDelete,
   navigation = [],
@@ -176,6 +192,37 @@ const ContentManager: React.FC<ContentManagerProps> = ({
     [type, userRole]
   );
   const selectableItems = pageItems.filter(canDeleteItem);
+  const getLiveHref = (item: Post | Page): string | null => {
+    if (item.status !== 'published') return null;
+    if (type === 'post') {
+      const post = item as Post;
+      const scheduledAt = String(post.scheduledAt || post.scheduled_at || '').trim();
+      if (scheduledAt) {
+        const scheduledTime = Date.parse(
+          normalizeSchemaDateTime(scheduledAt, settings.timeZone) || ''
+        );
+        if (!Number.isFinite(scheduledTime) || scheduledTime > Date.now()) return null;
+      }
+      return getPermalink(post, settings);
+    }
+    return item.slug ? normalizeSiteUrl(`/${item.slug}`) : null;
+  };
+  const renderLiveLink = (item: Post | Page, desktop = false) => {
+    const href = getLiveHref(item);
+    return href ? (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`View live ${type}: ${decodeEntities(item.title)} (opens in a new tab)`}
+        title="View live (opens in a new tab)"
+        className={`${desktop ? 'ml-2 w-11' : 'w-full min-w-0 gap-1.5 border border-slate-200 bg-slate-100 px-2 text-sm font-semibold dark:border-admin-border dark:bg-admin-hover'} inline-flex h-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-primary-400`}
+      >
+        <ExternalLink size={18} aria-hidden="true" />
+        {!desktop && <span>Live</span>}
+      </a>
+    ) : null;
+  };
 
   // Fetch page data from server
   const fetchPage = useCallback(
@@ -517,6 +564,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 {pageItems.map((item) => {
                   const isPost = type === 'post';
                   const itemPost = item as Post;
+                  const isInNavigation = navigation.some(
+                    (navItem) => navItem.url === `page:${item.id}`
+                  );
                   return (
                     <article
                       key={item.id}
@@ -597,37 +647,52 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         )}
                       </dl>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onEdit(item.id, type === 'page')}
-                          className="min-h-11 flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
-                        >
-                          {writerView && item.status !== 'draft' ? 'View' : 'Edit'}
-                        </button>
+                      <div className="mx-auto w-full max-w-90 space-y-2 border-t border-slate-100 pt-3 dark:border-admin-border">
                         {type === 'page' && onToggleNav && (
                           <button
                             type="button"
                             onClick={() => onToggleNav(item.id)}
-                            className="min-h-11 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-admin-border"
+                            aria-label={`${isInNavigation ? 'Remove from navigation' : 'Add to navigation'}: ${decodeEntities(item.title)}`}
+                            title={isInNavigation ? 'Remove from navigation' : 'Add to navigation'}
+                            className="min-h-11 whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-admin-border"
                           >
-                            {navigation &&
-                            navigation.find((navItem: NavItem) => navItem.url === `page:${item.id}`)
-                              ? 'Remove Nav'
-                              : 'Add Nav'}
+                            {isInNavigation ? '- Nav' : '+ Nav'}
                           </button>
                         )}
-                        {onDelete && canDeleteItem(item) && (
+                        <div className="grid auto-cols-fr grid-flow-col items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm('Delete this item?')) onDelete(item.id, type === 'page');
-                            }}
-                            className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            onClick={() => onEdit(item.id, type === 'page')}
+                            aria-label={`${writerView && item.status !== 'draft' ? 'View' : 'Edit'} ${type}: ${decodeEntities(item.title)}`}
+                            title={
+                              writerView && item.status !== 'draft' ? 'View in editor' : 'Edit'
+                            }
+                            className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
                           >
-                            Delete
+                            {writerView && item.status !== 'draft' ? (
+                              <Eye size={18} aria-hidden="true" />
+                            ) : (
+                              <SquarePen size={18} aria-hidden="true" />
+                            )}
+                            <span>{writerView && item.status !== 'draft' ? 'View' : 'Edit'}</span>
                           </button>
-                        )}
+                          {onDelete && canDeleteItem(item) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm('Delete this item?'))
+                                  onDelete(item.id, type === 'page');
+                              }}
+                              aria-label={`Delete ${type}: ${decodeEntities(item.title)}`}
+                              title="Delete"
+                              className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                            >
+                              <Trash2 size={18} aria-hidden="true" />
+                              <span>Delete</span>
+                            </button>
+                          )}
+                          {renderLiveLink(item)}
+                        </div>
                       </div>
                     </article>
                   );
@@ -644,13 +709,13 @@ const ContentManager: React.FC<ContentManagerProps> = ({
             >
               <colgroup>
                 <col className="w-12" />
-                <col className={type === 'post' ? 'w-[34%]' : 'w-[34%]'} />
-                {type === 'post' && <col className="w-[10%]" />}
-                <col className={type === 'post' ? 'w-[10%]' : 'w-[12%]'} />
-                <col className={type === 'post' ? 'w-[10%]' : 'w-[10%]'} />
-                <col className={type === 'post' ? 'w-[12%]' : 'w-[12%]'} />
-                {type === 'post' && <col className="w-[14%]" />}
-                <col className={type === 'post' ? 'w-[10%]' : 'w-[28%]'} />
+                <col />
+                {type === 'post' && <col className="w-28" />}
+                <col className="w-24" />
+                <col className="w-24" />
+                <col className="w-28" />
+                {type === 'post' && <col className="w-36" />}
+                <col className={type === 'post' ? 'w-56' : 'w-80'} />
               </colgroup>
               <thead>
                 <tr className="bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border text-xs uppercase text-slate-500 font-medium">
@@ -714,11 +779,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           {decodeEntities(item.title)}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-full mt-1">
-                          {(() => {
-                            const html = 'excerpt' in item ? item.excerpt || '' : '';
-                            const doc = new DOMParser().parseFromString(html, 'text/html');
-                            return doc.body.textContent || '';
-                          })()}
+                          {decodeEntities('excerpt' in item ? item.excerpt || '' : '')}
                         </p>
                       </td>
                       {type === 'post' && (
@@ -801,39 +862,53 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         </td>
                       )}
                       <td className="px-4 py-4 text-right">
-                        <div
-                          className={`flex items-center justify-end ${
-                            type === 'page' ? 'gap-2' : 'gap-3'
-                          } whitespace-nowrap`}
-                        >
-                          <button
-                            onClick={() => onEdit(item.id, type === 'page')}
-                            className="text-primary-600 hover:text-primary-800 dark:hover:text-primary-400 font-medium text-sm"
-                          >
-                            {writerView && item.status !== 'draft' ? 'View' : 'Edit'}
-                          </button>
-                          {type === 'page' && onToggleNav && (
+                        <div className="flex items-center justify-end whitespace-nowrap">
+                          <div className="flex items-center gap-1">
                             <button
-                              onClick={() => onToggleNav(item.id)}
-                              className="text-sm px-3 py-1 rounded-lg border border-slate-200 dark:border-admin-border hover:bg-slate-50 dark:hover:bg-admin-hover"
+                              type="button"
+                              onClick={() => onEdit(item.id, type === 'page')}
+                              aria-label={`${writerView && item.status !== 'draft' ? 'View' : 'Edit'} ${type}: ${decodeEntities(item.title)}`}
+                              title={
+                                writerView && item.status !== 'draft' ? 'View in editor' : 'Edit'
+                              }
+                              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400 dark:hover:bg-admin-hover"
                             >
-                              {navigation &&
-                              navigation.find((n: NavItem) => n.url === `page:${item.id}`)
-                                ? 'Remove from Nav'
-                                : 'Add to Nav'}
+                              {writerView && item.status !== 'draft' ? (
+                                <Eye size={18} aria-hidden="true" />
+                              ) : (
+                                <SquarePen size={18} aria-hidden="true" />
+                              )}
                             </button>
-                          )}
+                            {type === 'page' && onToggleNav && (
+                              <button
+                                onClick={() => onToggleNav(item.id)}
+                                type="button"
+                                className="min-h-11 text-sm px-3 py-1 rounded-lg border border-slate-200 dark:border-admin-border hover:bg-slate-50 dark:hover:bg-admin-hover"
+                              >
+                                {navigation &&
+                                navigation.find((n: NavItem) => n.url === `page:${item.id}`)
+                                  ? 'Remove Nav'
+                                  : 'Add to Nav'}
+                              </button>
+                            )}
+                          </div>
                           {onDelete && canDeleteItem(item) && (
-                            <button
-                              onClick={() => {
-                                if (confirm('Delete this item?'))
-                                  onDelete(item.id, type === 'page');
-                              }}
-                              className="text-red-600 hover:text-red-800 font-medium text-sm"
-                            >
-                              Delete
-                            </button>
+                            <div className="ml-3 border-l border-slate-200 pl-3 dark:border-admin-border">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm('Delete this item?'))
+                                    onDelete(item.id, type === 'page');
+                                }}
+                                aria-label={`Delete ${type}: ${decodeEntities(item.title)}`}
+                                title="Delete"
+                                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-900/20"
+                              >
+                                <Trash2 size={18} aria-hidden="true" />
+                              </button>
+                            </div>
                           )}
+                          {renderLiveLink(item, true)}
                         </div>
                       </td>
                     </tr>

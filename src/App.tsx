@@ -1034,6 +1034,7 @@ const App: React.FC = () => {
                                 type="post"
                                 posts={posts}
                                 setPosts={setPosts}
+                                settings={settings}
                                 handleEdit={handleEdit}
                                 invalidateContentLoadCoverage={invalidateContentLoadCoverage}
                                 user={user}
@@ -1048,6 +1049,7 @@ const App: React.FC = () => {
                                   type="page"
                                   pages={pages}
                                   setPages={setPages}
+                                  settings={settings}
                                   navigation={settings.navigation}
                                   onToggleNav={(pageId: string) => onToggleNav(pageId, pages)}
                                   handleEdit={handleEdit}
@@ -1226,6 +1228,7 @@ const ContentManagerWrapper: React.FC<any> = ({
   pages,
   setPosts,
   setPages,
+  settings,
   handleEdit,
   navigation,
   onToggleNav,
@@ -1242,6 +1245,7 @@ const ContentManagerWrapper: React.FC<any> = ({
       type={type}
       posts={posts}
       pages={pages}
+      settings={settings}
       navigation={navigation}
       onToggleNav={onToggleNav}
       refreshKey={refreshKey}
@@ -1308,6 +1312,7 @@ const PostEditorWrapper: React.FC<any> = ({
   const [recoveredEditorItemIsComplete, setRecoveredEditorItemIsComplete] = useState(false);
   const [isRecoveringEditorItem, setIsRecoveringEditorItem] = useState(false);
   const [hasTriedEditorRecovery, setHasTriedEditorRecovery] = useState(false);
+  const recoveredEditorIdentityRef = useRef('');
   const newEditorItem = useMemo(
     () =>
       hasEditorType && !editorItemId ? createEmptyEditorItem(effectiveIsPage, user || null) : null,
@@ -1325,6 +1330,7 @@ const PostEditorWrapper: React.FC<any> = ({
     let cancelled = false;
 
     if (editingItem) {
+      recoveredEditorIdentityRef.current = '';
       setRecoveredEditorItem(null);
       setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(false);
@@ -1333,6 +1339,7 @@ const PostEditorWrapper: React.FC<any> = ({
     }
 
     if (!editorItemId) {
+      recoveredEditorIdentityRef.current = '';
       setRecoveredEditorItem(null);
       setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(false);
@@ -1340,11 +1347,16 @@ const PostEditorWrapper: React.FC<any> = ({
       return;
     }
 
+    // Collection refreshes after save must not reseed the active editor's draft.
+    const recoveryIdentity = `${effectiveIsPage ? 'page' : 'post'}:${editorItemId}`;
+    if (recoveredEditorIdentityRef.current === recoveryIdentity) return;
+
     const localEditorSource = effectiveIsPage ? pages : posts;
     const localMatch = localEditorSource.find(
       (item: Post | Page) => String(item.id) === editorItemId
     );
     if (localMatch) {
+      recoveredEditorIdentityRef.current = recoveryIdentity;
       setRecoveredEditorItem(localMatch as Post | Page);
       setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(false);
@@ -1353,6 +1365,7 @@ const PostEditorWrapper: React.FC<any> = ({
     }
 
     const recoverEditorItem = async () => {
+      recoveredEditorIdentityRef.current = '';
       setRecoveredEditorItem(null);
       setRecoveredEditorItemIsComplete(false);
       setIsRecoveringEditorItem(true);
@@ -1365,6 +1378,7 @@ const PostEditorWrapper: React.FC<any> = ({
           const page = data?.pages?.[0];
 
           if (!cancelled && data?.success && page) {
+            recoveredEditorIdentityRef.current = recoveryIdentity;
             setRecoveredEditorItemIsComplete(true);
             setRecoveredEditorItem({
               id: String(page.id || ''),
@@ -1396,6 +1410,7 @@ const PostEditorWrapper: React.FC<any> = ({
         const post = data?.post;
 
         if (!cancelled && data?.success && post) {
+          recoveredEditorIdentityRef.current = recoveryIdentity;
           setRecoveredEditorItemIsComplete(true);
           setRecoveredEditorItem({
             id: String(post.id || ''),

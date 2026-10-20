@@ -14,6 +14,21 @@ unset($seoSchemaHelperPath, $requestedScriptPath);
 
 require_once __DIR__ . '/seo_route_helper.php';
 
+/** Preserve comparisons that lack a complete tag or a valid HTML attribute prefix. */
+if (!function_exists('voncms_strip_description_tags')) {
+  function voncms_strip_description_tags(string $text): string
+  {
+    $text =
+      preg_replace('/<!--.*?(?:-->|$)|<\?.*?(?:\?>|$)|<!DOCTYPE[^>]*>/is', '', $text) ?? $text;
+    $tagStart =
+      '/<(?!' .
+      '(?=[^<>]*>)\/?[a-z][a-z0-9:-]*' .
+      '(?:\s*\/?>|\s+[a-z_:][a-z0-9_.:-]*\s*=|\s+(?:allowfullscreen|autoplay|checked|controls|disabled|hidden|itemscope|loop|multiple|muted|open|readonly|required|selected)(?=[\s\/>]))' .
+      ')/i';
+    return strip_tags(preg_replace($tagStart, '&lt;', $text) ?? $text);
+  }
+}
+
 if (!function_exists('voncms_truncate_word_safe')) {
   /**
    * @param mixed $value
@@ -38,26 +53,58 @@ if (!function_exists('voncms_truncate_word_safe')) {
       return $safeSuffix;
     }
 
-    $truncated = rtrim(mb_substr($text, 0, $contentLimit));
+    $truncated = mb_substr($text, 0, $contentLimit);
     $nextCharacter = mb_substr($text, $contentLimit, 1);
     if ($nextCharacter !== '' && !preg_match('/\s/u', $nextCharacter)) {
       $lastSpace = mb_strrpos($truncated, ' ');
-      if ($lastSpace !== false && $lastSpace > 0) {
-        $truncated = rtrim(mb_substr($truncated, 0, $lastSpace));
+      // Match the frontend's bounded preference for complete words.
+      $maxWordBacktrack = min(20, intdiv($contentLimit, 10));
+      if (
+        $lastSpace !== false &&
+        $lastSpace > 0 &&
+        $contentLimit - $lastSpace <= $maxWordBacktrack
+      ) {
+        $truncated = mb_substr($truncated, 0, $lastSpace);
       }
     }
 
+    $truncated = rtrim($truncated);
+    if ($safeSuffix === '...') {
+      $truncated = rtrim((string) preg_replace('/[.\x{2026}\s]+$/u', '', $truncated));
+    }
     return $truncated . $safeSuffix;
+  }
+}
+
+if (!function_exists('voncms_preserve_description_spacing')) {
+  /** Separate block text without inserting spaces inside inline words. */
+  function voncms_preserve_description_spacing(
+    string $content,
+    string $blockSeparator = "\n\n",
+  ): string {
+    $content =
+      preg_replace('/<(br|hr)(?=[\s\/>])(?:[^<>"\']|"[^"]*"|\'[^\']*\')*>/i', "\n", $content) ??
+      $content;
+    return preg_replace(
+      '/<\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li|tr|td|th|table|ul|ol|pre|dl|dt|dd)\s*>/i',
+      $blockSeparator,
+      $content,
+    ) ?? $content;
   }
 }
 
 if (!function_exists('voncms_clean_seo_description')) {
   /**
    * @param mixed $description
+   * @param int $maxLength
+   * @param bool $preserveBlockSpacing
    * @return string
    */
-  function voncms_clean_seo_description($description): string
-  {
+  function voncms_clean_seo_description(
+    $description,
+    int $maxLength = 160,
+    bool $preserveBlockSpacing = false,
+  ): string {
     $description = (string) $description;
     if ($description === '') {
       return '';
@@ -80,10 +127,38 @@ if (!function_exists('voncms_clean_seo_description')) {
       $description = $matches[1];
     }
 
-    $description = strip_tags($description);
-    $description = html_entity_decode($description, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $description = $preserveBlockSpacing
+      ? voncms_extract_plaintext_for_noscript($description, true)
+      : html_entity_decode(
+        voncms_strip_description_tags(voncms_preserve_description_spacing($description, ' ')),
+        ENT_QUOTES | ENT_HTML5,
+        'UTF-8',
+      );
 
-    return voncms_truncate_word_safe($description, 160);
+    return voncms_truncate_word_safe($description, $maxLength);
+  }
+}
+
+if (!function_exists('voncms_pick_listing_schema_description')) {
+  /** Preserve the editor's full excerpt when no usable manual SEO description exists. */
+  function voncms_pick_listing_schema_description(array $post): string
+  {
+    $manualDescription = voncms_clean_seo_description($post['meta_description'] ?? '');
+    if ($manualDescription !== '') {
+      return $manualDescription;
+    }
+
+    return voncms_clean_seo_description($post['excerpt'] ?? '', 220, true);
+  }
+}
+
+if (!function_exists('voncms_pick_rss_description')) {
+  /** Preserve explicit summaries, including zero, and bound only the body fallback. */
+  function voncms_pick_rss_description(array $post, string $renderedContent): string
+  {
+    $excerpt = (string) ($post['excerpt'] ?? '');
+    $summary = voncms_clean_seo_description($excerpt, max(220, mb_strlen($excerpt)), true);
+    return $summary !== '' ? $summary : voncms_clean_seo_description($renderedContent, 300, true);
   }
 }
 
@@ -136,24 +211,26 @@ if (!function_exists('voncms_normalize_schema_language')) {
 if (!function_exists('voncms_extract_plaintext_for_noscript')) {
   /**
    * @param mixed $content
+   * @param bool $preserveLiteralMarkup Decode escaped code as text after stripping actual markup.
    * @return string
    */
-  function voncms_extract_plaintext_for_noscript($content)
+  function voncms_extract_plaintext_for_noscript($content, bool $preserveLiteralMarkup = false)
   {
     $content = (string) $content;
     if ($content === '') {
       return '';
     }
 
+    if (!$preserveLiteralMarkup) {
+      $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    $content = voncms_preserve_description_spacing($content);
+    $content = voncms_strip_description_tags($content);
     $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $content = preg_replace('/<(br|hr)\s*\/?>/i', "\n", $content);
-    $content = preg_replace(
-      '/<\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li)>/i',
-      "\n\n",
-      $content,
-    );
-    $content = strip_tags($content);
-    $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if ($preserveLiteralMarkup) {
+      // Match the editor's second text-only decode without reparsing literal angle brackets.
+      $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
     $content = str_replace("\xC2\xA0", ' ', $content);
     $content = preg_replace('/[ \t\r\f]+/', ' ', $content);
     $content = preg_replace("/\n[ \t]+/", "\n", $content);
@@ -885,10 +962,7 @@ if (!function_exists('voncms_apply_category_collection_items')) {
           'UTF-8',
         ),
         'url' => rtrim($domainUrl, '/') . (string) ($post['url'] ?? ''),
-        'description' => voncms_truncate_word_safe(
-          voncms_extract_plaintext_for_noscript($post['excerpt'] ?? ''),
-          200,
-        ),
+        'description' => voncms_pick_listing_schema_description($post),
       ];
       $normalizedItemImage = voncms_normalize_public_media_url($post['image_url'] ?? '');
       if ($normalizedItemImage !== '') {
@@ -966,14 +1040,7 @@ if (!function_exists('voncms_build_public_schema_graph')) {
             'UTF-8',
           ),
           'url' => $domainUrl . (string) ($post['url'] ?? ''),
-          'description' => voncms_truncate_word_safe(
-            html_entity_decode(
-              strip_tags((string) ($post['excerpt'] ?? '')),
-              ENT_QUOTES | ENT_HTML5,
-              'UTF-8',
-            ),
-            200,
-          ),
+          'description' => voncms_pick_listing_schema_description($post),
         ];
         $itemImage = voncms_normalize_public_media_url($post['image_url'] ?? '');
         if ($itemImage !== '') {

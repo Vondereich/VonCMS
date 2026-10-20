@@ -5,9 +5,15 @@ export const normalizeEditorUrl = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
   if (trimmed.includes('\\') || trimmed.startsWith('//')) return '';
-  if (/^(https?:|mailto:|tel:|#|\/)/i.test(trimmed)) return trimmed;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return '';
-  return `https://${trimmed}`;
+  if (/^(mailto:|tel:|#|\/)/i.test(trimmed)) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^https?:/i.test(trimmed)) return '';
+  const candidate = /^https?:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.hostname && ['http:', 'https:'].includes(parsed.protocol) ? candidate : '';
+  } catch {
+    return '';
+  }
 };
 
 export type EditorLinkRelationship = 'normal' | 'sponsored' | 'nofollow' | 'ugc';

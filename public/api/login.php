@@ -201,14 +201,9 @@ try {
         $rememberTokenHash = hash('sha256', $rememberValidator);
         $rememberExpiresAt = time() + 86400 * 30;
         $rememberStmt = $pdo->prepare(
-          'INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at) VALUES (?, ?, ?, ?)',
+          'INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))',
         );
-        $rememberStmt->execute([
-          $user['id'],
-          $rememberSelector,
-          $rememberTokenHash,
-          date('Y-m-d H:i:s', $rememberExpiresAt),
-        ]);
+        $rememberStmt->execute([$user['id'], $rememberSelector, $rememberTokenHash]);
 
         setcookie($rememberCookieName, $rememberSelector . ':' . $rememberValidator, [
           'expires' => $rememberExpiresAt,

@@ -174,6 +174,12 @@ class ResponseHelper
    */
   public static function shapeCommentPayload($payload, $isStaff, $isPrimaryAdmin)
   {
+    // Persisted comments use one HTML-entity layer; API consumers render ordinary text.
+    foreach (['username', 'content'] as $field) {
+      if (isset($payload[$field]) && is_string($payload[$field])) {
+        $payload[$field] = html_entity_decode($payload[$field], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      }
+    }
     if (!$isStaff) {
       unset($payload['dbId'], $payload['userId'], $payload['status'], $payload['emailHash']);
       return $payload;

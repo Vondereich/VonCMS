@@ -328,7 +328,7 @@ const DatabaseManager: React.FC = () => {
           {/* SQL Editor Card */}
           <div className="flex min-h-[380px] flex-[0.4] flex-col overflow-hidden rounded-2xl border border-white/10 bg-admin-inset shadow-xl ring-1 ring-white/5 sm:min-h-[320px] xl:min-h-[200px]">
             {/* Editor Toolbar */}
-            <div className="flex flex-col gap-3 border-b border-white/10 bg-admin-inset/80 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-admin-inset/80 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
                 <span className="min-w-0 break-words text-[10px] font-black tracking-widest text-slate-400 uppercase">
@@ -341,7 +341,7 @@ const DatabaseManager: React.FC = () => {
               </span>
             </div>
 
-            <div className="group relative min-h-40 flex-1">
+            <div className="group relative min-h-0 flex-1">
               <textarea
                 id="databasemanager-388"
                 name="databasemanager388"
@@ -354,7 +354,7 @@ const DatabaseManager: React.FC = () => {
               />
             </div>
 
-            <div className="flex flex-col gap-4 border-t border-white/10 bg-admin-inset/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex shrink-0 flex-col gap-4 border-t border-white/10 bg-admin-inset/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-center gap-4">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                   Ready to execute

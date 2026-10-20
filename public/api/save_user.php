@@ -36,6 +36,28 @@ if (!$input) {
 if (!isset($input['username']) || !isset($input['email'])) {
   ResponseHelper::sendError('Username and Email are required', 400);
 }
+if (!is_string($input['username']) || !is_string($input['email'])) {
+  ResponseHelper::sendError('Invalid username or email', 400);
+}
+$rawUsername = trim($input['username']);
+$rawEmail = trim($input['email']);
+
+/** Preserve unchanged legacy identities, but validate each new or edited identity. */
+function voncms_validate_managed_user_identity(array $input, array $existing = []): void
+{
+  if (
+    ($input['username'] ?? '') !== ($existing['username'] ?? null) &&
+    !preg_match('/^[a-zA-Z0-9_]{3,50}$/', $input['username'])
+  ) {
+    ResponseHelper::sendError('Username must be 3-50 letters, numbers, or underscores.', 400);
+  }
+  if (
+    ($input['email'] ?? '') !== ($existing['email'] ?? null) &&
+    (strlen($input['email']) > 100 || !filter_var($input['email'], FILTER_VALIDATE_EMAIL))
+  ) {
+    ResponseHelper::sendError('Please enter a valid email address (maximum 100 characters).', 400);
+  }
+}
 
 // Sanitize input
 if (function_exists('sanitize_input')) {
@@ -49,6 +71,12 @@ if (function_exists('sanitize_input')) {
   if ($rawPassword !== null) {
     $input['password'] = $rawPassword;
   }
+}
+
+$input['username'] = $rawUsername;
+$input['email'] = $rawEmail;
+if (isset($input['password']) && $input['password'] !== '') {
+  SecurityHelper::requireNewPasswordLength($input['password']);
 }
 
 $displayName = trim((string) ($input['display_name'] ?? ''));
@@ -109,6 +137,7 @@ try {
       ResponseHelper::sendError('Invalid user role', 400);
     }
 
+    voncms_validate_managed_user_identity($input);
     // Check for duplicate username/email - LOCKING READ
     $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ? FOR UPDATE');
     $stmt->execute([$input['username'], $input['email']]);
@@ -249,6 +278,16 @@ try {
     }
 
     // Update existing user
+    voncms_validate_managed_user_identity($input, $targetUser);
+    $duplicateStmt = $pdo->prepare(
+      'SELECT id FROM users WHERE (username = ? OR email = ?) AND id <> ? LIMIT 1 FOR UPDATE',
+    );
+    $duplicateStmt->execute([$input['username'], $input['email'], $inputId]);
+    if ($duplicateStmt->fetch()) {
+      $pdo->rollBack();
+      ResponseHelper::sendError('Username or email already exists', 400);
+    }
+    $emailChanged = strcasecmp((string) ($targetUser['email'] ?? ''), $input['email']) !== 0;
     $sql =
       'UPDATE users SET username = ?, display_name = ?, email = ?, role = ?, avatar = ?, bio = ?';
     $roleToPersist = $preservingExistingRoot
@@ -271,6 +310,11 @@ try {
 
     if ($approveEmail) {
       $sql .= ', email_verified = 1, verification_token = NULL, verification_token_expires = NULL';
+    } elseif ($emailChanged) {
+      $sql .= ', email_verified = 0, verification_token = NULL, verification_token_expires = NULL';
+    }
+    if ($emailChanged || !empty($input['password'])) {
+      $sql .= ', reset_token = NULL, reset_token_expires = NULL';
     }
 
     // Only update password if provided
@@ -347,6 +391,9 @@ try {
 } catch (Throwable $e) {
   if (isset($pdo) && $pdo->inTransaction()) {
     $pdo->rollBack();
+  }
+  if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+    ResponseHelper::sendError('Username or email already exists', 400);
   }
   if (voncms_schema_mutation_error_requires_repair($e)) {
     ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);

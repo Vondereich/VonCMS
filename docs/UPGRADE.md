@@ -2,6 +2,8 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+v1.27.11 is the planned final maintenance release of the v1.27.x "OverDrive" series. It improves account validation, public form quotas, post/page metadata and excerpts, numeric-slug routing, and compatible dependencies. No new database migration or bulk content rewrite is introduced. OTA preserves live `.htaccess` files: run Repair `.htaccess` if Integrity Check prompts you to add the internal content-slug helper shield. Nginx administrators should update the corresponding helper-deny rule in [VPS](VPS.md). Earlier upgrade requirements below still apply when updating from an older baseline. New feature development is planned for v1.28.x, outside this package.
+
 v1.27.10 is a maintenance package: inactive plugin data is omitted from public settings, while saved admin configuration and meaningful OFF/empty values remain intact. Internal helpers now load from the protected `core/` folder through the existing `security.php` entry point; no database migration is required. OTA preserves existing `.htaccess` files, so run Repair `.htaccess` if Integrity Check prompts you to restore the new core shield. Existing installations that completed earlier database repair steps can update normally; the guest settings cache may retain the previous payload until its existing 60-second lifetime expires.
 
 v1.27.9: the new Dashboard Top Articles tab needs one explicit Database Repair after updating an existing site. Fresh installs create its anonymous daily-count table automatically. Until repair, lifetime article/page views continue normally and the new tab explains that storage is not enabled. Daily history begins at activation; existing lifetime views cannot be reconstructed into 7/30-day totals. Repair `.htaccess` when prompted to include the new private reporting helper in the managed deny rule.
@@ -45,9 +47,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.10
+## Recommended path to v1.27.11
 
-VonCMS v1.27.10 is the current release. Use the complete Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact.
+Use the complete v1.27.11 Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact. Back up the site and test the package on a local or staging installation before production use.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
@@ -57,8 +59,10 @@ VonCMS v1.27.10 is the current release. Use the complete Deploy ZIP for manual u
 6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to the latest published release.
 7. When entering v1.27.4 from an older release, confirm fixed-host HTTPS/canonical redirects are active at the hosting or CDN layer, then run **System Tools > Repair `.htaccess`** once as the primary administrator.
    When upgrading an existing site to v1.27.7, also complete **Database > Schema Repair** once to activate the verified large-archive indexes and counter changes described above.
-8. After the update, verify the homepage, one single post, and the admin dashboard.
+8. After the update, verify the homepage, one single post, one page, login, the editor, and the admin dashboard. Check numeric post/page slugs if the site uses them, plus excerpt and meta-description fields and Auto Fill.
 9. After the site is on a fixed updater package and already passed the required `.htaccess` repair steps, use the admin panel updater for later releases.
+
+New or changed passwords must fit bcrypt's 72-byte limit; non-ASCII characters can occupy more than one byte. Existing password logins remain compatible, and this release does not require a forced password reset. Existing stored excerpts and manual meta descriptions are not rewritten in bulk.
 
 The OTA updater treats the shipped `assets/` and `docs/` directories as release-managed content. During activation it replaces each directory as one rollback-protected unit, which removes retired fingerprinted bundles and guides instead of leaving them beside the current release. Keep personal or hosting-specific notes outside `docs/` so an OTA update does not replace them. Runtime configuration, database data, uploads, backups, and the live `.htaccess` remain protected.
 

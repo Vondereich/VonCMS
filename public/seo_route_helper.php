@@ -710,7 +710,7 @@ if (!function_exists('voncms_fetch_public_post')) {
   /**
    * @param PDO $pdo
    * @param string $slugOrId
-   * @param bool $isId
+   * @param bool $isId Prefer a legacy ID, then retry the exact slug when no visible ID matches.
    * @param string $currentTime
    * @param string $authorNameSql
    * @param string $authorDisplayNameSql
@@ -724,23 +724,30 @@ if (!function_exists('voncms_fetch_public_post')) {
     $authorNameSql,
     $authorDisplayNameSql,
   ) {
-    $lookupColumn = $isId ? 'p.id' : 'p.slug';
+    $lookupColumns = $isId ? ['p.id', 'p.slug'] : ['p.slug'];
     $publishedAtSql = voncms_publication_column_sql($pdo, 'posts', 'p');
-    $sql =
-      'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, ' .
-      $publishedAtSql .
-      ', ' .
-      $authorNameSql .
-      ' as author_name, u.username as author_username, ' .
-      $authorDisplayNameSql .
-      ' as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE ' .
-      $lookupColumn .
-      " = ? AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$slugOrId, $currentTime]);
-    $post = $stmt->fetch(PDO::FETCH_ASSOC);
+    foreach ($lookupColumns as $lookupColumn) {
+      $sql =
+        'SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.image_url, p.category, p.created_at, p.updated_at, p.scheduled_at, ' .
+        $publishedAtSql .
+        ', ' .
+        $authorNameSql .
+        ' as author_name, u.username as author_username, ' .
+        $authorDisplayNameSql .
+        ' as author_display_name, u.avatar as author_avatar FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE ' .
+        $lookupColumn .
+        " = ? AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?) LIMIT 1";
+      $stmt = $pdo->prepare($sql);
+      $stmt->bindValue(1, (string) $slugOrId, PDO::PARAM_STR);
+      $stmt->bindValue(2, $currentTime, PDO::PARAM_STR);
+      $stmt->execute();
+      $post = $stmt->fetch(PDO::FETCH_ASSOC);
+      if (is_array($post)) {
+        return $post;
+      }
+    }
 
-    return is_array($post) ? $post : null;
+    return null;
   }
 }
 

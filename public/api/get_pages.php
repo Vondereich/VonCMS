@@ -108,7 +108,7 @@ try {
   $countSql = "SELECT COUNT(*) FROM pages p LEFT JOIN users u ON p.author_id = u.id $statusClause";
   $totalStmt = $pdo->prepare($countSql);
   foreach ($params as $key => $value) {
-    $totalStmt->bindValue($key, $value, is_numeric($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    $totalStmt->bindValue($key, $value, $key === ':id' ? PDO::PARAM_INT : PDO::PARAM_STR);
   }
   $totalStmt->execute();
   $total = (int) $totalStmt->fetchColumn();
@@ -123,7 +123,7 @@ try {
      LIMIT :limit OFFSET :offset",
   );
   foreach ($params as $key => $value) {
-    $stmt->bindValue($key, $value, is_numeric($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    $stmt->bindValue($key, $value, $key === ':id' ? PDO::PARAM_INT : PDO::PARAM_STR);
   }
   $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
   $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);

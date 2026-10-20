@@ -323,7 +323,7 @@ location ~* ^/(?:public/)?core(?:/|$) {
     deny all;
 }
 
-location ~* ^/api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
+location ~* ^/api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|content_slug_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ {
     deny all;
 }
 
@@ -483,6 +483,7 @@ for path in \
     "/api/contact_honeypot_helper.php" \
     "/api/content_audit_helper.php" \
     "/api/content_embed_helper.php" \
+    "/api/content_slug_helper.php" \
     "/api/ImageProcessor.php" \
     "/api/mail_helper.php" \
     "/api/media_library_filter_helper.php" \

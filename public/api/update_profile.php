@@ -105,6 +105,7 @@ try {
     if (strlen($currentPasswordValue) > 4096 || strlen($newPasswordValue) > 4096) {
       ResponseHelper::sendError('Password input is too long', 400);
     }
+    SecurityHelper::requireNewPasswordLength($newPasswordValue);
 
     if (
       strlen($newPasswordValue) < 8 ||
@@ -139,7 +140,9 @@ try {
         throw new Exception('Failed to hash password');
       }
 
-      $stmt = $pdo->prepare('UPDATE users SET password = ? WHERE id = ?');
+      $stmt = $pdo->prepare(
+        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+      );
       if (!$stmt->execute([$newHash, $userId])) {
         throw new Exception('Failed to update password');
       }

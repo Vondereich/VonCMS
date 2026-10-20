@@ -523,7 +523,8 @@ try {
       // Check for /post/{slug} or /blog/{slug} pattern
       if (preg_match('/^(post|blog)\/([^\/]+)$/i', $path, $matches)) {
         $slugOrId = $matches[2];
-        $isId = is_numeric($slugOrId);
+        // Only canonical integer tokens can be legacy IDs; leading zeros/exponents are slugs.
+        $isId = preg_match('/^[1-9][0-9]*$/D', $slugOrId) === 1;
 
         $post = voncms_fetch_public_post(
           $pdo,
@@ -652,14 +653,13 @@ try {
         // Handle Permalink Structures (Date/Category/Plain)
         // e.g. /2023/12/my-slug or /category/my-slug -> extract 'my-slug'
         $slugOrId = basename($path);
-        $isId = is_numeric($slugOrId);
         $resolvedContentType = 'post';
 
-        // Try posts first
+        // Slug/category/date routes use exact slugs, even when they look like an existing ID.
         $post = voncms_fetch_public_post(
           $pdo,
           $slugOrId,
-          $isId,
+          false,
           $publicContentCurrentTime,
           $authorNameSql,
           $authorDisplayNameSql,
@@ -861,7 +861,11 @@ $cssFile = $publicAssets['cssFile'];
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>" />
+  <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>"
+    data-voncms-ssr-route="<?php echo htmlspecialchars((string) ($_SERVER['REQUEST_URI'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
+    data-voncms-ssr-robots="<?php echo htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8'); ?>"
+    data-voncms-ssr-canonical="<?php echo htmlspecialchars($seoUrl, ENT_QUOTES, 'UTF-8'); ?>"
+    data-voncms-ssr-title="<?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8', false); ?>" />
   <?php
   $faviconHref = !empty($faviconUrl)
     ? $faviconUrl

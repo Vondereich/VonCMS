@@ -139,7 +139,10 @@ const normalizeSeoDescriptionCandidate = (value?: string | null): string => {
   const contentAttribute = rawValue.match(
     /^\s*<meta\b[^>]*\bcontent=["']([^"']+)["'][^>]*>\s*$/i
   )?.[1];
-  return htmlToPlainText(contentAttribute || rawValue);
+  return htmlToPlainText(contentAttribute || rawValue, {
+    preserveLiteralComparisons: true,
+    preserveBlockSpacing: true,
+  });
 };
 
 const pickHydratedSeoDescription = (...values: Array<string | null | undefined>): string => {
@@ -161,6 +164,44 @@ interface VonSEOProps {
   categoryPostCount?: number | null;
 }
 
+type SsrSeoSnapshot = {
+  route: string;
+  canonical: string;
+  robots: string;
+  title: string;
+  schema: any;
+};
+const ssrSeoSnapshots = new WeakMap<Document, SsrSeoSnapshot | null>();
+const getSsrSeoSnapshot = (): SsrSeoSnapshot | null => {
+  if (ssrSeoSnapshots.has(document)) return ssrSeoSnapshots.get(document) || null;
+  const robots = document.head.querySelector('meta[name="robots"]');
+  const script = document.head.querySelector(
+    'script[type="application/ld+json"].vp-seo[data-voncms-schema-source="ssr"]'
+  );
+  const canonical =
+    robots?.getAttribute('data-voncms-ssr-canonical') ||
+    script?.getAttribute('data-voncms-schema-url') ||
+    '';
+  let snapshot: SsrSeoSnapshot | null = null;
+  if (canonical) {
+    try {
+      const url = new URL(canonical, window.location.origin);
+      snapshot = {
+        route: robots?.getAttribute('data-voncms-ssr-route') || `${url.pathname}${url.search}`,
+        canonical,
+        robots:
+          robots?.getAttribute('data-voncms-ssr-robots') || robots?.getAttribute('content') || '',
+        title: robots?.getAttribute('data-voncms-ssr-title') || document.title,
+        schema: script?.textContent ? JSON.parse(script.textContent) : null,
+      };
+    } catch {
+      // Malformed or absent SSR data is not an authority for another route.
+    }
+  }
+  ssrSeoSnapshots.set(document, snapshot);
+  return snapshot;
+};
+
 const VonSEO: React.FC<VonSEOProps> = ({
   settings,
   currentView,
@@ -171,20 +212,35 @@ const VonSEO: React.FC<VonSEOProps> = ({
   categoryPostCount,
 }) => {
   const location = useLocation();
-  const [fetchedCategoryPostCount, setFetchedCategoryPostCount] = useState<number | null>(null);
+  const queryParams = new URLSearchParams(location.search);
+  const rawPublicPage = queryParams.get('page')?.trim() || '';
+  const publicPage = /^\d+$/.test(rawPublicPage)
+    ? Math.max(1, Math.min(PUBLIC_LISTING_MAX_PAGE, Number(rawPublicPage)))
+    : 1;
+  const hasPublicSearchQuery = Array.from(queryParams.entries()).some(
+    ([key, value]) =>
+      (key === 'search' || key.startsWith('search[')) && hasNonemptySeoQueryValue(value)
+  );
+  const countKey = `${currentView}:${selectedCategory || ''}:${location.pathname}${location.search}`;
+  const [fetchedListingCount, setFetchedListingCount] = useState<{
+    key: string;
+    total: number;
+  } | null>(null);
 
   useEffect(() => {
-    if (currentView !== 'category' || !selectedCategory || typeof categoryPostCount === 'number') {
-      setFetchedCategoryPostCount(null);
+    const needsCategoryCount =
+      currentView === 'category' && selectedCategory && typeof categoryPostCount !== 'number';
+    const needsHomeCount = currentView === 'home' && publicPage > 1;
+    if (hasPublicSearchQuery || (!needsCategoryCount && !needsHomeCount)) {
       return;
     }
 
     const abortController = new AbortController();
     const params = new URLSearchParams({
-      category: selectedCategory,
       countOnly: 'true',
       public: 'true',
     });
+    if (currentView === 'category' && selectedCategory) params.set('category', selectedCategory);
 
     fetch(`${API.getPosts}?${params.toString()}`, {
       signal: abortController.signal,
@@ -193,38 +249,49 @@ const VonSEO: React.FC<VonSEOProps> = ({
       .then((data) => {
         if (abortController.signal.aborted) return;
         const total = Number(data?.meta?.total);
-        setFetchedCategoryPostCount(Number.isFinite(total) ? total : null);
+        if (Number.isFinite(total) && total >= 0) setFetchedListingCount({ key: countKey, total });
       })
       .catch((error) => {
-        if ((error as Error)?.name !== 'AbortError') {
-          setFetchedCategoryPostCount(null);
+        if (!abortController.signal.aborted && (error as Error)?.name !== 'AbortError') {
+          setFetchedListingCount((current) => (current?.key === countKey ? null : current));
         }
       });
 
     return () => abortController.abort();
-  }, [currentView, selectedCategory, categoryPostCount]);
+  }, [
+    currentView,
+    selectedCategory,
+    categoryPostCount,
+    countKey,
+    publicPage,
+    hasPublicSearchQuery,
+  ]);
 
   useEffect(() => {
     const siteTitle = settings.siteName;
-    const queryParams = new URLSearchParams(location.search);
-    const rawPublicPage = queryParams.get('page')?.trim() || '';
-    const publicPage = /^\d+$/.test(rawPublicPage)
-      ? Math.max(1, Math.min(PUBLIC_LISTING_MAX_PAGE, Number(rawPublicPage)))
-      : 1;
-    const existingRobots =
-      document.head.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
-    const existingCanonical =
-      document.head.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
-    const hasPublicSearchQuery = Array.from(queryParams.entries()).some(
-      ([key, value]) =>
-        (key === 'search' || key.startsWith('search[')) && hasNonemptySeoQueryValue(value)
-    );
+    const ssrSnapshot = getSsrSeoSnapshot();
+    const basePrefix =
+      BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
+    const requestRoute = `${basePrefix}${location.pathname}${location.search}`;
+    const matchesSsrRoute = ssrSnapshot?.route === requestRoute;
+    const listingCount =
+      currentView === 'category' && typeof categoryPostCount === 'number'
+        ? categoryPostCount
+        : fetchedListingCount?.key === countKey
+          ? fetchedListingCount.total
+          : null;
     const isPaginatedDiscovery =
       publicPage > 1 &&
       !hasPublicSearchQuery &&
       (currentView === 'home' || currentView === 'category');
+    const listingLimit = Math.max(6, Math.min(50, Number(settings.postsPerPage) || 6));
     const isPaginatedOverflow =
-      isPaginatedDiscovery && existingRobots.trim().toLowerCase().startsWith('noindex');
+      isPaginatedDiscovery &&
+      (listingCount !== null
+        ? (publicPage - 1) * listingLimit >= listingCount
+        : matchesSsrRoute
+          ? ssrSnapshot.robots.trim().toLowerCase().startsWith('noindex')
+          : true);
     const existingSsrSchema = document.head.querySelector(
       'script[type="application/ld+json"].vp-seo[data-voncms-schema-source="ssr"]'
     );
@@ -237,8 +304,6 @@ const VonSEO: React.FC<VonSEOProps> = ({
     let hydratedRobots =
       'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
-    const basePrefix =
-      BASE_PATH === '/' || !BASE_PATH ? '' : `/${BASE_PATH.replace(/^\/+|\/+$/g, '')}`;
     const configuredBase = normalizeConfiguredCanonicalBase(settings.domainUrl);
     const canonicalBase = configuredBase || localBrowserCanonicalBase(basePrefix);
     const canonicalUrl = (path = '') =>
@@ -276,11 +341,9 @@ const VonSEO: React.FC<VonSEOProps> = ({
       canonical = canonicalUrl(`profile/${encodeURIComponent(selectedProfile.username)}`);
     } else if (currentView === 'category' && selectedCategory) {
       const categoryHasPosts =
-        typeof categoryPostCount === 'number'
-          ? categoryPostCount > 0
-          : typeof fetchedCategoryPostCount === 'number'
-            ? fetchedCategoryPostCount > 0
-            : !existingRobots.trim().toLowerCase().startsWith('noindex');
+        listingCount !== null
+          ? listingCount > 0
+          : matchesSsrRoute && !ssrSnapshot.robots.trim().toLowerCase().startsWith('noindex');
       title = `${selectedCategory} - ${siteTitle}`;
       const categoryDescriptionContext = settings.siteDescription?.trim() || settings.siteName;
       description = `${selectedCategory} - ${categoryDescriptionContext}`;
@@ -291,19 +354,14 @@ const VonSEO: React.FC<VonSEOProps> = ({
     }
     if (isPaginatedDiscovery) {
       title = isPaginatedOverflow
-        ? document.title
+        ? matchesSsrRoute
+          ? ssrSnapshot.title
+          : `${siteTitle} - Page ${publicPage}`
         : currentView === 'category' && selectedCategory
           ? `${selectedCategory} - Page ${publicPage} - ${siteTitle}`
           : `${siteTitle} - Page ${publicPage}`;
-      const existingCanonicalPage = (() => {
-        try {
-          return new URL(existingCanonical, window.location.origin).searchParams.get('page');
-        } catch {
-          return null;
-        }
-      })();
-      if (existingCanonicalPage === String(publicPage)) {
-        canonical = existingCanonical;
+      if (matchesSsrRoute) {
+        canonical = ssrSnapshot.canonical;
       } else {
         const canonicalParams = new URLSearchParams();
         if (currentView === 'category' && selectedCategory) {
@@ -312,7 +370,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
         canonicalParams.set('page', String(publicPage));
         canonical = `${canonicalBase}/?${canonicalParams.toString()}`;
       }
-      hydratedRobots = existingRobots || hydratedRobots;
+      hydratedRobots = isPaginatedOverflow ? 'noindex, follow' : hydratedRobots;
     }
     if (hasPublicSearchQuery) {
       hydratedRobots = 'noindex, follow';
@@ -487,6 +545,14 @@ const VonSEO: React.FC<VonSEOProps> = ({
         url: canonical,
       };
       jsonLd['@graph'].push(personNode);
+    } else if ((currentView === 'home' || currentView === 'category') && !hasPublicSearchQuery) {
+      jsonLd['@graph'].push({
+        '@type': 'CollectionPage',
+        '@id': `${canonical}#webpage`,
+        url: canonical,
+        name: title,
+        description,
+      });
     }
 
     // Breadcrumbs for SEO
@@ -538,6 +604,13 @@ const VonSEO: React.FC<VonSEOProps> = ({
       existingSsrSchema?.getAttribute('data-voncms-schema-url') === canonical;
     if (isPaginatedOverflow) {
       document.head.querySelector('script[type="application/ld+json"].vp-seo')?.remove();
+    } else if (
+      isPaginatedDiscovery &&
+      matchesSsrRoute &&
+      ssrSnapshot.schema &&
+      !shouldPreservePaginatedSsrSchema
+    ) {
+      setJsonLd(ssrSnapshot.schema, canonical);
     } else if (!shouldPreservePaginatedSsrSchema) {
       setJsonLd(jsonLd, canonical);
     }
@@ -552,7 +625,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     selectedProfile,
     selectedCategory,
     categoryPostCount,
-    fetchedCategoryPostCount,
+    fetchedListingCount,
     location.pathname,
     location.search,
   ]);

@@ -150,6 +150,39 @@ export const buildSavedSnapshot = (itemToSave: ContentItem, savedData: any): Con
     : itemToSave;
 };
 
+// Preserve fields edited after the request; server IDs and version metadata stay authoritative.
+export const mergeSavedEditorChanges = (
+  submitted: ContentItem,
+  saved: ContentItem,
+  current: ContentItem | null,
+  liveContent: string
+): ContentItem => {
+  if (!current) return saved;
+  const latest = { ...current, content: liveContent };
+  const merged = { ...saved };
+  const latestFields = latest as unknown as Record<string, unknown>;
+  const submittedFields = submitted as unknown as Record<string, unknown>;
+  const fields = [
+    'title',
+    'content',
+    'excerpt',
+    'image',
+    'category',
+    'metaDescription',
+    'keywords',
+    'slug',
+    'status',
+    'scheduledAt',
+    'scheduled_at',
+  ] as const;
+  for (const field of fields) {
+    if (latestFields[field] !== submittedFields[field]) {
+      (merged as unknown as Record<string, unknown>)[field] = latestFields[field];
+    }
+  }
+  return merged;
+};
+
 export const buildSaveStatusLabel = (
   saveStatus: SaveStatus,
   lastSaved: Date | null,

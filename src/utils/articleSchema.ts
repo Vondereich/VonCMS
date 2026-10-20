@@ -56,11 +56,16 @@ export const truncateSchemaText = (
         break;
       }
     }
-    if (lastSpace > 0) {
+    // Prefer whole words, but do not discard a long token and most of the summary.
+    const maxWordBacktrack = Math.min(20, Math.floor(contentLimit / 10));
+    if (lastSpace > 0 && contentLimit - lastSpace <= maxWordBacktrack) {
       truncatedCharacters = truncatedCharacters.slice(0, lastSpace);
     }
   }
 
-  const truncated = truncatedCharacters.join('').trimEnd();
+  let truncated = truncatedCharacters.join('').trimEnd();
+  if (safeSuffix === '...') {
+    truncated = truncated.replace(/[.\u2026\s]+$/u, '').trimEnd();
+  }
   return `${truncated}${safeSuffix}`;
 };

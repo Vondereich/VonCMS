@@ -8,6 +8,7 @@ require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/../seo_route_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
 require_once __DIR__ . '/content_embed_helper.php';
+require_once __DIR__ . '/content_slug_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
@@ -155,17 +156,13 @@ if (mb_strlen($featuredImage) > 255) {
 
 // Auto-generate excerpt from content if not provided
 $excerpt = $input['excerpt'] ?? '';
-if (empty(trim($excerpt)) && !empty($rawContent)) {
-  // Strip HTML tags and get first 160 characters
-  $plainText = strip_tags($rawContent);
-  $plainText = preg_replace('/\s+/', ' ', $plainText); // Normalize whitespace
-  $excerpt = trim(substr($plainText, 0, 160));
-  if (strlen($plainText) > 160) {
-    $excerpt .= '...';
-  }
+if (trim($excerpt) === '' && $rawContent !== '') {
+  // Match the editor's 200-character Auto Fill target without cutting UTF-8 bytes.
+  $excerpt = voncms_clean_seo_description($rawContent, 200, true);
 }
 
 $db = null;
+$contentSlugLock = null;
 
 try {
   // Check if database connection exists
@@ -178,6 +175,8 @@ try {
   $hasPublishedAtColumn = voncms_has_publication_column($db, 'posts');
   $publishedAtSelect = voncms_publication_column_sql($db, 'posts');
 
+  // Serialize slug ownership across both tables before any row locks are taken.
+  $contentSlugLock = VonCmsContentSlugLock::acquire($db);
   // Start Transaction (Critical for Concurrency)
   $db->beginTransaction();
 
@@ -401,6 +400,17 @@ try {
       $input['slug'] .= '-' . time();
     }
   }
+  if (
+    (!$statusOnlyTransition || in_array($status, ['published', 'scheduled'], true)) &&
+    voncms_content_slug_conflicts($db, 'post', $input['slug'])
+  ) {
+    $db->rollBack();
+    $contentSlugLock->release();
+    ResponseHelper::sendError(
+      'This slug is already reserved by a page. Choose a different slug.',
+      409,
+    );
+  }
   if ($isUpdate) {
     // Never send an old public permalink to a draft or other non-public status.
     if (
@@ -599,6 +609,7 @@ try {
 
   // Commit Transaction
   $db->commit();
+  $contentSlugLock->release();
   voncms_public_cache_clear();
 
   // INDEXNOW INTEGRATION: Notify search engines instantly
@@ -647,5 +658,6 @@ try {
   if ($db instanceof PDO && $db->inTransaction()) {
     $db->rollBack();
   }
+  $contentSlugLock?->release();
   ResponseHelper::sendError($e);
 }

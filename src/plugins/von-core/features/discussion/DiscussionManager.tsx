@@ -92,15 +92,6 @@ const initialState: DiscussionState = {
   deleteConfirmComment: null,
 };
 
-const decodeHtml = (content: string) => {
-  if (typeof document === 'undefined') {
-    return content;
-  }
-
-  const doc = new DOMParser().parseFromString(`<textarea>${content}</textarea>`, 'text/html');
-  return doc.querySelector('textarea')?.value ?? content;
-};
-
 const getCommentStatus = (comment: Comment): ModerationTab => {
   if (comment.status === 'pending' || comment.status === 'spam' || comment.status === 'approved') {
     return comment.status;
@@ -401,7 +392,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
             </button>
           </div>
         </div>
-        <p className="text-slate-600 dark:text-slate-300">{decodeHtml(comment.content)}</p>
+        <p className="text-slate-600 dark:text-slate-300">{comment.content}</p>
         <div className="mt-2 flex items-center gap-1 text-xs text-slate-400">
           <span>From:</span>
           <span className="font-medium text-primary-600 dark:text-primary-400">
@@ -533,7 +524,7 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
       </div>
 
       <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-admin-panel dark:text-slate-300">
-        {decodeHtml(comment.content)}
+        {comment.content}
       </div>
 
       <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">

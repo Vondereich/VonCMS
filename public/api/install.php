@@ -80,6 +80,7 @@ if (!$dbName || !$dbUser || !$adminUsername || !$adminEmail || !$adminPass) {
 }
 
 // Password strength validation
+SecurityHelper::requireNewPasswordLength($adminPass);
 if (
   strlen($adminPass) < 8 ||
   !preg_match('/[A-Z]/', $adminPass) ||
@@ -665,7 +666,7 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
 
     RewriteRule ^package\.json$ - [F,L]
 
-    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
+    RewriteRule ^api/(ai_provider_helper|analytics_consent_helper|contact_honeypot_helper|content_audit_helper|content_embed_helper|content_slug_helper|ImageProcessor|mail_helper|media_library_filter_helper|post_query_helper|post_views_helper|publication_time_helper|public_cache_helper|redirect_loop_helper|role_capability_helper|schema_repair_helper|settings_audit_helper)\.php$ - [F,L,NC]
 
     RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\.php$ - [F,L,NC]
 

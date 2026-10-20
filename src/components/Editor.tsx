@@ -294,7 +294,7 @@ const Editor: React.FC<EditorProps> = ({
     chain.setLink(linkAttrs).run();
   };
 
-  const refreshSelectedImage = (previousImage: HTMLImageElement | null) => {
+  const refreshSelectedImage = (previousImage: HTMLImageElement | null, nodePosition?: number) => {
     if (!previousImage) {
       setSelectedImage(null);
       return;
@@ -309,14 +309,24 @@ const Editor: React.FC<EditorProps> = ({
 
       const previousId = previousImage.getAttribute('data-id');
       const previousSrc = previousImage.getAttribute('src');
-      const nextImage = Array.from(root.querySelectorAll('img')).find((candidate) => {
-        const element = candidate as HTMLImageElement;
-        if (previousId) {
-          return element.getAttribute('data-id') === previousId;
-        }
+      const nodeDom = nodePosition === undefined ? null : editor?.view.nodeDOM(nodePosition);
+      const positionedImage =
+        nodeDom instanceof HTMLElement
+          ? ((nodeDom.matches('img')
+              ? nodeDom
+              : nodeDom.querySelector('img')) as HTMLImageElement | null)
+          : null;
+      const nextImage =
+        nodePosition !== undefined
+          ? positionedImage
+          : (Array.from(root.querySelectorAll('img')).find((candidate) => {
+              const element = candidate as HTMLImageElement;
+              if (previousId) {
+                return element.getAttribute('data-id') === previousId;
+              }
 
-        return previousSrc ? element.getAttribute('src') === previousSrc : false;
-      }) as HTMLImageElement | undefined;
+              return previousSrc ? element.getAttribute('src') === previousSrc : false;
+            }) as HTMLImageElement | undefined);
 
       if (nextImage) {
         onImageClickInternal(nextImage);
@@ -370,7 +380,12 @@ const Editor: React.FC<EditorProps> = ({
     if (!editor) return;
 
     const root = getEditorRoot();
-    const domHtml = root?.innerHTML || getCurrentEditorHtml();
+    // ProseMirror's view-only breaks/separators are not authored document content.
+    const contentDom = root?.cloneNode(true) as HTMLElement | undefined;
+    contentDom
+      ?.querySelectorAll('br.ProseMirror-trailingBreak, img.ProseMirror-separator')
+      .forEach((placeholder) => placeholder.remove());
+    const domHtml = contentDom?.innerHTML ?? getCurrentEditorHtml();
     const sanitized = sanitizeEditorHtml(domHtml);
     editor.commands.setContent(sanitized, { emitUpdate: false });
     queueChange(sanitized);
@@ -451,7 +466,7 @@ const Editor: React.FC<EditorProps> = ({
     if (options?.closeImage) {
       setSelectedImage(null);
     } else {
-      refreshSelectedImage(img);
+      refreshSelectedImage(img, match.pos);
     }
 
     return true;
