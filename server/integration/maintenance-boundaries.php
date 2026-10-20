@@ -163,6 +163,11 @@ foreach (
     ),
     'Unprotected credential writer: ' . $file,
   );
+  check(
+    str_contains(file_get_contents($root . '/public/api/' . $file), 'PASSWORD_BCRYPT') &&
+      !str_contains(file_get_contents($root . '/public/api/' . $file), 'PASSWORD_DEFAULT'),
+    'Credential writer algorithm disagrees with the shared 72-byte policy: ' . $file,
+  );
 }
 check(
   str_contains(file_get_contents($root . '/public/api/login.php'), 'strlen($password) > 4096'),
@@ -367,6 +372,7 @@ if ($mysql) {
   $allowedNonPrimaryRoles = ['member', 'writer', 'moderator'];
   $assignableRoles = ['member' => 'Member'];
   $approveEmail = false;
+  $hasNewPassword = false;
   foreach (
     [
       ['old@example.invalid', false, 1],
@@ -416,6 +422,7 @@ if ($mysql) {
     $allowedNonPrimaryRoles,
     $assignableRoles,
     $approveEmail,
+    $hasNewPassword,
     $pdo,
   ) {
     eval($managedUpdate);

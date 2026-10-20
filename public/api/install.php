@@ -105,6 +105,7 @@ try {
 }
 
 // 3. Create Tables (Complete Schema)
+$installWarnings = [];
 try {
   // Users Table
   $pdo->exec("CREATE TABLE IF NOT EXISTS users (
@@ -319,13 +320,14 @@ try {
   // Shared runtime capabilities are installed once here and repaired only by Database Repair.
   voncms_schema_repair_runtime_capabilities($pdo);
   $listingIndexResult = voncms_schema_repair_listing_indexes($pdo);
+  $installWarnings = $listingIndexResult['warnings'];
 
   // DDL above can commit implicitly in MySQL. Keep all seed data transactional so
   // a late configuration write failure can be retried without duplicate owners.
   $pdo->beginTransaction();
 
   // 4. Create Admin User (auto-verified — no email verification needed for fresh install)
-  $hashedPass = password_hash($adminPass, PASSWORD_DEFAULT);
+  $hashedPass = password_hash($adminPass, PASSWORD_BCRYPT);
   $stmt = $pdo->prepare(
     "INSERT INTO users (username, email, password, role, email_verified, verification_token, verification_token_expires) VALUES (:username, :email, :pass, 'Admin', 1, NULL, NULL)",
   );
@@ -606,8 +608,6 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
     @unlink($configFile);
     ResponseHelper::sendError('Installation could not finalize database ownership.', 500);
   }
-
-  $installWarnings = $listingIndexResult['warnings'];
 
   // Also update site_settings.json with the Site Title if possible,
   // but currently that's handled by Node/PHP API separate from this config.

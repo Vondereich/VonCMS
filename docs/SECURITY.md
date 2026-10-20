@@ -144,6 +144,10 @@ What it does:
 - uses honeypot fields in places where bot traffic is common
 - logs suspicious events for review
 
+Login reserves attempts atomically per client IP, grouping IPv6 privacy addresses by /64 and ignoring untrusted forwarding headers. A successful login refunds only its own reserved attempt. There is no additional cross-IP account lockout: wrong passwords from other networks cannot exhaust the owner's allowance on a fresh IP. The tradeoff is that distributed guessing has no account-wide quota; operators can add trusted edge-level abuse controls without replacing strong passwords. Known, unknown and legacy bcrypt checks retain normalized hashing work, not a promise of identical network response times.
+
+Password-recovery mail requests retain limits of three attempts per IP/email pair and five per normalized email in 15 minutes, reserved together under one ledger lock. Unknown emails allocate no quota state, and honeypot log accounting uses a separate bounded ledger. Unknown, accepted and quota-denied requests share the ordinary generic HTTP 200 message; a denied request sends no mail and does not replace a reset token. Storage failure refuses mail side effects, while login and token submission remain independent. Existing live quotas are not reset during upgrades; a previously saturated ledger may require its remaining 15-minute window to expire. These controls bound abuse but do not guarantee availability against arbitrary traffic or an attacker targeting known recovery addresses.
+
 Contact submissions are restricted to bounded fields declared by the selected form template and validated by field type before storage or mail tag replacement. Stored contact leads are pruned after 90 days, linked leads are removed with their form, and detailed mail transport failures remain server-side.
 
 Newsletter subscription attempts use a dedicated per-IP throttle, including repeated requests for addresses already in the list. Public responses do not reveal whether an address is active or previously unsubscribed, and an unsubscribed address is not reactivated without a separate ownership-confirmation flow.

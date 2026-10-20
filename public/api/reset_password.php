@@ -38,7 +38,12 @@ $recoveryTrapIdentifier = 'password-recovery-trap:' . $clientIp;
 
 // Honeypot check
 if ($honeypot !== '') {
-  $shouldLogTrap = RateLimiter::consumeFixedWindow($recoveryTrapIdentifier, 20, 900);
+  $shouldLogTrap = RateLimiter::consumeFixedWindow(
+    $recoveryTrapIdentifier,
+    20,
+    900,
+    'recovery-trap',
+  );
   if ($shouldLogTrap) {
     error_log(
       'Honeypot triggered during password reset from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
@@ -70,13 +75,6 @@ if ($action === 'request') {
   $recoveryPairIdentifier =
     'password-recovery-pair:' . hash('sha256', $clientIp . "\0" . $normalizedEmail);
   $recoveryEmailIdentifier = 'password-recovery-email:' . hash('sha256', $normalizedEmail);
-  if (
-    !RateLimiter::consumeFixedWindow($recoveryPairIdentifier, 3, 900) ||
-    !RateLimiter::consumeFixedWindow($recoveryEmailIdentifier, 5, 900)
-  ) {
-    ResponseHelper::sendError('Too many requests. Please try again later.', 429);
-  }
-
   try {
     // Find user by email
     $stmt = $pdo->prepare('SELECT id, username, email FROM users WHERE email = ?');
@@ -85,6 +83,21 @@ if ($action === 'request') {
 
     // Always return success to prevent email enumeration
     if (!$user) {
+      echo json_encode([
+        'success' => true,
+        'message' => 'If this email exists, a reset link has been sent.',
+      ]);
+      exit();
+    }
+
+    // Unknown addresses allocate no state. Denial uses the same public response,
+    // so quota capacity cannot expose which email addresses belong to accounts.
+    if (
+      !RateLimiter::consumeFixedWindows([
+        $recoveryPairIdentifier => [3, 900],
+        $recoveryEmailIdentifier => [5, 900],
+      ])
+    ) {
       echo json_encode([
         'success' => true,
         'message' => 'If this email exists, a reset link has been sent.',
