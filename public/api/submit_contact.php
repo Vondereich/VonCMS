@@ -242,21 +242,21 @@ $formData = $normalizedFormData;
  * @param string $template
  * @param array<string, mixed> $data
  * @param PDO|null $pdo
+ * @param bool $escapeHtml
  * @return string
  */
-function replaceTags($template, $data, $pdo = null)
+function replaceTags($template, $data, $pdo = null, bool $escapeHtml = true)
 {
-  $result = $template;
+  $tags = [];
   // Replace standard tags [name]
   foreach ($data as $key => $value) {
-    $cleanValue = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $result = str_replace("[$key]", $cleanValue, $result);
+    $tags["[$key]"] = (string) $value;
   }
 
   // Replace special tags
-  $result = str_replace('[_date]', date('Y-m-d'), $result);
-  $result = str_replace('[_time]', date('H:i:s'), $result);
-  $result = str_replace('[_remote_ip]', $_SERVER['REMOTE_ADDR'] ?? '', $result);
+  $tags['[_date]'] = date('Y-m-d');
+  $tags['[_time]'] = date('H:i:s');
+  $tags['[_remote_ip]'] = $_SERVER['REMOTE_ADDR'] ?? '';
 
   // Global Tags
   if ($pdo) {
@@ -267,7 +267,7 @@ function replaceTags($template, $data, $pdo = null)
       );
       $stName->execute();
       $siteName = $stName->fetchColumn() ?: 'VonCMS Site';
-      $result = str_replace('[_site_name]', $siteName, $result);
+      $tags['[_site_name]'] = $siteName;
 
       // Fetch site email (SMTP User or Admin Email fallback)
       $stSmtp = $pdo->prepare(
@@ -290,20 +290,38 @@ function replaceTags($template, $data, $pdo = null)
         $siteEmail = $profile['email'] ?? 'admin@' . $safeHost;
       }
 
-      $result = str_replace('[_site_email]', $siteEmail, $result);
+      $tags['[_site_email]'] = $siteEmail;
     } catch (Exception $e) {
       // Silent fail for global tags
     }
   }
 
-  return $result;
+  if ($escapeHtml) {
+    $tags = array_map(
+      static fn($value) => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+      $tags,
+    );
+  }
+  // One pass: submitted text containing another tag must remain literal text.
+  return strtr($template, $tags);
 }
 
 // Prepare Mail Data
-$to = replaceTags($mailConfig['to'], $formData, $pdo);
-$from = replaceTags($mailConfig['from'], $formData, $pdo);
-$subject = replaceTags($mailConfig['subject'], $formData, $pdo);
-$body = replaceTags($mailConfig['body'], $formData, $pdo);
+// Table-backed header templates have historically been HTML-encoded on save.
+// Decode the template once, never the visitor values inserted afterwards.
+$headerTemplate = static fn($value) => $f
+  ? html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+  : (string) $value;
+$to = replaceTags($headerTemplate($mailConfig['to']), $formData, $pdo, false);
+$from = replaceTags($headerTemplate($mailConfig['from']), $formData, $pdo, false);
+$subject = replaceTags($headerTemplate($mailConfig['subject']), $formData, $pdo, false);
+$bodyTemplate = (string) $mailConfig['body'];
+// In particular, the default <[your-email]> is text, not a configured HTML tag.
+if (preg_match('/<\/?[a-z][a-z0-9]*(?:\s[^<>]*?)?\/?>/i', $bodyTemplate) !== 1) {
+  $bodyTemplate = htmlspecialchars($bodyTemplate, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+$body =
+  '<div style="white-space: pre-wrap;">' . replaceTags($bodyTemplate, $formData, $pdo) . '</div>';
 
 // 5. Send Email
 // Try to parse "Name <email@domain.com>" or just "email@domain.com"
@@ -317,9 +335,22 @@ if (preg_match('/^(.*?)<(.*?)>$/', $from, $matches)) {
   $fromEmail = $from;
 }
 
-// 5. Save to Database (Leads)
+// Claim while the session is locked, then persist before any slow external work.
+// A second request cannot reuse this challenge or bypass the session cooldown.
+$submissionNonce = $honeypotValidation['nonce'];
+voncms_contact_honeypot_mark_used($submissionNonce);
+$_SESSION['last_contact_submit'] = time();
+$_SESSION['contact_submit_nonce'] = $submissionNonce;
+session_write_close();
+
+// 5. Save to Database (Leads). Retention failure must not prevent a new receipt.
 try {
   $pdo->exec('DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)');
+} catch (Exception $e) {
+  error_log('Contact lead retention cleanup failed.');
+}
+$submissionSaved = false;
+try {
   $stmt = $pdo->prepare("
         INSERT INTO contact_submissions (form_id, data, ip_address, user_agent, referrer) 
         VALUES (?, ?, ?, ?, ?)
@@ -331,18 +362,41 @@ try {
     substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500),
     substr((string) ($_SERVER['HTTP_REFERER'] ?? ''), 0, 2048),
   ]);
+  $submissionSaved = true;
 } catch (Exception $e) {
   // Don't block email if DB fails to save submission
+  error_log('Contact lead storage failed.');
 }
 
-$result = vonSendMail($to, $subject, $body, $fromEmail, $fromName);
+try {
+  $result = vonSendMail($to, $subject, $body, $fromEmail, $fromName);
+} catch (Throwable $e) {
+  $result = ['success' => false, 'message' => 'Unexpected mail delivery failure.'];
+}
 
-if ($result['success']) {
-  voncms_contact_honeypot_mark_used($honeypotValidation['nonce']);
-  $_SESSION['last_contact_submit'] = time();
-  echo json_encode(['success' => true, 'message' => $messages['success']]);
-} else {
+if (empty($result['success'])) {
   error_log('Contact mail delivery failed: ' . ($result['message'] ?? 'Unknown mail error'));
+}
+
+if (!empty($result['success']) || $submissionSaved) {
+  echo json_encode([
+    'success' => true,
+    'message' => !empty($result['success'])
+      ? $messages['success']
+      : 'Your message has been received. Please do not send it again.',
+  ]);
+} else {
+  // Neither destination accepted it. Refund only this request's session claim;
+  // retain the IP attempt and any newer request/session state.
+  if (@session_start()) {
+    unset($_SESSION['contact_honeypot_used'][$submissionNonce]);
+    if (($_SESSION['contact_submit_nonce'] ?? null) === $submissionNonce) {
+      unset($_SESSION['last_contact_submit'], $_SESSION['contact_submit_nonce']);
+    }
+    session_write_close();
+  } else {
+    error_log('Contact retry reservation could not be released.');
+  }
   http_response_code(502);
   echo json_encode([
     'success' => false,

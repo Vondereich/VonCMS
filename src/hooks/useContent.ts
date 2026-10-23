@@ -41,7 +41,7 @@ const getInitialPosts = (): Post[] => {
   return contentSeed.posts as Post[];
 };
 
-const normalizePage = (p: any): Page => ({
+export const normalizePage = (p: any): Page => ({
   ...p,
   createdAt: p.created_at || p.createdAt || '',
   updatedAt: p.updated_at || p.updatedAt || p.created_at || '',

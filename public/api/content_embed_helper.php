@@ -157,6 +157,112 @@ function voncms_sanitize_iframe_style(mixed $value): string
 }
 
 /**
+ * Normalize stored URL/event attributes using parsed HTML, not raw-source regexes.
+ * Output renderers must retain their separate full HTML sanitization policies.
+ */
+function voncms_sanitize_content_attributes(string $html): string
+{
+  if ($html === '' || !str_contains($html, '<')) {
+    return $html;
+  }
+  if (!class_exists('DOMDocument') || !class_exists('DOMXPath')) {
+    throw new RuntimeException('Saving HTML content requires the PHP DOM extension.');
+  }
+
+  require_once __DIR__ . '/../seo_schema_helper.php';
+  $previousErrors = libxml_use_internal_errors(true);
+  $document = new DOMDocument('1.0', 'UTF-8');
+  try {
+    $loaded = $document->loadHTML(
+      '<?xml encoding="UTF-8"><html><body>' . $html . '</body></html>',
+      LIBXML_HTML_NODEFDTD | LIBXML_NONET,
+    );
+  } finally {
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousErrors);
+  }
+  $root = $document->getElementsByTagName('body')->item(0);
+  if (!$loaded || !($root instanceof DOMElement)) {
+    throw new RuntimeException('HTML content could not be validated.');
+  }
+
+  $xpath = new DOMXPath($document);
+  // Libxml can hide markup as raw text here that a browser reparses as active HTML
+  // inside SVG/MathML. These nodes are already forbidden in public article output.
+  foreach (array_reverse(iterator_to_array($xpath->query('.//script|.//style', $root))) as $node) {
+    $node->parentNode?->removeChild($node);
+  }
+
+  $urlAttributes = [
+    'href',
+    'src',
+    'poster',
+    'cite',
+    'background',
+    'longdesc',
+    'xlink:href',
+    'action',
+    'formaction',
+    'data',
+    'codebase',
+  ];
+  foreach ($xpath->query('.//*', $root) ?: [] as $element) {
+    if (!($element instanceof DOMElement)) {
+      continue;
+    }
+    foreach (array_reverse(iterator_to_array($element->attributes)) as $attribute) {
+      $name = strtolower($attribute->nodeName);
+      if (str_starts_with($name, 'on') || $name === 'srcdoc') {
+        $element->removeAttributeNode($attribute);
+        continue;
+      }
+      if (!in_array($name, $urlAttributes, true)) {
+        continue;
+      }
+
+      // DOM already decoded this attribute. Never decode the entire HTML fragment.
+      $url = trim($attribute->nodeValue);
+      if (
+        $name === 'src' &&
+        strtolower($element->tagName) === 'img' &&
+        preg_match('~^data:image/~i', $url)
+      ) {
+        throw new InvalidArgumentException(
+          'Inline data images are not supported. Upload the image through the Media Library before saving.',
+        );
+      }
+      $parts = parse_url($url);
+      $safe = is_array($parts) && !preg_match('/[\x00-\x1f\x7f\\\\]/', $url);
+      if ($safe && str_starts_with($url, '//')) {
+        $safe = voncms_noscript_safe_link_href('https:' . $url) !== '';
+      } elseif ($safe && isset($parts['scheme'])) {
+        $isLink = in_array($name, ['href', 'xlink:href'], true);
+        $safe =
+          ($isLink || in_array(strtolower($parts['scheme']), ['http', 'https'], true)) &&
+          voncms_noscript_safe_link_href($url) !== '';
+      } elseif ($safe) {
+        // Relative navigation is allowed, including ../, query-only and fragment links.
+        // A colon in the first segment must not disguise an unsupported URL scheme.
+        $firstSegment = preg_split('~[/#?]~', $url, 2)[0];
+        $safe = !str_contains($firstSegment, ':');
+      }
+
+      if (!$safe) {
+        $element->removeAttributeNode($attribute);
+      } else {
+        $element->setAttribute($attribute->nodeName, $url);
+      }
+    }
+  }
+
+  $result = '';
+  foreach ($root->childNodes as $child) {
+    $result .= $document->saveHTML($child);
+  }
+  return $result;
+}
+
+/**
  * Remove unsupported iframe providers and rebuild accepted iframe attributes from a strict list.
  */
 function voncms_sanitize_content_iframes(mixed $value): string

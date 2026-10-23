@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.27.11 "OverDrive"**
+> **VonCMS v1.27.12 "OverDrive"**
 
 ---
 
@@ -17,6 +17,8 @@ VonCMS runs on a standard **LAMP** stack:
 | PHP         | 8.2+    |
 | MySQL       | 5.7+    |
 | Storage     | 50MB    |
+
+Enable the PHP DOM extension for Post/Page HTML saves and WordPress HTML imports. The installer checks the parser before reserving the setup key or accessing the database and reports a missing extension in the setup wizard. HTML saves also fail before writing content if the parser is unavailable; they do not fall back to regex-only filtering.
 
 **Server:** Apache or LiteSpeed Enterprise with `.htaccess` support
 
@@ -168,4 +170,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.27.11 "OverDrive"_
+_VonCMS v1.27.12 "OverDrive"_

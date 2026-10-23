@@ -227,7 +227,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
 
       if (result.success) {
         setViewState('success');
-        setMessage(form.messages.success);
+        setMessage(result.message || form.messages.success);
         setFormData({}); // Clear form on success
       } else {
         setViewState('error');
@@ -266,8 +266,13 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
 
   return (
     <div className={`relative ${className || ''}`}>
-      {/* Background Accent */}
-      <div className="absolute -top-12 -right-12 w-64 h-64 bg-slate-500/5 dark:bg-neutral-400/5 blur-3xl rounded-full pointer-events-none" />
+      {/* Clip the accent, not the form's focus rings, shadow or status messages. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl"
+      >
+        <div className="absolute -top-12 -right-12 w-64 h-64 bg-slate-500/5 dark:bg-neutral-400/5 blur-3xl rounded-full pointer-events-none" />
+      </div>
 
       <form
         onSubmit={handleSubmit}

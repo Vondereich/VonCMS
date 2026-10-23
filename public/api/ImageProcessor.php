@@ -458,6 +458,19 @@ class ImageProcessor
         continue;
       }
 
+      $pathInfo = pathinfo($sourcePath);
+      $variantPath =
+        $pathInfo['dirname'] .
+        '/' .
+        $pathInfo['filename'] .
+        '_' .
+        $targetWidth .
+        'w.' .
+        $pathInfo['extension'];
+      if (is_link($variantPath)) {
+        continue;
+      }
+
       $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
       $variantImage = $this->resizeImage(
         $sourceImage,
@@ -470,16 +483,6 @@ class ImageProcessor
       if ($variantImage === null) {
         continue;
       }
-
-      $pathInfo = pathinfo($sourcePath);
-      $variantPath =
-        $pathInfo['dirname'] .
-        '/' .
-        $pathInfo['filename'] .
-        '_' .
-        $targetWidth .
-        'w.' .
-        $pathInfo['extension'];
 
       $saved = $this->saveImage(
         $variantImage,

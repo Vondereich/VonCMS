@@ -8,6 +8,7 @@ interface GoogleSettingsProps {
 }
 
 export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChange }) => {
+  const canManageAnalytics = settings._canManageSecrets === true;
   // Helpers to update nested state safely
   const updateSeo = (key: string, value: any) => {
     onChange('seo', { ...settings.seo, [key]: value });
@@ -18,6 +19,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
   };
 
   const updateAnalytics = (key: string, value: any) => {
+    if (!canManageAnalytics) return;
     // Analytics might be undefined initially
     const currentAnalytics = settings.analytics || { enableTracking: true };
     onChange('analytics', { ...currentAnalytics, [key]: value });
@@ -125,7 +127,11 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
       </section>
 
       {/* 2. Google Analytics 4 */}
-      <section className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
+      <fieldset
+        aria-label="Google Analytics settings"
+        disabled={!canManageAnalytics}
+        className="min-w-0 bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden disabled:opacity-70"
+      >
         <div className="p-6 border-b border-slate-100 dark:border-admin-border flex justify-between items-center bg-orange-50/50 dark:bg-orange-900/10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg text-orange-600 dark:text-orange-400">
@@ -150,6 +156,11 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
           )}
         </div>
         <div className="p-6 space-y-4">
+          {!canManageAnalytics && (
+            <p role="status" className="text-sm text-slate-600 dark:text-slate-400">
+              Read-only. Only the Primary Admin can change analytics settings.
+            </p>
+          )}
           <div>
             <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               Measurement ID (G-Tag)
@@ -160,6 +171,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 name="googlesettings148"
                 aria-label="Measurement ID (G-Tag)"
                 type="text"
+                disabled={!canManageAnalytics}
                 value={analyticsId}
                 onChange={(e) => updateAnalytics('googleAnalyticsId', e.target.value)}
                 placeholder="e.g. G-12345678"
@@ -175,11 +187,14 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 pt-2">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label
+              className={`flex items-center gap-2 ${canManageAnalytics ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            >
               <input
                 id="googlesettings-161"
                 name="googlesettings161"
                 type="checkbox"
+                disabled={!canManageAnalytics}
                 checked={settings.analytics?.enableTracking ?? true}
                 onChange={(e) => updateAnalytics('enableTracking', e.target.checked)}
                 className="w-4 h-4 text-orange-600 rounded-sm focus:ring-orange-500"
@@ -187,11 +202,14 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <span className="text-sm text-slate-700 dark:text-slate-300">Enable Tracking</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label
+              className={`flex items-center gap-2 ${canManageAnalytics ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            >
               <input
                 id="googlesettings-171"
                 name="googlesettings171"
                 type="checkbox"
+                disabled={!canManageAnalytics}
                 checked={settings.analytics?.anonymizeIP ?? true}
                 onChange={(e) => updateAnalytics('anonymizeIP', e.target.checked)}
                 className="w-4 h-4 text-orange-600 rounded-sm focus:ring-orange-500"
@@ -202,7 +220,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             </label>
           </div>
         </div>
-      </section>
+      </fieldset>
 
       {/* 3. Google AdSense */}
       <section className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">

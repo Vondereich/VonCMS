@@ -55,6 +55,7 @@ const setLinkCanonical = (href: string) => {
     document.head.appendChild(el);
   }
   el.setAttribute('href', canonicalHref);
+  return canonicalHref;
 };
 
 const normalizeConfiguredCanonicalBase = (
@@ -137,11 +138,14 @@ const setJsonLd = (obj: any, schemaUrl: string) => {
     document.head.appendChild(el);
   }
 
-  if (
-    el.getAttribute('data-voncms-schema-source') === 'ssr' &&
-    el.getAttribute('data-voncms-schema-url') === schemaUrl
-  ) {
-    return;
+  if (el.getAttribute('data-voncms-schema-source') === 'ssr') {
+    try {
+      // Compare document identity using the same URL serialization as the canonical.
+      const ssrHref = new URL(el.getAttribute('data-voncms-schema-url') || '').href;
+      if (ssrHref === schemaUrl) return;
+    } catch {
+      // Invalid SSR identity must not prevent replacement with the current graph.
+    }
   }
 
   el.textContent = JSON.stringify(obj);
@@ -246,6 +250,17 @@ const VonSEO: React.FC<VonSEOProps> = ({
   } | null>(null);
 
   useEffect(() => {
+    const author =
+      currentView === 'single-post'
+        ? selectedPost?.author
+        : currentView === 'page'
+          ? selectedPage?.author
+          : '';
+    ensureMeta('author', 'name', author || '');
+    return () => ensureMeta('author', 'name', '');
+  }, [currentView, selectedPost?.author, selectedPage?.author]);
+
+  useEffect(() => {
     const needsCategoryCount =
       currentView === 'category' && selectedCategory && typeof categoryPostCount !== 'number';
     const needsHomeCount = currentView === 'home' && publicPage > 1;
@@ -316,7 +331,8 @@ const VonSEO: React.FC<VonSEOProps> = ({
 
     // --- 1. Construct Metadata ---
     let title = siteTitle;
-    let description = settings.siteDescription || '';
+    const siteDescription = normalizeSeoDescriptionCandidate(settings.siteDescription);
+    let description = siteDescription;
     let routeSocialImage: SocialImageCandidate | null = null;
     let type = 'website';
     let hydratedRobots =
@@ -353,7 +369,8 @@ const VonSEO: React.FC<VonSEOProps> = ({
       const profileDisplayName = selectedProfile.display_name || selectedProfile.username;
       title = `${profileDisplayName} | ${siteTitle}`;
       description =
-        selectedProfile.bio || `Profile of ${profileDisplayName} on ${settings.siteName}`;
+        normalizeSeoDescriptionCandidate(selectedProfile.bio) ||
+        `Profile of ${profileDisplayName} on ${settings.siteName}`;
       routeSocialImage = { url: selectedProfile.avatar, kind: 'profile' };
       type = 'profile';
       canonical = canonicalUrl(`profile/${encodeURIComponent(selectedProfile.username)}`);
@@ -363,7 +380,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
           ? listingCount > 0
           : matchesSsrRoute && !ssrSnapshot.robots.trim().toLowerCase().startsWith('noindex');
       title = `${selectedCategory} - ${siteTitle}`;
-      const categoryDescriptionContext = settings.siteDescription?.trim() || settings.siteName;
+      const categoryDescriptionContext = siteDescription || settings.siteName;
       description = `${selectedCategory} - ${categoryDescriptionContext}`;
       canonical = `${canonicalBase}/?category=${encodeURIComponent(selectedCategory)}`;
       hydratedRobots = categoryHasPosts
@@ -419,7 +436,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     } catch (e) {}
 
     // --- 3. Canonical Link ---
-    setLinkCanonical(canonical);
+    canonical = setLinkCanonical(canonical) ?? canonical;
 
     // --- 4. Basic Meta Tags ---
     ensureMeta('description', 'name', description);
@@ -506,7 +523,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
       url: canonicalUrl(),
       name: settings.siteName,
       publisher: { '@id': `${canonicalBase}/#organization` },
-      ...(settings.siteDescription?.trim() ? { description: settings.siteDescription.trim() } : {}),
+      ...(siteDescription ? { description: siteDescription } : {}),
     };
 
     jsonLd['@graph'].push(orgNode, websiteNode);
@@ -558,7 +575,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
         '@type': 'Person',
         '@id': `${canonical}#person`,
         name: profileDisplayName,
-        description: selectedProfile.bio,
+        description,
         ...(profileImage ? { image: profileImage } : {}),
         url: canonical,
       };

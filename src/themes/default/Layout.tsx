@@ -39,6 +39,7 @@ import {
   ContentRenderer,
   VpComments,
   VpSidebarWidget,
+  StickySidebar,
   VonNewsletter,
   ShareButtons,
   LoadMoreButton,
@@ -1624,7 +1625,7 @@ const SinglePostView: React.FC<{
       </article>
 
       {hasSinglePostSidebar && (
-        <aside className="w-full lg:w-[400px] shrink-0 space-y-8">
+        <StickySidebar className="lg:w-[400px] shrink-0 space-y-8">
           {/* Newsletter Widget (Sidebar) */}
           {settings.newsletter?.enabled &&
             (settings.newsletter?.position === 'sidebar' ||
@@ -1660,7 +1661,7 @@ const SinglePostView: React.FC<{
                 }}
               />
             ))}
-        </aside>
+        </StickySidebar>
       )}
     </div>
   );

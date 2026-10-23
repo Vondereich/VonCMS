@@ -76,8 +76,15 @@ if ($uploadError !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')
   ResponseHelper::sendError('The image upload did not complete successfully.', 400);
 }
 
-// Check for folder structure preference (from POST data or default to year_month)
-$folderStructure = $_POST['folderStructure'] ?? 'year_month';
+// All upload callers share the saved storage preference, including editor/system images.
+$settingsFile = dirname(__DIR__) . '/data/site_settings.json';
+$allSettings = is_file($settingsFile)
+  ? json_decode((string) file_get_contents($settingsFile), true)
+  : [];
+$allSettings = is_array($allSettings) ? $allSettings : [];
+$folderStructure =
+  $_POST['folderStructure'] ??
+  ($allSettings['media']['storage']['folderStructure'] ?? 'year_month');
 
 // Determine upload directory based on folder structure setting
 if ($folderStructure === 'year_month') {
@@ -209,10 +216,8 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
   // CDN URL for prefixing
   $cdnUrl = null;
 
-  // Try to load from site_settings.json (correct path)
-  $settingsFile = dirname(__DIR__) . '/data/site_settings.json';
-  if (file_exists($settingsFile)) {
-    $allSettings = json_decode(file_get_contents($settingsFile), true);
+  // Reuse the same settings snapshot used to choose the upload directory.
+  if ($allSettings !== []) {
     if (isset($allSettings['media']['optimization'])) {
       $opt = $allSettings['media']['optimization'];
       $mediaSettings['enabled'] = $opt['enabled'] ?? true;
@@ -305,7 +310,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
 
   // Build relative path for storage
   $relativePath =
-    $folderStructure === 'year_month' ? date('Y') . '/' . date('m') . '/' . $filename : $filename;
+    $folderStructure === 'year_month' ? $year . '/' . $month . '/' . $filename : $filename;
 
   // Save to database (if available)
   $mediaId = null;

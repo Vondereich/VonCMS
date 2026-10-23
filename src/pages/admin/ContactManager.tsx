@@ -105,7 +105,7 @@ const ContactManager = () => {
         toast.success('Contact form saved successfully');
         fetchForms();
       } else {
-        toast.error(data.message || 'Failed to save');
+        toast.error(data.message || data.error || 'Failed to save');
       }
     } catch (err) {
       toast.error('Network error during save');

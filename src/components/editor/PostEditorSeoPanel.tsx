@@ -9,7 +9,7 @@ import {
   SEO_KEYWORDS_MAX_COUNT,
   SEO_KEYWORDS_MAX_LENGTH,
 } from '../../utils/seoAnalyzer';
-import { getPostEditorCleanText } from './postEditorTextHelpers';
+import { getPostEditorAutofillText } from './postEditorTextHelpers';
 
 interface PostEditorSeoPanelProps {
   item: Post | Page;
@@ -35,13 +35,17 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         </label>
         <button
           onClick={() => {
-            const description = item.content ? getPostEditorCleanText(item.content, 160) : '';
+            const description = item.content ? getPostEditorAutofillText(item.content, 160) : '';
             if (description) {
               setItem((previous) =>
                 previous ? { ...previous, metaDescription: description } : null
               );
             } else {
-              notify.info('Add content first');
+              notify.info(
+                item.content
+                  ? 'No suggestion fits. Add readable text or shorten the opening word.'
+                  : 'Add content first'
+              );
             }
           }}
           className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"

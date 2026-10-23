@@ -12,6 +12,7 @@ import {
   ContentRenderer,
   VpComments,
   VpSidebarWidget,
+  StickySidebar,
   VonNewsletter,
   ShareButtons,
   LoadMoreButton,
@@ -1366,7 +1367,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* Sidebar */}
             {hasSinglePostSidebar && (
-              <aside className="w-full lg:w-[350px] shrink-0 space-y-8">
+              <StickySidebar className="lg:w-[350px] shrink-0 space-y-8">
                 {/* Newsletter Widget */}
                 {settings.newsletter?.enabled &&
                   (settings.newsletter?.position === 'sidebar' ||
@@ -1403,7 +1404,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                       }}
                     />
                   ))}
-              </aside>
+              </StickySidebar>
             )}
           </div>
         </div>
@@ -1816,7 +1817,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
               </div>
 
               {hasHomepageSidebar && (
-                <aside className="w-full lg:w-[350px] shrink-0 space-y-6">
+                <StickySidebar className="lg:w-[350px] shrink-0 space-y-6">
                   {/* Dynamic Widgets */}
                   {settings.sidebarLayout
                     .filter((widget: any) => widget.isVisible !== false)
@@ -1837,7 +1838,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                         }}
                       />
                     ))}
-                </aside>
+                </StickySidebar>
               )}
             </div>
           </>

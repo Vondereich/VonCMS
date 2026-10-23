@@ -166,6 +166,72 @@ const base = {
 const Portfolio = load('src/themes/portfolio/Layout.tsx').default;
 const Digest = load('src/themes/digest/Layout.tsx').default;
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
+
+function checkStickySidebar() {
+  const file = 'src/themes/shared/components/StickySidebar.tsx';
+  let height = 420;
+  let resize;
+  let release;
+  let disconnected = false;
+  const styles = new Map();
+  const attributes = new Map();
+  const element = {
+    getBoundingClientRect: () => ({ height }),
+    style: { setProperty: (key, value) => styles.set(key, value) },
+    setAttribute: (key, value) => attributes.set(key, value),
+  };
+  const hooks = {
+    ...React,
+    useRef: () => ({ current: element }),
+    useEffect: (effect) => (release = effect()),
+  };
+  class Observer {
+    constructor(callback) {
+      resize = callback;
+    }
+    observe(target) {
+      assert.equal(target, element);
+    }
+    disconnect() {
+      disconnected = true;
+    }
+  }
+  const Component = load(file, hooks, {}, { ResizeObserver: Observer }).default;
+  const tree = Component({ className: 'space-y-8', children: 'Keep widgets' });
+  assert.equal(tree.type, 'aside');
+  assert.equal(tree.props.children, 'Keep widgets');
+  assert.ok(tree.props.className.includes('lg:data-[sticky-ready=true]:sticky'));
+  assert.ok(tree.props.className.includes('min(6rem,calc(100dvh-'));
+  assert.ok(!/overflow-y|fixed|max-h-/.test(tree.props.className));
+  assert.equal(styles.get('--voncms-sidebar-height'), '420px');
+  assert.equal(attributes.get('data-sticky-ready'), 'true');
+  height = 1300.3;
+  resize();
+  assert.equal(styles.get('--voncms-sidebar-height'), '1301px');
+  release();
+  assert.equal(disconnected, true);
+  attributes.clear();
+  load(file, hooks).default({ children: 'Static fallback' });
+  assert.equal(attributes.has('data-sticky-ready'), false);
+  assert.equal(release, undefined);
+  const html = render(load(file).default, { children: 'SSR widgets' });
+  assert.ok(html.includes('SSR widgets'));
+  assert.ok(!html.includes('data-sticky-ready="true"'));
+  for (const [theme, count] of [
+    ['default', 1],
+    ['digest', 1],
+    ['techpress', 2],
+  ]) {
+    const layout = read(`src/themes/${theme}/Layout.tsx`);
+    assert.equal((layout.match(/<StickySidebar\s/g) || []).length, count);
+    assert.equal((layout.match(/<\/StickySidebar>/g) || []).length, count);
+  }
+  console.log(
+    'PASS Sticky Sidebar Runtime: shared wrapper measures asynchronous heights, disconnects on unmount, fails static without ResizeObserver and preserves SSR children; desktop-only wiring covers all four existing sidebar locations. Actual scrolling requires browser proof.'
+  );
+}
+checkStickySidebar();
+
 const appearance = load('src/themes/shared/themeSettings.ts');
 const themeKeys = Object.values(appearance.THEME_SETTINGS_KEYS);
 const legacy = {
@@ -1768,6 +1834,350 @@ function checkContentManagerActions() {
   );
 }
 
+async function checkIndexNowReadOnly() {
+  const file = 'src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx';
+  const walk = (node, predicate) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, predicate));
+    return [...(predicate(node) ? [node] : []), ...walk(node.props?.children, predicate)];
+  };
+  const text = (node) => {
+    if (typeof node === 'string') return node;
+    if (Array.isArray(node)) return node.map(text).join('');
+    return node && typeof node === 'object' ? text(node.props?.children) : '';
+  };
+  let cases = 0;
+  for (const permission of [false, undefined, 'true', true]) {
+    for (const enabled of [false, true]) {
+      const canManage = permission === true;
+      const values = [];
+      const effects = [];
+      const requests = [];
+      const updates = [];
+      const errors = [];
+      let closed = 0;
+      let hook = 0;
+      let setupResult = { success: true, key: 'fixture-key' };
+      const status = {
+        success: true,
+        status: 'ready',
+        key_configured: true,
+        key_file_exists: true,
+        key_preview: 'masked-fixture',
+      };
+      const mockReact = {
+        ...React,
+        useState: (initial) => {
+          const slot = hook++;
+          if (!Object.hasOwn(values, slot))
+            values[slot] = slot === 2 ? 'indexnow' : slot === 5 ? status : initial;
+          return [values[slot], (value) => (values[slot] = value)];
+        },
+        useEffect: (effect, dependencies) => effects.push({ effect, dependencies }),
+      };
+      const { VonSEOSettings } = load(file, mockReact, {
+        '../../../../../config/site.config': { BASE_PATH: '/zangetsu/' },
+        '../../../../../utils/articleSchema': {
+          ARTICLE_SCHEMA_TYPES: ['Article', 'NewsArticle', 'BlogPosting'],
+          normalizeArticleSchemaType: (value) => value || 'Article',
+        },
+        '../../../../../components/admin/AdminModal': {
+          __esModule: true,
+          default: ({ children }) => React.createElement('section', null, children),
+        },
+        '../../../../../utils/api': {
+          vonFetch: async (url, options) => {
+            requests.push({ url, options });
+            if (url.endsWith('indexnow_setup.php') && setupResult instanceof Error)
+              throw setupResult;
+            return {
+              ok: true,
+              json: async () => (url.endsWith('indexnow_setup.php') ? setupResult : status),
+            };
+          },
+        },
+        'react-hot-toast': {
+          __esModule: true,
+          default: { success: noop, error: (message) => errors.push(message) },
+        },
+      });
+      const renderSettings = () => {
+        hook = 0;
+        effects.length = 0;
+        return VonSEOSettings({
+          settings: { ...settings, indexnowEnabled: enabled, _canManageSecrets: permission },
+          onUpdate: async (value) => {
+            updates.push(value);
+            return true;
+          },
+          onClose: () => closed++,
+        });
+      };
+      const tree = renderSettings();
+      const button = (label) =>
+        walk(tree, (node) => node.type === 'button' && text(node).trim() === label)[0];
+      const panel = walk(tree, (node) => node.type === 'fieldset')[0];
+      const toggle = walk(tree, (node) => node.props?.['aria-label'] === 'Enable IndexNow')[0];
+      assert.equal(panel.props.disabled, !canManage);
+      assert.equal(toggle.props.disabled, !canManage);
+      assert.equal(button('Save SEO Settings').props.disabled, !canManage);
+      const html = renderToStaticMarkup(tree);
+      assert.equal(html.includes('Read-only. Only the Primary Admin'), !canManage);
+      if (enabled && !canManage) {
+        assert.ok(html.includes('Primary Admin only'));
+        assert.ok(!html.includes('masked-fixture'), 'stale protected status must not be exposed');
+        assert.ok(!html.includes('Not configured') && !html.includes('Missing'));
+      }
+      const indexEffect = effects.find((item) => item.dependencies?.[0] === 'indexnow');
+      assert.ok(indexEffect, 'exercise the real protected-status effect');
+      indexEffect.effect();
+      await new Promise(setImmediate);
+      assert.equal(requests.length, canManage ? 1 : 0);
+      assert.equal(
+        requests[0]?.url,
+        canManage ? '/zangetsu/api/system/indexnow_status.php' : undefined
+      );
+      toggle.props.onChange({ target: { checked: !enabled } });
+      if (enabled) {
+        for (const label of ['Setup IndexNow Key', 'Instant Ping Home']) {
+          assert.equal(button(label).props.disabled, !canManage);
+          // Invoke handlers directly too: disabled markup alone is not the permission guard.
+          await button(label).props.onClick();
+        }
+      }
+      await button('Save SEO Settings').props.onClick();
+      if (!canManage) {
+        assert.equal(requests.length, 0);
+        assert.equal(updates.length, 0);
+        assert.equal(closed, 0);
+        assert.equal(values[4], false, 'restricted actions must not enter saving state');
+        assert.equal(values[6], false);
+        assert.equal(values[7], false);
+        button('Advanced').props.onClick();
+        const advanced = renderSettings();
+        const save = walk(
+          advanced,
+          (node) => node.type === 'button' && text(node).trim() === 'Save SEO Settings'
+        )[0];
+        assert.equal(save.props.disabled, false, 'other SEO tabs remain editable');
+        await save.props.onClick();
+        assert.equal(updates.length, 1);
+        assert.ok(updates[0].seo);
+        assert.equal(closed, 1);
+      } else {
+        assert.equal(updates[0].indexnowEnabled, !enabled);
+        assert.equal(closed, 1);
+        if (enabled) {
+          assert.ok(
+            requests.some(
+              (request) =>
+                request.url.endsWith('indexnow_setup.php') && request.options.method === 'POST'
+            )
+          );
+          assert.ok(
+            requests.some(
+              (request) =>
+                request.url.endsWith('indexnow_ping.php') && request.options.method === 'POST'
+            )
+          );
+          setupResult = { success: false, error: 'Setup denied fixture' };
+          await button('Setup IndexNow Key').props.onClick();
+          assert.equal(
+            errors.at(-1),
+            'Setup denied fixture',
+            'API rejection must not fail silently'
+          );
+          setupResult = new Error('Network fixture');
+          await button('Setup IndexNow Key').props.onClick();
+          assert.equal(errors.at(-1), 'Failed to generate key');
+          assert.equal(values[6], false, 'failed setup releases its loading state');
+        }
+      }
+      cases++;
+    }
+  }
+  console.log(
+    `PASS IndexNow Read-Only Runtime: ${cases} owner/appointed/missing/invalid permission and enabled/disabled cases verify frozen controls, guarded handlers/status requests, owner actions, explicit setup errors and unchanged access to other SEO tabs.`
+  );
+}
+
+async function checkAnalyticsReadOnly() {
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const walk = (node, predicate) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, predicate));
+    return [...(predicate(node) ? [node] : []), ...walk(node.props?.children, predicate)];
+  };
+  const googleFile = 'src/plugins/von-core/features/settings/components/GoogleSettings.tsx';
+  const analyticsFile =
+    'src/plugins/von-core/features/extensions/components/VonAnalyticsSettings.tsx';
+  const Google = load(googleFile).GoogleSettings;
+  let cases = 0;
+  for (const permission of [false, undefined, 'true', true]) {
+    for (const analytics of [
+      undefined,
+      {
+        googleAnalyticsId: 'G-FIXTURE',
+        enableTracking: false,
+        anonymizeIP: true,
+        cookieConsent: false,
+      },
+    ]) {
+      const canManage = permission === true;
+      const fixture = {
+        ...settings,
+        _canManageSecrets: permission,
+        analytics,
+        seo: { sitemapEnabled: true },
+        ads: { adsEnabled: false },
+      };
+      const before = JSON.stringify(fixture);
+      const changes = [];
+      const tree = Google({
+        settings: fixture,
+        onChange: (key, value) => changes.push({ key, value }),
+      });
+      const input = (id) => walk(tree, (node) => node.props?.id === id)[0];
+      const panel = walk(
+        tree,
+        (node) => node.props?.['aria-label'] === 'Google Analytics settings'
+      )[0];
+      assert.equal(panel.props.disabled, !canManage);
+      assert.equal(
+        renderToStaticMarkup(tree).includes('Read-only. Only the Primary Admin'),
+        !canManage
+      );
+      for (const [id, key, value] of [
+        ['googlesettings-148', 'googleAnalyticsId', 'G-CHANGED'],
+        ['googlesettings-161', 'enableTracking', true],
+        ['googlesettings-171', 'anonymizeIP', false],
+      ]) {
+        assert.equal(input(id).props.disabled, !canManage);
+        input(id).props.onChange({ target: { value, checked: value } });
+        assert.equal(
+          changes.length,
+          canManage ? 1 : 0,
+          'even direct handlers must respect owner permission'
+        );
+        if (canManage) {
+          const change = changes.pop();
+          assert.equal(change.key, 'analytics');
+          assert.deepEqual(plain(change.value), {
+            ...(analytics || { enableTracking: true }),
+            [key]: value,
+          });
+        }
+      }
+      for (const [id, section, key] of [
+        ['googlesettings-92', 'seo', 'googleSearchConsole'],
+        ['googlesettings-223', 'ads', 'adsenseVerification'],
+      ]) {
+        assert.ok(!input(id).props.disabled, 'delegated Google fields must remain editable');
+        assert.equal(walk(panel, (node) => node.props?.id === id).length, 0);
+        input(id).props.onChange({ target: { value: 'delegated-fixture' } });
+        const change = changes.pop();
+        assert.equal(change.key, section);
+        assert.deepEqual(plain(change.value), { ...fixture[section], [key]: 'delegated-fixture' });
+      }
+
+      const values = [];
+      let hook = 0;
+      let stateWrites = 0;
+      let closed = 0;
+      let saveOutcome = true;
+      const saves = [];
+      const errors = [];
+      const { VonAnalyticsSettings } = load(
+        analyticsFile,
+        {
+          ...React,
+          useState: (initial) => {
+            const slot = hook++;
+            if (!Object.hasOwn(values, slot)) values[slot] = initial;
+            return [
+              values[slot],
+              (value) => {
+                stateWrites++;
+                values[slot] = value;
+              },
+            ];
+          },
+        },
+        {
+          '../../../../../components/admin/AdminModal': {
+            __esModule: true,
+            default: ({ children }) => React.createElement('section', null, children),
+          },
+          'react-hot-toast': {
+            __esModule: true,
+            default: { success: noop, error: (message) => errors.push(message) },
+          },
+        }
+      );
+      const renderAnalytics = () => {
+        hook = 0;
+        return VonAnalyticsSettings({
+          settings: fixture,
+          onUpdate: async (value) => {
+            saves.push(value);
+            if (saveOutcome instanceof Error) throw saveOutcome;
+            return saveOutcome;
+          },
+          onClose: () => closed++,
+        });
+      };
+      const analyticsTree = renderAnalytics();
+      const toggle = walk(analyticsTree, (node) => node.type === 'input')[0];
+      const buttons = walk(analyticsTree, (node) => node.type === 'button');
+      const save = buttons.at(-1);
+      assert.equal(toggle.props.disabled, !canManage);
+      assert.equal(save.props.disabled, !canManage);
+      assert.equal(
+        walk(analyticsTree, (node) => node.type === 'fieldset')[0].props.disabled,
+        !canManage
+      );
+      assert.equal(
+        renderToStaticMarkup(analyticsTree).includes('Read-only. Only the Primary Admin'),
+        !canManage
+      );
+      toggle.props.onChange({ target: { checked: true } });
+      assert.equal(stateWrites, canManage ? 1 : 0);
+      await walk(renderAnalytics(), (node) => node.type === 'button')
+        .at(-1)
+        .props.onClick();
+      if (canManage) {
+        assert.equal(saves.length, 1);
+        assert.equal(closed, 1);
+        assert.deepEqual(plain(saves[0].analytics), { ...analytics, cookieConsent: true });
+        closed = 0;
+        for (const failure of [false, new Error('Fixture save failure')]) {
+          saveOutcome = failure;
+          await save.props.onClick();
+          assert.equal(values[1], false, 'failed saves release their loading state');
+          assert.equal(closed, 0, 'failed saves keep the modal open');
+        }
+        assert.equal(errors.at(-1), 'Failed to save settings');
+      } else {
+        assert.equal(saves.length, 0);
+        assert.equal(stateWrites, 0);
+        assert.equal(closed, 0);
+        assert.equal(values[1], false);
+        buttons.find((node) => node.props.children === 'Cancel').props.onClick();
+        assert.equal(closed, 1, 'read-only viewers can still close the modal');
+      }
+      assert.equal(
+        JSON.stringify(fixture),
+        before,
+        'rendering/handlers must not mutate saved settings'
+      );
+      cases++;
+    }
+  }
+  console.log(
+    `PASS Analytics Read-Only Runtime: ${cases} owner/appointed/missing/invalid permission and absent/configured analytics cases verify frozen GA4/consent controls, guarded callbacks/saves, owner save failures and unchanged Search Console/AdSense delegation.`
+  );
+}
+
 checkContentManagerActions();
 checkContentManagerExcerpts();
 checkCategoryFolderAdvisory();
@@ -1775,6 +2185,8 @@ checkPublicPluginHydration();
 checkSettingsPresentation();
 checkAdsManager();
 checkAdminSettingsReadiness()
+  .then(checkIndexNowReadOnly)
+  .then(checkAnalyticsReadOnly)
   .then(checkPublicProfileArticles)
   .then(checkSettings)
   .then(checkOtherCustomizers)

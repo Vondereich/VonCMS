@@ -52,6 +52,7 @@ import {
   useComments,
   useContent,
   createEmptyEditorItem,
+  normalizePage,
   useSettings,
   useUsers,
   useSinglePage,
@@ -211,10 +212,15 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
   let pageSlugToFetch: string | null = null;
   let isAmbiguousSlugRoute = false;
   const injectedState = window.__INITIAL_STATE__;
-  const injectedPage =
-    injectedState?.status === 'loaded' && injectedState?.contentType === 'page'
-      ? (injectedState.page as Page | null)
-      : null;
+  const injectedPage = useMemo(
+    () =>
+      injectedState?.status === 'loaded' &&
+      injectedState?.contentType === 'page' &&
+      injectedState.page
+        ? normalizePage(injectedState.page)
+        : null,
+    [injectedState]
+  );
   const hintedPageSlug =
     location.state?.publicContentType === 'page' &&
     typeof location.state?.publicContentSlug === 'string'

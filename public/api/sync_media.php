@@ -83,6 +83,13 @@ function scanAndSync(
     }
 
     $fullPath = rtrim(str_replace('\\', '/', $dir), '/') . '/' . $item;
+    $relativePath = ltrim(substr($fullPath, strlen($uploadsDir)), '/');
+    if (
+      is_link($fullPath) ||
+      voncms_resolve_media_path_within_uploads($relativePath, $uploadsDir) === null
+    ) {
+      continue;
+    }
 
     if (is_dir($fullPath)) {
       scanAndSync(
@@ -105,7 +112,6 @@ function scanAndSync(
         }
 
         // Get relative path from uploads folder
-        $relativePath = ltrim(str_replace($uploadsDir . '/', '', $fullPath), '/');
         $relativePath = preg_replace('#/+#', '/', $relativePath);
         if ($relativePath === '' || strpos($relativePath, '../') !== false) {
           continue;

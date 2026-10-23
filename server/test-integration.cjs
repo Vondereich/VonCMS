@@ -1679,6 +1679,71 @@ if (
 }
 
 const contactFormRendererContent = read('src/components/ContactFormRenderer.tsx');
+// Real component tree with controlled hook state; browser tests own CSS/layout proof.
+try {
+  for (const state of ['idle', 'success', 'error']) {
+    let hook = 0;
+    const values = [
+      { id: '1', template: '[text* qa-name "Name"][textarea qa-message][submit "Send"]' },
+      false,
+      state,
+      state === 'idle' ? '' : 'QA status message',
+      {},
+      '',
+      { field: 'qa-trap', token: 'fixture-only' },
+    ];
+    const Component = loadTsModuleForSmokeWithMocks('src/components/ContactFormRenderer.tsx', {
+      react: { useState: () => [values[hook++], () => {}], useEffect: () => {} },
+      'react/jsx-runtime': require('react/jsx-runtime'),
+      'lucide-react': { Loader2: 'i', Send: 'i', CheckCircle2: 'i', AlertCircle: 'i' },
+      '../config/site.config': { API: {} },
+      '../utils/api': {
+        vonFetch: () => {
+          throw new Error('Unexpected request');
+        },
+      },
+      '../utils/security': { sanitizeHtml: (text) => text },
+    }).default;
+    const tree = Component({ id: '1', className: 'qa-outer' });
+    const [decoration, form] = tree.props.children;
+    if (
+      !tree.props.className.includes('qa-outer') ||
+      /overflow-(hidden|clip)/.test(tree.props.className) ||
+      decoration.type !== 'div' ||
+      decoration.props['aria-hidden'] !== 'true' ||
+      !['absolute', 'inset-0', 'overflow-hidden', 'pointer-events-none'].every((c) =>
+        decoration.props.className.split(' ').includes(c)
+      ) ||
+      form.type !== 'form' ||
+      typeof form.props.onSubmit !== 'function'
+    )
+      throw new Error('Only the non-interactive decoration layer may clip overflow');
+    const nodes = [];
+    const visit = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) return node.forEach(visit);
+      nodes.push(node);
+      visit(node.props?.children);
+    };
+    visit(form);
+    if (
+      !nodes.some((n) => n.type === 'input' && n.props.name === 'qa-name' && n.props.required) ||
+      !nodes.some((n) => n.type === 'textarea' && n.props.name === 'qa-message') ||
+      !nodes.some((n) => n.type === 'button' && n.props.type === 'submit') ||
+      !nodes.some(
+        (n) => n.type === 'input' && n.props.name === 'qa-trap' && n.props['aria-hidden'] === 'true'
+      ) ||
+      (state !== 'idle' &&
+        !nodes.some((n) => n.type === 'p' && n.props.children === 'QA status message'))
+    )
+      throw new Error('Fields, honeypot, submit or status message changed');
+  }
+  pass(
+    'Contact Form Decoration Runtime: idle/success/error trees clip only the decorative layer while form controls, honeypot and status messages remain outside it.'
+  );
+} catch (error) {
+  fail(`Contact Form Decoration Runtime: ${error.message}`);
+}
 const contentRendererContent = read('src/components/ContentRenderer.tsx');
 const skeletonCssContent = read('public/skeleton.css');
 const submitContactContent = read('public/api/submit_contact.php');
@@ -6905,7 +6970,8 @@ assertIncludes(
   read('src/plugins/von-core/features/seo/VonSEO.tsx') +
     read('src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx'),
   [
-    "let description = settings.siteDescription || '';",
+    'const siteDescription = normalizeSeoDescriptionCandidate(settings.siteDescription);',
+    'let description = siteDescription;',
     'Default Meta Description (from General Settings)',
     "value={settings.siteDescription || ''}",
     'readOnly',
@@ -9304,13 +9370,15 @@ assertIncludes(
     'title={`Filter by category: ${item.category}`}',
     'aria-label={`Filter by category: ${item.category}`}',
     'const getPublishDateTime = (item: Post) =>',
-    'className="block max-w-full truncate"',
+    'const publishParts = formatCompactDateTime(publishDateTime);',
+    'className="block leading-5"',
     'title={`Publish at ${formatDateTime(publishDateTime)}`}',
     'aria-label={`Publish at ${formatDateTime(publishDateTime)}`}',
-    '{formatCompactDateTime(publishDateTime)}',
+    '<span className="block">{publishParts.date}</span>',
+    '<span className="block tabular-nums">{publishParts.time}</span>',
   ],
-  'Content Manager Narrow Width Contract: long categories and publish timestamps remain contained while their full values stay accessible.',
-  'Content Manager Narrow Width Contract: category or publish metadata can overflow fixed tablet columns or lose its full value.'
+  'Content Manager Narrow Width Contract: categories retain full labels; publication date/time occupy separate lines without clipping AM/PM.',
+  'Content Manager Narrow Width Contract: category labels or separate full publication date/time lines are missing.'
 );
 
 const getPagesContent = read('public/api/get_pages.php');
@@ -9350,7 +9418,7 @@ assertIncludes(
   [
     'const getAuthorName = (item: Post | Page) =>',
     'overflow-x-auto',
-    "type === 'post' ? 'min-w-[1120px]' : 'min-w-[900px]'",
+    "type === 'post' ? 'min-w-280' : 'min-w-225'",
     '<colgroup>',
     '<col className="w-24" />',
     "<col className={type === 'post' ? 'w-56' : 'w-80'} />",
@@ -9729,7 +9797,7 @@ assertIncludes(
     'let hydratedRobots =',
     'hydratedRobots = categoryHasPosts',
     "ensureMeta('robots', 'name', hydratedRobots);",
-    'const categoryDescriptionContext = settings.siteDescription?.trim() || settings.siteName;',
+    'const categoryDescriptionContext = siteDescription || settings.siteName;',
     'description = `${selectedCategory} - ${categoryDescriptionContext}`;',
     'Array.from(queryParams.entries()).some(',
     "hydratedRobots = 'noindex, follow';",
@@ -10061,7 +10129,7 @@ try {
     throw new Error('Custom truncation suffix punctuation changed');
   }
   pass(
-    `Bounded Summary Truncation Runtime: ${boundedSummaryCases.length} frontend and plain-text Auto Fill cases preserve ordinary words, short limits, exact caps, long tokens, URLs, emoji, and CJK without excessive backtracking.`
+    `Bounded Summary Truncation Runtime: ${boundedSummaryCases.length} shared snippet and generic editor-cleaner cases preserve ordinary words, short limits, exact caps, long tokens, URLs, emoji, and CJK without excessive backtracking.`
   );
 } catch (error) {
   fail(`Article Schema Utility Runtime: ${error.message}`);
@@ -11556,12 +11624,13 @@ assertExcludes(
 );
 assertIncludes(
   'TechPress In-Feed Ad Container Cap',
-  techPressLayoutContent,
+  techPressLayoutContent + '\n' + read('src/themes/shared/components/StickySidebar.tsx'),
   [
     '<div className="flex-1 min-w-0">',
     'className="w-full max-w-full overflow-hidden py-8 my-4 border-y ad-slot-flex"',
     '<AdBlock content={settings.ads.inFeedAd} slotId="infeed" />',
-    '<aside className="w-full lg:w-[350px] shrink-0 space-y-6">',
+    '<StickySidebar className="lg:w-[350px] shrink-0 space-y-6">',
+    'className={`w-full lg:self-start',
   ],
   'TechPress In-Feed Ad Container Cap: in-feed ads stay capped by the Latest Updates column without pushing the sidebar.',
   'TechPress In-Feed Ad Container Cap: Latest Updates or in-feed ads can still force the sidebar wider/off-layout.'
@@ -12693,11 +12762,11 @@ const singlePostStickySidebarMarkers = [
 
 if (singlePostStickySidebarMarkers.length === 0) {
   pass(
-    'Single-Post Sidebar Normal Scroll: Default, TechPress, and Digest sidebars scroll with article content instead of staying pinned on desktop.'
+    'Single-Post Sidebar Legacy Marker Guard: old fixed-top classes are absent; adaptive shared-wrapper behavior is verified by the sidebar runtime checks.'
   );
 } else {
   fail(
-    `Single-Post Sidebar Normal Scroll: sticky single-post sidebar remains in ${singlePostStickySidebarMarkers
+    `Single-Post Sidebar Legacy Marker Guard: old fixed-top classes remain in ${singlePostStickySidebarMarkers
       .map(([themeName]) => themeName)
       .join(', ')}.`
   );
@@ -14089,13 +14158,14 @@ assertIncludes(
   [
     'class="vp-seo" data-voncms-schema-source="ssr" data-voncms-schema-url=',
     "el.getAttribute('data-voncms-schema-source') === 'ssr'",
-    "el.getAttribute('data-voncms-schema-url') === schemaUrl",
+    "const ssrHref = new URL(el.getAttribute('data-voncms-schema-url') || '').href;",
+    'if (ssrHref === schemaUrl) return;',
     "el.removeAttribute('data-voncms-schema-source');",
     "el.removeAttribute('data-voncms-schema-url');",
     'setJsonLd(jsonLd, canonical);',
   ],
-  'Hydrated JSON-LD Single Owner Contract: initial SSR schema remains the sole graph owner until SPA navigation reuses that same script element.',
-  'Hydrated JSON-LD Single Owner Contract: hydration can still append a second Organization/WebSite/Article graph beside the SSR schema.'
+  'Hydrated JSON-LD Single Owner Contract: equivalent serialized document URLs retain the SSR graph; SPA navigation reuses the same script element.',
+  'Hydrated JSON-LD Single Owner Contract: serialized SSR identity or single-script ownership is missing.'
 );
 
 assertIncludes(
@@ -15148,8 +15218,10 @@ assertIncludes(
 );
 
 if (
-  indexContent.includes('$siteDescription = $seoDescription;') &&
-  indexContent.includes("'siteDescription'      => $siteDescription ?? ''") &&
+  phpPublicRenderHelperContent.includes('$siteDescription = voncms_clean_seo_description(') &&
+  indexContent.includes(
+    "'siteDescription'      => $publicSettingsSnapshot['siteDescription'] ?? $siteDescription ?? ''"
+  ) &&
   !indexContent.includes("'siteDescription'      => $seoDescription ?? ''")
 ) {
   pass(
@@ -17766,6 +17838,10 @@ if (phpBinary) {
     );
   else
     fail('Security Hardening Runtime: ' + (hardeningProbe.stderr || hardeningProbe.stdout).trim());
+  for (const warning of hardeningProbe.stdout
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('WARN Media ')))
+    warn(warning.slice(5));
 }
 if (phpBinary) {
   const maintenanceProbe = spawnSync(

@@ -42,6 +42,7 @@ import {
   ContentRenderer,
   VpComments,
   VpSidebarWidget,
+  StickySidebar,
   VonNewsletter,
   ShareButtons,
   LoadMoreButton,
@@ -1845,7 +1846,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* Sidebar */}
             {hasSinglePostSidebar && (
-              <aside className="w-full lg:w-[380px] shrink-0 space-y-6">
+              <StickySidebar className="lg:w-[380px] shrink-0 space-y-6">
                 {/* Newsletter Widget (Sidebar) */}
                 {settings.newsletter?.enabled &&
                   (settings.newsletter?.position === 'sidebar' ||
@@ -1884,7 +1885,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                       }}
                     />
                   ))}
-              </aside>
+              </StickySidebar>
             )}
           </div>
         </div>

@@ -37,9 +37,13 @@ try {
       'title' => $f['title'],
       'template' => $f['template'],
       'mail' => [
-        'to' => $f['mail_to'],
-        'from' => $f['mail_from'],
-        'subject' => $f['mail_subject'],
+        'to' => html_entity_decode((string) $f['mail_to'], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        'from' => html_entity_decode((string) $f['mail_from'], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        'subject' => html_entity_decode(
+          (string) $f['mail_subject'],
+          ENT_QUOTES | ENT_HTML5,
+          'UTF-8',
+        ),
         'body' => $f['mail_body'],
       ],
       'messages' => [

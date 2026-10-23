@@ -110,9 +110,14 @@ if (!SessionManager::isAdmin()) {
   $rawContent = strip_tags($rawContent, $allowedTags);
 }
 
-$rawContent = preg_replace('/on[a-z]+\s*=\s*(?:["\'][^"\']*["\']|[^\s>]+)/i', '', $rawContent);
-$rawContent = preg_replace('/javascript\s*:/i', '', $rawContent);
-$rawContent = voncms_sanitize_content_iframes($rawContent);
+try {
+  $rawContent = voncms_sanitize_content_iframes($rawContent);
+  $rawContent = voncms_sanitize_content_attributes($rawContent);
+} catch (InvalidArgumentException $error) {
+  ResponseHelper::sendError($error, 400);
+} catch (RuntimeException $error) {
+  ResponseHelper::sendError($error, 503);
+}
 
 if (function_exists('sanitize_input')) {
   $input = sanitize_input($input);
