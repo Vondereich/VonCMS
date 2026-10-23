@@ -54,6 +54,13 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
 {
   public function prepare(string $query, array $options = []): PDOStatement|false
   {
+    if (
+      str_contains($query, 'INSERT INTO contact_forms') &&
+      str_contains($query, 'ON DUPLICATE KEY UPDATE')
+    ) {
+      $query = str_replace('ON DUPLICATE KEY UPDATE', 'ON CONFLICT(id) DO UPDATE SET', $query);
+      $query = preg_replace('/VALUES\((\w+)\)/', 'excluded.$1', $query);
+    }
     return parent::prepare(
       str_replace(
         [' FOR UPDATE', 'DATE_ADD(NOW(), INTERVAL 1 HOUR)'],
@@ -70,6 +77,9 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
       $statement ===
       'DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)'
     ) {
+      if (!empty($GLOBALS['contactFailRetention'])) {
+        throw new RuntimeException('Controlled retention failure');
+      }
       $statement = "DELETE FROM contact_submissions WHERE created_at < datetime('now', '-90 days')";
     }
     return parent::exec($statement);
@@ -86,6 +96,19 @@ function actionDatabase(string $directory): ActionFixturePDO
   ]);
   $pdo->createFunction('NOW', fn() => gmdate('Y-m-d H:i:s'));
   return $pdo;
+}
+
+if (($argv[1] ?? '') === '--contact-session-probe') {
+  session_save_path($argv[2]);
+  session_id($argv[3]);
+  session_start();
+  $snapshot = [
+    'cooldown' => isset($_SESSION['last_contact_submit']),
+    'used' => count($_SESSION['contact_honeypot_used'] ?? []),
+  ];
+  session_write_close();
+  echo json_encode($snapshot);
+  exit();
 }
 
 if (($argv[1] ?? '') === '--worker') {
@@ -107,6 +130,11 @@ if (($argv[1] ?? '') === '--worker') {
           'body' => json_decode($output, true),
           'output' => $output,
           'fatal' => $error && in_array($error['type'], [E_ERROR, E_PARSE, E_COMPILE_ERROR], true),
+          'contactSession' => [
+            'cooldown' => isset($_SESSION['last_contact_submit']),
+            'used' => count($_SESSION['contact_honeypot_used'] ?? []),
+            'newerClaim' => ($_SESSION['contact_submit_nonce'] ?? '') === 'newer-request',
+          ],
         ],
         JSON_THROW_ON_ERROR,
       ),
@@ -138,6 +166,12 @@ if (($argv[1] ?? '') === '--worker') {
   class SessionManager
   {
     public static function requireValidSession(): void {}
+    public static function requireAdmin(): void
+    {
+      if (!self::isAdmin()) {
+        ResponseHelper::sendError('Forbidden', 403);
+      }
+    }
     public static function isPrimaryAdmin(): bool
     {
       return ($_SESSION['user']['id'] ?? '') === '1';
@@ -174,16 +208,21 @@ if (($argv[1] ?? '') === '--worker') {
   }
   eval(actionDeclaration($root . '/public/security.php', 'class CSRFProtection'));
   eval(actionDeclaration($root . '/public/security.php', 'class SecurityHelper'));
+  eval(actionDeclaration($root . '/public/von_config.sample.php', 'function sanitize_input('));
   $pdo = actionDatabase($directory);
   $case = $options['case'] ?? 'normal';
   $endpoint = $options['endpoint'];
   if ($endpoint === 'submit_contact.php') {
     require $root . '/public/api/contact_honeypot_helper.php';
-    $challenge = voncms_contact_honeypot_issue('qa_form');
+    $challenge = $_SESSION['qa_contact_challenge'] ?? voncms_contact_honeypot_issue('qa_form');
+    $_SESSION['qa_contact_challenge'] = $challenge;
     sleep(1);
     $input = [
       'formId' => 'qa_form',
-      'data' => ['your-email' => 'qa@example.invalid', 'message' => 'Ordinary QA message'],
+      'data' => $options['data'] ?? [
+        'your-email' => 'qa@example.invalid',
+        'message' => 'Ordinary QA message',
+      ],
       'antiBot' => ['field' => $challenge['field'], 'token' => $challenge['token'], 'value' => ''],
     ];
     if ($case === 'bot') {
@@ -192,11 +231,94 @@ if (($argv[1] ?? '') === '--worker') {
     if ($case === 'invalid') {
       $input['data']['your-email'] = 'invalid-address';
     }
-    function vonSendMail($to, ...$arguments): array
-    {
-      global $pdo, $case;
-      $pdo->prepare('INSERT INTO mail_calls(recipient) VALUES (?)')->execute([$to]);
-      return ['success' => $case !== 'mail-failure', 'message' => 'QA transport'];
+    $GLOBALS['contactFailRetention'] = $case === 'retention-failure';
+    if ($case === 'mail-format') {
+      eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function vonSendMail('));
+      function loadSmtpSettings(): array
+      {
+        return ['site_name' => 'QA'];
+      }
+      function sendWithPhpMail($to, $subject, $body, $from, $name): array
+      {
+        global $pdo;
+        $pdo
+          ->prepare('INSERT INTO mail_calls(recipient,payload) VALUES (?,?)')
+          ->execute([$to, json_encode(compact('subject', 'body', 'from', 'name'))]);
+        return ['success' => true];
+      }
+    } else {
+      function vonSendMail($to, ...$arguments): array
+      {
+        global $pdo, $case, $directory;
+        $payload = ['sessionActive' => session_status() === PHP_SESSION_ACTIVE];
+        if ($case === 'session-probe') {
+          $process = proc_open(
+            [PHP_BINARY, __FILE__, '--contact-session-probe', $directory, session_id()],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+          );
+          if (!is_resource($process)) {
+            throw new RuntimeException('Could not start session probe');
+          }
+          fclose($pipes[0]);
+          $deadline = microtime(true) + 1;
+          do {
+            $status = proc_get_status($process);
+            if (!$status['running']) {
+              break;
+            }
+            usleep(10000);
+          } while (microtime(true) < $deadline);
+          if ($status['running']) {
+            proc_terminate($process);
+          }
+          $output = stream_get_contents($pipes[1]);
+          fclose($pipes[1]);
+          fclose($pipes[2]);
+          proc_close($process);
+          $payload['probe'] = json_decode($output, true);
+        }
+        if ($case === 'newer-claim') {
+          if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+          }
+          $_SESSION['contact_submit_nonce'] = 'newer-request';
+          $_SESSION['last_contact_submit'] = time();
+          $_SESSION['contact_honeypot_used'][str_repeat('f', 32)] = time();
+          session_write_close();
+        }
+        $pdo
+          ->prepare('INSERT INTO mail_calls(recipient,payload) VALUES (?,?)')
+          ->execute([$to, json_encode($payload)]);
+        return [
+          'success' => !in_array($case, ['mail-failure', 'newer-claim'], true),
+          'message' => 'QA transport',
+        ];
+      }
+    }
+  } elseif (in_array($endpoint, ['save_post.php', 'save_page.php'], true)) {
+    require_once $root . '/public/api/content_embed_helper.php';
+    $_SESSION['user'] =
+      ($options['role'] ?? '') === 'moderator'
+        ? ['id' => '3', 'role' => 'Moderator']
+        : ['id' => '1', 'role' => 'Root'];
+    $input = [
+      'title' => 'Inline-image validation QA',
+      'slug' => 'inline-image-validation-qa',
+      'content' =>
+        $case === 'uploaded-image'
+          ? '<p>Keep</p><img src="/uploads/qa.webp" alt="Uploaded">'
+          : '<p>Keep</p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Pasted">',
+      'excerpt' => 'QA',
+      'status' => 'draft',
+    ];
+    // A 400 must be produced before the endpoint's database guard. No database is available.
+    unset($pdo);
+  } elseif (in_array($endpoint, ['contact/save_form.php', 'contact/get_forms.php'], true)) {
+    $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
+    $input = $options['input'] ?? [];
+    if ($endpoint === 'contact/get_forms.php') {
+      $_SERVER['REQUEST_METHOD'] = 'GET';
     }
   } elseif ($endpoint === 'newsletter_subscribe.php') {
     $input = ['email' => 'qa' . $index . '@example.invalid', 'hp_field' => ''];
@@ -264,6 +386,7 @@ if (($argv[1] ?? '') === '--worker') {
       }
     }
   }
+  $input = array_replace($input, $options['input'] ?? []);
   $_SERVER['HTTP_X_CSRF_TOKEN'] = $case === 'csrf' ? 'forged' : CSRFProtection::getToken();
   $cachedInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
   $cachedInput->setValue(null, json_encode($input, JSON_THROW_ON_ERROR));
@@ -339,15 +462,15 @@ function actionFixture(string $label): string
     "CREATE TABLE newsletter_subscribers(id INTEGER PRIMARY KEY,email TEXT UNIQUE,ip_address TEXT,source TEXT,status TEXT DEFAULT 'subscribed')",
   );
   $pdo->exec(
-    'CREATE TABLE contact_forms(id TEXT,title TEXT,template TEXT,mail_to TEXT,mail_from TEXT,mail_subject TEXT,mail_body TEXT,msg_success TEXT,msg_error TEXT,msg_validation TEXT)',
+    'CREATE TABLE contact_forms(id TEXT PRIMARY KEY,title TEXT,template TEXT,mail_to TEXT,mail_from TEXT,mail_subject TEXT,mail_body TEXT,msg_success TEXT,msg_error TEXT,msg_validation TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
   );
   $pdo->exec(
-    "INSERT INTO contact_forms VALUES('qa_form','QA','[email* your-email] [textarea* message]','owner@example.invalid','sender@example.invalid','QA','[message]','QA accepted','QA failed','QA validation')",
+    "INSERT INTO contact_forms(id,title,template,mail_to,mail_from,mail_subject,mail_body,msg_success,msg_error,msg_validation) VALUES('qa_form','QA','[email* your-email] [textarea* message]','owner@example.invalid','sender@example.invalid','QA','[message]','QA accepted','QA failed','QA validation')",
   );
   $pdo->exec(
     'CREATE TABLE contact_submissions(id INTEGER PRIMARY KEY,form_id TEXT,data TEXT,ip_address TEXT,user_agent TEXT,referrer TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
   );
-  $pdo->exec('CREATE TABLE mail_calls(id INTEGER PRIMARY KEY,recipient TEXT)');
+  $pdo->exec('CREATE TABLE mail_calls(id INTEGER PRIMARY KEY,recipient TEXT,payload TEXT)');
   $pdo->exec(
     'CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT UNIQUE,email TEXT UNIQUE,password TEXT,display_name TEXT,bio TEXT,avatar TEXT,role TEXT,email_verified INT,reset_token TEXT,reset_token_expires TEXT,verification_token TEXT,verification_token_expires TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
   );
@@ -448,6 +571,30 @@ function actionRun(string $directory, array $requests): array
 }
 
 try {
+  foreach (['save_post.php', 'save_page.php'] as $endpoint) {
+    foreach (['root', 'moderator'] as $role) {
+      $directory = actionFixture(pathinfo($endpoint, PATHINFO_FILENAME) . '-inline-' . $role);
+      $rejected = actionRun($directory, [['endpoint' => $endpoint, 'role' => $role]])[0];
+      actionCheck(
+        $rejected['status'] === 400 &&
+          str_contains($rejected['body']['error'] ?? '', 'Media Library'),
+        $endpoint .
+          ': inline images must produce a clear validation error before the unavailable-database guard.',
+      );
+      $control = actionRun($directory, [
+        [
+          'endpoint' => $endpoint,
+          'role' => $role,
+          'case' => 'uploaded-image',
+        ],
+      ])[0];
+      actionCheck(
+        $control['status'] === 503,
+        $endpoint .
+          ': ordinary uploads must pass content validation to the unavailable-database guard.',
+      );
+    }
+  }
   foreach (['submit_contact.php', 'newsletter_subscribe.php'] as $endpoint) {
     $directory = actionFixture(pathinfo($endpoint, PATHINFO_FILENAME));
     $requests = array_fill(0, 8, ['endpoint' => $endpoint, 'barrier' => true]);
@@ -546,14 +693,267 @@ try {
   );
 
   $directory = actionFixture('contact-mail-failure');
+  $failedMail = actionRun($directory, [
+    ['endpoint' => 'submit_contact.php', 'case' => 'mail-failure', 'session' => 'saved'],
+  ])[0];
   actionCheck(
-    actionRun($directory, [['endpoint' => 'submit_contact.php', 'case' => 'mail-failure']])[0][
-      'status'
-    ] === 502,
-    'Contact transport failure changed',
+    $failedMail['status'] === 200 &&
+      $failedMail['body']['success'] === true &&
+      str_contains($failedMail['body']['message'], 'received'),
+    'Stored lead must remain accepted without claiming email delivery',
+  );
+  $retry = actionRun($directory, [['endpoint' => 'submit_contact.php', 'session' => 'saved']])[0];
+  actionCheck(
+    $retry['status'] === 429 &&
+      (int) actionDatabase($directory)
+        ->query('SELECT COUNT(*) FROM contact_submissions')
+        ->fetchColumn() === 1,
+    'Mail failure permitted duplicate receipt',
   );
   $quota = json_decode(file_get_contents(glob($directory . '/rates/*.json')[0]), true);
   actionCheck($quota['attempts'] === 1, 'Failed delivery was not charged exactly once');
+
+  $directory = actionFixture('contact-session-release');
+  actionRun($directory, [['endpoint' => 'submit_contact.php', 'case' => 'session-probe']]);
+  $payload = json_decode(
+    actionDatabase($directory)->query('SELECT payload FROM mail_calls')->fetchColumn(),
+    true,
+  );
+  actionCheck(
+    !$payload['sessionActive'] &&
+      ($payload['probe']['cooldown'] ?? false) &&
+      ($payload['probe']['used'] ?? 0) === 1,
+    'Session must be available during mail with nonce and cooldown already persisted',
+  );
+
+  foreach (['normal', 'mail-failure', 'newer-claim'] as $case) {
+    $directory = actionFixture('contact-storage-failure-' . $case);
+    $pdo = actionDatabase($directory);
+    $schema = $pdo
+      ->query("SELECT sql FROM sqlite_master WHERE name='contact_submissions'")
+      ->fetchColumn();
+    $pdo->exec('DROP TABLE contact_submissions');
+    $result = actionRun($directory, [
+      ['endpoint' => 'submit_contact.php', 'case' => $case, 'session' => 'recovery'],
+    ])[0];
+    actionCheck(
+      $result['status'] === ($case === 'normal' ? 200 : 502),
+      'Storage/mail outcome contract changed',
+    );
+    if ($case === 'mail-failure') {
+      actionCheck(
+        !$result['contactSession']['cooldown'] && $result['contactSession']['used'] === 0,
+        'Both failures did not refund owned session claim',
+      );
+      $pdo->exec($schema);
+      $retry = actionRun($directory, [
+        ['endpoint' => 'submit_contact.php', 'session' => 'recovery'],
+      ])[0];
+      actionCheck(
+        $retry['status'] === 200 &&
+          (int) $pdo->query('SELECT COUNT(*) FROM contact_submissions')->fetchColumn() === 1,
+        'Recovered storage could not accept original challenge',
+      );
+    } elseif ($case === 'newer-claim') {
+      actionCheck(
+        $result['contactSession']['newerClaim'] &&
+          $result['contactSession']['cooldown'] &&
+          $result['contactSession']['used'] === 1,
+        'Refund overwrote a newer request',
+      );
+    } else {
+      actionCheck(
+        $result['contactSession']['cooldown'] && $result['contactSession']['used'] === 1,
+        'Successful mail lost its replay protection',
+      );
+    }
+  }
+  $directory = actionFixture('contact-retention-failure');
+  actionRun($directory, [['endpoint' => 'submit_contact.php', 'case' => 'retention-failure']]);
+  actionCheck(
+    (int) actionDatabase($directory)
+      ->query('SELECT COUNT(*) FROM contact_submissions')
+      ->fetchColumn() === 1,
+    'Retention failure prevented lead receipt',
+  );
+
+  foreach (['plain', 'html', 'single-pass'] as $format) {
+    $directory = actionFixture('contact-format-' . $format);
+    $pdo = actionDatabase($directory);
+    $template =
+      $format === 'html'
+        ? '<p>[message]</p><b>[_site_name]</b>'
+        : ($format === 'plain'
+          ? "From: <[your-email]>\n[message] - [_site_name]"
+          : '[message]');
+    $pdo
+      ->prepare('UPDATE contact_forms SET mail_subject=?,mail_from=?,mail_body=?')
+      ->execute([
+        'Tom &amp; Jerry: [message]',
+        'Tom &amp; Jerry &lt;sender@example.invalid&gt;',
+        $template,
+      ]);
+    $pdo
+      ->prepare('INSERT INTO settings VALUES(?,?,?)')
+      ->execute(['general', 'site_name', 'Sains & <QA>']);
+    $visitor =
+      $format === 'single-pass'
+        ? 'Literal [_site_name] &amp;'
+        : 'Melayu “cantik” & <img src=x onerror=bad()> x<y &amp;';
+    actionRun($directory, [
+      [
+        'endpoint' => 'submit_contact.php',
+        'case' => 'mail-format',
+        'data' => ['your-email' => 'qa@example.invalid', 'message' => $visitor],
+      ],
+    ]);
+    $mail = json_decode($pdo->query('SELECT payload FROM mail_calls')->fetchColumn(), true);
+    actionCheck(
+      $mail['subject'] === 'Tom & Jerry: ' . $visitor && $mail['name'] === 'Tom & Jerry',
+      'Headers must decode the template once, not visitor text',
+    );
+    $visible = html_entity_decode(strip_tags($mail['body']), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    actionCheck(
+      str_contains($visible, $visitor) && !str_contains($mail['body'], '<img'),
+      'Body entities were compounded or visitor markup became active',
+    );
+    if ($format === 'plain') {
+      actionCheck(
+        str_contains($visible, '<qa@example.invalid>') && str_contains($visible, 'Sains & <QA>'),
+        'Default address or global text was lost',
+      );
+    }
+    if ($format === 'html') {
+      actionCheck(
+        str_contains($mail['body'], '<p>') && str_contains($mail['body'], '<b>'),
+        'Configured HTML template was lost',
+      );
+    }
+  }
+
+  $recipientCases = [
+    'qa@example.invalid' => true,
+    'a&b@example.invalid' => true,
+    '[_site_email]' => true,
+    '[your-email]' => true,
+    '[optional-email]' => true,
+    '' => false,
+    'not-an-email' => false,
+    '[message]' => false,
+    '[unknown]' => false,
+    'Name <qa@example.invalid>' => false,
+    'qa@example.invalid,other@example.invalid' => false,
+    "qa@example.invalid\r\nBcc:x@example.invalid" => false,
+    "qa@example.invalid\0" => false,
+  ];
+  foreach ($recipientCases as $recipient => $allowed) {
+    $directory = actionFixture('contact-recipient-' . bin2hex(random_bytes(4)));
+    $input = [
+      'id' => 'qa_form',
+      'template' => '[email* your-email][email optional-email][text message]',
+      'mail' => [
+        'to' => $recipient,
+        'from' => 'Tom & Jerry <qa@example.invalid>',
+        'subject' => 'Quotes “ & amp;',
+      ],
+    ];
+    $save = actionRun($directory, [['endpoint' => 'contact/save_form.php', 'input' => $input]])[0];
+    actionCheck(
+      $save['status'] === ($allowed ? 200 : 400),
+      'Recipient acceptance mismatch: ' . json_encode($recipient),
+    );
+    if (!$allowed) {
+      actionCheck(isset($save['body']['error']), 'Recipient validation has no visible error');
+      continue;
+    }
+    $get = actionRun($directory, [['endpoint' => 'contact/get_forms.php']])[0];
+    $form = $get['body']['forms'][0];
+    actionCheck(
+      $form['mail']['to'] === $recipient &&
+        $form['mail']['from'] === $input['mail']['from'] &&
+        $form['mail']['subject'] === $input['mail']['subject'],
+      'Admin header read compounded encoding',
+    );
+    actionRun($directory, [['endpoint' => 'contact/save_form.php', 'input' => $form]]);
+    $again = actionRun($directory, [['endpoint' => 'contact/get_forms.php']])[0];
+    actionCheck(
+      $again['body']['forms'][0]['mail'] === $form['mail'],
+      'Save/get/save header round-trip changed text',
+    );
+  }
+
+  foreach (['update_profile.php', 'save_user.php'] as $endpoint) {
+    foreach (
+      [
+        "O'Reilly & Sons",
+        'Literal &amp; &#039;',
+        '<img src=x onerror=bad()>',
+        str_repeat('&', 100),
+        str_repeat('名', 100),
+        str_repeat('a', 101),
+        ['invalid'],
+      ]
+      as $name
+    ) {
+      $directory = actionFixture('display-name-' . bin2hex(random_bytes(4)));
+      $allowed = is_string($name) && mb_strlen($name) <= 100;
+      $request = [
+        'endpoint' => $endpoint,
+        'case' => 'profile-only',
+        'input' => ['display_name' => $name, 'bio' => 'R&D <example> &amp;'],
+      ];
+      $saved = actionRun($directory, [$request])[0];
+      actionCheck(
+        $saved['status'] === ($allowed ? 200 : 400),
+        'Display-name length/type contract changed',
+      );
+      if (!$allowed) {
+        continue;
+      }
+      $pdo = actionDatabase($directory);
+      $stored = $pdo->query('SELECT display_name FROM users WHERE id=2')->fetchColumn();
+      actionCheck(
+        $stored === $name && $saved['body']['user']['display_name'] === $name,
+        'Display-name punctuation/entities were rewritten',
+      );
+      actionCheck(
+        $pdo->query('SELECT bio FROM users WHERE id=2')->fetchColumn() === 'R&D <example> &amp;' &&
+          $saved['body']['user']['bio'] === 'R&D <example> &amp;',
+        'Profile and User Manager bio text diverged',
+      );
+      $request['input']['display_name'] = $stored;
+      $again = actionRun($directory, [$request])[0];
+      actionCheck(
+        $again['status'] === 200 &&
+          $pdo->query('SELECT display_name FROM users WHERE id=2')->fetchColumn() === $name,
+        'Display-name save/read/save was not stable',
+      );
+    }
+    // Existing entity-looking text is preserved, never guessed or bulk-decoded.
+    $directory = actionFixture('display-name-legacy-' . pathinfo($endpoint, PATHINFO_FILENAME));
+    $pdo = actionDatabase($directory);
+    $pdo->exec("UPDATE users SET display_name='Old &amp; name'");
+    actionRun($directory, [
+      [
+        'endpoint' => $endpoint,
+        'case' => 'profile-only',
+        'input' => ['display_name' => 'Old &amp; name'],
+      ],
+    ]);
+    actionCheck(
+      $pdo->query('SELECT display_name FROM users WHERE id=2')->fetchColumn() === 'Old &amp; name',
+      'Legacy display name was decoded or compounded',
+    );
+  }
+  $directory = actionFixture('managed-bio-type');
+  $invalidBio = actionRun($directory, [
+    ['endpoint' => 'save_user.php', 'case' => 'profile-only', 'input' => ['bio' => ['invalid']]],
+  ])[0];
+  actionCheck(
+    $invalidBio['status'] === 400 &&
+      actionDatabase($directory)->query('SELECT bio FROM users WHERE id=2')->fetchColumn() === '',
+    'Compound bio reached storage',
+  );
 
   $directory = actionFixture('newsletter-duplicate');
   $first = actionRun($directory, [['endpoint' => 'newsletter_subscribe.php']])[0];

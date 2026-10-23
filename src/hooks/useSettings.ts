@@ -18,7 +18,7 @@ const _s = typeof window !== 'undefined' ? window.__INITIAL_SETTINGS__ : null;
 
 const DEFAULT_SETTINGS: SiteSettings = {
   siteName: _s?.siteName || 'My Website',
-  siteDescription: _s?.siteDescription || 'A modern content management system',
+  siteDescription: _s?.siteDescription ?? 'A modern content management system',
   postsPerPage: 6,
   timeZone: _s?.timeZone || 'UTC',
   dateFormat: _s?.dateFormat || 'month_day_year_long',

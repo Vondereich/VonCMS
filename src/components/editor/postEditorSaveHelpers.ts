@@ -186,11 +186,13 @@ export const mergeSavedEditorChanges = (
 export const buildSaveStatusLabel = (
   saveStatus: SaveStatus,
   lastSaved: Date | null,
-  autoSaveCountdown: number
+  autoSaveCountdown: number,
+  saveError = ''
 ) => {
   if (saveStatus === 'manual-saving') return 'Saving changes...';
   if (saveStatus === 'auto-saving') return 'Autosaving draft...';
-  if (saveStatus === 'error') return 'Save failed. Try again.';
+  if (saveStatus === 'error')
+    return saveError ? `Save failed: ${saveError}` : 'Save failed. Try again.';
 
   const countdownLabel = `Autosave in ${formatAutoSaveCountdown(autoSaveCountdown)}`;
   return lastSaved

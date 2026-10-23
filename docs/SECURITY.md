@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.27.11
+# VonCMS Security Policy v1.27.12
 
 This document explains how to report security issues and summarizes the default protections in VonCMS.
 
@@ -103,7 +103,8 @@ What it does:
 - uses prepared statements through PDO for database access
 - escapes normal UI output through React rendering
 - sanitizes HTML content through controlled filters where raw HTML is allowed
-- blocks dangerous protocols and inline event handlers in saved content flows
+- validates parsed single-value URL attributes and removes inline event handlers and script/style containers on Post/Page saves, including entity-encoded schemes and parser-hidden markup; output renderers retain their own full HTML sanitization
+- rejects inline `data:image/` sources with a validation message before saving, rather than silently discarding pasted image sources; upload images through the Media Library
 
 What this helps with:
 
@@ -168,7 +169,7 @@ Primary-administrator protections remain separate from the fixed role matrix. Da
 
 ## Settings Ownership and Secret History
 
-The primary administrator owns canonical-domain, SMTP/API credential, and Media storage or optimization settings. Appointed administrators can still manage normal site settings, but direct API requests cannot overwrite those owner-only values.
+The primary administrator owns canonical-domain, SMTP/API credential, Media storage or optimization, and Analytics settings, together with protected IndexNow key actions. IndexNow, GA4 and VonAnalytics privacy controls are read-only for appointed administrators. They can still manage normal site settings, including delegated SEO, Search Console and AdSense fields, but direct API requests cannot overwrite owner-only values; disabled UI controls do not replace server authorization.
 
 Secret-bearing settings are not retained in rollback history. Legacy sensitive audit rows are removed when Settings or the audit viewer runs, and public contact forms receive only the dedicated safe field projection rather than private delivery configuration.
 

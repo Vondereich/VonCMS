@@ -16,6 +16,7 @@ export { default as VonPopupAd } from './components/VonPopupAd';
 export { default as ThemeLogo } from './components/ThemeLogo';
 export { default as PublicDiscoverySkeleton } from './components/PublicDiscoverySkeleton';
 export { default as PublicDiscoveryRefreshStatus } from './components/PublicDiscoveryRefreshStatus';
+export { default as StickySidebar } from './components/StickySidebar';
 export {
   hasActiveSidebarContent,
   hasSidebarNewsletter,

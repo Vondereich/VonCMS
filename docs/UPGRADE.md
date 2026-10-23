@@ -2,7 +2,18 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
-v1.27.11 is the planned final maintenance release of the v1.27.x "OverDrive" series. It improves account validation, public form quotas, post/page metadata and excerpts, numeric-slug routing, and compatible dependencies. No new database migration or bulk content rewrite is introduced. OTA preserves live `.htaccess` files: run Repair `.htaccess` if Integrity Check prompts you to add the internal content-slug helper shield. Nginx administrators should update the corresponding helper-deny rule in [VPS](VPS.md). Earlier upgrade requirements below still apply when updating from an older baseline. New feature development is planned for v1.28.x, outside this package.
+v1.27.12 is a maintenance and security follow-up for the v1.27.x "OverDrive" series. It improves Post/Page HTML validation, metadata consistency, save feedback, media storage consistency, contact handling and profile text. Updating from v1.27.11 requires no new database migration, bulk content rewrite or hosting-rule repair. Clear a stale browser/CDN asset cache if the previous frontend is still served, then check a direct-loaded page and its manual description after JavaScript runs.
+
+### v1.27.12 upgrade checks
+
+- Enable PHP DOM before saving Post/Page HTML. Fresh installation checks the parser; an existing installation also needs the extension because HTML validation fails before persistence when it is unavailable.
+- Existing articles are not rewritten in bulk. If an old Post or Page contains an inline/base64 `data:image/` source, saving it again is rejected with Media Library upload guidance. Upload that image and replace its inline source before saving. Rejection by this validation leaves the last saved database content unchanged and retains the unsaved editor text with the validation reason.
+- IndexNow, GA4 and VonAnalytics privacy controls are read-only for appointed Admins. Primary Admin access and existing server authorization are unchanged; other SEO tabs, Search Console and AdSense remain available under their existing permissions.
+- New Gallery, editor and system-image uploads follow the saved Flat or Year/Month default unless an explicit upload override is supplied. Existing files are not moved, and WordPress import retains its Year/Month layout.
+- Existing HTML-encoded profile names and bios are not bulk-decoded. Correct previously encoded text by editing that field; do not run a blanket database replacement.
+- Test one Post/Page Save and reopen, a normal Media Library image, and the site's contact form. A stored contact submission remains accepted if its email notification fails; acceptance is not proof of email delivery, and failures remain logged rather than shown as a delivery-status badge.
+
+v1.27.11 closed the series' planned maintenance scope with account validation, public form quotas, post/page metadata and excerpts, numeric-slug routing, and compatible dependencies. No database migration or bulk content rewrite was introduced. OTA preserves live `.htaccess` files: run Repair `.htaccess` if Integrity Check prompts you to add the internal content-slug helper shield. Nginx administrators should update the corresponding helper-deny rule in [VPS](VPS.md). Earlier upgrade requirements below still apply when updating from an older baseline. New feature development is planned for v1.28.x, outside this package.
 
 v1.27.10 is a maintenance package: inactive plugin data is omitted from public settings, while saved admin configuration and meaningful OFF/empty values remain intact. Internal helpers now load from the protected `core/` folder through the existing `security.php` entry point; no database migration is required. OTA preserves existing `.htaccess` files, so run Repair `.htaccess` if Integrity Check prompts you to restore the new core shield. Existing installations that completed earlier database repair steps can update normally; the guest settings cache may retain the previous payload until its existing 60-second lifetime expires.
 
@@ -27,7 +38,7 @@ The post API still caps each response at 200; Posts Per Page remains 6-50 and nu
 
 ### v1.26.11 database repair ownership
 
-The v1.26.11 development line removes permanent table and column creation from ordinary registration, recovery, profile, comment, analytics, audit, and security-log request paths. After upgrading an existing site:
+The v1.26.11 release removes permanent table and column creation from ordinary registration, recovery, profile, comment, analytics, audit, and security-log request paths. After upgrading an existing site:
 
 1. back up the database
 2. sign in as the primary administrator
@@ -47,9 +58,9 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.11
+## Recommended path to v1.27.12
 
-Use the complete v1.27.11 Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact. Back up the site and test the package on a local or staging installation before production use.
+Use the complete v1.27.12 Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact. Back up the site and test the package on a local or staging installation before production use.
 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.

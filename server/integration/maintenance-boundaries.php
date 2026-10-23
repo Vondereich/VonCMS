@@ -112,7 +112,7 @@ foreach (['save_post.php', 'save_page.php'] as $file) {
     between(
       $source,
       '// Auto-generate excerpt from content if not provided',
-      $file === 'save_post.php' ? '$db = null;' : 'try {',
+      $file === 'save_post.php' ? '$db = null;' : '$contentSlugLock = null;',
     )
   );
   $text = $file === 'save_post.php' ? $excerpt : $input['excerpt'];

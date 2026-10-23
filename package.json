@@ -1,7 +1,7 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.27.11",
+  "version": "1.27.12",
   "type": "module",
   "engines": {
     "node": ">=22.22.0"
@@ -22,7 +22,7 @@
     "test:smoke": "node server/test-integration.cjs"
   },
   "dependencies": {
-    "@openrouter/sdk": "^1.4.25",
+    "@openrouter/sdk": "^1.5.6",
     "@tiptap/core": "^3.32.0",
     "@tiptap/extension-image": "^3.32.0",
     "@tiptap/extension-link": "^3.32.0",
@@ -39,8 +39,8 @@
     "express-rate-limit": "^8.7.1",
     "fflate": "^0.8.3",
     "fs-extra": "^11.4.1",
-    "lucide-react": "^1.60.0",
-    "multer": "^2.4.0",
+    "lucide-react": "^1.61.0",
+    "multer": "^2.5.0",
     "nprogress": "^0.2.0",
     "prop-types": "^15.8.1",
     "react": "^19.3.1",
@@ -67,7 +67,7 @@
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   },
   "overrides": {
     "@tailwindcss/typography": {

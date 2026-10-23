@@ -15,6 +15,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
   onUpdate,
   onClose,
 }) => {
+  const canManageAnalytics = settings._canManageSecrets === true;
   const initialAnalytics = settings.analytics || {
     cookieConsent: false,
   };
@@ -23,6 +24,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
+    if (!canManageAnalytics) return;
     setIsSaving(true);
     try {
       const saved = await onUpdate({
@@ -107,22 +109,35 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
           </div>
 
           {/* Privacy Options */}
-          <div className="space-y-4">
+          {!canManageAnalytics && (
+            <p role="status" className="text-sm text-slate-600 dark:text-slate-400">
+              Read-only. Only the Primary Admin can change analytics settings.
+            </p>
+          )}
+          <fieldset
+            aria-label="Analytics privacy settings"
+            disabled={!canManageAnalytics}
+            className="min-w-0 space-y-4 disabled:opacity-70"
+          >
             <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Globe size={18} />
               Privacy & Compliance
             </h3>
 
             {/* Cookie Consent */}
-            <label className="flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel transition-colors">
+            <label
+              className={`flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg transition-colors ${canManageAnalytics ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel' : 'cursor-not-allowed'}`}
+            >
               <input
                 id="vonanalyticssettings-105"
                 name="vonanalyticssettings105"
                 type="checkbox"
+                disabled={!canManageAnalytics}
                 checked={tempAnalytics.cookieConsent}
-                onChange={(e) =>
-                  setTempAnalytics({ ...tempAnalytics, cookieConsent: e.target.checked })
-                }
+                onChange={(e) => {
+                  if (canManageAnalytics)
+                    setTempAnalytics({ ...tempAnalytics, cookieConsent: e.target.checked });
+                }}
                 className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
               />
               <div className="flex-1">
@@ -137,7 +152,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                 </p>
               </div>
             </label>
-          </div>
+          </fieldset>
 
           {/* GA Direction Box */}
           <div className="bg-slate-100 dark:bg-admin-panel border border-slate-200 dark:border-admin-border rounded-lg p-4">
@@ -162,8 +177,8 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
           </button>
           <button
             onClick={handleSave}
-            disabled={isSaving}
-            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
+            disabled={isSaving || !canManageAnalytics}
+            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : !canManageAnalytics ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isSaving ? (
               <>Saving...</>

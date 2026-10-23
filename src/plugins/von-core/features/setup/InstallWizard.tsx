@@ -116,7 +116,7 @@ const InstallWizard: React.FC = () => {
         );
         setStep(3); // Success Step
       } else {
-        setError(data.message || 'Installation failed.');
+        setError(data.message || data.error || 'Installation failed.');
       }
     } catch (err) {
       setError('Connection failed. Make sure your PHP server is running.');

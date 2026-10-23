@@ -41,6 +41,14 @@ if (!is_string($input['username']) || !is_string($input['email'])) {
 }
 $rawUsername = trim($input['username']);
 $rawEmail = trim($input['email']);
+if (isset($input['display_name']) && !is_string($input['display_name'])) {
+  ResponseHelper::sendError('Display name must be text.', 400);
+}
+$rawDisplayName = trim((string) ($input['display_name'] ?? ''));
+if (isset($input['bio']) && !is_string($input['bio'])) {
+  ResponseHelper::sendError('Bio must be text.', 400);
+}
+$rawBio = trim((string) ($input['bio'] ?? ''));
 
 /** Preserve unchanged legacy identities, but validate each new or edited identity. */
 function voncms_validate_managed_user_identity(array $input, array $existing = []): void
@@ -75,6 +83,8 @@ if (function_exists('sanitize_input')) {
 
 $input['username'] = $rawUsername;
 $input['email'] = $rawEmail;
+$input['display_name'] = $rawDisplayName;
+$input['bio'] = $rawBio;
 $hasNewPassword = isset($input['password']) && $input['password'] !== '';
 if ($hasNewPassword) {
   SecurityHelper::requireNewPasswordLength($input['password']);

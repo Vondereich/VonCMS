@@ -121,19 +121,22 @@ const formatCompactDate = (value?: string) => {
 };
 
 const formatCompactDateTime = (value?: string) => {
-  if (!value) return '-';
+  if (!value) return { date: '-', time: '' };
   const normalized = value.includes('T') ? value : value.replace(' ', 'T');
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) {
-    return value;
+    return { date: value, time: '' };
   }
-  return `${parsed.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-  })}, ${parsed.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
+  return {
+    date: parsed.toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+    }),
+    time: parsed.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+  };
 };
 
 const getPublishDateTime = (item: Post) =>
@@ -704,7 +707,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel lg:block">
             <table
               className={`w-full ${
-                type === 'post' ? 'min-w-[1120px]' : 'min-w-[900px]'
+                type === 'post' ? 'min-w-280' : 'min-w-225'
               } table-fixed text-left border-collapse`}
             >
               <colgroup>
@@ -849,13 +852,15 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                             ? '-'
                             : (() => {
                                 const publishDateTime = getPublishDateTime(item as Post);
+                                const publishParts = formatCompactDateTime(publishDateTime);
                                 return (
                                   <span
-                                    className="block max-w-full truncate"
+                                    className="block leading-5"
                                     title={`Publish at ${formatDateTime(publishDateTime)}`}
                                     aria-label={`Publish at ${formatDateTime(publishDateTime)}`}
                                   >
-                                    {formatCompactDateTime(publishDateTime)}
+                                    <span className="block">{publishParts.date}</span>
+                                    <span className="block tabular-nums">{publishParts.time}</span>
                                   </span>
                                 );
                               })()}

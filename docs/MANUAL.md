@@ -1,4 +1,4 @@
-# VonCMS User Manual v1.27.11
+# VonCMS User Manual v1.27.12
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -123,6 +123,10 @@ Editorial advice:
 - keep heading levels in order
 - preview long posts before publishing
 - avoid pasting messy formatting from office software without checking the output
+- upload pasted inline/base64 images through the Media Library before saving; Post/Page saves reject `data:image/` sources with an explanatory message instead of saving a broken image
+- use `%20` for spaces inside URLs written directly in HTML source; unsupported URL schemes and literal whitespace in absolute HTTP(S) or protocol-relative URLs are rejected, while percent-encoding Unicode URL characters preserves the destination
+
+The inline/base64 image rule also applies when saving an existing article or page. Replace any such image through the Media Library before saving again. When this validation rejects a Save or autosave, the last saved content stays unchanged and the editor retains the unsaved text with an explanatory status.
 
 ## Media library
 
@@ -136,6 +140,8 @@ Typical tasks:
 - inspect file names, URLs, and image variants
 
 VonCMS supports a WebP-aware media flow. Depending on the upload context and settings, some image uploads may be converted during processing.
+
+Gallery, editor and system-image uploads use the saved Flat or Year/Month folder default unless an upload supplies an explicit override. Changing that setting does not move existing images. WordPress import retains its Year/Month layout.
 
 ## Comments and discussion
 
@@ -263,6 +269,8 @@ Google approval or ad delivery. Custom sidebar widgets remain independently cont
 ### Extensions and plugins
 
 Use the extensions area to enable or disable built-in plugin modules.
+
+IndexNow, Google Analytics in Settings > Google, and VonAnalytics privacy controls are read-only for appointed Admins. Only the Primary Admin can change those controls; other SEO tabs, Search Console and AdSense retain their existing permissions.
 
 Best practice:
 

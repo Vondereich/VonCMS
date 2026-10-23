@@ -140,6 +140,207 @@ try {
   $filterEnd = strpos($postSource, "if (function_exists('sanitize_input'))", $filterStart);
   check($filterStart !== false && $filterEnd !== false, 'Post preprocessing boundary not found.');
   $postFilter = substr($postSource, $filterStart, $filterEnd - $filterStart);
+  $pageSource = file_get_contents($root . '/public/api/save_page.php');
+  $pageFilterStart = strpos($pageSource, 'if (!SessionManager::isAdmin())');
+  $pageFilterEnd = strpos($pageSource, "if (function_exists('sanitize_input'))", $pageFilterStart);
+  check(
+    $pageFilterStart !== false && $pageFilterEnd !== false,
+    'Page preprocessing boundary not found.',
+  );
+  $contentFilters = [
+    'post' => $postFilter,
+    'page' => substr($pageSource, $pageFilterStart, $pageFilterEnd - $pageFilterStart),
+  ];
+  foreach ($contentFilters as $kind => $filter) {
+    foreach ([false, true] as $admin) {
+      SessionManager::$admin = $admin;
+      foreach (
+        [
+          'java&#x73;cript:alert(1)',
+          'javascript&#58;alert(1)',
+          'java&#115;cript:alert(1)',
+          'javascript:alert(1)',
+          'JaVaScRiPt:alert(1)',
+          'java&#9;script:alert(1)',
+          'java&#10;script:alert(1)',
+          'vbscript:msgbox(1)',
+          'data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;',
+        ]
+        as $url
+      ) {
+        $rawContent = '<p>Keep <a href="' . $url . '">Link</a><img src="' . $url . '"></p>';
+        eval($filter);
+        $parsed = new DOMDocument('1.0', 'UTF-8');
+        @$parsed->loadHTML($rawContent);
+        check(
+          !$parsed->getElementsByTagName('a')->item(0)?->hasAttribute('href') &&
+            !$parsed->getElementsByTagName('img')->item(0)?->hasAttribute('src') &&
+            str_contains($rawContent, 'Keep'),
+          $kind . ' retained an unsafe stored URL: ' . $url,
+        );
+      }
+      foreach (['svg', 'math'] as $foreign) {
+        foreach (['script', 'style'] as $rawTag) {
+          $rawContent =
+            '<p>Keep</p><' .
+            $foreign .
+            '><' .
+            $rawTag .
+            '>' .
+            '<p><a href="java&#x73;cript:alert(1)">Link</a><img src=x onerror=alert(1)></p>' .
+            '</' .
+            $rawTag .
+            '></' .
+            $foreign .
+            '>';
+          eval($filter);
+          check(
+            !str_contains($rawContent, 'onerror') &&
+              !str_contains($rawContent, 'alert(1)') &&
+              str_contains($rawContent, 'Keep'),
+            $kind . ' retained parser-hidden markup in ' . $foreign . '/' . $rawTag,
+          );
+        }
+      }
+      foreach (
+        ['data:image/png;base64,iVBORw0KGgo=', 'DaTa:image/svg+xml,%3Csvg%3E']
+        as $inlineImage
+      ) {
+        $rawContent = '<p>Keep draft</p><img src="' . $inlineImage . '" alt="Pasted">';
+        $inlineError = null;
+        try {
+          eval($filter);
+        } catch (Throwable $error) {
+          $inlineError = $error;
+        }
+        check(
+          $inlineError instanceof RuntimeException &&
+            $inlineError->getCode() === 400 &&
+            str_contains($inlineError->getMessage(), 'Media Library'),
+          $kind . ' silently discarded an inline image instead of returning a validation error.',
+        );
+      }
+      $rawContent =
+        '<a href="https://example.test/a b">Invalid space</a>' .
+        '<a href="https://example.test/a%20b">Encoded space</a>' .
+        '<a href="https://example.test/café">Unicode</a>' .
+        '<img src="/uploads/photo.webp" alt="Upload">' .
+        '<pre><code>&lt;img src="data:image/png;base64,example"&gt;</code></pre>';
+      eval($filter);
+      $urlControls = new DOMDocument('1.0', 'UTF-8');
+      @$urlControls->loadHTML($rawContent);
+      $links = $urlControls->getElementsByTagName('a');
+      check(
+        !$links->item(0)?->hasAttribute('href') &&
+          $links->item(1)?->getAttribute('href') === 'https://example.test/a%20b' &&
+          rawurldecode($links->item(2)?->getAttribute('href') ?? '') ===
+            'https://example.test/café',
+        $kind . ' changed supported encoded-space/Unicode URL semantics.',
+      );
+      check(
+        $urlControls->getElementsByTagName('img')->item(0)?->getAttribute('src') ===
+          '/uploads/photo.webp' &&
+          $urlControls->getElementsByTagName('code')->item(0)?->textContent ===
+            '<img src="data:image/png;base64,example">',
+        $kind . ' rejected an uploaded image or a literal inline-image code example.',
+      );
+      $rawContent =
+        '<p style="text-align:center">Teks Melayu &amp; R&amp;D <strong>tebal</strong></p>' .
+        '<a href="https://example.test/story?a=1&amp;b=2" rel="sponsored">HTTPS</a>' .
+        '<a href="mailto:qa@example.test">Email</a><a href="tel:+60123456789">Phone</a>' .
+        '<a href="#section">Anchor</a><a href="../story">Relative</a>' .
+        '<img src="//cdn.example.test/photo.webp" alt="Photo" width="640">' .
+        '<table><tbody><tr><td colspan="2">Cell</td></tr></tbody></table>' .
+        '<pre><code>&lt;a href="javascript:example"&gt;code&lt;/a&gt; onerror=example</code></pre>' .
+        '<iframe src="https://www.youtube.com/embed/qa" allowfullscreen></iframe>';
+      eval($filter);
+      foreach (
+        [
+          'Teks Melayu &amp; R&amp;D',
+          'text-align:center',
+          '<strong>tebal</strong>',
+          'https://example.test/story?a=1&amp;b=2',
+          'rel="sponsored"',
+          'mailto:qa@example.test',
+          'tel:+60123456789',
+          'href="#section"',
+          'href="../story"',
+          '//cdn.example.test/photo.webp',
+          'colspan="2"',
+          'https://www.youtube.com/embed/qa',
+          'allowfullscreen',
+        ]
+        as $expected
+      ) {
+        check(
+          str_contains($rawContent, $expected),
+          $kind . ' changed legitimate HTML: ' . $expected,
+        );
+      }
+      $parsed = new DOMDocument('1.0', 'UTF-8');
+      @$parsed->loadHTML($rawContent);
+      check(
+        $parsed->getElementsByTagName('code')->item(0)?->textContent ===
+          '<a href="javascript:example">code</a> onerror=example',
+        $kind . ' rewrote an escaped code example as active markup or removed its text.',
+      );
+    }
+  }
+  // Simulate an unavailable DOM extension without changing the installed PHP runtime.
+  eval(
+    'namespace MissingContentDom; use RuntimeException;
+    function class_exists($name) { return false; } ' .
+      declaration(
+        $root . '/public/api/content_embed_helper.php',
+        'function voncms_sanitize_content_attributes(',
+      )
+  );
+  try {
+    MissingContentDom\voncms_sanitize_content_attributes('<p>Do not save unchecked HTML</p>');
+    check(false, 'Missing DOM accepted HTML content.');
+  } catch (RuntimeException $error) {
+    check(str_contains($error->getMessage(), 'DOM extension'), 'Wrong missing-DOM failure.');
+  }
+  check(
+    MissingContentDom\voncms_sanitize_content_attributes('Plain text') === 'Plain text',
+    'Missing DOM changed plain text without HTML.',
+  );
+  $installerSource = file_get_contents($root . '/public/api/install.php');
+  $domGuardNeedle = "if (!class_exists('DOMDocument') || !class_exists('DOMXPath'))";
+  $domGuardAt = strpos($installerSource, $domGuardNeedle);
+  check(
+    $domGuardAt !== false &&
+      $domGuardAt > strpos($installerSource, 'if (file_exists($configFile)') &&
+      $domGuardAt < strpos($installerSource, '$input = json_decode(') &&
+      $domGuardAt < strpos($installerSource, 'InstallBootstrap::ensureKey()') &&
+      $domGuardAt < strpos($installerSource, 'new PDO('),
+    'Installer must reject missing DOM after reinstall lockout but before input, key and database work.',
+  );
+  eval(
+    'namespace InstallerDomFixture; use \\ResponseHelper;
+    function class_exists($name) { return !in_array($name, $GLOBALS["missingInstallerDom"], true); }
+    function run() { ' .
+      declaration($root . '/public/api/install.php', $domGuardNeedle) .
+      ' }'
+  );
+  foreach ([['DOMDocument'], ['DOMXPath'], ['DOMDocument', 'DOMXPath'], []] as $missing) {
+    $GLOBALS['missingInstallerDom'] = $missing;
+    $installerError = null;
+    try {
+      InstallerDomFixture\run();
+    } catch (Throwable $error) {
+      $installerError = $error;
+    }
+    check(
+      $missing === []
+        ? $installerError === null
+        : $installerError instanceof RuntimeException &&
+          $installerError->getCode() === 400 &&
+          str_contains($installerError->getMessage(), 'PHP DOM extension'),
+      'Installer DOM prerequisite returned the wrong result for ' . implode(',', $missing),
+    );
+  }
+  unset($GLOBALS['missingInstallerDom']);
   foreach (
     [
       'convert_supported_embeds',

@@ -477,7 +477,6 @@ try {
         $seoDescription = voncms_truncate_word_safe(
           $selectedCategoryName . ' - ' . $categoryDescriptionContext,
           160,
-          '',
         );
         $categorySeoQuery = voncms_build_public_page_query(
           '',
@@ -609,10 +608,13 @@ try {
           $profileDisplayName = trim((string) ($profileUser['display_name'] ?? ''));
           $profileName = html_entity_decode($profileDisplayName !== '' ? $profileDisplayName : (string) ($profileUser['username'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
           $profileBio = trim((string) ($profileUser['bio'] ?? ''));
-          $profileDescription = $profileBio !== ''
-            ? html_entity_decode(strip_tags($profileBio), ENT_QUOTES | ENT_HTML5, 'UTF-8')
-            : 'Profile of ' . $profileName . ' on ' . ($siteName ?? $seoTitle);
-          $profileDescription = mb_substr(str_replace('"', "'", $profileDescription), 0, 160);
+          $profileDescription = voncms_clean_seo_description($profileBio);
+          if ($profileDescription === '') {
+            $profileDescription = voncms_truncate_word_safe(
+              'Profile of ' . $profileName . ' on ' . ($siteName ?? $seoTitle),
+              160,
+            );
+          }
           $profileAvatar = ResponseHelper::scrubAvatarUrl((string) ($profileUser['avatar'] ?? ''));
           $profileAvatar = voncms_normalize_public_media_url($profileAvatar);
           $profileAvatar = voncms_absolute_public_url($profileAvatar, $domainUrl);
@@ -1065,7 +1067,7 @@ $cssFile = $publicAssets['cssFile'];
   <script>
     window.__INITIAL_SETTINGS__ = <?php echo json_encode(array_merge($publicSettingsSnapshot, [
                                      'siteName'             => $siteName ?? 'My Website',
-                                     'siteDescription'      => $siteDescription ?? '',
+                                     'siteDescription'      => $publicSettingsSnapshot['siteDescription'] ?? $siteDescription ?? '',
                                      'domainUrl'            => $domainUrl ?? '',
                                       'siteUrl'              => $domainUrl ?? '',
                                       'activeThemeId'        => $activeThemeId ?: '',

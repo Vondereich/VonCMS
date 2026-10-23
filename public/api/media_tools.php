@@ -508,8 +508,8 @@ function rebuildResponsiveVariants(): void
         continue;
       }
 
-      $sourcePath = $uploadsDir . $relativePath;
-      if (!file_exists($sourcePath)) {
+      $sourcePath = voncms_resolve_media_path_within_uploads($relativePath, $uploadsDir);
+      if ($sourcePath === null || !is_file($sourcePath)) {
         $errors++;
         continue;
       }
@@ -597,8 +597,11 @@ function purgeResponsiveVariants(): void
     $deletedVariantPaths = [];
 
     foreach ($variants as $variant) {
-      $physicalPath = $uploadsDir . ltrim($variant['path'], '/');
-      $physicalPath = str_replace('\\', '/', $physicalPath);
+      $physicalPath = buildMediaCleanupPath($uploadsDir, (string) $variant['path']);
+      if ($physicalPath === null) {
+        $failedDeletions[] = $variant['path'];
+        continue;
+      }
 
       if (file_exists($physicalPath) && is_file($physicalPath)) {
         if (unlink($physicalPath)) {

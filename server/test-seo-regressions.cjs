@@ -247,21 +247,106 @@ for (const existing of [false, true]) {
     const previous = 'https://example.test/unchanged';
     if (existing) dom.add('link', { rel: 'canonical', href: previous });
     const setter = vm.runInNewContext(canonicalSetterCode, { document: dom.document, URL });
-    setter(input);
+    const accepted = setter(input);
     const links = dom.nodes.filter((node) => node.tagName === 'link');
     const actual = links[0]?.getAttribute('href') ?? null;
     check(
       `canonical setter ${existing ? 'update' : 'create'}:${input}`,
-      actual === (expected ?? (existing ? previous : null)) &&
+      accepted === (expected ?? undefined) &&
+        actual === (expected ?? (existing ? previous : null)) &&
         links.length === (expected !== null || existing ? 1 : 0),
-      { input, expected, actual, links: links.length }
+      { input, expected, accepted, actual, links: links.length }
     );
   }
 }
 
-function makeRuntime(domain, base) {
+// Execute the actual metadata application block, not a duplicate URL serializer.
+const canonicalApplySource = sliceBetween(
+  read('src/plugins/von-core/features/seo/VonSEO.tsx'),
+  '// --- 3. Canonical Link ---',
+  'const schemaLanguage ='
+);
+const canonicalApplyCode = ts.transpileModule(
+  `const setLinkCanonical = ${initializer('setLinkCanonical', canonicalSetterAst)};
+   const ensureMeta = ${initializer('ensureMeta', canonicalSetterAst)};
+   (canonical => { ${canonicalApplySource} });`,
+  { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+).outputText;
+for (const [input, expected] of acceptedCanonicalCases) {
+  const dom = makeHead();
+  const apply = vm.runInNewContext(canonicalApplyCode, {
+    document: dom.document,
+    URL,
+    title: 'Canonical fixture',
+    description: 'Plain description',
+    settings: { siteName: 'Fixture' },
+    type: 'website',
+  });
+  apply(input);
+  const canonical = dom.document.head.querySelector('link[rel="canonical"]')?.getAttribute('href');
+  const ogUrl = dom.document.head.querySelector('meta[property="og:url"]')?.getAttribute('content');
+  check(
+    'canonical/Open Graph serialized parity:' + input,
+    canonical === expected && ogUrl === expected,
+    {
+      input,
+      expected,
+      canonical,
+      ogUrl,
+    }
+  );
+}
+
+// Reuse both the App hydration initializer and the existing API/seed page normalizer.
+const pageAst = ts.createSourceFile(
+  'useContent.ts',
+  read('src/hooks/useContent.ts'),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TS
+);
+const appAst = ts.createSourceFile(
+  'App.tsx',
+  read('src/App.tsx'),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX
+);
+const normalizePage = vm.runInNewContext(
+  ts.transpileModule(`(${initializer('normalizePage', pageAst)});`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText
+);
+const injectedPageCode = ts.transpileModule(
+  `(injectedState => ${initializer('injectedPage', appAst)});`,
+  { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+).outputText;
+let memoSlot;
+const readInjectedPage = vm.runInNewContext(injectedPageCode, {
+  normalizePage,
+  useMemo: (factory, deps) => {
+    if (!memoSlot || deps.some((value, i) => value !== memoSlot.deps[i]))
+      memoSlot = { deps, value: factory() };
+    return memoSlot.value;
+  },
+});
+for (const state of [
+  undefined,
+  { status: 'not_found' },
+  { status: 'loaded', contentType: 'post', page: { slug: 'wrong-type' } },
+  { status: 'loaded', contentType: 'page', page: null },
+]) {
+  check(
+    'injected page rejects absent/non-page state:' + JSON.stringify(state),
+    readInjectedPage(state) === null,
+    state
+  );
+}
+
+function makeRuntime(domain, base, normalizeText = (s) => s) {
   const dom = makeHead(),
     effects = [],
+    cleanups = [],
     location = { pathname: '/', search: '?page=2' };
   const url = new URL(domain);
   const ctx = {
@@ -293,7 +378,7 @@ function makeRuntime(domain, base) {
       if (id.endsWith('/config/site.config')) return { BASE_PATH: base, API: {} };
       if (id.endsWith('/hooks/usePublicPostsQuery')) return { PUBLIC_LISTING_MAX_PAGE: 1000000 };
       // Only plain controlled strings are used in this harness. Sanitization is tested by PHP/browser probes separately.
-      if (id.endsWith('/utils/security')) return { htmlToPlainText: (s) => s };
+      if (id.endsWith('/utils/security')) return { htmlToPlainText: normalizeText };
       // Controlled one-layer decoder; real DOMPurify decoding is covered separately in the browser.
       if (id.endsWith('/textUtils'))
         return { decodeEntities: (s) => s.replace(/&(?:amp|#38|#x26);/gi, '&') };
@@ -322,14 +407,29 @@ function makeRuntime(domain, base) {
     permalinkStructure: 'category',
   };
   const render = (search, view = 'home', extra = {}) => {
+    for (const cleanup of cleanups.splice(0)) cleanup();
     location.search = search;
     effects.length = 0;
     component({ settings, currentView: view, categoryPostCount: 3, ...extra });
-    for (const cb of effects) cb();
+    for (const cb of effects) {
+      const cleanup = cb();
+      if (typeof cleanup === 'function') cleanups.push(cleanup);
+    }
     return {
       title: dom.document.title,
       canonical: dom.document.head.querySelector('link[rel="canonical"]')?.getAttribute('href'),
       robots: dom.document.head.querySelector('meta[name="robots"]')?.getAttribute('content'),
+      description: dom.document.head
+        .querySelector('meta[name="description"]')
+        ?.getAttribute('content'),
+      ogDescription: dom.document.head
+        .querySelector('meta[property="og:description"]')
+        ?.getAttribute('content'),
+      twitterDescription: dom.document.head
+        .querySelector('meta[name="twitter:description"]')
+        ?.getAttribute('content'),
+      ogUrl: dom.document.head.querySelector('meta[property="og:url"]')?.getAttribute('content'),
+      author: dom.document.head.querySelector('meta[name="author"]')?.getAttribute('content'),
       schemaCount: dom.nodes.filter((e) => e.tagName === 'script').length,
     };
   };
@@ -345,7 +445,129 @@ function makeRuntime(domain, base) {
     },
     JSON.stringify({ '@context': 'https://schema.org', '@graph': [{ '@type': 'CollectionPage' }] })
   );
-  return { render, settings, load, dom };
+  return {
+    render,
+    settings,
+    load,
+    dom,
+    browserLocation: ctx.window.location,
+    unmount: () => {
+      for (const cleanup of cleanups.splice(0)) cleanup();
+    },
+  };
+}
+
+// Compare SSR identity using the actual schema owner; assert the graph, not just its script count.
+const jsonLdSetterCode = ts.transpileModule(`(${initializer('setJsonLd', canonicalSetterAst)});`, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022 },
+}).outputText;
+for (const [ssrUrl, canonical, preserve] of [
+  ...acceptedCanonicalCases.map(([raw, serialized]) => [raw, serialized, true]),
+  ...rejectedCanonicalCases.map((raw) => [raw, 'https://example.test/current', false]),
+  ['https://example.test/old', 'https://example.test/current', false],
+  ['https://example.test/?a=1&b=2', 'https://example.test/?b=2&a=1', false],
+  ['https://example.test/a%2Fb', 'https://example.test/a%252Fb', false],
+  ['https://example.test/?', 'https://example.test/', false],
+  ['https://example.test/#', 'https://example.test/', false],
+]) {
+  const dom = makeHead();
+  const ssrGraph = { '@graph': [{ '@type': 'WebPage', name: 'SSR-only page', url: ssrUrl }] };
+  const original = JSON.stringify(ssrGraph);
+  const script = dom.add(
+    'script',
+    {
+      type: 'application/ld+json',
+      'data-voncms-schema-source': 'ssr',
+      'data-voncms-schema-url': ssrUrl,
+    },
+    original
+  );
+  const generated = {
+    '@graph': [{ '@type': 'BreadcrumbList', name: 'New route', url: canonical }],
+  };
+  const setter = vm.runInNewContext(jsonLdSetterCode, { document: dom.document, URL });
+  setter(generated, canonical);
+  check(
+    'SSR graph identity preserves only the same serialized document:' + ssrUrl + ':' + canonical,
+    script.textContent === (preserve ? original : JSON.stringify(generated)) &&
+      script.getAttribute('data-voncms-schema-source') === (preserve ? 'ssr' : null),
+    { ssrUrl, canonical, preserve, graph: JSON.parse(script.textContent) }
+  );
+}
+
+// Seed the page graph through the real PHP schema/path helpers, then run real VonSEO.
+const pageSchemaProbe = spawnSync(
+  phpBinary,
+  [
+    '-r',
+    `
+date_default_timezone_set('Asia/Kuala_Lumpur');
+require ${JSON.stringify(path.join(root, 'public/seo_schema_helper.php'))};
+$rows = [];
+foreach (['https://example.test', 'https://news.example.test', 'http://localhost/zangetsu', 'https://example.test/news/cms'] as $domain) {
+  foreach (['café', 'é-✓', 'ordinary'] as $slug) {
+    $page = ['id' => '3', 'slug' => $slug, 'title' => 'Page ' . $slug, 'author' => 'Editor',
+      'author_username' => 'editor', 'meta_description' => 'Manual page description', 'content' => 'Plain page body.',
+      'created_at' => '2026-10-01 12:00:00', 'published_at' => '2026-10-01 12:00:00', 'updated_at' => '2026-10-02 14:00:00'];
+    $url = $domain . buildCanonicalContentPath($page, 'slug', 'page');
+    $schema = [];
+    voncms_apply_content_schema($schema, $page, 'page', $page['meta_description'], '', $url, $domain, 'NewsArticle', 'ms');
+    $rows[] = ['domain' => $domain, 'page' => $page, 'url' => $url,
+      'graph' => ['@context' => 'https://schema.org', '@graph' => [$schema]]];
+  }
+}
+echo json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+`,
+  ],
+  { encoding: 'utf8' }
+);
+if (pageSchemaProbe.status !== 0 || pageSchemaProbe.stderr.trim())
+  throw new Error(pageSchemaProbe.stderr || pageSchemaProbe.stdout);
+for (const fixture of JSON.parse(pageSchemaProbe.stdout)) {
+  const base = new URL(fixture.domain).pathname.replace(/\/$/, '') + '/';
+  for (const encodedIdentity of [false, true]) {
+    const runtime = makeRuntime(fixture.domain, base);
+    const script = runtime.dom.document.head.querySelector('script[type="application/ld+json"]');
+    const identity = encodedIdentity ? new URL(fixture.url).href : fixture.url;
+    script.setAttribute('data-voncms-schema-url', identity);
+    script.textContent = JSON.stringify(fixture.graph);
+    const original = script.textContent;
+    const selectedPage = readInjectedPage({
+      status: 'loaded',
+      contentType: 'page',
+      page: fixture.page,
+    });
+    const first = runtime.render('', 'page', { selectedPage });
+    const firstGraph = JSON.parse(script.textContent);
+    const repeated = runtime.render('', 'page', { selectedPage });
+    check(
+      'PHP WebPage graph survives fresh hydration/re-render:' + identity,
+      JSON.stringify(firstGraph) === original &&
+        script.textContent === original &&
+        firstGraph['@graph'][0]['@type'] === 'WebPage' &&
+        firstGraph['@graph'][0].description === fixture.page.meta_description &&
+        firstGraph['@graph'][0].datePublished === fixture.graph['@graph'][0].datePublished &&
+        firstGraph['@graph'][0].dateModified === fixture.graph['@graph'][0].dateModified &&
+        script.getAttribute('data-voncms-schema-source') === 'ssr' &&
+        first.canonical === new URL(fixture.url).href &&
+        first.ogUrl === first.canonical &&
+        repeated.description === fixture.page.meta_description,
+      { identity, first, types: firstGraph['@graph'].map((node) => node['@type']) }
+    );
+    const next = runtime.render('', 'page', {
+      selectedPage: { ...selectedPage, slug: 'other', title: 'Other page' },
+    });
+    check(
+      'SPA page change does not retain previous SSR graph:' + identity,
+      script.textContent !== original &&
+        script.getAttribute('data-voncms-schema-source') === null &&
+        !JSON.parse(script.textContent)['@graph'].some(
+          (node) => node['@type'] === 'WebPage' && node.name === fixture.page.title
+        ) &&
+        next.canonical === fixture.domain + '/other',
+      { identity, next }
+    );
+  }
 }
 
 for (const [domain, base] of [
@@ -355,6 +577,62 @@ for (const [domain, base] of [
   ['https://example.test/news/cms', '/news/cms/'],
 ]) {
   const runtime = makeRuntime(domain, base);
+  for (const [manual, expected] of [
+    ['Manual description x<y, not the excerpt.', 'Manual description x<y, not the excerpt.'],
+    ['', 'Fallback excerpt.'],
+    ['0', '0'],
+  ]) {
+    const rawPage = {
+      id: '2',
+      slug: 'site-disclaimer',
+      title: 'Disclaimer',
+      content: 'Body fallback.',
+      excerpt: 'Fallback excerpt.',
+      meta_description: manual,
+      created_at: '2026-08-01 12:00:00',
+      updated_at: '2026-08-29 00:13:35',
+      published_at: '2026-08-01 13:00:00',
+    };
+    const before = JSON.stringify(rawPage);
+    const state = { status: 'loaded', contentType: 'page', page: rawPage };
+    const selectedPage = readInjectedPage(state);
+    const output = runtime.render('', 'page', { selectedPage });
+    check(
+      'direct page manual/fallback metadata survives hydration:' + domain + ':' + manual,
+      output.description === expected &&
+        output.ogDescription === expected &&
+        output.twitterDescription === expected &&
+        output.canonical === domain + '/site-disclaimer' &&
+        output.ogUrl === output.canonical &&
+        selectedPage.metaDescription === manual &&
+        selectedPage.meta_description === manual &&
+        selectedPage.updatedAt === rawPage.updated_at &&
+        selectedPage.publishedAt === rawPage.published_at &&
+        JSON.stringify(rawPage) === before &&
+        readInjectedPage(state) === selectedPage,
+      { output, manual, sourceUnchanged: JSON.stringify(rawPage) === before }
+    );
+  }
+  const unicodePage = readInjectedPage({
+    status: 'loaded',
+    contentType: 'page',
+    page: {
+      id: '3',
+      slug: 'é-✓',
+      title: 'Unicode page',
+      content: 'Page body.',
+      metaDescription: 'Camel-case manual.',
+    },
+  });
+  const unicode = runtime.render('', 'page', { selectedPage: unicodePage });
+  check(
+    'page camel alias and encoded canonical/social parity:' + domain,
+    unicode.description === 'Camel-case manual.' &&
+      unicode.canonical === domain + '/%C3%A9-%E2%9C%93' &&
+      unicode.ogUrl === unicode.canonical &&
+      unicodePage.meta_description === 'Camel-case manual.',
+    unicode
+  );
   const direct = runtime.render('?page=2');
   check(
     'direct page 2 metadata:' + domain,
@@ -488,13 +766,196 @@ for (const [domain, base] of [
     );
   }
 }
+// Exercise actual SSR description owners and bootstrap expression, without a database or site writes.
+const siteDescriptionBlock = sliceBetween(
+  read('public/public_render_helper.php'),
+  '$seoDescription = $defaultSeoDescription;',
+  '$domainUrl = function_exists'
+);
+const profileDescriptionBlock = sliceBetween(
+  read('public/index.php'),
+  '$profileBio = trim((string)',
+  '$profileAvatar = ResponseHelper'
+);
+const categoryDescriptionBlock = sliceBetween(
+  read('public/index.php'),
+  '$categoryDescriptionContext =',
+  '$categorySeoQuery ='
+);
+const bootstrapSiteDescription = read('public/index.php')
+  .slice(read('public/index.php').indexOf('window.__INITIAL_SETTINGS__ ='))
+  .match(/'siteDescription'\s*=>\s*([^\r\n]+),/)?.[1];
+if (!bootstrapSiteDescription) throw new Error('Missing actual site description bootstrap');
+const descriptionSamples = [
+  { name: 'ordinary', raw: 'Berita teknologi Malaysia.' },
+  { name: 'quotes', raw: 'Saya tulis "teknologi" & inovasi.' },
+  { name: 'comparisons', raw: 'Perbandingan x<y dan z>w kekal betul.' },
+  { name: 'long', raw: 'Penulis teknologi dan sains. '.repeat(11).trim() },
+  { name: 'unicode', raw: 'Berita 😀 sains dan teknologi. '.repeat(9).trim() },
+  { name: 'zero', raw: '0' },
+  { name: 'blank', raw: '' },
+  { name: 'whitespace', raw: '   ' },
+  {
+    name: 'html',
+    raw: '<p>Berita</p><p>Malaysia &amp; dunia.</p>',
+    plain: 'Berita Malaysia & dunia.',
+  },
+  {
+    name: 'literal markup',
+    raw: '&lt;b&gt;literal&lt;/b&gt; &amp; teks',
+    plain: '<b>literal</b> & teks',
+  },
+  {
+    name: 'meta form',
+    raw: '<meta name="description" content="Ringkasan pilihan.">',
+    plain: 'Ringkasan pilihan.',
+  },
+];
+const descriptionProbe = spawnSync(
+  phpBinary,
+  [
+    '-r',
+    `require ${JSON.stringify(path.join(root, 'public/seo_schema_helper.php'))};
+$samples = json_decode(base64_decode('${Buffer.from(JSON.stringify(descriptionSamples)).toString('base64')}'), true);
+$observed = [];
+foreach ($samples as $sample) {
+  $publicSettingsSnapshot = $publicSettings = ['siteDescription' => $sample['raw']];
+  $defaultSeoDescription = 'Audit description';
+  $siteName = $seoTitle = 'Audit Site';
+  ${siteDescriptionBlock}
+  $homeDescription = $seoDescription;
+  $plainContext = $siteDescription;
+  $bootstrap = ${bootstrapSiteDescription};
+  $selectedCategoryName = 'Technology';
+  ${categoryDescriptionBlock}
+  $categoryDescription = $seoDescription;
+  $profileUser = ['bio' => $sample['raw']];
+  $profileName = 'Member Example';
+  ${profileDescriptionBlock}
+  $observed[] = ['name' => $sample['name'], 'plain' => $plainContext, 'home' => $homeDescription,
+    'category' => $categoryDescription, 'profile' => $profileDescription, 'bootstrap' => $bootstrap];
+}
+echo json_encode($observed, JSON_THROW_ON_ERROR);`,
+  ],
+  { encoding: 'utf8' }
+);
+if (descriptionProbe.status !== 0)
+  throw new Error(descriptionProbe.stderr || descriptionProbe.stdout);
+const descriptionRows = JSON.parse(descriptionProbe.stdout);
+for (const [domain, base] of [
+  ['https://example.test', '/'],
+  ['http://localhost/zangetsu', '/zangetsu/'],
+]) {
+  for (const sample of descriptionSamples) {
+    const row = descriptionRows.find((r) => r.name === sample.name);
+    // The controlled decoder proves wiring/order, not browser HTML parsing. Real sanitizer checks are separate.
+    const expectedPlain = sample.plain ?? sample.raw.trim();
+    const runtime = makeRuntime(domain, base, (s) => {
+      if (sample.plain !== undefined && s === sample.raw) return sample.plain;
+      return s;
+    });
+    check(
+      'SSR plain context and raw bootstrap:' + domain + ':' + sample.name,
+      row.plain === expectedPlain && row.bootstrap === sample.raw,
+      { sample, row }
+    );
+    for (const view of ['home', 'category', 'profile']) {
+      const extra =
+        view === 'profile'
+          ? {
+              selectedProfile: {
+                username: 'member',
+                display_name: 'Member Example',
+                bio: sample.raw,
+              },
+            }
+          : view === 'category'
+            ? { selectedCategory: 'Technology' }
+            : {};
+      runtime.settings.siteDescription = row.bootstrap;
+      const hydrated = runtime.render(
+        view === 'category' ? '?category=Technology' : '',
+        view,
+        extra
+      );
+      runtime.settings.siteDescription = sample.raw;
+      const refreshed = runtime.render(
+        view === 'category' ? '?category=Technology' : '',
+        view,
+        extra
+      );
+      const expected = row[view];
+      check(
+        'description parity before/after settings refresh:' +
+          domain +
+          ':' +
+          view +
+          ':' +
+          sample.name,
+        [hydrated, refreshed].every(
+          (r) =>
+            (r.description ?? '') === expected &&
+            (r.ogDescription ?? '') === expected &&
+            (r.twitterDescription ?? '') === expected &&
+            Array.from(r.description ?? '').length <= 160
+        ),
+        { expected, hydrated, refreshed }
+      );
+    }
+    runtime.unmount();
+  }
+  const runtime = makeRuntime(domain, base);
+  runtime.dom.add('meta', { name: 'author', content: 'SSR old author' });
+  const post = { id: '56', slug: 'ordinary', title: 'Post', author: 'Hakim', category: 'News' };
+  const page = { id: '2', slug: 'page', title: 'Page', author: 'Page Editor' };
+  for (const [view, extra, author] of [
+    ['single-post', { selectedPost: post }, 'Hakim'],
+    ['home', {}, undefined],
+    ['single-post', { selectedPost: { ...post, author: 'gamemaster' } }, 'gamemaster'],
+    ['page', { selectedPage: page }, 'Page Editor'],
+    ['profile', { selectedProfile: { username: 'member', bio: 'Profile.' } }, undefined],
+    ['category', { selectedCategory: 'News' }, undefined],
+    ['home', {}, undefined],
+  ]) {
+    const output = runtime.render('', view, extra);
+    check(
+      'author belongs to current route:' + domain + ':' + view + ':' + author,
+      output.author === author,
+      output
+    );
+  }
+  runtime.settings.domainUrl = '';
+  runtime.browserLocation.hostname = 'news.example.com';
+  runtime.browserLocation.origin = 'https://news.example.com';
+  const noBase = runtime.render('', 'single-post', { selectedPost: post });
+  check(
+    'author ownership survives missing canonical base:' + domain,
+    noBase.author === 'Hakim' &&
+      noBase.robots === 'noindex, nofollow' &&
+      noBase.canonical === undefined &&
+      noBase.schemaCount === 0,
+    noBase
+  );
+  runtime.unmount();
+  check(
+    'author removed when SEO owner unmounts:' + domain,
+    !runtime.dom.document.head.querySelector('meta[name="author"]'),
+    {
+      author: runtime.dom.document.head
+        .querySelector('meta[name="author"]')
+        ?.getAttribute('content'),
+    }
+  );
+}
 const fingerprintFiles = [
   'public/index.php',
+  'public/public_render_helper.php',
   'public/seo_route_helper.php',
   'public/seo_schema_helper.php',
   'public/api/save_post.php',
   'public/api/save_page.php',
   'src/plugins/von-core/features/seo/VonSEO.tsx',
+  'src/hooks/useSettings.ts',
   'src/utils/siteUtils.ts',
 ];
 const final = {

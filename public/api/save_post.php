@@ -91,21 +91,22 @@ if (mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
   ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
 }
 
-// SECURITY: Prevent Stored XSS
-// 1. Admins get "God Mode" (full tags), non-admins get safe tags only
+// Preserve the non-admin rich-text tag allowlist; all roles also pass parsed checks below.
 if (!SessionManager::isAdmin()) {
   $allowedTags =
     '<h1><h2><h3><h4><h5><h6><p><b><strong><i><em><u><ul><ol><li><a><img><figure><figcaption><iframe><blockquote><pre><code><br><hr><table><thead><tbody><tr><th><td><span><div>';
   $rawContent = strip_tags($rawContent, $allowedTags);
 }
 
-// 2. Extra Paranoid: Remove inline event handlers (onload, onerror, etc.) FOR ALL USERS
-// Handles quoted and UNQUOTED attributes to prevent logic bypasses
-$rawContent = preg_replace('/on[a-z]+\s*=\s*(?:["\'][^"\']*["\']|[^\s>]+)/i', '', $rawContent);
-
-// 3. Remove javascript: protocol FOR ALL USERS
-$rawContent = preg_replace('/javascript\s*:/i', '', $rawContent);
-$rawContent = voncms_sanitize_content_iframes($rawContent);
+// Validate the final parsed attributes, including entity-encoded URL schemes, for every role.
+try {
+  $rawContent = voncms_sanitize_content_iframes($rawContent);
+  $rawContent = voncms_sanitize_content_attributes($rawContent);
+} catch (InvalidArgumentException $error) {
+  ResponseHelper::sendError($error, 400);
+} catch (RuntimeException $error) {
+  ResponseHelper::sendError($error, 503);
+}
 
 if (function_exists('sanitize_input')) {
   $input = sanitize_input($input);

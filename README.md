@@ -4,18 +4,18 @@
 
 VonCMS is a lightweight PHP and React CMS not only for shared hosting, but on many levels that suite your needs. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
 
-Current release: **v1.27.11 "OverDrive"**. This maintenance release improves account validation, public form quotas, post/page metadata and excerpts, numeric-slug routing, and compatible dependencies. No new database repair is required if earlier upgrade steps are complete. Review [CHANGELOG.md](CHANGELOG.md) and [Upgrade](docs/UPGRADE.md) before updating.
+Current version: **v1.27.12 "OverDrive"**. This maintenance and security follow-up improves Post/Page HTML validation, metadata consistency, editor save feedback, media storage consistency, contact handling and profile text. Owner-only settings controls are read-only for appointed Admins, and existing public sidebars follow desktop scrolling. No new database repair is required if earlier upgrade steps are complete. Review [CHANGELOG.md](CHANGELOG.md) and [Upgrade](docs/UPGRADE.md) before updating.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
 
 ## Project Status
 
-VonCMS is open-source software under active development. Review, test, and back up your site before using any CMS release in production.
+VonCMS is actively maintained open-source software. Review, test, and back up your site before using any CMS release in production.
 
 > [!NOTE]
 > Before updating a production site, back up its files and database, review the [release notes](CHANGELOG.md), and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
 
-The OverDrive release line closes its planned maintenance scope with v1.27.11. This is the planned final maintenance release of the v1.27.x series, not a promise that no further corrective or security patch will be needed. New feature development is planned for v1.28.x and is not included in this release. Exact changes belong in [CHANGELOG.md](CHANGELOG.md); version-specific upgrade and repair instructions belong in [docs/UPGRADE.md](docs/UPGRADE.md).
+The OverDrive release line closed its planned maintenance scope with v1.27.11; v1.27.12 is a focused corrective follow-up. New feature development is planned for v1.28.x and is not included in this update. Exact changes belong in [CHANGELOG.md](CHANGELOG.md); version-specific upgrade and repair instructions belong in [docs/UPGRADE.md](docs/UPGRADE.md).
 
 <img width="1920" height="957" alt="126" src="https://github.com/user-attachments/assets/c0fdec1a-827f-457b-9feb-d84ce0d62c0c" />
 
@@ -54,6 +54,8 @@ VonCMS keeps the runtime simple:
 | Source development | Node.js 22.22 or newer and npm       |
 
 Production hosting does not need Node.js, Vite, npm, or a separate frontend server. Source development does.
+
+Enable the PHP DOM extension before installation or Post/Page HTML saves. See [Installation](docs/INSTALL.md#requirements) for requirements and [Upgrade](docs/UPGRADE.md#v12712-upgrade-checks) for existing inline/base64 images and other compatibility notes.
 
 For source work, install Node.js 22.22 or newer from <https://nodejs.org/>. The installer includes `npm`. After installing, open a terminal and confirm:
 

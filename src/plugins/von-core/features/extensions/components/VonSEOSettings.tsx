@@ -33,6 +33,7 @@ interface VonSEOSettingsProps {
 }
 
 export const VonSEOSettings: React.FC<VonSEOSettingsProps> = ({ settings, onUpdate, onClose }) => {
+  const canManageIndexNow = settings._canManageSecrets === true;
   // Fallback default (in case API fails)
   const FALLBACK_ROBOTS = `# VonCMS Robots Policy v1.25.3
 
@@ -156,6 +157,7 @@ Disallow: /`;
   >('general');
   const [showRedirectManager, setShowRedirectManager] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isIndexNowReadOnly = activeTab === 'indexnow' && !canManageIndexNow;
 
   // IndexNow state
   const [indexNowStatus, setIndexNowStatus] = useState<any>(null);
@@ -163,6 +165,7 @@ Disallow: /`;
   const [pingLoading, setPingLoading] = useState(false);
 
   const fetchIndexNowStatus = async () => {
+    if (!canManageIndexNow) return;
     try {
       const response = await vonFetch(`${BASE_PATH}api/system/indexnow_status.php`);
       if (response.ok) {
@@ -173,10 +176,11 @@ Disallow: /`;
   };
 
   React.useEffect(() => {
-    if (activeTab === 'indexnow') fetchIndexNowStatus();
-  }, [activeTab]);
+    if (activeTab === 'indexnow' && canManageIndexNow) fetchIndexNowStatus();
+  }, [activeTab, canManageIndexNow]);
 
   const handleGenerateKey = async () => {
+    if (!canManageIndexNow) return;
     setIndexNowLoading(true);
     try {
       const response = await vonFetch(`${BASE_PATH}api/system/indexnow_setup.php`, {
@@ -187,6 +191,8 @@ Disallow: /`;
         toast.success('IndexNow API key generated!');
         onUpdate({ ...settings, indexnowKey: data.key });
         fetchIndexNowStatus();
+      } else {
+        toast.error(data.error || 'Failed to generate key');
       }
     } catch (e) {
       toast.error('Failed to generate key');
@@ -196,6 +202,7 @@ Disallow: /`;
   };
 
   const handleManualPing = async () => {
+    if (!canManageIndexNow) return;
     setPingLoading(true);
     try {
       const response = await vonFetch(`${BASE_PATH}api/system/indexnow_ping.php`, {
@@ -213,6 +220,7 @@ Disallow: /`;
   };
 
   const handleSave = async () => {
+    if (isIndexNowReadOnly) return;
     setIsSaving(true);
     try {
       const nextSeo = { ...(settings.seo || {}), ...tempSEO };
@@ -607,7 +615,16 @@ Disallow: /`;
 
           {activeTab === 'indexnow' && (
             <div className="space-y-6">
-              <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg p-6">
+              {!canManageIndexNow && (
+                <p role="status" className="text-sm text-slate-600 dark:text-slate-400">
+                  Read-only. Only the Primary Admin can manage IndexNow keys and submissions.
+                </p>
+              )}
+              <fieldset
+                disabled={!canManageIndexNow}
+                aria-label="IndexNow controls"
+                className="min-w-0 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg p-6 disabled:opacity-70"
+              >
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-violet-100 dark:bg-violet-900/50 rounded-lg">
@@ -618,13 +635,20 @@ Disallow: /`;
                       <p className="text-sm text-slate-500">Bing, Yandex & 1000+ search engines</p>
                     </div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                  <label
+                    className={`relative inline-flex items-center ${canManageIndexNow ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  >
                     <input
                       id="vonseosettings-525"
                       name="vonseosettings525"
                       type="checkbox"
+                      aria-label="Enable IndexNow"
                       checked={!!settings.indexnowEnabled}
-                      onChange={(e) => onUpdate({ ...settings, indexnowEnabled: e.target.checked })}
+                      disabled={!canManageIndexNow}
+                      onChange={(e) => {
+                        if (canManageIndexNow)
+                          onUpdate({ ...settings, indexnowEnabled: e.target.checked });
+                      }}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:inset-s-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
@@ -639,7 +663,11 @@ Disallow: /`;
                           API Key Status
                         </span>
                         <div className="flex items-center gap-2">
-                          {indexNowStatus?.key_configured ? (
+                          {!canManageIndexNow ? (
+                            <span className="text-sm text-slate-400 italic">
+                              Primary Admin only
+                            </span>
+                          ) : indexNowStatus?.key_configured ? (
                             <span className="text-sm font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                               {indexNowStatus.key_preview}
                             </span>
@@ -653,7 +681,11 @@ Disallow: /`;
                           Verification File
                         </span>
                         <div className="flex items-center gap-2">
-                          {indexNowStatus?.key_file_exists ? (
+                          {!canManageIndexNow ? (
+                            <span className="text-sm text-slate-400 italic">
+                              Primary Admin only
+                            </span>
+                          ) : indexNowStatus?.key_file_exists ? (
                             <span className="text-xs font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <CheckCircle size={12} /> Active
                             </span>
@@ -669,8 +701,8 @@ Disallow: /`;
                     <div className="flex gap-3">
                       <button
                         onClick={handleGenerateKey}
-                        disabled={indexNowLoading}
-                        className="flex-1 py-3 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        disabled={!canManageIndexNow || indexNowLoading}
+                        className="flex-1 py-3 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Key size={18} />
                         {indexNowLoading ? 'Generating...' : 'Setup IndexNow Key'}
@@ -678,8 +710,8 @@ Disallow: /`;
                       {indexNowStatus?.status === 'ready' && (
                         <button
                           onClick={handleManualPing}
-                          disabled={pingLoading}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                          disabled={!canManageIndexNow || pingLoading}
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Send size={18} />
                           {pingLoading ? 'Pinging...' : 'Instant Ping Home'}
@@ -694,7 +726,7 @@ Disallow: /`;
                     </div>
                   </div>
                 )}
-              </div>
+              </fieldset>
             </div>
           )}
         </div>
@@ -709,8 +741,8 @@ Disallow: /`;
           </button>
           <button
             onClick={handleSave}
-            disabled={isSaving}
-            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : ''}`}
+            disabled={isSaving || isIndexNowReadOnly}
+            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : isIndexNowReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isSaving ? (
               'Saving...'

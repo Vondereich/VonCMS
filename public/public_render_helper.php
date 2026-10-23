@@ -580,21 +580,12 @@ if (!function_exists('voncms_load_public_runtime_context')) {
 
     $seoDescription = $defaultSeoDescription;
     $siteDescription = $defaultSeoDescription;
-    $siteDescriptionValue = (string) ($publicSettings['siteDescription'] ?? '');
-    if ($siteDescriptionValue !== '') {
-      if (preg_match('/content=["\']([^"\']+)["\']/', $siteDescriptionValue, $matches)) {
-        $siteDescriptionValue = $matches[1];
-      }
-      $cleanSiteDescription = strip_tags($siteDescriptionValue);
-      $cleanSiteDescription = html_entity_decode(
-        $cleanSiteDescription,
-        ENT_QUOTES | ENT_HTML5,
-        'UTF-8',
-      );
-      $cleanSiteDescription = str_replace('"', "'", $cleanSiteDescription);
-      $seoDescription = mb_substr($cleanSiteDescription, 0, 160);
-      $siteDescription = $seoDescription;
-    }
+    $siteDescriptionValue = (string) ($publicSettings['siteDescription'] ?? $defaultSeoDescription);
+    $siteDescription = voncms_clean_seo_description(
+      $siteDescriptionValue,
+      max(160, mb_strlen($siteDescriptionValue, 'UTF-8')),
+    );
+    $seoDescription = voncms_truncate_word_safe($siteDescription, 160);
 
     $domainUrl = function_exists('voncms_resolve_public_base_url')
       ? voncms_resolve_public_base_url($defaultDomainUrl, $basePath)

@@ -75,6 +75,21 @@ foreach ($lengthLimits as $field => $maxLength) {
   }
 }
 
+$recipient = trim($formValues['mail_to']);
+$validRecipient = filter_var($recipient, FILTER_VALIDATE_EMAIL) !== false;
+if (preg_match('/^\[([a-zA-Z0-9_-]+)\]$/', $recipient, $recipientTag)) {
+  preg_match_all('/\[email\*?\s+([a-zA-Z0-9_-]+)/', $formValues['template'], $emailFields);
+  $validRecipient =
+    $recipientTag[1] === '_site_email' || in_array($recipientTag[1], $emailFields[1], true);
+}
+if (!$validRecipient || preg_match('/[\r\n\0]/', $formValues['mail_to'])) {
+  ResponseHelper::sendError(
+    'Recipient must be one valid email address or a declared email tag.',
+    400,
+  );
+}
+$formValues['mail_to'] = $recipient;
+
 try {
   $stmt = $pdo->prepare("
         INSERT INTO contact_forms (

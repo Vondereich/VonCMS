@@ -45,6 +45,14 @@ if (file_exists($configFile) || file_exists($lockFile)) {
   );
 }
 
+// Check HTML-save prerequisites before reserving setup ownership or touching the database.
+if (!class_exists('DOMDocument') || !class_exists('DOMXPath')) {
+  ResponseHelper::sendError(
+    'Installation requires the PHP DOM extension. Ask your hosting provider to enable DOM before continuing.',
+    400,
+  );
+}
+
 // 1. Validate Input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {

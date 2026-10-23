@@ -36,7 +36,7 @@ import AiWritingPanel from './editor/AiWritingPanel';
 import FeaturedMediaLibraryModal from './editor/FeaturedMediaLibraryModal';
 import { PostEditorAuditHistoryModal, PostEditorAuditSummary } from './editor/PostEditorAudit';
 import PostEditorSeoPanel from './editor/PostEditorSeoPanel';
-import { getPostEditorCleanText } from './editor/postEditorTextHelpers';
+import { getPostEditorAutofillText, getPostEditorCleanText } from './editor/postEditorTextHelpers';
 import { useAiWriting } from '../hooks/useAiWriting';
 import { getPostStatusLabel, isPostReviewer, isPostWriter } from '../utils/contentCapabilities';
 import {
@@ -262,6 +262,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [saveError, setSaveError] = useState('');
   const [autoSaveCountdown, setAutoSaveCountdown] = useState(
     Math.ceil(AUTOSAVE_INTERVAL_MS / 1000)
   );
@@ -271,6 +272,15 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const initialItemRef = React.useRef(initialItem);
   const nextAutoSaveAtRef = React.useRef(Date.now() + AUTOSAVE_INTERVAL_MS);
   const saveStatusResetRef = React.useRef<number | null>(null);
+
+  useEffect(() => {
+    setSaveError('');
+    setSaveStatus('idle');
+    if (saveStatusResetRef.current !== null) {
+      window.clearTimeout(saveStatusResetRef.current);
+      saveStatusResetRef.current = null;
+    }
+  }, [initialItem?.id, isPage]);
 
   // Keep refs in sync (no re-render)
   useEffect(() => {
@@ -453,6 +463,11 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
     isSavingRef.current = true;
     if (!isAutoSave) setIsSaving(true);
+    if (saveStatusResetRef.current !== null) {
+      window.clearTimeout(saveStatusResetRef.current);
+      saveStatusResetRef.current = null;
+    }
+    setSaveError('');
     setSaveStatus(isAutoSave ? 'auto-saving' : 'manual-saving');
     const manualSaveToastId = !isAutoSave
       ? notify.loading(status === 'draft' ? 'Saving draft...' : 'Saving changes...')
@@ -543,15 +558,21 @@ const PostEditor: React.FC<PostEditorProps> = ({
       return savedData;
     } catch (err: any) {
       console.error('Save failed:', err);
+      const isConflict =
+        err?.status === 409 ||
+        String(err?.message || '').includes('Content changed in another tab');
+      const reason = isConflict
+        ? SAVE_CONFLICT_MESSAGE
+        : typeof err?.message === 'string'
+          ? err.message.trim()
+          : '';
+      setSaveError(reason);
       setSaveStatus('error');
       if (manualSaveToastId) notify.dismiss(manualSaveToastId);
-      if (
-        err?.status === 409 ||
-        String(err?.message || '').includes('Content changed in another tab')
-      ) {
+      if (isConflict) {
         notify.error(SAVE_CONFLICT_MESSAGE);
       } else if (!isAutoSave) {
-        notify.error('Save failed: ' + err.message);
+        notify.error(reason ? 'Save failed: ' + reason : 'Save failed. Try again.');
       }
       return null;
     } finally {
@@ -798,7 +819,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const hasPendingReviewContentChanges =
     isReviewerPending &&
     hasUnsavedEditorContentChanges(item, initialItemRef.current, contentRef.current);
-  const saveStatusLabel = buildSaveStatusLabel(saveStatus, lastSaved, autoSaveCountdown);
+  const saveStatusLabel = buildSaveStatusLabel(saveStatus, lastSaved, autoSaveCountdown, saveError);
   const saveStatusClassName = getSaveStatusClassName(saveStatus);
   const publishingChecks = [
     { label: 'Title', ready: Boolean(item.title?.trim()) },
@@ -899,7 +920,12 @@ const PostEditor: React.FC<PostEditorProps> = ({
             <h2 className="truncate text-xl font-bold text-slate-800 dark:text-white sm:text-2xl">
               {item.id ? 'Edit' : 'Create'} {isPage ? 'Page' : 'Post'}
             </h2>
-            <p className={`${saveStatusClassName} truncate`}>{saveStatusLabel}</p>
+            <p
+              className={`${saveStatusClassName} ${saveStatus === 'error' ? 'wrap-break-word' : 'truncate'}`}
+              role={saveStatus === 'error' ? 'alert' : undefined}
+            >
+              {saveStatusLabel}
+            </p>
           </div>
         </div>
         <div className="hidden items-center gap-3 xl:flex">
@@ -1315,11 +1341,17 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     <button
                       onClick={() => {
                         if (item.content) {
-                          const excerpt = getPostEditorCleanText(
+                          const excerpt = getPostEditorAutofillText(
                             item.content,
                             EXCERPT_RECOMMENDED_MAX_LENGTH
                           );
-                          setItem((prev) => (prev ? { ...prev, excerpt } : null));
+                          if (excerpt) {
+                            setItem((prev) => (prev ? { ...prev, excerpt } : null));
+                          } else {
+                            notify.info(
+                              'No suggestion fits. Add readable text or shorten the opening word.'
+                            );
+                          }
                         } else {
                           notify.info('Add content first');
                         }

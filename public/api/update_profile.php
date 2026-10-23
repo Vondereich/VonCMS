@@ -78,10 +78,11 @@ try {
     );
   }
 
-  $displayName = trim((string) ($input['display_name'] ?? ''));
-  if (function_exists('sanitize_input')) {
-    $displayName = sanitize_input($displayName);
+  if (isset($input['display_name']) && !is_string($input['display_name'])) {
+    ResponseHelper::sendError('Display name must be text.', 400);
   }
+  // Presentation text, not HTML: validate/store the characters the user submitted.
+  $displayName = trim((string) ($input['display_name'] ?? ''));
   $displayNameLength = function_exists('mb_strlen')
     ? mb_strlen($displayName)
     : strlen($displayName);
