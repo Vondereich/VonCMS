@@ -10,13 +10,16 @@ if (version_compare(PHP_VERSION, '8.2.0', '<')) {
   http_response_code(500);
   header('Content-Type: application/json');
   echo json_encode([
-    'error' => 'VonCMS requires PHP 8.2 or higher.',
+    'error' => 'VonCMS requires PHP 8.2 or higher. PHP 8.3+ is recommended.',
   ]);
   exit();
 }
 
 // Prevent direct access
-if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
+if (
+  basename(is_string($_SERVER['PHP_SELF'] ?? null) ? $_SERVER['PHP_SELF'] : '') ==
+  basename(__FILE__)
+) {
   die('Direct access not allowed');
 }
 
@@ -28,6 +31,7 @@ require_once __DIR__ . '/core/InstallBootstrap.php';
 require_once __DIR__ . '/core/ContentViewDeduplicator.php';
 require_once __DIR__ . '/core/RateLimiter.php';
 require_once __DIR__ . '/core/ResponseHelper.php';
+require_once __DIR__ . '/core/DataBoundary.php';
 
 if (!function_exists('voncms_ip_matches_proxy_rule')) {
   /** Match an exact IP address or CIDR rule without trusting request headers. */
@@ -82,12 +86,11 @@ if (!function_exists('voncms_ip_matches_proxy_rule')) {
   }
 }
 
-if (!function_exists('voncms_is_trusted_proxy_request')) {
-  /** Trust forwarded transport headers only from explicitly configured proxies. */
-  function voncms_is_trusted_proxy_request(): bool
+if (!function_exists('voncms_is_trusted_proxy_address')) {
+  /** Match a proxy hop, never an address taken from an unvalidated header. */
+  function voncms_is_trusted_proxy_address(string $remoteAddress): bool
   {
-    $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
-    if (!is_string($remoteAddress) || filter_var($remoteAddress, FILTER_VALIDATE_IP) === false) {
+    if (filter_var($remoteAddress, FILTER_VALIDATE_IP) === false) {
       return false;
     }
 
@@ -108,6 +111,15 @@ if (!function_exists('voncms_is_trusted_proxy_request')) {
   }
 }
 
+if (!function_exists('voncms_is_trusted_proxy_request')) {
+  /** Trust forwarded transport headers only from a trusted immediate peer. */
+  function voncms_is_trusted_proxy_request(): bool
+  {
+    $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+    return is_string($remoteAddress) && voncms_is_trusted_proxy_address($remoteAddress);
+  }
+}
+
 if (!function_exists('is_https')) {
   /** Standardized HTTPS detection with an explicit trusted-proxy boundary. */
   function is_https(): bool
@@ -122,11 +134,11 @@ if (!function_exists('is_https')) {
     }
 
     $forwardedProto = strtolower(
-      trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]),
+      trim(explode(',', DataBoundary::serverString('HTTP_X_FORWARDED_PROTO', ''))[0]),
     );
-    $forwardedPort = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PORT'] ?? ''))[0]);
+    $forwardedPort = trim(explode(',', DataBoundary::serverString('HTTP_X_FORWARDED_PORT', ''))[0]);
     $forwardedSsl = strtolower(
-      trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? ''))[0]),
+      trim(explode(',', DataBoundary::serverString('HTTP_X_FORWARDED_SSL', ''))[0]),
     );
 
     return $forwardedProto === 'https' || $forwardedPort === '443' || $forwardedSsl === 'on';
@@ -140,7 +152,7 @@ if (!function_exists('is_https')) {
 if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
   $GLOBALS['VON_CANONICAL_CHECKED'] = true;
   // If we have PDO and the API isn't a direct API call (skip for APIs to prevent breakage)
-  $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+  $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME'));
   $isApiScript =
     strpos($scriptName, '/api/') !== false || preg_match('#/(api|api\.php)$#i', $scriptName);
 
@@ -164,9 +176,9 @@ if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
       $host = trim($host, '[]');
 
       if (filter_var($host, FILTER_VALIDATE_IP) === false) {
-        $host = preg_replace('/^www\./i', '', $host);
+        $host = preg_replace('/^www\./i', '', $host) ?? '';
         // Hardened Mandala Sanitization
-        $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', $host);
+        $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', $host) ?? '';
       }
 
       return $host;
@@ -176,7 +188,8 @@ if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
     // Try to load domain_url from settings
     $settingsFile = __DIR__ . '/data/site_settings.json';
     if (file_exists($settingsFile)) {
-      $allSettings = json_decode(file_get_contents($settingsFile), true);
+      $settingsJson = file_get_contents($settingsFile);
+      $allSettings = is_string($settingsJson) ? json_decode($settingsJson, true) : null;
       if (is_array($allSettings)) {
         // Nested legacy aliases are not trusted redirect configuration. Settings
         // saves rebuild this flat value from the owner-guarded database setting.
@@ -187,7 +200,7 @@ if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
         if ($configuredDomainUrl !== '') {
           $expectedHostRaw = parse_url($configuredDomainUrl, PHP_URL_HOST);
           $expectedHost = $normalizeHost($expectedHostRaw);
-          $currentHost = $normalizeHost($_SERVER['HTTP_HOST'] ?? '');
+          $currentHost = $normalizeHost(DataBoundary::serverString('HTTP_HOST'));
 
           $isPrivateIp = false;
           if (filter_var($currentHost, FILTER_VALIDATE_IP) !== false) {
@@ -211,7 +224,7 @@ if (!isset($GLOBALS['VON_CANONICAL_CHECKED'])) {
           ) {
             // Host mismatch (e.g. www vs non-www). Perform canonical redirect.
             $protocol = is_https() ? 'https://' : 'http://';
-            $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+            $requestUri = DataBoundary::serverString('REQUEST_URI', '/');
             $redirectUrl = $protocol . $expectedHost . $requestUri;
 
             if (!headers_sent()) {
@@ -239,7 +252,7 @@ if (!function_exists('voncms_is_social_preview_crawler')) {
 if (!function_exists('voncms_detect_session_cookie_path')) {
   function voncms_detect_session_cookie_path(): string
   {
-    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME', ''));
     $cookiePath = '';
 
     if ($scriptName !== '') {
@@ -261,13 +274,13 @@ if (!function_exists('voncms_detect_session_cookie_path')) {
 // 1. Initialise Session with Secure Parameters
 // Must be called BEFORE session_start()
 if (session_status() === PHP_SESSION_NONE) {
-  $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+  $ua = DataBoundary::serverString('HTTP_USER_AGENT');
   $isBot =
     voncms_is_social_preview_crawler($ua) ||
     preg_match('/(Googlebot|Bingbot|DuckDuckBot|Mediapartners-Google|AdsBot-Google)/i', $ua);
 
-  $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
-  $requestMethod = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+  $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME'));
+  $requestMethod = strtoupper(DataBoundary::serverString('REQUEST_METHOD', 'GET'));
   $isApiScript =
     strpos($scriptName, '/api/') !== false || preg_match('#/(api|api\.php)$#i', $scriptName);
   $isCrawlerPageRequest = !$isApiScript && in_array($requestMethod, ['GET', 'HEAD'], true);
@@ -301,7 +314,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // 2. Session Binding (Anti-Hijacking)
 if (isset($_SESSION['user'])) {
-  $uaHash = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? 'unknown');
+  $uaHash = hash('sha256', DataBoundary::serverString('HTTP_USER_AGENT', 'unknown'));
   if (!isset($_SESSION['ua_bind'])) {
     $_SESSION['ua_bind'] = $uaHash;
   } elseif ($_SESSION['ua_bind'] !== $uaHash) {
@@ -341,12 +354,15 @@ function sendApiHeaders($methods = 'GET, OPTIONS')
     ) {
       $GLOBALS['voncms_api_allowed_methods'] = $requestedMethods;
     }
-    $effectiveMethods = (string) $GLOBALS['voncms_api_allowed_methods'];
+    $effectiveMethodsValue = $GLOBALS['voncms_api_allowed_methods'];
+    $effectiveMethods = is_string($effectiveMethodsValue)
+      ? $effectiveMethodsValue
+      : $defaultMethods;
 
     header('Content-Type: application/json');
 
     // SECURITY: Mirror only trusted web origins for credentialed requests.
-    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $origin = DataBoundary::serverString('HTTP_ORIGIN');
     $isTrustedOrigin = false;
     if (!empty($origin)) {
       $originParts = parse_url($origin);
@@ -357,7 +373,7 @@ function sendApiHeaders($methods = 'GET, OPTIONS')
       $originHost = strtolower($originParts['host'] ?? '');
       $currentScheme = is_https() ? 'https' : 'http';
       $serverOriginParts = parse_url(
-        $currentScheme . '://' . (string) ($_SERVER['HTTP_HOST'] ?? ''),
+        $currentScheme . '://' . DataBoundary::serverString('HTTP_HOST', ''),
       );
       $serverHost = is_array($serverOriginParts)
         ? strtolower((string) ($serverOriginParts['host'] ?? ''))
@@ -418,10 +434,13 @@ class CSRFProtection
   /**
    * Prevent php://input exhaustion by caching the stream
    */
-  public static function getRequestBody()
+  public static function getRequestBody(): string
   {
     if (self::$cachedInput === null) {
       self::$cachedInput = file_get_contents('php://input');
+    }
+    if (!is_string(self::$cachedInput)) {
+      ResponseHelper::sendError('Unable to read request body', 400);
     }
     return self::$cachedInput;
   }
@@ -429,12 +448,12 @@ class CSRFProtection
   /**
    * Generate CSRF token and store in session
    */
-  public static function generateToken()
+  public static function generateToken(): string
   {
     if (defined('CRAWLER_PAGE_RENDER') && CRAWLER_PAGE_RENDER === true) {
       return 'crawler-page-render';
     }
-    if (!isset($_SESSION[self::$tokenName])) {
+    if (!is_string($_SESSION[self::$tokenName] ?? null)) {
       $_SESSION[self::$tokenName] = bin2hex(random_bytes(32));
     }
     return $_SESSION[self::$tokenName];
@@ -443,18 +462,18 @@ class CSRFProtection
   /**
    * Get current CSRF token
    */
-  public static function getToken()
+  public static function getToken(): string
   {
     if (defined('CRAWLER_PAGE_RENDER') && CRAWLER_PAGE_RENDER === true) {
       return 'crawler-page-render';
     }
-    return $_SESSION[self::$tokenName] ?? self::generateToken();
+    return self::generateToken();
   }
 
   /**
    * Validate CSRF token from request
    */
-  public static function validateToken()
+  public static function validateToken(): bool
   {
     // Check header first (SPA pattern) - Standardize to X-CSRF-Token
     $headerTokenValue = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -466,7 +485,10 @@ class CSRFProtection
 
     // Use Buffered Input for JSON tokens (Multi-reader safe)
     $jsonToken = '';
-    $contentType = (string) ($_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
+    $contentType = DataBoundary::serverString(
+      'CONTENT_TYPE',
+      DataBoundary::serverString('HTTP_CONTENT_TYPE'),
+    );
     if (strpos($contentType, 'application/json') !== false) {
       $input = json_decode(self::getRequestBody(), true);
       $jsonTokenValue = is_array($input) ? $input['csrf_token'] ?? '' : '';
@@ -483,7 +505,7 @@ class CSRFProtection
   /**
    * Require valid CSRF token or die
    */
-  public static function requireToken()
+  public static function requireToken(): void
   {
     if (
       defined('CRAWLER_PAGE_RENDER') &&
@@ -565,7 +587,7 @@ class SessionManager
       return null;
     }
 
-    return isset($pdo) && $pdo instanceof PDO ? $pdo : null;
+    return DataBoundary::optionalDatabase($GLOBALS['pdo'] ?? null);
   }
 
   /**
@@ -577,8 +599,8 @@ class SessionManager
    */
   public static function establishAuthenticatedSession($user, $passwordHash)
   {
-    $userId = (string) ($user['id'] ?? '');
-    $role = (string) ($user['role'] ?? '');
+    $userId = (string) DataBoundary::scalar($user['id'] ?? '');
+    $role = (string) DataBoundary::scalar($user['role'] ?? '');
     $passwordHash = (string) $passwordHash;
 
     if ($userId === '' || $role === '' || $passwordHash === '') {
@@ -586,7 +608,7 @@ class SessionManager
     }
 
     $_SESSION['user'] = $user;
-    $_SESSION['ua_bind'] = hash('sha256', $_SERVER['HTTP_USER_AGENT'] ?? 'unknown');
+    $_SESSION['ua_bind'] = hash('sha256', DataBoundary::serverString('HTTP_USER_AGENT', 'unknown'));
     $_SESSION[self::$fingerprintKey] = self::buildAuthFingerprint($userId, $role, $passwordHash);
     $_SESSION[self::$startedAtKey] = time();
     self::$authorizationState = 'valid';
@@ -627,8 +649,9 @@ class SessionManager
       return false;
     }
 
-    $userId = (string) ($_SESSION['user']['id'] ?? '');
-    $sessionFingerprint = (string) ($_SESSION[self::$fingerprintKey] ?? '');
+    $userId = DataBoundary::userText('id');
+    $fingerprintValue = $_SESSION[self::$fingerprintKey] ?? '';
+    $sessionFingerprint = is_string($fingerprintValue) ? $fingerprintValue : '';
     if ($userId === '' || $sessionFingerprint === '') {
       self::$authorizationState = 'revoked';
       self::clearAuthenticationState();
@@ -638,7 +661,7 @@ class SessionManager
     try {
       $stmt = $database->prepare('SELECT id, role, password FROM users WHERE id = ? LIMIT 1');
       $stmt->execute([$userId]);
-      $databaseUser = $stmt->fetch(PDO::FETCH_ASSOC);
+      $databaseUser = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
     } catch (Throwable $e) {
       self::$authorizationState = 'unavailable';
       return false;
@@ -651,9 +674,9 @@ class SessionManager
     }
 
     $currentFingerprint = self::buildAuthFingerprint(
-      $databaseUser['id'] ?? '',
-      $databaseUser['role'] ?? '',
-      $databaseUser['password'] ?? '',
+      (string) ($databaseUser['id'] ?? ''),
+      (string) ($databaseUser['role'] ?? ''),
+      (string) ($databaseUser['password'] ?? ''),
     );
     if (!hash_equals($sessionFingerprint, $currentFingerprint)) {
       self::$authorizationState = 'revoked';
@@ -661,6 +684,11 @@ class SessionManager
       return false;
     }
 
+    if (!is_array($_SESSION['user'] ?? null)) {
+      self::$authorizationState = 'revoked';
+      self::clearAuthenticationState();
+      return false;
+    }
     $_SESSION['user']['role'] = $databaseUser['role'];
     self::$authorizationState = 'valid';
     return true;
@@ -669,7 +697,7 @@ class SessionManager
   /**
    * Check if session is valid (not expired)
    */
-  public static function isValid()
+  public static function isValid(): bool
   {
     if (!isset($_SESSION['user'])) {
       self::$authorizationState = 'anonymous';
@@ -688,17 +716,22 @@ class SessionManager
   /**
    * Check if session is expired
    */
-  public static function isExpired()
+  public static function isExpired(): bool
   {
     if (isset($_SESSION['user'])) {
-      $startedAt = (int) ($_SESSION[self::$startedAtKey] ?? 0);
+      $startedValue = $_SESSION[self::$startedAtKey] ?? 0;
+      $startedAt = is_scalar($startedValue) ? (int) $startedValue : 0;
       if ($startedAt <= 0 || time() - $startedAt > self::$absoluteTimeout) {
         return true;
       }
     }
 
     if (isset($_SESSION[self::$lastActivityKey])) {
-      $elapsed = time() - $_SESSION[self::$lastActivityKey];
+      $lastActivity = $_SESSION[self::$lastActivityKey];
+      if (!is_numeric($lastActivity)) {
+        return true;
+      }
+      $elapsed = time() - $lastActivity;
       return $elapsed > self::$timeout;
     }
     return false;
@@ -707,7 +740,7 @@ class SessionManager
   /**
    * Update last activity timestamp
    */
-  public static function touch()
+  public static function touch(): void
   {
     $_SESSION[self::$lastActivityKey] = time();
   }
@@ -715,7 +748,7 @@ class SessionManager
   /**
    * Validate session or terminate
    */
-  public static function requireValidSession()
+  public static function requireValidSession(): void
   {
     if (!self::isValid()) {
       sendApiHeaders();
@@ -735,45 +768,45 @@ class SessionManager
   /**
    * Check if current user is an admin or root
    */
-  public static function isAdmin()
+  public static function isAdmin(): bool
   {
-    if (!self::isValid() || !isset($_SESSION['user']['role'])) {
+    if (!self::isValid()) {
       return false;
     }
-    $role = strtolower($_SESSION['user']['role']);
+    $role = strtolower(DataBoundary::userText('role'));
     return $role === 'admin' || $role === 'root';
   }
 
   /**
    * Check if current user owns system-level privileges.
    */
-  public static function isPrimaryAdmin()
+  public static function isPrimaryAdmin(): bool
   {
     if (!self::isValid()) {
       return false;
     }
 
-    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-    $userId = (string) ($_SESSION['user']['id'] ?? '');
+    $role = strtolower(DataBoundary::userText('role'));
+    $userId = DataBoundary::userText('id');
     return $role === 'root' || $userId === '1';
   }
 
   /**
    * Check if current user is staff (Admin, Root, Moderator, Writer)
    */
-  public static function isStaff()
+  public static function isStaff(): bool
   {
-    if (!self::isValid() || !isset($_SESSION['user']['role'])) {
+    if (!self::isValid()) {
       return false;
     }
-    $role = strtolower($_SESSION['user']['role']);
+    $role = strtolower(DataBoundary::userText('role'));
     return in_array($role, ['admin', 'root', 'moderator', 'writer']);
   }
 
   /**
    * Check if current user can access media (Admin, Moderator, Writer)
    */
-  public static function canAccessMedia()
+  public static function canAccessMedia(): bool
   {
     return self::isStaff();
   }
@@ -781,7 +814,7 @@ class SessionManager
   /**
    * Require staff access (Admin, Root, Moderator, Writer) or die
    */
-  public static function requireStaff()
+  public static function requireStaff(): void
   {
     self::requireValidSession();
     if (!self::isStaff()) {
@@ -795,7 +828,7 @@ class SessionManager
   /**
    * Require media access permission or die
    */
-  public static function requireMediaAccess()
+  public static function requireMediaAccess(): void
   {
     self::requireValidSession();
     if (!self::canAccessMedia()) {
@@ -809,7 +842,7 @@ class SessionManager
   /**
    * Require admin/root role or die
    */
-  public static function requireAdmin()
+  public static function requireAdmin(): void
   {
     self::requireValidSession();
     if (!self::isAdmin()) {
@@ -823,7 +856,7 @@ class SessionManager
   /**
    * Require root/Admin ID 1 ownership privileges or die.
    */
-  public static function requirePrimaryAdmin()
+  public static function requirePrimaryAdmin(): void
   {
     self::requireValidSession();
     if (!self::isPrimaryAdmin()) {
@@ -837,14 +870,15 @@ class SessionManager
   /**
    * Destroy session
    */
-  public static function destroy()
+  public static function destroy(): void
   {
     $_SESSION = [];
     self::$authorizationState = 'unchecked';
-    if (ini_get('session.use_cookies')) {
+    $sessionName = session_name();
+    if (ini_get('session.use_cookies') && is_string($sessionName)) {
       $params = session_get_cookie_params();
       setcookie(
-        session_name(),
+        $sessionName,
         '',
         time() - 42000,
         $params['path'],
@@ -858,9 +892,9 @@ class SessionManager
   /**
    * Validate CSRF Token Wrapper
    */
-  public static function validateCsrfToken()
+  public static function validateCsrfToken(): void
   {
-    return CSRFProtection::requireToken();
+    CSRFProtection::requireToken();
   }
 }
 
@@ -869,11 +903,17 @@ class SessionManager
  */
 class SecurityHelper
 {
+  /** Accept punctuation/symbols consistently, but not whitespace as a special character. */
+  public static function hasPasswordSpecialCharacter(string $password): bool
+  {
+    return preg_match('/[\p{P}\p{S}]/u', $password) === 1;
+  }
+
   /**
    * New bcrypt credentials must not silently discard a suffix. Legacy login stays compatible.
    * @param mixed $password Raw input is validated here before string operations.
    */
-  public static function requireNewPasswordLength($password): void
+  public static function requireNewPasswordLength($password): string
   {
     if (!is_string($password) || str_contains($password, "\0")) {
       ResponseHelper::sendError('Invalid password input', 400);
@@ -881,6 +921,7 @@ class SecurityHelper
     if (strlen($password) > 72) {
       ResponseHelper::sendError('New passwords must not exceed 72 bytes (UTF-8).', 400);
     }
+    return $password;
   }
 
   /**
@@ -969,8 +1010,10 @@ class SecurityHelper
   }
 
   /**
-   * Recursively mask sensitive data in an array/object
-   * @param mixed $data
+   * Recursively mask array fields; non-arrays remain unchanged.
+   * @template T
+   * @param T $data
+   * @param-out (T is array ? array<array-key, mixed> : T) $data
    * @return void
    */
   public static function maskSensitiveData(&$data)
@@ -1032,6 +1075,7 @@ class SecurityHelper
     $requiredDirectiveGroups = [
       ['DirectoryIndex index.php index.html'],
       ['RewriteEngine On'],
+      ['RewriteRule ^(?:public/)?temp_update(?:/|$) - [F,L,NC]'],
       ['RewriteRule \.(sql|md|json|log|bak|env|zip|lock)$ - [F,L]'],
       ['RewriteRule ^von_config\\.php$ - [F,L]'],
       ['RewriteRule ^.+\\.php/ - [R=404,L,NC]'],
@@ -1071,7 +1115,7 @@ class SecurityHelper
     return true;
   }
 
-  public static function isIntegrityCompromised()
+  public static function isIntegrityCompromised(): bool
   {
     // OTA preserves nested .htaccess files. Signal repair if the new core shield is absent.
     $coreShield = @file_get_contents(__DIR__ . '/core/.htaccess');

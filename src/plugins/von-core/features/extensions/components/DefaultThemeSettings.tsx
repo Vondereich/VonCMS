@@ -36,7 +36,9 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
   }));
   const [tempSettings, setTempSettings] = useState(draftBaseline);
 
-  const handleChange = (key: string, value: any) => {
+  const handleChange: import('../../../../../types').SettingsFieldChange<
+    NonNullable<SiteSettings['theme']['default']>
+  > = (key, value) => {
     setTempSettings((prev) => ({
       ...prev,
       theme: { ...prev.theme, default: { ...prev.theme.default, [key]: value } },
@@ -253,7 +255,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   type="checkbox"
                   checked={tempSettings.theme.default?.showTrending !== false}
                   onChange={(e) =>
-                    setTempSettings((prev: any) => ({
+                    setTempSettings((prev) => ({
                       ...prev,
                       theme: {
                         ...prev.theme,
@@ -277,7 +279,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   type="checkbox"
                   checked={tempSettings.theme.default?.enableMarquee !== false}
                   onChange={(e) =>
-                    setTempSettings((prev: any) => ({
+                    setTempSettings((prev) => ({
                       ...prev,
                       theme: {
                         ...prev.theme,

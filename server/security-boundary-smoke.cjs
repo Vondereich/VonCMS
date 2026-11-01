@@ -65,13 +65,22 @@ echo json_encode(compact('configured', 'action', 'loopback', 'ipv6', 'lookalike'
 function testRegistrationStopsBeforePersistence() {
   const passwordLengthGuard = fs
     .readFileSync(path.join(rootDir, 'public/security.php'), 'utf8')
-    .match(/^  public static function requireNewPasswordLength[\s\S]*?^  }/m);
+    .match(/^ {2}public static function requireNewPasswordLength[\s\S]*?^ {2}}/m);
   assert(passwordLengthGuard, 'Actual new-password guard must be available to the fixture');
+  const passwordSymbolGuard = fs
+    .readFileSync(path.join(rootDir, 'public/security.php'), 'utf8')
+    .match(/^ {2}public static function hasPasswordSpecialCharacter[\s\S]*?^ {2}}/m);
+  assert(passwordSymbolGuard, 'Actual shared password-symbol check must be available');
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-register-origin-'));
   const apiDir = path.join(fixtureRoot, 'api');
   const databasePath = path.join(fixtureRoot, 'registration.sqlite').replace(/\\/g, '/');
   try {
     fs.mkdirSync(apiDir);
+    fs.mkdirSync(path.join(fixtureRoot, 'core'));
+    fs.copyFileSync(
+      path.join(rootDir, 'public/core/DataBoundary.php'),
+      path.join(fixtureRoot, 'core/DataBoundary.php')
+    );
     fs.copyFileSync(
       path.join(rootDir, 'public/api/register.php'),
       path.join(apiDir, 'register.php')
@@ -89,8 +98,11 @@ class CSRFProtection {
   public static function requireToken(): void {}
   public static function getRequestBody(): string { return (string) getenv('VON_REGISTER_BODY'); }
 }
-class RateLimiter { public static function requireAttempt($identifier = null): void {} }
-class SecurityHelper { ${passwordLengthGuard[0]} }
+define('VONCMS_CORE_LOADED', true);
+require ${JSON.stringify(phpPath('public/core/RateLimiter.php'))};
+$rateStorage = new ReflectionProperty(RateLimiter::class, 'storageDir');
+$rateStorage->setValue(null, __DIR__ . '/rates/');
+class SecurityHelper { ${passwordLengthGuard[0]} ${passwordSymbolGuard[0]} }
 class ResponseHelper {
   public static function sendError($message, int $status = 400): never {
     if ($message instanceof Throwable) $message = $message->getMessage();

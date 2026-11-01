@@ -1,5 +1,14 @@
 <?php
 
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 function voncms_settings_audit_available(PDO $pdo): bool
 {
   static $cache = [];
@@ -49,6 +58,7 @@ function voncms_purge_sensitive_setting_audit_history(PDO $pdo): void
   }
 }
 
+/** @return array<array-key, scalar|null>|null */
 function voncms_get_setting_audit_snapshot(PDO $pdo, string $group, string $key): ?array
 {
   try {
@@ -56,7 +66,7 @@ function voncms_get_setting_audit_snapshot(PDO $pdo, string $group, string $key)
       'SELECT id, setting_group, setting_key, setting_value FROM settings WHERE setting_group = ? AND setting_key = ? LIMIT 1',
     );
     $stmt->execute([$group, $key]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
     return $row ?: null;
   } catch (Throwable $e) {
@@ -64,6 +74,7 @@ function voncms_get_setting_audit_snapshot(PDO $pdo, string $group, string $key)
   }
 }
 
+/** @param array<array-key, scalar|null>|null $beforeSnapshot */
 function voncms_record_setting_audit(
   PDO $pdo,
   string $group,

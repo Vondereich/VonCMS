@@ -54,6 +54,9 @@ class SystemUpdater
   /** @var bool */
   private $testCleanupFailure = false;
 
+  /** @var string|null Test-only failure at a specific payload deletion. */
+  private $testRemovalFailurePath = null;
+
   // FILES TO NEVER TOUCH (Files AND Directories)
   /** @var array<int, string> */
   private $protected = [
@@ -76,10 +79,7 @@ class SystemUpdater
     // __DIR__ = .../api/system
     // /..     = .../api
     // /../..  = .../public (in standard deployment) or .../project_root (in Vite/dev)
-    $this->rootPath = realpath(__DIR__ . '/../..');
-    if (!$this->rootPath) {
-      $this->rootPath = dirname(__DIR__, 2);
-    }
+    $this->rootPath = realpath(__DIR__ . '/../..') ?: dirname(__DIR__, 2);
 
     // SMART DETECTION: Are we sitting in a nested 'public' folder?
     // If so, our project root is actually one level up, but we want to update THIS level.
@@ -96,6 +96,20 @@ class SystemUpdater
     if (!defined('VONCMS_UPDATER_TESTING') && !file_exists($this->backupPath)) {
       mkdir($this->backupPath, 0755, true);
     }
+  }
+
+  /** Configure existing fault injection only in the isolated updater fixture. */
+  public function configureTestFailures(
+    ?int $afterActivations = null,
+    ?string $removalPath = null,
+    bool $cleanupFailure = false,
+  ): void {
+    if (!defined('VONCMS_UPDATER_TESTING') || VONCMS_UPDATER_TESTING !== true) {
+      throw new LogicException('Updater fault injection is restricted to tests.');
+    }
+    $this->testFailureAfterActivations = $afterActivations;
+    $this->testRemovalFailurePath = $removalPath;
+    $this->testCleanupFailure = $cleanupFailure;
   }
 
   /**
@@ -243,11 +257,11 @@ class SystemUpdater
   private function acquireUpdateLock(): bool
   {
     $lockPath = $this->backupPath . '/.voncms-update.lock';
-    $this->lockHandle = @fopen($lockPath, 'c+');
-    if ($this->lockHandle === false) {
-      $this->lockHandle = null;
+    $handle = @fopen($lockPath, 'c+');
+    if ($handle === false) {
       return false;
     }
+    $this->lockHandle = $handle;
 
     if (!@flock($this->lockHandle, LOCK_EX | LOCK_NB)) {
       fclose($this->lockHandle);
@@ -352,6 +366,7 @@ class SystemUpdater
    * @param string|null $saveTo
    * @param int $timeout
    * @param int $connectTimeout
+   * @param int $maxBytes
    * @return array{status: int, body: string}
    */
   private function fetchWithValidatedRedirects(
@@ -496,8 +511,11 @@ class SystemUpdater
   }
 
   /** @param mixed $value */
-  private function normalizeSha256($value)
+  private function normalizeSha256($value): ?string
   {
+    if (!is_string($value)) {
+      return null;
+    }
     $value = strtolower(trim((string) $value));
     if (strpos($value, 'sha256:') === 0) {
       $value = substr($value, 7);
@@ -580,6 +598,46 @@ class SystemUpdater
     );
   }
 
+  /** Seal the shared temporary root before writing any downloaded or staged payload. */
+  private function prepareTemporaryDirectory(): void
+  {
+    if (is_link($this->tempPath) || (file_exists($this->tempPath) && !is_dir($this->tempPath))) {
+      throw new Exception('Temporary update directory is not a regular directory.');
+    }
+    if (
+      !is_dir($this->tempPath) &&
+      !@mkdir($this->tempPath, 0755, true) &&
+      !is_dir($this->tempPath)
+    ) {
+      throw new Exception('Could not create the private update directory.');
+    }
+
+    $shieldPath = $this->tempPath . '/.htaccess';
+    $shield =
+      "<IfModule !mod_authz_core.c>\n  Deny from all\n</IfModule>\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\nOptions -Indexes\n";
+    if (is_link($shieldPath) || is_dir($shieldPath)) {
+      throw new Exception('Temporary update protection is not a regular file.');
+    }
+    if (@file_get_contents($shieldPath) === $shield) {
+      return;
+    }
+
+    $temporaryShield = $shieldPath . '.tmp-' . bin2hex(random_bytes(8));
+    try {
+      if (@file_put_contents($temporaryShield, $shield, LOCK_EX) !== strlen($shield)) {
+        throw new Exception('Could not write temporary update protection.');
+      }
+      @chmod($temporaryShield, 0644);
+      if (!@rename($temporaryShield, $shieldPath) || @file_get_contents($shieldPath) !== $shield) {
+        throw new Exception('Could not activate temporary update protection.');
+      }
+    } finally {
+      if (is_file($temporaryShield)) {
+        @unlink($temporaryShield);
+      }
+    }
+  }
+
   /**
    * @param string $url
    * @param string $expectedHash
@@ -590,10 +648,8 @@ class SystemUpdater
     // Increase execution time for large downloads
     set_time_limit(300); // 5 minutes
 
+    $this->prepareTemporaryDirectory();
     $saveTo = $this->tempPath . '/update.zip';
-    if (!file_exists($this->tempPath)) {
-      mkdir($this->tempPath, 0755, true);
-    }
 
     $download = $this->fetchWithValidatedRedirects(
       $url,
@@ -620,7 +676,7 @@ class SystemUpdater
     }
 
     $actualHash = hash_file('sha256', $saveTo);
-    if (!hash_equals($expectedHash, $actualHash)) {
+    if (!is_string($actualHash) || !hash_equals($expectedHash, $actualHash)) {
       throw new Exception('Integrity check failed: Update package hash mismatch.');
     }
     $this->log('Integrity check passed (SHA256 verified)');
@@ -681,6 +737,7 @@ class SystemUpdater
    */
   private function extractUpdate($zipFile)
   {
+    $this->prepareTemporaryDirectory();
     $zip = new ZipArchive();
     if ($zip->open($zipFile) === true) {
       $this->validateArchive($zip);
@@ -740,6 +797,9 @@ class SystemUpdater
    */
   private function normalizeRelativePath($path)
   {
+    if (!is_string($path)) {
+      throw new InvalidArgumentException('Invalid update path.');
+    }
     return trim(str_replace('\\', '/', ltrim((string) $path, './')), '/');
   }
 
@@ -773,6 +833,7 @@ class SystemUpdater
    */
   private function performSwap(string $expectedVersion)
   {
+    $this->prepareTemporaryDirectory();
     $sourceBase = $this->tempPath . '/extracted';
     $this->log("Swap started. Base: $sourceBase");
 
@@ -788,9 +849,29 @@ class SystemUpdater
 
     $metadataPath = $source . '/metadata.json';
     $metadata = json_decode((string) @file_get_contents($metadataPath), true);
-    $packageVersion = is_array($metadata) ? (string) ($metadata['version'] ?? '') : '';
+    if (!is_array($metadata) || !is_string($metadata['version'] ?? null)) {
+      throw new Exception('Update package version metadata is invalid.');
+    }
+    $packageVersion = $metadata['version'];
     if ($packageVersion !== $expectedVersion) {
       throw new Exception('Update package version does not match the requested release.');
+    }
+    $minPhp = null;
+    if (array_key_exists('minPhp', $metadata)) {
+      $declaredMinimum = $metadata['minPhp'];
+      if (!is_string($declaredMinimum) || !preg_match('/^\d+\.\d+\.\d+$/D', $declaredMinimum)) {
+        throw new Exception('Update package minimum PHP metadata is invalid.');
+      }
+      $minPhp = $declaredMinimum;
+    }
+    if ($minPhp !== null && version_compare(PHP_VERSION, $minPhp, '<')) {
+      throw new Exception(
+        'This update requires PHP ' .
+          $minPhp .
+          '+; current PHP is ' .
+          PHP_VERSION .
+          '. Upgrade PHP through your hosting provider before retrying. No live files were changed.',
+      );
     }
 
     $this->log('Staging from discovered root: ' . $source);
@@ -887,6 +968,7 @@ class SystemUpdater
     }
   }
 
+  /** @param list<array{destination: string, previous: string|null}> $journal */
   private function activateStagedPath(
     string $stagedPath,
     string $destinationPath,
@@ -934,6 +1016,7 @@ class SystemUpdater
     $this->recordActivation($journal, $destinationPath, $previousPath, $activationCount);
   }
 
+  /** @param list<array{destination: string, previous: string|null}> $journal */
   private function activateManagedReleaseDirectory(
     string $stagedPath,
     string $destinationPath,
@@ -958,6 +1041,7 @@ class SystemUpdater
     $this->recordActivation($journal, $destinationPath, $previousPath, $activationCount);
   }
 
+  /** @param list<array{destination: string, previous: string|null}> $journal */
   private function ensureDestinationDirectory(
     string $destinationPath,
     string $rollbackRoot,
@@ -999,6 +1083,7 @@ class SystemUpdater
     return $previousPath;
   }
 
+  /** @param list<array{destination: string, previous: string|null}> $journal */
   private function recordActivation(
     array &$journal,
     string $destinationPath,
@@ -1019,6 +1104,9 @@ class SystemUpdater
     }
   }
 
+  /** @param list<array{destination: string, previous: string|null}> $journal
+   * @return list<string>
+   */
   private function restoreActivationJournal(array $journal): array
   {
     $errors = [];
@@ -1052,6 +1140,9 @@ class SystemUpdater
 
   private function removePath(string $path): bool
   {
+    if (defined('VONCMS_UPDATER_TESTING') && $this->testRemovalFailurePath === $path) {
+      return false;
+    }
     if (is_link($path) || is_file($path)) {
       return @unlink($path);
     }
@@ -1185,11 +1276,18 @@ class SystemUpdater
       new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
       RecursiveIteratorIterator::SELF_FIRST,
     );
+    $resolvedDirectory = realpath($dir);
+    if ($resolvedDirectory === false) {
+      throw new Exception('Could not resolve backup directory.');
+    }
 
     foreach ($files as $file) {
-      $file = realpath($file);
-      $relativePath = substr($file, strlen(realpath($dir)) + 1);
-      if ($file == realpath($dir)) {
+      if (!($file instanceof SplFileInfo) || ($resolvedFile = $file->getRealPath()) === false) {
+        throw new Exception('Could not resolve backup item.');
+      }
+      $file = $resolvedFile;
+      $relativePath = substr($file, strlen($resolvedDirectory) + 1);
+      if ($file === $resolvedDirectory) {
         continue;
       } // Ignore self
 
@@ -1255,12 +1353,19 @@ class SystemUpdater
       return true;
     }
 
+    try {
+      $this->prepareTemporaryDirectory();
+    } catch (Throwable $error) {
+      // No new payload may be created when the directory cannot be sealed.
+      return false;
+    }
+
     if (defined('VONCMS_UPDATER_TESTING') && $this->testCleanupFailure) {
       return false;
     }
 
     for ($attempt = 1; $attempt <= 3; $attempt++) {
-      if ($this->removePath($this->tempPath)) {
+      if ($this->removeTemporaryTree()) {
         return true;
       }
 
@@ -1275,6 +1380,30 @@ class SystemUpdater
     }
 
     return false;
+  }
+
+  /** A failed payload deletion must never remove the directory's HTTP shield. */
+  private function removeTemporaryTree(): bool
+  {
+    $items = @scandir($this->tempPath);
+    if ($items === false) {
+      return false;
+    }
+    foreach ($items as $item) {
+      if (
+        $item !== '.' &&
+        $item !== '..' &&
+        $item !== '.htaccess' &&
+        !$this->removePath($this->tempPath . '/' . $item)
+      ) {
+        return false;
+      }
+    }
+    $shieldPath = $this->tempPath . '/.htaccess';
+    if ($this->pathExists($shieldPath) && !@unlink($shieldPath)) {
+      return false;
+    }
+    return @rmdir($this->tempPath);
   }
 }
 

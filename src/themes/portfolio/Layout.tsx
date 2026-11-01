@@ -1,7 +1,9 @@
+import { hasPasswordSpecialCharacter } from '../../utils/security';
 import React, { useState, useMemo, useEffect } from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
-import { Post } from '../../types';
+import { Post, Page, User, Comment, SiteSettings, NavItem } from '../../types';
+import type { ProfileUpdatePayload } from '../../hooks/useProfileEditor';
 import { Edit2, Save, X, Camera, Menu, Moon, Sun, Rss } from 'lucide-react';
 import { ThemeLayoutProps } from '../types';
 import {
@@ -18,6 +20,7 @@ import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import ThemeImage from '../shared/ThemeImage';
+import { SafeImage } from '../../components/SafeImage';
 import {
   getOverflowNavigationItems,
   getVisibleNavigationItems,
@@ -53,7 +56,11 @@ import {
 import { API } from '../../config/site.config';
 import { vonFetch } from '../../utils/api';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
-import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
+import {
+  getProfileDisplayRole,
+  isOwnUserProfile,
+  getSavedProfileUpdates,
+} from '../../utils/profileUtils';
 
 // ===== LIGHTBOX COMPONENT =====
 const Lightbox: React.FC<{ src: string; alt: string; onClose: () => void }> = ({
@@ -160,7 +167,67 @@ const getColors = (isDark: boolean, accent: string) => ({
 });
 
 // ===== SOCIAL LINKS COMPONENT =====
-const SocialLinks = ({ settings, colors }: { settings: PortfolioSettings; colors: any }) => {
+type PortfolioColors = ReturnType<typeof getColors>;
+interface PortfolioHeroProps {
+  settings: PortfolioSettings;
+  name: string;
+  tagline: string;
+  colors: PortfolioColors;
+  isDark?: boolean;
+  featuredImage?: string;
+  featuredImageSrcSet?: string;
+}
+type PortfolioNavProps = Pick<
+  ThemeLayoutProps,
+  | 'toggleDarkMode'
+  | 'user'
+  | 'isAuthLoading'
+  | 'onLogin'
+  | 'onLogout'
+  | 'onNavigateAdmin'
+  | 'onViewProfile'
+  | 'onBackToHome'
+  | 'onPageClick'
+  | 'onPostClick'
+  | 'onCategoryClick'
+  | 'settings'
+  | 'posts'
+  | 'pages'
+> & {
+  colors: PortfolioColors;
+  siteName: string;
+  isDark: boolean;
+  transparentTextColor?: string;
+};
+type SingleProjectProps = Pick<
+  ThemeLayoutProps,
+  | 'comments'
+  | 'user'
+  | 'onAddComment'
+  | 'onLikeComment'
+  | 'onReplyComment'
+  | 'onLoadMoreComments'
+  | 'hasMoreComments'
+  | 'commentsLoading'
+  | 'commentsError'
+  | 'onLogin'
+  | 'settings'
+  | 'onViewProfile'
+  | 'posts'
+  | 'onPostClick'
+> & {
+  project: Post;
+  colors: PortfolioColors;
+  onBack: () => void;
+};
+
+const SocialLinks = ({
+  settings,
+  colors,
+}: {
+  settings: PortfolioSettings;
+  colors: PortfolioColors;
+}) => {
   const links = [
     {
       url: settings.githubUrl,
@@ -259,7 +326,7 @@ const SocialLinks = ({ settings, colors }: { settings: PortfolioSettings; colors
 };
 
 // ===== ANIMATION CLASSES =====
-const getAnimationClass = (style: string) => {
+const getAnimationClass = (style: string | undefined) => {
   switch (style) {
     case 'fade':
       return 'opacity-0 animate-[fadeIn_0.6s_ease-out_forwards]';
@@ -270,13 +337,13 @@ const getAnimationClass = (style: string) => {
   }
 };
 
-const getAnimationStyle = (style: string, delay = 0): React.CSSProperties =>
+const getAnimationStyle = (style: string | undefined, delay = 0): React.CSSProperties =>
   style === 'fade' || style === 'slide' ? { animationDelay: `${delay * 100}ms` } : {};
 
 // ===== HERO COMPONENTS =====
 
 // Fullscreen Hero
-const HeroFullscreen = ({ settings, name, tagline, colors }: any) => (
+const HeroFullscreen = ({ settings, name, tagline, colors }: PortfolioHeroProps) => (
   <section
     className="relative min-h-screen flex items-center justify-center overflow-hidden"
     style={{ background: colors.bg }}
@@ -384,7 +451,7 @@ const HeroSplit = ({
   colors,
   featuredImage,
   featuredImageSrcSet,
-}: any) => (
+}: PortfolioHeroProps) => (
   <section className="min-h-screen grid md:grid-cols-2" style={{ background: colors.bg }}>
     {/* Left: Content */}
     <div className="flex items-center justify-center p-8 md:p-16 order-2 md:order-1">
@@ -460,7 +527,7 @@ const HeroSplit = ({
 );
 
 // Minimal Hero
-const HeroMinimal = ({ settings, name, tagline, colors }: any) => (
+const HeroMinimal = ({ settings, name, tagline, colors }: PortfolioHeroProps) => (
   <section className="py-20 px-6" style={{ background: colors.bg }}>
     <div className="max-w-4xl mx-auto text-center">
       <h1
@@ -488,7 +555,16 @@ const ProjectCard = ({
   index,
   onClick,
   imageMode = 'gridThreeMd',
-}: any) => {
+}: {
+  project: Post;
+  colors: PortfolioColors;
+  settings:
+    PortfolioSettings | (SiteSettings & { animationStyle?: PortfolioSettings['animationStyle'] });
+  siteSettings: SiteSettings;
+  index: number;
+  onClick: (id: string) => void;
+  imageMode?: Parameters<typeof getResponsiveImageAttributes>[1];
+}) => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -601,7 +677,15 @@ const ProjectsSection = ({
   onProjectClick,
   selectedCategory,
   onCategoryClick,
-}: any) => {
+}: {
+  projects: Post[];
+  settings: PortfolioSettings;
+  siteSettings: SiteSettings;
+  colors: PortfolioColors;
+  onProjectClick: (id: string) => void;
+  selectedCategory?: string | null;
+  onCategoryClick?: (category: string) => void;
+}) => {
   const gridCols = {
     2: 'grid-cols-1 md:grid-cols-2',
     3: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
@@ -773,7 +857,13 @@ const ProjectsSection = ({
 };
 
 // ===== FOOTER =====
-const PortfolioFooter = ({ colors, settings }: any) => {
+const PortfolioFooter = ({
+  colors,
+  settings,
+}: {
+  colors: PortfolioColors;
+  settings: SiteSettings;
+}) => {
   const rssPath = `${getBasePathPrefix()}/rss`;
   return (
     <footer
@@ -842,7 +932,7 @@ const PortfolioNav = ({
   posts,
   pages,
   transparentTextColor,
-}: any) => {
+}: PortfolioNavProps) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -862,12 +952,14 @@ const PortfolioNav = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleNavigationItem = (nav: any, closeMobileMenu = false) => {
+  const handleNavigationItem = (nav: NavItem, closeMobileMenu = false) => {
     if (closeMobileMenu) setIsMobileMenuOpen(false);
     if (nav.url === 'home') return onBackToHome();
     if (nav.url.startsWith('page:') && onPageClick) {
       const pageId = nav.url.split(':')[1];
-      const page = pages?.find((item: any) => item.id === pageId || item.slug === pageId);
+      const page = pages?.find(
+        (item: import('../../types').Page) => item.id === pageId || item.slug === pageId
+      );
       return onPageClick(page?.slug || pageId);
     }
     if (nav.url.startsWith('post:') && onPostClick) {
@@ -919,7 +1011,7 @@ const PortfolioNav = ({
 
         <div className="flex items-center gap-4">
           {/* Standard Navigation */}
-          {visibleNavigationItems.map((nav: any) => (
+          {visibleNavigationItems.map((nav: import('../../types').NavItem) => (
             <PublicNavigationLink
               key={nav.id}
               nav={nav}
@@ -972,7 +1064,7 @@ const PortfolioNav = ({
                 className="absolute top-full right-0 mt-2 w-48 py-2 rounded-xl shadow-xl border overflow-hidden z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']"
                 style={{ background: colors.bgSecondary, borderColor: colors.cardBorder }}
               >
-                {overflowNavigationItems.map((nav: any) => (
+                {overflowNavigationItems.map((nav: import('../../types').NavItem) => (
                   <PublicNavigationLink
                     key={nav.id}
                     nav={nav}
@@ -1006,15 +1098,12 @@ const PortfolioNav = ({
                 style={{ background: colors.bgTertiary }}
                 aria-label="User Menu"
               >
-                {user.avatar ? (
-                  <img
-                    src={user.avatar}
-                    alt={user.username}
-                    className="w-[28px] h-[28px] rounded-full object-cover"
-                  />
-                ) : (
-                  <Gravatar email={user.email} size={28} className="rounded-full" />
-                )}
+                <SafeImage
+                  src={user.avatar}
+                  alt={user.username}
+                  className="w-[28px] h-[28px] rounded-full object-cover"
+                  fallback={<Gravatar email={user.email} size={28} className="rounded-full" />}
+                />
                 <span
                   className="text-sm font-medium hidden sm:block"
                   style={{ color: colors.text }}
@@ -1110,7 +1199,7 @@ const PortfolioNav = ({
           style={{ background: colors.bgSecondary, borderColor: colors.cardBorder }}
         >
           <div className="flex flex-col gap-4">
-            {navigationItems.map((nav: any) => (
+            {navigationItems.map((nav: import('../../types').NavItem) => (
               <PublicNavigationLink
                 key={nav.id}
                 nav={nav}
@@ -1150,7 +1239,7 @@ const SingleProject = ({
   onViewProfile,
   posts, // Added
   onPostClick, // Added
-}: any) => {
+}: SingleProjectProps) => {
   // Plugin Hooks (v1.9.9)
   const { component: aiSummary, position: aiSummaryPos } = useAISummary(
     settings,
@@ -1352,7 +1441,15 @@ const SingleProject = ({
 };
 
 // ===== SINGLE PAGE VIEW =====
-const SinglePage = ({ page, colors, onBack }: any) => (
+const SinglePage = ({
+  page,
+  colors,
+  onBack,
+}: {
+  page: Page;
+  colors: PortfolioColors;
+  onBack: () => void;
+}) => (
   <article style={{ background: colors.bg }} className="min-h-screen">
     {/* Simple Hero */}
     <div className="relative h-[40vh] bg-black/50">
@@ -1404,11 +1501,21 @@ const PortfolioProfile = ({
   onPostClick,
   onBack,
   onUpdateUser,
-}: any) => {
+}: {
+  profileUser: User;
+  currentUser: User | null;
+  projects: Post[];
+  comments: Comment[];
+  colors: PortfolioColors;
+  settings: SiteSettings;
+  onPostClick: (id: string) => void;
+  onBack: () => void;
+  onUpdateUser?: (user: Partial<User>) => void;
+}) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editDisplayName, setEditDisplayName] = useState(profileUser.display_name || '');
-  const [editBio, setEditBio] = useState(profileUser.bio || '');
-  const [editAvatar, setEditAvatar] = useState(profileUser.avatar || '');
+  const [editDisplayName, setEditDisplayName] = useState<string>(profileUser.display_name || '');
+  const [editBio, setEditBio] = useState<string>(profileUser.bio || '');
+  const [editAvatar, setEditAvatar] = useState<string>(profileUser.avatar || '');
   const [localUser, setLocalUser] = useState(profileUser);
 
   // Password Change State
@@ -1416,6 +1523,13 @@ const PortfolioProfile = ({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const profileSavePending = React.useRef(false);
+  const latestProfileDraft = React.useRef({
+    display_name: editDisplayName,
+    bio: editBio,
+    avatar: editAvatar,
+  });
+  latestProfileDraft.current = { display_name: editDisplayName, bio: editBio, avatar: editAvatar };
 
   useEffect(() => {
     setLocalUser(profileUser);
@@ -1425,6 +1539,8 @@ const PortfolioProfile = ({
   }, [profileUser]);
 
   const handleSave = async () => {
+    if (profileSavePending.current) return;
+    profileSavePending.current = true;
     try {
       // Validate Password Change
       if (showPasswordFields) {
@@ -1437,7 +1553,7 @@ const PortfolioProfile = ({
           (newPassword.length < 8 ||
             !/[A-Z]/.test(newPassword) ||
             !/[0-9]/.test(newPassword) ||
-            !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword))
+            !hasPasswordSpecialCharacter(newPassword))
         ) {
           toast.error('Password too weak (8+ chars, Upper, Number, Symbol)');
           return;
@@ -1455,7 +1571,7 @@ const PortfolioProfile = ({
         avatar: editAvatar,
       };
 
-      const payload: any = {
+      const payload: ProfileUpdatePayload = {
         id: currentUser?.id,
         display_name: editDisplayName,
         bio: editBio,
@@ -1476,10 +1592,24 @@ const PortfolioProfile = ({
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setLocalUser(updated);
-        setIsEditing(false);
-        if (onUpdateUser)
-          onUpdateUser({ display_name: editDisplayName, bio: editBio, avatar: editAvatar });
+        const savedUpdates = getSavedProfileUpdates(data.user, {
+          display_name: editDisplayName,
+          bio: editBio,
+          avatar: editAvatar,
+        });
+        setLocalUser({ ...updated, ...savedUpdates });
+        setEditDisplayName((current) =>
+          current === editDisplayName ? savedUpdates.display_name : current
+        );
+        setEditBio((current) => (current === editBio ? savedUpdates.bio : current));
+        setEditAvatar((current) => (current === editAvatar ? savedUpdates.avatar : current));
+        if (
+          latestProfileDraft.current.display_name === editDisplayName &&
+          latestProfileDraft.current.bio === editBio &&
+          latestProfileDraft.current.avatar === editAvatar
+        )
+          setIsEditing(false);
+        if (onUpdateUser && currentUser) onUpdateUser({ ...savedUpdates, id: currentUser.id });
         toast.success(data.message || 'Profile updated');
 
         // Clear passwords
@@ -1490,8 +1620,10 @@ const PortfolioProfile = ({
       } else {
         toast.error(data.error || 'Failed to save');
       }
-    } catch (e) {
+    } catch {
       toast.error('Failed to save');
+    } finally {
+      profileSavePending.current = false;
     }
   };
 
@@ -1722,19 +1854,18 @@ const PortfolioProfile = ({
         >
           <div className="relative inline-block">
             <div className="relative">
-              {localUser.avatar ? (
-                <img
-                  src={localUser.avatar}
-                  alt={localUser.display_name || localUser.username}
-                  className="w-32 h-32 rounded-full object-cover mx-auto mb-6 ring-4 ring-purple-500/30"
-                />
-              ) : (
-                <Gravatar
-                  email={localUser.email || localUser.username}
-                  size={120}
-                  className="rounded-full mx-auto mb-6 ring-4 ring-purple-500/30"
-                />
-              )}
+              <SafeImage
+                src={localUser.avatar}
+                alt={localUser.display_name || localUser.username}
+                className="w-32 h-32 rounded-full object-cover mx-auto mb-6 ring-4 ring-purple-500/30"
+                fallback={
+                  <Gravatar
+                    email={localUser.email || localUser.username}
+                    size={120}
+                    className="rounded-full mx-auto mb-6 ring-4 ring-purple-500/30"
+                  />
+                }
+              />
             </div>
 
             {isOwnUserProfile(currentUser, localUser) && (
@@ -1888,7 +2019,7 @@ const PortfolioProfile = ({
           <div className="max-w-2xl mx-auto">
             <div className="space-y-4">
               {commentItems.length > 0 ? (
-                commentItems.map((comment: any) => (
+                commentItems.map((comment) => (
                   <div
                     key={comment.id}
                     className="p-6 rounded-2xl border transition-all hover:shadow-lg relative group"

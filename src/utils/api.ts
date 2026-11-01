@@ -1,5 +1,10 @@
 import { getCsrfToken } from './security';
 
+export const getErrorMessage = (error: unknown, fallback = ''): string =>
+  error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+    ? error.message || fallback
+    : fallback;
+
 /**
  * VonCMS Centralized Fetch Utility
  * Automatically injects credentials and security headers

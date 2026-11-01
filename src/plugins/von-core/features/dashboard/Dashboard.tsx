@@ -44,6 +44,7 @@ interface DashboardProps {
   currentUser?: User | null;
   serverInfo?: SiteSettings['_serverInfo'];
   timeZone?: string;
+  analyticsMode?: 'strict' | 'balanced';
 }
 
 interface DashboardActivity {
@@ -212,6 +213,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
   currentUser,
   serverInfo,
   timeZone = 'UTC',
+  analyticsMode = 'strict',
 }) => {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [storageData, setStorageData] = useState({ used: '0 MB' });
@@ -225,6 +227,9 @@ const VpDashboard: React.FC<DashboardProps> = ({
   });
   const [days, setDays] = useState(7);
   const [analyticsTab, setAnalyticsTab] = useState<'traffic' | 'articles'>('traffic');
+  const [reportMode, setReportMode] = useState<'strict' | 'balanced'>(analyticsMode);
+  const [analyticsUnavailable, setAnalyticsUnavailable] = useState(false);
+  useEffect(() => setReportMode(analyticsMode), [analyticsMode]);
   const [chartData, setChartData] = useState<TrafficChartPoint[]>([]);
   const [trafficSummary, setTrafficSummary] = useState<TrafficSummary>({
     totalVisits: 0,
@@ -250,7 +255,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
   const [updateCheckError, setUpdateCheckError] = useState('');
 
   // Check for updates from GitHub
-  const checkForUpdates = async () => {
+  const checkForUpdates = React.useCallback(async () => {
     if (!canManageSystem) return;
 
     setCheckingUpdate(true);
@@ -283,14 +288,14 @@ const VpDashboard: React.FC<DashboardProps> = ({
     } finally {
       setCheckingUpdate(false);
     }
-  };
+  }, [canManageSystem]);
 
   // Check for updates on mount (primary owner only)
   useEffect(() => {
     if (canManageSystem) {
       checkForUpdates();
     }
-  }, [canManageSystem]);
+  }, [canManageSystem, checkForUpdates]);
 
   // Calculate Real Stats
   const [activeUsers, setActiveUsers] = useState(users.length);
@@ -457,10 +462,15 @@ const VpDashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     if (analyticsTab !== 'traffic') return;
     let cancelled = false;
-    vonFetch(`${API.trackVisit}?days=${days}`)
+    vonFetch(`${API.trackVisit}?days=${days}&mode=${reportMode}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
+        setAnalyticsUnavailable(
+          !data.success ||
+            data.analytics?.needsRepair === true ||
+            data.analytics?.unavailable === true
+        );
         if (data.success && Array.isArray(data.analytics?.daily)) {
           const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -518,13 +528,14 @@ const VpDashboard: React.FC<DashboardProps> = ({
       })
       .catch(() => {
         if (cancelled) return;
+        setAnalyticsUnavailable(true);
         setChartData(getDefaultChart(days));
         setTrafficSummary({ totalVisits: 0, uniqueVisitors: 0 });
       });
     return () => {
       cancelled = true;
     };
-  }, [days, analyticsTab]);
+  }, [days, analyticsTab, reportMode]);
 
   const getDefaultChart = (range: number): TrafficChartPoint[] => {
     const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -621,6 +632,17 @@ const VpDashboard: React.FC<DashboardProps> = ({
         </div>
         <DashboardClock timeZone={timeZone} canChangeTimeZone={canChangeTimeZone} />
       </div>
+
+      {serverInfo?.phpVersion && /^8\.2(?:\.|$)/.test(serverInfo.phpVersion) && (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+        >
+          PHP {serverInfo.phpVersion} is compatible with VonCMS. PHP 8.3+ is recommended. Keep your
+          PHP branch security-patched and ask your hosting provider to plan an upgrade. This notice
+          does not block your site or admin panel; updating VonCMS does not update PHP.
+        </p>
+      )}
 
       {/* Update Available Banner - Shows when new version detected */}
       {updateInfo?.available && (
@@ -724,29 +746,60 @@ const VpDashboard: React.FC<DashboardProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
         <div className="lg:col-span-2 bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Analytics</h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {analyticsTab === 'traffic'
-                  ? 'Visits and unique visitors recorded by the existing analytics log.'
-                  : 'Top 10 articles by recorded daily views.'}
-              </p>
-            </div>
-            <label htmlFor="dashboard-traffic-range" className="sr-only">
-              Analytics date range
-            </label>
-            <select
-              id="dashboard-traffic-range"
-              name="dashboardTrafficRange"
-              value={days}
-              onChange={(e) => setDays(parseInt(e.target.value))}
-              className="text-xs border-none bg-slate-100 dark:bg-admin-panel rounded-lg px-3 py-1 text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Analytics</h3>
+            <div
+              role="group"
+              aria-label="Analytics report filters"
+              className={`grid w-full gap-3 sm:flex sm:w-auto sm:shrink-0 ${analyticsTab === 'traffic' ? 'grid-cols-2' : 'grid-cols-1'}`}
             >
-              <option value={7}>Last 7 Days</option>
-              <option value={30}>Last 30 Days</option>
-            </select>
+              <label className="min-w-0 space-y-1.5 sm:w-32">
+                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                  Period
+                </span>
+                <select
+                  id="dashboard-traffic-range"
+                  name="dashboardTrafficRange"
+                  aria-label="Analytics date range"
+                  value={days}
+                  onChange={(e) => setDays(parseInt(e.target.value))}
+                  className="h-11 w-full min-w-0 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none transition-colors hover:bg-slate-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200 dark:hover:bg-white/5"
+                >
+                  <option value={7}>Last 7 Days</option>
+                  <option value={30}>Last 30 Days</option>
+                </select>
+              </label>
+              {analyticsTab === 'traffic' && (
+                <label className="min-w-0 space-y-1.5 sm:w-36">
+                  <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Report mode
+                  </span>
+                  <select
+                    id="dashboard-analytics-mode"
+                    name="dashboardAnalyticsMode"
+                    aria-label="Analytics report mode"
+                    value={reportMode}
+                    onChange={(event) => setReportMode(event.target.value as 'strict' | 'balanced')}
+                    className="h-11 w-full min-w-0 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none transition-colors hover:bg-slate-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200 dark:hover:bg-white/5"
+                  >
+                    <option value="strict">Strict</option>
+                    <option value="balanced">Balanced</option>
+                  </select>
+                </label>
+              )}
+            </div>
           </div>
+          <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            {analyticsTab === 'traffic'
+              ? `${reportMode === 'strict' ? 'Strict: IP-based visitors.' : 'Balanced: browser-based visitors.'} Historical modes are shown separately; counts are not verified people.`
+              : 'Top 10 articles by recorded daily views.'}
+          </p>
+          {analyticsTab === 'traffic' && analyticsUnavailable && (
+            <p role="status" className="mb-3 text-sm text-amber-700 dark:text-amber-300">
+              Analytics storage is unavailable for this mode. Ask the Primary Admin to run Database
+              Schema Repair.
+            </p>
+          )}
 
           <div
             className="mb-5 flex gap-1 border-b border-slate-200 dark:border-admin-border"
@@ -777,13 +830,19 @@ const VpDashboard: React.FC<DashboardProps> = ({
                   <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
                     {trafficSummary.totalVisits.toLocaleString()}
                   </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Across {days} days
+                  </p>
                 </div>
                 <div className="min-w-0 px-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Unique visitors
+                    {reportMode === 'strict' ? 'Unique IPs' : 'Unique browsers'}
                   </p>
                   <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
                     {trafficSummary.uniqueVisitors.toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Counted once across {days} days
                   </p>
                 </div>
                 <div className="min-w-0 px-3">
@@ -793,21 +852,33 @@ const VpDashboard: React.FC<DashboardProps> = ({
                   <p className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
                     {trafficPeriodSummary.activeDays}/{chartData.length || days}
                   </p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Days with recorded visits
+                  </p>
                 </div>
               </div>
 
               <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-2">
                   <span className="size-2 rounded-sm bg-blue-500" aria-hidden="true" />
-                  Visits
+                  Daily visits
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-0.5 w-4 bg-violet-500" aria-hidden="true" />
-                  Unique visitors
+                  {reportMode === 'strict' ? 'Daily unique IPs' : 'Daily unique browsers'}
                 </span>
               </div>
 
-              <div className="h-52 w-full">
+              <p
+                id="dashboard-traffic-counting-note"
+                className="mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+              >
+                The chart counts unique {reportMode === 'strict' ? 'IPs' : 'browsers'} each day. The
+                total counts each one only once across the selected {days}-day period. Daily uniques
+                are not summed to calculate that total.
+              </p>
+
+              <div className="h-52 w-full" aria-describedby="dashboard-traffic-counting-note">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
                     <CartesianGrid
@@ -840,7 +911,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
                     />
                     <Bar
                       dataKey="visits"
-                      name="Visits"
+                      name="Daily visits"
                       fill="var(--color-blue-500)"
                       radius={[4, 4, 0, 0]}
                       maxBarSize={32}
@@ -848,7 +919,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
                     <Line
                       type="monotone"
                       dataKey="uniqueVisitors"
-                      name="Unique visitors"
+                      name={reportMode === 'strict' ? 'Daily unique IPs' : 'Daily unique browsers'}
                       stroke="#8b5cf6"
                       strokeWidth={2}
                       dot={false}

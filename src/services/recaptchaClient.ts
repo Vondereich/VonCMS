@@ -5,7 +5,10 @@
        if (res.success) { // ok }
 */
 
-declare const grecaptcha: any; // global from Google API script
+declare const grecaptcha: {
+  ready: (callback: () => void) => void;
+  execute: (siteKey: string, options: { action: string }) => Promise<string>;
+}; // global from Google API script
 
 export async function executeRecaptcha(siteKey: string, action = 'submit'): Promise<string> {
   if (typeof grecaptcha === 'undefined' || !grecaptcha.ready) {
@@ -17,7 +20,7 @@ export async function executeRecaptcha(siteKey: string, action = 'submit'): Prom
         grecaptcha
           .execute(siteKey, { action })
           .then((token: string) => resolve(token))
-          .catch((err: any) => reject(err));
+          .catch((err: unknown) => reject(err));
       });
     } catch (e) {
       reject(e);

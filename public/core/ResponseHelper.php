@@ -3,7 +3,7 @@
 // Internal module only; even a server without rewrite rules must refuse direct requests.
 if (
   !defined('VONCMS_CORE_LOADED') ||
-  (isset($_SERVER['SCRIPT_FILENAME']) &&
+  (is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
     realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__))
 ) {
   http_response_code(403);
@@ -21,9 +21,9 @@ class ResponseHelper
    *
    * @param Throwable|string|scalar|null $e The throwable object or error message
    * @param int $statusCode HTTP Status code (default 500)
-   * @return void
+   * @return never
    */
-  public static function sendError($e, $statusCode = 500)
+  public static function sendError($e, $statusCode = 500): never
   {
     // Ensure headers are sent
     sendApiHeaders();
@@ -118,10 +118,10 @@ class ResponseHelper
    * Scrub user/avatar URLs more strictly than normal content assets.
    * External avatars must be HTTPS; relative local upload paths remain allowed.
    *
-   * @param string|null $url
+   * @param mixed $url Raw stored/request avatar values are checked before use.
    * @return string
    */
-  public static function scrubAvatarUrl($url)
+  public static function scrubAvatarUrl(mixed $url): string
   {
     if (empty($url) || !is_string($url)) {
       return '';
@@ -186,7 +186,8 @@ class ResponseHelper
     }
 
     if (!$isPrimaryAdmin) {
-      $hasEmailHash = isset($payload['emailHash']) && trim((string) $payload['emailHash']) !== '';
+      $emailHash = $payload['emailHash'] ?? null;
+      $hasEmailHash = is_scalar($emailHash) && trim((string) $emailHash) !== '';
       unset($payload['emailHash']);
       if ($hasEmailHash) {
         $payload['hasEmail'] = true;

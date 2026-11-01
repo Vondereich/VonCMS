@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Newsletter Subscribe API
  * SECURITY: Rate limiting, email validation, sanitization
@@ -20,12 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $requestBody = CSRFProtection::getRequestBody();
-if (!is_string($requestBody) || strlen($requestBody) > 8192) {
+if (strlen($requestBody) > 8192) {
   ResponseHelper::sendError('Subscription payload is too large.', 413);
 }
 
 // 0. Enforce CSRF
 CSRFProtection::requireToken();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 $newsletterEnabled = false;
 try {
@@ -46,7 +49,7 @@ if (!$newsletterEnabled) {
   ResponseHelper::sendError('Newsletter subscriptions are currently disabled.', 403);
 }
 
-$clientIP = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+$clientIP = DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0');
 $rateIdentifier = 'newsletter:' . $clientIP;
 RateLimiter::requireAttempt($rateIdentifier);
 
@@ -56,7 +59,7 @@ $input = is_array($input) ? $input : [];
 $email = $input['email'] ?? '';
 $honeypot = $input['hp_field'] ?? '';
 
-if ((!is_scalar($email) && $email !== null) || (!is_scalar($honeypot) && $honeypot !== null)) {
+if (!is_scalar($email) || !is_scalar($honeypot)) {
   ResponseHelper::sendError('Invalid subscription data', 400);
 }
 
@@ -67,7 +70,7 @@ $honeypot = (string) $honeypot;
 if ($honeypot !== '') {
   error_log(
     'Honeypot triggered during newsletter subscription from IP: ' .
-      ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+      DataBoundary::serverString('REMOTE_ADDR', 'unknown'),
   );
   ResponseHelper::sendError('Subscription failed', 400);
 }
@@ -83,6 +86,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 // Sanitize email
 $email = filter_var($email, FILTER_SANITIZE_EMAIL);
+if ($email === false) {
+  ResponseHelper::sendError('Invalid email address', 400);
+}
 
 // Check email length
 if (strlen($email) > 255) {
@@ -95,7 +101,7 @@ try {
   // Check if already subscribed
   $stmt = $pdo->prepare('SELECT id, status FROM newsletter_subscribers WHERE email = ?');
   $stmt->execute([$email]);
-  $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+  $existing = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if ($existing) {
     echo json_encode(['success' => true, 'message' => $publicMessage]);

@@ -4,7 +4,7 @@ import { Layout, Image, ExternalLink, Zap, Info, ShieldCheck, HelpCircle } from 
 
 interface AdSettingsProps {
   settings: SiteSettings;
-  onChange: (key: string, value: any) => void;
+  onChange: import('../../../../../types').SettingsFieldChange<SiteSettings['ads']>;
 }
 
 export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) => {
@@ -51,7 +51,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
+            <div className="min-w-0 md:col-span-2 md:grid">
               <textarea
                 aria-label="Header ad code"
                 id="adsettings-52"
@@ -60,7 +60,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.headerAd}
                 onChange={(e) => onChange('headerAd', e.target.value)}
                 placeholder="<!-- Paste top ad code here -->"
-                className="w-full p-3 font-mono text-xs rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                className="block w-full resize-y p-3 font-mono text-xs rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-colors md:min-h-64"
               />
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
@@ -141,7 +141,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2">
+            <div className="min-w-0 md:col-span-2 md:grid">
               <textarea
                 aria-label="In-feed ad code"
                 id="adsettings-131"
@@ -150,7 +150,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.inFeedAd}
                 onChange={(e) => onChange('inFeedAd', e.target.value)}
                 placeholder="<!-- Paste native/feed ad code here -->"
-                className="w-full p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-all shadow-inner"
+                className="block w-full resize-y p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-colors shadow-inner md:min-h-64"
               />
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
@@ -221,7 +221,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2">
+            <div className="min-w-0 md:col-span-2 md:grid">
               <textarea
                 id="adsettings-208"
                 name="adsettings208"
@@ -230,7 +230,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.popupAd}
                 onChange={(e) => onChange('popupAd', e.target.value)}
                 placeholder="<!-- Paste popup/interstitial script here -->"
-                className="w-full p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-purple-500 outline-hidden transition-all shadow-inner"
+                className="block w-full resize-y p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-purple-500 outline-hidden transition-colors shadow-inner md:min-h-64"
               />
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">

@@ -19,7 +19,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 // Enforce Security
 SessionManager::requirePrimaryAdmin();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.admin_tools')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.admin_tools')) {
   ResponseHelper::sendError('Media administration access required', 403);
 }
 CSRFProtection::requireToken();
@@ -107,7 +107,7 @@ foreach ($targetRelativePaths as $targetRelativePath) {
 $lookupPaths = array_values(array_unique(array_filter($lookupPaths)));
 
 $dbDeleted = false;
-if (isset($pdo) && $pdo !== null && !empty($lookupPaths)) {
+if (isset($pdo) && !empty($lookupPaths)) {
   try {
     $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
     if ($tableCheck && $tableCheck->rowCount() > 0) {
@@ -127,6 +127,7 @@ if (isset($pdo) && $pdo !== null && !empty($lookupPaths)) {
 
 // Success if either DB or file was deleted
 if ($dbDeleted || !empty($deletedPaths)) {
+  @unlink(dirname(__DIR__) . '/data/storage_usage.json');
   echo json_encode([
     'success' => true,
     'message' => 'Deleted successfully',

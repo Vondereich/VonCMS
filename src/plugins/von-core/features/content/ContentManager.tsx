@@ -39,7 +39,7 @@ interface NavItem {
 }
 interface ContentManagerProps {
   type: 'post' | 'page';
-  posts: Post[];
+  posts?: Post[];
   pages?: Page[];
   settings: SiteSettings;
   navigation?: NavItem[];

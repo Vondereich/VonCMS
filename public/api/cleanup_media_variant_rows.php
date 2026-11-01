@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Cleanup generated media variant rows from the media table.
  * This removes library noise without deleting physical files.
@@ -19,12 +21,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 SessionManager::requirePrimaryAdmin();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.admin_tools')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.admin_tools')) {
   ResponseHelper::sendError('Media administration access required', 403);
 }
 CSRFProtection::requireToken();
 
 $uploadsDir = dirname(__DIR__) . '/uploads/';
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
@@ -39,7 +42,7 @@ try {
   }
 
   $stmt = $pdo->query('SELECT id, filepath FROM media ORDER BY id ASC');
-  $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+  $rows = $stmt ? DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)) : [];
 
   $variantIds = [];
   foreach ($rows as $row) {

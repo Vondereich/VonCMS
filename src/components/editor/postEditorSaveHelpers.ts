@@ -138,7 +138,10 @@ export const normalizeScheduledAtForSave = <T extends ContentItem>(item: T, stat
   return itemToSave;
 };
 
-export const buildSavedSnapshot = (itemToSave: ContentItem, savedData: any): ContentItem => {
+export const buildSavedSnapshot = (
+  itemToSave: ContentItem,
+  savedData: import('../../types').ContentSaveResult | null | undefined
+): ContentItem => {
   return savedData && savedData.id
     ? ({
         ...itemToSave,

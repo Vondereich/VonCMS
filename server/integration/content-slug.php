@@ -7,6 +7,7 @@ if (PHP_SAPI !== 'cli') {
 $root = dirname(__DIR__, 2);
 require_once __DIR__ . '/sqlite-compat.php';
 require_once $root . '/public/api/content_slug_helper.php';
+require_once $root . '/public/api/schema_repair_helper.php';
 require_once $root . '/public/api/role_capability_helper.php';
 
 final class SlugFixturePDO extends VonCmsFixtureSqlitePDO
@@ -82,7 +83,12 @@ if (in_array($argv[1] ?? '', ['--mysql', '--mysql-worker'], true)) {
     try {
       $insert = $pdo->prepare("INSERT INTO {$table} (slug, status) VALUES (?, 'published')");
       if ($mode === 'import') {
-        voncms_insert_with_slug_reservation($pdo, $type, $slug, $insert, [$slug]);
+        $insertedId = voncms_insert_with_slug_reservation($pdo, $type, $slug, $insert, [$slug]);
+        $readId = $pdo->prepare("SELECT id FROM {$table} WHERE slug = ?");
+        $readId->execute([$slug]);
+        if ($insertedId !== (string) $readId->fetchColumn()) {
+          throw new RuntimeException('Import lost its inserted identity while releasing the lock');
+        }
       } else {
         $contentSlugLock = VonCmsContentSlugLock::acquire($pdo);
         $pdo->beginTransaction();
@@ -165,6 +171,8 @@ if (in_array($argv[1] ?? '', ['--mysql', '--mysql-worker'], true)) {
     ['post', 'save', 'page', 'rollback', 200, 'same'],
     ['post', 'save', 'page', 'fail', 200, 'same'],
     ['post', 'save', 'page', 'timeout', 503, 'same'],
+    ['post', 'import', 'page', 'rollback', 200, 'same'],
+    ['page', 'import', 'post', 'rollback', 200, 'same'],
   ];
   try {
     $server->exec("CREATE DATABASE `{$schema}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -228,7 +236,7 @@ if (in_array($argv[1] ?? '', ['--mysql', '--mysql-worker'], true)) {
       count($cases) .
       ' real MySQL ' .
       $server->getAttribute(PDO::ATTR_SERVER_VERSION) .
-      " two-process slug cases: Post/Page, import, numeric text, rollback, failure and timeout\n";
+      " two-process slug cases: Post/Page, import identity, numeric text, rollback, failure and timeout\n";
   } finally {
     foreach ($children as [$process, $pipes]) {
       if (is_resource($process)) {
@@ -349,10 +357,15 @@ foreach (['post' => 'posts', 'page' => 'pages'] as $type => $table) {
     $checks++;
   }
   $pdo->beginTransaction();
-  voncms_insert_with_slug_reservation($pdo, $type, 'fresh-import', $insert, [
+  $insertedId = voncms_insert_with_slug_reservation($pdo, $type, 'fresh-import', $insert, [
     'fresh-import',
     'published',
   ]);
+  $readId = $pdo->prepare("SELECT id FROM {$table} WHERE slug = ?");
+  $readId->execute(['fresh-import']);
+  if ($insertedId !== (string) $readId->fetchColumn()) {
+    throw new RuntimeException('Import must return its inserted Post/Page identity');
+  }
   if (!voncms_content_slug_conflicts($pdo, $type === 'post' ? 'page' : 'post', 'fresh-import')) {
     throw new RuntimeException('Conflict-free import was not inserted');
   }
@@ -366,6 +379,70 @@ if (
   throw new RuntimeException('Numeric-looking slugs must be bound as exact text');
 }
 $checks++;
+
+// Both lock owners must reject a missing database identity before deriving any lock key.
+final class SlugDatabaseResultStatement extends PDOStatement
+{
+  public function __construct(private mixed $result) {}
+  public function fetchColumn(int $column = 0): mixed
+  {
+    return $this->result;
+  }
+}
+final class SlugDatabaseResultPDO extends PDO
+{
+  public int $lockRequests = 0;
+  public function __construct(private mixed $result, private bool $queryFails = false) {}
+  public function getAttribute(int $attribute): mixed
+  {
+    return 'mysql';
+  }
+  public function query(
+    string $query,
+    ?int $fetchMode = null,
+    mixed ...$fetchModeArgs,
+  ): PDOStatement|false {
+    return $this->queryFails ? false : new SlugDatabaseResultStatement($this->result);
+  }
+  public function prepare(string $query, array $options = []): PDOStatement|false
+  {
+    $this->lockRequests++;
+    throw new LogicException('An invalid database identity reached lock acquisition.');
+  }
+}
+foreach ([false, null, '', 0, true, []] as $databaseResult) {
+  foreach (['content', 'schema'] as $owner) {
+    $invalidDatabase = new SlugDatabaseResultPDO($databaseResult);
+    $rejected = false;
+    try {
+      $owner === 'content'
+        ? VonCmsContentSlugLock::acquire($invalidDatabase)
+        : voncms_schema_acquire_repair_lock($invalidDatabase);
+    } catch (RuntimeException $error) {
+      $rejected = true;
+    }
+    if (!$rejected || $invalidDatabase->lockRequests !== 0) {
+      throw new RuntimeException(
+        'Missing database identity was not rejected before ' . $owner . ' lock.',
+      );
+    }
+    $checks++;
+  }
+}
+foreach (['content', 'schema'] as $owner) {
+  $invalidDatabase = new SlugDatabaseResultPDO(null, true);
+  try {
+    $owner === 'content'
+      ? VonCmsContentSlugLock::acquire($invalidDatabase)
+      : voncms_schema_acquire_repair_lock($invalidDatabase);
+    throw new LogicException('Failed database query was accepted.');
+  } catch (RuntimeException $error) {
+    if ($invalidDatabase->lockRequests !== 0) {
+      throw $error;
+    }
+    $checks++;
+  }
+}
 
 // Exercise the real named-lock SQL branch with controlled SQL functions, not a MySQL server.
 final class SlugNamedLockPDO extends VonCmsFixtureSqlitePDO
@@ -406,6 +483,21 @@ if (
   throw new RuntimeException('Named lock must be bounded, shared and released exactly once');
 }
 $checks++;
+foreach (['0', 'database-A', 'database-B'] as $databaseName) {
+  $lockPdo->createFunction('DATABASE', fn() => $databaseName);
+  $lockCalls = [];
+  $lock = VonCmsContentSlugLock::acquire($lockPdo);
+  $lock->release();
+  $expectedSuffix = substr(hash('sha256', $databaseName), 0, 32);
+  if (
+    $lockCalls[0][1] !== 'voncms:content-slugs:' . $expectedSuffix ||
+    $lockCalls[1][1] !== $lockCalls[0][1] ||
+    voncms_schema_repair_lock_name($lockPdo) !== 'voncms:schema:' . $expectedSuffix
+  ) {
+    throw new RuntimeException('A valid database name changed its exact lock identity.');
+  }
+  $checks++;
+}
 $lockPdo->createFunction('GET_LOCK', fn() => 0, 2);
 try {
   VonCmsContentSlugLock::acquire($lockPdo);

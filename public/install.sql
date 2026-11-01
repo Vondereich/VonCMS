@@ -3,6 +3,36 @@
 CREATE DATABASE IF NOT EXISTS example_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE example_db;
 
+-- Internal Editorial Calendar
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    notes TEXT NOT NULL,
+    starts_at DATETIME NOT NULL,
+    ends_at DATETIME NOT NULL,
+    all_day TINYINT(1) NOT NULL DEFAULT 0,
+    created_by INT NOT NULL,
+    request_key CHAR(36) NOT NULL,
+    version INT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY unique_calendar_request (request_key),
+    INDEX idx_calendar_window (starts_at, ends_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS calendar_event_audit (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_id INT NOT NULL,
+    action VARCHAR(12) NOT NULL,
+    actor_id INT NOT NULL,
+    actor_name VARCHAR(100) NOT NULL,
+    event_version INT NOT NULL,
+    request_key CHAR(36) DEFAULT NULL,
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY unique_calendar_audit_request (request_key),
+    INDEX idx_calendar_audit_date (created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -255,12 +285,22 @@ CREATE TABLE IF NOT EXISTS analytics (
     page_url VARCHAR(500),
     referrer VARCHAR(500),
     user_agent TEXT,
-    ip_hash VARCHAR(64) COMMENT 'SHA256 hashed IP for privacy',
+    ip_hash VARCHAR(64) COMMENT 'SHA256 identity hash; meaning follows measurement_mode',
+    measurement_mode VARCHAR(16) NOT NULL DEFAULT 'strict',
     visit_date DATE,
     visit_time TIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_date (visit_date),
     INDEX idx_ip_date (ip_hash, visit_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Anonymous daily article counts; retained for 30 days by bounded cleanup.
+CREATE TABLE IF NOT EXISTS analytics_sessions (
+    visitor_hash CHAR(64) NOT NULL,
+    last_seen BIGINT NOT NULL DEFAULT 0,
+    expires_at BIGINT NOT NULL DEFAULT 0,
+    UNIQUE KEY unique_analytics_browser (visitor_hash),
+    INDEX idx_analytics_session_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Anonymous daily article counts; retained for 30 days by bounded cleanup.

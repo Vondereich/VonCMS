@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.27.12 feature baseline for the OverDrive line. This maintenance and security follow-up improves Post/Page HTML validation, metadata consistency, save feedback, media storage consistency, contact handling and profile text. Account and public-form validation, excerpt rules and numeric-slug routing are retained. Inactive plugin data remains omitted from public settings without changing saved configuration or OFF controls. Dashboard Top Articles retains its 7/30-day rankings; earlier Database Repair requirements still apply, and previous lifetime views are not backfilled.
+> VonCMS v1.28.0 feature baseline for The BluePrint line. This version builds on v1.27.12. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. Grouped navigation and role-aware Create actions accompany the internal Editorial Calendar. This guide describes the current package; later roadmap modules remain planned. Published downloads are listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
 
-## Introduction to VonCMS v1.27.12 "OverDrive"
+## Introduction to VonCMS v1.28.0 "The BluePrint"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -47,11 +47,13 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 - **Your data. Your server. Your rules.** VonCMS keeps your content on your hosting and under your control instead of pushing you into someone else's platform model.
 - **Built for publishers first.** From the admin dashboard to the editor to the theme system, the product is meant to reduce friction for the people doing the publishing work.
 
-### This is v1.27.12 "OverDrive" - Corrective Follow-up
+### VonCMS v1.28.0 "The BluePrint"
 
-_"OverDrive" - the deliberately paced development line for larger publisher workflows and platform capabilities._
+_"The BluePrint" - the v1.28.x series, following the closed v1.27.x maintenance baseline._
 
-**OverDrive** builds on the After Hours runtime. Version 1.27.11 closed the series' planned maintenance scope; v1.27.12 adds corrective and security maintenance without a new database migration. It also makes IndexNow/Analytics settings read-only for appointed Admins, retains full publication-time visibility, and restores desktop scrolling for existing Default, Digest and TechPress article sidebars and the TechPress homepage sidebar. New feature development is planned for v1.28.x, outside this update. Read the [Changelog](../CHANGELOG.md) for exact changes and [Upgrade](UPGRADE.md#v12712-upgrade-checks) for compatibility notes.
+**The BluePrint** carries forward the v1.27.12 runtime with a PHP 8.2 minimum and PHP 8.3+ recommended. The CMS package uses version 1.28.0; the installer, bundled themes and built-in plugins use the 1.28 series label. Calendar adds its own event/audit schema. Read the [Changelog](../CHANGELOG.md) for implemented changes and [Upgrade](UPGRADE.md) before applying an update.
+
+Grouped admin navigation includes role-aware New Post/New Page/Event shortcuts and direct Plugins/Themes tab links. The internal Calendar provides Month/Agenda views, publication projections, event CRUD, content-author filters and responsive contextual details. Post/Page entries are read-only; event mutations require server-authorized Admin/Moderator access. Existing sites activate its new storage through Primary Admin Database Repair. Other roadmap modules remain planned.
 
 It keeps the **Hybrid Decoupled CMS** identity, the server-bound admin scalability work, and the installer/repair hardening together under one stable line without introducing a separate Node.js production requirement.
 
@@ -132,8 +134,8 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Package version | `v1.27.12 "OverDrive"`                    |
-| Minimum PHP     | `8.2+`                                    |
+| Package version | `v1.28.0 "The BluePrint"`                 |
+| Minimum PHP     | `8.2+`, with `8.3+` recommended           |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |
 | Full changelog  | [CHANGELOG.md](../CHANGELOG.md)           |
@@ -343,7 +345,7 @@ If a feature makes life easier for a non-technical user, it ships. If it only im
 
 ### Performance posture
 
-VonCMS is built to stay light on disk and direct at runtime. The `v1.27.12` baseline keeps a small package surface, server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
+VonCMS is built to stay light on disk and direct at runtime. The `v1.28.0` release retains server-side pagination, indexed read paths for large content libraries, and a direct React-to-PHP-to-MySQL request path without a plugin-heavy middleware stack.
 
 ### Why does this matter?
 
@@ -351,7 +353,7 @@ Because the important promise is architectural: when traffic climbs, VonCMS alre
 
 ### What's behind the posture?
 
-- **93 PHP API and helper files** - under `public/api/`, with 117 public PHP files covered by the lint gate across the public runtime, including the protected core modules. Internal helpers are not callable endpoints.
+- **94 PHP API and helper files** - under `public/api/`, with 121 public PHP files covered by the lint gate across the public runtime, including the protected core modules. Internal helpers are not callable endpoints.
 - **Release audit coverage** - routing hardening, response contracts, host-header risk reduction, importer SSRF blocking, and race-condition fixes have regression coverage. Source checks, isolated runtime fixtures and local staging tests are separate evidence; they do not certify every hosting setup, payload or production load.
-- **Light package surface** - the `v1.27.12` package contract stays small for a full CMS package while keeping installer, docs, bundled themes, and self-hosted Inter font files intact.
+- **Light package surface** - the release packages keep installer, docs, bundled themes, and self-hosted Inter font files together. Deploy contains the built application; Source includes development tools and tests without installing them on production hosting.
 - **Direct API calls** - React talks to PHP. PHP talks to MySQL. Done.

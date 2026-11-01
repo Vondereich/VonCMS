@@ -5,11 +5,15 @@
  */
 
 $contactHoneypotHelperPath = realpath(__FILE__);
-$requestedScriptPath = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''));
+$requestedScriptPath = realpath(
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) ? $_SERVER['SCRIPT_FILENAME'] : '',
+);
 if ($contactHoneypotHelperPath !== false && $requestedScriptPath === $contactHoneypotHelperPath) {
   http_response_code(403);
   exit('Forbidden');
 }
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 unset($contactHoneypotHelperPath, $requestedScriptPath);
 
 const VONCMS_CONTACT_HONEYPOT_MIN_AGE = 1;

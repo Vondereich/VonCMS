@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Newsletter Export API (Admin Only)
  * SECURITY: Admin authentication, CSRF protection
@@ -31,9 +33,13 @@ SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   $input = json_decode(CSRFProtection::getRequestBody(), true);
+  if (!is_array($input)) {
+    ResponseHelper::sendError('Invalid newsletter export request', 400);
+  }
   $status = $input['status'] ?? 'active';
 
   // Build query
@@ -58,12 +64,15 @@ try {
   header('Expires: 0');
 
   $output = fopen('php://output', 'w');
+  if ($output === false) {
+    ResponseHelper::sendError('Cannot open newsletter export', 500);
+  }
 
   // Header row
   fputcsv($output, ['Email', 'Status', 'Subscribed At', 'Source']);
 
   // Stream data rows - O(1) memory instead of O(N)
-  while ($sub = $stmt->fetch(PDO::FETCH_ASSOC)) {
+  while ($sub = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
     $csvRow = [$sub['email'], $sub['status'], $sub['subscribed_at'], $sub['source']];
     foreach ($csvRow as $index => $cell) {
       $cell = (string) $cell;

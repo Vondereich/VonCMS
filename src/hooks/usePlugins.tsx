@@ -34,7 +34,7 @@ const getRelatedCandidateLimit = (count: unknown): number => {
   return Math.min(RELATED_POSTS_FALLBACK_LIMIT, Math.max(safeRelatedCount * 4, 12));
 };
 
-const normalizeRelatedPostCandidate = (post: any): Post => ({
+const normalizeRelatedPostCandidate = (post: Partial<import('../types').PostApiRecord>): Post => ({
   ...post,
   id: String(post.id || ''),
   title: post.title || '',
@@ -58,11 +58,11 @@ const normalizeRelatedPostCandidate = (post: any): Post => ({
 });
 
 const fetchRelatedPostCandidates = async (
-  currentPost: Post,
-  config: RelatedPostsConfig,
+  currentPost: Pick<Post, 'id' | 'category'>,
+  count: RelatedPostsConfig['count'],
   signal: AbortSignal
 ): Promise<Post[]> => {
-  const limit = getRelatedCandidateLimit(config.count);
+  const limit = getRelatedCandidateLimit(count);
 
   const fetchBatch = async (category?: string): Promise<Post[]> => {
     const params = new URLSearchParams();
@@ -137,7 +137,7 @@ export function useRelatedPosts(
   currentPost: Post | null,
   allPosts: Post[],
   onPostClick?: (post: Post) => void,
-  themeColors?: any
+  themeColors?: React.ComponentProps<typeof RelatedPostsComponent>['themeColors']
 ): React.ReactNode | null {
   const isActive = isSystemPluginActive(settings, 'vp_related_posts');
   const savedConfig = settings.pluginConfig?.['vp_related_posts'] as
@@ -161,9 +161,13 @@ export function useRelatedPosts(
     postId: string;
     posts: Post[];
   }>({ postId: '', posts: [] });
+  const relatedEnabled = config.enabled;
+  const currentPostId = String(currentPost?.id || '');
+  const currentPostCategory = currentPost?.category || '';
+  const currentPostStatus = currentPost?.status;
 
   useEffect(() => {
-    if (!isActive || !config.enabled || !currentPost || currentPost.status !== 'published') {
+    if (!isActive || !relatedEnabled || !currentPostId || currentPostStatus !== 'published') {
       setFallbackCandidateState((current) =>
         current.postId || current.posts.length ? { postId: '', posts: [] } : current
       );
@@ -173,9 +177,13 @@ export function useRelatedPosts(
     if (hasCompleteLocalCandidateSet) return;
 
     const abortController = new AbortController();
-    const fallbackPostId = String(currentPost.id || '');
+    const fallbackPostId = currentPostId;
 
-    fetchRelatedPostCandidates(currentPost, config, abortController.signal)
+    fetchRelatedPostCandidates(
+      { id: currentPostId, category: currentPostCategory },
+      safeRelatedCount,
+      abortController.signal
+    )
       .then((posts) => {
         if (!abortController.signal.aborted) {
           setFallbackCandidateState({ postId: fallbackPostId, posts });
@@ -192,15 +200,14 @@ export function useRelatedPosts(
     return () => abortController.abort();
   }, [
     isActive,
-    config.enabled,
+    relatedEnabled,
     safeRelatedCount,
-    currentPost?.id,
-    currentPost?.category,
-    currentPost?.status,
+    currentPostId,
+    currentPostCategory,
+    currentPostStatus,
     hasCompleteLocalCandidateSet,
   ]);
 
-  const currentPostId = String(currentPost?.id || '');
   const candidatePosts =
     fallbackCandidateState.postId === currentPostId
       ? fallbackCandidateState.posts

@@ -22,12 +22,16 @@ SessionManager::requireAdmin();
 CSRFProtection::requireToken();
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid form data', 400);
+}
 $id = $input['id'] ?? '';
 
 if (!is_string($id) || !preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $id)) {
   ResponseHelper::sendError('Missing ID', 400);
 }
 
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 try {
   $pdo->beginTransaction();
   $submissionStmt = $pdo->prepare('DELETE FROM contact_submissions WHERE form_id = ?');

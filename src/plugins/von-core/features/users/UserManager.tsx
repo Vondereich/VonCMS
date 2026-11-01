@@ -1,5 +1,7 @@
+import { hasPasswordSpecialCharacter } from '../../../../utils/security';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Gravatar from 'react-gravatar';
+import { SafeImage } from '../../../../components/SafeImage';
 import toast from 'react-hot-toast';
 import { User, UserRole } from '../../../../types';
 import { API } from '../../../../config/site.config';
@@ -61,7 +63,7 @@ const UserManager: React.FC<UserManagerProps> = ({
       password.length < 8 ||
       !/[A-Z]/.test(password) ||
       !/[0-9]/.test(password) ||
-      !/[!@#$%^&*(),.?":{}|<>]/.test(password)
+      !hasPasswordSpecialCharacter(password)
     ) {
       return 'Password must be at least 8 characters with uppercase, number, and special character';
     }
@@ -577,11 +579,21 @@ const UserManager: React.FC<UserManagerProps> = ({
           isOpen
           onClose={() => setEditingUser(null)}
           ariaLabel="Edit user"
-          className="w-full max-w-md"
+          className="w-full max-w-5xl"
         >
           <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-admin-panel sm:max-h-[90dvh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-admin-border">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
+            <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-admin-border dark:bg-admin-inset sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300 sm:flex">
+                  <UserIcon size={22} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Profile details and account access
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingUser(null)}
@@ -593,153 +605,208 @@ const UserManager: React.FC<UserManagerProps> = ({
             </div>
             <form
               onSubmit={handleEditSubmit}
-              className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
             >
-              <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-admin-hover overflow-hidden border-4 border-white dark:border-admin-border-strong shadow-lg">
-                  {editForm.avatar ? (
-                    <img
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-slate-100 bg-slate-200 dark:border-admin-border-strong dark:bg-admin-hover">
+                    <SafeImage
                       src={editForm.avatar}
                       alt={editForm.username}
                       className="w-full h-full object-cover"
+                      fallback={
+                        <Gravatar
+                          email={editForm.email || editForm.username}
+                          size={100}
+                          className="w-full h-full object-cover"
+                          default="identicon"
+                        />
+                      }
                     />
-                  ) : (
-                    <Gravatar
-                      email={editForm.email || editForm.username}
-                      size={100}
-                      className="w-full h-full object-cover"
-                      default="identicon"
-                    />
-                  )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-800 dark:text-white">
+                      {editForm.display_name || editForm.username}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                      @{editForm.username}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Username
-                </span>
-                <input
-                  aria-label="Username"
-                  id="usermanager-455"
-                  name="usermanager455"
-                  type="text"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
-                  value={editForm.username}
-                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                />
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Display name / Pen name
-                </span>
-                <input
-                  aria-label="Display name / Pen name"
-                  id="edit-display-name-pen-name"
-                  name="editDisplayNamePenName"
-                  type="text"
-                  placeholder="Optional public byline"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
-                  value={editForm.display_name}
-                  onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
-                />
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Email
-                </span>
-                <input
-                  id="usermanager-466"
-                  name="usermanager466"
-                  aria-label="Email"
-                  type="email"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Role
-                </span>
-                <select
-                  id="edit-user-role"
-                  name="editUserRole"
-                  aria-label="Role"
-                  className={`w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white ${
-                    isRoleChangeBlocked(editingUser) ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
-                  disabled={isRoleChangeBlocked(editingUser)}
-                  title={
-                    currentUser?.id == editingUser?.id
-                      ? 'You cannot change your own role'
-                      : String(editingUser?.role || '').toLowerCase() === 'root'
-                        ? 'Root role cannot be changed here'
-                        : !isPrimaryAdminActor && isProtectedAdminUser(editingUser)
-                          ? 'System owner permission is required to change this protected role'
-                          : ''
-                  }
+                <section aria-label="User profile details">
+                  <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <UserIcon size={15} className="text-blue-600 dark:text-blue-300" /> Profile
+                  </h4>
+                  <div className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-6">
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="usermanager-455"
+                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        Username
+                      </label>
+                      <input
+                        aria-label="Username"
+                        id="usermanager-455"
+                        name="usermanager455"
+                        type="text"
+                        className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm"
+                        value={editForm.username}
+                        onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="edit-display-name-pen-name"
+                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        Display name / Pen name
+                      </label>
+                      <input
+                        aria-label="Display name / Pen name"
+                        id="edit-display-name-pen-name"
+                        name="editDisplayNamePenName"
+                        type="text"
+                        placeholder="Optional public byline"
+                        className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm"
+                        value={editForm.display_name}
+                        onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="usermanager-466"
+                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        Email
+                      </label>
+                      <input
+                        id="usermanager-466"
+                        name="usermanager466"
+                        aria-label="Email"
+                        type="email"
+                        className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="https"
+                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        Avatar URL
+                      </label>
+                      <input
+                        id="https"
+                        name="https"
+                        aria-label="https://..."
+                        type="text"
+                        placeholder="https://..."
+                        className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm"
+                        value={editForm.avatar}
+                        onChange={(e) => setEditForm({ ...editForm, avatar: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </section>
+                <section
+                  aria-label="User account access"
+                  className="border-t border-slate-200 pt-5 dark:border-admin-border"
                 >
-                  <option value="Member">Member</option>
-                  <option value="Writer">Writer</option>
-                  <option value="Moderator">Moderator</option>
-                  {(isPrimaryAdminActor || editForm.role === 'Admin') && (
-                    <option value="Admin">Admin</option>
-                  )}
-                </select>
+                  <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <Shield size={15} className="text-blue-600 dark:text-blue-300" /> Account access
+                  </h4>
+                  <div className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-6">
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="edit-user-role"
+                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        Role
+                      </label>
+                      <select
+                        id="edit-user-role"
+                        name="editUserRole"
+                        aria-label="Role"
+                        className={`min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm ${
+                          isRoleChangeBlocked(editingUser) ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        value={editForm.role}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, role: e.target.value as UserRole })
+                        }
+                        disabled={isRoleChangeBlocked(editingUser)}
+                        title={
+                          currentUser?.id == editingUser?.id
+                            ? 'You cannot change your own role'
+                            : String(editingUser?.role || '').toLowerCase() === 'root'
+                              ? 'Root role cannot be changed here'
+                              : !isPrimaryAdminActor && isProtectedAdminUser(editingUser)
+                                ? 'System owner permission is required to change this protected role'
+                                : ''
+                        }
+                      >
+                        <option value="Member">Member</option>
+                        <option value="Writer">Writer</option>
+                        <option value="Moderator">Moderator</option>
+                        {(isPrimaryAdminActor || editForm.role === 'Admin') && (
+                          <option value="Admin">Admin</option>
+                        )}
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="8-chars-a-z-0-9"
+                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                      >
+                        New Password
+                      </label>
+                      <input
+                        id="8-chars-a-z-0-9"
+                        name="8CharsAZ09"
+                        aria-label="8+ chars, A-Z, 0-9, !@#"
+                        type="password"
+                        placeholder="8+ chars, A-Z, 0-9, !@#"
+                        className={`min-h-11 w-full min-w-0 rounded-xl border px-3 py-2.5 text-base text-slate-900 ${editPasswordError ? 'border-red-500' : 'border-slate-300 dark:border-admin-border-strong'} bg-white dark:bg-admin-inset dark:text-white sm:text-sm`}
+                        value={editForm.password}
+                        onChange={(e) => {
+                          setEditForm({ ...editForm, password: e.target.value });
+                          if (e.target.value)
+                            setEditPasswordError(validatePassword(e.target.value));
+                          else setEditPasswordError(null);
+                        }}
+                      />
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        Leave blank to keep the current password.
+                      </p>
+                      {editPasswordError && (
+                        <p className="text-red-500 text-xs mt-1">{editPasswordError}</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
               </div>
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  New Password <span className="text-slate-400">(leave blank to keep current)</span>
-                </span>
-                <input
-                  id="8-chars-a-z-0-9"
-                  name="8CharsAZ09"
-                  aria-label="8+ chars, A-Z, 0-9, !@#"
-                  type="password"
-                  placeholder="8+ chars, A-Z, 0-9, !@#"
-                  className={`w-full p-2.5 rounded-lg border ${editPasswordError ? 'border-red-500' : 'border-slate-300 dark:border-admin-border-strong'} bg-white dark:bg-admin-hover dark:text-white`}
-                  value={editForm.password}
-                  onChange={(e) => {
-                    setEditForm({ ...editForm, password: e.target.value });
-                    if (e.target.value) setEditPasswordError(validatePassword(e.target.value));
-                    else setEditPasswordError(null);
-                  }}
-                />
-                {editPasswordError && (
-                  <p className="text-red-500 text-xs mt-1">{editPasswordError}</p>
-                )}
-              </div>
-              <div>
-                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Avatar URL
-                </span>
-                <input
-                  id="https"
-                  name="https"
-                  aria-label="https://..."
-                  type="text"
-                  placeholder="https://..."
-                  className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-white dark:bg-admin-hover dark:text-white"
-                  value={editForm.avatar}
-                  onChange={(e) => setEditForm({ ...editForm, avatar: e.target.value })}
-                />
-              </div>
-              <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 dark:border-admin-border sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-admin-hover rounded-lg sm:w-auto"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updatingUserId !== null}
-                  className="min-h-11 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 disabled:cursor-wait disabled:opacity-50 sm:w-auto"
-                >
-                  {updatingUserId === String(editingUser.id) ? 'Saving...' : 'Save Changes'}
-                </button>
+              <div className="admin-safe-bottom flex shrink-0 items-center justify-between gap-4 border-t border-slate-200 bg-slate-50 px-4 py-4 dark:border-admin-border dark:bg-admin-inset sm:px-6">
+                <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
+                  Review changes before saving.
+                </p>
+                <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:border-admin-border-strong dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-admin-inset sm:flex-none"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingUserId !== null}
+                    className="min-h-11 flex-1 whitespace-nowrap rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50 sm:flex-none"
+                  >
+                    {updatingUserId === String(editingUser.id) ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -798,20 +865,19 @@ const UserManager: React.FC<UserManagerProps> = ({
                 <article key={user.id} className="space-y-3 p-4">
                   <div className="flex items-start gap-3">
                     <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 bg-slate-200 dark:border-admin-border-strong dark:bg-admin-hover">
-                      {user.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.username}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Gravatar
-                          email={user.email || user.username}
-                          size={100}
-                          className="h-full w-full object-cover"
-                          default="identicon"
-                        />
-                      )}
+                      <SafeImage
+                        src={user.avatar}
+                        alt={user.username}
+                        className="h-full w-full object-cover"
+                        fallback={
+                          <Gravatar
+                            email={user.email || user.username}
+                            size={100}
+                            className="h-full w-full object-cover"
+                            default="identicon"
+                          />
+                        }
+                      />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -864,20 +930,19 @@ const UserManager: React.FC<UserManagerProps> = ({
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-admin-hover/50">
                       <td className="px-6 py-4 w-16">
                         <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-admin-hover overflow-hidden border border-slate-300 dark:border-admin-border-strong">
-                          {user.avatar ? (
-                            <img
-                              src={user.avatar}
-                              alt={user.username}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Gravatar
-                              email={user.email || user.username}
-                              size={100}
-                              className="w-full h-full object-cover"
-                              default="identicon"
-                            />
-                          )}
+                          <SafeImage
+                            src={user.avatar}
+                            alt={user.username}
+                            className="w-full h-full object-cover"
+                            fallback={
+                              <Gravatar
+                                email={user.email || user.username}
+                                size={100}
+                                className="w-full h-full object-cover"
+                                default="identicon"
+                              />
+                            }
+                          />
                         </div>
                       </td>
                       <td className="px-6 py-4">

@@ -66,7 +66,7 @@ export const getCachedPublicPost = (postId: string): Post | null => {
   return publicPostCache.get(String(postId)) || null;
 };
 
-const normalizePost = (p: any): Post => ({
+const normalizePost = (p: import('../types').PostApiRecord): Post => ({
   ...p,
   image: p.image || p.image_url || '',
   imageSrcSet: p.imageSrcSet || p.image_srcset || '',
@@ -180,7 +180,8 @@ export function usePublicPostsQuery({
       abortControllerRef.current?.abort();
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
-      append ? setLoadingMore(true) : setIsLoading(true);
+      if (append) setLoadingMore(true);
+      else setIsLoading(true);
       setError(null);
 
       try {
@@ -200,7 +201,9 @@ export function usePublicPostsQuery({
         const data = await res.json();
         if (requestId !== requestIdRef.current) return;
 
-        const rawPosts: any[] = Array.isArray(data) ? data : data.posts || [];
+        const rawPosts: import('../types').PostApiRecord[] = Array.isArray(data)
+          ? data
+          : data.posts || [];
         const fetchedPosts = rawPosts.map(normalizePost);
         rememberPublicPosts(fetchedPosts);
         const fetchedMeta: PublicPostsMeta | null = data.meta || null;
@@ -228,7 +231,8 @@ export function usePublicPostsQuery({
           if (abortControllerRef.current === abortController) {
             abortControllerRef.current = null;
           }
-          append ? setLoadingMore(false) : setIsLoading(false);
+          if (append) setLoadingMore(false);
+          else setIsLoading(false);
         }
       }
     },

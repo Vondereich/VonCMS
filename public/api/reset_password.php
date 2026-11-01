@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Password Reset API
  * Handles password reset request and token verification
@@ -33,7 +35,7 @@ $actionValue = $input['action'] ?? 'request';
 $action = is_string($actionValue) ? $actionValue : '';
 $honeypotValue = $input['hp_field'] ?? '';
 $honeypot = is_scalar($honeypotValue) ? (string) $honeypotValue : '';
-$clientIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+$clientIp = DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0');
 $recoveryTrapIdentifier = 'password-recovery-trap:' . $clientIp;
 
 // Honeypot check
@@ -46,7 +48,8 @@ if ($honeypot !== '') {
   );
   if ($shouldLogTrap) {
     error_log(
-      'Honeypot triggered during password reset from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+      'Honeypot triggered during password reset from IP: ' .
+        DataBoundary::serverString('REMOTE_ADDR', 'unknown'),
     );
   }
   // Return fake success to not alert the bot (matching request-success pattern)
@@ -58,7 +61,7 @@ if ($honeypot !== '') {
 }
 
 // Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
@@ -79,7 +82,7 @@ if ($action === 'request') {
     // Find user by email
     $stmt = $pdo->prepare('SELECT id, username, email FROM users WHERE email = ?');
     $stmt->execute([$email]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    $user = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
     // Always return success to prevent email enumeration
     if (!$user) {
@@ -121,7 +124,7 @@ if ($action === 'request') {
     $stmt = $pdo->prepare(
       'UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?',
     );
-    $stmt->execute([$token, $user['id']]);
+    $stmt->execute([voncms_account_token_digest($token), $user['id']]);
 
     $resetUrl = voncms_build_account_action_url($trustedBaseUrl, '/login', [
       'reset_token' => $token,
@@ -144,7 +147,7 @@ if ($action === 'request') {
                 </div>
                 <div style="padding: 30px;">
                     <p style="color: #333; font-size: 16px;">Hi <strong>' .
-      htmlspecialchars($user['username']) .
+      htmlspecialchars((string) $user['username']) .
       '</strong>,</p>
                     <p style="color: #666;">You requested a password reset. Click the button below to set a new password:</p>
                     <div style="text-align: center; margin: 30px 0;">
@@ -157,12 +160,13 @@ if ($action === 'request') {
             </div>
         </body>
         </html>';
-    $htmlBody = preg_replace(
-      '~<h1 style="color: white; margin: 0; font-size: 24px;">.*?Password Reset</h1>~',
-      '<h1 style="color: white; margin: 0; font-size: 24px;">Password Reset</h1>',
-      $htmlBody,
-      1,
-    );
+    $htmlBody =
+      preg_replace(
+        '~<h1 style="color: white; margin: 0; font-size: 24px;">.*?Password Reset</h1>~',
+        '<h1 style="color: white; margin: 0; font-size: 24px;">Password Reset</h1>',
+        $htmlBody,
+        1,
+      ) ?? $htmlBody;
 
     $mailResult = vonSendMail($email, $subject, $htmlBody);
     if (empty($mailResult['success'])) {
@@ -194,17 +198,17 @@ if ($action === 'request') {
   $token = is_string($tokenValue) ? $tokenValue : '';
   $newPassword = is_string($passwordValue) ? $passwordValue : '';
 
-  if (strlen($token) !== 64) {
+  if (preg_match('/^[a-f0-9]{64}$/iD', $token) !== 1) {
     ResponseHelper::sendError('Invalid token', 400);
   }
 
   // Password strength validation
-  SecurityHelper::requireNewPasswordLength($newPassword);
+  $newPassword = SecurityHelper::requireNewPasswordLength($newPassword);
   if (
     strlen($newPassword) < 8 ||
     !preg_match('/[A-Z]/', $newPassword) ||
     !preg_match('/[0-9]/', $newPassword) ||
-    !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $newPassword)
+    !SecurityHelper::hasPasswordSpecialCharacter($newPassword)
   ) {
     ResponseHelper::sendError(
       'Password must be at least 8 characters with uppercase letter, number, and special character',
@@ -217,12 +221,12 @@ if ($action === 'request') {
     try {
       // Lock the bearer token row so only one concurrent reset can consume it.
       $stmt = $pdo->prepare(
-        'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW() FOR UPDATE',
+        'SELECT id, reset_token FROM users WHERE reset_token IN (?, ?) AND reset_token_expires > NOW() FOR UPDATE',
       );
-      $stmt->execute([$token]);
+      $stmt->execute([voncms_account_token_digest($token), $token]);
       $user = $stmt->fetch();
 
-      if (!$user) {
+      if (!$user || !voncms_account_token_matches((string) $user['reset_token'], $token)) {
         $pdo->rollBack();
         ResponseHelper::sendError('Invalid or expired token', 400);
       }
@@ -230,9 +234,9 @@ if ($action === 'request') {
       // Update password
       $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
       $stmt = $pdo->prepare(
-        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW()',
+        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token IN (?, ?) AND reset_token_expires > NOW()',
       );
-      $stmt->execute([$hashedPassword, $user['id'], $token]);
+      $stmt->execute([$hashedPassword, $user['id'], voncms_account_token_digest($token), $token]);
       if ($stmt->rowCount() !== 1) {
         $pdo->rollBack();
         ResponseHelper::sendError('Invalid or expired token', 400);

@@ -35,8 +35,7 @@ class SecurityLogger
     }
 
     if (function_exists('mb_strcut')) {
-      $bounded = mb_strcut($string, 0, $maxBytes, 'UTF-8');
-      return is_string($bounded) ? $bounded : $fallback;
+      return mb_strcut($string, 0, $maxBytes, 'UTF-8');
     }
 
     return substr($string, 0, $maxBytes);
@@ -75,10 +74,10 @@ class SecurityLogger
    *
    * @param string $eventType - 'login_failed', 'honeypot_caught', 'rate_limited', 'csrf_failed'
    * @param string $severity - 'low', 'medium', 'high', 'critical'
-   * @param array $details - Associative array of extra details
+   * @param mixed $details - Extra details normalized by encodeDetails
    * @param bool $blocked - data was blocked/action prevented (default true)
    */
-  public static function log($eventType, $severity, $details = [], $blocked = true)
+  public static function log($eventType, $severity, $details = [], $blocked = true): void
   {
     global $pdo;
 

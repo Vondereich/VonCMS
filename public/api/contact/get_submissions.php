@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 /**
  * VonCMS - Get Contact Submissions (Leads)
  */
@@ -20,15 +22,19 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 }
 
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   $pdo->exec('DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)');
-  $page = max(1, intval($_GET['page'] ?? 1));
-  $limit = min(100, max(10, intval($_GET['limit'] ?? 20)));
+  $page = max(1, DataBoundary::inputInt($_GET['page'] ?? 1));
+  $limit = min(100, max(10, DataBoundary::inputInt($_GET['limit'] ?? 20)));
   $offset = ($page - 1) * $limit;
 
   $countStmt = $pdo->query('SELECT COUNT(*) as total FROM contact_submissions');
-  $total = (int) ($countStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+  if ($countStmt === false) {
+    throw new RuntimeException('Cannot count contact submissions.');
+  }
+  $total = (int) (DataBoundary::row($countStmt->fetch(PDO::FETCH_ASSOC))['total'] ?? 0);
 
   $stmt = $pdo->query("
         SELECT s.*, f.title as form_name 
@@ -37,7 +43,10 @@ try {
         ORDER BY s.created_at DESC
         LIMIT $limit OFFSET $offset
     ");
-  $submissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  if ($stmt === false) {
+    throw new RuntimeException('Cannot read contact submissions.');
+  }
+  $submissions = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   echo json_encode([
     'success' => true,

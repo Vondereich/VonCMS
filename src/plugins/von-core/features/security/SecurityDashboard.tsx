@@ -66,11 +66,15 @@ interface SecurityLogQueryOverrides {
 
 interface PendingSecurityFetch {
   isRefresh: boolean;
-  overrides: SecurityLogQueryOverrides;
+  overrides: Required<
+    Pick<SecurityLogQueryOverrides, 'page' | 'filterType' | 'filterSeverity' | 'searchQuery'>
+  > &
+    SecurityLogQueryOverrides;
 }
 
 const COLORS: Record<string, string> = {
   login_failed: '#eab308', // Yellow
+  login_rate_limited: '#f97316', // Orange
   honeypot_caught: '#ef4444', // Red
   rate_limited: '#f97316', // Orange
   csrf_failed: '#a855f7', // Purple
@@ -81,7 +85,45 @@ const COLORS: Record<string, string> = {
 const FALLBACK_EVENT_COLORS = ['#64748b', '#14b8a6', '#ec4899', '#8b5cf6', '#0ea5e9'];
 const SECURITY_STATS_TTL_MS = 60000;
 
+const EVENT_COPY: Record<string, { label: string; explanation: string; pattern?: string }> = {
+  login_failed: {
+    label: 'Login failed',
+    explanation: 'The username or password was not accepted. This can be a typing mistake.',
+  },
+  login_rate_limited: {
+    label: 'Too many login attempts',
+    explanation:
+      "Repeated attempts used this network's login allowance. Further attempts were temporarily refused. A shared connection can also cause this.",
+    pattern: 'Possible brute force',
+  },
+  honeypot_caught: {
+    label: 'Bot trap triggered',
+    explanation:
+      'A hidden form field was filled. This suggests automation, not a successful break-in.',
+  },
+  remember_rotation_conflict: {
+    label: 'Remember-me token changed',
+    explanation:
+      'Another request already changed this token. Concurrent browser tabs can cause this.',
+  },
+  rate_limited: {
+    label: 'Too many requests',
+    explanation: 'A request allowance was exceeded. This alone does not prove an attack.',
+  },
+  csrf_failed: {
+    label: 'Form security check failed',
+    explanation:
+      'The form security token was missing or invalid. An expired page can also cause this.',
+  },
+  suspicious: {
+    label: 'Request flagged for review',
+    explanation:
+      'A security check flagged this request. Review the evidence before drawing conclusions.',
+  },
+};
+
 const formatEventType = (eventType: string) =>
+  EVENT_COPY[eventType]?.label ||
   eventType
     .split('_')
     .filter(Boolean)
@@ -121,8 +163,16 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
   const statsFetchedAtRef = useRef(0);
 
   const fetchData = async (isRefresh = false, overrides: SecurityLogQueryOverrides = {}) => {
+    // Queue a complete query, not partial overrides that an older closure can reinterpret.
+    const requested = {
+      page: overrides.page ?? page,
+      filterType: overrides.filterType ?? filterType,
+      filterSeverity: overrides.filterSeverity ?? filterSeverity,
+      searchQuery: overrides.searchQuery ?? searchQuery,
+      includeStats: overrides.includeStats,
+    };
     if (fetchInFlightRef.current) {
-      pendingFetchRef.current = { isRefresh, overrides };
+      pendingFetchRef.current = { isRefresh, overrides: requested };
       return;
     }
     fetchInFlightRef.current = true;
@@ -130,10 +180,10 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
     else setLoading(true);
 
     try {
-      const requestedPage = overrides.page ?? page;
-      const requestedType = overrides.filterType ?? filterType;
-      const requestedSeverity = overrides.filterSeverity ?? filterSeverity;
-      const requestedSearch = overrides.searchQuery ?? searchQuery;
+      const requestedPage = requested.page;
+      const requestedType = requested.filterType;
+      const requestedSeverity = requested.filterSeverity;
+      const requestedSearch = requested.searchQuery;
       const shouldIncludeStats =
         overrides.includeStats === true ||
         (requestedPage === 1 &&
@@ -184,15 +234,19 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
     }
   };
 
+  // Search is committed manually; effects and polling read the latest full query.
+  const refreshSelectedLogs = React.useEffectEvent((isRefresh = false) =>
+    fetchData(isRefresh, { page, filterType, filterSeverity, searchQuery })
+  );
   useEffect(() => {
-    fetchData(false, { page, filterType, filterSeverity, searchQuery });
+    refreshSelectedLogs();
   }, [page, filterType, filterSeverity]); // Search triggered manually or debounced (manual for now)
 
   // Keep the monitor fresh without stacking requests or polling a hidden tab.
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        fetchData(true, { page, filterType, filterSeverity, searchQuery });
+        refreshSelectedLogs(true);
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -301,7 +355,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             <ShieldCheck className="text-green-500" /> Security Dashboard
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Real-time threat monitoring and block logs
+            Recorded security checks. Updates every 30 seconds while this tab is visible.
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
@@ -326,7 +380,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                       } else {
                         toast.error(data.message || 'Failed to purge logs');
                       }
-                    } catch (e) {
+                    } catch {
                       toast.error('Failed to purge logs');
                     }
                   }
@@ -370,7 +424,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                           } else {
                             toast.error(data.message || 'Failed to reset logs');
                           }
-                        } catch (e) {
+                        } catch {
                           toast.error('Failed to reset logs');
                         }
                       }
@@ -403,7 +457,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             <span
               className={`w-2 h-2 rounded-full ${refreshing ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}
             ></span>
-            {refreshing ? 'LIVE' : 'AUTO-UPDATE'}
+            {refreshing ? 'UPDATING' : 'AUTO-UPDATE: 30s'}
           </span>
           <button
             onClick={() => fetchData(true, { includeStats: true })}
@@ -415,23 +469,30 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         </div>
       </div>
 
+      <p className="rounded-lg bg-slate-100 p-3 text-sm text-slate-600 dark:bg-admin-panel dark:text-slate-300">
+        Patterns are clues, not accusations. A failed login may be a typo; repeated login attempts
+        may suggest password guessing. These logs do not detect every attack or prove a break-in.
+        Repeated throttled attempts are sampled, so recorded events are not a count of every
+        request.
+      </p>
+
       {/* Top Stats Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          title="Threats Blocked Today"
+          title="Recorded Rejections Today"
           value={stats?.blocked_today || 0}
           icon={<ShieldAlert size={24} />}
           color="bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
         />
         <StatCard
-          title="Active (Last Hour)"
+          title="Events in the Last Hour"
           value={stats?.active_last_hour || 0}
           icon={<Activity size={24} />}
           color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
           animate
         />
         <StatCard
-          title="High Severity Events"
+          title="High Severity Today"
           value={stats?.high_severity_today || 0}
           icon={<AlertTriangle size={24} />}
           color="bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
@@ -450,7 +511,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
         {/* Line Chart - Trends */}
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-admin-canvas sm:p-5 xl:col-span-2">
           <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
-            Threat Trends (Last 7 Days)
+            Security Events (Last 7 Days)
           </h3>
           <div className="h-64 w-full">
             {trendTotal > 0 && trendSeries.length > 0 ? (
@@ -491,9 +552,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
 
         {/* Pie Chart - Distribution */}
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-admin-canvas sm:p-5">
-          <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">
-            Attack Distribution
-          </h3>
+          <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Event Types</h3>
           <div className="h-64 w-full flex items-center justify-center">
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -585,7 +644,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-white/10 dark:bg-admin-canvas">
         <div className="flex flex-col gap-4 border-b border-slate-200 p-4 dark:border-white/10 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-            <Activity size={18} className="text-blue-500" /> Live Security Event Log
+            <Activity size={18} className="text-blue-500" /> Recent Security Events
           </h3>
 
           <form
@@ -620,7 +679,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
               <option value="">All Events</option>
               {Object.keys(COLORS).map((type) => (
                 <option key={type} value={type}>
-                  {type.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  {formatEventType(type)}
                 </option>
               ))}
             </select>
@@ -678,10 +737,11 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                         backgroundColor: COLORS[log.event_type as keyof typeof COLORS] || '#888',
                       }}
                     />
-                    {log.event_type.replace(/_/g, ' ').toUpperCase()}
+                    {formatEventType(log.event_type)}
                   </span>
                   <SeverityBadge level={log.severity} />
                 </div>
+                <EventExplanation eventType={log.event_type} />
                 <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
                   <dt className="text-slate-400">Time</dt>
                   <dd className="text-right font-mono text-xs text-slate-600 dark:text-slate-300">
@@ -703,7 +763,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                       : 'border-yellow-100 bg-yellow-50 text-yellow-600 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
                   }`}
                 >
-                  {log.blocked ? 'BLOCKED' : 'WARNING'}
+                  {log.blocked ? 'REQUEST REJECTED' : 'RECORDED'}
                 </span>
               </article>
             ))
@@ -715,7 +775,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             <thead className="bg-slate-50 dark:bg-admin-panel/50 text-slate-500 uppercase font-bold text-xs">
               <tr>
                 <th className="px-5 py-3">Time</th>
-                <th className="px-5 py-3">Event Type</th>
+                <th className="px-5 py-3">Event and Explanation</th>
                 <th className="px-5 py-3">IP Address</th>
                 <th className="px-5 py-3">Endpoint</th>
                 <th className="px-5 py-3">Severity</th>
@@ -753,8 +813,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                               COLORS[log.event_type as keyof typeof COLORS] || '#888',
                           }}
                         ></span>
-                        {log.event_type.replace(/_/g, ' ').toUpperCase()}
+                        {formatEventType(log.event_type)}
                       </span>
+                      <EventExplanation eventType={log.event_type} />
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
                       {log.ip_address}
@@ -768,11 +829,11 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                     <td className="px-5 py-3">
                       {log.blocked ? (
                         <span className="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 px-2 py-0.5 rounded-sm text-xs font-bold border border-red-100 dark:border-red-800">
-                          BLOCKED
+                          REQUEST REJECTED
                         </span>
                       ) : (
                         <span className="bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400 px-2 py-0.5 rounded-sm text-xs font-bold border border-yellow-100 dark:border-yellow-800">
-                          WARNING
+                          RECORDED
                         </span>
                       )}
                     </td>
@@ -795,6 +856,21 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           />
         </div>
       </div>
+    </div>
+  );
+};
+
+const EventExplanation: React.FC<{ eventType: string }> = ({ eventType }) => {
+  const copy = EVENT_COPY[eventType];
+  if (!copy) return null;
+  return (
+    <div className="mt-1 max-w-md text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+      {copy.pattern && (
+        <span className="mb-1 block font-semibold text-orange-700 dark:text-orange-300">
+          {copy.pattern} - pattern only
+        </span>
+      )}
+      <p>{copy.explanation}</p>
     </div>
   );
 };
@@ -841,12 +917,16 @@ const SeverityBadge: React.FC<{ level: string }> = ({ level }) => {
   );
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: Partial<import('recharts').TooltipContentProps>) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-admin-panel p-4 border border-slate-200 dark:border-admin-border rounded-xl shadow-xl">
         <p className="font-bold text-slate-800 dark:text-white mb-2">{label}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <div key={index} className="flex items-center gap-2 text-sm">
             <div
               className="w-3 h-3 rounded-full"

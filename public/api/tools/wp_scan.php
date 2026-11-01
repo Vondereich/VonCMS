@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../../security.php';
+define('VONCMS_WP_IMPORT_CONTEXT', true);
+require_once __DIR__ . '/wp_wxr_reader_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -14,42 +16,6 @@ if (!file_exists($configPath)) {
 }
 
 require_once $configPath;
-// Debug Logger
-function debug_log($msg)
-{
-  // Production mode: logging disabled
-}
-
-/**
- * @param string $url
- * @return string
- */
-function normalize_scan_url($url)
-{
-  $trimmed = trim((string) $url);
-  return $trimmed !== '' ? rtrim($trimmed, '/') : '';
-}
-
-/**
- * @param string $url
- * @return string
- */
-function get_url_origin($url)
-{
-  $parts = parse_url((string) $url);
-  if (empty($parts['scheme']) || empty($parts['host'])) {
-    return '';
-  }
-
-  $origin = $parts['scheme'] . '://' . $parts['host'];
-  if (!empty($parts['port'])) {
-    $origin .= ':' . $parts['port'];
-  }
-
-  return rtrim($origin, '/');
-}
-
-debug_log('Script accessed. Server Req Method: ' . $_SERVER['REQUEST_METHOD']);
 // Session already handled in security.php
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
@@ -59,46 +25,54 @@ if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }
 
-debug_log('Config loaded + Auth verified.');
-debug_log('Starting scan process... (Phase 2)');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ResponseHelper::sendError('Invalid request method', 405);
 }
 
-if (!isset($_FILES['xml_file']) || $_FILES['xml_file']['error'] !== UPLOAD_ERR_OK) {
+$file = $_FILES['xml_file'] ?? null;
+if (
+  !is_array($file) ||
+  ($file['error'] ?? null) !== UPLOAD_ERR_OK ||
+  !is_string($file['name'] ?? null) ||
+  !is_string($file['tmp_name'] ?? null) ||
+  !is_int($file['size'] ?? null)
+) {
   ResponseHelper::sendError('File upload failed', 400);
 }
 
-$file = $_FILES['xml_file'];
 $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-debug_log('File uploaded: ' . $file['name'] . ' (Size: ' . $file['size'] . ')');
 
 if (strtolower($ext) !== 'xml') {
   ResponseHelper::sendError('Invalid file type. Only XML allowed.', 400);
 }
 
-$uploadSize = (int) ($file['size'] ?? 0);
+$uploadSize = $file['size'];
 if ($uploadSize <= 0 || $uploadSize > VONCMS_WP_IMPORT_MAX_XML_BYTES) {
   ResponseHelper::sendError('XML file must be between 1 byte and 64MB.', 400);
 }
 
-if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+if (!is_uploaded_file($file['tmp_name'])) {
   ResponseHelper::sendError('Invalid uploaded file.', 400);
 }
 
 // Move to temp directory
 $uploadDir = __DIR__ . '/../../uploads/temp/';
-debug_log('Upload Dir: ' . realpath($uploadDir));
 
 if (!file_exists($uploadDir)) {
-  debug_log('Creating dir: ' . $uploadDir);
   if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
     ResponseHelper::sendError('Failed to create temporary import directory', 500);
   }
 }
 
-foreach (glob($uploadDir . 'wp_import_*.xml') ?: [] as $oldImportFile) {
+foreach (glob($uploadDir . 'wp_import_*') ?: [] as $oldImportFile) {
+  if (
+    !preg_match(
+      '/\Awp_import_[a-f0-9]{32}\.xml(?:\.state\.json(?:\.tmp)?|\.lock)?\z/',
+      basename($oldImportFile),
+    )
+  ) {
+    continue;
+  }
   if (is_file($oldImportFile) && filemtime($oldImportFile) < time() - 86400) {
     @unlink($oldImportFile);
   }
@@ -120,106 +94,18 @@ if (!move_uploaded_file($file['tmp_name'], $tempPath)) {
   ResponseHelper::sendError('Failed to save temporary file', 500);
 }
 
-debug_log('File moved to: ' . $tempPath);
-
-// Scan XML for stats
-$stats = [
-  'posts' => 0,
-  'pages' => 0,
-  'media' => 0,
-  'authors' => [],
-];
-$sourceSiteUrl = '';
-$sourceBlogUrl = '';
-
 try {
-  // XXE Protection - disable external entity loading
-  if (PHP_VERSION_ID < 80000 && function_exists('libxml_disable_entity_loader')) {
-    call_user_func('libxml_disable_entity_loader', true);
-  }
-  libxml_use_internal_errors(true);
-
-  $reader = new XMLReader();
-  if (!$reader->open($tempPath, null, LIBXML_NONET | LIBXML_COMPACT)) {
-    throw new Exception('Failed to open XML file at: ' . $tempPath);
-  }
-
-  debug_log('XML Reader opened');
-
-  while ($reader->read()) {
-    if ($reader->nodeType == XMLReader::ELEMENT) {
-      if ($reader->localName === 'base_site_url' && $sourceSiteUrl === '') {
-        $sourceSiteUrl = normalize_scan_url($reader->readString());
-        continue;
-      }
-
-      if ($reader->localName === 'base_blog_url' && $sourceBlogUrl === '') {
-        $sourceBlogUrl = normalize_scan_url($reader->readString());
-        continue;
-      }
-
-      // Check for Standard WP <item> OR Generic <post>
-      if ($reader->name == 'item' || $reader->name == 'post') {
-        $node = $reader->expand();
-        $dom = new DOMDocument();
-        $n = $dom->importNode($node, true);
-        $dom->appendChild($n);
-        $sxe = simplexml_import_dom($n);
-
-        $namespaces = $sxe->getNamespaces(true);
-        $post_type = '';
-
-        // Strategy 1: Smart Namespace Check (WP Standard)
-        if (isset($namespaces['wp'])) {
-          $post_type = (string) $sxe->children($namespaces['wp'])->post_type;
-        }
-        // Strategy 2: Direct Child Check (Generic XML or RSS)
-        if (empty($post_type)) {
-          if (isset($sxe->post_type)) {
-            $post_type = (string) $sxe->post_type;
-          } elseif ($reader->name == 'post') {
-            // If the tag itself is <post>, treat it as a post type
-            $post_type = 'post';
-          }
-        }
-
-        if (($sourceSiteUrl === '' || $sourceBlogUrl === '') && isset($sxe->link)) {
-          $itemLink = normalize_scan_url((string) $sxe->link);
-          $itemOrigin = get_url_origin($itemLink);
-          if ($sourceSiteUrl === '' && $itemOrigin !== '') {
-            $sourceSiteUrl = $itemOrigin;
-          }
-          if ($sourceBlogUrl === '' && $itemOrigin !== '') {
-            $sourceBlogUrl = $itemOrigin;
-          }
-        }
-
-        // Debug log found items
-        // file_put_contents($debugFile, "Found Item: Type=$post_type\n", FILE_APPEND);
-
-        if ($post_type === 'post') {
-          $stats['posts']++;
-        } elseif ($post_type === 'page') {
-          $stats['pages']++;
-        } elseif ($post_type === 'attachment') {
-          $stats['media']++;
-        }
-      }
-    }
-  }
-  $reader->close();
-  debug_log('Scan finished. Stats: ' . json_encode($stats));
+  $inspection = voncms_wp_inspect_document($tempPath);
 
   echo json_encode([
     'success' => true,
     'message' => 'Scan complete',
-    'stats' => $stats,
-    'source_site_url' => $sourceSiteUrl,
-    'source_blog_url' => $sourceBlogUrl,
+    'stats' => $inspection['stats'],
+    'source_site_url' => $inspection['source_site_url'],
+    'source_blog_url' => $inspection['source_blog_url'],
     'temp_file' => basename($tempPath), // Send back filename for next step
   ]);
 } catch (Throwable $e) {
-  debug_log('Exception: ' . $e->getMessage());
   @unlink($tempPath);
-  ResponseHelper::sendError('Unable to scan the WordPress XML file.', 400);
+  ResponseHelper::sendError('Unable to scan the WordPress XML file. ' . $e->getMessage(), 400);
 }

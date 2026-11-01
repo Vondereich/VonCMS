@@ -36,7 +36,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 }
 
 // 5. Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   echo json_encode([
     'success' => false,
     'error' => 'Database not configured. Cannot repair without credentials.',
@@ -44,6 +44,7 @@ if (!isset($pdo) || $pdo === null) {
   exit();
 }
 
+/** @return array{success: true, repaired: bool, message: string, warnings: list<string>} */
 function voncms_run_database_schema_repair(PDO $pdo): array
 {
   $fixes = [];
@@ -308,17 +309,17 @@ function voncms_run_database_schema_repair(PDO $pdo): array
   // This standardizes the DB format over time
   try {
     // Check if we have legacy data but missing/empty modern data
-    $legacy = $pdo
-      ->query(
+    $legacy = DataBoundary::statement(
+      $pdo->query(
         "SELECT setting_value FROM settings WHERE setting_group = 'ads' AND setting_key = 'configuration'",
-      )
-      ->fetchColumn();
+      ),
+    )->fetchColumn();
     if ($legacy) {
-      $modern = $pdo
-        ->query(
+      $modern = DataBoundary::statement(
+        $pdo->query(
           "SELECT setting_value FROM settings WHERE setting_group = 'ads' AND setting_key = 'ads_config'",
-        )
-        ->fetchColumn();
+        ),
+      )->fetchColumn();
       if (empty($modern)) {
         // Clone legacy to modern
         $insert = $pdo->prepare(

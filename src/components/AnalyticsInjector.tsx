@@ -8,7 +8,6 @@ interface AnalyticsSettings {
   enableTracking?: boolean;
   trackPageViews?: boolean;
   trackEvents?: boolean;
-  anonymizeIP?: boolean;
   cookieConsent?: boolean;
 }
 
@@ -60,7 +59,6 @@ export const AnalyticsInjector: React.FC<AnalyticsInjectorProps> = ({ analytics 
       window.gtag('js', new Date());
 
       const config: Record<string, boolean> = {
-        anonymize_ip: analytics.anonymizeIP || false,
         send_page_view: false,
       };
 

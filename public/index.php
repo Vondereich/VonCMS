@@ -8,7 +8,7 @@
 // PHP Version Enforcement (clear HTML error page)
 if (version_compare(PHP_VERSION, '8.2.0', '<')) {
   http_response_code(500);
-  exit('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>VonCMS - PHP Version Error</title><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:60px auto;padding:0 20px;line-height:1.6}h1{color:#dc2626}code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head><body><h1>VonCMS Requires PHP 8.2+</h1><p>Your server is running <code>' . htmlspecialchars(PHP_VERSION) . '</code>.</p><p>Please upgrade to <strong>PHP 8.2</strong> or higher via your hosting control panel, then refresh this page.</p></body></html>');
+  exit('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>VonCMS - PHP Version Error</title><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:60px auto;padding:0 20px;line-height:1.6}h1{color:#dc2626}code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head><body><h1>VonCMS Requires PHP 8.2+</h1><p>Your server is running <code>' . htmlspecialchars(PHP_VERSION) . '</code>.</p><p>Please upgrade to <strong>PHP 8.2</strong> or higher via your hosting control panel, then refresh this page. PHP 8.3+ is recommended.</p></body></html>');
 }
 
 $rawDir = dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));

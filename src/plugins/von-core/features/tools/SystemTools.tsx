@@ -6,7 +6,15 @@ import { vonFetch } from '../../../../utils/api';
 
 export const SystemTools: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<
+    | (Record<string, unknown> & {
+        success?: boolean;
+        message?: string;
+        error?: string;
+        warnings?: unknown[];
+      })
+    | null
+  >(null);
   const hasResultWarnings =
     Array.isArray(results?.warnings) &&
     results.warnings.some(
@@ -38,7 +46,7 @@ export const SystemTools: React.FC = () => {
       } else {
         toast.error(data.error || data.message || `${label} failed.`);
       }
-    } catch (err) {
+    } catch {
       toast.error(`System error while running ${label}`);
     } finally {
       if (apiPath === API.repairDb) {
@@ -174,7 +182,7 @@ export const SystemTools: React.FC = () => {
             )}
           </div>
           <div className="space-y-2 max-h-60 overflow-y-auto font-mono text-sm">
-            {Object.entries(results).map(([key, value]: [string, any]) => (
+            {Object.entries(results).map(([key, value]) => (
               <div key={key} className="border-b border-white/10 pb-2 last:border-0">
                 <span className="text-blue-400 mr-2">[{key.toUpperCase()}]</span>
                 <span className="text-slate-300">

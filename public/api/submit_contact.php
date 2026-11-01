@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Submit Contact Form API (Dynamic CF7 Style)
  * Handles contact form submissions using templates
@@ -26,14 +28,15 @@ require_once __DIR__ . '/mail_helper.php';
 // 1. Rate Limiting
 // Session already started in security.php
 $lastSubmit = $_SESSION['last_contact_submit'] ?? 0;
+$lastSubmit = is_numeric($lastSubmit) ? (int) $lastSubmit : 0;
 if (time() - $lastSubmit < 30) {
   ResponseHelper::sendError('Please wait a moment before sending another message.', 429);
 }
 
-$contactRateIdentifier = 'contact:' . ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+$contactRateIdentifier = 'contact:' . DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0');
 
 $requestBody = CSRFProtection::getRequestBody();
-if (!is_string($requestBody) || strlen($requestBody) > 32768) {
+if (strlen($requestBody) > 32768) {
   RateLimiter::requireAttempt($contactRateIdentifier);
   ResponseHelper::sendError('Contact form payload is too large.', 413);
 }
@@ -78,10 +81,8 @@ $honeypotToken = $antiBot['token'] ?? '';
 $honeypotValue = $antiBot['value'] ?? '';
 $honeypotField = is_string($honeypotField) ? $honeypotField : '';
 $honeypotToken = is_string($honeypotToken) ? $honeypotToken : '';
-$honeypotValueLength =
-  is_scalar($honeypotValue) || $honeypotValue === null ? strlen((string) $honeypotValue) : 0;
-$honeypotValue =
-  is_scalar($honeypotValue) || $honeypotValue === null ? (string) $honeypotValue : '__invalid__';
+$honeypotValueLength = is_scalar($honeypotValue) ? strlen((string) $honeypotValue) : 0;
+$honeypotValue = is_scalar($honeypotValue) ? (string) $honeypotValue : '__invalid__';
 $honeypotValidation = voncms_contact_honeypot_validate($formId, $honeypotField, $honeypotToken);
 
 // 3. Dynamic honeypot check - suspicious requests receive the established fake success.
@@ -108,11 +109,12 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
   require_once __DIR__ . '/../von_config.php';
 }
 
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 try {
   // 3a. Fetch contact form from dedicated table
   $stmt = $pdo->prepare('SELECT * FROM contact_forms WHERE id = ? LIMIT 1');
   $stmt->execute([$formId]);
-  $f = $stmt->fetch(PDO::FETCH_ASSOC);
+  $f = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$f) {
     // Fallback for transition phase (read from settings)
@@ -120,13 +122,13 @@ try {
       "SELECT setting_value FROM settings WHERE setting_group = 'contact' AND setting_key = 'forms' LIMIT 1",
     );
     $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
-    $contactForms = $row ? json_decode($row['setting_value'], true) : [];
+    $contactForms = $row ? json_decode((string) $row['setting_value'], true) : [];
     $form = null;
     if (is_array($contactForms)) {
       foreach ($contactForms as $item) {
-        if ($item['id'] === $formId) {
+        if (is_array($item) && ($item['id'] ?? null) === $formId) {
           $form = $item;
           break;
         }
@@ -139,8 +141,8 @@ try {
 
     // Map old structure to internal variables
     $formTemplate = $form['template'] ?? '';
-    $mailConfig = $form['mail'];
-    $messages = $form['messages'];
+    $mailConfig = is_array($form['mail'] ?? null) ? $form['mail'] : [];
+    $messages = is_array($form['messages'] ?? null) ? $form['messages'] : [];
   } else {
     // Use new table structure
     $formTemplate = $f['template'] ?? '';
@@ -160,6 +162,17 @@ try {
   ResponseHelper::sendError($e);
 }
 
+$formTemplate = (string) DataBoundary::scalar($formTemplate);
+$mailFields = [];
+foreach (['to', 'from', 'subject', 'body'] as $field) {
+  $mailFields[$field] = (string) DataBoundary::scalar($mailConfig[$field] ?? '');
+}
+$mailConfig = $mailFields;
+$messageFields = [];
+foreach (['success', 'error', 'validationError'] as $field) {
+  $messageFields[$field] = (string) DataBoundary::scalar($messages[$field] ?? '');
+}
+$messages = $messageFields;
 $declaredFields = [];
 if (
   preg_match_all(
@@ -172,7 +185,7 @@ if (
   foreach ($fieldMatches as $fieldMatch) {
     $declaredFields[$fieldMatch[3]] = [
       'type' => $fieldMatch[1],
-      'required' => ($fieldMatch[2] ?? '') === '*',
+      'required' => $fieldMatch[2] === '*',
     ];
   }
 }
@@ -240,7 +253,7 @@ $formData = $normalizedFormData;
 // 4. Process Template Tags
 /**
  * @param string $template
- * @param array<string, mixed> $data
+ * @param array<string, string> $data
  * @param PDO|null $pdo
  * @param bool $escapeHtml
  * @return string
@@ -256,7 +269,7 @@ function replaceTags($template, $data, $pdo = null, bool $escapeHtml = true)
   // Replace special tags
   $tags['[_date]'] = date('Y-m-d');
   $tags['[_time]'] = date('H:i:s');
-  $tags['[_remote_ip]'] = $_SERVER['REMOTE_ADDR'] ?? '';
+  $tags['[_remote_ip]'] = DataBoundary::serverString('REMOTE_ADDR');
 
   // Global Tags
   if ($pdo) {
@@ -266,7 +279,7 @@ function replaceTags($template, $data, $pdo = null, bool $escapeHtml = true)
         "SELECT setting_value FROM settings WHERE setting_key = 'site_name' LIMIT 1",
       );
       $stName->execute();
-      $siteName = $stName->fetchColumn() ?: 'VonCMS Site';
+      $siteName = (string) ($stName->fetchColumn() ?: 'VonCMS Site');
       $tags['[_site_name]'] = $siteName;
 
       // Fetch site email (SMTP User or Admin Email fallback)
@@ -281,16 +294,17 @@ function replaceTags($template, $data, $pdo = null, bool $escapeHtml = true)
           "SELECT setting_value FROM settings WHERE setting_key = 'admin_profile' LIMIT 1",
         );
         $stAdmin->execute();
-        $profile = json_decode($stAdmin->fetchColumn() ?: '', true);
+        $profile = json_decode((string) ($stAdmin->fetchColumn() ?: ''), true);
         $safeHost = preg_replace(
           '/[^a-zA-Z0-9.\-:]/',
           '',
-          (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+          DataBoundary::serverString('HTTP_HOST', 'localhost'),
         );
-        $siteEmail = $profile['email'] ?? 'admin@' . $safeHost;
+        $profileEmail = is_array($profile) ? $profile['email'] ?? null : null;
+        $siteEmail = is_string($profileEmail) ? $profileEmail : 'admin@' . $safeHost;
       }
 
-      $tags['[_site_email]'] = $siteEmail;
+      $tags['[_site_email]'] = (string) $siteEmail;
     } catch (Exception $e) {
       // Silent fail for global tags
     }
@@ -309,9 +323,9 @@ function replaceTags($template, $data, $pdo = null, bool $escapeHtml = true)
 // Prepare Mail Data
 // Table-backed header templates have historically been HTML-encoded on save.
 // Decode the template once, never the visitor values inserted afterwards.
-$headerTemplate = static fn($value) => $f
-  ? html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8')
-  : (string) $value;
+$headerTemplate = static fn(string $value): string => $f
+  ? html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+  : $value;
 $to = replaceTags($headerTemplate($mailConfig['to']), $formData, $pdo, false);
 $from = replaceTags($headerTemplate($mailConfig['from']), $formData, $pdo, false);
 $subject = replaceTags($headerTemplate($mailConfig['subject']), $formData, $pdo, false);
@@ -358,9 +372,9 @@ try {
   $stmt->execute([
     $formId,
     json_encode($formData),
-    substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45),
-    substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500),
-    substr((string) ($_SERVER['HTTP_REFERER'] ?? ''), 0, 2048),
+    substr(DataBoundary::serverString('REMOTE_ADDR', ''), 0, 45),
+    substr(DataBoundary::serverString('HTTP_USER_AGENT', ''), 0, 500),
+    substr(DataBoundary::serverString('HTTP_REFERER', ''), 0, 2048),
   ]);
   $submissionSaved = true;
 } catch (Exception $e) {
@@ -389,7 +403,9 @@ if (!empty($result['success']) || $submissionSaved) {
   // Neither destination accepted it. Refund only this request's session claim;
   // retain the IP attempt and any newer request/session state.
   if (@session_start()) {
-    unset($_SESSION['contact_honeypot_used'][$submissionNonce]);
+    if (is_array($_SESSION['contact_honeypot_used'] ?? null)) {
+      unset($_SESSION['contact_honeypot_used'][$submissionNonce]);
+    }
     if (($_SESSION['contact_submit_nonce'] ?? null) === $submissionNonce) {
       unset($_SESSION['last_contact_submit'], $_SESSION['contact_submit_nonce']);
     }

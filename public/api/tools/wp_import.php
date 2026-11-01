@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 // Suppress PHP error output that breaks JSON
 require_once __DIR__ . '/../../security.php';
 require_once __DIR__ . '/../public_cache_helper.php';
@@ -6,6 +8,8 @@ require_once __DIR__ . '/../publication_time_helper.php';
 require_once __DIR__ . '/../content_embed_helper.php';
 require_once __DIR__ . '/../content_slug_helper.php';
 require_once __DIR__ . '/../../seo_schema_helper.php';
+require_once __DIR__ . '/../../seo_response_helper.php';
+require_once __DIR__ . '/../redirect_loop_helper.php';
 define('VONCMS_WP_IMPORT_CONTEXT', true);
 require_once __DIR__ . '/wp_wxr_reader_helper.php';
 sendApiHeaders('POST, OPTIONS');
@@ -44,8 +48,8 @@ function debug_log($msg)
 function sanitize_title($str)
 {
   $str = strtolower(trim($str));
-  $str = preg_replace('/[^a-z0-9-]/', '-', $str);
-  return preg_replace('/-+/', '-', $str);
+  $str = preg_replace('/[^a-z0-9-]/', '-', $str) ?? '';
+  return preg_replace('/-+/', '-', $str) ?? '';
 }
 
 /**
@@ -265,7 +269,7 @@ function register_imported_media($conn, $relativePath, $mimeType, $size, $upload
     $storedPath = 'uploads/' . ltrim(str_replace('\\', '/', $relativePath), '/');
     $existing = $conn->prepare('SELECT id FROM media WHERE filepath = ? LIMIT 1');
     $existing->execute([$storedPath]);
-    if ($existing->fetch(PDO::FETCH_ASSOC)) {
+    if (DataBoundary::row($existing->fetch(PDO::FETCH_ASSOC))) {
       return;
     }
 
@@ -287,7 +291,7 @@ function sanitize_import_media_name($sourceUrl, $fallback = 'wp-image')
 {
   $path = (string) (parse_url($sourceUrl, PHP_URL_PATH) ?? '');
   $name = pathinfo($path, PATHINFO_FILENAME);
-  $name = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $name);
+  $name = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $name) ?? '';
 
   if ($name === '') {
     $name = $fallback;
@@ -377,7 +381,8 @@ function import_remote_ip_is_public($ip)
       $prefix === str_repeat("\0", 10) . "\xff\xff" ||
       $prefix === hex2bin('0064ff9b0000000000000000')
     ) {
-      return import_remote_ip_is_public(inet_ntop(substr($packedIp, 12)));
+      $embeddedIp = inet_ntop(substr($packedIp, 12));
+      return is_string($embeddedIp) && import_remote_ip_is_public($embeddedIp);
     }
     // Local-use translation, deprecated tunnels and IPv4-compatible addresses
     // are not ordinary globally routable media origins.
@@ -553,7 +558,7 @@ function import_remote_http_code_is_redirect($httpCode)
 /**
  * @param string $url
  * @param string $tempPath
- * @return array<string, mixed>
+ * @return array{transport_failed?: bool, success?: bool, error?: string, http_code?: int, redirect?: bool, location?: string}
  */
 function fetch_import_image_hop_with_curl($url, $tempPath)
 {
@@ -765,7 +770,7 @@ function fetch_remote_import_image_to_temp($url)
  */
 function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $uploadedBy)
 {
-  /** @var array<string, string> $cache */
+  /** @var array<string, array{url: string, physical_path: string}> $cache */
   static $cache = [];
 
   $absoluteUrl = absolutize_import_media_url($url, $sourceBaseUrls);
@@ -774,7 +779,11 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
   }
 
   if (isset($cache[$absoluteUrl])) {
-    return $cache[$absoluteUrl];
+    // An earlier item in this batch may have rolled back and deleted this image.
+    if (is_file($cache[$absoluteUrl]['physical_path'])) {
+      return $cache[$absoluteUrl]['url'];
+    }
+    unset($cache[$absoluteUrl]);
   }
 
   $uploadContext = get_import_upload_context($targetSiteUrl);
@@ -795,7 +804,7 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
   }
 
   $imageInfo = @getimagesize($tempPath);
-  $mimeType = is_array($imageInfo) ? $imageInfo['mime'] ?? '' : '';
+  $mimeType = is_array($imageInfo) ? $imageInfo['mime'] : '';
   $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
   if (!in_array($mimeType, $allowedMimes, true)) {
@@ -819,12 +828,15 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
     $relativePath = $uploadContext['relative_dir'] . $filename;
     register_imported_media($conn, $relativePath, $mimeType, $size, $uploadedBy, $filename);
     $localUrl = $uploadContext['url_prefix'] . $filename;
-    $cache[$absoluteUrl] = $localUrl;
+    $cache[$absoluteUrl] = ['url' => $localUrl, 'physical_path' => $targetPath];
     return $localUrl;
   }
 
   if (!@rename($tempPath, $targetPath)) {
     if (!@copy($tempPath, $targetPath)) {
+      if (is_file($targetPath)) {
+        @unlink(__DIR__ . '/../../data/storage_usage.json');
+      }
       debug_log('Media localizer failed to move downloaded image for: ' . $absoluteUrl);
       @unlink($tempPath);
       return null;
@@ -832,19 +844,25 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
     @unlink($tempPath);
   }
 
+  // Attachment-only batches also change disk usage, even when no article is inserted.
+  @unlink(__DIR__ . '/../../data/storage_usage.json');
+
   // Ensure uploaded media is world-readable (Apache needs 0644, not 0600 from restrictive umask)
   @chmod($targetPath, 0644);
 
   $relativePath = $uploadContext['relative_dir'] . $filename;
   register_imported_media($conn, $relativePath, $mimeType, $size, $uploadedBy, $filename);
 
+  if (!is_array($GLOBALS['voncms_wp_import_created_media'] ?? null)) {
+    $GLOBALS['voncms_wp_import_created_media'] = [];
+  }
   $GLOBALS['voncms_wp_import_created_media'][] = [
     'physical_path' => $targetPath,
     'stored_path' => 'uploads/' . ltrim(str_replace('\\', '/', $relativePath), '/'),
   ];
 
   $localUrl = $uploadContext['url_prefix'] . $filename;
-  $cache[$absoluteUrl] = $localUrl;
+  $cache[$absoluteUrl] = ['url' => $localUrl, 'physical_path' => $targetPath];
 
   return $localUrl;
 }
@@ -855,9 +873,13 @@ function rehost_import_image_url($url, $sourceBaseUrls, $targetSiteUrl, $conn, $
  */
 function get_dom_inner_html($node)
 {
+  $document = $node->ownerDocument;
+  if (!($document instanceof DOMDocument)) {
+    throw new RuntimeException('Imported HTML has no owner document.');
+  }
   $html = '';
   foreach ($node->childNodes as $childNode) {
-    $html .= $node->ownerDocument->saveHTML($childNode);
+    $html .= $document->saveHTML($childNode);
   }
 
   return $html;
@@ -997,8 +1019,8 @@ function get_target_site_url($conn)
       "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'domain_url' LIMIT 1",
     );
     $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $configured = normalize_import_url($row['setting_value'] ?? '');
+    $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
+    $configured = normalize_import_url((string) ($row['setting_value'] ?? ''));
     if ($configured !== '') {
       return $configured;
     }
@@ -1006,12 +1028,12 @@ function get_target_site_url($conn)
     debug_log('Target URL lookup failed: ' . $e->getMessage());
   }
 
-  $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+  $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', ''));
   if ($host === '') {
     return '';
   }
 
-  $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+  $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME', ''));
   $basePath = trim(dirname(dirname(dirname($scriptName))), '/.');
   $protocol = is_https() ? 'https://' : 'http://';
 
@@ -1029,7 +1051,7 @@ function get_permalink_structure($conn)
       "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'permalink_structure' LIMIT 1",
     );
     $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
     $value = (string) ($row['setting_value'] ?? '');
     return $value !== '' ? $value : 'slug';
   } catch (Throwable $e) {
@@ -1049,46 +1071,166 @@ function get_permalink_structure($conn)
  */
 function build_import_target_path($postType, $postId, $slug, $date, $category, $permalinkStructure)
 {
-  $slug = trim((string) $slug, '/');
-  if ($postType === 'page') {
-    return '/' . $slug;
+  return buildCanonicalContentPath(
+    [
+      'id' => $postId,
+      'slug' => trim((string) $slug, '/'),
+      'created_at' => $date,
+      'category' => $category,
+    ],
+    $permalinkStructure,
+    $postType,
+  );
+}
+
+/** Match an actual source authority, not a host/path prefix lookalike.
+ * @param array<int,string> $bases
+ * @return array{key: string, path: string, query: string, fragment: string, url: string}|null
+ */
+function voncms_wp_source_link(string $url, array $bases, string $currentUrl = ''): ?array
+{
+  $url = trim(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+  if ($url === '' || $url[0] === '#' || preg_match('/[\x00-\x20\\\\]/', $url)) {
+    return null;
   }
-
-  $timestamp = strtotime((string) $date);
-  switch ($permalinkStructure) {
-    case 'date':
-    case 'day_name':
-      if ($timestamp === false) {
-        return '/' . $slug;
-      }
-      return '/' .
-        date('Y', $timestamp) .
-        '/' .
-        date('m', $timestamp) .
-        '/' .
-        date('d', $timestamp) .
-        '/' .
-        $slug;
-
-    case 'month_name':
-      if ($timestamp === false) {
-        return '/' . $slug;
-      }
-      return '/' . date('Y', $timestamp) . '/' . date('m', $timestamp) . '/' . $slug;
-
-    case 'category':
-      $categorySlug = strtolower(trim((string) $category));
-      $categorySlug = preg_replace('/\s+/', '-', $categorySlug ?: 'uncategorized');
-      return '/' . trim($categorySlug, '/') . '/' . $slug;
-
-    case 'plain':
-      return '/post/' . $postId;
-
-    case 'post_name':
-    case 'slug':
-    default:
-      return '/' . $slug;
+  $base = $currentUrl !== '' ? $currentUrl : (string) ($bases[0] ?? '');
+  $baseParts = parse_url($base);
+  if (str_starts_with($url, '//')) {
+    $url = ($baseParts['scheme'] ?? 'https') . ':' . $url;
+  } elseif (!preg_match('~^[a-z][a-z0-9+.-]*:~i', $url)) {
+    if (empty($baseParts['host'])) {
+      return null;
+    }
+    $origin =
+      ($baseParts['scheme'] ?? 'https') .
+      '://' .
+      $baseParts['host'] .
+      (isset($baseParts['port']) ? ':' . $baseParts['port'] : '');
+    $path = (string) ($baseParts['path'] ?? '/');
+    $url =
+      $origin .
+      ($url[0] === '/'
+        ? $url
+        : ($url[0] === '?'
+          ? $path . $url
+          : preg_replace('~/[^/]*$~', '/', $path) . $url));
   }
+  $parts = parse_url($url);
+  if (
+    !is_array($parts) ||
+    !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) ||
+    isset($parts['user']) ||
+    isset($parts['pass']) ||
+    empty($parts['host'])
+  ) {
+    return null;
+  }
+  $authority =
+    strtolower(rtrim((string) ($parts['host'] ?? ''), '.')) .
+    ':' .
+    (int) ($parts['port'] ?? (($parts['scheme'] ?? '') === 'http' ? 80 : 443));
+  $trusted = false;
+  foreach ($bases as $candidate) {
+    $candidateParts = parse_url($candidate);
+    $candidateAuthority =
+      strtolower(rtrim((string) ($candidateParts['host'] ?? ''), '.')) .
+      ':' .
+      (int) ($candidateParts['port'] ?? (($candidateParts['scheme'] ?? '') === 'http' ? 80 : 443));
+    if ($authority === $candidateAuthority) {
+      $trusted = true;
+      break;
+    }
+  }
+  if (!$trusted) {
+    return null;
+  }
+  $segments = [];
+  foreach (explode('/', (string) ($parts['path'] ?? '/')) as $segment) {
+    if ($segment === '..') {
+      array_pop($segments);
+    } elseif ($segment !== '' && $segment !== '.') {
+      $segments[] = $segment;
+    }
+  }
+  $path = '/' . implode('/', $segments);
+  $query = isset($parts['query']) && $parts['query'] !== '' ? '?' . $parts['query'] : '';
+  $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+  $absolute =
+    ($parts['scheme'] ?? 'https') .
+    '://' .
+    $parts['host'] .
+    (isset($parts['port']) ? ':' . $parts['port'] : '') .
+    $path .
+    $query .
+    $fragment;
+  return [
+    'key' => $authority . $path . $query,
+    'path' => $path,
+    'query' => $query,
+    'fragment' => $fragment,
+    'url' => $absolute,
+  ];
+}
+
+/** Keep supported metadata in the editor's existing columns, with explicit cap warnings.
+ * @param list<string> $warnings
+ * @return array{excerpt: string, meta_description: string, keywords: string}
+ */
+function voncms_wp_import_metadata(
+  SimpleXMLElement $item,
+  ?SimpleXMLElement $wp,
+  array &$warnings,
+): array {
+  $excerpt = (string) ($item->excerpt ?? '');
+  foreach ($item->getNamespaces(true) as $namespace) {
+    if (preg_match('~^https?://wordpress\.org/export/1\.[012]/excerpt/$~', $namespace)) {
+      $excerpt = (string) $item->children($namespace)->encoded;
+      break;
+    }
+  }
+  $description = '';
+  $tags = [];
+  foreach ($item->category as $category) {
+    if ((string) $category['domain'] === 'post_tag') {
+      $tag = trim((string) $category);
+      if ($tag !== '') {
+        $tags[$tag] = $tag;
+      }
+    }
+  }
+  if ($wp !== null) {
+    foreach ($wp->postmeta as $meta) {
+      if (
+        in_array(
+          (string) $meta->meta_key,
+          ['_yoast_wpseo_metadesc', 'rank_math_description'],
+          true,
+        ) &&
+        $description === ''
+      ) {
+        $description = (string) $meta->meta_value;
+      }
+    }
+  }
+  $values = [
+    'excerpt' => $excerpt,
+    'meta_description' => $description,
+    'keywords' => implode(', ', $tags),
+  ];
+  foreach (['excerpt' => 220, 'meta_description' => 5000, 'keywords' => 255] as $key => $limit) {
+    $plain = voncms_clean_seo_description($values[$key], max(5000, mb_strlen($values[$key])), true);
+    if (mb_strlen($plain) > $limit) {
+      $warnings[] =
+        ucfirst(str_replace('_', ' ', $key)) .
+        ' shortened to the editor limit (' .
+        $limit .
+        ' characters): ' .
+        (string) $item->title;
+      $plain = voncms_truncate_word_safe($plain, $limit, '');
+    }
+    $values[$key] = $plain;
+  }
+  return $values;
 }
 
 /**
@@ -1182,19 +1324,20 @@ function convert_supported_embeds($html)
   ];
 
   foreach ($patterns as $pattern) {
-    $html = preg_replace_callback(
-      $pattern,
-      /**
-       * @param array<string|int, string> $matches
-       * @return string
-       */
-      function ($matches) {
-        $rawUrl = $matches['href'] ?? ($matches['url'] ?? '');
-        $embedHtml = build_embed_html_from_url($rawUrl);
-        return $embedHtml ?: $matches[0];
-      },
-      $html,
-    );
+    $html =
+      preg_replace_callback(
+        $pattern,
+        /**
+         * @param array<string|int, string> $matches
+         * @return string
+         */
+        function ($matches) {
+          $rawUrl = $matches['href'] ?? $matches['url'];
+          $embedHtml = build_embed_html_from_url($rawUrl);
+          return $embedHtml ?: $matches[0];
+        },
+        $html,
+      ) ?? $html;
   }
 
   return $html;
@@ -1206,7 +1349,7 @@ function convert_supported_embeds($html)
  */
 function strip_gutenberg_comments($html)
 {
-  return preg_replace('/<!--\s*\/?wp:[\s\S]*?-->/i', '', $html);
+  return preg_replace('/<!--\s*\/?wp:[\s\S]*?-->/i', '', $html) ?? $html;
 }
 
 /**
@@ -1254,120 +1397,54 @@ function remap_internal_links($html, $sourceBaseUrls, $targetBaseUrl)
      * @param array<string|int, string> $matches
      * @return string
      */
-    function ($matches) use ($sourceBaseUrls, $targetBaseUrl) {
+    function ($matches) use ($sourceBaseUrls) {
       $href = html_entity_decode($matches['href'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
       if (!should_remap_internal_href($href)) {
         return $matches[0];
       }
 
-      foreach ($sourceBaseUrls as $sourceBaseUrl) {
-        if ($sourceBaseUrl === '') {
-          continue;
+      $source = voncms_wp_source_link(
+        $href,
+        $sourceBaseUrls,
+        is_string($GLOBALS['voncms_wp_import_current_url'] ?? null)
+          ? $GLOBALS['voncms_wp_import_current_url']
+          : '',
+      );
+      $rawMap = $GLOBALS['voncms_wp_import_link_map'] ?? [];
+      $map = is_array($rawMap) ? array_filter($rawMap, 'is_string') : [];
+      $newHref = $source !== null ? $map[$source['key']] ?? null : null;
+      if ($source !== null && $map === [] && !empty($GLOBALS['voncms_wp_import_current_url'])) {
+        // Preserve legitimate query/directory-relative links through the existing URL sanitizer.
+        return str_replace(
+          $matches['href'],
+          htmlspecialchars($source['url'], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+          $matches[0],
+        );
+      }
+      if ($source !== null && $newHref === null && $source['query'] !== '') {
+        $keyWithoutQuery = substr($source['key'], 0, -strlen($source['query']));
+        if (isset($map[$keyWithoutQuery])) {
+          $newHref = $map[$keyWithoutQuery] . $source['query'];
         }
-
-        if (stripos($href, $sourceBaseUrl) === 0) {
-          $suffix = substr($href, strlen($sourceBaseUrl));
-          $newHref = rtrim($targetBaseUrl, '/') . ($suffix === false ? '' : $suffix);
-          return str_replace(
-            $matches['href'],
-            htmlspecialchars($newHref, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-            $matches[0],
-          );
-        }
+      }
+      if ($source !== null && $newHref !== null) {
+        return str_replace(
+          $matches['href'],
+          htmlspecialchars($newHref . $source['fragment'], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+          $matches[0],
+        );
       }
 
       return $matches[0];
     },
     $html,
-  );
+  ) ?? $html;
 }
 
 /** Strip active imported HTML before storage; public rendering retains its own safeguards. */
 function sanitize_imported_content_html(string $html): string
 {
-  if ($html === '') {
-    return '';
-  }
-  if (!class_exists('DOMDocument') || !class_exists('DOMXPath')) {
-    throw new RuntimeException('WordPress HTML import requires the PHP DOM extension.');
-  }
-
-  $previousErrors = libxml_use_internal_errors(true);
-  $document = new DOMDocument('1.0', 'UTF-8');
-  try {
-    $loaded = $document->loadHTML(
-      '<?xml encoding="UTF-8"><html><body>' . $html . '</body></html>',
-      LIBXML_HTML_NODEFDTD | LIBXML_NONET,
-    );
-  } finally {
-    libxml_clear_errors();
-    libxml_use_internal_errors($previousErrors);
-  }
-  $root = $document->getElementsByTagName('body')->item(0);
-  if (!$loaded || !($root instanceof DOMElement)) {
-    throw new RuntimeException('WordPress HTML content could not be sanitized.');
-  }
-
-  $xpath = new DOMXPath($document);
-  $blocked = $xpath->query(
-    '//script|//style|//object|//embed|//link|//meta|//base|//noscript|//template|//svg|//math|//form|//input|//button|//select|//option|//textarea|//frame|//frameset|//applet',
-  );
-  if ($blocked instanceof DOMNodeList) {
-    foreach (array_reverse(iterator_to_array($blocked)) as $node) {
-      $node->parentNode?->removeChild($node);
-    }
-  }
-
-  foreach ($xpath->query('.//*', $root) ?: [] as $element) {
-    if (!($element instanceof DOMElement)) {
-      continue;
-    }
-    foreach (array_reverse(iterator_to_array($element->attributes)) as $attribute) {
-      $name = strtolower($attribute->nodeName);
-      if (
-        str_starts_with($name, 'on') ||
-        in_array($name, ['srcdoc', 'srcset', 'ping', 'xlink:href'], true)
-      ) {
-        $element->removeAttributeNode($attribute);
-      } elseif (
-        in_array(
-          $name,
-          [
-            'href',
-            'src',
-            'poster',
-            'cite',
-            'background',
-            'longdesc',
-            'action',
-            'formaction',
-            'data',
-          ],
-          true,
-        )
-      ) {
-        $url = trim($attribute->nodeValue);
-        if (str_starts_with($url, '//')) {
-          $url = 'https:' . $url;
-        }
-        $safe = $name === 'href' ? voncms_noscript_safe_link_href($url) : '';
-        if ($safe === '') {
-          $safe = voncms_normalize_public_media_url($url);
-        }
-        if ($safe === '') {
-          $element->removeAttributeNode($attribute);
-        } else {
-          $element->setAttribute($attribute->nodeName, $safe);
-        }
-      }
-    }
-  }
-
-  $result = '';
-  foreach ($root->childNodes as $node) {
-    $result .= $document->saveHTML($node);
-  }
-  return $result;
+  return voncms_sanitize_content_attributes($html, true);
 }
 
 /**
@@ -1382,10 +1459,166 @@ function normalize_imported_content($html, $sourceBaseUrls, $targetBaseUrl)
   $cleaned = convert_supported_embeds((string) $html);
   $cleaned = strip_gutenberg_comments($cleaned);
   $cleaned = remap_internal_links($cleaned, $sourceBaseUrls, $targetBaseUrl);
-  $cleaned = preg_replace('/<p>\s*(?:&nbsp;|\s|<br\s*\/?>)*<\/p>/i', '', $cleaned);
-  $cleaned = preg_replace('/\n{3,}/', "\n\n", $cleaned);
+  $cleaned = preg_replace('/<p>\s*(?:&nbsp;|\s|<br\s*\/?>)*<\/p>/i', '', $cleaned) ?? $cleaned;
+  $cleaned = preg_replace('/\n{3,}/', "\n\n", $cleaned) ?? $cleaned;
 
   return trim(sanitize_imported_content_html(voncms_sanitize_content_iframes((string) $cleaned)));
+}
+
+/** An automatic migration redirect must not replace a destination site's existing route.
+ * @param array{type: string, id: string} $record
+ */
+function voncms_wp_redirect_path_reserved(
+  PDO $conn,
+  string $path,
+  string $style,
+  array $record,
+): bool {
+  if ($path === '/' || voncms_is_private_spa_shell_route($path)) {
+    return true;
+  }
+  $slug = rawurldecode(basename($path));
+  if (substr_count(trim($path, '/'), '/') === 0) {
+    $page = $conn->prepare('SELECT id FROM pages WHERE slug = ? LIMIT 1');
+    $page->execute([$slug]);
+    $id = $page->fetchColumn();
+    if ($id !== false && !($record['type'] === 'page' && (string) $id === (string) $record['id'])) {
+      return true;
+    }
+  }
+  $idHint = preg_match('~^/post/([0-9]+)$~', $path, $match) === 1 ? ltrim($match[1], '0') : '';
+  $posts = $conn->prepare(
+    'SELECT id, slug, category, created_at FROM posts WHERE slug = ? OR id = ? LIMIT 2',
+  );
+  $posts->execute([$slug, $idHint !== '' ? $idHint : '0']);
+  foreach (DataBoundary::rows($posts->fetchAll(PDO::FETCH_ASSOC)) as $post) {
+    if ($record['type'] === 'post' && (string) $post['id'] === (string) $record['id']) {
+      continue;
+    }
+    if (
+      ($idHint !== '' && (string) $post['id'] === $idHint) ||
+      buildCanonicalContentPath($post, $style, 'post') === $path
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Resolve forward links only after all destinations (including numeric IDs) are known.
+ * @param array{records: array<array-key,array{type: string, id: string, slug: string, source: string, path: string, hash: string, created: bool, public: bool}>, links_offset: int, permalinks: string, offset: int, imported: int, skipped: int, warning_count: int, ...} $state
+ * @param array<int,string> $bases
+ * @param list<string> $warnings
+ */
+function voncms_wp_finalize_links(
+  PDO $conn,
+  array &$state,
+  array $bases,
+  string $target,
+  int $limit,
+  array &$warnings,
+): bool {
+  $records = array_values($state['records']);
+  $map = [];
+  $targetPaths = [];
+  foreach ($records as $record) {
+    $link = voncms_wp_source_link($record['source'], $bases);
+    if ($link !== null) {
+      $map[$link['key']] = rtrim($target, '/') . $record['path'];
+    }
+    $targetPaths[$record['path']] = true;
+  }
+  $GLOBALS['voncms_wp_import_link_map'] = $map;
+  $end = min(count($records), $state['links_offset'] + $limit);
+  for ($index = $state['links_offset']; $index < $end; $index++) {
+    $record = $records[$index];
+    if (!$record['created']) {
+      $state['links_offset'] = $index + 1;
+      continue;
+    }
+    $table = $record['type'] === 'post' ? 'posts' : 'pages';
+    $conn->beginTransaction();
+    try {
+      $lockSql = $conn->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite' ? '' : ' FOR UPDATE';
+      $read = $conn->prepare("SELECT slug, content FROM $table WHERE id = ?" . $lockSql);
+      $read->execute([$record['id']]);
+      $row = DataBoundary::row($read->fetch(PDO::FETCH_ASSOC));
+      if (
+        !$row ||
+        $row['slug'] !== $record['slug'] ||
+        !hash_equals($record['hash'], hash('sha256', (string) $row['content']))
+      ) {
+        $warnings[] =
+          'Link update skipped because the imported item changed or was removed: ' .
+          $record['slug'];
+      } else {
+        $GLOBALS['voncms_wp_import_current_url'] = $record['source'];
+        $updated = remap_internal_links((string) $row['content'], $bases, $target);
+        if ($updated !== $row['content']) {
+          $write = $conn->prepare(
+            "UPDATE $table SET content = ?, updated_at = updated_at WHERE id = ?",
+          );
+          $write->execute([$updated, $record['id']]);
+        }
+      }
+      $conn->commit();
+    } catch (Throwable $error) {
+      if ($conn->inTransaction()) {
+        $conn->rollBack();
+      }
+      throw $error;
+    }
+    $source = voncms_wp_source_link($record['source'], $bases);
+    if ($record['public'] && $source !== null) {
+      $basePath = (string) (parse_url($target, PHP_URL_PATH) ?? '/');
+      $oldPath = voncms_normalize_public_redirect_path($source['path'], $basePath);
+      $destination = $record['path'];
+      if ($source['query'] !== '') {
+        $warnings[] =
+          'Query-based source URL was mapped in article links but needs a server-level redirect for external visitors: ' .
+          $record['slug'];
+      } elseif ($oldPath !== $destination && !voncms_is_public_redirect_ignored_path($oldPath)) {
+        if (
+          isset($targetPaths[$oldPath]) ||
+          voncms_wp_redirect_path_reserved($conn, $oldPath, $state['permalinks'], $record)
+        ) {
+          $warnings[] =
+            'Redirect skipped because its old path belongs to an existing route: ' .
+            $record['slug'];
+        } else {
+          try {
+            $lookup = $conn->prepare(
+              'SELECT target_url FROM redirects WHERE source_url = ? LIMIT 1',
+            );
+            $lookup->execute([$oldPath]);
+            $existing = $lookup->fetchColumn();
+            $browserTarget = rtrim($basePath, '/') . $destination;
+            if ($existing === false) {
+              $conflict = voncms_store_permalink_redirect($conn, [
+                'source' => $oldPath,
+                'target' => $browserTarget,
+                'targetSource' => $destination,
+              ]);
+              if ($conflict !== null) {
+                $warnings[] = 'Redirect conflict left unchanged: ' . $record['slug'];
+              }
+            } elseif ($existing !== $browserTarget) {
+              $warnings[] = 'Existing redirect left unchanged: ' . $record['slug'];
+            }
+          } catch (Throwable $error) {
+            throw new RuntimeException(
+              'Unable to save imported redirects. Resume after checking database availability.',
+              0,
+              $error,
+            );
+          }
+        }
+      }
+    }
+    $state['links_offset'] = $index + 1;
+  }
+  unset($GLOBALS['voncms_wp_import_current_url'], $GLOBALS['voncms_wp_import_link_map']);
+  return $state['links_offset'] >= count($records);
 }
 
 debug_log('Import script started');
@@ -1401,8 +1634,8 @@ SessionManager::requireValidSession();
 SessionManager::requirePrimaryAdmin();
 CSRFProtection::requireToken();
 
-$importUserId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
-$importUsername = trim((string) ($_SESSION['user']['username'] ?? '')) ?: 'Admin';
+$importUserId = (int) DataBoundary::userText('id');
+$importUsername = trim(DataBoundary::userText('username')) ?: 'Admin';
 if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }
@@ -1421,10 +1654,13 @@ function rollback_imported_media_since(PDO $conn, int $checkpoint): void
 
   $rollbackItems = array_slice($createdMedia, $checkpoint);
   foreach (array_reverse($rollbackItems) as $item) {
-    $physicalPath = (string) ($item['physical_path'] ?? '');
-    $storedPath = (string) ($item['stored_path'] ?? '');
-    if ($physicalPath !== '') {
-      @unlink($physicalPath);
+    if (!is_array($item)) {
+      throw new RuntimeException('Invalid import media rollback record.');
+    }
+    $physicalPath = is_string($item['physical_path'] ?? null) ? $item['physical_path'] : '';
+    $storedPath = is_string($item['stored_path'] ?? null) ? $item['stored_path'] : '';
+    if ($physicalPath !== '' && @unlink($physicalPath)) {
+      @unlink(__DIR__ . '/../../data/storage_usage.json');
     }
     if ($storedPath !== '' && import_media_table_exists($conn)) {
       try {
@@ -1443,8 +1679,8 @@ $batchIndex = filter_var($input['batch_index'] ?? 0, FILTER_VALIDATE_INT);
 $limit = filter_var($input['limit'] ?? 10, FILTER_VALIDATE_INT);
 $batchIndex = $batchIndex === false ? -1 : $batchIndex;
 $limit = $limit === false ? 0 : $limit;
-$sourceSiteUrl = normalize_import_url($input['source_site_url'] ?? '');
-$sourceBlogUrl = normalize_import_url($input['source_blog_url'] ?? '');
+$sourceSiteUrl = normalize_import_url(DataBoundary::inputText($input['source_site_url'] ?? ''));
+$sourceBlogUrl = normalize_import_url(DataBoundary::inputText($input['source_blog_url'] ?? ''));
 
 if (!preg_match('/\Awp_import_[a-f0-9]{32}\.xml\z/', $filename)) {
   ResponseHelper::sendError('Invalid temporary import filename', 400);
@@ -1499,9 +1735,95 @@ $imported = 0;
 $skipped = 0;
 $localizedMedia = 0;
 $errors = [];
+$warnings = [];
+$batchFailed = false;
+$importLock = null;
+$reader = null;
+$statePath = $filePath . '.state.json';
 $GLOBALS['voncms_wp_import_created_media'] = [];
 
 try {
+  $importLock = @fopen($filePath . '.lock', 'c+');
+  if ($importLock === false || !flock($importLock, LOCK_EX | LOCK_NB)) {
+    throw new RuntimeException('This import is already running. Please try again.', 409);
+  }
+  $fingerprint = hash_file('sha256', $filePath);
+  if (is_file($statePath)) {
+    if (filesize($statePath) > 16 * 1024 * 1024) {
+      throw new RuntimeException(
+        'Import checkpoint exceeds its size limit. Rescan a smaller export.',
+      );
+    }
+    $state = voncms_wp_validate_import_state(
+      json_decode((string) file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR),
+    );
+    if (
+      ($state['version'] ?? null) !== 1 ||
+      ($state['fingerprint'] ?? '') !== $fingerprint ||
+      ($state['target'] ?? '') !== $targetSiteUrl ||
+      ($state['permalinks'] ?? '') !== $permalinkStructure
+    ) {
+      throw new RuntimeException(
+        'The import file, target or permalink configuration changed. Rescan before continuing.',
+      );
+    }
+  } else {
+    $inspection = voncms_wp_inspect_document($filePath);
+    $state = [
+      'version' => 1,
+      'fingerprint' => $fingerprint,
+      'target' => $targetSiteUrl,
+      'permalinks' => $permalinkStructure,
+      'inspection' => $inspection,
+      'offset' => 0,
+      'imported' => 0,
+      'skipped' => 0,
+      'records' => [],
+      'import_complete' => false,
+      'links_offset' => 0,
+      'warning_count' => 0,
+    ];
+    voncms_wp_save_import_state($statePath, $state);
+  }
+  $inspection = $state['inspection'];
+  $sourceSiteUrl = $inspection['source_site_url'] ?: $state['source_site_url'] ?? $sourceSiteUrl;
+  $sourceBlogUrl = $inspection['source_blog_url'] ?: $state['source_blog_url'] ?? $sourceBlogUrl;
+  $sourceBaseUrls = collect_source_base_urls($sourceSiteUrl, $sourceBlogUrl);
+  if ($state['import_complete']) {
+    $complete = voncms_wp_finalize_links(
+      $conn,
+      $state,
+      $sourceBaseUrls,
+      $targetSiteUrl,
+      $limit,
+      $warnings,
+    );
+    $state['warning_count'] += count($warnings);
+    voncms_wp_save_import_state($statePath, $state);
+    voncms_public_cache_clear();
+    if ($complete) {
+      @unlink($filePath);
+      @unlink($statePath);
+    }
+    echo json_encode([
+      'success' => true,
+      'phase' => 'links',
+      'has_more' => !$complete,
+      'processed_in_batch' => 0,
+      'imported_in_batch' => 0,
+      'skipped_in_batch' => 0,
+      'processed_total' => $state['offset'],
+      'imported_total' => $state['imported'],
+      'skipped_total' => $state['skipped'],
+      'next_batch_index' => (int) floor($state['offset'] / $limit),
+      'warnings' => $warnings,
+      'warning_count' => $state['warning_count'],
+      'errors' => [],
+      'source_site_url' => $sourceSiteUrl,
+      'source_blog_url' => $sourceBlogUrl,
+    ]);
+    return;
+  }
   // XXE Protection - disable external entity loading
   if (PHP_VERSION_ID < 80000 && function_exists('libxml_disable_entity_loader')) {
     call_user_func('libxml_disable_entity_loader', true);
@@ -1512,31 +1834,7 @@ try {
   // This is needed because WordPress stores featured images as _thumbnail_id postmeta
   // referencing attachment post IDs, not as <image> tags or <img> in content.
   /** @var array<string, string> $attachmentMap */
-  $attachmentMap = [];
-  $preScanReader = new XMLReader();
-  if ($preScanReader->open($filePath, null, LIBXML_NONET | LIBXML_COMPACT)) {
-    while (($preScanNode = voncms_wp_read_next_item($preScanReader)) !== null) {
-      $preScanDom = new DOMDocument();
-      $preScanN = $preScanDom->importNode($preScanNode, true);
-      $preScanDom->appendChild($preScanN);
-      $preScanSxe = simplexml_import_dom($preScanN);
-      $preScanNs = $preScanSxe->getNamespaces(true);
-      $preScanWp = isset($preScanNs['wp']) ? $preScanSxe->children($preScanNs['wp']) : null;
-      if (
-        $preScanWp &&
-        isset($preScanWp->post_type) &&
-        (string) $preScanWp->post_type === 'attachment'
-      ) {
-        $attachId = (string) ($preScanWp->post_id ?? '');
-        $attachUrl = (string) ($preScanWp->attachment_url ?? '');
-        if ($attachId !== '' && $attachUrl !== '') {
-          $attachmentMap[$attachId] = $attachUrl;
-        }
-      }
-    }
-    $preScanReader->close();
-    debug_log('Attachment map built: ' . count($attachmentMap) . ' entries');
-  }
+  $attachmentMap = $inspection['attachments'];
 
   $reader = new XMLReader();
   if (!$reader->open($filePath, null, LIBXML_NONET | LIBXML_COMPACT)) {
@@ -1546,7 +1844,7 @@ try {
 
   // Skip to correct batch
   $count = 0;
-  $startIndex = $batchIndex * $limit;
+  $startIndex = $state['offset'];
 
   while (($node = voncms_wp_read_next_item($reader)) !== null) {
     // Process Item
@@ -1554,11 +1852,14 @@ try {
     $n = $dom->importNode($node, true);
     $dom->appendChild($n);
     $sxe = simplexml_import_dom($n);
+    if (!($sxe instanceof SimpleXMLElement)) {
+      throw new RuntimeException('Unable to read the import item.');
+    }
 
     $namespaces = $sxe->getNamespaces(true);
 
     // Safety: Check if namespaces exist
-    $wp = isset($namespaces['wp']) ? $sxe->children($namespaces['wp']) : null;
+    $wp = voncms_wp_fields($sxe);
     $content = isset($namespaces['content']) ? $sxe->children($namespaces['content']) : null;
 
     $postType = '';
@@ -1567,7 +1868,7 @@ try {
     $date = '';
 
     // 1. Try WP Format (Namespace)
-    if ($wp) {
+    if ($wp !== null) {
       $postType = (string) $wp->post_type;
       $postStatus = (string) $wp->status;
       $slug = (string) $wp->post_name;
@@ -1582,11 +1883,13 @@ try {
         $postType = 'post'; // Implicit
       }
 
-      // Fallback defaults
-      if (empty($postType)) {
-        $postType = 'post';
-      }
-      $postStatus = 'publish';
+      // Untyped <item> records are not implicit posts; keep scan/import offsets aligned.
+      $postStatus =
+        $wp !== null
+          ? (string) $wp->status
+          : (isset($sxe->status)
+            ? (string) $sxe->status
+            : 'publish');
       $slug = sanitize_title((string) $sxe->title);
 
       // Try parsing date
@@ -1654,134 +1957,138 @@ try {
       }
     }
 
-    if ($postType === 'post' || $postType === 'page') {
-      $title = mb_substr(trim((string) $sxe->title), 0, 255);
-      if (empty($slug)) {
-        $slug = sanitize_title($title);
-      }
-      $slug = mb_substr(trim(sanitize_title($slug), '-'), 0, 255);
-      if ($title === '' || $slug === '') {
-        $skipped++;
-        $processed++;
-        $count++;
-        continue;
-      }
+    // Unsupported types and attachments returned above; only Post/Page reach this block.
+    $title = mb_substr(trim((string) $sxe->title), 0, 255);
+    if (empty($slug)) {
+      $slug = sanitize_title($title);
+    }
+    $slug = mb_substr(trim(sanitize_title($slug), '-'), 0, 255);
+    if ($title === '' || $slug === '') {
+      $errors[] = 'Skipped an item with an empty title or no supported slug: ' . $title;
+      $skipped++;
+      $processed++;
+      $count++;
+      continue;
+    }
 
-      $targetStatus = $postStatus === 'publish' ? 'published' : 'draft';
-      $parsedDate = strtotime($date);
-      $date = $parsedDate === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $parsedDate);
+    $protected = voncms_wp_item_is_protected($sxe);
+    $targetStatus = $postStatus === 'publish' && !$protected ? 'published' : 'draft';
+    if ($protected) {
+      $warnings[] =
+        'Password-protected item imported as Draft; WordPress passwords are not transferred: ' .
+        $title;
+    }
+    $parsedDate = strtotime($date);
+    $date = $parsedDate === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $parsedDate);
 
-      $table = $postType === 'post' ? 'posts' : 'pages';
-      $stmt = $conn->prepare("SELECT id FROM $table WHERE slug = ?");
-      $stmt->execute([$slug]);
-      $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+    $table = $postType === 'post' ? 'posts' : 'pages';
+    $existingCategory = $postType === 'post' ? ', category' : '';
+    $stmt = $conn->prepare(
+      "SELECT id, created_at, status{$existingCategory} FROM $table WHERE slug = ?",
+    );
+    $stmt->execute([$slug]);
+    $existing = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
-      // Normalize author logic
-      $authorName = $importUsername;
-      $authorId = $importUserId;
+    // Normalize author logic
+    $authorName = $importUsername;
+    $authorId = $importUserId;
+    $insertedId = $existing ? (string) $existing['id'] : '';
+    $category = $existing['category'] ?? 'Uncategorized';
+    $encodedContent = '';
+    $created = false;
 
-      if ($existing) {
-        $skipped++;
-        debug_log("Skipped duplicate (Check): $slug");
+    if ($existing) {
+      $skipped++;
+      debug_log("Skipped duplicate (Check): $slug");
 
-        // Self-Healing: Fix invisible posts from previous partial imports
-        if ($postType === 'post') {
-          $fix = $conn->prepare(
-            'UPDATE posts SET author_id = ? WHERE id = ? AND author_id IS NULL',
-          );
-          $fix->execute([$authorId, $existing['id']]);
-          if ($fix->rowCount() > 0) {
-            debug_log("Fixed missing author for: $slug");
-          }
-        } elseif ($postType === 'page') {
-          $fix = $conn->prepare(
-            'UPDATE pages SET author_id = ? WHERE id = ? AND author_id IS NULL',
-          );
-          $fix->execute([$authorId, $existing['id']]);
-          if ($fix->rowCount() > 0) {
-            debug_log("Fixed missing author for: $slug");
-          }
+      // Self-Healing: Fix invisible posts from previous partial imports
+      if ($postType === 'post') {
+        $fix = $conn->prepare('UPDATE posts SET author_id = ? WHERE id = ? AND author_id IS NULL');
+        $fix->execute([$authorId, $existing['id']]);
+        if ($fix->rowCount() > 0) {
+          debug_log("Fixed missing author for: $slug");
         }
-      } else {
-        $mediaCheckpoint = count($GLOBALS['voncms_wp_import_created_media']);
-        // Try INSERT. If it fails with duplicate, handle it.
-        try {
-          // Content fallback: encoded -> content (generic) -> description -> empty
-          if ($content && isset($content->encoded)) {
-            $rawContent = (string) $content->encoded;
-          } elseif (isset($sxe->content)) {
-            $rawContent = (string) $sxe->content;
-          } else {
-            $rawContent = (string) $sxe->description;
-          }
+      } elseif ($postType === 'page') {
+        $fix = $conn->prepare('UPDATE pages SET author_id = ? WHERE id = ? AND author_id IS NULL');
+        $fix->execute([$authorId, $existing['id']]);
+        if ($fix->rowCount() > 0) {
+          debug_log("Fixed missing author for: $slug");
+        }
+      }
+    } else {
+      $createdMedia = $GLOBALS['voncms_wp_import_created_media'] ?? [];
+      $mediaCheckpoint = is_array($createdMedia) ? count($createdMedia) : 0;
+      // Try INSERT. If it fails with duplicate, handle it.
+      try {
+        // Content fallback: encoded -> content (generic) -> description -> empty
+        if ($content && isset($content->encoded)) {
+          $rawContent = (string) $content->encoded;
+        } elseif (isset($sxe->content)) {
+          $rawContent = (string) $sxe->content;
+        } else {
+          $rawContent = (string) $sxe->description;
+        }
 
-          $rawContent = substr($rawContent, 0, 1048576);
-          $localizedContent = localize_imported_media_references(
-            $rawContent,
-            $sourceBaseUrls,
-            $targetSiteUrl,
-            $conn,
-            $authorId,
+        if (strlen($rawContent) > 1048576) {
+          throw new RuntimeException(
+            'Article exceeds the 1MB editor limit. Split or shorten this item before importing.',
           );
+        }
+        $metadata = voncms_wp_import_metadata($sxe, $wp, $warnings);
+        $localizedContent = localize_imported_media_references(
+          $rawContent,
+          $sourceBaseUrls,
+          $targetSiteUrl,
+          $conn,
+          $authorId,
+        );
+        $GLOBALS['voncms_wp_import_current_url'] = (string) $sxe->link;
+        try {
           $encodedContent = normalize_imported_content(
             $localizedContent['html'] ?? $rawContent,
             $sourceBaseUrls,
             $targetSiteUrl,
           );
-          $localizedMedia += (int) ($localizedContent['localized'] ?? 0);
+        } finally {
+          unset($GLOBALS['voncms_wp_import_current_url']);
+        }
+        $localizedMedia += (int) ($localizedContent['localized'] ?? 0);
 
-          $category = 'Uncategorized';
-          if ($postType === 'post') {
-            // Handle Category
-            if (isset($sxe->category)) {
-              foreach ($sxe->category as $c) {
-                // 1. WP Style: Check for domain="category"
-                if (isset($c['domain']) && (string) $c['domain'] === 'category') {
-                  $category = mb_substr(trim((string) $c), 0, 100);
-                  break;
-                }
-                // 2. Generic Style: Just take the first <category> tag found if it has no attributes or domain isn't 'post_tag'
-                // We wait to see if we find a better one, but keep this as fallback
-                if (!isset($c['domain']) && $category === 'Uncategorized') {
-                  $category = mb_substr(trim((string) $c), 0, 100);
-                }
+        $category = 'Uncategorized';
+        if ($postType === 'post') {
+          // Handle Category
+          if (isset($sxe->category)) {
+            foreach ($sxe->category as $c) {
+              // 1. WP Style: Check for domain="category"
+              if (isset($c['domain']) && (string) $c['domain'] === 'category') {
+                $category = mb_substr(trim((string) $c), 0, 100);
+                break;
               }
-              // If still 'Uncategorized' but we found a fallback, use it (logic simplified above)
-            }
-
-            // Image Strategy: 1. _thumbnail_id postmeta (WordPress), 2. <image> Tag, 3. Content Regex
-            $imageUrl = '';
-
-            // Strategy 1: Resolve _thumbnail_id from WordPress postmeta
-            if (empty($imageUrl) && $wp && isset($wp->postmeta) && !empty($attachmentMap)) {
-              $thumbnailId = '';
-              foreach ($wp->postmeta as $pm) {
-                if (isset($pm->meta_key) && (string) $pm->meta_key === '_thumbnail_id') {
-                  $thumbnailId = trim((string) $pm->meta_value);
-                  break;
-                }
-              }
-              if ($thumbnailId !== '' && isset($attachmentMap[$thumbnailId])) {
-                $featuredImageUrl = $attachmentMap[$thumbnailId];
-                $localizedFeaturedImage = rehost_import_image_url(
-                  $featuredImageUrl,
-                  $sourceBaseUrls,
-                  $targetSiteUrl,
-                  $conn,
-                  $authorId,
-                );
-                if ($localizedFeaturedImage !== null) {
-                  $imageUrl = $localizedFeaturedImage;
-                  $localizedMedia++;
-                  debug_log("Featured image resolved via _thumbnail_id $thumbnailId -> $imageUrl");
-                }
+              // 2. Generic Style: Just take the first <category> tag found if it has no attributes or domain isn't 'post_tag'
+              // We wait to see if we find a better one, but keep this as fallback
+              if (!isset($c['domain']) && $category === 'Uncategorized') {
+                $category = mb_substr(trim((string) $c), 0, 100);
               }
             }
+            // If still 'Uncategorized' but we found a fallback, use it (logic simplified above)
+          }
 
-            // Strategy 2: Explicit <image> Tag (Generic XML)
-            if (empty($imageUrl) && isset($sxe->image) && !empty($sxe->image)) {
+          // Image Strategy: 1. _thumbnail_id postmeta (WordPress), 2. <image> Tag, 3. Content Regex
+          $imageUrl = '';
+
+          // Strategy 1: Resolve _thumbnail_id from WordPress postmeta
+          if ($wp && isset($wp->postmeta) && !empty($attachmentMap)) {
+            $thumbnailId = '';
+            foreach ($wp->postmeta as $pm) {
+              if (isset($pm->meta_key) && (string) $pm->meta_key === '_thumbnail_id') {
+                $thumbnailId = trim((string) $pm->meta_value);
+                break;
+              }
+            }
+            if ($thumbnailId !== '' && isset($attachmentMap[$thumbnailId])) {
+              $featuredImageUrl = $attachmentMap[$thumbnailId];
               $localizedFeaturedImage = rehost_import_image_url(
-                (string) $sxe->image,
+                $featuredImageUrl,
                 $sourceBaseUrls,
                 $targetSiteUrl,
                 $conn,
@@ -1790,142 +2097,164 @@ try {
               if ($localizedFeaturedImage !== null) {
                 $imageUrl = $localizedFeaturedImage;
                 $localizedMedia++;
-              } else {
-                $imageUrl = (string) $sxe->image;
+                debug_log("Featured image resolved via _thumbnail_id $thumbnailId -> $imageUrl");
               }
             }
-
-            // Strategy 3: First <img> in content fallback
-            if (
-              empty($imageUrl) &&
-              preg_match('/<img.+src=[\'"](?P<src>.+?)[\'"].*>/i', $encodedContent, $imageMatch)
-            ) {
-              $imageUrl = $imageMatch['src'];
-            }
-
-            // Insert with author_id AND image_url
-            $hasPostPublishedAt = voncms_has_publication_column($conn, 'posts');
-            $postPublishedColumn = $hasPostPublishedAt ? ', published_at' : '';
-            $postPublishedPlaceholder = $hasPostPublishedAt ? ', ?' : '';
-            $insert = $conn->prepare(
-              "INSERT INTO posts (title, slug, content, status, author, author_id, category, created_at, updated_at, image_url{$postPublishedColumn}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$postPublishedPlaceholder})",
-            );
-            $postInsertValues = [
-              $title,
-              $slug,
-              $encodedContent,
-              $targetStatus,
-              $authorName,
-              $authorId,
-              $category,
-              $date,
-              $date,
-              $imageUrl,
-            ];
-            if ($hasPostPublishedAt) {
-              $postInsertValues[] = $targetStatus === 'published' ? $date : null;
-            }
-            voncms_insert_with_slug_reservation($conn, 'post', $slug, $insert, $postInsertValues);
-            $insertedId = (string) $conn->lastInsertId();
-            $imported++;
-            debug_log("Imported Post: $title" . ($imageUrl ? ' [Has Image]' : ''));
-          } elseif ($postType === 'page') {
-            // Insert with author_id
-            $hasPagePublishedAt = voncms_has_publication_column($conn, 'pages');
-            $pagePublishedColumn = $hasPagePublishedAt ? ', published_at' : '';
-            $pagePublishedPlaceholder = $hasPagePublishedAt ? ', ?' : '';
-            $insert = $conn->prepare(
-              "INSERT INTO pages (title, slug, content, status, author, author_id, created_at, updated_at{$pagePublishedColumn}) VALUES (?, ?, ?, ?, ?, ?, ?, ?{$pagePublishedPlaceholder})",
-            );
-            $pageInsertValues = [
-              $title,
-              $slug,
-              $encodedContent,
-              $targetStatus,
-              $authorName,
-              $authorId,
-              $date,
-              $date,
-            ];
-            if ($hasPagePublishedAt) {
-              $pageInsertValues[] = $targetStatus === 'published' ? $date : null;
-            }
-            voncms_insert_with_slug_reservation($conn, 'page', $slug, $insert, $pageInsertValues);
-            $insertedId = (string) $conn->lastInsertId();
-            $imported++;
-            debug_log("Imported Page: $title");
           }
 
-          // --- AUTO-REDIRECT GENERATOR (WP Bridge) ---
-          // If post/page imported successfully, map old WP permalink to the configured canonical path
-          try {
-            // Standard WP Permalink: /yyyy/mm/slug/ or /slug/
-            // We support both by default 301 rules
-
-            $sourceUrl = '';
-            if ($postType === 'post') {
-              $year = date('Y', strtotime($date));
-              $month = date('m', strtotime($date));
-              $sourceUrl = "/$year/$month/$slug"; // Typical WP structure
+          // Strategy 2: Explicit <image> Tag (Generic XML)
+          if (empty($imageUrl) && isset($sxe->image) && !empty($sxe->image)) {
+            $localizedFeaturedImage = rehost_import_image_url(
+              (string) $sxe->image,
+              $sourceBaseUrls,
+              $targetSiteUrl,
+              $conn,
+              $authorId,
+            );
+            if ($localizedFeaturedImage !== null) {
+              $imageUrl = $localizedFeaturedImage;
+              $localizedMedia++;
             } else {
-              $sourceUrl = "/$slug"; // Pages are usually root
+              $imageUrl = voncms_normalize_public_media_url((string) $sxe->image);
             }
-
-            // 1. Check if redirect already exists
-            $chkRed = $conn->prepare('SELECT id FROM redirects WHERE source_url = ?');
-            $chkRed->execute([$sourceUrl]);
-
-            if ($chkRed->rowCount() === 0 && !empty($sourceUrl)) {
-              $targetUrl = build_import_target_path(
-                $postType,
-                $insertedId ?? '',
-                $slug,
-                $date,
-                $category,
-                $permalinkStructure,
-              );
-
-              // Skip self-redirects - source and target are the same path
-              $normalizedSource = '/' . ltrim($sourceUrl, '/');
-              $normalizedTarget = '/' . ltrim($targetUrl, '/');
-              if ($normalizedSource === $normalizedTarget) {
-                debug_log(" -> Skipped self-redirect: $sourceUrl === $targetUrl");
-              } else {
-                $addRed = $conn->prepare(
-                  "INSERT INTO redirects (source_url, target_url, redirect_type, created_at) VALUES (?, ?, '301', NOW())",
-                );
-                $addRed->execute([$sourceUrl, $targetUrl]);
-                debug_log(" -> Auto-Redirect created: $sourceUrl -> $targetUrl");
-              }
-            }
-          } catch (Exception $e) {
-            // Silent fail: Don't stop import if redirect fails
-            debug_log(' -> Redirect Error: ' . $e->getMessage());
           }
-          // -------------------------------------------
-        } catch (Throwable $e) {
-          rollback_imported_media_since($conn, $mediaCheckpoint);
-          if ($e instanceof PDOException && $e->getCode() == '23000') {
-            // Duplicate detected during INSERT (race condition or check failed)
-            $skipped++;
-            debug_log("Skipped duplicate (Insert Catch): $slug");
 
-            // Run Self-Healing here too
-            $table = $postType === 'post' ? 'posts' : 'pages';
-            $fix = $conn->prepare(
-              "UPDATE $table SET author_id = ? WHERE slug = ? AND author_id IS NULL",
-            );
-            $fix->execute([$authorId, $slug]);
-            if ($fix->rowCount() > 0) {
-              debug_log("Fixed missing author for: $slug");
-            }
-          } else {
-            // Actual error
-            $errors[] = "Failed to insert $postType: $title. Error: " . $e->getMessage();
-            debug_log('Insert Error: ' . $e->getMessage());
+          // Strategy 3: First <img> in content fallback
+          if (
+            empty($imageUrl) &&
+            preg_match('/<img.+src=[\'"](?P<src>.+?)[\'"].*>/i', $encodedContent, $imageMatch)
+          ) {
+            $imageUrl = $imageMatch['src'];
           }
+
+          // Insert with author_id AND image_url
+          $hasPostPublishedAt = voncms_has_publication_column($conn, 'posts');
+          $postPublishedColumn = $hasPostPublishedAt ? ', published_at' : '';
+          $postPublishedPlaceholder = $hasPostPublishedAt ? ', ?' : '';
+          $insert = $conn->prepare(
+            "INSERT INTO posts (title, slug, content, status, author, author_id, category, created_at, updated_at, image_url, excerpt, keywords, meta_description{$postPublishedColumn}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$postPublishedPlaceholder})",
+          );
+          $postInsertValues = [
+            $title,
+            $slug,
+            $encodedContent,
+            $targetStatus,
+            $authorName,
+            $authorId,
+            $category,
+            $date,
+            $date,
+            $imageUrl,
+            $metadata['excerpt'],
+            $metadata['keywords'],
+            $metadata['meta_description'],
+          ];
+          if ($hasPostPublishedAt) {
+            $postInsertValues[] = $targetStatus === 'published' ? $date : null;
+          }
+          $insertedId = voncms_insert_with_slug_reservation(
+            $conn,
+            'post',
+            $slug,
+            $insert,
+            $postInsertValues,
+          );
+          $created = true;
+          $imported++;
+          debug_log("Imported Post: $title" . ($imageUrl ? ' [Has Image]' : ''));
+        } elseif ($postType === 'page') {
+          // Insert with author_id
+          $hasPagePublishedAt = voncms_has_publication_column($conn, 'pages');
+          $pagePublishedColumn = $hasPagePublishedAt ? ', published_at' : '';
+          $pagePublishedPlaceholder = $hasPagePublishedAt ? ', ?' : '';
+          $insert = $conn->prepare(
+            "INSERT INTO pages (title, slug, content, status, author, author_id, created_at, updated_at, excerpt, keywords, meta_description{$pagePublishedColumn}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$pagePublishedPlaceholder})",
+          );
+          $pageInsertValues = [
+            $title,
+            $slug,
+            $encodedContent,
+            $targetStatus,
+            $authorName,
+            $authorId,
+            $date,
+            $date,
+            $metadata['excerpt'],
+            $metadata['keywords'],
+            $metadata['meta_description'],
+          ];
+          if ($hasPagePublishedAt) {
+            $pageInsertValues[] = $targetStatus === 'published' ? $date : null;
+          }
+          $insertedId = voncms_insert_with_slug_reservation(
+            $conn,
+            'page',
+            $slug,
+            $insert,
+            $pageInsertValues,
+          );
+          $created = true;
+          $imported++;
+          debug_log("Imported Page: $title");
+        }
+      } catch (Throwable $e) {
+        rollback_imported_media_since($conn, $mediaCheckpoint);
+        $duplicate = $conn->prepare(
+          "SELECT id, created_at, status{$existingCategory} FROM $table WHERE slug = ?",
+        );
+        $duplicate->execute([$slug]);
+        $racedItem = DataBoundary::row($duplicate->fetch(PDO::FETCH_ASSOC));
+        if ($e instanceof PDOException && $e->getCode() == '23000' && $racedItem) {
+          // Duplicate detected during INSERT (race condition or check failed)
+          $skipped++;
+          $existing = $racedItem;
+          $insertedId = (string) $racedItem['id'];
+          debug_log("Skipped duplicate (Insert Catch): $slug");
+
+          // Run Self-Healing here too
+          $table = $postType === 'post' ? 'posts' : 'pages';
+          $fix = $conn->prepare(
+            "UPDATE $table SET author_id = ? WHERE slug = ? AND author_id IS NULL",
+          );
+          $fix->execute([$authorId, $slug]);
+          if ($fix->rowCount() > 0) {
+            debug_log("Fixed missing author for: $slug");
+          }
+        } else {
+          // Actual error
+          $errors[] =
+            "Import paused at $postType: $title. " .
+            ($e instanceof PDOException
+              ? 'Database write failed. Check server logs before resuming.'
+              : $e->getMessage());
+          $batchFailed = true;
+          debug_log('Insert Error: ' . $e->getMessage());
         }
       }
+    }
+    if ($batchFailed) {
+      break;
+    }
+    if ($insertedId !== '') {
+      $recordDate = (string) ($existing['created_at'] ?? $date);
+      $recordCategory = (string) ($existing['category'] ?? $category);
+      $state['records'][(string) $count] = [
+        'type' => $postType,
+        'id' => $insertedId,
+        'slug' => $slug,
+        'source' => (string) $sxe->link,
+        'path' => build_import_target_path(
+          $postType,
+          $insertedId,
+          $slug,
+          $recordDate,
+          $recordCategory,
+          $permalinkStructure,
+        ),
+        'hash' => hash('sha256', $encodedContent),
+        'created' => $created,
+        'public' => $targetStatus === 'published',
+      ];
     }
 
     $processed++;
@@ -1934,30 +2263,56 @@ try {
   $reader->close();
 
   $hasMore = $processed >= $limit;
-  if (!$hasMore) {
-    @unlink($filePath);
-  }
+  $state['offset'] = $startIndex + $processed;
+  $state['imported'] += $imported;
+  $state['skipped'] += $skipped;
+  $state['import_complete'] = !$hasMore && !$batchFailed;
+  $state['warning_count'] += count($warnings);
+  $state['source_site_url'] = $sourceSiteUrl;
+  $state['source_blog_url'] = $sourceBlogUrl;
+  voncms_wp_save_import_state($statePath, $state);
   if ($imported > 0) {
     voncms_public_cache_clear();
   }
 
   echo json_encode([
     'success' => true,
+    'paused' => $batchFailed,
+    'phase' => $state['import_complete'] ? 'links' : 'import',
     'batch_index' => $batchIndex,
     'processed_in_batch' => $processed,
     'imported_in_batch' => $imported,
     'skipped_in_batch' => $skipped,
     'total_imported' => $imported,
     'total_skipped' => $skipped,
-    'next_batch_index' => $batchIndex + ($processed > 0 ? 1 : 0),
-    'has_more' => $hasMore, // If we processed a full batch, assume there might be more.
+    'next_batch_index' => (int) floor($state['offset'] / $limit),
+    'has_more' => true, // The server checkpoint owns import and final link-resolution cursors.
+    'processed_total' => $state['offset'],
+    'imported_total' => $state['imported'],
+    'skipped_total' => $state['skipped'],
     'errors' => $errors,
+    'warnings' => $warnings,
+    'warning_count' => $state['warning_count'],
     'localized_media_in_batch' => $localizedMedia,
     'source_site_url' => $sourceSiteUrl,
     'source_blog_url' => $sourceBlogUrl,
     'target_site_url' => $targetSiteUrl,
     'debug_start' => $startIndex,
   ]);
-} catch (Exception $e) {
-  ResponseHelper::sendError($e);
+} catch (Throwable $e) {
+  error_log('VonCMS WordPress import stopped: ' . $e->getMessage());
+  ResponseHelper::sendError(
+    $e instanceof PDOException
+      ? 'WordPress import paused because a database operation failed.'
+      : $e->getMessage(),
+    $e->getCode() === 409 ? 409 : 400,
+  );
+} finally {
+  if ($reader instanceof XMLReader) {
+    $reader->close();
+  }
+  if (is_resource($importLock)) {
+    flock($importLock, LOCK_UN);
+    fclose($importLock);
+  }
 }

@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 /**
  * VonCMS - Get Settings API (Database Version)
  * SECURITY: Filters sensitive settings based on user role
@@ -57,6 +59,7 @@ if ($canUsePublicSettingsCache) {
 }
 
 require_once $configFile;
+$pdo = DataBoundary::optionalDatabase($GLOBALS['pdo'] ?? null);
 require_once __DIR__ . '/../public_render_helper.php';
 require_once __DIR__ . '/ai_provider_helper.php';
 
@@ -73,9 +76,10 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 $stmt = null;
 
 try {
+  $pdo = DataBoundary::database($pdo);
   if (!$isAdmin) {
     $settings = voncms_build_public_settings_projection($pdo);
-    if ($isStaff && $pdo instanceof PDO) {
+    if ($isStaff) {
       $settings['aiAssistant'] = voncms_ai_staff_projection($pdo);
     }
 
@@ -94,53 +98,10 @@ try {
   }
 
   try {
-    // Build query based on user role
-    if ($isAdmin) {
-      // Admin gets ALL settings
-      $stmt = $pdo->query(
-        'SELECT setting_group, setting_key, setting_value, setting_type FROM settings ORDER BY setting_group, setting_key',
-      );
-    } else {
-      // Public users only get non-sensitive settings
-      try {
-        $stmt = $pdo->query(
-          'SELECT setting_group, setting_key, setting_value, setting_type FROM settings WHERE is_public = 1 ORDER BY setting_group, setting_key',
-        );
-      } catch (PDOException $qe) {
-        // 1.3 Fallback settings leak (Fix)
-        // If 'is_public' column doesn't exist (during OTA upgrade),
-        // we pull ONLY a known-safe whitelist of keys instead of everything.
-        if (strpos($qe->getMessage(), 'is_public') !== false) {
-          $safeKeys = [
-            'site_name',
-            'site_description',
-            'site_logo',
-            'site_icon',
-            'logo_url',
-            'header_identity_mode',
-            'use_logo_as_title',
-            'invert_logo_in_dark_mode',
-            'favicon_url',
-            'active_theme_id',
-            'permalink_structure',
-            'site_language',
-            'date_format',
-            'time_zone',
-            'domain_url',
-            'discussion_enabled',
-            'indexnow_enabled',
-            'admin_profile',
-          ];
-          $placeholders = implode(',', array_fill(0, count($safeKeys), '?'));
-          $stmt = $pdo->prepare(
-            "SELECT setting_group, setting_key, setting_value, setting_type FROM settings WHERE setting_key IN ($placeholders) ORDER BY setting_group, setting_key",
-          );
-          $stmt->execute($safeKeys);
-        } else {
-          throw $qe;
-        }
-      }
-    }
+    // Non-admin requests have already returned through the allowlisted projection above.
+    $stmt = $pdo->query(
+      'SELECT setting_group, setting_key, setting_value, setting_type FROM settings ORDER BY setting_group, setting_key',
+    );
   } catch (Throwable $e) {
     ResponseHelper::sendError($e);
   }
@@ -149,24 +110,20 @@ try {
     ResponseHelper::sendError('Settings query failed', 500);
   }
 
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $rows = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   // Reconstruct settings object
   $settings = [];
 
   foreach ($rows as $row) {
-    $group = $row['setting_group'];
-    $key = $row['setting_key'];
+    $group = (string) $row['setting_group'];
+    $key = (string) $row['setting_key'];
     $value = $row['setting_value'];
     $type = $row['setting_type'];
 
-    if (!$isAdmin && $group === 'api' && $key === 'config') {
-      continue;
-    }
-
     // Parse value based on type
     if ($type === 'json' || $type === 'array') {
-      $value = json_decode($value, true);
+      $value = json_decode((string) $value, true);
     } elseif ($type === 'number') {
       $value = is_numeric($value) ? (int) $value : $value;
     } elseif ($type === 'boolean') {
@@ -187,9 +144,9 @@ try {
           strtolower($key) === 'siteurl'
         ) {
           $settings['domainUrl'] = $value; // Ensure UI gets domainUrl
-          $settings['siteUrl'] = ResponseHelper::scrubUrl($value); // Legacy support
+          $settings['siteUrl'] = ResponseHelper::scrubUrl((string) DataBoundary::scalar($value)); // Legacy support
         } elseif ($key === 'posts_per_page') {
-          $settings['postsPerPage'] = max(6, min(50, (int) $value));
+          $settings['postsPerPage'] = max(6, min(50, (int) DataBoundary::scalar($value)));
         } elseif ($key === 'site_language') {
           // Maintain both for frontend state and internal consistency
           $settings['site_language'] = $value;
@@ -243,7 +200,7 @@ try {
         }
         break;
       case 'media':
-        if (!isset($settings['media'])) {
+        if (!isset($settings['media']) || !is_array($settings['media'])) {
           $settings['media'] = [];
         }
         // Handle snake_case to camelCase for default_view
@@ -252,7 +209,7 @@ try {
         } else {
           // Scrub URLs for logo/favicon
           if ($key === 'logo_url' || $key === 'favicon_url') {
-            $value = ResponseHelper::scrubUrl($value);
+            $value = ResponseHelper::scrubUrl((string) DataBoundary::scalar($value));
           }
           // Standardized camelCase for media keys (Clean Update)
           $camelKey = lcfirst(str_replace('_', '', ucwords($key, '_')));
@@ -310,7 +267,7 @@ try {
         }
         break;
       case 'contact':
-        if ($isAdmin && $key === 'forms') {
+        if ($key === 'forms') {
           $settings['contactForms'] = $value;
         }
         break;
@@ -327,53 +284,46 @@ try {
     }
   }
 
-  if ($isAdmin) {
-    $allowedAdminPalettes = ['charcoal-blue', 'meadow-gold', 'harbour-amber'];
-    if (
-      !isset($settings['adminPalette']) ||
-      !is_string($settings['adminPalette']) ||
-      !in_array($settings['adminPalette'], $allowedAdminPalettes, true)
-    ) {
-      $settings['adminPalette'] = 'charcoal-blue';
-    }
+  $allowedAdminPalettes = ['charcoal-blue', 'meadow-gold', 'harbour-amber'];
+  if (
+    !isset($settings['adminPalette']) ||
+    !is_string($settings['adminPalette']) ||
+    !in_array($settings['adminPalette'], $allowedAdminPalettes, true)
+  ) {
+    $settings['adminPalette'] = 'charcoal-blue';
   }
 
   // Merge authoritative category labels from the posts table so editors can reuse
   // historical categories even if the settings row was never manually updated.
   try {
-    $categorySql = $isAdmin
-      ? "SELECT DISTINCT category FROM posts WHERE category IS NOT NULL AND TRIM(category) <> '' ORDER BY category ASC"
-      : "SELECT DISTINCT category FROM posts WHERE (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) AND category IS NOT NULL AND TRIM(category) <> '' ORDER BY category ASC";
+    $categorySql =
+      "SELECT DISTINCT category FROM posts WHERE category IS NOT NULL AND TRIM(category) <> '' ORDER BY category ASC";
 
     $categoryStmt = $pdo->prepare($categorySql);
-    if (!$isAdmin) {
-      $categoryStmt->bindValue(':currentTime', date('Y-m-d H:i:s'));
-    }
     $categoryStmt->execute();
-    $dbCategories = $categoryStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    $dbCategories = DataBoundary::column($categoryStmt->fetchAll(PDO::FETCH_COLUMN)) ?: [];
 
-    if ($isAdmin) {
+    $publicCategoryRows = [];
+    try {
+      $publicCategoryStmt = $pdo->prepare(
+        "SELECT DISTINCT category FROM posts WHERE (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) AND category IS NOT NULL AND TRIM(category) <> '' ORDER BY category ASC",
+      );
+      $publicCategoryStmt->bindValue(':currentTime', date('Y-m-d H:i:s'));
+      $publicCategoryStmt->execute();
+      $publicCategoryRows =
+        DataBoundary::column($publicCategoryStmt->fetchAll(PDO::FETCH_COLUMN)) ?: [];
+    } catch (Throwable $e) {
+      // Keep the public projection fail-closed without discarding historical editor categories.
       $publicCategoryRows = [];
-      try {
-        $publicCategoryStmt = $pdo->prepare(
-          "SELECT DISTINCT category FROM posts WHERE (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= :currentTime) AND category IS NOT NULL AND TRIM(category) <> '' ORDER BY category ASC",
-        );
-        $publicCategoryStmt->bindValue(':currentTime', date('Y-m-d H:i:s'));
-        $publicCategoryStmt->execute();
-        $publicCategoryRows = $publicCategoryStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
-      } catch (Throwable $e) {
-        // Keep the public projection fail-closed without discarding the editor's
-        // successfully loaded historical categories below.
-        $publicCategoryRows = [];
-      }
-    } else {
-      // Guests can reuse the public-only query above without another database round trip.
-      $publicCategoryRows = $dbCategories;
     }
     $settings['publicCategories'] = voncms_normalize_public_categories($publicCategoryRows);
 
     $mergedCategories = ['Uncategorized'];
-    foreach (array_merge($settings['categories'] ?? [], $dbCategories) as $rawCategory) {
+    $savedCategories = is_array($settings['categories'] ?? null) ? $settings['categories'] : [];
+    foreach (array_merge($savedCategories, $dbCategories) as $rawCategory) {
+      if (!is_scalar($rawCategory)) {
+        continue;
+      }
       $category = trim((string) $rawCategory);
       if ($category === '') {
         continue;
@@ -405,11 +355,12 @@ try {
   );
 
   // --- SMART BRIDGE: Fallback to JSON for Contact Forms if DB is empty ---
-  if ($isAdmin && empty($settings['contactForms'])) {
+  if (empty($settings['contactForms'])) {
     $jsonPath = __DIR__ . '/../data/site_settings.json';
     if (file_exists($jsonPath)) {
-      $json = json_decode(file_get_contents($jsonPath), true);
-      if (isset($json['contactForms'])) {
+      $jsonText = file_get_contents($jsonPath);
+      $json = is_string($jsonText) ? json_decode($jsonText, true) : null;
+      if (is_array($json) && isset($json['contactForms'])) {
         $settings['contactForms'] = $json['contactForms'];
         $settings['_source_details'] = 'Database with JSON Fallback (Contact Forms)';
       }
@@ -417,13 +368,17 @@ try {
   }
 
   $settings['_canManageSecrets'] = $isPrimaryAdmin;
+  if ($isPrimaryAdmin && is_array($settings['api'] ?? null)) {
+    $settings['api'] = voncms_ai_owner_projection($settings['api']);
+  }
   // Readiness hint only: appointed admins also receive complete, secret-masked settings.
   $settings['_settingsScope'] = 'admin';
   $adminProfilePublicEmail = null;
   if (
     isset($settings['adminProfile']) &&
     is_array($settings['adminProfile']) &&
-    isset($settings['adminProfile']['email'])
+    isset($settings['adminProfile']['email']) &&
+    is_scalar($settings['adminProfile']['email'])
   ) {
     $adminProfilePublicEmail = (string) $settings['adminProfile']['email'];
   }
@@ -444,24 +399,14 @@ try {
 
   // Eligible staff receive only a safe AI capability projection. The stored
   // key, rotation timestamps, and private API config remain server-side.
-  if ($isStaff && $pdo instanceof PDO) {
+  if ($isStaff) {
     $settings['aiAssistant'] = voncms_ai_staff_projection($pdo);
   }
 
-  // SECURITY SCRUBBING: Automated Masking for guests and appointed admins.
+  // SECURITY SCRUBBING: Appointed admins retain a complete but masked settings projection.
   if (!$isPrimaryAdmin) {
     SecurityHelper::maskSensitiveData($settings);
-    if (!$isAdmin) {
-      $publicAdminProfile = voncms_project_public_admin_profile($settings['adminProfile'] ?? null);
-      if ($publicAdminProfile !== null) {
-        if ($adminProfilePublicEmail !== null) {
-          $publicAdminProfile['email'] = $adminProfilePublicEmail;
-        }
-        $settings['adminProfile'] = $publicAdminProfile;
-      } else {
-        unset($settings['adminProfile']);
-      }
-    } elseif (
+    if (
       $adminProfilePublicEmail !== null &&
       isset($settings['adminProfile']) &&
       is_array($settings['adminProfile'])

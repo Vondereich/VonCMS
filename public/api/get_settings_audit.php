@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Settings Audit Log Viewer
  * View history of all settings changes
@@ -29,14 +31,19 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 SessionManager::requirePrimaryAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   voncms_purge_sensitive_setting_audit_history($pdo);
 
   // Get filter parameters
-  $settingId = isset($_GET['setting_id']) ? intval($_GET['setting_id']) : null;
-  $settingKey = isset($_GET['setting_key']) ? trim((string) $_GET['setting_key']) : null;
-  $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
+  $settingId = isset($_GET['setting_id'])
+    ? (int) DataBoundary::inputText($_GET['setting_id'])
+    : null;
+  $settingKey = isset($_GET['setting_key'])
+    ? trim(DataBoundary::inputText($_GET['setting_key']))
+    : null;
+  $limit = isset($_GET['limit']) ? DataBoundary::inputInt($_GET['limit']) : 50;
   $limit = max(1, min(200, $limit));
 
   // Build query
@@ -76,7 +83,7 @@ try {
   }
   $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
   $stmt->execute();
-  $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $logs = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   // Format output
   foreach ($logs as &$log) {

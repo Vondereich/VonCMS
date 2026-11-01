@@ -2,6 +2,28 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+v1.28.0 "The BluePrint" builds on the closed v1.27.12 baseline. The CMS package uses version 1.28.0; installer, bundled theme and built-in plugin labels use 1.28. PHP 8.2 remains the compatibility minimum and PHP 8.3+ is recommended, with a non-blocking dashboard recommendation on PHP 8.2. Before updating, confirm the web-serving PHP build has current security patches; updating CMS files does not update PHP.
+
+Grouped admin navigation adds distinct icons and role-aware New Post/New Page/Event actions, with URL-scoped editor identity and navigation-link confirmation for unsaved edits. Plugins/Themes use query-based tabs under the existing Extensions route. The optional Node Themes API dependency receives a `body-parser` security update; the deployed PHP transport is unchanged. Editorial Calendar introduces internal event/audit tables. Back up first, test the package on a local or staging installation, and follow the repair instructions below. Later roadmap modules remain planned.
+
+### OTA temporary-file isolation
+
+OTA temporary files now receive a deny-all Apache/LiteSpeed shield before payload writes, retained while failed cleanup leaves payload behind. Run Repair `.htaccess` when Integrity flags the new staging-prefix rule; OTA still preserves live routing files. Nginx-only/OpenLiteSpeed hosts must apply equivalent directory-wide HTTP denial through their server configuration; see [VPS](VPS.md). The updated code cannot protect an OTA already running through an older installed updater: install the server/root deny before that first transition, or use a controlled manual Deploy replacement. This hardening does not change the release source, update lock, activation or rollback protocol.
+
+### v1.28.0 Calendar storage
+
+Back up the database before testing an upgrade. Sign in as Primary Admin and run **Database > Schema Repair** to create and verify `calendar_events` and `calendar_event_audit`. Fresh installation creates them through the same schema owner; merely opening Calendar never runs DDL. Existing Post/Page content and publication/schedule fields are not migrated or rewritten by Calendar.
+
+Check Month/Agenda, author/type filters, date/timezone boundaries and one disposable event's create/reopen/update/delete flow. Verify stale-version rejection and no changes to published articles. Event writes are transactional; MySQL DDL during explicit repair is not one rollback transaction, so review warnings and retry an interrupted repair. On rollback to older CMS files, retain the new tables and their backup rather than automatically deleting event data.
+
+### v1.28.0 analytics and account links
+
+Strict analytics remains the default and works with the previous analytics table. Before selecting Balanced in VonAnalytics, back up the database and run Primary Admin **Database > Schema Repair**. This adds `analytics.measurement_mode` (old rows remain Strict) and `analytics_sessions`; it does not reconstruct past browser identities. Reports select one mode at a time. The Balanced browser cookie lasts 30 days, is installation-scoped and is separate from login. A new visit begins after 30 minutes without recorded browser activity. Cookie blocking prevents Balanced visit recording; aggregate article/page views remain independent. Cleanup is opportunistic, not an exact-time deletion service.
+
+New reset/verification links store a versioned digest in the existing token columns; old links retain their original lifetime. No token-column migration or bulk invalidation is required. The updated updater rejects a package declaring an incompatible or malformed minimum PHP requirement before live activation. That new check cannot retroactively change the updater installed on an old site; this package keeps PHP 8.2 compatibility.
+
+### v1.27.12 maintenance baseline
+
 v1.27.12 is a maintenance and security follow-up for the v1.27.x "OverDrive" series. It improves Post/Page HTML validation, metadata consistency, save feedback, media storage consistency, contact handling and profile text. Updating from v1.27.11 requires no new database migration, bulk content rewrite or hosting-rule repair. Clear a stale browser/CDN asset cache if the previous frontend is still served, then check a direct-loaded page and its manual description after JavaScript runs.
 
 ### v1.27.12 upgrade checks
@@ -58,7 +80,7 @@ For a fresh install, use the root [README](../README.md) or [Installation](INSTA
 > After the update finishes, sign in as the primary admin and run **System Tools > Repair `.htaccess`** once.
 > This applies the v1.25.0 managed routing and sensitive-file protection rules while preserving host-specific rules outside the VonCMS block.
 
-## Recommended path to v1.27.12
+## v1.27.12 maintenance upgrade path
 
 Use the complete v1.27.12 Deploy ZIP for manual upgrades and keep the protected runtime files listed below intact. Back up the site and test the package on a local or staging installation before production use.
 
@@ -131,7 +153,12 @@ Check these items:
 - nested lookalikes such as `/foo/robots.txt`, `/foo/sitemap.xml`, and `/foo/rss.xml` return the normal public 404 instead of crawler documents
 - `/login`, `/admin`, `/install`, and public search results expose the expected non-indexing metadata
 - the editor opens and saves normally for one draft
-- saved Gemini API keys still work, or prompt for a fresh key if the optional 30-day expiry is enabled and expired
+- global Gemini keys show a masked storage status; save Settings once as Primary Admin to migrate a legacy key, without restarting its existing expiry
+- back up `data/credential_master.key.php` separately before moving/restoring an encrypted-key installation; a SQL backup alone does not contain the decryption key
+- on Linux, restore the automatically managed private key with correct ownership and `0600` permissions after FTP/file restores; a restored `0644` mode is rejected rather than silently accepted
+- Primary Admin can use API Settings > Rotate Encryption Key without deleting files or re-entering the provider key; save/discard pending edits first and back up the private key file again afterward
+- if reverting to code without encrypted-key support, re-enter the provider key in that version or restore a compatible pre-migration API settings backup; file-only rollback does not decrypt persisted credentials
+- expired keys remain masked and unusable; explicit re-entry starts a new local 30-day period when that option is enabled
 - AI writing/check actions show an incomplete-response error instead of accepting cut-off Gemini output
 - dashboard `Articles` / `Pages` welcome stats match the real totals for sites with 201+ posts
 - dashboard `Comments` matches the real moderation total

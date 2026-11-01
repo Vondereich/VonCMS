@@ -1,5 +1,13 @@
 <?php
 
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+
 /**
  * Fixed-role capability and post-workflow policy.
  *
@@ -17,6 +25,7 @@ function voncms_normalize_role(mixed $role): string
  */
 function voncms_fixed_role_capabilities(): array
 {
+  /** @var array<string,list<string>>|null The private static cache is written only by the literal map below. */
   static $capabilities = null;
 
   if (is_array($capabilities)) {
@@ -24,6 +33,7 @@ function voncms_fixed_role_capabilities(): array
   }
 
   $reviewerCapabilities = [
+    'calendar.manage',
     'posts.read_any_protected',
     'posts.create',
     'posts.edit_any',

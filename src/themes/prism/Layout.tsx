@@ -171,7 +171,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
     onBackToHome();
   };
 
-  const handleNavigationItem = (nav: any, closeMobileMenu = false) => {
+  const handleNavigationItem = (nav: import('../../types').NavItem, closeMobileMenu = false) => {
     if (closeMobileMenu) setIsMobileMenuOpen(false);
     if (nav.url === 'home') return handleReturnHome();
     if (nav.url.startsWith('page:')) {
@@ -369,7 +369,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             </a>
 
             <nav className={desktopNavigationClassName}>
-              {visibleNavigationItems.map((nav: any) => (
+              {visibleNavigationItems.map((nav) => (
                 <PublicNavigationLink
                   key={nav.id}
                   nav={nav}
@@ -406,7 +406,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                     </svg>
                   </button>
                   <div className="absolute top-full right-0 mt-2 w-48 py-2 bg-[#0a0a1f] border border-white/10 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50 before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']">
-                    {overflowNavigationItems.map((nav: any) => (
+                    {overflowNavigationItems.map((nav) => (
                       <PublicNavigationLink
                         key={nav.id}
                         nav={nav}
@@ -605,7 +605,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             className={`${compactNavigationClassName} absolute top-20 left-0 w-full bg-[#0a0a1f]/95 backdrop-blur-xl border-b border-white/10 z-40 animate-slide-down`}
           >
             <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col gap-4">
-              {navigationItems.map((nav: any) => (
+              {navigationItems.map((nav) => (
                 <PublicNavigationLink
                   key={nav.id}
                   nav={nav}

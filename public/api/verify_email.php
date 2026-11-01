@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Email Verification API
  * Handles verification link clicks
@@ -6,6 +8,7 @@
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/mail_helper.php';
 
 // 2. Send Headers (Standardized)
 sendApiHeaders('GET, OPTIONS');
@@ -35,44 +38,61 @@ if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/i', $token)) {
 }
 
 // Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   showResult(false, 'Database not configured.');
   exit();
 }
 
 try {
+  $digest = voncms_account_token_digest($token);
+  // Legacy rows were issued with PHP wall time; new digests use the database clock.
   // Find user with this token
   $stmt = $pdo->prepare(
-    'SELECT id, username, email FROM users WHERE verification_token = ? AND email_verified = 0',
+    'SELECT id, username, email, verification_token, verification_token_expires FROM users WHERE verification_token IN (?, ?) AND email_verified = 0 AND (verification_token = ? OR verification_token_expires IS NULL OR verification_token_expires > NOW())',
   );
-  $stmt->execute([$token]);
-  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+  $stmt->execute([$digest, $token, $token]);
+  $user = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
-  if (!$user) {
+  if (!$user || !voncms_account_token_matches((string) $user['verification_token'], $token)) {
     showResult(false, 'Invalid or expired verification link. The email may already be verified.');
     exit();
   }
 
-  // Check token expiry (24 hours)
-  $stmt = $pdo->prepare('SELECT verification_token_expires FROM users WHERE id = ?');
-  $stmt->execute([$user['id']]);
-  $expires = $stmt->fetchColumn();
-
-  if ($expires && strtotime($expires) < time()) {
-    showResult(false, 'Verification link has expired. Please request a new one.');
-    exit();
+  $legacyExpiry = 0;
+  if (
+    hash_equals((string) $user['verification_token'], $token) &&
+    $user['verification_token_expires']
+  ) {
+    // strtotime preserves the legacy timezone/DST interpretation, unlike wall-string ordering.
+    $legacyExpiry = strtotime((string) $user['verification_token_expires']);
+    if ($legacyExpiry === false || $legacyExpiry < time()) {
+      showResult(false, 'Verification link has expired. Please request a new one.');
+      exit();
+    }
   }
 
   // Mark email as verified
   $stmt = $pdo->prepare(
-    'UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires = NULL WHERE id = ?',
+    'UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires = NULL WHERE id = ? AND verification_token IN (?, ?) AND email_verified = 0 AND (verification_token_expires IS NULL OR (verification_token = ? AND verification_token_expires > NOW()) OR (verification_token = ? AND verification_token_expires = ? AND ? >= UNIX_TIMESTAMP()))',
   );
-  $stmt->execute([$user['id']]);
+  $stmt->execute([
+    $user['id'],
+    $digest,
+    $token,
+    $digest,
+    $token,
+    $user['verification_token_expires'],
+    $legacyExpiry,
+  ]);
+  if ($stmt->rowCount() !== 1) {
+    showResult(false, 'Invalid or expired verification link.');
+    exit();
+  }
 
   showResult(
     true,
     'Email verified successfully! You can now log in and participate in discussions.',
-    $user['username'],
+    (string) $user['username'],
   );
 } catch (PDOException $e) {
   error_log('Email verification error: ' . $e->getMessage());
@@ -95,8 +115,8 @@ function showResult($success, $message, $username = '')
   $color = $success ? '#10b981' : '#ef4444';
   $bgColor = $success ? '#ecfdf5' : '#fef2f2';
   $title = $success ? 'Email Verified!' : 'Verification Failed';
-  $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-  $basePath = preg_replace('#/api(/.*)?$#i', '', (string) $scriptName);
+  $scriptName = DataBoundary::serverString('SCRIPT_NAME');
+  $basePath = preg_replace('#/api(/.*)?$#i', '', $scriptName) ?? '';
   $basePath = $basePath === '/' || $basePath === '\\' ? '' : rtrim($basePath, '/');
   $homeHref = ($basePath !== '' ? $basePath : '') . '/';
 

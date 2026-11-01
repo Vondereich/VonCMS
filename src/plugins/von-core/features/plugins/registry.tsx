@@ -59,7 +59,7 @@ export const PluginSlot: React.FC<{
   location: PluginLocation;
   activePlugins: string[];
   customPlugins?: CustomPluginDefinition[];
-  pluginConfig?: Record<string, any>;
+  pluginConfig?: import('../../../../types').PluginConfigurations;
   className?: string;
 }> = ({ location, activePlugins, customPlugins = [], pluginConfig = {}, className }) => {
   const safeActivePlugins = Array.isArray(activePlugins) ? activePlugins : [];

@@ -4,21 +4,28 @@ import { BarChart3, DollarSign, Search, CheckCircle, HelpCircle } from 'lucide-r
 
 interface GoogleSettingsProps {
   settings: SiteSettings;
-  onChange: (key: string, value: any) => void;
+  onChange: import('../../../../../types').SettingsFieldChange<SiteSettings>;
 }
 
 export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChange }) => {
   const canManageAnalytics = settings._canManageSecrets === true;
   // Helpers to update nested state safely
-  const updateSeo = (key: string, value: any) => {
+  const updateSeo: import('../../../../../types').SettingsFieldChange<
+    NonNullable<SiteSettings['seo']>
+  > = (key, value) => {
     onChange('seo', { ...settings.seo, [key]: value });
   };
 
-  const updateAds = (key: string, value: any) => {
+  const updateAds: import('../../../../../types').SettingsFieldChange<SiteSettings['ads']> = (
+    key,
+    value
+  ) => {
     onChange('ads', { ...settings.ads, [key]: value });
   };
 
-  const updateAnalytics = (key: string, value: any) => {
+  const updateAnalytics: import('../../../../../types').SettingsFieldChange<
+    NonNullable<SiteSettings['analytics']>
+  > = (key, value) => {
     if (!canManageAnalytics) return;
     // Analytics might be undefined initially
     const currentAnalytics = settings.analytics || { enableTracking: true };
@@ -201,24 +208,20 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               />
               <span className="text-sm text-slate-700 dark:text-slate-300">Enable Tracking</span>
             </label>
-
-            <label
-              className={`flex items-center gap-2 ${canManageAnalytics ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-            >
-              <input
-                id="googlesettings-171"
-                name="googlesettings171"
-                type="checkbox"
-                disabled={!canManageAnalytics}
-                checked={settings.analytics?.anonymizeIP ?? true}
-                onChange={(e) => updateAnalytics('anonymizeIP', e.target.checked)}
-                className="w-4 h-4 text-orange-600 rounded-sm focus:ring-orange-500"
-              />
-              <span className="text-sm text-slate-700 dark:text-slate-300">
-                Anonymize IP (GDPR)
-              </span>
-            </label>
           </div>
+          <p className="text-xs text-slate-500">
+            GA4 manages IP handling through Google's service and privacy controls. The legacy IP
+            masking option is no longer shown here; it was not a GDPR compliance switch. Review{' '}
+            <a
+              href="https://support.google.com/analytics/answer/9019185?hl=en"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-600 hover:underline"
+            >
+              Google's privacy controls
+            </a>{' '}
+            alongside your site's consent requirements.
+          </p>
         </div>
       </fieldset>
 

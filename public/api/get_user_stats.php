@@ -22,7 +22,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 }
 
 try {
-  if (!isset($pdo) || $pdo === null) {
+  if (!isset($pdo)) {
     throw new Exception('Database connection not established.');
   }
 

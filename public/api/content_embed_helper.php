@@ -1,7 +1,7 @@
 <?php
 
 if (
-  isset($_SERVER['SCRIPT_FILENAME']) &&
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
   realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
 ) {
   http_response_code(403);
@@ -156,11 +156,128 @@ function voncms_sanitize_iframe_style(mixed $value): string
   return $style;
 }
 
-/**
- * Normalize stored URL/event attributes using parsed HTML, not raw-source regexes.
- * Output renderers must retain their separate full HTML sanitization policies.
- */
-function voncms_sanitize_content_attributes(string $html): string
+/** Parsed-attribute URL policy, shared with responsive image candidates. */
+function voncms_content_url_is_safe(string $url, bool $isLink = false): bool
+{
+  // Validate encoded aliases too, without decoding the surrounding rich-text fragment.
+  for ($depth = 0; $depth < 4; $depth++) {
+    $decoded = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if ($decoded === $url) {
+      break;
+    }
+    $url = $decoded;
+  }
+  if (html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8') !== $url) {
+    return false;
+  }
+  $parts = parse_url($url);
+  if (!is_array($parts) || preg_match('/[\x00-\x1f\x7f\\\\]/', $url)) {
+    return false;
+  }
+  if (str_starts_with($url, '//')) {
+    return voncms_noscript_safe_link_href('https:' . $url) !== '';
+  }
+  if (isset($parts['scheme'])) {
+    return ($isLink || in_array(strtolower($parts['scheme']), ['http', 'https'], true)) &&
+      voncms_noscript_safe_link_href($url) !== '';
+  }
+  $pathParts = preg_split('~[/#?]~', $url, 2);
+  return $pathParts !== false && !str_contains($pathParts[0], ':');
+}
+
+/** Preserve ordinary responsive images; reject a list with any unsafe candidate. */
+function voncms_sanitize_content_srcset(string $value): string
+{
+  $accepted = [];
+  foreach (explode(',', $value) as $candidate) {
+    $parts = preg_split('/\s+/', trim($candidate));
+    if ($parts === false) {
+      return '';
+    }
+    $url = $parts[0] ?? '';
+    if ($url === '' || count($parts) > 2 || !voncms_content_url_is_safe($url)) {
+      return '';
+    }
+    $descriptor = $parts[1] ?? '';
+    if (
+      $descriptor !== '' &&
+      preg_match('/^(?:[1-9][0-9]*w|(?:[0-9]*\.)?[0-9]+x)$/D', $descriptor) !== 1
+    ) {
+      return '';
+    }
+    $accepted[] = $url . ($descriptor !== '' ? ' ' . $descriptor : '');
+  }
+  return implode(', ', $accepted);
+}
+
+/** Keep supported editor layout/typography, never CSS fetches or escaped CSS syntax. */
+function voncms_sanitize_content_style(string $style): string
+{
+  $properties = [
+    'text-align',
+    'display',
+    'margin-left',
+    'margin-right',
+    'margin',
+    'max-width',
+    'width',
+    'height',
+    'aspect-ratio',
+    'float',
+    'border-left',
+    'border',
+    'border-radius',
+    'padding',
+    'padding-left',
+    'padding-right',
+    'padding-top',
+    'padding-bottom',
+    'font-style',
+    'min-width',
+    'overflow',
+    'color',
+    'background-color',
+    'font-size',
+    'font-family',
+    'font-weight',
+    'line-height',
+    'letter-spacing',
+  ];
+  $accepted = [];
+  foreach (explode(';', $style) as $declaration) {
+    $pair = explode(':', $declaration, 2);
+    if (count($pair) !== 2) {
+      continue;
+    }
+    $property = strtolower(trim($pair[0]));
+    $value = trim($pair[1]);
+    if (
+      !in_array($property, $properties, true) ||
+      $value === '' ||
+      preg_match('~[\\\\\x00-\x1f\x7f{}<>@]|/\*~', $value)
+    ) {
+      continue;
+    }
+    // CSS comments and escapes are rejected above before recognising function names.
+    preg_match_all('/([a-zA-Z_-][a-zA-Z0-9_-]*)\s*\(/', $value, $functions);
+    foreach ($functions[1] as $function) {
+      if (
+        !in_array(
+          strtolower($function),
+          ['rgb', 'rgba', 'hsl', 'hsla', 'calc', 'min', 'max', 'clamp'],
+          true,
+        )
+      ) {
+        continue 2;
+      }
+    }
+    $accepted[] = $property . ':' . $value;
+  }
+  return implode(';', $accepted);
+}
+
+/** Parsed storage hardening shared by Post, Page and import. Output stays separately sanitized. */
+function voncms_sanitize_content_attributes(string $html, bool $normalizeImportUrls = false): string
 {
   if ($html === '' || !str_contains($html, '<')) {
     return $html;
@@ -189,7 +306,23 @@ function voncms_sanitize_content_attributes(string $html): string
   $xpath = new DOMXPath($document);
   // Libxml can hide markup as raw text here that a browser reparses as active HTML
   // inside SVG/MathML. These nodes are already forbidden in public article output.
-  foreach (array_reverse(iterator_to_array($xpath->query('.//script|.//style', $root))) as $node) {
+  $blocked =
+    './/script|.//style|.//object|.//embed|.//link|.//meta|.//base|.//noscript|.//template|.//svg|.//math|.//form|.//input|.//button|.//select|.//option|.//textarea|.//frame|.//frameset|.//applet';
+  $blockedNodes = $xpath->query($blocked, $root);
+  if ($blockedNodes === false) {
+    throw new RuntimeException('HTML content could not be validated.');
+  }
+  foreach (array_reverse(iterator_to_array($blockedNodes)) as $node) {
+    if (!($node instanceof DOMNode)) {
+      throw new RuntimeException('HTML content could not be validated.');
+    }
+    // Libxml's HTML4 parser can attach later siblings to HTML5 void elements.
+    // Unwrap those nodes instead of discarding legitimate following content.
+    if (in_array(strtolower($node->nodeName), ['embed', 'link', 'meta', 'base', 'input'], true)) {
+      while ($node->firstChild && $node->parentNode) {
+        $node->parentNode->insertBefore($node->firstChild, $node);
+      }
+    }
     $node->parentNode?->removeChild($node);
   }
 
@@ -212,8 +345,22 @@ function voncms_sanitize_content_attributes(string $html): string
     }
     foreach (array_reverse(iterator_to_array($element->attributes)) as $attribute) {
       $name = strtolower($attribute->nodeName);
-      if (str_starts_with($name, 'on') || $name === 'srcdoc') {
+      if (str_starts_with($name, 'on') || in_array($name, ['srcdoc', 'ping', 'xlink:href'], true)) {
         $element->removeAttributeNode($attribute);
+        continue;
+      }
+      if (
+        in_array($name, ['style', 'srcset', 'imagesrcset', 'data-srcset', 'data-lazy-srcset'], true)
+      ) {
+        $clean =
+          $name === 'style'
+            ? voncms_sanitize_content_style($attribute->nodeValue ?? '')
+            : voncms_sanitize_content_srcset($attribute->nodeValue ?? '');
+        if ($clean === '') {
+          $element->removeAttributeNode($attribute);
+        } else {
+          $element->setAttribute($attribute->nodeName, $clean);
+        }
         continue;
       }
       if (!in_array($name, $urlAttributes, true)) {
@@ -221,7 +368,17 @@ function voncms_sanitize_content_attributes(string $html): string
       }
 
       // DOM already decoded this attribute. Never decode the entire HTML fragment.
-      $url = trim($attribute->nodeValue);
+      $url = trim($attribute->nodeValue ?? '');
+      if ($normalizeImportUrls) {
+        if (str_starts_with($url, '//')) {
+          $url = 'https:' . $url;
+        }
+        $normalized = $name === 'href' ? voncms_noscript_safe_link_href($url) : '';
+        if ($normalized === '') {
+          $normalized = voncms_normalize_public_media_url($url);
+        }
+        $url = $normalized;
+      }
       if (
         $name === 'src' &&
         strtolower($element->tagName) === 'img' &&
@@ -231,21 +388,9 @@ function voncms_sanitize_content_attributes(string $html): string
           'Inline data images are not supported. Upload the image through the Media Library before saving.',
         );
       }
-      $parts = parse_url($url);
-      $safe = is_array($parts) && !preg_match('/[\x00-\x1f\x7f\\\\]/', $url);
-      if ($safe && str_starts_with($url, '//')) {
-        $safe = voncms_noscript_safe_link_href('https:' . $url) !== '';
-      } elseif ($safe && isset($parts['scheme'])) {
-        $isLink = in_array($name, ['href', 'xlink:href'], true);
-        $safe =
-          ($isLink || in_array(strtolower($parts['scheme']), ['http', 'https'], true)) &&
-          voncms_noscript_safe_link_href($url) !== '';
-      } elseif ($safe) {
-        // Relative navigation is allowed, including ../, query-only and fragment links.
-        // A colon in the first segment must not disguise an unsupported URL scheme.
-        $firstSegment = preg_split('~[/#?]~', $url, 2)[0];
-        $safe = !str_contains($firstSegment, ':');
-      }
+      $safe =
+        (!$normalizeImportUrls || $url !== '') &&
+        voncms_content_url_is_safe($url, $name === 'href');
 
       if (!$safe) {
         $element->removeAttributeNode($attribute);
@@ -326,7 +471,11 @@ function voncms_sanitize_content_iframes(mixed $value): string
       $originalAttributes[strtolower($attribute->name)] = $attribute->value;
     }
     while ($iframe->attributes->length > 0) {
-      $iframe->removeAttributeNode($iframe->attributes->item(0));
+      $attribute = $iframe->attributes->item(0);
+      if (!($attribute instanceof DOMAttr)) {
+        throw new RuntimeException('Iframe attributes could not be validated.');
+      }
+      $iframe->removeAttributeNode($attribute);
     }
 
     $iframe->setAttribute('src', $src);

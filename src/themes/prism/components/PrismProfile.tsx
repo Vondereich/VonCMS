@@ -1,7 +1,9 @@
+import { hasPasswordSpecialCharacter } from '../../../utils/security';
 import React from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { User, Post, Comment, SiteSettings } from '../../../types';
+import type { ProfileUpdatePayload } from '../../../hooks/useProfileEditor';
 import { ArrowLeft, Terminal, Cpu, LayoutDashboard } from 'lucide-react';
 import { API } from '../../../config/site.config';
 import { vonFetch } from '../../../utils/api';
@@ -16,7 +18,12 @@ import {
 } from '../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../utils/linkEvents';
 import { useProfileActivity } from '../../../hooks/useProfileActivity';
-import { getProfileDisplayRole, isOwnUserProfile, isStaffUser } from '../../../utils/profileUtils';
+import {
+  getProfileDisplayRole,
+  isOwnUserProfile,
+  isStaffUser,
+  getSavedProfileUpdates,
+} from '../../../utils/profileUtils';
 
 interface PrismProfileProps {
   targetUser: User;
@@ -67,6 +74,13 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
   const [currentPassword, setCurrentPassword] = React.useState('');
   const [newPassword, setNewPassword] = React.useState('');
   const [confirmNewPassword, setConfirmNewPassword] = React.useState('');
+  const profileSavePending = React.useRef(false);
+  const latestProfileDraft = React.useRef({
+    display_name: editDisplayName,
+    bio: editBio,
+    avatar: editAvatar,
+  });
+  latestProfileDraft.current = { display_name: editDisplayName, bio: editBio, avatar: editAvatar };
 
   React.useEffect(() => {
     setDisplayUser(targetUser);
@@ -76,6 +90,8 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
   }, [targetUser]);
 
   const handleSaveProfile = async () => {
+    if (profileSavePending.current) return;
+    profileSavePending.current = true;
     try {
       // Validate Password Change
       if (showPasswordFields) {
@@ -88,7 +104,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
           (newPassword.length < 8 ||
             !/[A-Z]/.test(newPassword) ||
             !/[0-9]/.test(newPassword) ||
-            !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword))
+            !hasPasswordSpecialCharacter(newPassword))
         ) {
           toast.error('Password too weak (8+ chars, Upper, Number, Symbol)');
           return;
@@ -105,7 +121,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
         bio: editBio,
         avatar: editAvatar,
       };
-      const payload: any = {
+      const payload: ProfileUpdatePayload = {
         id: currentUser?.id,
         display_name: editDisplayName,
         bio: editBio,
@@ -126,10 +142,25 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setDisplayUser(updatedUser);
-        setIsEditing(false);
-        if (onUpdateUser && isOwnProfile) {
-          onUpdateUser({ display_name: editDisplayName, bio: editBio, avatar: editAvatar });
+        const savedUpdates = getSavedProfileUpdates(data.user, {
+          display_name: editDisplayName,
+          bio: editBio,
+          avatar: editAvatar,
+        });
+        setDisplayUser({ ...updatedUser, ...savedUpdates });
+        setEditDisplayName((current) =>
+          current === editDisplayName ? savedUpdates.display_name : current
+        );
+        setEditBio((current) => (current === editBio ? savedUpdates.bio : current));
+        setEditAvatar((current) => (current === editAvatar ? savedUpdates.avatar : current));
+        if (
+          latestProfileDraft.current.display_name === editDisplayName &&
+          latestProfileDraft.current.bio === editBio &&
+          latestProfileDraft.current.avatar === editAvatar
+        )
+          setIsEditing(false);
+        if (onUpdateUser && isOwnProfile && currentUser) {
+          onUpdateUser({ ...savedUpdates, id: currentUser.id });
         }
         toast.success('SUCCESS: User data updated');
 
@@ -142,9 +173,11 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
         toast.error(data.error ? `ERROR: ${data.error}` : 'SYSTEM_FAILURE: Save failed');
         setDisplayUser(targetUser);
       }
-    } catch (e) {
+    } catch {
       toast.error('CRITICAL_ERROR: Connection lost');
       setDisplayUser(targetUser);
+    } finally {
+      profileSavePending.current = false;
     }
   };
 
@@ -518,7 +551,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
             ) : (
               <>
                 {commentItems.length > 0 ? (
-                  commentItems.map((comment: any) => (
+                  commentItems.map((comment) => (
                     <div
                       key={comment.id}
                       className="bg-[#0a0a1f]/30 border border-white/5 rounded-xl p-5 hover:border-(--color-primary)/30 transition-all"

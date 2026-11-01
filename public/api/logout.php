@@ -19,7 +19,8 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 CSRFProtection::requireToken();
 
 $rememberCookieName = 'voncms_remember';
-$rememberCookie = (string) ($_COOKIE[$rememberCookieName] ?? '');
+$rawRememberCookie = $_COOKIE[$rememberCookieName] ?? '';
+$rememberCookie = is_string($rawRememberCookie) ? $rawRememberCookie : '';
 $rememberParts = explode(':', $rememberCookie, 2);
 $rememberSelector = $rememberParts[0] ?? '';
 

@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Save Post API
  * Creates or updates a post in the database
@@ -33,8 +35,8 @@ voncms_apply_site_timezone($pdo ?? null);
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$currentUser = $_SESSION['user'] ?? null;
-$currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+$currentUser = DataBoundary::actor();
+$currentRole = strtolower(DataBoundary::userText('role'));
 $canManagePosts = voncms_role_has_capability($currentRole, 'posts.create');
 
 if (!$canManagePosts) {
@@ -169,7 +171,6 @@ try {
   // Check if database connection exists
   if (!isset($pdo) || !($pdo instanceof PDO)) {
     ResponseHelper::sendError('Database not configured', 503);
-    return;
   }
   /** @var PDO $db */
   $db = $pdo;
@@ -192,7 +193,7 @@ try {
       "SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$postId]);
-    $ownerPost = $checkOwner->fetch(PDO::FETCH_ASSOC);
+    $ownerPost = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
 
     if (!$ownerPost) {
       $db->rollBack();
@@ -526,7 +527,7 @@ try {
         'post',
         (int) $postId,
         $workflowAuditAction,
-        $_SESSION['user'] ?? [],
+        $currentUser,
         $summary,
         [
           'title' => $statusOnlyTransition
@@ -567,7 +568,7 @@ try {
       'keywords' => $input['keywords'] ?? '',
       'category' => $category,
       'meta_description' => $metaDescription,
-      'author_id' => $_SESSION['user']['id'],
+      'author_id' => $currentUser['id'],
       'scheduled_at' => $scheduledAt,
     ];
     if ($hasPublishedAtColumn) {
@@ -583,7 +584,7 @@ try {
         'post',
         (int) $finalId,
         $workflowAuditAction,
-        $_SESSION['user'] ?? [],
+        $currentUser,
         $workflowMessage,
         [
           'title' => (string) ($input['title'] ?? ''),
@@ -603,7 +604,7 @@ try {
     "SELECT updated_at, {$publishedAtSelect} FROM posts WHERE id = ?",
   );
   $savedUpdatedAtStmt->execute([$finalId]);
-  $savedTimestamps = $savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC);
+  $savedTimestamps = DataBoundary::row($savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC));
   $savedTimestamps = is_array($savedTimestamps) ? $savedTimestamps : [];
   $savedUpdatedAt = (string) ($savedTimestamps['updated_at'] ?? null ?: $savedUpdatedAt);
   $savedPublishedAt = $savedTimestamps['published_at'] ?? null;

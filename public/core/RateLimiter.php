@@ -3,7 +3,7 @@
 // Internal module only; even a server without rewrite rules must refuse direct requests.
 if (
   !defined('VONCMS_CORE_LOADED') ||
-  (isset($_SERVER['SCRIPT_FILENAME']) &&
+  (is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
     realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__))
 ) {
   http_response_code(403);
@@ -44,7 +44,9 @@ class RateLimiter
   private static function ensureStorageDirectory(): bool
   {
     if (is_dir(self::$storageDir)) {
-      return is_writable(self::$storageDir);
+      // Windows' directory Read-only attribute is not its write ACL. File I/O below
+      // remains authoritative, with the existing fail-open/fail-closed contracts.
+      return PHP_OS_FAMILY === 'Windows' || is_writable(self::$storageDir);
     }
 
     return @mkdir(self::$storageDir, 0755, true) || is_dir(self::$storageDir);
@@ -53,11 +55,12 @@ class RateLimiter
   /**
    * Get client IP (secure - does NOT trust X-Forwarded-For)
    */
-  private static function getClientIP()
+  private static function getClientIP(): string
   {
     // SECURITY: Only trust REMOTE_ADDR, not X-Forwarded-For
     // X-Forwarded-For can be spoofed by attackers to bypass rate limiting
-    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $address = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    return is_string($address) ? $address : '0.0.0.0';
   }
 
   /**
@@ -113,13 +116,14 @@ class RateLimiter
   }
 
   /**
-   * Consume one recovery attempt from a bounded, expiry-pruned ledger.
-   * A single locked file prevents attacker-selected emails/IPs creating files.
-   * Storage failures refuse recovery only; login storage remains independent.
+   * Consume one fixed-window attempt from a bounded, expiry-pruned ledger.
+   * Fixed namespaces/shards prevent attacker-selected identifiers creating files.
+   * Storage failures refuse this action only; login storage remains independent.
    *
    * @param string $identifier
    * @param int $maxAttempts
    * @param int $windowSeconds
+   * @param string $namespace
    * @return bool
    */
   public static function consumeFixedWindow(
@@ -139,10 +143,29 @@ class RateLimiter
    */
   public static function consumeFixedWindows(array $limits, string $namespace = 'recovery'): bool
   {
+    $partitioned = in_array(
+      $namespace,
+      ['analytics-request', 'analytics-issue', 'analytics-session'],
+      true,
+    );
     if (
       $limits === [] ||
       count($limits) > 8 ||
-      !in_array($namespace, ['recovery', 'recovery-trap', 'login'], true)
+      ($partitioned && count($limits) !== 1) ||
+      (!$partitioned &&
+        !in_array(
+          $namespace,
+          [
+            'recovery',
+            'recovery-trap',
+            'login',
+            'analytics',
+            'verification-resend',
+            'registration',
+            'security-log',
+          ],
+          true,
+        ))
     ) {
       return false;
     }
@@ -150,8 +173,17 @@ class RateLimiter
     $ledger = match ($namespace) {
       'login' => 'login-account-ledger:v1',
       'recovery-trap' => 'recovery-trap-ledger:v1',
+      'analytics' => 'analytics-admission-ledger:v1',
+      'verification-resend' => 'verification-resend-ledger:v1',
+      'registration' => 'registration-ledger:v1',
+      'security-log' => 'security-event-ledger:v1',
       default => 'fixed-window-ledger:v1',
     };
+    $shard = $partitioned ? hash('sha256', (string) array_key_first($limits))[0] : '';
+    if ($partitioned) {
+      // Fixed 16 shards per purpose, never a file per attacker-selected address.
+      $ledger = $namespace . '-ledger:v2:' . $shard;
+    }
     $file = self::getFilePath($ledger, false);
     if ($file === null) {
       return false;
@@ -173,29 +205,39 @@ class RateLimiter
     try {
       rewind($handle);
       $raw = stream_get_contents($handle, 1048577);
-      $data = $raw === '' ? [] : json_decode(is_string($raw) ? $raw : '', true);
-      if (!is_string($raw) || strlen($raw) > 1048576 || !is_array($data) || count($data) > 4096) {
-        throw new RuntimeException('Invalid recovery ledger.');
+      if (!is_string($raw)) {
+        throw new RuntimeException('Unreadable fixed-window ledger.');
       }
       $now = time();
-      foreach ($data as $key => $bucket) {
-        if (
-          !is_string($key) ||
-          strlen($key) !== 64 ||
-          !ctype_xdigit($key) ||
-          !is_array($bucket) ||
-          !is_int($bucket['attempts'] ?? null) ||
-          $bucket['attempts'] < 0 ||
-          !is_int($bucket['window_started_at'] ?? null) ||
-          $bucket['window_started_at'] <= 0 ||
-          !is_int($bucket['window_seconds'] ?? null) ||
-          $bucket['window_seconds'] < 1
-        ) {
-          throw new RuntimeException('Invalid recovery bucket.');
+      $data = self::decodeFixedWindowLedger($raw, $now);
+      if ($partitioned && $raw === '') {
+        // Import once while holding this shard's lock. Nonempty JSON marks initialization,
+        // even when this first request is denied. Old/rollback writers keep their own ledger.
+        $legacyFile = self::$storageDir . md5('analytics-admission-ledger:v1') . '.json';
+        if (file_exists($legacyFile)) {
+          $legacyHandle = @fopen($legacyFile, 'r');
+          if ($legacyHandle === false) {
+            throw new RuntimeException('Unreadable legacy analytics ledger.');
+          }
+          try {
+            if (!@flock($legacyHandle, LOCK_SH)) {
+              throw new RuntimeException('Unavailable legacy analytics lock.');
+            }
+            $legacyRaw = stream_get_contents($legacyHandle, 1048577);
+            if (!is_string($legacyRaw)) {
+              throw new RuntimeException('Unreadable legacy analytics ledger.');
+            }
+            foreach (self::decodeFixedWindowLedger($legacyRaw, $now) as $key => $bucket) {
+              if ($key[0] === $shard) {
+                $data[$key] = $bucket;
+              }
+            }
+          } finally {
+            @flock($legacyHandle, LOCK_UN);
+            @fclose($legacyHandle);
+          }
         }
-        if ($bucket['window_started_at'] <= $now - $bucket['window_seconds']) {
-          unset($data[$key]);
-        }
+        self::writeFixedWindowLedger($handle, $data);
       }
       $pending = [];
       foreach ($limits as $identifier => [$maxAttempts, $windowSeconds]) {
@@ -258,24 +300,12 @@ class RateLimiter
       $data += $pending;
       foreach ($limits as $identifier => $limit) {
         $key = hash('sha256', (string) $identifier);
+        if (!isset($data[$key])) {
+          throw new RuntimeException('Missing reserved fixed-window bucket.');
+        }
         $data[$key]['attempts']++;
       }
-      $payload = json_encode($data);
-      rewind($handle);
-      if (!is_string($payload) || strlen($payload) > 1048576 || !@ftruncate($handle, 0)) {
-        throw new RuntimeException('Cannot persist recovery ledger.');
-      }
-      $written = 0;
-      while ($written < strlen($payload)) {
-        $bytes = @fwrite($handle, substr($payload, $written));
-        if ($bytes === false || $bytes === 0) {
-          throw new RuntimeException('Incomplete recovery ledger write.');
-        }
-        $written += $bytes;
-      }
-      if (!@fflush($handle)) {
-        throw new RuntimeException('Cannot flush recovery ledger.');
-      }
+      self::writeFixedWindowLedger($handle, $data);
       $accepted = true;
     } catch (Throwable $e) {
       self::reportStorageFailure('fixed-window ledger', false);
@@ -286,6 +316,68 @@ class RateLimiter
     }
 
     return $accepted;
+  }
+
+  /**
+   * Validate and expiry-prune both current and imported fixed-window buckets.
+   * @return array<string, array{attempts: int, window_started_at: int, window_seconds: int}>
+   */
+  private static function decodeFixedWindowLedger(string $raw, int $now): array
+  {
+    $data = $raw === '' ? [] : json_decode($raw, true);
+    if (strlen($raw) > 1048576 || !is_array($data) || count($data) > 4096) {
+      throw new RuntimeException('Invalid fixed-window ledger.');
+    }
+    $validated = [];
+    foreach ($data as $key => $bucket) {
+      if (
+        !is_string($key) ||
+        strlen($key) !== 64 ||
+        !ctype_xdigit($key) ||
+        !is_array($bucket) ||
+        !is_int($bucket['attempts'] ?? null) ||
+        $bucket['attempts'] < 0 ||
+        !is_int($bucket['window_started_at'] ?? null) ||
+        $bucket['window_started_at'] <= 0 ||
+        !is_int($bucket['window_seconds'] ?? null) ||
+        $bucket['window_seconds'] < 1
+      ) {
+        throw new RuntimeException('Invalid fixed-window bucket.');
+      }
+      if ($bucket['window_started_at'] <= $now - $bucket['window_seconds']) {
+        continue;
+      }
+      $validated[$key] = [
+        'attempts' => $bucket['attempts'],
+        'window_started_at' => $bucket['window_started_at'],
+        'window_seconds' => $bucket['window_seconds'],
+      ];
+    }
+    return $validated;
+  }
+
+  /**
+   * @param resource $handle Caller holds LOCK_EX throughout read/reserve/write.
+   * @param array<string, array{attempts: int, window_started_at: int, window_seconds: int}> $data
+   */
+  private static function writeFixedWindowLedger($handle, array $data): void
+  {
+    $payload = json_encode($data);
+    rewind($handle);
+    if (!is_string($payload) || strlen($payload) > 1048576 || !@ftruncate($handle, 0)) {
+      throw new RuntimeException('Cannot persist fixed-window ledger.');
+    }
+    $written = 0;
+    while ($written < strlen($payload)) {
+      $bytes = @fwrite($handle, substr($payload, $written));
+      if ($bytes === false || $bytes === 0) {
+        throw new RuntimeException('Incomplete fixed-window ledger write.');
+      }
+      $written += $bytes;
+    }
+    if (!@fflush($handle)) {
+      throw new RuntimeException('Cannot flush fixed-window ledger.');
+    }
   }
 
   /** Refund only this authenticated request, never other failures on a shared IP. */
@@ -311,7 +403,8 @@ class RateLimiter
       }
       if ($data['attempts'] === self::$maxAttempts) {
         $data['lockout_until'] = 0;
-        $data['penalty_level'] = max(0, (int) ($data['penalty_level'] ?? 0) - 1);
+        $penalty = $data['penalty_level'] ?? 0;
+        $data['penalty_level'] = max(0, (is_numeric($penalty) ? (int) $penalty : 0) - 1);
       }
       $data['attempts']--;
       $payload = json_encode($data);
@@ -375,6 +468,7 @@ class RateLimiter
     }
 
     $accepted = true;
+    $loginThrottleEvent = null;
     try {
       rewind($handle);
       $raw = stream_get_contents($handle);
@@ -383,9 +477,23 @@ class RateLimiter
         ? $existing
         : ['attempts' => 0, 'lockout_until' => 0, 'penalty_level' => 0];
       $now = time();
-      $lockoutUntil = (int) ($data['lockout_until'] ?? 0);
+      $lockoutValue = $data['lockout_until'] ?? 0;
+      $lockoutUntil = is_numeric($lockoutValue) ? (int) $lockoutValue : 0;
 
       if ($lockoutUntil > $now) {
+        // Observe only the trusted login namespace, without rewriting quota state.
+        // Reservations include invalid input, not just wrong passwords: this is
+        // a repeated-attempt signal, never proof of an attacker or a break-in.
+        if (
+          str_starts_with((string) $identifier, 'login:ip:') &&
+          class_exists('SecurityLogger', false)
+        ) {
+          $loginThrottleEvent = [
+            'signal' => 'repeated_login_attempts',
+            'attempt_limit' => self::$maxAttempts,
+            'retry_after_seconds' => $lockoutUntil - $now,
+          ];
+        }
         return false;
       }
 
@@ -394,8 +502,10 @@ class RateLimiter
         $data['lockout_until'] = 0;
       }
 
-      $data['attempts'] = (int) ($data['attempts'] ?? 0) + 1;
-      $data['penalty_level'] = (int) ($data['penalty_level'] ?? 0);
+      $attempts = $data['attempts'] ?? 0;
+      $penalty = $data['penalty_level'] ?? 0;
+      $data['attempts'] = (is_numeric($attempts) ? (int) $attempts : 0) + 1;
+      $data['penalty_level'] = is_numeric($penalty) ? (int) $penalty : 0;
       if ($data['attempts'] >= self::$maxAttempts) {
         $data['penalty_level']++;
         $multipliers = [1 => 1, 2 => 4];
@@ -416,6 +526,22 @@ class RateLimiter
     } finally {
       @flock($handle, LOCK_UN);
       @fclose($handle);
+      // Independent, bounded observation: never rewrite the denied login quota.
+      // Cap at one event/network/15 minutes and 60 events/minute across the site.
+      if ($loginThrottleEvent !== null) {
+        try {
+          if (
+            self::consumeFixedWindows(
+              ['security:login:' . $identifier => [1, 900], 'security:login:global' => [60, 60]],
+              'security-log',
+            )
+          ) {
+            SecurityLogger::log('login_rate_limited', 'high', $loginThrottleEvent, true);
+          }
+        } catch (Throwable $ignored) {
+          // Observation failure must never admit a rejected authentication request.
+        }
+      }
     }
 
     return $accepted;

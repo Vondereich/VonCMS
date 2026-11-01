@@ -3,7 +3,9 @@ import { SiteSettings } from '../../../../../types';
 
 interface PermalinkSettingsProps {
   settings: SiteSettings;
-  onChange: (key: string, value: any) => void;
+  onChange: import('../../../../../types').SettingsFieldChange<
+    Pick<SiteSettings, 'permalinkStructure'>
+  >;
 }
 
 export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, onChange }) => {
@@ -40,7 +42,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
       seo: true,
       description: 'Includes category in URL — Great for organized sites',
     },
-  ];
+  ] as const;
 
   return (
     <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-4 shadow-xs animate-fade-in dark:border-admin-border dark:bg-admin-panel sm:p-6">

@@ -2,14 +2,14 @@ import { PluginDefinition } from '../../../../../../types';
 import { AISummaryComponent } from './AISummaryComponent';
 import { AISummaryConfig } from './types';
 
-export const AISummaryPlugin: PluginDefinition = {
+export const AISummaryPlugin: PluginDefinition<AISummaryConfig> = {
   id: 'vp_ai_summary',
   name: 'AI Summary',
-  version: '1.27',
+  version: '1.28',
   author: 'VonCMS Team',
   description: 'Auto-extract article summaries without API - Fast & Free!',
 
-  render: (_location: any, config: any) => {
+  render: (_location, config) => {
     if (_location !== 'post_after') return null;
 
     const summaryConfig: AISummaryConfig = config || {

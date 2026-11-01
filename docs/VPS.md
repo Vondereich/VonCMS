@@ -25,7 +25,7 @@ The stack used in this guide:
 - aaPanel
 - Nginx
 - MySQL 8.0
-- PHP 8.2+
+- PHP 8.3+
 - Latest VonCMS Deploy package
 
 ## Before You Start
@@ -135,7 +135,7 @@ Recommended versions:
 
 - Nginx 1.24+
 - MySQL 8.0
-- PHP 8.2+
+- PHP 8.3+
 - phpMyAdmin 5.2
 - Pure-FTPD if you want FTP access
 
@@ -227,6 +227,7 @@ For an intentional `/blog` installation:
 
 - extract the Deploy ZIP into `/www/wwwroot/example.com/blog`
 - change `/index.html`, `/api/`, `/data`, `/uploads/`, and `/von_config.php` matches below to their `/blog/...` equivalents
+- scope both OTA blocks to `/blog/temp_update` and `/blog/temp_update/` (and the optional `public/` variants) before running an update
 - change the direct shell rewrite to `location = /blog/index.html { rewrite ^ /blog/index.php last; }` so it cannot escape to a sibling application at the website root
 - change helper regex anchors from `^/api/` to `^/blog/api/`
 - scope the PHP PATH_INFO block to `location ~* ^/blog/.*\.php/ { return 404; }`, still before PHP-FPM, so it rejects VonCMS aliases without blocking a sibling application's PHP routes
@@ -240,6 +241,13 @@ Do not paste both the root and subfolder `location` blocks into the same site co
 ```nginx
 # Prefer index.php when both files exist.
 index index.php index.html;
+
+# OTA downloads, extracted code and rollback files must never reach PHP/static handlers.
+location = /temp_update { deny all; }
+location ^~ /temp_update/ { deny all; }
+# Also cover an exposed Source layout; not needed when public/ is the document root.
+location = /public/temp_update { deny all; }
+location ^~ /public/temp_update/ { deny all; }
 
 # Server-wide security baseline. Add HSTS only after HTTPS works.
 server_tokens off;
@@ -567,7 +575,7 @@ Check:
 - DNS has propagated
 - SSL is active if you force HTTPS
 - Nginx rewrite rules are present
-- PHP 8.2+ is selected
+- PHP 8.3+ is selected
 - PHP-FPM can write `von_config.php` and `install.lock`
 - PHP-FPM can create and remove `data/install_setup.key`
 - The extracted files have the correct owner

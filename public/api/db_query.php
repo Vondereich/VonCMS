@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Database Query Endpoint
  * Admin-only database inspector for the Database Manager UI.
@@ -23,7 +25,7 @@ SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 SessionManager::requirePrimaryAdmin();
 
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
@@ -118,7 +120,7 @@ function fetchLimitedRows(PDOStatement $stmt, int $maxRows = 500): array
 try {
   // Mode 1: Raw admin read query used by Database Manager.
   if (isset($input['query'])) {
-    $sql = normalizeAdminReadQuery((string) $input['query']);
+    $sql = normalizeAdminReadQuery(DataBoundary::inputText($input['query']));
     beginAdminReadTransaction($pdo);
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
@@ -156,12 +158,12 @@ try {
       'comments' => 'comments',
     ];
 
-    $table = (string) $input['table'];
+    $table = DataBoundary::inputText($input['table']);
     if (!isset($allowedTables[$table])) {
       ResponseHelper::sendError('Invalid table', 400);
     }
 
-    $limit = isset($input['limit']) ? (int) $input['limit'] : 100;
+    $limit = isset($input['limit']) ? DataBoundary::inputInt($input['limit']) : 100;
     $limit = max(1, min(200, $limit));
 
     $safeTable = $allowedTables[$table];
@@ -170,7 +172,7 @@ try {
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
 
-    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $result = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
     echo json_encode([
       'success' => true,
       'message' => 'Table data fetched successfully',

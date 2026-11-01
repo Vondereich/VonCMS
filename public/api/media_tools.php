@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Media Tools API
  *
@@ -29,7 +31,7 @@ require_once __DIR__ . '/media_library_filter_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
 
 SessionManager::requirePrimaryAdmin();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.admin_tools')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.admin_tools')) {
   ResponseHelper::sendError('Media administration access required', 403);
 }
 
@@ -49,7 +51,6 @@ switch ($action) {
     break;
   case 'regenerate_thumbnails':
     ResponseHelper::sendError('Legacy thumbnail rebuild has been removed from this version.', 410);
-    break;
   case 'cleanup_unused':
     cleanupUnusedFiles();
     break;
@@ -69,6 +70,7 @@ function formatMediaToolBytes(int $bytes): string
   return number_format($bytes / 1024, 2) . ' KB';
 }
 
+/** @return array{maxWidth: int, quality: int, responsiveWidths: array<int,int>} */
 function getResponsiveVariantConfig(): array
 {
   $maxWidth = 1920;
@@ -76,10 +78,16 @@ function getResponsiveVariantConfig(): array
   $settingsFile = dirname(__DIR__) . '/data/site_settings.json';
 
   if (file_exists($settingsFile)) {
-    $settings = json_decode(file_get_contents($settingsFile), true);
-    $optimization = $settings['media']['optimization'] ?? [];
-    $maxWidth = (int) ($optimization['maxWidth'] ?? 1920);
-    $compressionLevel = $optimization['compressionLevel'] ?? 'medium';
+    $rawSettings = file_get_contents($settingsFile);
+    $settings = is_string($rawSettings) ? json_decode($rawSettings, true) : null;
+    $media = is_array($settings) && is_array($settings['media'] ?? null) ? $settings['media'] : [];
+    $optimization = is_array($media['optimization'] ?? null) ? $media['optimization'] : [];
+    $maxWidth = is_numeric($optimization['maxWidth'] ?? null)
+      ? (int) $optimization['maxWidth']
+      : 1920;
+    $compressionLevel = is_string($optimization['compressionLevel'] ?? null)
+      ? $optimization['compressionLevel']
+      : 'medium';
     $qualityMap = ['low' => 90, 'medium' => 75, 'high' => 60];
     $quality = (int) ($qualityMap[$compressionLevel] ?? 85);
   }
@@ -91,6 +99,7 @@ function getResponsiveVariantConfig(): array
   ];
 }
 
+/** @return resource|false */
 function acquireMediaToolLock(string $lockName)
 {
   $lockDir = dirname(__DIR__) . '/data';
@@ -150,16 +159,18 @@ function pruneMediaCleanupPreviewFiles(?int $userId = null): void
     }
 
     $payload = json_decode((string) @file_get_contents($file), true);
-    $createdAt = (int) ($payload['created_at'] ?? 0);
+    $createdAt =
+      is_array($payload) && is_int($payload['created_at'] ?? null) ? $payload['created_at'] : 0;
     if ($userId !== null || $createdAt < $expiry) {
       @unlink($file);
     }
   }
 }
 
+/** @param list<array{path: string, size: int, sizeFormatted: string, modified: string}> $orphaned */
 function createMediaCleanupPreview(array $orphaned): ?string
 {
-  $userId = (int) ($_SESSION['user']['id'] ?? 0);
+  $userId = (int) DataBoundary::userText('id');
   if ($userId <= 0) {
     return null;
   }
@@ -188,13 +199,14 @@ function createMediaCleanupPreview(array $orphaned): ?string
   return $written === false ? null : $token;
 }
 
+/** @return array{user_id: int, created_at: int, orphaned: list<array{path: string, size: int, sizeFormatted: string, modified: string}>, __path: string}|null */
 function loadMediaCleanupPreview(string $token): ?array
 {
   if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
     return null;
   }
 
-  $userId = (int) ($_SESSION['user']['id'] ?? 0);
+  $userId = (int) DataBoundary::userText('id');
   if ($userId <= 0) {
     return null;
   }
@@ -210,18 +222,44 @@ function loadMediaCleanupPreview(string $token): ?array
     return null;
   }
 
-  if ((int) ($payload['user_id'] ?? 0) !== $userId) {
+  if (($payload['user_id'] ?? null) !== $userId) {
     @unlink($previewPath);
     return null;
   }
 
-  if ((int) ($payload['created_at'] ?? 0) < time() - 7200) {
+  if (!is_int($payload['created_at'] ?? null) || $payload['created_at'] < time() - 7200) {
     @unlink($previewPath);
     return null;
   }
 
-  $payload['__path'] = $previewPath;
-  return $payload;
+  if (!is_array($payload['orphaned'] ?? null)) {
+    return null;
+  }
+  $orphaned = [];
+  foreach ($payload['orphaned'] as $item) {
+    if (
+      !is_array($item) ||
+      !is_string($item['path'] ?? null) ||
+      !is_int($item['size'] ?? null) ||
+      $item['size'] < 0 ||
+      !is_string($item['sizeFormatted'] ?? null) ||
+      !is_string($item['modified'] ?? null)
+    ) {
+      return null;
+    }
+    $orphaned[] = [
+      'path' => $item['path'],
+      'size' => $item['size'],
+      'sizeFormatted' => $item['sizeFormatted'],
+      'modified' => $item['modified'],
+    ];
+  }
+  return [
+    'user_id' => $userId,
+    'created_at' => $payload['created_at'],
+    'orphaned' => $orphaned,
+    '__path' => $previewPath,
+  ];
 }
 
 function buildMediaCleanupPath(string $uploadsDir, string $relativePath): ?string
@@ -229,6 +267,7 @@ function buildMediaCleanupPath(string $uploadsDir, string $relativePath): ?strin
   return voncms_resolve_media_path_within_uploads($relativePath, $uploadsDir);
 }
 
+/** @return list<string> */
 function getReferencedUploadRelativePaths(): array
 {
   global $pdo;
@@ -248,7 +287,7 @@ function getReferencedUploadRelativePaths(): array
     if ($stmt === false) {
       throw new RuntimeException('Unable to read the media index before cleanup.');
     }
-    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $filepath) {
+    foreach (DataBoundary::column($stmt->fetchAll(PDO::FETCH_COLUMN)) as $filepath) {
       $relativePath = voncms_resolve_upload_relative_path((string) $filepath);
       if ($relativePath !== null) {
         $paths[] = $relativePath;
@@ -262,7 +301,7 @@ function getReferencedUploadRelativePaths(): array
   if ($settingsStmt === false) {
     throw new RuntimeException('Unable to scan settings media references before cleanup.');
   }
-  foreach ($settingsStmt->fetchAll(PDO::FETCH_COLUMN) as $settingValue) {
+  foreach (DataBoundary::column($settingsStmt->fetchAll(PDO::FETCH_COLUMN)) as $settingValue) {
     $settingText = str_replace('\/', '/', (string) $settingValue);
     $relativePath = voncms_resolve_upload_relative_path($settingText);
     if ($relativePath !== null) {
@@ -285,7 +324,7 @@ function getReferencedUploadRelativePaths(): array
   if ($usersStmt === false) {
     throw new RuntimeException('Unable to scan user avatar references before cleanup.');
   }
-  foreach ($usersStmt->fetchAll(PDO::FETCH_COLUMN) as $avatar) {
+  foreach (DataBoundary::column($usersStmt->fetchAll(PDO::FETCH_COLUMN)) as $avatar) {
     $relativePath = voncms_resolve_upload_relative_path((string) $avatar);
     if ($relativePath !== null) {
       $paths[] = $relativePath;
@@ -302,7 +341,7 @@ function getReferencedUploadRelativePaths(): array
     if (!$postsStmt->execute()) {
       throw new RuntimeException('Unable to scan post media references before cleanup.');
     }
-    $rows = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = DataBoundary::rows($postsStmt->fetchAll(PDO::FETCH_ASSOC));
     foreach ($rows as $post) {
       $imageUrl = trim((string) ($post['image_url'] ?? ''));
       if ($imageUrl !== '') {
@@ -335,7 +374,7 @@ function getReferencedUploadRelativePaths(): array
     if (!$pagesStmt->execute()) {
       throw new RuntimeException('Unable to scan page media references before cleanup.');
     }
-    $rows = $pagesStmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = DataBoundary::rows($pagesStmt->fetchAll(PDO::FETCH_ASSOC));
     foreach ($rows as $page) {
       preg_match_all(
         "/uploads\/[^\\s\"'<>]+\.(jpg|jpeg|png|gif|webp|svg|ico)/i",
@@ -403,6 +442,7 @@ function isMediaPathReferenced(
   return in_array($fileBaseWithDir, $referencedBases, true);
 }
 
+/** @return array{uploadsDir: string|null, sources: list<string>, variants: list<array{path: string, source: string, size: int, modified: string}>} */
 function collectResponsiveVariantInventory(): array
 {
   return voncms_collect_registered_generated_media_variant_inventory(
@@ -495,7 +535,7 @@ function rebuildResponsiveVariants(): void
     $errors = 0;
     $results = [];
 
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
       $imageUrl = trim((string) ($row['image_url'] ?? ''));
       if ($imageUrl === '') {
         $skipped++;
@@ -673,7 +713,7 @@ function cleanupUnusedFiles(): void
 
   try {
     $executeCleanup = isset($_POST['execute_cleanup']) && $_POST['execute_cleanup'] === 'true';
-    $previewToken = trim((string) ($_POST['preview_token'] ?? ''));
+    $previewToken = trim(DataBoundary::inputText($_POST['preview_token'] ?? ''));
     $orphaned = [];
     $totalSize = 0;
 
@@ -683,7 +723,7 @@ function cleanupUnusedFiles(): void
       }
 
       $preview = loadMediaCleanupPreview($previewToken);
-      if (!$preview || !is_array($preview['orphaned'] ?? null)) {
+      if (!$preview) {
         ResponseHelper::sendError(
           'Saved untracked-file review not found. Please scan again before deleting.',
           409,
@@ -704,7 +744,7 @@ function cleanupUnusedFiles(): void
       );
 
       foreach ($iterator as $file) {
-        if (!$file->isFile()) {
+        if (!($file instanceof SplFileInfo) || !$file->isFile()) {
           continue;
         }
 
@@ -833,7 +873,7 @@ function getMediaStats(): void
     );
 
     foreach ($iterator as $file) {
-      if ($file->isFile()) {
+      if ($file instanceof SplFileInfo && $file->isFile()) {
         $totalFiles++;
         $totalSize += $file->getSize();
       }

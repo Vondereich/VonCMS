@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Gravatar from 'react-gravatar';
+import { SafeImage } from '../SafeImage';
 import { useLocation, Link } from 'react-router';
 import toast from 'react-hot-toast';
 import { API, DATABASE_STATUS_INVALIDATED_EVENT } from '../../config/site.config';
@@ -7,14 +8,18 @@ import { vonFetch } from '../../utils/api';
 import { getUserDisplayRole } from '../../utils/profileUtils';
 import { applyAdminPalette, normalizeAdminPalette } from '../../utils/adminPalette';
 import {
-  LayoutDashboard,
-  FileText,
-  MessageSquare,
-  Users,
-  Image,
-  Package,
-  Settings,
-  Database,
+  Gauge,
+  ScrollText,
+  Files,
+  Images,
+  MessagesSquare,
+  UsersRound,
+  Blocks,
+  PlugZap,
+  SwatchBook,
+  ShieldCheck,
+  SlidersHorizontal,
+  DatabaseZap,
   LogOut,
   Menu,
   X,
@@ -23,12 +28,18 @@ import {
   Search,
   Bell,
   Globe,
-  Mail,
-  Newspaper,
-  Layers,
-  Shield,
-  FileStack,
-  PanelsTopLeft,
+  Inbox,
+  Send,
+  NotebookTabs,
+  Puzzle,
+  Activity,
+  PenTool,
+  ChevronDown,
+  CirclePlus,
+  FilePenLine,
+  FilePlus2,
+  CalendarRange,
+  CalendarPlus,
 } from 'lucide-react';
 import { VonLogo } from '../VonLogo';
 import { SiteSettings, User } from '../../types';
@@ -51,7 +62,10 @@ interface AdminMenuItem {
   allowedRoles: string[];
   requiresPrimaryAdmin?: boolean;
   badge?: number;
+  group?: 'content' | 'extensions' | 'monitoring';
 }
+
+type AdminNavigationGroup = 'create' | NonNullable<AdminMenuItem['group']>;
 
 interface AdminEditorRouteContext {
   menuPath: '/admin/posts' | '/admin/pages' | null;
@@ -151,13 +165,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   toggleDarkMode,
   user,
 }) => {
-  const { pathname, search } = useLocation();
+  const { pathname, search, key: navigationKey } = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [openNavigationGroups, setOpenNavigationGroups] = useState<AdminNavigationGroup[]>([
+    'content',
+  ]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<
-    { label: string; path: string; icon: React.ReactNode }[]
-  >([]);
+  const [createSequence, setCreateSequence] = useState(0);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [dbAlert, setDbAlert] = useState<{ needsRepair: boolean; details: string[] } | null>(null);
   const [alertsCheckedAt, setAlertsCheckedAt] = useState<number | null>(null);
@@ -181,29 +196,39 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const menuItems: AdminMenuItem[] = [
     {
-      icon: <LayoutDashboard size={20} />,
+      icon: <Gauge size={20} />,
       label: 'Dashboard',
       path: '/admin/dashboard',
       color: '#818cf8', // Indigo 400
       allowedRoles: ['Admin', 'Moderator', 'Writer'],
     },
     {
-      icon: <FileText size={20} />,
+      icon: <ScrollText size={20} />,
       label: 'Posts',
       path: '/admin/posts',
       color: '#38bdf8', // Sky 400
       allowedRoles: ['Admin', 'Moderator', 'Writer'],
       badge: canReviewPosts ? pendingReviewCount : undefined,
+      group: 'content',
     },
     {
-      icon: <FileStack size={20} />,
+      icon: <Files size={20} />,
       label: 'Pages',
       path: '/admin/pages',
       color: '#34d399', // Emerald 400
       allowedRoles: ['Admin', 'Moderator'],
+      group: 'content',
     },
     {
-      icon: <Image size={20} />,
+      icon: <CalendarRange size={20} />,
+      label: 'Calendar',
+      path: '/admin/calendar',
+      color: '#818cf8',
+      allowedRoles: ['Admin', 'Moderator'],
+      group: 'content',
+    },
+    {
+      icon: <Images size={20} />,
       label: 'Gallery',
       path: '/admin/gallery',
       color: '#fb7185', // Rose 400
@@ -211,35 +236,35 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       requiresPrimaryAdmin: true,
     },
     {
-      icon: <Mail size={20} />,
+      icon: <Inbox size={20} />,
       label: 'Contact',
       path: '/admin/contact',
       color: '#fb923c', // Orange 400
       allowedRoles: ['Admin'],
     },
     {
-      icon: <Newspaper size={20} />,
+      icon: <Send size={20} />,
       label: 'Newsletter',
       path: '/admin/newsletter',
       color: '#a78bfa', // Violet 400
       allowedRoles: ['Admin'],
     },
     {
-      icon: <MessageSquare size={20} />,
+      icon: <MessagesSquare size={20} />,
       label: 'Comments',
       path: '/admin/discussion',
       color: '#c084fc', // Purple 400
       allowedRoles: ['Admin', 'Moderator'],
     },
     {
-      icon: <Users size={20} />,
+      icon: <UsersRound size={20} />,
       label: 'Users',
       path: '/admin/users',
       color: '#22d3ee', // Cyan 400
       allowedRoles: ['Admin'],
     },
     {
-      icon: <PanelsTopLeft size={20} />,
+      icon: <Blocks size={20} />,
       label: 'Widgets',
       path: '/admin/widgets',
       color: '#60a5fa', // Blue 400
@@ -247,28 +272,38 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       requiresPrimaryAdmin: true,
     },
     {
-      icon: <Package size={20} />,
-      label: 'Extensions',
-      path: '/admin/extensions',
+      icon: <PlugZap size={20} />,
+      label: 'Plugins',
+      path: '/admin/extensions?tab=plugins',
       color: '#f43f5e', // Rose 500
       allowedRoles: ['Admin'],
+      group: 'extensions',
     },
     {
-      icon: <Shield size={20} />,
+      icon: <SwatchBook size={20} />,
+      label: 'Themes',
+      path: '/admin/extensions?tab=themes',
+      color: '#a78bfa',
+      allowedRoles: ['Admin'],
+      group: 'extensions',
+    },
+    {
+      icon: <ShieldCheck size={20} />,
       label: 'Security',
       path: '/admin/security',
       color: '#f87171', // Red 400
       allowedRoles: ['Admin'],
+      group: 'monitoring',
     },
     {
-      icon: <Settings size={20} />,
+      icon: <SlidersHorizontal size={20} />,
       label: 'Settings',
       path: '/admin/settings',
       color: '#94a3b8', // Slate 400
       allowedRoles: ['Admin'],
     },
     {
-      icon: <Database size={20} />,
+      icon: <DatabaseZap size={20} />,
       label: 'Database',
       path: '/admin/database',
       color: '#4ade80', // Green 400
@@ -282,7 +317,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     // Insert before "Users" or "Extensions" usually
     // Let's put it after "Comments" (index 6) or before "Users"
     menuItems.splice(7, 0, {
-      icon: <Layers size={20} />,
+      icon: <PenTool size={20} />,
       label: 'Designer',
       path: '/admin/designer', // Dashboard view for Designer
       color: '#2dd4bf', // Teal 400
@@ -297,6 +332,36 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
     if (item.path === '/admin/database' && !isPrimaryAdmin) return false;
     return item.allowedRoles.map((r) => r.toLowerCase()).includes(userRole);
   });
+  const dashboardMenuItem = filteredMenuItems.find((item) => item.path === '/admin/dashboard');
+  // Creation links inherit the same role boundary as their management destination.
+  const createActions = filteredMenuItems
+    .filter((item) => item.path === '/admin/posts' || item.path === '/admin/pages')
+    .map((item) => ({
+      ...item,
+      label: item.path === '/admin/posts' ? 'New Post' : 'New Page',
+      icon: item.path === '/admin/posts' ? <FilePenLine size={20} /> : <FilePlus2 size={20} />,
+      path: `/admin/editor?type=${item.path === '/admin/posts' ? 'post' : 'page'}`,
+      badge: undefined,
+    }));
+  const calendarDestination = filteredMenuItems.find((item) => item.path === '/admin/calendar');
+  if (calendarDestination)
+    createActions.push({
+      ...calendarDestination,
+      label: 'New Event / Agenda',
+      icon: <CalendarPlus size={20} />,
+      path: '/admin/calendar?new=event',
+      badge: undefined,
+    });
+  const searchResults = searchQuery.trim()
+    ? [...filteredMenuItems, ...createActions].filter((item) =>
+        item.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      )
+    : [];
+  const navigationGroups = [
+    { id: 'content', label: 'Content', icon: <NotebookTabs size={20} />, color: '#38bdf8' },
+    { id: 'extensions', label: 'Extensions', icon: <Puzzle size={20} />, color: '#f43f5e' },
+    { id: 'monitoring', label: 'Monitoring', icon: <Activity size={20} />, color: '#f87171' },
+  ] as const;
   const hasIntegrityAlert = !!settings?._serverInfo?.integrityNeeded;
   const hasRateLimitStorageAlert = settings?._serverInfo?.rateLimitStorageHealthy === false;
 
@@ -351,9 +416,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   const hasActiveAlerts = alertItems.length > 0;
   const editorRouteContext = resolveAdminEditorRouteContext(pathname, search);
   const adminMenuMatchPath = editorRouteContext?.menuPath || pathname;
-  const currentMenuItem = menuItems.find((item) =>
-    isAdminMenuPathMatch(adminMenuMatchPath, item.path)
-  );
+  const isMenuItemActive = (item: AdminMenuItem) => {
+    const [itemPath, itemSearch] = item.path.split('?');
+    if (!itemPath || !isAdminMenuPathMatch(adminMenuMatchPath, itemPath)) return false;
+    if (!itemSearch) return true;
+    const requestedTab = new URLSearchParams(search).get('tab');
+    const currentTab = requestedTab === 'plugins' ? 'plugins' : 'themes';
+    return new URLSearchParams(itemSearch).get('tab') === currentTab;
+  };
+  const currentMenuItem = menuItems.find((item) => isMenuItemActive(item));
+  const activeNavigationGroup = filteredMenuItems.find(isMenuItemActive)?.group;
   const adminPageName =
     editorRouteContext?.pageName ||
     currentMenuItem?.label ||
@@ -412,16 +484,22 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   useEffect(() => {
     setIsMobileSidebarOpen(false);
-  }, [pathname]);
+    setOpenNavigationGroups((groups) => {
+      const nextGroups = groups.filter((group) => group !== 'create');
+      return activeNavigationGroup && !nextGroups.includes(activeNavigationGroup)
+        ? [...nextGroups, activeNavigationGroup]
+        : nextGroups;
+    });
+    setSearchQuery('');
+  }, [pathname, search, navigationKey, activeNavigationGroup]);
 
   useEffect(() => {
     if (!isMobileSidebarOpen) return;
 
     const previousOverflow = document.body.style.overflow;
+    const menuButton = mobileMenuButtonRef.current;
     const previouslyFocused =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : mobileMenuButtonRef.current;
+      document.activeElement instanceof HTMLElement ? document.activeElement : menuButton;
     document.body.style.overflow = 'hidden';
 
     const getFocusableElements = () =>
@@ -463,8 +541,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       window.cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
-      const focusTarget =
-        previouslyFocused?.isConnected === true ? previouslyFocused : mobileMenuButtonRef.current;
+      const focusTarget = previouslyFocused?.isConnected === true ? previouslyFocused : menuButton;
       focusTarget?.focus();
     };
   }, [isMobileSidebarOpen]);
@@ -503,7 +580,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                         id: loadingId,
                       });
                     }
-                  } catch (err) {
+                  } catch {
                     toast.error('System error occurred.', { id: loadingId });
                   }
                 }}
@@ -661,22 +738,124 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
   }, [isAlertsOpen]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-
-    if (query.length > 0) {
-      const results = filteredMenuItems.filter((item) =>
-        item.label.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
-    }
+    setSearchQuery(e.target.value);
   };
 
   const handleResultClick = () => {
     setSearchQuery('');
-    setSearchResults([]);
+  };
+
+  const isCreateDestination = (path: string) =>
+    path.startsWith('/admin/editor?') || path === '/admin/calendar?new=event';
+
+  const renderNavigationLink = (item: AdminMenuItem) => {
+    const isCreate = isCreateDestination(item.path);
+    const isActive = !isCreate && isMenuItemActive(item);
+    return (
+      <Link
+        key={item.path}
+        to={item.path}
+        data-admin-create={isCreate ? 'true' : undefined}
+        state={isCreate ? { createDraftKey: createSequence } : undefined}
+        onClick={isCreate ? () => setCreateSequence((value) => value + 1) : undefined}
+        aria-current={isActive ? 'page' : undefined}
+        aria-label={
+          item.badge ? `${item.label}, ${item.badge} posts waiting for review` : item.label
+        }
+        title={item.label}
+        className={`group flex min-h-11 items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-sm shadow-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${
+          isActive
+            ? 'bg-blue-600 font-medium text-white'
+            : 'bg-admin-sidebar text-slate-300 hover:bg-zinc-800 hover:text-white'
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className="shrink-0"
+          style={!isActive ? { color: item.color } : {}}
+        >
+          {item.icon}
+        </span>
+        <span className={`min-w-0 flex-1 ${!isSidebarOpen ? 'xl:hidden' : ''}`}>{item.label}</span>
+        {!!item.badge && (
+          <span
+            className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${
+              isActive ? 'bg-white text-blue-700' : 'bg-violet-500 text-white'
+            } ${!isSidebarOpen ? 'xl:hidden' : ''}`}
+          >
+            {item.badge > 99 ? '99+' : item.badge}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
+  const renderNavigationGroup = (
+    id: AdminNavigationGroup,
+    label: string,
+    icon: React.ReactNode,
+    color: string,
+    items: AdminMenuItem[]
+  ) => {
+    if (!items.length) return null;
+    const isActive = id !== 'create' && items.some(isMenuItemActive);
+    const isOpen = openNavigationGroups.includes(id);
+    const isCompact = !isSidebarOpen && !isMobileSidebarOpen;
+    const badge = items.reduce((total, item) => total + (item.badge || 0), 0);
+    return (
+      <div key={id}>
+        <button
+          type="button"
+          aria-label={badge ? `${label}, ${badge} posts waiting for review` : label}
+          title={label}
+          aria-expanded={isOpen && !isCompact}
+          aria-controls={`admin-navigation-${id}`}
+          onClick={() => {
+            if (isCompact) {
+              setIsSidebarOpen(true);
+              setOpenNavigationGroups((groups) => [...new Set([...groups, id])]);
+            } else {
+              setOpenNavigationGroups((groups) =>
+                groups.includes(id) ? groups.filter((group) => group !== id) : [...groups, id]
+              );
+            }
+          }}
+          className={`flex min-h-11 w-full items-center gap-3 rounded-xl border-0 px-3 py-2.5 text-left text-sm font-medium shadow-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 ${
+            id === 'create'
+              ? 'bg-zinc-800 text-white hover:bg-zinc-700'
+              : isOpen || isActive
+                ? 'bg-zinc-800 text-white hover:bg-zinc-700'
+                : 'bg-admin-sidebar text-slate-300 hover:bg-zinc-800 hover:text-white'
+          }`}
+        >
+          <span aria-hidden="true" className="shrink-0" style={{ color }}>
+            {icon}
+          </span>
+          <span className={`flex-1 ${!isSidebarOpen ? 'xl:hidden' : ''}`}>{label}</span>
+          {!!badge && (
+            <span
+              className={`rounded-full bg-violet-500 px-1.5 py-0.5 text-xs text-white ${!isSidebarOpen ? 'xl:hidden' : ''}`}
+            >
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
+          <ChevronDown
+            size={16}
+            aria-hidden="true"
+            className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''} ${!isSidebarOpen ? 'xl:hidden' : ''}`}
+          />
+        </button>
+        <div
+          id={`admin-navigation-${id}`}
+          role="group"
+          aria-label={label}
+          hidden={!isOpen}
+          className={`my-1 ml-5 space-y-1 pl-2 ${!isSidebarOpen ? 'xl:hidden' : ''}`}
+        >
+          {items.map(renderNavigationLink)}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -738,54 +917,30 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
 
         {/* Nav Items */}
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-          {filteredMenuItems.map((item) => {
-            const isActive = isAdminMenuPathMatch(adminMenuMatchPath, item.path);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group
-                                    ${
-                                      isActive
-                                        ? 'bg-blue-600 text-white font-medium shadow-lg shadow-blue-500/20'
-                                        : 'text-slate-400 hover:bg-admin-panel hover:text-white'
-                                    }
-                                `}
-                onClick={() => setIsMobileSidebarOpen(false)}
-                title={!isSidebarOpen ? item.label : ''}
-              >
-                <div
-                  className={`${isActive ? 'animate-pulse-slow' : 'group-hover:scale-110 transition-transform'}`}
-                  style={!isActive ? { color: item.color } : {}}
-                >
-                  {item.icon}
-                </div>
-                <span
-                  className={`whitespace-nowrap transition-opacity duration-200 ${
-                    isSidebarOpen ? 'xl:opacity-100' : 'xl:hidden xl:w-0 xl:opacity-0'
-                  }`}
-                >
-                  {item.label}
-                </span>
-                {!!item.badge && (
-                  <span
-                    className={`ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${
-                      isActive ? 'bg-white text-blue-700' : 'bg-violet-500 text-white'
-                    } ${!isSidebarOpen ? 'xl:hidden' : ''}`}
-                    aria-label={`${item.badge} posts waiting for review`}
-                  >
-                    {item.badge > 99 ? '99+' : item.badge}
-                  </span>
-                )}
-                {isActive && (
-                  <div
-                    className={`${item.badge ? '' : 'ml-auto'} h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${
-                      !isSidebarOpen ? 'xl:hidden' : ''
-                    }`}
-                  ></div>
-                )}
-              </Link>
-            );
+          {dashboardMenuItem && renderNavigationLink(dashboardMenuItem)}
+          {renderNavigationGroup(
+            'create',
+            'Create',
+            <CirclePlus size={20} />,
+            '#e4e4e7',
+            createActions
+          )}
+          {filteredMenuItems.map((item, index) => {
+            if (item === dashboardMenuItem) return null;
+            if (!item.group) return renderNavigationLink(item);
+            if (filteredMenuItems.findIndex((entry) => entry.group === item.group) !== index) {
+              return null;
+            }
+            const group = navigationGroups.find((entry) => entry.id === item.group);
+            return group
+              ? renderNavigationGroup(
+                  group.id,
+                  group.label,
+                  group.icon,
+                  group.color,
+                  filteredMenuItems.filter((entry) => entry.group === group.id)
+                )
+              : null;
           })}
         </nav>
 
@@ -811,20 +966,19 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
           <div
             className={`flex items-center gap-3 pt-2 mt-2 border-t border-white/10 ${!isSidebarOpen && 'xl:justify-center'}`}
           >
-            {user?.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.username}
-                className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-admin-sidebar shadow-md object-cover"
-              />
-            ) : (
-              <Gravatar
-                email={user?.email || user?.username}
-                size={32}
-                default="identicon"
-                className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-admin-sidebar shadow-md object-cover"
-              />
-            )}
+            <SafeImage
+              src={user?.avatar}
+              alt={user?.username || 'Admin'}
+              className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-admin-sidebar shadow-md object-cover"
+              fallback={
+                <Gravatar
+                  email={user?.email || user?.username}
+                  size={32}
+                  default="identicon"
+                  className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-admin-sidebar shadow-md object-cover"
+                />
+              }
+            />
             <div className={`flex-1 overflow-hidden ${!isSidebarOpen ? 'xl:hidden' : ''}`}>
               <p className="text-sm font-medium text-white truncate">{user?.username || 'Admin'}</p>
               <p
@@ -894,7 +1048,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
                     <Link
                       key={result.path}
                       to={result.path}
-                      onClick={() => handleResultClick()}
+                      data-admin-create={isCreateDestination(result.path) ? 'true' : undefined}
+                      state={
+                        isCreateDestination(result.path)
+                          ? { createDraftKey: createSequence }
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (isCreateDestination(result.path))
+                          setCreateSequence((value) => value + 1);
+                        handleResultClick();
+                      }}
                       className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors text-sm text-slate-700 dark:text-slate-200"
                     >
                       <div className="text-slate-400 dark:text-slate-500">{result.icon}</div>

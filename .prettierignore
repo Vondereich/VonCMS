@@ -1,4 +1,7 @@
 node_modules
+vendor
+composer.lock
+phpstan.neon
 dist
 public/assets
 *.min.js

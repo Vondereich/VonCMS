@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Monolithic Tracking API
  * Replaces separate track_visit and track_view for CPU efficiency.
@@ -24,7 +26,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 // Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
@@ -36,19 +38,42 @@ $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
 }
-$recordAnalytics = voncms_native_analytics_allowed($pdo, $_COOKIE);
-$url = $recordAnalytics ? mb_substr(trim((string) ($input['url'] ?? '')), 0, 500) : '';
-$referrer = $recordAnalytics ? mb_substr(trim((string) ($input['referrer'] ?? '')), 0, 500) : '';
+if (!voncms_analytics_request_allowed()) {
+  echo json_encode([
+    'success' => true,
+    'visit' => false,
+    'retry' => false,
+    'view' => false,
+    'view_throttled' => true,
+    'throttled' => true,
+  ]);
+  exit();
+}
+$analyticsMode = null;
+$recordAnalytics = voncms_native_analytics_allowed($pdo, $_COOKIE, $analyticsMode);
+if (!$recordAnalytics && isset($_COOKIE[voncms_analytics_identity_name()])) {
+  voncms_analytics_identity_cookie(null, time());
+}
+$url = $recordAnalytics
+  ? mb_substr(trim(DataBoundary::inputText($input['url'] ?? '')), 0, 500)
+  : '';
+$referrer = $recordAnalytics
+  ? mb_substr(trim(DataBoundary::inputText($input['referrer'] ?? '')), 0, 500)
+  : '';
 $postId =
-  isset($input['postId']) && preg_match('/^\d+$/', (string) $input['postId'])
+  isset($input['postId']) &&
+  is_scalar($input['postId']) &&
+  preg_match('/^\d+$/', (string) $input['postId'])
     ? (int) $input['postId']
     : null;
 $pageId =
-  isset($input['pageId']) && preg_match('/^\d+$/', (string) $input['pageId'])
+  isset($input['pageId']) &&
+  is_scalar($input['pageId']) &&
+  preg_match('/^\d+$/', (string) $input['pageId'])
     ? (int) $input['pageId']
     : null;
 $userAgent = $recordAnalytics
-  ? mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 1000)
+  ? mb_substr(DataBoundary::serverString('HTTP_USER_AGENT', ''), 0, 1000)
   : '';
 
 // 2. Visit Tracking (Analytics Table)
@@ -57,31 +82,28 @@ $throttleMinutes = 30;
 // Analytics is optional. Missing storage must not block content delivery or view counters.
 $recentLogs = 0;
 $visitRecorded = false;
-if ($recordAnalytics) {
-  $ipHash = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . date('Y-m'));
+$visitRetry = false;
+if ($recordAnalytics && is_string($analyticsMode)) {
   try {
-    $visitIndexHint = voncms_query_index_hint($pdo, 'analytics', 'idx_visit_window');
-    $stmt = $pdo->prepare("
-      SELECT 1 FROM analytics{$visitIndexHint}
-      WHERE ip_hash = ?
-      AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)
-      LIMIT 1
-  ");
-    $stmt->execute([$ipHash, $throttleMinutes]);
-    $recentLogs = (int) $stmt->fetchColumn();
-
-    if ($recentLogs === 0) {
-      $stmt = $pdo->prepare(
-        'INSERT INTO analytics (page_url, referrer, user_agent, ip_hash, visit_date, visit_time) VALUES (?, ?, ?, ?, CURDATE(), CURTIME())',
-      );
-      $stmt->execute([$url, $referrer, $userAgent, $ipHash]);
-      $visitRecorded = true;
-    }
+    $visit = voncms_record_native_visit(
+      $pdo,
+      $analyticsMode,
+      $_COOKIE,
+      $url,
+      $referrer,
+      $userAgent,
+    );
+    $visitRecorded = $visit['visit'];
+    $recentLogs = (int) $visit['throttled'];
+    $visitRetry = $visit['retry'];
 
     if (rand(1, 100) === 1) {
       $pdo->exec(
         'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
       );
+      if ($analyticsMode === 'balanced') {
+        voncms_prune_analytics_sessions($pdo, time());
+      }
     }
   } catch (Throwable $analyticsError) {
     $recentLogs = 0;
@@ -141,6 +163,7 @@ try {
 echo json_encode([
   'success' => true,
   'visit' => $visitRecorded,
+  'retry' => $visitRetry,
   'view' => $viewRecorded,
   'view_throttled' => $viewThrottled,
   'throttled' => $recordAnalytics && $recentLogs > 0,

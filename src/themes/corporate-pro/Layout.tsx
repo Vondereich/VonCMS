@@ -1,13 +1,16 @@
+import { hasPasswordSpecialCharacter } from '../../utils/security';
 import React, { useState, useCallback, useRef } from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { Post, Page, User, Comment, SiteSettings } from '../../types';
+import type { ProfileUpdatePayload } from '../../hooks/useProfileEditor';
 import { Menu, X, Mail, Phone, MapPin, Edit2, Rss, Sun, Moon } from 'lucide-react';
 import { getBasePathPrefix, getPermalink, getPublicHomeHref } from '../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../utils/linkEvents';
 import ThemeLogo from '../shared/components/ThemeLogo';
 import PublicNavigationLink from '../shared/components/PublicNavigationLink';
 import ThemeImage from '../shared/ThemeImage';
+import { SafeImage } from '../../components/SafeImage';
 import { getCorporateHomeSections } from './config';
 import { getReadableForeground } from '../shared/themeColors';
 import HeroSection from './sections/HeroSection';
@@ -55,7 +58,11 @@ import {
   normalizeSiteUrl,
 } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
-import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
+import {
+  getProfileDisplayRole,
+  isOwnUserProfile,
+  getSavedProfileUpdates,
+} from '../../utils/profileUtils';
 
 interface ThemeLayoutProps {
   posts: Post[];
@@ -110,6 +117,13 @@ const CorporateProfile: React.FC<{
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const profileSavePending = React.useRef(false);
+  const latestProfileDraft = React.useRef({
+    display_name: editDisplayName,
+    bio: editBio,
+    avatar: editAvatar,
+  });
+  latestProfileDraft.current = { display_name: editDisplayName, bio: editBio, avatar: editAvatar };
 
   const isOwnProfile = isOwnUserProfile(currentUser, targetUser);
 
@@ -122,6 +136,8 @@ const CorporateProfile: React.FC<{
   }, [targetUser]);
 
   const handleSaveProfile = async () => {
+    if (profileSavePending.current) return;
+    profileSavePending.current = true;
     try {
       // Validate Password
       if (showPasswordFields) {
@@ -134,7 +150,7 @@ const CorporateProfile: React.FC<{
           (newPassword.length < 8 ||
             !/[A-Z]/.test(newPassword) ||
             !/[0-9]/.test(newPassword) ||
-            !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword))
+            !hasPasswordSpecialCharacter(newPassword))
         ) {
           toast.error('Password too weak (8+ chars, Upper, Number, Symbol)');
           return;
@@ -151,7 +167,7 @@ const CorporateProfile: React.FC<{
         bio: editBio,
         avatar: editAvatar,
       };
-      const payload: any = {
+      const payload: ProfileUpdatePayload = {
         id: currentUser?.id,
         display_name: editDisplayName,
         bio: editBio,
@@ -171,10 +187,25 @@ const CorporateProfile: React.FC<{
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setDisplayUser(updatedUser);
-        setIsEditing(false);
-        if (onUpdateUser && isOwnProfile) {
-          onUpdateUser({ display_name: editDisplayName, bio: editBio, avatar: editAvatar });
+        const savedUpdates = getSavedProfileUpdates(data.user, {
+          display_name: editDisplayName,
+          bio: editBio,
+          avatar: editAvatar,
+        });
+        setDisplayUser({ ...updatedUser, ...savedUpdates });
+        setEditDisplayName((current) =>
+          current === editDisplayName ? savedUpdates.display_name : current
+        );
+        setEditBio((current) => (current === editBio ? savedUpdates.bio : current));
+        setEditAvatar((current) => (current === editAvatar ? savedUpdates.avatar : current));
+        if (
+          latestProfileDraft.current.display_name === editDisplayName &&
+          latestProfileDraft.current.bio === editBio &&
+          latestProfileDraft.current.avatar === editAvatar
+        )
+          setIsEditing(false);
+        if (onUpdateUser && isOwnProfile && currentUser) {
+          onUpdateUser({ ...savedUpdates, id: currentUser.id });
         }
         toast.success('Profile saved successfully');
 
@@ -186,8 +217,10 @@ const CorporateProfile: React.FC<{
       } else {
         toast.error(data.error || 'Save failed');
       }
-    } catch (e) {
+    } catch {
       toast.error('Connection error');
+    } finally {
+      profileSavePending.current = false;
     }
   };
 
@@ -206,22 +239,21 @@ const CorporateProfile: React.FC<{
       <div className="bg-white dark:bg-neutral-950 border-b border-slate-200 dark:border-neutral-800">
         <div className="max-w-4xl mx-auto px-5 pt-24 md:pt-28 pb-12 text-center md:text-left md:flex items-start gap-8">
           <div className="relative group mx-auto md:mx-0 w-32 h-32 shrink-0">
-            {displayUser.avatar ? (
-              <img
-                src={displayUser.avatar}
-                alt={displayUser.display_name || displayUser.username}
-                className="w-32 h-32 rounded-full object-cover border-4 border-white dark:border-neutral-800 shadow-lg bg-slate-200"
-              />
-            ) : (
-              <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white dark:border-neutral-800 shadow-lg bg-slate-200">
-                <Gravatar
-                  email={displayUser.email || displayUser.username}
-                  size={200}
-                  className="w-full h-full object-cover"
-                  default="identicon"
-                />
-              </div>
-            )}
+            <SafeImage
+              src={displayUser.avatar}
+              alt={displayUser.display_name || displayUser.username}
+              className="w-32 h-32 rounded-full object-cover border-4 border-white dark:border-neutral-800 shadow-lg bg-slate-200"
+              fallback={
+                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white dark:border-neutral-800 shadow-lg bg-slate-200">
+                  <Gravatar
+                    email={displayUser.email || displayUser.username}
+                    size={200}
+                    className="w-full h-full object-cover"
+                    default="identicon"
+                  />
+                </div>
+              }
+            />
             {isOwnProfile && (
               <button
                 onClick={() => setIsEditing(true)}
@@ -568,7 +600,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
 
     if (trimmed.startsWith('page:')) {
       const pageId = trimmed.split(':')[1];
-      const pg = pages.find((p: any) => p.id === pageId);
+      const pg = pages.find((p) => p.id === pageId);
       onPageClick(pg?.slug || pageId);
       setMobileMenuOpen(false);
       return;
@@ -638,7 +670,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
 
         {/* Desktop Nav */}
         <nav className={desktopNavigationClassName}>
-          {visibleNavigationItems.map((item: any) => (
+          {visibleNavigationItems.map((item) => (
             <PublicNavigationLink
               key={item.id}
               nav={item}
@@ -680,7 +712,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 </svg>
               </button>
               <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 rounded-lg shadow-xl border border-slate-100 dark:border-neutral-800 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']">
-                {overflowNavigationItems.map((item: any) => (
+                {overflowNavigationItems.map((item) => (
                   <PublicNavigationLink
                     key={item.id}
                     nav={item}
@@ -764,7 +796,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
           ref={mobileMenuRef}
           className={`${compactNavigationClassName} absolute top-full left-0 w-full bg-white dark:bg-neutral-900 border-t border-slate-100 dark:border-neutral-800 shadow-xl p-5 flex flex-col gap-4 animate-slide-down`}
         >
-          {navigationItems.map((item: any) => (
+          {navigationItems.map((item) => (
             <PublicNavigationLink
               key={item.id}
               nav={item}
@@ -878,7 +910,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
             <div>
               <h4 className="font-bold text-slate-900 dark:text-white mb-6">Quick Links</h4>
               <ul className="space-y-4">
-                {settings.navigation?.map((item: any) => (
+                {settings.navigation?.map((item) => (
                   <li key={item.id}>
                     <PublicNavigationLink
                       nav={item}
@@ -1165,6 +1197,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                 <ProseDarkModeStyles />
                 <Header />
                 <CorporateProfile
+                  key={targetProfile.username}
                   targetUser={targetProfile}
                   currentUser={user}
                   posts={posts}

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { MediaItem, SiteSettings } from '../../../../types';
 import { API } from '../../../../config/site.config';
-import { vonFetch } from '../../../../utils/api';
+import { vonFetch, getErrorMessage } from '../../../../utils/api';
 import SmartPagination from '../../../../components/SmartPagination';
 import AdminModal from '../../../../components/admin/AdminModal';
 import { useDebouncedSearchQuery } from '../../../../hooks/useDebouncedSearchQuery';
@@ -36,6 +36,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
   const { query: searchQuery, commit: commitSearch } = useDebouncedSearchQuery(searchInput);
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -73,23 +74,29 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
   }, [settings?.media?.defaultView]);
 
-  // Sync edit state when a single item is selected
+  // The open lightbox owns its draft even when no checkbox is selected.
+  // Refreshes/saves for the same identity must not erase newer unsaved metadata.
   useEffect(() => {
-    if (selectedItems.size === 1) {
-      const id = Array.from(selectedItems)[0];
-      const item = media.find((i) => i.id === id);
+    const item =
+      lightboxIndex !== null
+        ? media[lightboxIndex]
+        : selectedItems.size === 1
+          ? media.find((i) => i.id === Array.from(selectedItems)[0])
+          : undefined;
+    setEditMeta((current) => {
       if (item) {
-        setEditMeta({
-          id: item.id,
-          alt: item.altText || '',
-          caption: item.caption || '',
-          desc: item.description || '',
-        });
+        return current.id === item.id
+          ? current
+          : {
+              id: item.id,
+              alt: item.altText || '',
+              caption: item.caption || '',
+              desc: item.description || '',
+            };
       }
-    } else {
-      setEditMeta({ id: '', alt: '', caption: '', desc: '' }); // Clear editMeta if multiple or no items selected
-    }
-  }, [selectedItems, media]);
+      return current.id ? { id: '', alt: '', caption: '', desc: '' } : current;
+    });
+  }, [lightboxIndex, selectedItems, media]);
 
   const fetchMedia = useCallback(
     async (page = 1, search = searchQuery) => {
@@ -118,9 +125,9 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         } else {
           throw new Error(data.error || 'Unknown error');
         }
-      } catch (err: any) {
+      } catch (err) {
         if (requestId === mediaRequestIdRef.current) {
-          setError(err.message || 'Failed to load media');
+          setError(getErrorMessage(err, 'Failed to load media'));
           console.error('Fetch media error:', err);
         }
       } finally {
@@ -162,8 +169,8 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         } else {
           throw new Error(data.error || 'Upload failed');
         }
-      } catch (err: any) {
-        setError(err.message || 'Upload failed');
+      } catch (err) {
+        setError(getErrorMessage(err, 'Upload failed'));
         console.error('Upload error:', err);
       }
     }
@@ -309,23 +316,9 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     }
   };
 
-  // Lightbox State
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-
   // Keyboard navigation for lightbox
   useEffect(() => {
     if (lightboxIndex === null) return;
-
-    // Sync editMeta to the lightbox item immediately
-    const item = filteredMedia[lightboxIndex];
-    if (item) {
-      setEditMeta({
-        id: item.id,
-        alt: item.altText || '',
-        caption: item.caption || '',
-        desc: item.description || '',
-      });
-    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setLightboxIndex(null);

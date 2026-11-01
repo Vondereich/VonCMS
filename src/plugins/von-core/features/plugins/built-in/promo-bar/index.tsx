@@ -119,13 +119,13 @@ const PromoBarComponent: React.FC<{
   );
 };
 
-export const PromoBarPlugin: PluginDefinition = {
+export const PromoBarPlugin: PluginDefinition<import('../../../../../../types').PromoBarConfig> = {
   id: 'vp_promo_bar',
   name: 'Top Announcement Bar',
   description: 'Displays a high-visibility notification bar above the main menu.',
-  version: '1.27',
+  version: '1.28',
   author: 'VonCMS Team',
-  render: (location: PluginLocation, props?: any) => {
+  render: (location: PluginLocation, props) => {
     if (location !== 'header_top') return null;
 
     // Use props (pluginConfig) or fallback to defaults

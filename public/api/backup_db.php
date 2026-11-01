@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Database Backup API
  * Generates SQL dump of all tables for download
@@ -33,6 +35,7 @@ CSRFProtection::requireToken();
 
 // Owner-only: database dumps can expose raw settings, credentials, and user data.
 SessionManager::requirePrimaryAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 /**
  * @param mixed $value
@@ -40,12 +43,15 @@ SessionManager::requirePrimaryAdmin();
  */
 function sanitizeBackupFilenamePart($value)
 {
+  if (!is_scalar($value) && $value !== null) {
+    return 'voncms';
+  }
   $value = trim((string) $value);
   if ($value === '') {
     return 'voncms';
   }
 
-  $value = preg_replace('/[^a-zA-Z0-9]+/', '-', $value);
+  $value = preg_replace('/[^a-zA-Z0-9]+/', '-', $value) ?? '';
   $value = trim(strtolower($value), '-');
 
   return $value !== '' ? $value : 'voncms';
@@ -100,7 +106,7 @@ function getBackupSiteLabel($pdo)
   }
 
   if ($siteName === '') {
-    $siteName = (string) ($_SERVER['HTTP_HOST'] ?? 'voncms');
+    $siteName = DataBoundary::serverString('HTTP_HOST', 'voncms');
   }
 
   return sanitizeBackupFilenamePart($siteName);
@@ -127,7 +133,11 @@ $backupStream = null;
 
 try {
   // Get all tables
-  $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+  $tableQuery = $pdo->query('SHOW TABLES');
+  if ($tableQuery === false) {
+    throw new RuntimeException('Unable to list database tables.');
+  }
+  $tables = DataBoundary::column($tableQuery->fetchAll(PDO::FETCH_COLUMN));
 
   if (empty($tables)) {
     ResponseHelper::sendError('No tables found', 404);
@@ -149,7 +159,7 @@ try {
   writeBackupStream(
     $backupStream,
     '-- Server: ' .
-      preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost')) .
+      preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', 'localhost')) .
       "\n",
   );
   writeBackupStream($backupStream, '-- Tables: ' . count($tables) . "\n");
@@ -168,7 +178,15 @@ try {
     $tableLabel = sanitizeDatabaseBackupCommentLabel($table);
 
     // Get CREATE TABLE statement
-    $createStmt = $pdo->query("SHOW CREATE TABLE {$quotedTable}")->fetch();
+    $createQuery = $pdo->query("SHOW CREATE TABLE {$quotedTable}");
+    if ($createQuery === false) {
+      throw new RuntimeException('Unable to read table definition.');
+    }
+    $createStmt = DataBoundary::row($createQuery->fetch(PDO::FETCH_ASSOC));
+    $createQuery->closeCursor();
+    if (!$createStmt || !is_string($createStmt['Create Table'] ?? null)) {
+      throw new RuntimeException('Missing table definition.');
+    }
 
     writeBackupStream($backupStream, "-- \n");
     writeBackupStream($backupStream, "-- Table structure: {$tableLabel}\n");
@@ -177,7 +195,12 @@ try {
     writeBackupStream($backupStream, $createStmt['Create Table'] . ";\n\n");
 
     // Get data count for header
-    $rowCount = $pdo->query("SELECT COUNT(*) FROM {$quotedTable}")->fetchColumn();
+    $countQuery = $pdo->query("SELECT COUNT(*) FROM {$quotedTable}");
+    if ($countQuery === false) {
+      throw new RuntimeException('Unable to count backup rows.');
+    }
+    $rowCount = $countQuery->fetchColumn();
+    $countQuery->closeCursor();
 
     if ($rowCount > 0) {
       writeBackupStream($backupStream, "-- \n");
@@ -185,7 +208,10 @@ try {
       writeBackupStream($backupStream, "-- \n");
 
       $stmt = $pdo->query("SELECT * FROM {$quotedTable}");
-      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      if ($stmt === false) {
+        throw new RuntimeException('Unable to read backup rows.');
+      }
+      while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
         $columns = array_keys($row);
         $quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);
 
@@ -194,7 +220,7 @@ try {
           if ($v === null) {
             $values[] = 'NULL';
           } else {
-            $values[] = $pdo->quote($v);
+            $values[] = $pdo->quote((string) $v);
           }
         }
 
@@ -207,6 +233,7 @@ try {
             ");\n",
         );
       }
+      $stmt->closeCursor();
       writeBackupStream($backupStream, "\n");
     }
   }
@@ -232,16 +259,24 @@ try {
   header('Cache-Control: no-cache, no-store, must-revalidate');
 
   $sentBytes = fpassthru($backupStream);
-  if ($sentBytes === false || $sentBytes !== (int) $backupStat['size']) {
+  if ($sentBytes !== (int) $backupStat['size']) {
     error_log('Database backup transfer ended before the complete stream was sent.');
   }
   fclose($backupStream);
   $backupStream = null;
 } catch (Throwable $e) {
-  // Ensure buffered query mode is restored on error
-  if (isset($pdo)) {
-    setBackupMysqlBufferedQueryMode($pdo, true);
+  // Release any interrupted unbuffered result before reusing this connection.
+  foreach ([$createQuery ?? null, $countQuery ?? null, $stmt ?? null] as $activeStatement) {
+    if ($activeStatement instanceof PDOStatement) {
+      try {
+        $activeStatement->closeCursor();
+      } catch (Throwable $ignored) {
+        error_log('Database backup cursor cleanup failed.');
+      }
+    }
   }
+  // Ensure buffered query mode is restored on error
+  setBackupMysqlBufferedQueryMode($pdo, true);
   if (is_resource($backupStream)) {
     fclose($backupStream);
   }

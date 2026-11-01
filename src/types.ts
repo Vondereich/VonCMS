@@ -41,6 +41,9 @@ export interface Comment {
   id: string;
   dbId?: number | string;
   postId: string;
+  // Compact parent context is returned only to authorized flat moderation lists.
+  post?:
+    (Pick<Post, 'id' | 'title' | 'slug' | 'category' | 'createdAt'> & { isPublic: boolean }) | null;
   userId?: string | null;
   parentId?: number | string | null;
   username: string;
@@ -107,6 +110,7 @@ export interface Page {
   author_id?: string | number | null;
   // SEO
   metaDescription?: string;
+  meta_description?: string; // Retained PHP/seed compatibility alias.
   keywords?: string;
   createdAt?: string;
   created_at?: string; // Hybrid Contract
@@ -123,8 +127,30 @@ export interface ContentAuditLog {
   actorUsername: string;
   actorRole: string;
   summary: string;
-  context?: Record<string, any> | null;
+  context?: Record<string, unknown> | null;
   createdAt: string;
+}
+
+// Wire aliases retained by the first-party PHP post/page APIs.
+export interface PostApiRecord extends Post {
+  image_url?: string;
+  image_srcset?: string;
+  meta_description?: string;
+}
+export interface PageApiRecord extends Page {
+  meta_description?: string;
+}
+export type ContentSaveResult = Omit<Partial<Post>, 'id'> & {
+  id?: string | number;
+  public_categories_changed?: boolean;
+};
+export interface ContentEditorResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+  text?: string;
+  model?: string;
+  logs?: ContentAuditLog[];
 }
 
 export interface MediaItem {
@@ -288,7 +314,7 @@ export type WidgetType = 'trending' | 'categories' | 'profile' | 'custom';
 
 export interface SidebarWidget {
   id: string;
-  type: WidgetType;
+  type: WidgetType | 'search'; // Legacy persisted search widgets remain read-compatible, not selectable.
   title: string;
   content?: string; // For custom widgets HTML/Text
   isVisible: boolean;
@@ -322,6 +348,7 @@ export interface NewsletterSettings {
 }
 
 export interface AnalyticsConfig {
+  measurementMode?: 'strict' | 'balanced';
   googleAnalyticsId?: string;
   enableTracking?: boolean;
   trackPageViews?: boolean;
@@ -367,6 +394,12 @@ export interface ApiConfig {
   expireAiKeyAfter30Days?: boolean;
   aiKeySavedAt?: string;
   aiKeyExpiresAt?: string;
+  aiKeyStorage?: 'empty' | 'legacy' | 'encrypted' | 'unavailable';
+  aiKeyRevision?: string; // Opaque ciphertext revision for stale-action protection.
+  aiKeyCanRotate?: boolean;
+  aiKeyRotatedAt?: string;
+  encryptStoredAiKey?: boolean; // Save intent only; not persisted by PHP.
+  replaceAiKey?: boolean; // Distinguish explicit field edits from legacy client echoes.
 }
 
 export interface AiAssistantConfig {
@@ -378,13 +411,40 @@ export interface AiAssistantConfig {
 export type PluginLocation = 'header_top' | 'footer_bottom' | 'sidebar_top' | 'post_after';
 
 // Hardcoded System Plugins (React Components)
-export interface PluginDefinition {
+export interface PluginDefinition<Config extends object = object> {
   id: string;
   name: string;
   description: string;
   version: string;
   author: string;
-  render: (location: PluginLocation, props?: any) => React.ReactNode;
+  render(location: PluginLocation, props?: Config): React.ReactNode;
+}
+
+export interface GiftWidgetConfig {
+  targetUrl?: string;
+  tooltipText?: string;
+  buttonColor?: string;
+  position?: string;
+  iconLabel?: string;
+  targetBlank?: boolean | string;
+}
+export interface PromoBarConfig {
+  text?: string;
+  linkUrl?: string;
+  linkText?: string;
+  backgroundColor?: string;
+  dismissHours?: number | string;
+  startsAt?: string;
+  endsAt?: string;
+  targetBlank?: boolean | string;
+}
+export interface PluginConfigurations {
+  [pluginId: string]: object | undefined;
+  pluginStatus?: Record<string, 'active' | 'inactive' | 'not_installed'>;
+  vp_ai_summary?: import('./plugins/von-core/features/plugins/built-in/ai-summary/types').AISummaryConfig;
+  vp_related_posts?: import('./plugins/von-core/features/plugins/built-in/related-posts/types').RelatedPostsConfig;
+  vp_gift_widget?: GiftWidgetConfig;
+  vp_promo_bar?: PromoBarConfig;
 }
 
 // Dynamic User Imported Plugins (HTML/CSS Based)
@@ -452,7 +512,7 @@ export interface SiteSettings {
   publicCategories?: string[]; // Runtime-only categories backed by currently public posts
   activePlugins: string[]; // List of enabled SYSTEM plugin IDs
   customPlugins: CustomPluginDefinition[]; // List of USER IMPORTED plugins
-  pluginConfig?: Record<string, any>;
+  pluginConfig?: PluginConfigurations;
   shareScript?: string;
   sharePlacement?: 'top' | 'bottom' | 'none';
   // Revamp Additions
@@ -507,9 +567,11 @@ export interface SiteSettings {
   _canManageSecrets?: boolean;
 }
 
+export type SettingsFieldChange<T> = <K extends keyof T>(key: K, value: T[K]) => void;
+
 export interface SqlResult {
   success: boolean;
   message?: string;
-  data?: any[];
+  data?: (string | number | boolean | null)[][];
   headers?: string[];
 }

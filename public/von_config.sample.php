@@ -96,7 +96,7 @@ if (!function_exists('check_auth')) {
 if (!function_exists('sanitize_input')) {
   /**
    * @param mixed $data
-   * @return mixed
+   * @return ($data is array ? array<array-key, mixed> : string)
    */
   function sanitize_input($data)
   {

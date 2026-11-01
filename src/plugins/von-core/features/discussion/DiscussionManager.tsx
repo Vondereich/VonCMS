@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useReducer, useRef } from 'react';
 import Gravatar from 'react-gravatar';
-import { Comment, Post } from '../../../../types';
+import { SafeImage } from '../../../../components/SafeImage';
+import { Comment, Post, SiteSettings } from '../../../../types';
+import { getPermalink, normalizeSiteUrl } from '../../../../utils/siteUtils';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import {
@@ -18,6 +20,7 @@ import AdminModal from '../../../../components/admin/AdminModal';
 interface DiscussionManagerProps {
   comments: Comment[];
   posts: Post[];
+  settings: SiteSettings;
   onUpdateCommentStatus: (
     commentId: string,
     status: 'approved' | 'pending' | 'spam'
@@ -283,6 +286,7 @@ const DiscussionTabs: React.FC<TabsProps> = ({ activeTab, counts, isSearchMode, 
 
 interface CommentRowProps {
   comment: Comment;
+  settings: SiteSettings;
   isDeleting: string | null;
   updatingStatusId: string | null;
   getPostTitle: (postId: string) => string;
@@ -292,6 +296,7 @@ interface CommentRowProps {
 
 const CommentRow: React.FC<CommentRowProps> = ({
   comment,
+  settings,
   isDeleting,
   updatingStatusId,
   getPostTitle,
@@ -300,26 +305,28 @@ const CommentRow: React.FC<CommentRowProps> = ({
 }) => {
   const commentStatus = getCommentStatus(comment);
   const isUpdatingStatus = updatingStatusId === comment.id;
+  const postTitle = comment.post?.title || getPostTitle(comment.postId);
+  const postHref =
+    comment.post?.isPublic === true ? normalizeSiteUrl(getPermalink(comment.post, settings)) : '#';
 
   return (
     <div className="flex gap-3 p-4 sm:gap-4 sm:p-6">
       <div className="shrink-0">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-admin-hover">
-          {comment.userAvatar ? (
-            <img
-              src={comment.userAvatar}
-              alt={comment.username}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <Gravatar
-              email={comment.username}
-              md5={comment.emailHash}
-              size={80}
-              default="identicon"
-              className="h-full w-full object-cover"
-            />
-          )}
+          <SafeImage
+            src={comment.userAvatar}
+            alt={comment.username}
+            className="h-full w-full object-cover"
+            fallback={
+              <Gravatar
+                email={comment.username}
+                md5={comment.emailHash}
+                size={80}
+                default="identicon"
+                className="h-full w-full object-cover"
+              />
+            }
+          />
         </div>
       </div>
       <div className="grow">
@@ -395,10 +402,23 @@ const CommentRow: React.FC<CommentRowProps> = ({
         <p className="text-slate-600 dark:text-slate-300">{comment.content}</p>
         <div className="mt-2 flex items-center gap-1 text-xs text-slate-400">
           <span>From:</span>
-          <span className="font-medium text-primary-600 dark:text-primary-400">
-            {getPostTitle(comment.postId)}
-          </span>
-          <ExternalLink size={12} className="opacity-50" />
+          {postHref !== '#' ? (
+            <a
+              href={postHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View article: ${postTitle} (opens in a new tab)`}
+              title="View article (opens in a new tab)"
+              className="inline-flex min-h-8 min-w-0 items-center gap-1 rounded font-medium text-primary-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400"
+            >
+              <span>{postTitle}</span>
+              <ExternalLink size={12} aria-hidden="true" />
+            </a>
+          ) : (
+            <span className="font-medium" title="Article is not publicly available">
+              {postTitle}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -407,6 +427,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
 
 interface CommentsPanelProps {
   loading: boolean;
+  settings: SiteSettings;
   pageItems: Comment[];
   currentPage: number;
   meta: FetchMeta;
@@ -422,6 +443,7 @@ interface CommentsPanelProps {
 
 const CommentsPanel: React.FC<CommentsPanelProps> = ({
   loading,
+  settings,
   pageItems,
   currentPage,
   meta,
@@ -452,6 +474,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
               <CommentRow
                 key={comment.id}
                 comment={comment}
+                settings={settings}
                 isDeleting={isDeleting}
                 updatingStatusId={updatingStatusId}
                 getPostTitle={getPostTitle}
@@ -518,7 +541,11 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
             <span className="font-medium text-slate-700 dark:text-slate-200">
               {comment.username}
             </span>{' '}
-            on <span className="font-medium">{getPostTitle(comment.postId)}</span>.
+            on{' '}
+            <span className="font-medium">
+              {comment.post?.title || getPostTitle(comment.postId)}
+            </span>
+            .
           </p>
         </div>
       </div>
@@ -550,6 +577,7 @@ const DeleteCommentModal: React.FC<DeleteModalProps> = ({
 const DiscussionManager: React.FC<DiscussionManagerProps> = ({
   comments: _comments,
   posts,
+  settings,
   onUpdateCommentStatus,
   onDeleteComment,
 }) => {
@@ -792,6 +820,7 @@ const DiscussionManager: React.FC<DiscussionManagerProps> = ({
       )}
 
       <CommentsPanel
+        settings={settings}
         loading={loading}
         pageItems={pageItems}
         currentPage={currentPage}

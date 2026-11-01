@@ -22,6 +22,7 @@ require_once __DIR__ . '/../../scheduler_helper.php';
 
 SessionManager::requirePrimaryAdmin();
 CSRFProtection::requireToken();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }

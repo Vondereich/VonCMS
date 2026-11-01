@@ -42,8 +42,8 @@ function voncms_build_cdn_media_url(string $cdnUrl, string $relativePath): strin
  */
 function voncms_cleanup_failed_media_upload(array $paths, ?string $registrySource = null): void
 {
-  foreach (array_unique($paths) as $path) {
-    if (is_string($path) && $path !== '' && is_file($path)) {
+  foreach (array_unique(array_filter($paths, 'is_string')) as $path) {
+    if ($path !== '' && is_file($path)) {
       @unlink($path);
     }
   }
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Enforce Security
 SessionManager::requireValidSession();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.access')) {
   ResponseHelper::sendError('Media access required', 403);
 }
 CSRFProtection::requireToken();
@@ -69,10 +69,19 @@ if (!isset($_FILES['file'])) {
 }
 
 $file = $_FILES['file'];
+if (
+  !is_array($file) ||
+  !is_int($file['error'] ?? null) ||
+  !is_string($file['tmp_name'] ?? null) ||
+  !is_string($file['name'] ?? null) ||
+  !is_int($file['size'] ?? null)
+) {
+  ResponseHelper::sendError('Invalid image upload data.', 400);
+}
 $baseUploadDir = dirname(__DIR__) . '/uploads/'; // Standardised to __DIR__ based resolution
 
-$uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
-if ($uploadError !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) {
+$uploadError = $file['error'];
+if ($uploadError !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
   ResponseHelper::sendError('The image upload did not complete successfully.', 400);
 }
 
@@ -82,18 +91,17 @@ $allSettings = is_file($settingsFile)
   ? json_decode((string) file_get_contents($settingsFile), true)
   : [];
 $allSettings = is_array($allSettings) ? $allSettings : [];
-$folderStructure =
-  $_POST['folderStructure'] ??
-  ($allSettings['media']['storage']['folderStructure'] ?? 'year_month');
+$savedMedia = is_array($allSettings['media'] ?? null) ? $allSettings['media'] : [];
+$savedStorage = is_array($savedMedia['storage'] ?? null) ? $savedMedia['storage'] : [];
+$folderStructure = $_POST['folderStructure'] ?? ($savedStorage['folderStructure'] ?? 'year_month');
 
 // Determine upload directory based on folder structure setting
+$relativeDirectory = $folderStructure === 'year_month' ? date('Y/m/') : '';
 if ($folderStructure === 'year_month') {
-  $year = date('Y');
-  $month = date('m');
-  $uploadDir = $baseUploadDir . $year . '/' . $month . '/';
+  $uploadDir = $baseUploadDir . $relativeDirectory;
 
   // Auto-detect base URL
-  $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+  $scriptDir = dirname(DataBoundary::serverString('SCRIPT_NAME'));
   // dirname($scriptDir) gets us to /VonCMS/ (parent of api)
   $parentBase = dirname($scriptDir);
   // Fix backslashes for Windows
@@ -101,24 +109,19 @@ if ($folderStructure === 'year_month') {
   // Prevent double slash (which creates protocol-relative URL //uploads)
   $parentBase = rtrim($parentBase, '/');
 
-  $urlPrefix = $parentBase . '/uploads/' . $year . '/' . $month . '/';
+  $urlPrefix = $parentBase . '/uploads/' . $relativeDirectory;
 } else {
   // Flat structure
   $uploadDir = $baseUploadDir;
 
   // Auto-detect base URL (same logic as above)
-  $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+  $scriptDir = dirname(DataBoundary::serverString('SCRIPT_NAME'));
   $parentBase = dirname($scriptDir);
   $parentBase = str_replace('\\', '/', $parentBase);
   // Prevent double slash
   $parentBase = rtrim($parentBase, '/');
 
   $urlPrefix = $parentBase . '/uploads/';
-}
-
-// Create uploads directory if it doesn't exist
-if (!is_dir($uploadDir)) {
-  mkdir($uploadDir, 0755, true);
 }
 
 // Validate file type with matching server-sniffed MIME and extension pairs.
@@ -184,11 +187,16 @@ if ($file['size'] > $maxSize) {
   ResponseHelper::sendError('File too large. Maximum size is 10MB.', 400);
 }
 
+// A rejected upload must not create filesystem entries.
+if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+  ResponseHelper::sendError('Upload storage is unavailable.', 503);
+}
+
 // Generate unique filename (preserve original extension)
 $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 $originalName = pathinfo($file['name'], PATHINFO_FILENAME);
 // Sanitize original name
-$safeName = preg_replace('/[^a-zA-Z0-9_-]/', '', $originalName);
+$safeName = preg_replace('/[^a-zA-Z0-9_-]/', '', $originalName) ?? '';
 $safeName = substr($safeName, 0, 50); // Limit length
 $filename = $safeName . '_' . uniqid() . '.' . $extension;
 $targetPath = $uploadDir . $filename;
@@ -218,24 +226,32 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
 
   // Reuse the same settings snapshot used to choose the upload directory.
   if ($allSettings !== []) {
-    if (isset($allSettings['media']['optimization'])) {
-      $opt = $allSettings['media']['optimization'];
-      $mediaSettings['enabled'] = $opt['enabled'] ?? true;
-      $mediaSettings['maxWidth'] = (int) ($opt['maxWidth'] ?? 1920);
-      $mediaSettings['maxHeight'] = (int) ($opt['maxHeight'] ?? 1080);
+    if (is_array($savedMedia['optimization'] ?? null)) {
+      $opt = $savedMedia['optimization'];
+      $enabled = $opt['enabled'] ?? true;
+      $mediaSettings['enabled'] = is_scalar($enabled) ? (bool) $enabled : true;
+      $mediaSettings['maxWidth'] = is_numeric($opt['maxWidth'] ?? null)
+        ? (int) $opt['maxWidth']
+        : 1920;
+      $mediaSettings['maxHeight'] = is_numeric($opt['maxHeight'] ?? null)
+        ? (int) $opt['maxHeight']
+        : 1080;
       // Convert compressionLevel (low/medium/high) to numeric quality
-      $mediaSettings['compressionLevel'] = $opt['compressionLevel'] ?? 'medium';
+      $mediaSettings['compressionLevel'] = is_string($opt['compressionLevel'] ?? null)
+        ? $opt['compressionLevel']
+        : 'medium';
       $qualityMap = ['low' => 90, 'medium' => 75, 'high' => 60];
-      $mediaSettings['quality'] =
-        (int) ($opt['quality'] ?? ($qualityMap[$mediaSettings['compressionLevel']] ?? 85));
+      $mediaSettings['quality'] = is_numeric($opt['quality'] ?? null)
+        ? (int) $opt['quality']
+        : $qualityMap[$mediaSettings['compressionLevel']] ?? 85;
       $mediaSettings['convertToWebP'] = filter_var(
         $opt['convertToWebP'] ?? false,
         FILTER_VALIDATE_BOOLEAN,
       );
     }
     // Get CDN URL if configured
-    if (!empty($allSettings['media']['storage']['cdnUrl'])) {
-      $configuredCdnUrl = rtrim((string) $allSettings['media']['storage']['cdnUrl'], '/');
+    if (is_string($savedStorage['cdnUrl'] ?? null) && $savedStorage['cdnUrl'] !== '') {
+      $configuredCdnUrl = rtrim($savedStorage['cdnUrl'], '/');
       $configuredCdnScheme = strtolower((string) parse_url($configuredCdnUrl, PHP_URL_SCHEME));
       if (
         filter_var($configuredCdnUrl, FILTER_VALIDATE_URL) !== false &&
@@ -262,7 +278,38 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
   $responsiveVariantMessage = '';
   if (ImageProcessor::isGdAvailable() && $mediaSettings['enabled']) {
     $processor = new ImageProcessor($mediaSettings);
-    $processResult = $processor->processUpload($targetPath);
+    // Only these exact names can be created for this newly moved upload.
+    $processingSources = [$targetPath];
+    if ($mediaSettings['convertToWebP'] && $extension !== 'webp') {
+      $processingSources[] =
+        dirname($targetPath) . '/' . pathinfo($targetPath, PATHINFO_FILENAME) . '.webp';
+    }
+    $processingPaths = $processingSources;
+    if ($mediaSettings['generateResponsiveVariants']) {
+      foreach ($processingSources as $sourcePath) {
+        foreach ($mediaSettings['responsiveWidths'] as $width) {
+          $processingPaths[] = voncms_build_responsive_variant_relative_path($sourcePath, $width);
+        }
+      }
+    }
+    $ownedProcessingPaths = array_values(
+      array_filter(
+        $processingPaths,
+        static fn(string $path): bool => $path === $targetPath ||
+          (!file_exists($path) && !is_link($path)),
+      ),
+    );
+    try {
+      $processResult = $processor->processUpload($targetPath);
+    } catch (Throwable $e) {
+      foreach ($processingSources as $sourcePath) {
+        if (in_array($sourcePath, $ownedProcessingPaths, true)) {
+          voncms_cleanup_failed_media_upload($ownedProcessingPaths, $sourcePath);
+        }
+      }
+      error_log('Image processing stopped safely: ' . get_class($e));
+      ResponseHelper::sendError('Image processing failed safely. Please try another image.', 422);
+    }
     if (empty($processResult['success'])) {
       voncms_cleanup_failed_media_upload(
         array_merge(
@@ -309,12 +356,11 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
       : number_format($size / 1024, 2) . ' KB';
 
   // Build relative path for storage
-  $relativePath =
-    $folderStructure === 'year_month' ? $year . '/' . $month . '/' . $filename : $filename;
+  $relativePath = $relativeDirectory . $filename;
 
   // Save to database (if available)
   $mediaId = null;
-  if (isset($pdo) && $pdo !== null) {
+  if (isset($pdo)) {
     // Save to Database
     try {
       // Check if media table exists
@@ -329,7 +375,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
           'filepath' => 'uploads/' . $relativePath,
           'filetype' => $realMime,
           'filesize' => $size,
-          'user_id' => $_SESSION['user']['id'],
+          'user_id' => DataBoundary::userText('id'),
           'alt' => pathinfo($filename, PATHINFO_FILENAME),
           'caption' => pathinfo($filename, PATHINFO_FILENAME),
         ]);
@@ -371,7 +417,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     $responsiveImage = voncms_build_responsive_image_data(
       $finalUrl,
       dirname(__DIR__) . '/uploads/',
-      $mediaSettings['responsiveWidths'] ?? [],
+      $mediaSettings['responsiveWidths'],
     );
     $finalImageSrcSet = $responsiveImage['srcSet'] ?? null;
   }
@@ -385,6 +431,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
       'Responsive variants were not generated; original optimized image is being served.';
   }
   $responsiveVariantFallback = $responsiveVariantStatus === 'fallback_original';
+  @unlink(dirname(__DIR__) . '/data/storage_usage.json');
   if ($responsiveVariantFallback) {
     error_log('Responsive variant generation fallback: ' . $relativePath);
   }

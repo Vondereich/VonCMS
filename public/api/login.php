@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * Login API with Rate Limiting and Session Management
  */
@@ -24,7 +26,9 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 require_once __DIR__ . '/security/SecurityLogger.php';
 
-/** Verify credentials with identical bcrypt work for known and unknown names. */
+/** Verify credentials with identical bcrypt work for known and unknown names.
+ * @param array<array-key,scalar|null>|false $user
+ */
 function voncms_verify_login_candidate(array|false $user, string $password): bool
 {
   // Match PHP 8.4's native bcrypt work even for legacy PHP cost-10 hashes.
@@ -44,7 +48,8 @@ function voncms_verify_login_candidate(array|false $user, string $password): boo
   }
   $matches = password_verify($password, $hash);
   if ($hashInfo['algoName'] === 'bcrypt') {
-    $cost = (int) $hashInfo['options']['cost'];
+    $costValue = $hashInfo['options']['cost'] ?? null;
+    $cost = is_int($costValue) ? $costValue : $workCost;
     $remainingChecks = (1 << max(0, $workCost - $cost)) - 1;
     while ($remainingChecks-- > 0) {
       password_verify($password, $hash);
@@ -53,9 +58,153 @@ function voncms_verify_login_candidate(array|false $user, string $password): boo
   return $hasHash && $matches;
 }
 
+/**
+ * Bind new authentication credentials to the password that actually passed bcrypt.
+ * Password writers lock this same users row before revoking persistent tokens.
+ *
+ * @param array<array-key,scalar|null> $user
+ * @return array{}|array{selector: string, validator: string, expiresAt: int}|false
+ */
+function voncms_issue_login_credentials(
+  PDO $db,
+  array $user,
+  string $verifiedPasswordHash,
+  bool $rememberMe,
+): array|false {
+  if ($db->inTransaction()) {
+    throw new RuntimeException('Authentication requires its own credential transaction.');
+  }
+  if (!$db->beginTransaction()) {
+    throw new RuntimeException('Unable to start credential transaction.');
+  }
+  try {
+    $lock = $db->prepare('SELECT password FROM users WHERE id = ? FOR UPDATE');
+    $lock->execute([$user['id']]);
+    $currentHash = $lock->fetchColumn();
+    if (!is_string($currentHash) || !hash_equals($verifiedPasswordHash, $currentHash)) {
+      $db->rollBack();
+      return false;
+    }
+
+    $remember = [];
+    if ($rememberMe) {
+      $selector = bin2hex(random_bytes(12));
+      $validator = bin2hex(random_bytes(32));
+      try {
+        $insert = $db->prepare(
+          'INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))',
+        );
+        $insert->execute([$user['id'], $selector, hash('sha256', $validator)]);
+        $remember = [
+          'selector' => $selector,
+          'validator' => $validator,
+          'expiresAt' => time() + 86400 * 30,
+        ];
+      } catch (PDOException $error) {
+        // Older installations may lack optional remember storage. The mandatory
+        // users-row guard must still commit successfully before ordinary login.
+        $state = (string) ($error->errorInfo[0] ?? $error->getCode());
+        if (!in_array($state, ['42S02', '42S22'], true) || !$db->inTransaction()) {
+          throw $error;
+        }
+        error_log('Remember storage requires Database Repair; issuing a session only.');
+      }
+    }
+    if (!$db->commit()) {
+      throw new RuntimeException('Unable to commit credential transaction.');
+    }
+    return $remember;
+  } catch (Throwable $error) {
+    if ($db->inTransaction()) {
+      $db->rollBack();
+    }
+    throw $error;
+  }
+}
+
+/** Credentials are already verified; an email-only caller cannot rotate another user's link.
+ * @param array<array-key,scalar|null> $user
+ */
+function voncms_resend_login_verification(PDO $db, array $user, string $loginIdentifier): never
+{
+  require_once __DIR__ . '/mail_helper.php';
+  $read = $db->prepare(
+    'SELECT email_verified, verification_token FROM users WHERE id=? AND password=? AND email=?',
+  );
+  $read->execute([$user['id'], $user['password'], $user['email']]);
+  $verification = DataBoundary::row($read->fetch(PDO::FETCH_ASSOC));
+  if (!$verification) {
+    ResponseHelper::sendError('Account changed. Please try again.', 409);
+  }
+  if ((int) $verification['email_verified'] === 1) {
+    RateLimiter::refundSuccessfulAttempt($loginIdentifier);
+    echo json_encode([
+      'success' => true,
+      'message' => 'Your email is already verified. Sign in normally.',
+    ]);
+    exit();
+  }
+  if (
+    !RateLimiter::consumeFixedWindows(
+      [
+        'verification:cooldown:' . $user['id'] => [1, 60],
+        'verification:account:' . $user['id'] => [3, 900],
+      ],
+      'verification-resend',
+    )
+  ) {
+    ResponseHelper::sendError('Please wait before requesting another verification email.', 429);
+  }
+  $baseUrl = voncms_resolve_trusted_public_base_url($db);
+  if ($baseUrl === '') {
+    ResponseHelper::sendError('Verification email is temporarily unavailable.', 503);
+  }
+  $token = generateVerificationToken();
+  $update = $db->prepare(
+    'UPDATE users SET verification_token=?, verification_token_expires=DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE id=? AND password=? AND email=? AND email_verified=0 AND (verification_token=? OR (verification_token IS NULL AND ? IS NULL))',
+  );
+  $oldToken = $verification['verification_token'];
+  $update->execute([
+    voncms_account_token_digest($token),
+    $user['id'],
+    $user['password'],
+    $user['email'],
+    $oldToken,
+    $oldToken,
+  ]);
+  if ($update->rowCount() !== 1) {
+    ResponseHelper::sendError('Account changed. Please try again.', 409);
+  }
+  RateLimiter::refundSuccessfulAttempt($loginIdentifier);
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
+  $mail = sendVerificationEmail(
+    $db,
+    (string) $user['email'],
+    (string) $user['username'],
+    $token,
+    $baseUrl,
+  );
+  if (empty($mail['success'])) {
+    error_log('Verification resend delivery failed.');
+    // Keep the account unverified; do not expose SMTP details or invalidate a newer token.
+    ResponseHelper::sendError(
+      'Verification email could not be sent. Please retry later or contact the administrator.',
+      503,
+    );
+  }
+  echo json_encode([
+    'success' => true,
+    'message' => 'Verification email sent. Only the latest link is valid; it expires in 24 hours.',
+  ]);
+  exit();
+}
+
 // Reserve the attempt atomically before authentication work begins.
 $loginRateIdentifier =
-  'login:ip:' . RateLimiter::normalizeLoginAddress((string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
+  'login:ip:' .
+  RateLimiter::normalizeLoginAddress(DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0'));
 RateLimiter::requireAttempt($loginRateIdentifier);
 
 // Get JSON input
@@ -74,6 +223,11 @@ $username = trim((string) ($input['username'] ?? ''));
 $password = (string) ($input['password'] ?? '');
 $honeypot = (string) ($input['hp_field'] ?? '');
 $rememberMe = filter_var($input['remember_me'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$action = $input['action'] ?? 'login';
+if (!is_string($action)) {
+  ResponseHelper::sendError('Invalid login action', 400);
+}
+// Older clients may include an unrelated action field; only the explicit resend action is new.
 
 if (strlen($username) > 254 || strlen($password) > 4096) {
   ResponseHelper::sendError('Invalid credentials', 401);
@@ -88,7 +242,7 @@ if ($honeypot !== '') {
     ['ip' => $_SERVER['REMOTE_ADDR'], 'endpoint' => 'login.php'],
     true,
   );
-  error_log('Honeypot triggered from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+  error_log('Honeypot triggered from IP: ' . DataBoundary::serverString('REMOTE_ADDR', 'unknown'));
   ResponseHelper::sendError('Login failed', 400);
 }
 
@@ -97,7 +251,7 @@ if (empty($username) || empty($password)) {
 }
 
 // Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   // No database - return error
   ResponseHelper::sendError(
     'Database not configured. Please set up database connection in von_config.php',
@@ -120,16 +274,19 @@ try {
     "SELECT id, username, $displayNameSelect, email, role, avatar, bio, created_at AS createdAt, password FROM users WHERE email = ? OR username = ? LIMIT 1",
   );
   $stmt->execute([$username, $username]);
-  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+  $user = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
-  if (voncms_verify_login_candidate($user, $password)) {
+  if (voncms_verify_login_candidate($user, $password) && $user !== false) {
+    if ($action === 'resend_verification') {
+      voncms_resend_login_verification($pdo, $user, $loginRateIdentifier);
+    }
     $authPasswordHash = (string) $user['password'];
     try {
       $verificationStmt = $pdo->prepare(
         'SELECT email_verified, verification_token FROM users WHERE id = ? LIMIT 1',
       );
       $verificationStmt->execute([$user['id']]);
-      $verification = $verificationStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+      $verification = DataBoundary::row($verificationStmt->fetch(PDO::FETCH_ASSOC)) ?: [];
 
       $isVerified =
         !isset($verification['email_verified']) || (int) $verification['email_verified'] === 1;
@@ -140,6 +297,18 @@ try {
       }
     } catch (Throwable $e) {
       // Older installs may not have verification columns yet. Keep login backward-compatible.
+    }
+
+    // Hash verification stays outside the lock; credential issuance is serialized
+    // with resets/profile/admin password writers before session or cookie changes.
+    $rememberCredentials = voncms_issue_login_credentials(
+      $pdo,
+      $user,
+      $authPasswordHash,
+      $rememberMe,
+    );
+    if ($rememberCredentials === false) {
+      ResponseHelper::sendError('Invalid credentials', 401);
     }
 
     // Login success
@@ -163,7 +332,8 @@ try {
 
     // HANDLE REMEMBER ME (30 Days)
     $rememberCookieName = 'voncms_remember';
-    $rememberCookie = (string) ($_COOKIE[$rememberCookieName] ?? '');
+    $rawRememberCookie = $_COOKIE[$rememberCookieName] ?? '';
+    $rememberCookie = is_string($rawRememberCookie) ? $rawRememberCookie : '';
     $params = session_get_cookie_params();
 
     if ($rememberCookie !== '') {
@@ -189,30 +359,25 @@ try {
       ]);
     }
 
-    if ($rememberMe) {
+    if ($rememberCredentials !== []) {
       try {
+        // Best-effort expired-row cleanup stays outside the credential lock.
         $pdo->exec('DELETE FROM remember_tokens WHERE expires_at <= NOW()');
-
-        $rememberSelector = bin2hex(random_bytes(12));
-        $rememberValidator = bin2hex(random_bytes(32));
-        $rememberTokenHash = hash('sha256', $rememberValidator);
-        $rememberExpiresAt = time() + 86400 * 30;
-        $rememberStmt = $pdo->prepare(
-          'INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))',
-        );
-        $rememberStmt->execute([$user['id'], $rememberSelector, $rememberTokenHash]);
-
-        setcookie($rememberCookieName, $rememberSelector . ':' . $rememberValidator, [
-          'expires' => $rememberExpiresAt,
+      } catch (Throwable $e) {
+        error_log('Expired remember token cleanup failed');
+      }
+      setcookie(
+        $rememberCookieName,
+        $rememberCredentials['selector'] . ':' . $rememberCredentials['validator'],
+        [
+          'expires' => $rememberCredentials['expiresAt'],
           'path' => $params['path'],
           'domain' => $params['domain'],
           'secure' => $params['secure'],
           'httponly' => true,
           'samesite' => 'Lax',
-        ]);
-      } catch (Throwable $e) {
-        error_log('Remember token creation failed');
-      }
+        ],
+      );
     }
 
     echo json_encode([

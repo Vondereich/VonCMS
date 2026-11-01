@@ -20,9 +20,9 @@ const getKeywordSet = (keywords: unknown): Set<string> =>
  * Find related posts based on category and keywords
  */
 export function findRelatedPosts(
-  currentPost: Post,
+  currentPost: Pick<Post, 'id' | 'category' | 'keywords'>,
   allPosts: Post[],
-  config: RelatedPostsConfig,
+  config: Pick<RelatedPostsConfig, 'orderBy' | 'count'>,
   timeZone?: string
 ): Post[] {
   const getPublishTime = (post: Post): number => {
@@ -65,7 +65,7 @@ export function findRelatedPosts(
   });
 
   // Sort based on config
-  let sorted: ScoredPost[] = [];
+  let sorted: ScoredPost[];
 
   switch (config.orderBy) {
     case 'relevance':

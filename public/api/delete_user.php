@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/schema_repair_helper.php';
@@ -23,19 +25,19 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$currentRole = $_SESSION['user']['role'] ?? '';
+$currentRole = DataBoundary::userText('role');
 if (!voncms_role_has_capability($currentRole, 'users.manage')) {
   ResponseHelper::sendError('User management access required', 403);
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 
-if (!isset($input['id'])) {
+if (!is_array($input) || !isset($input['id']) || !is_scalar($input['id'])) {
   ResponseHelper::sendError('User ID is required', 400);
 }
 
 $id = $input['id'];
-$currentUserId = (string) ($_SESSION['user']['id'] ?? '');
+$currentUserId = DataBoundary::userText('id');
 $isPrimaryAdminActor = SessionManager::isPrimaryAdmin();
 
 // The first installed administrator is the non-deletable Super Admin account.
@@ -44,14 +46,15 @@ if ((int) $id === 1) {
 }
 
 // Protect Self-Deletion
-if ((string) $id === (string) $_SESSION['user']['id']) {
+if ((string) $id === $currentUserId) {
   ResponseHelper::sendError('Cannot delete your own account', 403);
 }
 
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 try {
   $targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
   $targetStmt->execute([$id]);
-  $targetUser = $targetStmt->fetch(PDO::FETCH_ASSOC);
+  $targetUser = DataBoundary::row($targetStmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$targetUser) {
     ResponseHelper::sendError('User not found', 404);
@@ -76,7 +79,10 @@ try {
       'SELECT DISTINCT comment_id FROM comment_likes WHERE user_id = :id',
     );
     $likedCommentStmt->execute(['id' => $id]);
-    $likedCommentIds = array_map('intval', $likedCommentStmt->fetchAll(PDO::FETCH_COLUMN));
+    $likedCommentIds = array_map(
+      'intval',
+      DataBoundary::column($likedCommentStmt->fetchAll(PDO::FETCH_COLUMN)),
+    );
 
     $pdo->prepare('DELETE FROM comment_likes WHERE user_id = :id')->execute(['id' => $id]);
 
@@ -109,7 +115,7 @@ try {
 
   echo json_encode(['success' => true, 'message' => 'User deleted']);
 } catch (Exception $e) {
-  if (isset($pdo) && $pdo->inTransaction()) {
+  if ($pdo->inTransaction()) {
     $pdo->rollBack();
   }
   ResponseHelper::sendError($e);

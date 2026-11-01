@@ -13,6 +13,7 @@ const resolveFromRoot = (file) => path.resolve(root, file);
 const exists = (file) => fs.existsSync(resolveFromRoot(file));
 const read = (file) => fs.readFileSync(resolveFromRoot(file), 'utf8');
 const coreSecurityModules = [
+  'DataBoundary',
   'InstallBootstrap',
   'ContentViewDeduplicator',
   'RateLimiter',
@@ -55,13 +56,86 @@ function warn(message) {
   warningCount += 1;
 }
 
+try {
+  const { createRequire } = require('node:module');
+  for (const consumer of [
+    'eslint',
+    '@eslint/config-array',
+    '@typescript-eslint/typescript-estree',
+  ]) {
+    const { Minimatch, minimatch } = createRequire(require.resolve(consumer))('minimatch');
+    const pattern =
+      Array.from({ length: 8 }, (_, index) => `**/../part${index}`).join('/') + '/*.ts';
+    const amplified = new Minimatch(pattern, { optimizationLevel: 2, braceExpandMax: 32 });
+    if (amplified.globParts.length > 32)
+      throw new Error(`${consumer}: glob expansion exceeded cap`);
+    for (const [file, glob, options, partial, expected] of [
+      ['src/.hidden.tsx', 'src/**/*.{ts,tsx}', { dot: true }, false, true],
+      ['src/file.php', 'src/**/*.{ts,tsx}', { dot: true }, false, false],
+      ['src', 'src/**/*.tsx', { dot: true }, true, true],
+      ['public', 'src/**/*.tsx', { dot: true }, true, false],
+      ['src/file.ts', '!**/*.ts', { dot: true, flipNegate: true }, false, true],
+      ['src/file.js', '!**/*.ts', { dot: true, flipNegate: true }, false, false],
+      ['C:/repo/src/file.ts', 'C:/repo/**/*.ts', { platform: 'win32', dot: true }, false, true],
+      ['src/caf\u00e9.tsx', 'src/**/*.tsx', { dot: true }, false, true],
+    ]) {
+      if (new Minimatch(glob, options).match(file, partial) !== expected) {
+        throw new Error(`${consumer}: matching contract changed for ${glob}`);
+      }
+    }
+    if (!minimatch('.config.js', '*.js', { dot: true })) {
+      throw new Error(`${consumer}: default-project dotfile matching failed`);
+    }
+  }
+  pass(
+    'Development Glob Boundary: all lint consumers cap amplification and preserve matching contracts.'
+  );
+} catch (error) {
+  fail('Development Glob Boundary: ' + error.message);
+}
+
+try {
+  const declaration = read('src/utils/security.ts').match(
+    /export const hasPasswordSpecialCharacter[\s\S]*?;\r?\n/
+  )?.[0];
+  if (!declaration) throw new Error('Shared password symbol helper missing');
+  const context = { exports: {} };
+  vm.runInNewContext(
+    ts.transpileModule(declaration, {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText,
+    context
+  );
+  const valid = context.exports.hasPasswordSpecialCharacter;
+  for (const symbol of ['_', '-', '+', '=', '[', ']', '~', ';', "'", '\\', '/', '!', '。', '😀']) {
+    if (!valid('Abc12345' + symbol)) throw new Error('Rejected symbol: ' + symbol);
+  }
+  for (const value of [
+    'Abc12345',
+    'Abc12345 ',
+    'Abc12345\t',
+    'Abc12345名',
+    'Abc12345\u0085',
+    'Abc12345\uFEFF',
+    'Abc12345\u200B',
+    'Abc12345\u0301',
+  ]) {
+    if (valid(value)) throw new Error('Accepted non-symbol input');
+  }
+  pass(
+    'Shared Password Symbol Runtime: frontend accepts punctuation/symbols and rejects letters, numbers and whitespace alone, matching PHP fixtures.'
+  );
+} catch (error) {
+  fail('Shared Password Symbol Runtime: ' + error.message);
+}
+
 function assertIncludes(label, content, needles, successMessage, failureMessage) {
   const missing = needles.filter((needle) => !content.includes(needle));
 
   if (missing.length === 0) {
     pass(successMessage);
   } else {
-    fail(failureMessage);
+    fail(`${failureMessage} Missing: ${missing.join('; ')}`);
   }
 }
 
@@ -112,6 +186,33 @@ if (!exists('server/simple-test.cjs')) {
 }
 
 const themesApiServerContent = read('server/themes-api.cjs');
+const retiredSourceModules = [
+  'src/theme/ThemeProvider.tsx',
+  'src/theme/engine.ts',
+  'src/theme/light.ts',
+  'src/theme/dark.ts',
+  'src/theme/types.ts',
+  'src/plugins/von-core/services/AIService.ts',
+  'src/services/geminiService.ts',
+  'src/plugins/von-core/services/VonMail.ts',
+];
+if (
+  retiredSourceModules.every((file) => !exists(file)) &&
+  [
+    'src/plugins/von-core/providers/VonProviders.tsx',
+    'src/plugins/von-core/features/themes/ThemeContext.tsx',
+    'src/plugins/von-core/features/themes/ThemeEngine.ts',
+    'src/hooks/useAiWriting.ts',
+    'public/api/mail_helper.php',
+  ].every(exists)
+) {
+  pass(
+    'Retired Source Modules: eight unreferenced files are absent while active theme, AI and PHP mail owners remain.'
+  );
+} else {
+  fail('Retired Source Modules: obsolete files returned or an active owner was removed.');
+}
+
 const themeArchiveSecurityContent = read('server/theme-archive-security.cjs');
 assertIncludes(
   'Theme API Dev Path Guard',
@@ -1000,7 +1101,6 @@ function findPhpBinary() {
     }
 
     candidates.push('C:\\xampp\\php\\php.exe');
-    candidates.push('C:\\laragon\\bin\\php\\php-8.2.0-Win32-vs16-x64\\php.exe');
     candidates.push('C:\\laragon\\bin\\php\\php-8.3.0-Win32-vs16-x64\\php.exe');
 
     const laragonPhpRoot = 'C:\\laragon\\bin\\php';
@@ -1226,6 +1326,7 @@ try {
     JSON.stringify({ version: 1, published_at: { posts: true, pages: true } })
   );
   fs.writeFileSync(path.join(fixturePublic, 'data', 'backups', 'database.sql'), 'SQL_SENTINEL');
+  fs.writeFileSync(path.join(fixturePublic, 'data', 'storage_usage.json'), 'PRIVATE_STORAGE_CACHE');
   fs.writeFileSync(path.join(fixturePublic, 'logs', 'php_error.log'), 'LOG_SENTINEL');
   fs.writeFileSync(path.join(fixturePublic, '.env.production'), 'ENV_SENTINEL');
   fs.writeFileSync(path.join(fixturePublic, 'private.key'), 'KEY_SENTINEL');
@@ -1249,6 +1350,7 @@ try {
     !fs.existsSync(builtRuntimePath) &&
     !fs.existsSync(path.join(fixtureDist, 'data', 'site_settings.json')) &&
     !fs.existsSync(path.join(fixtureDist, 'data', 'schema-capabilities.json')) &&
+    !fs.existsSync(path.join(fixtureDist, 'data', 'storage_usage.json')) &&
     !fs.existsSync(path.join(fixtureDist, 'data', 'backups', 'database.sql')) &&
     !fs.existsSync(path.join(fixtureDist, 'logs', 'php_error.log')) &&
     !fs.existsSync(path.join(fixtureDist, '.env.production')) &&
@@ -1274,6 +1376,8 @@ const forbiddenReleasePolicyFixtures = [
   'data/site_settings.json',
   'public/data/schema-capabilities.json',
   'data/schema-capabilities.json.a1b2c3.tmp',
+  'public/data/storage_usage.json',
+  'data/storage_usage.json',
   'data/public-cache/posts-list.json',
   'data/media_cleanup_previews/preview.json',
   'public/logs/php_error.log',
@@ -1773,7 +1877,8 @@ if (
   appShellContent.includes('await loadSettings();') &&
   !appShellContent.includes('Promise.all([loadSettings(), loadContent(), loadComments()])') &&
   appShellContent.includes('setIsInitialLoading(false);') &&
-  appShellContent.includes('void props.loadPublicComments(publicCommentPostId);') &&
+  appShellContent.includes('const { loadPublicComments } = props;') &&
+  appShellContent.includes('void loadPublicComments(publicCommentPostId);') &&
   !appShellContent.includes('void loadComments();') &&
   appShellContent.includes('if (user) {') &&
   !appShellContent.includes('loadContent();') &&
@@ -1876,7 +1981,6 @@ if (
     'Editor View Placement Contract: style placement, dialog event wiring, media metadata or bubble positioning drifted during extraction.'
   );
 }
-const editorAutosaveUtilsContent = read('src/components/editor/editorAutosaveUtils.ts');
 const editorExtensionsPath = 'src/components/editor/editorExtensions.ts';
 const editorExtensionsContent = exists(editorExtensionsPath) ? read(editorExtensionsPath) : '';
 const postEditorContent = read('src/components/PostEditor.tsx');
@@ -2305,7 +2409,7 @@ if (
   adminContentRouteLoaderBlock.includes("routePath === '/admin/dashboard'") &&
   adminContentRouteLoaderBlock.includes('void loadWithOneRetry(loadPosts, 5);') &&
   adminContentRouteLoaderBlock.includes("routePath === '/admin/posts'") &&
-  adminContentRouteLoaderBlock.includes("routePath === '/admin/discussion'") &&
+  !adminContentRouteLoaderBlock.includes("routePath === '/admin/discussion'") &&
   adminContentRouteLoaderBlock.includes('void loadWithOneRetry(loadPosts, 200);') &&
   adminContentRouteLoaderBlock.includes("routePath === '/admin/pages'") &&
   adminContentRouteLoaderBlock.includes('void loadWithOneRetry(loadPages, 200);') &&
@@ -2510,7 +2614,7 @@ assertIncludes(
     'navigate(`/admin/editor?${editorParams.toString()}`);',
     "const editorItemId = searchParams.get('id') || '';",
     'const [recoveredEditorItem, setRecoveredEditorItem] = useState<Post | Page | null>(null);',
-    'const effectiveEditingItem = editingItem || recoveredEditorItem || newEditorItem;',
+    'const effectiveEditingItem = routedEditingItem || newEditorItem || matchingRecoveredItem;',
   ],
   'HourGlass Editor URL Persistence: editor routes preserve type/id and can recover the active item after hard refresh.',
   'HourGlass Editor URL Persistence: editor route state is still volatile across reloads.'
@@ -2522,10 +2626,12 @@ assertIncludes(
   [
     'export const createEmptyEditorItem =',
     'setEditingItem(createEmptyEditorItem(isPage, currentUser));',
-    'const newEditorItem = useMemo(',
+    'const newEditorSeed = useMemo(',
+    'const newEditorItem = newEditorSeed.item;',
+    'key: createDraftKey,',
     'hasEditorType && !editorItemId',
-    'createEmptyEditorItem(effectiveIsPage, user || null)',
-    'editingItem || recoveredEditorItem || newEditorItem',
+    'draftUsername === undefined ? null : { username: draftUsername, avatar: draftAvatar }',
+    'routedEditingItem || newEditorItem || matchingRecoveredItem',
   ],
   'HourGlass New Editor Hard Reload Recovery: valid new post/page URLs rebuild the same empty draft model after direct load or hard refresh.',
   'HourGlass New Editor Hard Reload Recovery: new post/page routes still depend on volatile in-memory editor state.'
@@ -3500,18 +3606,23 @@ if (!topReleaseEntry.trim()) {
 }
 
 const currentReleaseLabel = `v${pkg.version}`;
-const currentSeriesLabel = `v${pkg.version} "OverDrive"`;
+const currentSeriesName = 'The BluePrint';
+const currentSeriesVersion = pkg.version.split('.').slice(0, 2).join('.');
+const currentSeriesLabel = `v${pkg.version} "${currentSeriesName}"`;
 const docsVersionChecks = [
   ['README.md', currentReleaseLabel],
-  ['README.md', 'OverDrive release line'],
-  ['docs/INSTALL.md', currentSeriesLabel],
+  ['README.md', `${currentSeriesName} line`],
+  ['docs/INSTALL.md', `> **VonCMS ${currentSeriesLabel}`],
   ['docs/MANUAL.md', currentReleaseLabel],
   ['docs/SECURITY.md', currentReleaseLabel],
   ['docs/UPGRADE.md', currentReleaseLabel],
-  ['docs/FEATURES.md', `VonCMS ${currentReleaseLabel} feature baseline for the OverDrive line.`],
+  [
+    'docs/FEATURES.md',
+    `VonCMS ${currentReleaseLabel} feature baseline for ${currentSeriesName} line.`,
+  ],
   ['docs/FEATURES.md', currentSeriesLabel],
   ['docs/EXTENSION_DEVELOPMENT.md', `VonCMS Extension Development Guide ${currentReleaseLabel}`],
-  ['docs/ROUTING.md', 'VonCMS Routing Flow v1.27.x'],
+  ['docs/ROUTING.md', `VonCMS Routing Flow v${currentSeriesVersion}.x`],
   ['docs/API.md', `Version: \`${pkg.version}\``],
   ['LICENSE.md', `Version: \`${pkg.version}\``],
   ['docs/LICENSE.md', `Version: \`${pkg.version}\``],
@@ -3524,6 +3635,65 @@ if (staleDocs.length === 0) {
 } else {
   fail(`Docs Version Alignment: stale release label in ${staleDocs.join(', ')}.`);
 }
+
+const bundledPluginVersionFiles = [
+  'promo-bar',
+  'gift-widget',
+  'von-seo',
+  'von-analytics',
+  'ai-summary',
+  'related-posts',
+].map((name) => `src/plugins/von-core/features/plugins/built-in/${name}/index.tsx`);
+const bundledThemeVersions = [
+  ...read('src/plugins/von-core/features/themes/themeRegistry.ts').matchAll(
+    /\bversion:\s*'([^']+)'/g
+  ),
+].map((match) => match[1]);
+const bundledSeriesAligned =
+  bundledThemeVersions.length === 6 &&
+  bundledThemeVersions.every((version) => version === currentSeriesVersion) &&
+  bundledPluginVersionFiles.every((file) => {
+    const versions = [...read(file).matchAll(/\bversion:\s*'([^']+)'/g)];
+    return versions.length === 1 && versions[0][1] === currentSeriesVersion;
+  }) &&
+  read('src/plugins/von-core/features/setup/InstallWizard.tsx').includes(
+    `>VonCMS v${currentSeriesVersion}</span>`
+  ) &&
+  read('public/api/install.php').includes(
+    `Version: ${currentSeriesVersion} "${currentSeriesName}"`
+  );
+if (bundledSeriesAligned) {
+  pass(
+    `Bundled Series Identity: installer, six themes and six plugins use ${currentSeriesVersion}.`
+  );
+} else {
+  fail('Bundled Series Identity: installer, theme or plugin versions do not match the CMS series.');
+}
+
+const phpMinimumGuardFiles = ['public/index.php', 'public/security.php', 'public/api/install.php'];
+if (
+  phpMinimumGuardFiles.every((file) =>
+    read(file).includes("version_compare(PHP_VERSION, '8.2.0', '<')")
+  ) &&
+  read('server/health-check.cjs').includes('PHP_VERSION_ID >= 80200') &&
+  read('src/plugins/von-core/features/setup/InstallWizard.tsx')
+    .replace(/\s+/g, ' ')
+    .includes('PHP 8.2 or newer is required; PHP 8.3+ is recommended.')
+) {
+  pass(
+    'PHP Minimum Alignment: HTML, API security, installer and fixture prerequisites use PHP 8.2.'
+  );
+} else {
+  fail(
+    'PHP Minimum Alignment: a runtime guard, installer notice or fixture prerequisite is stale.'
+  );
+}
+
+const formatterPhpFloor = JSON.parse(read('.prettierrc')).phpVersion;
+const metadataPhpFloor = JSON.parse(read('metadata.json')).minPhp.split('.').slice(0, 2).join('.');
+if (formatterPhpFloor === metadataPhpFloor)
+  pass('PHP Formatter Target: formatting preserves the declared minimum runtime syntax.');
+else fail('PHP Formatter Target: explicit phpVersion must match the supported minimum.');
 
 const maintainedMarkdownFiles = [
   resolveFromRoot('README.md'),
@@ -3777,6 +3947,21 @@ if (exists('dist/.htaccess')) {
 
 const rootHtaccessContent = read('.htaccess');
 const publicHtaccessContent = read('public/.htaccess');
+const otaStagingDeny = 'RewriteRule ^(?:public/)?temp_update(?:/|$) - [F,L,NC]';
+for (const file of [
+  '.htaccess',
+  'public/.htaccess',
+  'public/api/install.php',
+  'public/api/system/repair_htaccess.php',
+]) {
+  const source = read(file),
+    deny = source.indexOf(otaStagingDeny);
+  if (deny >= 0 && deny < source.indexOf('E=SOCIAL_BOT:1')) {
+    pass(`OTA HTTP Template Isolation: ${file} denies staging before crawler/file fast paths.`);
+  } else {
+    fail(`OTA HTTP Template Isolation: ${file} can bypass the staging deny.`);
+  }
+}
 if (
   rootHtaccessContent.includes('RewriteRule ^index\\.html$ index.php [L,QSA]') &&
   publicHtaccessContent.includes('RewriteRule ^index\\.html$ index.php [L,QSA]') &&
@@ -4034,7 +4219,9 @@ if (
   installContent.includes("'warnings' => $installWarnings") &&
   installWizardContent.includes('Array.isArray(data.warnings)') &&
   installWizardContent.includes('Server protection needs attention') &&
-  repairHtaccessContent.includes("function repairDataShield($publicPath, $directory = 'data')") &&
+  repairHtaccessContent.includes(
+    "function repairDataShield(string $publicPath, string $directory = 'data'): array"
+  ) &&
   repairHtaccessContent.includes("$dataDir = $publicPath . '/' . $directory;") &&
   repairHtaccessContent.includes("repairDataShield($publicPath, 'core')") &&
   repairHtaccessContent.includes('Runtime data .htaccess shield repaired.') &&
@@ -4194,7 +4381,8 @@ assertIncludes(
   loginContent,
   [
     '$loginRateIdentifier =',
-    "'login:ip:' . RateLimiter::normalizeLoginAddress",
+    "'login:ip:'",
+    "RateLimiter::normalizeLoginAddress(DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0'))",
     'RateLimiter::requireAttempt($loginRateIdentifier)',
     'RateLimiter::refundSuccessfulAttempt($loginRateIdentifier)',
     'session_regenerate_id(true)',
@@ -4250,14 +4438,15 @@ assertIncludes(
     'public static function consumeAttempt($identifier = null)',
     'public static function requireAttempt($identifier = null)',
     '$loginRateIdentifier =',
-    "'login:ip:' . RateLimiter::normalizeLoginAddress",
+    "'login:ip:'",
+    "RateLimiter::normalizeLoginAddress(DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0'))",
     '$registrationRateIdentifier =',
     "'registration:ip:'",
     'RateLimiter::requireAttempt($loginRateIdentifier);',
-    'RateLimiter::requireAttempt($registrationRateIdentifier);',
+    "RateLimiter::consumeFixedWindow($registrationRateIdentifier, 5, 900, 'registration')",
     'flock($handle, LOCK_EX)',
   ],
-  'Atomic Authentication Attempt Contract: login and registration reserve attempts under the shared exclusive lock before credential work.',
+  'Atomic Authentication Attempt Contract: login and bounded registration reserve attempts under an exclusive lock before credential work.',
   'Atomic Authentication Attempt Contract: parallel authentication requests can still bypass the attempt counter through an unlocked check-then-increment flow.'
 );
 assertExcludes(
@@ -4267,6 +4456,26 @@ assertExcludes(
   'Authentication Split Limiter Exclusion: authentication endpoints no longer split limiter checks from increments.',
   'Authentication Split Limiter Exclusion: login or registration still uses the race-prone split limiter flow.'
 );
+const credentialGuardIndex = loginContent.indexOf(
+  '$rememberCredentials = voncms_issue_login_credentials('
+);
+if (
+  credentialGuardIndex > 0 &&
+  credentialGuardIndex < loginContent.indexOf('session_regenerate_id(true)') &&
+  credentialGuardIndex < loginContent.indexOf('SessionManager::establishAuthenticatedSession(') &&
+  loginContent.includes('SELECT password FROM users WHERE id = ? FOR UPDATE') &&
+  loginContent.includes('hash_equals($verifiedPasswordHash, $currentHash)') &&
+  loginContent.includes("in_array($state, ['42S02', '42S22'], true)") &&
+  loginContent.includes('if (!$db->commit())')
+) {
+  pass(
+    'Credential Issuance Contract: users-row password guard and remember commit precede session/cookie publication; compatibility fallback is limited to optional missing storage.'
+  );
+} else {
+  fail(
+    'Credential Issuance Contract: verified password, transaction or publication ordering is incomplete.'
+  );
+}
 if (
   authLoginContent.includes("data.error || data.message || 'Invalid username or password.'") &&
   authLoginContent.includes("data.error || data.message || 'Registration failed.'") &&
@@ -4297,11 +4506,11 @@ const registrationSuccessBranch = sliceBetween(
 const registrationFailureBranch = sliceBetween(
   registrationHandlerContent,
   registrationFailureMarker,
-  '} catch (error) {'
+  '} catch {'
 );
 const registrationCatchBranch = sliceBetween(
   registrationHandlerContent,
-  '} catch (error) {',
+  '} catch {',
   '} finally {'
 );
 const registrationView = sliceBetween(
@@ -4335,13 +4544,22 @@ assertExcludes(
   'Registration Retry Input Preservation Contract: a failed registration can erase retry input or enter the success state.'
 );
 
-assertIncludes(
-  'Registration Mobile Password Layout Contract',
-  registrationView,
-  ['className="grid grid-cols-1 gap-3 sm:grid-cols-2"'],
-  'Registration Mobile Password Layout Contract: password confirmation stacks on narrow phones and returns to two columns at the small breakpoint.',
-  'Registration Mobile Password Layout Contract: password fields can become cramped side by side on narrow phones.'
-);
+if (
+  registrationView.includes('className="grid grid-cols-1 gap-4 sm:grid-cols-2"') &&
+  authLoginContent.includes("view === 'register' ? 'max-w-160' : 'max-w-lg'") &&
+  ['login-483', 'login-500', 'login-514', 'login-525'].every((id) =>
+    registrationView.includes(`htmlFor="${id}"`)
+  ) &&
+  appShellContent.includes('has-[[data-auth-view=register]]:max-w-160')
+) {
+  pass(
+    'Registration Password Space Contract: registration alone uses a wider desktop card and paired labelled fields; phone fields stack and the public popup follows the same width contract.'
+  );
+} else {
+  fail(
+    'Registration Password Space Contract: registration can pair fields without its wider card, lose persistent labels or leave the public popup constrained to login width.'
+  );
+}
 
 assertIncludes(
   'Registration Success State Contract',
@@ -4369,7 +4587,7 @@ const registerSecurityBootstrapIndex = registerApiContent.indexOf(
 );
 const registerLimiterIndex = registerApiContent.indexOf('RateLimiter::requireNotLimited();');
 const registerAtomicLimiterIndex = registerApiContent.indexOf(
-  'RateLimiter::requireAttempt($registrationRateIdentifier);'
+  "RateLimiter::consumeFixedWindow($registrationRateIdentifier, 5, 900, 'registration')"
 );
 const registerCsrfIndex = registerApiContent.indexOf('CSRFProtection::requireToken();');
 if (
@@ -4492,8 +4710,8 @@ assertIncludes(
   passwordResetActionBranch,
   [
     '$pdo->beginTransaction();',
-    'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW() FOR UPDATE',
-    'WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW()',
+    'SELECT id, reset_token FROM users WHERE reset_token IN (?, ?) AND reset_token_expires > NOW() FOR UPDATE',
+    'WHERE id = ? AND reset_token IN (?, ?) AND reset_token_expires > NOW()',
     'if ($stmt->rowCount() !== 1)',
     '$pdo->rollBack();',
   ],
@@ -4666,7 +4884,406 @@ if (
 }
 
 const adminLayoutContent = read('src/components/layouts/AdminLayout.tsx');
+try {
+  const assert = require('node:assert/strict');
+  const React = require('react');
+  const makeNavigation = (role, id = '8', initialLocation = '/admin/dashboard') => {
+    let cursor = 0;
+    let navigationEffect;
+    let navigationEffectDeps;
+    const slots = [];
+    let location = new URL(initialLocation, 'https://example.test');
+    let currentUser = { role, id, username: 'Navigation QA' };
+    const hooks = {
+      ...React,
+      useState(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = typeof initial === 'function' ? initial() : initial;
+        return [
+          slots[slot],
+          (value) => {
+            slots[slot] = typeof value === 'function' ? value(slots[slot]) : value;
+          },
+        ];
+      },
+      useRef(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = { current: initial };
+        return slots[slot];
+      },
+      useEffect(effect, deps) {
+        // Exercise only the route/disclosure effect; unrelated network/DOM effects stay mocked.
+        if (!effect.toString().includes('setOpenNavigationGroups')) return;
+        if (
+          !navigationEffectDeps ||
+          deps.some((value, index) => !Object.is(value, navigationEffectDeps[index]))
+        ) {
+          navigationEffectDeps = deps;
+          navigationEffect = effect;
+        }
+      },
+      useLayoutEffect() {},
+    };
+    const Layout = loadTsModuleForSmokeWithMocks(
+      'src/components/layouts/AdminLayout.tsx',
+      {
+        react: hooks,
+        'react/jsx-runtime': require('react/jsx-runtime'),
+        'react-router': { useLocation: () => location, Link: 'a' },
+        'react-gravatar': 'img',
+        'react-hot-toast': {},
+        'lucide-react': require('lucide-react'),
+        '../../config/site.config': { API: {} },
+        '../../utils/api': {},
+        '../../utils/profileUtils': { getUserDisplayRole: () => currentUser.role },
+        '../../utils/adminPalette': { normalizeAdminPalette: () => 'default' },
+        '../VonLogo': { VonLogo: 'svg' },
+        '../SafeImage': { SafeImage: 'img' },
+        '../../../package.json': { version: '1.28.0' },
+      },
+      { URLSearchParams }
+    ).default;
+    return {
+      route(value) {
+        location = new URL(value, 'https://example.test');
+      },
+      user(value) {
+        currentUser = value;
+      },
+      render() {
+        const nodes = [];
+        const visit = (node) => {
+          if (!React.isValidElement(node)) return;
+          nodes.push(node);
+          React.Children.toArray(node.props.children).forEach(visit);
+        };
+        let tree;
+        for (let turn = 0; turn < 3; turn++) {
+          cursor = 0;
+          navigationEffect = null;
+          tree = Layout({
+            settings: { activePlugins: [] },
+            user: currentUser,
+            isDarkMode: false,
+            onLogout() {},
+            toggleDarkMode() {},
+          });
+          if (!navigationEffect) break;
+          navigationEffect();
+          assert.ok(turn < 2, 'navigation route effect must settle');
+        }
+        visit(tree);
+        return nodes;
+      },
+    };
+  };
+  const links = (nodes) => nodes.filter((node) => node.type === 'a').map((node) => node.props.to);
+  const button = (nodes, title) =>
+    nodes.find((node) => node.type === 'button' && node.props.title === title);
+  for (const [role, id, mayPage, mayAdmin, mayPrimary] of [
+    ['Writer', '8', false, false, false],
+    ['Moderator', '8', true, false, false],
+    ['Admin', '8', true, true, false],
+    ['Admin', '1', true, true, true],
+    ['root', '8', true, true, true],
+    ['Member', '8', false, false, false],
+  ]) {
+    const nodes = makeNavigation(role, id).render();
+    const paths = links(nodes);
+    const mayStaff = role !== 'Member';
+    assert.equal(paths.includes('/admin/dashboard'), mayStaff);
+    assert.equal(paths.includes('/admin/editor?type=post'), mayStaff);
+    assert.equal(paths.includes('/admin/pages'), mayPage);
+    assert.equal(paths.includes('/admin/editor?type=page'), mayPage);
+    for (const path of [
+      '/admin/extensions?tab=plugins',
+      '/admin/extensions?tab=themes',
+      '/admin/security',
+    ]) {
+      assert.equal(paths.includes(path), mayAdmin, `${role}: ${path}`);
+    }
+    for (const path of ['/admin/gallery', '/admin/widgets', '/admin/database']) {
+      assert.equal(paths.includes(path), mayPrimary, `${role}: ${path}`);
+    }
+    assert.equal(!!button(nodes, 'Extensions'), mayAdmin);
+    assert.equal(!!button(nodes, 'Monitoring'), mayAdmin);
+    assert.equal(!!button(nodes, 'Create'), mayStaff);
+    assert.equal(paths.includes('/admin/calendar'), mayPage);
+    assert.equal(paths.includes('/admin/calendar?new=event'), mayPage);
+    assert.ok(!paths.some((path) => /status|activity/.test(path)));
+  }
+  pass(
+    'Admin Navigation Runtime: six role/owner cases retain route boundaries and hide empty/future groups and creation actions.'
+  );
+  const controls = makeNavigation('root', '1')
+    .render()
+    .filter(
+      (node) =>
+        (node.type === 'a' && node.props.to?.startsWith('/admin/')) ||
+        (node.type === 'button' && node.props['aria-controls']?.startsWith('admin-navigation-'))
+    );
+  const iconTypes = controls.map((control) => {
+    const holder = React.Children.toArray(control.props.children).find(
+      (child) => child.type === 'span' && child.props['aria-hidden'] === 'true'
+    );
+    assert.ok(holder, 'Navigation icons must be decorative beside an accessible label');
+    return React.Children.toArray(holder.props.children)[0].type;
+  });
+  assert.ok(iconTypes.length >= 18);
+  assert.equal(
+    new Set(iconTypes).size,
+    iconTypes.length,
+    'Groups, destinations and Create actions must not reuse icons'
+  );
+  pass(
+    'Admin Navigation Icons: each group, destination and Create action has a distinct decorative outline icon and retains its accessible label.'
+  );
+
+  const nav = makeNavigation('Admin');
+  button(nav.render(), 'Create').props.onClick();
+  assert.equal(button(nav.render(), 'Create').props['aria-expanded'], true);
+  button(nav.render(), 'Create').props.onClick();
+  assert.equal(button(nav.render(), 'Create').props['aria-expanded'], false);
+  nav
+    .render()
+    .find((node) => node.props['aria-label'] === 'Collapse admin navigation')
+    .props.onClick();
+  assert.equal(button(nav.render(), 'Content').props['aria-expanded'], false);
+  button(nav.render(), 'Content').props.onClick();
+  assert.equal(button(nav.render(), 'Content').props['aria-expanded'], true);
+  for (const [route, activePath, group] of [
+    ['/admin/editor?type=page&id=42', '/admin/pages', 'Content'],
+    ['/admin/editor?type=post', '/admin/posts', 'Content'],
+    ['/admin/extensions?tab=plugins', '/admin/extensions?tab=plugins', 'Extensions'],
+    ['/admin/extensions?tab=themes', '/admin/extensions?tab=themes', 'Extensions'],
+    ['/admin/extensions?tab=invalid', '/admin/extensions?tab=themes', 'Extensions'],
+    ['/admin/security', '/admin/security', 'Monitoring'],
+  ]) {
+    nav.route(route);
+    const nodes = nav.render();
+    const active = nodes.filter((node) => node.props['aria-current'] === 'page');
+    assert.deepEqual(
+      active.map((node) => node.props.to),
+      [activePath]
+    );
+    assert.equal(button(nodes, group).props['aria-expanded'], true);
+    assert.equal(button(nodes, group).props['aria-disabled'], undefined);
+    button(nodes, group).props.onClick();
+    assert.equal(button(nav.render(), group).props['aria-expanded'], false);
+    assert.deepEqual(
+      nav
+        .render()
+        .filter((node) => node.props['aria-current'] === 'page')
+        .map((node) => node.props.to),
+      [activePath],
+      'collapsing an active group must preserve the current destination'
+    );
+    assert.equal(
+      button(nav.render(), group).props['aria-expanded'],
+      false,
+      'ordinary renders must not reopen a manually collapsed group'
+    );
+    button(nav.render(), group).props.onClick();
+    assert.equal(button(nav.render(), group).props['aria-expanded'], true);
+  }
+  nav.route('/admin/posts-invalid');
+  assert.equal(nav.render().filter((node) => node.props['aria-current']).length, 0);
+  pass(
+    'Admin Navigation Runtime: committed routes reveal their group, active disclosures remain manually collapsible across rerenders, compact activation expands, and active ownership follows editor identity and real Extensions tabs.'
+  );
+
+  nav
+    .render()
+    .find((node) => node.props.id === 'admin-global-search')
+    .props.onChange({ target: { value: 'New Page' } });
+  assert.equal(links(nav.render()).filter((path) => path === '/admin/editor?type=page').length, 2);
+  nav.user({ role: 'Writer', id: '8', username: 'Navigation QA' });
+  assert.equal(links(nav.render()).includes('/admin/editor?type=page'), false);
+  pass(
+    'Admin Navigation Runtime: search includes Create destinations and removes stale authorized results after a role change.'
+  );
+} catch (error) {
+  fail(`Admin Navigation Runtime: ${error.stack || error.message}`);
+}
 const widgetAdminAppContent = read('src/App.tsx');
+try {
+  const assert = require('node:assert/strict');
+  const jsx = require('react/jsx-runtime');
+  const wrapperSource = widgetAdminAppContent.slice(
+    widgetAdminAppContent.indexOf('const PostEditorWrapper:'),
+    widgetAdminAppContent.indexOf('export default App;')
+  );
+  const compiled = ts.transpileModule(wrapperSource + '\nexport { PostEditorWrapper };', {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+    },
+  }).outputText;
+  const wrapperModule = { exports: {} };
+  let params = new URLSearchParams();
+  let effects = [];
+  const navigations = [];
+  let allowLeave = false;
+  let confirmations = 0;
+  const events = new Map();
+  class TestElement {}
+  class TestAnchor extends TestElement {
+    href = 'https://example.test/admin/editor?type=page';
+    target = '';
+    dataset = {};
+    hasAttribute() {
+      return false;
+    }
+    closest() {
+      return this;
+    }
+  }
+  const mockWindow = {
+    location: new URL('https://example.test/admin/editor?type=post&id=42'),
+    confirm() {
+      confirmations += 1;
+      return allowLeave;
+    },
+    addEventListener(name, handler) {
+      events.set(name, handler);
+    },
+    removeEventListener(name) {
+      events.delete(name);
+    },
+  };
+  vm.runInNewContext(compiled, {
+    module: wrapperModule,
+    exports: wrapperModule.exports,
+    require: (id) => {
+      assert.equal(id, 'react/jsx-runtime');
+      return jsx;
+    },
+    React: { useCallback: (callback) => callback },
+    useNavigate: () => (path) => navigations.push(path),
+    useSearchParams: () => [params],
+    useLocation: () => ({ state: null }),
+    useState: (initial) => [initial, () => {}],
+    useRef: (initial) => ({ current: initial }),
+    useMemo: (factory) => factory(),
+    useLayoutEffect: (effect) => effect(),
+    useEffect: (effect) => effects.push(effect),
+    createEmptyEditorItem: (isPage) => ({
+      id: '',
+      title: '',
+      category: isPage ? 'Page' : 'Uncategorized',
+    }),
+    PostEditor: 'editor-probe',
+    Navigate: 'redirect-probe',
+    URL,
+    Element: TestElement,
+    HTMLAnchorElement: TestAnchor,
+    window: mockWindow,
+    document: {
+      addEventListener(name, handler) {
+        events.set(name, handler);
+      },
+      removeEventListener(name) {
+        events.delete(name);
+      },
+    },
+  });
+  const Wrapper = wrapperModule.exports.PostEditorWrapper;
+  const oldPost = { id: '42', title: 'Existing post', category: 'News' };
+  const oldPage = { id: '9', title: 'Existing page', category: 'Page' };
+  const render = (query, editingItem, isPage = false, role = 'Admin') => {
+    params = new URLSearchParams(query);
+    effects = [];
+    return Wrapper({
+      editingItem,
+      isPage,
+      user: { role, username: 'QA' },
+      posts: [],
+      pages: [],
+      navigation: [],
+    });
+  };
+  for (const stale of [oldPost, oldPage]) {
+    for (const type of ['post', 'page']) {
+      const tree = render(`type=${type}`, stale, stale === oldPage);
+      assert.equal(tree.props.initialItem.id, '');
+      assert.equal(tree.props.initialItem.title, '');
+      assert.equal(tree.props.isPage, type === 'page');
+      assert.equal(tree.key, `${type}:new`);
+    }
+  }
+  assert.equal(render('type=post&id=42', oldPost).props.initialItem, oldPost);
+  assert.equal(render('type=page&id=9', oldPage, true).props.initialItem, oldPage);
+  assert.equal(render('type=post&id=99', oldPost), null);
+  assert.equal(render('type=page&id=42', oldPost), null);
+  assert.equal(render('type=page', oldPost, false, 'Writer').type, 'redirect-probe');
+  pass(
+    'Create Editor Runtime: warm Post/Page creation ignores stale records, matching edits retain identity, and mismatched IDs/types wait for recovery without exposing an old record.'
+  );
+
+  const editor = render('type=post&id=42', oldPost);
+  const guardEffect = effects.find((effect) => effect.toString().includes('guardLinkNavigation'));
+  assert.ok(guardEffect);
+  const cleanup = guardEffect();
+  editor.props.onDirtyChange(true);
+  editor.props.onBack();
+  assert.equal(navigations.length, 0);
+  const click = () => ({
+    target: new TestAnchor(),
+    button: 0,
+    prevented: false,
+    stopped: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+    stopPropagation() {
+      this.stopped = true;
+    },
+  });
+  const denied = click();
+  events.get('click')(denied);
+  assert.equal(denied.prevented, true);
+  assert.equal(denied.stopped, true);
+  const unchanged = click();
+  unchanged.target.href = mockWindow.location.href + '#writing';
+  const beforeSameDocument = confirmations;
+  events.get('click')(unchanged);
+  assert.equal(confirmations, beforeSameDocument);
+  const newTab = click();
+  newTab.ctrlKey = true;
+  events.get('click')(newTab);
+  assert.equal(confirmations, beforeSameDocument);
+  const sameUrlCreate = click();
+  sameUrlCreate.target.href = mockWindow.location.href;
+  sameUrlCreate.target.dataset.adminCreate = 'true';
+  events.get('click')(sameUrlCreate);
+  assert.equal(sameUrlCreate.prevented, true, 'same-URL Create must not bypass confirmation');
+  const unload = {
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
+  events.get('beforeunload')(unload);
+  assert.equal(unload.prevented, true);
+  allowLeave = true;
+  const accepted = click();
+  events.get('click')(accepted);
+  assert.equal(accepted.prevented, false);
+  editor.props.onBack();
+  assert.deepEqual(navigations, ['/admin/posts']);
+  editor.props.onDirtyChange(false);
+  const cleanClick = click();
+  const beforeClean = confirmations;
+  events.get('click')(cleanClick);
+  assert.equal(confirmations, beforeClean);
+  cleanup();
+  assert.equal(events.size, 0);
+  pass(
+    'Editor Leave Runtime: canceled link/Back navigation retains edits, accepted/clean navigation proceeds, same-document/new-tab clicks are exempt, unload warns, and listeners clean up.'
+  );
+} catch (error) {
+  fail(`Create Editor Runtime: ${error.stack || error.message}`);
+}
 const adminNotFoundContent = read('src/components/admin/AdminNotFoundPage.tsx');
 assertIncludes(
   'Admin Nested Route Fallback',
@@ -4823,7 +5440,7 @@ assertIncludes(
   'Admin Widgets Route Contract',
   (adminLayoutContent + widgetAdminAppContent).replace(/\r\n/g, '\n'),
   [
-    'PanelsTopLeft',
+    'Blocks',
     "label: 'Widgets',\n      path: '/admin/widgets',\n      color: '#60a5fa', // Blue 400\n      allowedRoles: ['Admin'],\n      requiresPrimaryAdmin: true,",
     'path="widgets"\n                            element={\n                              <ProtectedRoute user={user} allowedRoles={[\'Admin\']}>\n                                {isPrimaryAdmin ? (\n                                  <WidgetsManager',
     '<Navigate to="/admin" replace />',
@@ -5176,9 +5793,8 @@ assertIncludes(
 );
 
 if (
-  aiGenerateContent.includes(
-    "$finishReason = strtoupper((string) ($data['candidates'][0]['finishReason'] ?? ''));"
-  ) &&
+  aiGenerateContent.includes('$providerFields = voncms_ai_response_fields($data);') &&
+  aiGenerateContent.includes("$finishReason = $providerFields['finishReason'];") &&
   aiGenerateContent.includes("$finishReason !== '' && $finishReason !== 'STOP'") &&
   aiGenerateContent.includes("'AI_RESPONSE_INCOMPLETE'")
 ) {
@@ -5192,9 +5808,8 @@ if (
 }
 
 if (
-  aiCheckContent.includes(
-    "$finishReason = strtoupper((string) ($data['candidates'][0]['finishReason'] ?? ''));"
-  ) &&
+  aiCheckContent.includes('$providerFields = voncms_ai_response_fields($data);') &&
+  aiCheckContent.includes("$finishReason = $providerFields['finishReason'];") &&
   aiCheckContent.includes("$finishReason !== '' && $finishReason !== 'STOP'") &&
   aiCheckContent.indexOf("$finishReason !== '' && $finishReason !== 'STOP'") <
     aiCheckContent.indexOf('if (empty($generatedText))')
@@ -5326,6 +5941,8 @@ if (
 
 const saveSettingsContent = read('public/api/save_settings.php');
 const getSettingsContent = read('public/api/get_settings.php');
+const getSettingsPublicContractContent =
+  getSettingsContent + '\n' + read('public/public_render_helper.php');
 const dateFormatUtilityContent = read('src/utils/dateFormat.ts');
 const dateFormatSettingsContract = [
   read('src/types.ts'),
@@ -5418,7 +6035,7 @@ if (directPublicDateConsumers.length === 0) {
 }
 assertIncludes(
   'Public Settings Cache Boundary',
-  getSettingsContent,
+  getSettingsPublicContractContent,
   [
     "require_once __DIR__ . '/public_cache_helper.php';",
     '$publicSettingsCacheKey = voncms_public_cache_key',
@@ -5429,7 +6046,8 @@ assertIncludes(
     '$isAdmin = $hasSessionUser && SessionManager::isAdmin();',
     '$isPrimaryAdmin = $isAdmin && SessionManager::isPrimaryAdmin();',
     'voncms_project_public_admin_profile',
-    "'admin_profile',",
+    "$key === 'admin_profile'",
+    'SecurityHelper::maskSensitiveData($settings);',
     "header('Cache-Control: no-cache, no-store, must-revalidate');",
   ],
   'Public Settings Cache Boundary: only guest-shaped settings can use the public JSON cache after secret scrubbing.',
@@ -5466,6 +6084,8 @@ assertIncludes(
     '\n' +
     getSettingsContent +
     '\n' +
+    aiProviderHelperContent +
+    '\n' +
     settingsManagerContent +
     '\n' +
     postEditorContent,
@@ -5493,7 +6113,7 @@ assertIncludes(
     '\n' +
     useAiWritingContent,
   [
-    "$currentRole = voncms_normalize_role($_SESSION['user']['role'] ?? '')",
+    "$currentRole = voncms_normalize_role(DataBoundary::userText('role'))",
     "voncms_role_has_capability($currentRole, 'posts.create')",
     "'sharedAvailable' => voncms_ai_configured_key($config) !== ''",
     "settings['aiAssistant'] = voncms_ai_staff_projection($pdo)",
@@ -5526,16 +6146,22 @@ if (
 
 if (
   aiProviderHelperContent.includes("'gemini-3.6-flash'") &&
+  aiProviderHelperContent.includes("'gemini-3.8-flash'") &&
   aiProviderHelperContent.includes('voncms_ai_supported_models()') &&
+  aiProviderHelperContent.includes("$payload['store'] = false;") &&
   settingsManagerContent.includes("const defaultAiModel = 'gemini-3.6-flash';") &&
-  settingsManagerContent.includes('Gemini 3.7 Flash') &&
-  settingsManagerContent.includes('Gemini 2.5 Pro') &&
+  settingsManagerContent.includes('Gemini 3.8 Flash') &&
+  settingsManagerContent.includes('currentAiModels.map(') &&
+  settingsManagerContent.includes('legacyAiModels.includes(selectedAiModel)') &&
+  settingsManagerContent.includes('<option value={selectedAiModel} disabled>') &&
+  !settingsManagerContent.includes('Gemini 3.7 Flash') &&
+  !settingsManagerContent.includes('Gemini 2.5 Pro') &&
   !settingsManagerContent.includes('gemini-2.0-flash') &&
   !settingsManagerContent.includes('gemini-1.5-flash') &&
   !settingsManagerContent.includes('gemini-1.5-pro')
 ) {
   pass(
-    'Current Gemini Model Contract: Settings exposes the curated active model set while retired selections fail over to the stable server default.'
+    'Current Gemini Model Contract: Settings offers current models, retains only the saved legacy selection, preserves the stable default and opts out of optional provider storage.'
   );
 } else {
   fail(
@@ -5580,14 +6206,14 @@ if (
 }
 
 if (
-  saveSettingsContent.includes('$aiKeyIsProtectedPlaceholder') &&
-  saveSettingsContent.includes('$existingAiKeyExpired') &&
-  saveSettingsContent.includes(
-    "unset($value['aiApiKey'], $value['aiKeySavedAt'], $value['aiKeyExpiresAt']);"
+  saveSettingsContent.includes('voncms_ai_prepare_stored_config($value, $existingApiConfig)') &&
+  aiProviderHelperContent.includes('voncms_ai_read_stored_key') &&
+  aiProviderHelperContent.includes(
+    "unset($result['aiApiKey'], $result['aiKeySavedAt'], $result['aiKeyExpiresAt']);"
   ) &&
   settingsManagerContent.includes('const isSavedAiKeyExpired') &&
   settingsManagerContent.includes('!Number.isFinite(aiKeyExpiresAtTime)') &&
-  settingsManagerContent.includes("aiApiKey: ''") &&
+  !settingsManagerContent.includes('apiWithoutExpiredKey') &&
   settingsManagerContent.includes('expiredAiKeyNotice') &&
   settingsManagerContent.includes('Saved Gemini API key expired. Enter a fresh key to continue.') &&
   !settingsManagerContent.includes('clearExpiredAiKeyFromSettings') &&
@@ -5595,11 +6221,11 @@ if (
   useAiWritingContent.includes('!Number.isFinite(aiKeyExpiresAtTime)')
 ) {
   pass(
-    'Expired AI Key Auto-Clear Contract: expired saved Gemini keys are removed from settings state/storage instead of staying as stale prompt-only keys.'
+    'Expired AI Key Preservation Contract: expired credentials stay masked and unusable without silent renewal or deletion; explicit replacement/removal owns persistence.'
   );
 } else {
   fail(
-    'Expired AI Key Auto-Clear Contract: expired Gemini keys can still remain saved after the 30-day boundary.'
+    'Expired AI Key Preservation Contract: expiry, masked-state preservation, or explicit replacement/removal is incomplete.'
   );
 }
 
@@ -5845,7 +6471,7 @@ assertIncludes(
   'HourGlass Editor Parent Echo History Guard',
   editorContent,
   [
-    'const currentEditorHtml = getCurrentEditorHtml();',
+    "const currentEditorHtml = editor.getHTML() || '';",
     'const currentCleanContent = cleanContent(currentEditorHtml);',
     'if (!revisionChanged && nextInitialContent === currentCleanContent)',
     'lastAppliedInitialContent.current = nextInitialContent;',
@@ -6049,7 +6675,8 @@ assertIncludes(
     'Content was updated elsewhere. Reload the editor before saving again.',
     'const error = Object.assign(',
     '{ status: res.status }',
-    'err?.status === 409',
+    "'status' in err && err.status === 409",
+    "getErrorMessage(err).includes('Content changed in another tab')",
     'notify.error(SAVE_CONFLICT_MESSAGE);',
     "updated_at' => $savedUpdatedAt",
     "updatedAt' => $savedUpdatedAt",
@@ -6115,13 +6742,13 @@ assertIncludes(
     '\n' +
     read('public/api/analytics_consent_helper.php'),
   [
-    'const analyticsAllowed = analyticsActive && analyticsTrackingAllowed(consentRequired);',
+    'const analyticsAllowed = analyticsPluginActive && analyticsTrackingAllowed(consentRequired);',
     "setting_key IN ('active_plugins', 'plugin_config')",
     "(setting_group = 'analytics' AND setting_key = 'config')",
     "in_array('vp_analytics', $activePlugins, true)",
-    "($cookies['von_consent'] ?? null) === 'true'",
-    '$recordAnalytics = voncms_native_analytics_allowed($pdo, $_COOKIE);',
-    'if ($recordAnalytics) {',
+    "($cookies['von_consent'] ?? null) !== 'true'",
+    '$recordAnalytics = voncms_native_analytics_allowed($pdo, $_COOKIE, $analyticsMode);',
+    'if ($recordAnalytics && is_string($analyticsMode)) {',
     "'view' => $viewRecorded",
     'const getConsentCookiePath = (): string => {',
     'SameSite=Lax',
@@ -6130,12 +6757,19 @@ assertIncludes(
   'Native Analytics Consent Boundary: native analytics can ignore consent, view counting can be lost, or the decision cookie can drift across installations.'
 );
 
+const publicTrackingInputs = sliceBetween(
+  read('src/plugins/von-core/features/public/PublicSite.tsx'),
+  '  const analyticsPluginActive =',
+  '  const requestedThemeId ='
+);
 try {
-  const trackingEffect = sliceBetween(
-    read('src/plugins/von-core/features/public/PublicSite.tsx'),
-    '  // Track page views (Monolithic Tracking)',
-    '  // Note: Shortcode support'
-  );
+  const trackingEffect =
+    publicTrackingInputs +
+    sliceBetween(
+      read('src/plugins/von-core/features/public/PublicSite.tsx'),
+      '  // Track page views (Monolithic Tracking)',
+      '  // Note: Shortcode support'
+    );
   if (!trackingEffect.includes('useEffect(')) throw new Error('Tracking effect not found');
   const compiledEffect = ts.transpileModule(trackingEffect, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
@@ -6155,6 +6789,7 @@ try {
           isSystemPluginActive: () => active,
           analyticsPluginActive: active,
           analyticsTrackingAllowed: () => accepted,
+          clearNativeAnalyticsIdentity: () => {},
           location: { pathname: '/zangetsu/article' },
           window: { location: { pathname: '/zangetsu/article' } },
           document: { referrer: 'https://referrer.example/' },
@@ -6186,6 +6821,78 @@ try {
   );
 } catch (error) {
   fail(`Public View Tracking Runtime: ${error.message}`);
+}
+
+try {
+  const effect = ts.transpileModule(
+    publicTrackingInputs +
+      sliceBetween(
+        read('src/plugins/von-core/features/public/PublicSite.tsx'),
+        '  // Track page views (Monolithic Tracking)',
+        '  // Note: Shortcode support'
+      ),
+    { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
+  ).outputText;
+  const consent = ts.transpileModule(read('src/utils/analyticsConsent.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const probe = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      `
+    const vm=require('node:vm'),assert=require('node:assert/strict');
+    const consentSource=${JSON.stringify(consent)}, effectSource=${JSON.stringify(effect)};
+    (async()=>{
+      for(const base of ['/','/zangetsu/']) {
+        const jar=new Map(), writes=[];
+        const document={referrer:'https://referrer.invalid/'};
+        Object.defineProperty(document,'cookie',{
+          get:()=>Array.from(jar,([k,v])=>k+'='+v).join('; '),
+          set:(value)=>{writes.push(value);const pair=value.split(';')[0],i=pair.indexOf('=');
+            if(value.includes('expires=Thu, 01 Jan 1970'))jar.delete(pair.slice(0,i));
+            else jar.set(pair.slice(0,i),pair.slice(i+1));}
+        });
+        const mod={exports:{}};
+        vm.runInNewContext(consentSource,{module:mod,exports:mod.exports,TextEncoder,document,
+          window:{location:{protocol:'https:'}},require:()=>({BASE_PATH:base})});
+        const helpers=mod.exports, name=helpers.nativeAnalyticsCookieName();
+        assert.equal(name,'von_analytics_id_'+Buffer.from(base).toString('hex'));
+        jar.set(name,'fixture');jar.set('von_analytics_id_other','other-site');
+        helpers.writeAnalyticsConsent(false);
+        assert(!jar.has(name));assert.equal(jar.get('von_analytics_id_other'),'other-site');
+        assert(writes.some(value=>value.startsWith(name+'=')&&value.includes('path='+base)&&value.endsWith(';Secure')));
+        for(const scenario of ['echo','blocked','cancel','withdraw','no-retry']) {
+          jar.delete(name);if(scenario!=='blocked')jar.set(name,'fixture');
+          let cleanup,calls=0,accepted=true;
+          const ctx={props:{settings:{analytics:{cookieConsent:true,measurementMode:'balanced'}},currentView:'home'},
+            analyticsPluginActive:true,isSystemPluginActive:()=>true,analyticsTrackingAllowed:()=>accepted,
+            clearNativeAnalyticsIdentity:helpers.clearNativeAnalyticsIdentity,nativeAnalyticsCookieName:helpers.nativeAnalyticsCookieName,
+            useEffect:callback=>{cleanup=callback();},location:{pathname:base},window:{location:{pathname:base}},document,
+            API:{trackMonolithic:base+'api/track_monolithic.php'},
+            vonFetch:async()=>{calls++;return {json:async()=>({retry:scenario!=='no-retry'})};}};
+          vm.runInNewContext(effectSource,ctx);
+          if(scenario==='cancel')cleanup();
+          if(scenario==='withdraw')accepted=false;
+          await new Promise(setImmediate);await new Promise(setImmediate);
+          assert.equal(calls,scenario==='echo'?2:1,base+scenario);
+          if(scenario==='withdraw')assert(!jar.has(name));
+          if(cleanup)cleanup();
+        }
+      }
+      console.log('ok');
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+  `,
+    ],
+    { encoding: 'utf8', timeout: 15000 }
+  );
+  if (probe.status !== 0 || probe.stdout.trim() !== 'ok')
+    throw new Error(probe.stderr || 'Client analytics probe failed');
+  pass(
+    'Balanced Analytics Client Runtime: root/subfolder cookie names, owner-only deletion, consent withdrawal, one retry with cookie echo, blocked cookies and canceled requests. VM transport, not a browser.'
+  );
+} catch (error) {
+  fail(`Balanced Analytics Client Runtime: ${error.message}`);
 }
 
 try {
@@ -6389,7 +7096,7 @@ assertIncludes(
     'const persistSettings = async (',
     'onUpdateSettings(nextSettings, { optimistic: false })',
     'const optimistic = options.optimistic !== false;',
-    'if (!optimistic) {',
+    'if (!optimistic || hasCredentialProjection) {',
     'const handleActivateTheme = async (themeId: string) => {',
     'if (!saved) return;',
     'setTheme(themeId);',
@@ -6801,9 +7508,9 @@ assertIncludes(
   [
     "const analyticsPluginActive = isSystemPluginActive(settings, 'vp_analytics');",
     '{analyticsPluginActive && <AnalyticsInjector analytics={settings.analytics} />}',
-    "const analyticsActive = isSystemPluginActive(props.settings, 'vp_analytics');",
-    'analyticsActive && analyticsTrackingAllowed(consentRequired)',
-    'if (!analyticsActive && !payload.postId && !payload.pageId) return;',
+    "const analyticsPluginActive = isSystemPluginActive(props.settings, 'vp_analytics');",
+    'analyticsPluginActive && analyticsTrackingAllowed(consentRequired)',
+    'if (!analyticsPluginActive && !payload.postId && !payload.pageId) return;',
     'const analyticsPluginActive = isSystemPluginActive(props.settings,',
     'cookieConsentRequired={',
     'analyticsPluginActive && (props.settings.analytics?.cookieConsent || false)',
@@ -7726,7 +8433,7 @@ assertIncludes(
     "$tempShield = $uploadDir . '.htaccess';",
     'Require all denied',
     '$hasMore = $processed >= $limit;',
-    'if (!$hasMore) {',
+    'if ($complete) {',
     '@unlink($filePath);',
   ],
   'WordPress Importer Temp File Boundary: scan temp XML uses random names, web-deny shielding, and final-batch cleanup.',
@@ -7752,7 +8459,9 @@ assertIncludes(
     'parsed?.version === CHECKPOINT_VERSION',
     'function voncms_wp_read_next_item(XMLReader $reader): ?DOMNode',
     'while (($node = voncms_wp_read_next_item($reader)) !== null)',
-    'while (($preScanNode = voncms_wp_read_next_item($preScanReader)) !== null)',
+    'voncms_wp_inspect_document($filePath)',
+    'voncms_wp_item_is_protected($sxe)',
+    'voncms_wp_finalize_links',
   ],
   'WordPress Importer Batch Consistency: supported WXR items share one offset/progress model, temp filenames stay scoped, and long requests release the admin session lock.',
   'WordPress Importer Batch Consistency: batching, progress, temp-file scope, or session concurrency markers are incomplete.'
@@ -8002,7 +8711,7 @@ assertIncludes(
   'Editor Video Capability Save Path: safe iframe capabilities and persisted aspect state survive editor sanitization while broad data-* remains disabled.',
   'Editor Video Capability Save Path: editor sanitization can strip iframe capabilities/aspect state or enable broad data-* attributes.'
 );
-let editorSanitizerConfigRuntimePass = false;
+let editorSanitizerConfigRuntimePass;
 try {
   let capturedSanitizerConfig = null;
   let legacyFullscreenRestored = false;
@@ -8184,6 +8893,24 @@ if (
 const backupCompletionIndex = backupDbContent.indexOf(
   'writeBackupStream($backupStream, "-- End of backup\\n");'
 );
+if (
+  backupDbContent.includes('$createQuery->closeCursor();') &&
+  backupDbContent.indexOf('$createQuery->closeCursor();') <
+    backupDbContent.indexOf('$countQuery =') &&
+  backupDbContent.includes('$countQuery->closeCursor();') &&
+  backupDbContent.indexOf('$countQuery->closeCursor();') <
+    backupDbContent.indexOf('$stmt = $pdo->query("SELECT *') &&
+  backupDbContent.includes('$stmt->closeCursor();') &&
+  backupDbContent.includes('$activeStatement->closeCursor();')
+) {
+  pass(
+    'Database Backup Cursor Source Contract: metadata/count results close before the next query and interrupted rows have cleanup; actual MySQL execution is a separate opt-in fixture.'
+  );
+} else {
+  fail(
+    'Database Backup Cursor Source Contract: an unbuffered statement can remain active before the next query or after failure.'
+  );
+}
 const backupDownloadHeaderIndex = backupDbContent.indexOf(
   "header('Content-Type: application/sql');"
 );
@@ -8248,7 +8975,7 @@ const phpStaticAnalysisMetadataContracts = [
     file: 'public/api/submit_contact.php',
     markers: [
       '@param string $template',
-      '@param array<string, mixed> $data',
+      '@param array<string, string> $data',
       '@param PDO|null $pdo',
     ],
   },
@@ -8262,11 +8989,10 @@ const phpStaticAnalysisMetadataContracts = [
     ],
   },
   {
-    file: 'public/api/tools/wp_scan.php',
+    file: 'public/api/tools/wp_wxr_reader_helper.php',
     markers: [
-      'function normalize_scan_url($url)',
-      'function get_url_origin($url)',
-      '@param string $url',
+      'function voncms_wp_inspect_document(string $path): array',
+      'function voncms_wp_fields(SimpleXMLElement $item): ?SimpleXMLElement',
     ],
   },
   {
@@ -8287,7 +9013,7 @@ const phpStaticAnalysisMetadataContracts = [
       '@param string $filePath',
       '@param string $publicPath',
       'function repairUploadsShield($publicPath, $projectRoot)',
-      "function repairDataShield($publicPath, $directory = 'data')",
+      "function repairDataShield(string $publicPath, string $directory = 'data'): array",
     ],
   },
   {
@@ -8311,7 +9037,7 @@ const phpStaticAnalysisMetadataContracts = [
       '@param array<string|int, string> $matches',
       '@return PDO|null',
       '@var array<string, array{absolute_dir: string, relative_dir: string, url_prefix: string}> $contexts',
-      '@var array<string, string> $cache',
+      '@var array<string, array{url: string, physical_path: string}> $cache',
       '@var array<string, string> $replacements',
     ],
   },
@@ -8326,7 +9052,7 @@ const phpStaticAnalysisMetadataContracts = [
   {
     file: 'public/api/mail_helper.php',
     markers: [
-      '@param array<string, mixed> $config',
+      '@param array<string, scalar|null> $config',
       '@param PDO $pdo',
       '@var resource|false $socket',
       '$getResponse =',
@@ -8356,8 +9082,8 @@ const phpStaticAnalysisMetadataContracts = [
     file: 'public/api/list_media.php',
     markers: [
       '@param int|float $bytes',
-      '@param array<int, array<string, mixed>> $files',
-      '@var array<int, array<string, mixed>> $files',
+      '@param array<int, array<string, scalar|null>> $files',
+      '@var array<int, array<string, scalar|null>> $files',
       '@var string $source',
     ],
   },
@@ -8378,7 +9104,8 @@ const phpStaticAnalysisMetadataContracts = [
       '$normalizeHost =',
       '@param string|null $host',
       '@param string|null $identifier',
-      '@param mixed $data',
+      '@template T',
+      '@param T $data',
       '@param PDO|null $pdo',
       '@var string|false|null $cachedInput',
       '@var array<int, string> $sensitivePatterns',
@@ -8413,7 +9140,7 @@ if (
   updateMediaContent.includes('exit(0);') &&
   updateMediaContent.includes("if ($_SERVER['REQUEST_METHOD'] !== 'POST') {") &&
   updateMediaContent.includes(
-    "voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')"
+    "voncms_role_has_capability(DataBoundary::userText('role'), 'media.access')"
   ) &&
   updateMediaContent.includes('CSRFProtection::requireToken();') &&
   updateMediaContent.includes("ResponseHelper::sendError('Media item not found', 404);") &&
@@ -9394,7 +10121,7 @@ assertIncludes(
     '\n' +
     schemaRepairHelperContent,
   [
-    "$search = trim((string) ($_GET['search'] ?? ''));",
+    "$search = trim(DataBoundary::inputText($_GET['search'] ?? ''));",
     'MATCH(p.title, p.content) AGAINST(:searchTerm IN BOOLEAN MODE)',
     'LIKE :searchLike',
     'FULLTEXT INDEX ft_title_content (title, content)',
@@ -9488,16 +10215,14 @@ assertIncludes(
 );
 
 assertIncludes(
-  'Comments Live Avatar Fallback',
+  'Comments Live Avatar Privacy',
   getCommentsContent,
   [
-    "$commentAvatar = !empty($c['userId'])",
-    "? $c['user_live_avatar'] ?? ''",
-    ": $c['user_live_avatar'] ?? ($c['userAvatar'] ?? '')",
+    "$commentAvatar = $c['user_live_avatar'] ?? ''",
     "'userAvatar' => ResponseHelper::scrubAvatarUrl($commentAvatar)",
   ],
-  'Comments Live Avatar Fallback: account comments use the current profile avatar and can fall back cleanly after a custom URL is cleared.',
-  'Comments Live Avatar Fallback: account comments can still return stale saved external avatar URLs after the profile avatar is cleared.'
+  'Comments Live Avatar Privacy: comments use only the current linked account avatar; guest URLs and cleared profile URLs are not emitted.',
+  'Comments Live Avatar Privacy: comments can return guest tracking URLs or stale saved avatar URLs.'
 );
 
 assertIncludes(
@@ -9554,7 +10279,7 @@ assertIncludes(
     'const optimisticUser = { ...updatedUser };',
     'delete optimisticUser.password;',
     'if (data.unchanged)',
-    '? { ...previousUser, ...data.user }',
+    '? { ...(previousUser || optimisticUser), ...data.user }',
     "$isNewUser = $inputId === '';",
     "ResponseHelper::sendError('Invalid user ID', 400)",
     "'unchanged' => true,",
@@ -9626,7 +10351,7 @@ const publicSsrSourceContent =
 
 assertIncludes(
   'Public Discussion Toggle Rendering',
-  publicCommentsContent + '\n' + indexContent + '\n' + getSettingsContent,
+  publicCommentsContent + '\n' + indexContent + '\n' + getSettingsPublicContractContent,
   [
     'const discussionEnabled = settings.discussionEnabled !== false;',
     'if (!discussionEnabled) {',
@@ -10971,11 +11696,11 @@ assertIncludes(
     "import React, { useMemo } from 'react';",
     'const relatedPostsSignature = allPosts',
     'const relatedPosts = useMemo(',
-    'findRelatedPosts(currentPost, allPosts, config, permalinkSettings.timeZone)',
-    'config.orderBy',
-    'config.count',
+    '{ id: currentId, category: currentCategory, keywords: currentKeywords }',
+    'const { orderBy, count } = config;',
+    '{ orderBy, count },',
     'permalinkSettings.timeZone',
-    'currentPost.id',
+    'currentId,',
     'relatedPostsSignature',
   ],
   'Related Posts Random Render Stability: random sorting is memoized by post, candidate set, and sort/count config so theme or profile UI state renders do not reshuffle related posts.',
@@ -11113,7 +11838,8 @@ assertIncludes(
     'const handleTouchEnd = (event: React.TouchEvent',
     'onTouchStart={handleTouchStart}',
     'onTouchEnd={handleTouchEnd}',
-    'deltaX < 0 ? next() : prev();',
+    'if (deltaX < 0) next();',
+    'else prev();',
   ],
   'Public Lightbox Mobile Swipe Contract: post-content gallery lightbox supports guarded left/right swipe navigation on mobile.',
   'Public Lightbox Mobile Swipe Contract: global post-content lightbox can still open without touch swipe navigation.'
@@ -11558,12 +12284,17 @@ assertIncludes(
     'MAX_PROCESSING_PIXELS',
     'hasProcessingMemoryBudget',
     'processing would exceed the safe memory budget',
-    'imagedestroy($sourceImage)',
-    'imagedestroy($variantImage)',
+    'unset($sourceImage)',
+    'unset($variantImage)',
   ],
   'Media Processing Memory Guard: GD decoding and variant loops enforce a bounded memory budget and release image buffers.',
   'Media Processing Memory Guard: compressed high-dimension uploads can still reach unbounded GD allocation.'
 );
+if (/\bimagedestroy\s*\(/.test(imageProcessorContent)) {
+  fail('GD Object Lifecycle: deprecated image destruction calls remain in the processor.');
+} else {
+  pass('GD Object Lifecycle: PHP GD objects are released without deprecated destruction calls.');
+}
 
 const siteUtilsImageContent = read('src/utils/siteUtils.ts');
 assertIncludes(
@@ -11668,7 +12399,9 @@ assertIncludes(
   'Ads Manager Style Tag Containment Contract',
   sharedAdBlockContent,
   [
-    '/<(script|iframe|style|form|input|button|select|textarea)(?:\\s|\\/?>)/i.test(safeContent)',
+    '/<(script|iframe|style|form|input|button|select|textarea)(?:\\s|\\/?>)/i.test(',
+    'boundedContent !== isolatedContent',
+    'preserveSandboxedAdStyles: true',
     'if (!requiresIsolation)',
   ],
   'Ads Manager Style Tag Containment Contract: stylesheet tags use the same sandbox as executable snippets instead of sharing the parent page.',
@@ -12518,7 +13251,7 @@ assertIncludes(
   'Single Post ID Parameter Type Guard',
   read('public/api/get_post.php'),
   [
-    "isset($_GET['id']) ? trim((string) $_GET['id']) : null",
+    "isset($_GET['id']) ? trim(DataBoundary::inputText($_GET['id'])) : null",
     "preg_match('/^\\d+$/', $id)",
     "ResponseHelper::sendError('Post ID must be numeric; use slug parameter for slugs', 400);",
     "if ($id !== null && $id !== '') {",
@@ -12883,7 +13616,10 @@ if (
   themeImageContent.includes('onError={handleError}') &&
   themeImageContent.includes("'loading' | 'loaded' | 'failed'") &&
   publicSiteContent.includes('analyticsPluginActive,') &&
-  publicSiteContent.includes('props.settings.analytics?.cookieConsent,') &&
+  publicSiteContent.includes(
+    'const consentRequired = Boolean(props.settings.analytics?.cookieConsent);'
+  ) &&
+  publicSiteContent.includes('consentRequired,') &&
   publicSiteContent.includes('location.pathname,') &&
   !publicSiteContent.includes(
     '[props.currentView, props.selectedPost?.id, props.selectedPage?.id, props.settings]'
@@ -13300,8 +14036,10 @@ assertIncludes(
   'Legacy Contact Settings Privacy Boundary',
   getSettingsContent + '\n' + saveSettingsContent,
   [
-    "if ($isAdmin && $key === 'forms')",
-    "if ($isAdmin && empty($settings['contactForms']))",
+    'if (!$isAdmin) {',
+    '$settings = voncms_build_public_settings_projection($pdo);',
+    "if ($key === 'forms')",
+    "if (empty($settings['contactForms']))",
     "($group === 'contact' && $dbKey === 'forms')",
   ],
   'Legacy Contact Settings Privacy Boundary: guest settings no longer expose legacy mail templates while admin migration fallback remains available.',
@@ -13328,7 +14066,10 @@ assertIncludes(
 
 const honeypotRateContracts = [
   ['public/api/login.php', /RateLimiter::requireAttempt\([^)]*\);/],
-  ['public/api/register.php', /RateLimiter::requireAttempt\([^)]*\);/],
+  [
+    'public/api/register.php',
+    /RateLimiter::consumeFixedWindow\(\s*\$registrationRateIdentifier,\s*5,\s*900,\s*'registration'\s*\)/,
+  ],
   [
     'public/api/reset_password.php',
     /RateLimiter::consumeFixedWindow\(\s*\$recoveryTrapIdentifier,\s*20,\s*900,\s*'recovery-trap',?\s*\)/,
@@ -13407,8 +14148,8 @@ assertIncludes(
   [
     'function voncms_project_public_admin_profile',
     "$publicAdminProfile = voncms_project_public_admin_profile($settings['adminProfile'] ?? null);",
-    'if ($adminProfilePublicEmail !== null) {',
-    "$publicAdminProfile['email'] = $adminProfilePublicEmail;",
+    'if ($publicAdminProfile !== null) {',
+    "'email' => trim((string) ($profile['email'] ?? ''))",
     "$settings['adminProfile'] = $publicAdminProfile;",
     "unset($settings['adminProfile']);",
     "ResponseHelper::scrubAvatarUrl((string) ($profile['avatar'] ?? ''))",
@@ -13714,7 +14455,8 @@ assertIncludes(
     'currentUsername === targetUsername',
     'return getUserDisplayRole(currentUser, fallback);',
     'const canAccessAdmin = isOwnProfile && isStaffUser(currentUser);',
-    'updatePublicProfileCache(nextUser.username, nextUser);',
+    'if (user) updatePublicProfileCache(user.username, user);',
+    'String(updates.id) !== String(current.id)',
     'isOwnUserProfile(currentUser, targetUser)',
     'const displayRole = getProfileDisplayRole(currentUser, displayUser);',
     '{getProfileDisplayRole(currentUser, localDisplayUser)}',
@@ -13781,13 +14523,18 @@ assertIncludes(
     read('public/api/save_comments.php') +
     read('public/api/update_profile.php') +
     read('public/api/save_user.php') +
-    read('src/plugins/von-core/features/public/components/Comments.tsx'),
+    read('src/plugins/von-core/features/public/components/Comments.tsx') +
+    read('src/components/SafeImage.tsx'),
   [
     'public static function scrubAvatarUrl',
     "preg_match('/^(javascript|data):/i', $url)",
     "preg_match('/^https:\\/\\//i', $url)",
     'ResponseHelper::scrubAvatarUrl(',
-    'onError={() => setImageFailed(true)}',
+    '<SafeImage',
+    'fallback={',
+    'setHasFailed(false);',
+    '}, [safeSrc]);',
+    'setHasFailed(true);',
   ],
   'Avatar URL Safety Boundary: avatar inputs/outputs use HTTPS-or-local scrubbing and public avatar images fall back after load failure.',
   'Avatar URL Safety Boundary: unsafe avatar schemes or broken public avatar images can still leak into rendering.'
@@ -14210,7 +14957,7 @@ assertIncludes(
 assertExcludes(
   'Post Breadcrumb Schema Domain Contract',
   categorySeoPublicIndexContent,
-  ["\$schemaData['breadcrumb'] = ["],
+  ["$schemaData['breadcrumb'] = ["],
   'Post Breadcrumb Schema Domain Contract: SSR keeps BreadcrumbList outside Article properties.',
   'Post Breadcrumb Schema Domain Contract: SSR still assigns BreadcrumbList to the Article breadcrumb property instead of emitting a standalone graph node.'
 );
@@ -14256,9 +15003,8 @@ assertIncludes(
 );
 
 const publicTableRule =
-  contentRendererContent.match(
-    /\.prose table, \.voncms-content table \{[\s\S]*?\n        \}/
-  )?.[0] || '';
+  contentRendererContent.match(/\.prose table, \.voncms-content table \{[\s\S]*?\n {8}\}/)?.[0] ||
+  '';
 if (
   publicTableRule &&
   !publicTableRule.includes('display: block') &&
@@ -14619,7 +15365,7 @@ if (
   );
 }
 
-let analyticsPrivacyRuntimePass = false;
+let analyticsPrivacyRuntimePass;
 try {
   const analyticsPrivacy = loadTsModuleForSmokeWithMocks(
     'src/utils/analyticsPrivacy.ts',
@@ -14674,7 +15420,9 @@ if (
 }
 
 if (
-  cronPublishContent.includes("$providedKey = (string) ($_SERVER['HTTP_X_CRON_KEY'] ?? '');") &&
+  cronPublishContent.includes(
+    "$providedKey = DataBoundary::serverString('HTTP_X_CRON_KEY', '');"
+  ) &&
   !cronPublishContent.includes("$_GET['key']") &&
   read('docs/API.md').includes('The endpoint accepts the key only through `X-Cron-Key`')
 ) {
@@ -14708,7 +15456,7 @@ if (
   cronPublishContent.includes('voncms_apply_site_timezone($pdo ?? null);') &&
   (getPostsContent.includes('voncms_apply_site_timezone($pdo ?? null);') ||
     getPostsContent.includes('voncms_apply_site_timezone($db);')) &&
-  getPostContent.includes('voncms_apply_site_timezone($pdo ?? null);') &&
+  getPostContent.includes('voncms_apply_site_timezone($pdo);') &&
   savePostContent.includes('voncms_apply_site_timezone($pdo ?? null);')
 ) {
   pass(
@@ -14758,7 +15506,7 @@ assertIncludes(
   'Post Object Authorization Guard',
   savePostContent + '\n' + deletePostContent,
   [
-    "$currentUser = $_SESSION['user'] ?? null;",
+    '$currentUser = DataBoundary::actor();',
     '$isPostOwner =',
     "(string) ($ownerPost['author_id'] ?? '') === (string) ($currentUser['id'] ?? '');",
     "$canEditAnyPost = voncms_role_has_capability($currentRole, 'posts.edit_any');",
@@ -14850,7 +15598,8 @@ assertIncludes(
   'Editor SEO Score Input Contract',
   postEditorContent + '\n' + seoAnalyzerContent,
   [
-    "item.metaDescription || item.excerpt || ''",
+    "const seoDescription = item?.metaDescription || item?.excerpt || '';",
+    'analyzeSEO(seoTitle, seoDescription, seoContent, seoKeywords)',
     'item?.excerpt',
     'const visibleText = getSeoVisibleText(safeContent);',
     'const wordCount = visibleText ? visibleText.split(/\\s+/).length : 0;',
@@ -14883,7 +15632,8 @@ assertIncludes(
   postEditorContent + '\n' + postEditorSeoPanelContent,
   [
     'const [isSeoRestoring, setIsSeoRestoring] = useState(',
-    'if (!item || isSeoRestoring) {',
+    'const hasSeoItem = Boolean(item);',
+    'if (!hasSeoItem || isSeoRestoring) {',
     'setSeoResult(null);',
     'const result = analyzeSEO(',
     'setIsSeoRestoring(needsFullContentRestore);',
@@ -15782,7 +16532,7 @@ assertIncludes(
     'Storage scans the upload tree, so keep it independent from analytics period changes.',
     '}, [currentUser?.role]);',
     'Fetch analytics when the selected reporting period changes.',
-    '}, [days, analyticsTab]);',
+    '}, [days, analyticsTab, reportMode]);',
   ],
   'Dashboard Media Scan Budget: upload traversal is independent from traffic-period changes.',
   'Dashboard Media Scan Budget: changing analytics periods can trigger another upload traversal.'
@@ -16197,8 +16947,8 @@ const headerIdentityPersistenceMarkers = [
   saveSettingsContent.includes(
     "$settings['headerIdentityMode'] = $legacyLogoAsTitle ? 'logo_only' : 'logo_and_text';"
   ),
-  getSettingsContent.includes("'header_identity_mode'"),
-  getSettingsContent.includes("'use_logo_as_title'"),
+  getSettingsPublicContractContent.includes("'header_identity_mode'"),
+  getSettingsPublicContractContent.includes("'use_logo_as_title'"),
   installApiContent.includes("['general', 'header_identity_mode', 'logo_and_text', 'string']"),
   installSqlContent.includes("('general', 'header_identity_mode', 'logo_and_text', 'string'"),
   publicIndexContent.includes("'headerIdentityMode'   => $headerIdentityMode"),
@@ -16286,7 +17036,7 @@ if (
   saveSettingsContent.includes(
     "['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean']"
   ) &&
-  getSettingsContent.includes("'invert_logo_in_dark_mode'") &&
+  getSettingsPublicContractContent.includes("'invert_logo_in_dark_mode'") &&
   publicInstallSqlContent.includes("('general', 'invert_logo_in_dark_mode', 'false', 'boolean'") &&
   installContent.includes("['general', 'invert_logo_in_dark_mode', 'false', 'boolean']") &&
   indexContent.includes("'invertLogoInDarkMode'") &&
@@ -16578,7 +17328,7 @@ assertIncludes(
   [
     "$hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();",
     '$currentRole = $hasValidSession',
-    '$currentUser = $hasValidSession ?',
+    "$hasValidSession && is_array($_SESSION['user'] ?? null) ? $_SESSION['user'] : null;",
     '$isLoggedIn = $hasValidSession;',
   ],
   'Active Session Consumer Revalidation Contract: draft-page visibility and comment identity consume current database-backed session authority.',
@@ -16614,7 +17364,7 @@ assertIncludes(
     'if ($rememberMe) {',
     'random_bytes(12)',
     'random_bytes(32)',
-    "hash('sha256', $rememberValidator)",
+    "hash('sha256', $validator)",
     "'voncms_remember'",
     "'samesite' => 'Lax'",
   ],
@@ -16919,13 +17669,17 @@ assertIncludes(
     'activateManagedReleaseDirectory',
     'restoreActivationJournal',
     'VONCMS_UPDATER_TESTING',
+    'private function prepareTemporaryDirectory(): void',
+    '$this->prepareTemporaryDirectory();',
     'private function cleanup(): bool',
-    '$this->removePath($this->tempPath)',
+    'private function removeTemporaryTree(): bool',
+    '$this->removeTemporaryTree()',
+    "$item !== '.htaccess'",
     'Cleanup deferred: temporary update files could not be removed',
     "in_array('docs', $filtered, true)",
     "in_array('metadata.json', $filtered, true)",
   ],
-  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed assets and docs, stage the full release with rollback recovery, and keep cleanup failures warning-free.',
+  'OTA Recovery Contract: updates are serialized, bounded, Deploy-package validated, replace release-managed assets and docs, stage the full release with rollback recovery, retain the HTTP shield until payload cleanup completes, and keep cleanup failures warning-free.',
   'OTA Recovery Contract: updater can still overlap jobs, trust arbitrary archives, retain retired assets or docs, leave a partial release, or emit cleanup warnings into JSON.'
 );
 assertExcludes(
@@ -17017,7 +17771,8 @@ assertIncludes(
     'interface ProfileUpdatePayload',
     'export function useProfileEditor',
     'Current password is required to change password',
-    'onUpdateUser(profileUpdates);',
+    'const savedUpdates = getSavedProfileUpdates(data.user, profileUpdates);',
+    'onUpdateUser({ ...savedUpdates, id: currentUser.id });',
   ],
   'Shared Profile Editor Contract: profile/password validation and persistence use one typed hook.',
   'Shared Profile Editor Contract: the shared typed profile/password save path is incomplete.'
@@ -17037,7 +17792,7 @@ assertExcludes(
   'Shared Profile Editor Consumers: duplicated profile persistence or untyped payload logic remains.'
 );
 if (
-  profileEditorHookContent.indexOf('onUpdateUser(profileUpdates);') >
+  profileEditorHookContent.indexOf('onUpdateUser({ ...savedUpdates, id: currentUser.id });') >
   profileEditorHookContent.indexOf('if (!response.ok || !data.success)')
 ) {
   pass('Profile Save State Contract: global user state updates only after backend success.');
@@ -17103,7 +17858,7 @@ assertIncludes(
   'Shared Theme Navigation Contract',
   portfolioNavigationContent,
   [
-    'const handleNavigationItem = (nav: any, closeMobileMenu = false) =>',
+    'const handleNavigationItem = (nav: NavItem, closeMobileMenu = false) =>',
     'handleNavigationItem(nav, true)',
   ],
   'Shared Theme Navigation Contract: Portfolio navigation variants share one action resolver.',
@@ -17537,7 +18292,6 @@ const v1268PublicNavigationLinkContent = read(
   'src/themes/shared/components/PublicNavigationLink.tsx'
 );
 const v1268SiteUtilsContent = read('src/utils/siteUtils.ts');
-const v1268GetSettingsContent = read('public/api/get_settings.php');
 const v1268ThemeNavigationContents = [
   read('src/themes/default/Layout.tsx'),
   read('src/themes/techpress/Layout.tsx'),
@@ -17577,8 +18331,8 @@ const v1268ProfileCardContents = [
 const v1268PrismProfileContent = v1268ProfileCardContents[2];
 const v12610AccountProfileContents = v1268ThemeNavigationContents.slice(0, 5);
 const v12610NotFoundContent = read('src/components/NotFoundPage.tsx');
-let v1268PublicNavigationRuntimePass = false;
-let v12610PublicLinkBehaviorRuntimePass = false;
+let v1268PublicNavigationRuntimePass;
+let v12610PublicLinkBehaviorRuntimePass;
 try {
   const navigationRuntime = loadTsModuleForSmokeWithMocks(
     'src/utils/siteUtils.ts',
@@ -17801,6 +18555,49 @@ if (
 
 const phpBinary = findPhpBinary();
 if (phpBinary) {
+  const phpMinimumFailures = [];
+  for (const file of phpMinimumGuardFiles) {
+    const guard = read(file).match(
+      /if \(version_compare\(PHP_VERSION, '8\.2\.0', '<'\)\) \{[\s\S]*?\n\}/
+    )?.[0];
+    if (!guard) {
+      phpMinimumFailures.push(`${file}: guard missing`);
+      continue;
+    }
+    for (const version of ['8.1.99', '8.2.0', '8.2.99', '8.3.0', '8.5.12']) {
+      const shouldAccept = version !== '8.1.99';
+      const probe = spawnSync(
+        phpBinary,
+        [
+          '-r',
+          guard.replace(/\bPHP_VERSION\b/g, JSON.stringify(version)) +
+            "\necho 'PHP_MINIMUM_ACCEPTED';",
+        ],
+        { encoding: 'utf8', timeout: 10000 }
+      );
+      const stdout = String(probe.stdout || '');
+      const accepted = stdout.trim() === 'PHP_MINIMUM_ACCEPTED';
+      if (
+        probe.status !== 0 ||
+        String(probe.stderr || '').trim() ||
+        accepted !== shouldAccept ||
+        (!shouldAccept && !stdout.includes('PHP 8.2'))
+      ) {
+        phpMinimumFailures.push(`${file}: ${version}`);
+      }
+    }
+  }
+  if (phpMinimumFailures.length === 0) {
+    pass(
+      'PHP Minimum Guard Runtime: 15 isolated simulated-version cases reject PHP below 8.2 and accept 8.2/8.3/8.5 before application startup.'
+    );
+  } else {
+    fail(`PHP Minimum Guard Runtime: incorrect guard results in ${phpMinimumFailures.join(', ')}.`);
+  }
+} else {
+  warn('PHP Minimum Guard Runtime: PHP unavailable; simulated-version execution was not run.');
+}
+if (phpBinary) {
   const numericRoutesProbe = spawnSync(
     phpBinary,
     [resolveFromRoot('server/integration/public-numeric-routes.php')],
@@ -17844,6 +18641,15 @@ if (phpBinary) {
     warn(warning.slice(5));
 }
 if (phpBinary) {
+  const credentialProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/credential-storage.php')],
+    { encoding: 'utf8' }
+  );
+  if (credentialProbe.status === 0) pass(credentialProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('Credential Storage: ' + (credentialProbe.stderr || credentialProbe.stdout).trim());
+}
+if (phpBinary) {
   const maintenanceProbe = spawnSync(
     phpBinary,
     [resolveFromRoot('server/integration/maintenance-boundaries.php')],
@@ -17866,6 +18672,21 @@ if (phpBinary) {
       'API Action Boundaries: ' +
         (actionBoundariesProbe.stderr || actionBoundariesProbe.stdout).trim()
     );
+}
+if (phpBinary) {
+  const bridgeProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/wordpress-bridge.php')],
+    { encoding: 'utf8', timeout: 120000 }
+  );
+  if (bridgeProbe.status === 0 && !bridgeProbe.stderr.trim()) {
+    pass(bridgeProbe.stdout.trim());
+  } else {
+    fail(
+      'WordPress Bridge runtime: ' +
+        (bridgeProbe.stderr || bridgeProbe.stdout || bridgeProbe.error || 'process failed')
+    );
+  }
 }
 if (phpBinary) {
   const publicPluginSettingsProbe = spawnSync(
@@ -18052,7 +18873,7 @@ if (!str_starts_with($mode, 'comment-mixed-') && $mode !== 'comment-guest-bulk')
   require_once ${JSON.stringify(resolveFromRoot('server/integration/sqlite-compat.php'))};
   class LoginCommentProbePdo extends VonCmsFixtureSqlitePDO {
     public function prepare(string $query, array $options = []): PDOStatement|false {
-      return parent::prepare(str_replace('DATE_ADD(NOW(), INTERVAL 30 DAY)', "datetime('now', '+30 days')", $query), $options);
+      return parent::prepare(str_replace(['DATE_ADD(NOW(), INTERVAL 30 DAY)', ' FOR UPDATE'], ["datetime('now', '+30 days')", ''], $query), $options);
     }
   }
   $pdo = new LoginCommentProbePdo('sqlite::memory:');
@@ -18300,7 +19121,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEP
         `192.0.2.${60 + i}`,
         200,
       ]),
-      ...Array.from({ length: 4 }, (_, i) => ['pair', 'pair@example.test', '192.0.2.70', 200]),
+      ...Array.from({ length: 4 }, () => ['pair', 'pair@example.test', '192.0.2.70', 200]),
       ['known', 'known@example.test', '192.0.2.71', 200],
     ];
     const recoveryResults = recoveryCases.map(([group, email, ip, expectedStatus]) => {
@@ -18380,6 +19201,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api/reset_password.php'
     }
   } finally {
     if (!path.resolve(loginCommentFixture).startsWith(path.resolve(os.tmpdir()) + path.sep)) {
+      // eslint-disable-next-line no-unsafe-finally -- Refusing an unowned cleanup path is more important than preserving an earlier test error.
       throw new Error('Unsafe auth/comment fixture cleanup path');
     }
     fs.rmSync(loginCommentFixture, { recursive: true, force: true });
@@ -18407,6 +19229,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api/reset_password.php'
   )?.[0];
   const domainOwnershipProbe = spawnSync(phpBinary, ['-n'], {
     input: `<?php
+require ${JSON.stringify(resolveFromRoot('public/core/DataBoundary.php').replace(/\\/g, '/'))};
 class ResponseHelper {
   public static function sendError($message, $status) { throw new RuntimeException($message, $status); }
 }
@@ -18699,6 +19522,15 @@ echo 'included';`,
   );
   const analyticsConsentApiDir = path.join(analyticsConsentFixture, 'api');
   fs.mkdirSync(analyticsConsentApiDir, { recursive: true });
+  fs.mkdirSync(path.join(analyticsConsentFixture, 'core'));
+  fs.copyFileSync(
+    resolveFromRoot('public/core/DataBoundary.php'),
+    path.join(analyticsConsentFixture, 'core/DataBoundary.php')
+  );
+  fs.copyFileSync(
+    resolveFromRoot('public/core/RateLimiter.php'),
+    path.join(analyticsConsentFixture, 'core/RateLimiter.php')
+  );
   for (const file of [
     'track_monolithic.php',
     'track_visit.php',
@@ -18718,6 +19550,8 @@ echo 'included';`,
   fs.writeFileSync(
     path.join(analyticsConsentFixture, 'security.php'),
     `<?php
+define('VONCMS_CORE_LOADED', true);
+require_once __DIR__ . '/core/RateLimiter.php';
 function sendApiHeaders(string $methods): void {}
 $_SERVER['REQUEST_METHOD'] = getenv('VON_TRACK_METHOD') ?: 'POST';
 $_SERVER['HTTP_USER_AGENT'] = 'VonCMS consent runtime probe';
@@ -18964,7 +19798,9 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
         let result = null;
         try {
           result = JSON.parse(probe.stdout.trim());
-        } catch {}
+        } catch {
+          // The null result is rejected by the assertion below.
+        }
         if (
           probe.status !== 0 ||
           probe.stderr.trim() !== '' ||
@@ -19004,7 +19840,9 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
         let result = null;
         try {
           result = JSON.parse(probe.stdout.trim());
-        } catch {}
+        } catch {
+          // The null result is rejected by the assertion below.
+        }
         if (
           probe.status !== 0 ||
           probe.stderr.trim() !== '' ||
@@ -19542,7 +20380,7 @@ require ${JSON.stringify(resolveFromRoot('public/api/update_profile.php'))};`,
       break;
     }
     const stateMatch = profilePasswordProbe.stdout.match(/PROFILE_PASSWORD_STATE:(\{[^\r\n]+\})/);
-    let state = null;
+    let state;
     try {
       state = stateMatch ? JSON.parse(stateMatch[1]) : null;
     } catch {
@@ -19781,6 +20619,7 @@ Promise.all(Array.from({ length: 24 }, () => new Promise((resolve, reject) => {
     }
   } finally {
     if (!path.resolve(recoveryConcurrentDir).startsWith(path.resolve(os.tmpdir()) + path.sep))
+      // eslint-disable-next-line no-unsafe-finally -- Never delete an unowned path, even while another assertion is failing.
       throw new Error('Unsafe recovery concurrency cleanup path');
     fs.rmSync(recoveryConcurrentDir, { recursive: true, force: true });
   }
@@ -19797,6 +20636,10 @@ require ${JSON.stringify(resolveFromRoot('public/security.php'))};
 $valid = file_get_contents(${JSON.stringify(resolveFromRoot('public/.htaccess'))});
 if ($valid === false || !SecurityHelper::hasRequiredHtaccessDirectives($valid)) {
   exit(2);
+}
+$missingOtaShield = str_replace('RewriteRule ^(?:public/)?temp_update(?:/|$) - [F,L,NC]', '', $valid);
+if (SecurityHelper::hasRequiredHtaccessDirectives($missingOtaShield)) {
+  exit(13);
 }
 $missingSlugShield = str_replace('|content_slug_helper', '', $valid);
 if (SecurityHelper::hasRequiredHtaccessDirectives($missingSlugShield)) {
@@ -19924,7 +20767,7 @@ register_shutdown_function(static function () use ($tempDir) {
   @unlink($tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php');
   @unlink($tempDir . DIRECTORY_SEPARATOR . 'von_config.php');
   @unlink($tempDir . DIRECTORY_SEPARATOR . 'security.php');
-  foreach (['InstallBootstrap', 'ContentViewDeduplicator', 'RateLimiter', 'ResponseHelper'] as $module) @unlink($tempDir . '/core/' . $module . '.php');
+  foreach (${JSON.stringify(coreSecurityModules)} as $module) @unlink($tempDir . '/core/' . $module . '.php');
   @rmdir($tempDir . '/core');
   @rmdir($tempDir . DIRECTORY_SEPARATOR . 'api');
   @rmdir($tempDir);
@@ -19933,7 +20776,7 @@ if (!copy(${JSON.stringify(resolveFromRoot('public/security.php'))}, $tempDir . 
   exit(4);
 }
 if (!mkdir($tempDir . '/core', 0700, true)) exit(8);
-foreach (['InstallBootstrap', 'ContentViewDeduplicator', 'RateLimiter', 'ResponseHelper'] as $module) {
+foreach (${JSON.stringify(coreSecurityModules)} as $module) {
   if (!copy(${JSON.stringify(resolveFromRoot('public/core'))} . '/' . $module . '.php', $tempDir . '/core/' . $module . '.php')) exit(9);
 }
 if (!copy(${JSON.stringify(resolveFromRoot('public/api/get_storage.php'))}, $tempDir . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'get_storage.php')) {
@@ -20312,7 +21155,7 @@ echo 'ok';`,
   }
 
   const rssSummaryAssignment = rssContent.match(
-    /  \$excerpt = voncms_pick_rss_description\(\$post, \$renderedContent\);/
+    / {2}\$excerpt = voncms_pick_rss_description\(\$post, \$renderedContent\);/
   )?.[0];
   const summaryTextProbe = spawnSync(
     phpBinary,
@@ -22036,7 +22879,7 @@ echo json_encode([
     ],
     { encoding: 'utf8' }
   );
-  let contentMetricsRuntimeResult = null;
+  let contentMetricsRuntimeResult;
   try {
     contentMetricsRuntimeResult = JSON.parse(contentMetricsRuntimeProbe.stdout.trim());
   } catch {
@@ -22069,11 +22912,11 @@ echo json_encode([
     schedulerDeployText.includes("$cutoffDate = new DateTimeImmutable('now');")
   ) {
     pass(
-      'PHP 8.2 Scheduler Compatibility: Source and Deploy separate DateTime creation from method chaining.'
+      'PHP 8.3 Scheduler Compatibility: Source and Deploy separate DateTime creation from method chaining.'
     );
   } else {
     fail(
-      'PHP 8.2 Scheduler Compatibility: scheduler helper uses PHP 8.4-only object dereferencing.'
+      'PHP 8.3 Scheduler Compatibility: scheduler helper uses PHP 8.4-only object dereferencing.'
     );
   }
 
@@ -22742,6 +23585,70 @@ try {
     'SEO Runtime Regressions: ' + (seoRegressionProbe.stderr || seoRegressionProbe.stdout).trim()
   );
 }
+
+// Analytics fixture transport begins.
+if (phpBinary) {
+  const analyticsModesProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/analytics-modes.php')],
+    { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 }
+  );
+  if (analyticsModesProbe.status === 0)
+    pass(analyticsModesProbe.stdout.trim().replace(/^PASS /, ''));
+  else if (analyticsModesProbe.status === 2)
+    warn('Analytics modes: NOT_RUN; required PDO driver unavailable.');
+  else
+    fail('Analytics modes: ' + (analyticsModesProbe.stderr || analyticsModesProbe.stdout).trim());
+} else {
+  warn('Analytics modes: NOT_RUN; PHP CLI unavailable.');
+}
+// Analytics fixture transport ends.
+
+try {
+  const launch = sliceBetween(
+    read('server/test-integration.cjs'),
+    '// Analytics fixture transport begins.',
+    '// Analytics fixture transport ends.'
+  );
+  for (const [binary, status] of [
+    [null, 0],
+    ['fixture-php', 0],
+    ['fixture-php', 2],
+    ['fixture-php', 1],
+  ]) {
+    const outcomes = [];
+    let calls = 0;
+    vm.runInNewContext(launch, {
+      phpBinary: binary,
+      resolveFromRoot: (file) => file,
+      spawnSync: () => {
+        calls++;
+        return { status, stdout: 'PASS fixture', stderr: '' };
+      },
+      pass: () => outcomes.push('pass'),
+      fail: () => outcomes.push('fail'),
+      warn: () => outcomes.push('not_run'),
+    });
+    const expected = !binary || status === 2 ? 'not_run' : status === 0 ? 'pass' : 'fail';
+    if (calls !== (binary ? 1 : 0) || outcomes.length !== 1 || outcomes[0] !== expected)
+      throw new Error('Incorrect analytics fixture prerequisite/failure handling');
+  }
+  pass(
+    'Analytics fixture runner: absent PHP/PDO remains NOT_RUN, success passes and real failures remain failures.'
+  );
+} catch (error) {
+  fail('Analytics fixture runner: ' + error.message);
+}
+
+const calendarProbe = spawnSync(process.execPath, [resolveFromRoot('server/test-calendar.cjs')], {
+  encoding: 'utf8',
+  env: { ...process.env, PHP_BIN: phpBinary },
+  maxBuffer: 2 * 1024 * 1024,
+});
+if (calendarProbe.status === 0) pass(calendarProbe.stdout.trim().replace(/^PASS /, ''));
+else if (calendarProbe.status === 2)
+  warn('Calendar fixture: NOT_RUN; PHP SQLite/mbstring prerequisites unavailable.');
+else fail('Calendar fixture: ' + (calendarProbe.stderr || calendarProbe.stdout).trim());
 
 if (failed) {
   console.error(

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import {
   Package,
   Palette,
@@ -15,6 +16,7 @@ import AdminModal from '../../../../components/admin/AdminModal';
 import toast from 'react-hot-toast';
 import { SeoConfig, SiteSettings } from '../../../../types';
 import { useTheme } from '../../providers/VonProviders';
+import { THEME_DEFAULT } from '../themes/themeRegistry';
 import { DefaultThemeSettings } from './components/DefaultThemeSettings';
 import { PrismSettings } from './components/PrismSettings';
 import { TechPressSettings } from './components/TechPressSettings';
@@ -79,11 +81,19 @@ const SYSTEM_PLUGINS: ExtensionItem[] = AVAILABLE_PLUGINS.map((p) => ({
 
 const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdateSettings }) => {
   const { activeTheme, setTheme, availableThemes } = useTheme();
-  const [activeTab, setActiveTab] = useState<'plugins' | 'themes'>('themes');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'plugins' ? 'plugins' : 'themes';
+  const setActiveTab = (tab: 'plugins' | 'themes') => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('tab', tab);
+      return next;
+    });
+  };
   const [pluginItems, setPluginItems] = useState<ExtensionItem[]>(SYSTEM_PLUGINS);
   const [searchQuery, setSearchQuery] = useState('');
   const [configuringPluginId, setConfiguringPluginId] = useState<string | null>(null);
-  const [tempConfig, setTempConfig] = useState<Record<string, any>>({});
+  const [tempConfig, setTempConfig] = useState<object>({});
 
   // Load plugin status from settings on mount
   React.useEffect(() => {
@@ -117,16 +127,25 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   }, [settings]);
 
   // Map themes to ExtensionItems
-  const themeItems: ExtensionItem[] = availableThemes.map((theme) => ({
-    id: theme.id,
-    name: theme.name,
-    description: theme.description,
-    version: theme.version,
-    author: theme.author,
-    type: 'theme',
-    status: theme.id === activeTheme.id ? 'active' : 'inactive',
-    image: `https://placehold.co/600x400/${theme.extendedConfig.colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(theme.name)}`,
-  }));
+  const themeItems: ExtensionItem[] = availableThemes.map((theme) => {
+    const savedStatus = settings.pluginConfig?.pluginStatus?.[theme.id];
+    return {
+      id: theme.id,
+      name: theme.name,
+      description: theme.description,
+      version: theme.version,
+      author: theme.author,
+      type: 'theme',
+      // Preserve the current selection over legacy markers; Default is always available.
+      status:
+        theme.id === activeTheme.id
+          ? 'active'
+          : theme.id !== THEME_DEFAULT.id && savedStatus === 'not_installed'
+            ? 'not_installed'
+            : 'inactive',
+      image: `https://placehold.co/600x400/${theme.extendedConfig.colors.primary.replace('#', '')}/ffffff?text=${encodeURIComponent(theme.name)}`,
+    };
+  });
 
   const allItems = activeTab === 'themes' ? themeItems : pluginItems;
 
@@ -156,6 +175,9 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   };
 
   const handleActivateTheme = async (themeId: string) => {
+    if (!themeItems.some((theme) => theme.id === themeId && theme.status !== 'not_installed')) {
+      return;
+    }
     const currentSettings = settingsSnapshotRef.current;
     const saved = await persistSettings(
       {
@@ -226,7 +248,11 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   };
 
   const handleInstall = async (id: string) => {
-    const confirm = window.confirm('Install this extension?');
+    const item = allItems.find((extension) => extension.id === id);
+    if (!item || item.status !== 'not_installed') return;
+    const confirm = window.confirm(
+      `Install ${item.name}? Saved settings will be restored. Activate it separately when ready.`
+    );
     if (confirm) {
       const currentSettings = settingsSnapshotRef.current;
       const currentPluginStatus = currentSettings.pluginConfig?.['pluginStatus'] || {};
@@ -245,28 +271,48 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       );
       if (!saved) return;
 
-      setPluginItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status: 'inactive' } : item))
+      if (item.type === 'plugin') {
+        setPluginItems((prev) =>
+          prev.map((plugin) => (plugin.id === id ? { ...plugin, status: 'inactive' } : plugin))
+        );
+      }
+      toast.success(
+        `${item.type === 'theme' ? 'Theme' : 'Plugin'} installed. Saved settings kept.`
       );
-      toast.success('Plugin installed!');
     }
   };
 
   const handleUninstall = async (id: string) => {
-    const confirm = window.confirm('Are you sure you want to uninstall this? Data may be lost.');
+    const item = allItems.find((extension) => extension.id === id);
+    if (!item || item.status === 'not_installed') return;
+    if (item.type === 'theme' && id === THEME_DEFAULT.id) {
+      toast.error('The Default theme must remain available as a fallback.');
+      return;
+    }
+    const currentSettings = settingsSnapshotRef.current;
+    const uninstallingActiveTheme =
+      item.type === 'theme' && id === (currentSettings.activeThemeId || activeTheme.id);
+    const confirm = window.confirm(
+      `Uninstall ${item.name}? Saved settings will be kept.${
+        uninstallingActiveTheme ? ` ${THEME_DEFAULT.name} will be activated instead.` : ''
+      }`
+    );
     if (confirm) {
-      const currentSettings = settingsSnapshotRef.current;
       const currentPluginStatus = currentSettings.pluginConfig?.['pluginStatus'] || {};
       const newPluginStatus = { ...currentPluginStatus };
       let newActivePlugins = [
         ...(Array.isArray(currentSettings.activePlugins) ? currentSettings.activePlugins : []),
       ];
-      newActivePlugins = newActivePlugins.filter((pId) => pId !== id);
+      if (item.type === 'plugin') {
+        newActivePlugins = newActivePlugins.filter((pId) => pId !== id);
+      }
       newPluginStatus[id] = 'not_installed';
+      if (uninstallingActiveTheme) newPluginStatus[THEME_DEFAULT.id] = 'inactive';
 
       const saved = await persistSettings(
         {
           ...currentSettings,
+          ...(uninstallingActiveTheme ? { activeThemeId: THEME_DEFAULT.id } : {}),
           activePlugins: newActivePlugins,
           pluginConfig: {
             ...currentSettings.pluginConfig,
@@ -277,10 +323,15 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       );
       if (!saved) return;
 
-      setPluginItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status: 'not_installed' } : item))
+      if (uninstallingActiveTheme) setTheme(THEME_DEFAULT.id);
+      if (item.type === 'plugin') {
+        setPluginItems((prev) =>
+          prev.map((plugin) => (plugin.id === id ? { ...plugin, status: 'not_installed' } : plugin))
+        );
+      }
+      toast.success(
+        `${item.type === 'theme' ? 'Theme' : 'Plugin'} uninstalled. Saved settings kept.`
       );
-      toast.success('Plugin uninstalled!');
     }
   };
 
@@ -634,6 +685,11 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         </button>
       </div>
 
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Uninstall keeps saved settings for reinstallation; it does not reset them. Bundled files
+        remain part of VonCMS.
+      </p>
+
       {/* Grid Content */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 2xl:grid-cols-3">
         {paginatedItems.map((item) => (
@@ -775,9 +831,17 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
 
                     <button
                       onClick={() => handleUninstall(item.id)}
-                      disabled={mutatingExtensionId !== null}
-                      className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:cursor-wait disabled:opacity-50"
-                      title="Uninstall"
+                      disabled={
+                        mutatingExtensionId !== null ||
+                        (item.type === 'theme' && item.id === THEME_DEFAULT.id)
+                      }
+                      className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      title={
+                        item.type === 'theme' && item.id === THEME_DEFAULT.id
+                          ? 'Default theme is required as a fallback'
+                          : 'Uninstall'
+                      }
+                      aria-label={`Uninstall ${item.name} (keep settings)`}
                     >
                       <Trash2 size={18} />
                     </button>

@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * Check Auth API - Verify if user has valid session
  * Returns user data if logged in, or error if not
@@ -24,12 +26,12 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 // Session already started in security.php
 
 // Check if user is logged in and session is valid
-if (isset($_SESSION['user']) && SessionManager::isValid()) {
+if (isset($_SESSION['user']) && SessionManager::isValid() && is_array($_SESSION['user'])) {
+  $user = $_SESSION['user'];
   // Touch session to extend expiry
   SessionManager::touch();
 
   // Return user data with scrubbed avatar URL
-  $user = $_SESSION['user'];
   if (!empty($user['avatar'])) {
     $user['avatar'] = ResponseHelper::scrubAvatarUrl($user['avatar']);
   }
@@ -45,7 +47,8 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
   ]);
 } else {
   $rememberCookieName = 'voncms_remember';
-  $rememberCookie = (string) ($_COOKIE[$rememberCookieName] ?? '');
+  $rawRememberCookie = $_COOKIE[$rememberCookieName] ?? '';
+  $rememberCookie = is_string($rawRememberCookie) ? $rawRememberCookie : '';
   $rememberSelector = '';
   $rememberRotationConflict = false;
 
@@ -70,7 +73,7 @@ if (isset($_SESSION['user']) && SessionManager::isValid()) {
            LIMIT 1",
         );
         $rememberStmt->execute([$rememberSelector]);
-        $rememberUser = $rememberStmt->fetch(PDO::FETCH_ASSOC);
+        $rememberUser = DataBoundary::row($rememberStmt->fetch(PDO::FETCH_ASSOC));
         $candidateHash = hash('sha256', $rememberValidator);
 
         if ($rememberUser && hash_equals((string) $rememberUser['token_hash'], $candidateHash)) {

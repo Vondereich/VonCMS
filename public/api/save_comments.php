@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Save Comments API
  * Saves comments to database
@@ -77,8 +79,8 @@ if ($action !== null) {
   if ($action === 'add') {
     CSRFProtection::requireToken();
     $commentRateIdentifier = $hasValidSession
-      ? 'comment:user:' . (string) ($_SESSION['user']['id'] ?? 0)
-      : 'comment:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+      ? 'comment:user:' . DataBoundary::userText('id')
+      : 'comment:ip:' . DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0');
     RateLimiter::requireAttempt($commentRateIdentifier);
   }
 }
@@ -144,7 +146,7 @@ if ($isLegacyBulkMigration) {
   }
 }
 // Check database connection
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   // Fallback to JSON storage (Legacy)
   $dataDir = __DIR__ . '/../data';
   $commentsFile = $dataDir . '/comments.json';
@@ -211,7 +213,7 @@ try {
         "SELECT setting_value FROM settings WHERE setting_key = 'discussion_enabled' LIMIT 1",
       );
       $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
+      $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
       if ($row && array_key_exists('setting_value', $row)) {
         $discussionEnabled = filter_var($row['setting_value'], FILTER_VALIDATE_BOOLEAN);
       }
@@ -225,19 +227,20 @@ try {
 
     // 1.3 Comment impersonation via client-supplied userId (Fix)
     // derive identity from session if logged in, otherwise force null/anonymous
-    $currentUser = $hasValidSession ? $_SESSION['user'] ?? null : null;
+    $currentUser =
+      $hasValidSession && is_array($_SESSION['user'] ?? null) ? $_SESSION['user'] : null;
     if (!SessionManager::isStaff()) {
       $postStmt = $pdo->prepare(
         "SELECT id FROM posts WHERE id = ? AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?) LIMIT 1",
       );
       $postStmt->execute([$postId, date('Y-m-d H:i:s')]);
-      if (!$postStmt->fetch(PDO::FETCH_ASSOC)) {
+      if (!DataBoundary::row($postStmt->fetch(PDO::FETCH_ASSOC))) {
         ResponseHelper::sendError('Post is not available for comments', 404);
       }
     }
     if ($currentUser) {
-      $userId = $currentUser['id'];
-      $username = $currentUser['username'] ?? 'User-' . $userId;
+      $userId = DataBoundary::scalar($currentUser['id']);
+      $username = $currentUser['username'] ?? 'User-' . (string) $userId;
       $userAvatar = ResponseHelper::scrubAvatarUrl($currentUser['avatar'] ?? '');
     } else {
       $userId = null;
@@ -254,7 +257,8 @@ try {
           400,
         );
       }
-      $userAvatar = ResponseHelper::scrubAvatarUrl($input['userAvatar'] ?? '');
+      // Guests cannot make every reader request an arbitrary tracking image.
+      $userAvatar = '';
     }
 
     // Flexible parentId handling (strips 'c-' or 'r-' prefixes)
@@ -263,7 +267,7 @@ try {
     if ($parentId) {
       $parentStmt = $pdo->prepare('SELECT post_id, status FROM comments WHERE id = ?');
       $parentStmt->execute([$parentId]);
-      $parentComment = $parentStmt->fetch(PDO::FETCH_ASSOC);
+      $parentComment = DataBoundary::row($parentStmt->fetch(PDO::FETCH_ASSOC));
 
       if (!$parentComment) {
         ResponseHelper::sendError('Parent comment not found', 404);
@@ -324,16 +328,19 @@ try {
         "SELECT setting_value FROM settings WHERE setting_key = 'spam_keywords' LIMIT 1",
       );
       $stmt->execute();
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-      if ($row && !empty($row['setting_value'])) {
+      $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
+      if ($row && is_string($row['setting_value']) && trim($row['setting_value']) !== '') {
         $keywordsString = $row['setting_value'];
       }
     } catch (Exception $e) {
       // Use default on error
     }
 
-    $spamKeywords = array_map('trim', explode(',', strtolower($keywordsString)));
-    $contentLower = strtolower($content);
+    $spamKeywords = array_filter(
+      array_map('trim', explode(',', mb_strtolower($keywordsString, 'UTF-8'))),
+      static fn(string $keyword): bool => $keyword !== '',
+    );
+    $contentLower = mb_strtolower($content, 'UTF-8');
     foreach ($spamKeywords as $keyword) {
       if (strpos($contentLower, $keyword) !== false) {
         if ($status !== 'spam') {
@@ -394,8 +401,7 @@ try {
 
   // Handle like/unlike
   if ($action === 'like') {
-    $currentUser = $_SESSION['user'] ?? null;
-    $currentUserId = isset($currentUser['id']) ? (int) $currentUser['id'] : 0;
+    $currentUserId = (int) DataBoundary::userText('id');
     if ($currentUserId <= 0) {
       ResponseHelper::sendError('Authentication required to like comments', 401);
     }
@@ -409,7 +415,7 @@ try {
 
     $commentExists = $pdo->prepare('SELECT id FROM comments WHERE id = ?');
     $commentExists->execute([$commentId]);
-    if (!$commentExists->fetch(PDO::FETCH_ASSOC)) {
+    if (!DataBoundary::row($commentExists->fetch(PDO::FETCH_ASSOC))) {
       ResponseHelper::sendError('Comment not found', 404);
     }
 
@@ -448,14 +454,15 @@ try {
     // SECURITY: Check ownership or staff status before delete
     $checkOwner = $pdo->prepare('SELECT user_id FROM comments WHERE id = ?');
     $checkOwner->execute([$commentId]);
-    $existingComment = $checkOwner->fetch(PDO::FETCH_ASSOC);
+    $existingComment = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
 
     if (!$existingComment) {
       ResponseHelper::sendError('Comment not found', 404);
     }
 
-    $currentUser = $_SESSION['user'] ?? null;
-    $isOwner = $currentUser && (string) $existingComment['user_id'] === (string) $currentUser['id'];
+    $isOwner =
+      DataBoundary::userText('id') !== '' &&
+      (string) $existingComment['user_id'] === DataBoundary::userText('id');
     $isStaff = SessionManager::isStaff();
 
     if (!$isOwner && !$isStaff) {
@@ -562,20 +569,23 @@ try {
       if (isset($comment['replies']) && is_array($comment['replies'])) {
         $parentId = $pdo->lastInsertId();
         foreach ($comment['replies'] as $reply) {
+          if (!is_array($reply)) {
+            ResponseHelper::sendError('Invalid comments migration payload', 400);
+          }
           $rPostId = isset($reply['postId'])
-            ? intval(preg_replace('/[^0-9]/', '', (string) $reply['postId']))
+            ? intval(preg_replace('/[^0-9]/', '', DataBoundary::inputText($reply['postId'])))
             : $postId;
           $rUserId = isset($reply['userId']) ? $reply['userId'] : null;
           $rUsername = isset($reply['username'])
-            ? htmlspecialchars((string) $reply['username'], ENT_QUOTES, 'UTF-8')
+            ? htmlspecialchars(DataBoundary::inputText($reply['username']), ENT_QUOTES, 'UTF-8')
             : 'Anonymous';
-          $rUserAvatar = ResponseHelper::scrubAvatarUrl((string) ($reply['userAvatar'] ?? ''));
+          $rUserAvatar = ResponseHelper::scrubAvatarUrl($reply['userAvatar'] ?? '');
           $rContent = isset($reply['content'])
-            ? htmlspecialchars((string) $reply['content'], ENT_QUOTES, 'UTF-8')
+            ? htmlspecialchars(DataBoundary::inputText($reply['content']), ENT_QUOTES, 'UTF-8')
             : '';
-          $rLikes = isset($reply['likes']) ? intval($reply['likes']) : 0;
+          $rLikes = isset($reply['likes']) ? DataBoundary::inputInt($reply['likes']) : 0;
           $rCreatedAt = isset($reply['createdAt'])
-            ? (string) $reply['createdAt']
+            ? DataBoundary::inputText($reply['createdAt'])
             : date('Y-m-d H:i:s');
 
           $stmt = $pdo->prepare("INSERT INTO comments (post_id, user_id, parent_id, user_name, user_avatar, content, likes, status, created_at) 
@@ -607,7 +617,7 @@ try {
   // Handle other actions? No.
   ResponseHelper::sendError('Unknown action or invalid input', 400);
 } catch (Throwable $e) {
-  if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+  if ($pdo instanceof PDO && $pdo->inTransaction()) {
     $pdo->rollBack();
   }
   if (($action ?? '') === 'like' && voncms_schema_error_requires_repair($e)) {

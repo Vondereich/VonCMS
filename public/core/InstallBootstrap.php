@@ -3,7 +3,7 @@
 // Internal module only; even a server without rewrite rules must refuse direct requests.
 if (
   !defined('VONCMS_CORE_LOADED') ||
-  (isset($_SERVER['SCRIPT_FILENAME']) &&
+  (is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
     realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__))
 ) {
   http_response_code(403);

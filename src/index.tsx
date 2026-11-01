@@ -12,12 +12,12 @@ const suppressRechartsWarning = () => {
   const originalError = console.error;
   const pattern = 'The width(-1) and height(-1) of chart should be greater than 0';
 
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: unknown[]) => {
     if (args[0] && typeof args[0] === 'string' && args[0].includes(pattern)) return;
     originalWarn(...args);
   };
 
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     if (args[0] && typeof args[0] === 'string' && args[0].includes(pattern)) return;
     originalError(...args);
   };

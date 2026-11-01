@@ -2,14 +2,14 @@ import { PluginDefinition } from '../../../../../../types';
 import { RelatedPostsComponent } from './RelatedPostsComponent';
 import { RelatedPostsConfig } from './types';
 
-export const RelatedPostsPlugin: PluginDefinition = {
+export const RelatedPostsPlugin: PluginDefinition<RelatedPostsConfig> = {
   id: 'vp_related_posts',
   name: 'Related Posts',
-  version: '1.27',
+  version: '1.28',
   author: 'VonCMS Team',
   description: 'Show related articles based on category and tags',
 
-  render: (_location: any, config?: any) => {
+  render: (_location, config) => {
     if (_location !== 'post_after') return null;
 
     const relatedConfig: RelatedPostsConfig = config || {

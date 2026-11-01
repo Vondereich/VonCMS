@@ -1,5 +1,14 @@
 <?php
 
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 function voncms_schema_identifier(string $identifier): string
 {
   if (!preg_match('/^[A-Za-z0-9_]+$/', $identifier)) {
@@ -47,6 +56,7 @@ function voncms_schema_table_exists(PDO $pdo, string $table): bool
   return $stmt->fetchColumn() !== false;
 }
 
+/** @return array{engine?: string, collation?: string, charset?: string, non_utf8mb4_columns?: int} */
 function voncms_schema_table_storage(PDO $pdo, string $table): array
 {
   $safeTable = voncms_schema_identifier($table);
@@ -54,7 +64,7 @@ function voncms_schema_table_storage(PDO $pdo, string $table): array
     'SELECT ENGINE, TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1',
   );
   $stmt->execute([$safeTable]);
-  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
   if (!is_array($row)) {
     return [];
   }
@@ -75,6 +85,7 @@ function voncms_schema_table_storage(PDO $pdo, string $table): array
   ];
 }
 
+/** @param array{engine?: string, collation?: string, charset?: string, non_utf8mb4_columns?: int} $storage */
 function voncms_schema_table_storage_matches(array $storage): bool
 {
   return strtoupper((string) ($storage['engine'] ?? '')) === 'INNODB' &&
@@ -82,12 +93,18 @@ function voncms_schema_table_storage_matches(array $storage): bool
     (int) ($storage['non_utf8mb4_columns'] ?? -1) === 0;
 }
 
+/** @param array{engine?: string, collation?: string, charset?: string, non_utf8mb4_columns?: int} $storage */
 function voncms_schema_storage_has_charset_drift(array $storage): bool
 {
   return strtolower((string) ($storage['charset'] ?? '')) !== 'utf8mb4' ||
     (int) ($storage['non_utf8mb4_columns'] ?? -1) > 0;
 }
 
+/**
+ * @param list<string> $tables
+ * @param array<string, list<array{name: string, column: string, referenced_table: string, referenced_column: string, delete_rule: string}>> $storageForeignKeySpecs
+ * @return list<string>
+ */
 function voncms_schema_repair_table_storage(
   PDO $pdo,
   array $tables,
@@ -180,11 +197,12 @@ function voncms_schema_repair_table_storage(
   return $fixes;
 }
 
+/** @return array<array-key, array<array-key, scalar|null>> */
 function voncms_schema_column_map(PDO $pdo, string $table): array
 {
   $safeTable = voncms_schema_identifier($table);
   $stmt = $pdo->query("SHOW COLUMNS FROM `{$safeTable}`");
-  $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+  $rows = $stmt ? DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)) : [];
   $columns = [];
 
   foreach ($rows as $row) {
@@ -197,11 +215,12 @@ function voncms_schema_column_map(PDO $pdo, string $table): array
   return $columns;
 }
 
+/** @return array<array-key, array{name: string, unique: bool, type: string, columns: list<string>, sub_parts: list<int|null>, usable: bool}> */
 function voncms_schema_index_map(PDO $pdo, string $table): array
 {
   $safeTable = voncms_schema_identifier($table);
   $stmt = $pdo->query("SHOW INDEX FROM `{$safeTable}`");
-  $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+  $rows = $stmt ? DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)) : [];
   $indexes = [];
 
   foreach ($rows as $row) {
@@ -243,6 +262,7 @@ function voncms_schema_index_map(PDO $pdo, string $table): array
   return $indexes;
 }
 
+/** @return list<array{name: string, columns: list<string>, referenced_table: string, referenced_columns: list<string>, delete_rule: string, column: string, referenced_column: string}> */
 function voncms_schema_foreign_key_map(PDO $pdo, string $table): array
 {
   $safeTable = voncms_schema_identifier($table);
@@ -258,7 +278,7 @@ function voncms_schema_foreign_key_map(PDO $pdo, string $table): array
        AND k.REFERENCED_TABLE_NAME IS NOT NULL',
   );
   $stmt->execute([$safeTable]);
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $rows = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
   $groupedForeignKeys = [];
 
   foreach ($rows as $row) {
@@ -300,13 +320,26 @@ function voncms_schema_foreign_key_map(PDO $pdo, string $table): array
   return $foreignKeys;
 }
 
+/** @return array<string, list<array{name: string, columns: list<string>, unique: bool, type?: string}>> */
 function voncms_schema_runtime_index_specs(): array
 {
   return [
+    'calendar_events' => [
+      ['name' => 'idx_calendar_window', 'columns' => ['starts_at', 'ends_at'], 'unique' => false],
+      ['name' => 'unique_calendar_request', 'columns' => ['request_key'], 'unique' => true],
+    ],
+    'calendar_event_audit' => [
+      ['name' => 'unique_calendar_audit_request', 'columns' => ['request_key'], 'unique' => true],
+      ['name' => 'idx_calendar_audit_date', 'columns' => ['created_at', 'id'], 'unique' => false],
+    ],
     'remember_tokens' => [
       ['name' => 'selector', 'columns' => ['selector'], 'unique' => true],
       ['name' => 'idx_remember_user', 'columns' => ['user_id'], 'unique' => false],
       ['name' => 'idx_remember_expires', 'columns' => ['expires_at'], 'unique' => false],
+    ],
+    'analytics_sessions' => [
+      ['name' => 'unique_analytics_browser', 'columns' => ['visitor_hash'], 'unique' => true],
+      ['name' => 'idx_analytics_session_expiry', 'columns' => ['expires_at'], 'unique' => false],
     ],
     'analytics' => [
       ['name' => 'idx_date', 'columns' => ['visit_date'], 'unique' => false],
@@ -338,6 +371,7 @@ function voncms_schema_runtime_index_specs(): array
   ];
 }
 
+/** @return array<string, list<array{name: string, column: string, referenced_table: string, referenced_column: string, delete_rule: string}>> */
 function voncms_schema_runtime_foreign_key_specs(): array
 {
   return [
@@ -369,9 +403,12 @@ function voncms_schema_runtime_foreign_key_specs(): array
   ];
 }
 
+/** @return array<string, array{column: string, type: string}> */
 function voncms_schema_runtime_identity_specs(): array
 {
   return [
+    'calendar_events' => ['column' => 'id', 'type' => 'int'],
+    'calendar_event_audit' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'remember_tokens' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'analytics' => ['column' => 'id', 'type' => 'bigint'],
     'comment_likes' => ['column' => 'id', 'type' => 'int'],
@@ -382,15 +419,19 @@ function voncms_schema_runtime_identity_specs(): array
 
 function voncms_schema_normalize_column_type(string $type): string
 {
-  $normalized = strtolower(preg_replace('/\s+/', ' ', trim($type)));
+  $normalized = strtolower(preg_replace('/\s+/', ' ', trim($type)) ?? $type);
 
-  return preg_replace('/\b(tinyint|smallint|mediumint|int|bigint)\(\d+\)/', '$1', $normalized);
+  return preg_replace('/\b(tinyint|smallint|mediumint|int|bigint)\(\d+\)/', '$1', $normalized) ??
+    $normalized;
 }
 
 function voncms_schema_normalize_default(mixed $value): ?string
 {
   if ($value === null) {
     return null;
+  }
+  if (!is_scalar($value)) {
+    throw new InvalidArgumentException('Invalid schema default value.');
   }
 
   $normalized = strtolower(trim((string) $value));
@@ -401,6 +442,10 @@ function voncms_schema_normalize_default(mixed $value): ?string
   return $normalized;
 }
 
+/**
+ * @param array<array-key, scalar|null> $column
+ * @param array{type?: string, nullable?: bool, default?: scalar|null} $expected
+ */
 function voncms_schema_column_spec_matches(array $column, array $expected): bool
 {
   if (
@@ -425,6 +470,7 @@ function voncms_schema_column_spec_matches(array $column, array $expected): bool
   return true;
 }
 
+/** @return array<string, array{definition: string, type: string, nullable: bool, default: string|null}> */
 function voncms_schema_auth_column_specs(): array
 {
   return [
@@ -467,6 +513,10 @@ function voncms_schema_auth_column_specs(): array
   ];
 }
 
+/**
+ * @param array<array-key, scalar|null> $column
+ * @param array{column?: string, type?: string} $expected
+ */
 function voncms_schema_identity_matches(array $column, array $expected): bool
 {
   $type = voncms_schema_normalize_column_type((string) ($column['Type'] ?? ''));
@@ -478,6 +528,10 @@ function voncms_schema_identity_matches(array $column, array $expected): bool
   return $type === $expectedType && !$nullable && $isPrimary && $isAutoIncrement;
 }
 
+/**
+ * @param array{name?: string, type?: string, unique?: bool, columns?: array<int,string>, sub_parts?: array<int,int|null>} $index
+ * @param array{name?: string, type?: string, unique?: bool, columns?: array<int,string>} $expected
+ */
 function voncms_schema_index_matches(array $index, array $expected): bool
 {
   $typeMatches =
@@ -490,6 +544,10 @@ function voncms_schema_index_matches(array $index, array $expected): bool
     count(array_filter($index['sub_parts'] ?? [], static fn($part): bool => $part !== null)) === 0;
 }
 
+/**
+ * @param array{name?: string, type?: string, unique?: bool, columns?: array<int,string>, sub_parts?: array<int,int|null>} $index
+ * @param array{name?: string, type?: string, unique?: bool, columns?: array<int,string>} $expected
+ */
 function voncms_schema_index_conflicts(array $index, array $expected): bool
 {
   $indexName = strtolower((string) ($index['name'] ?? ''));
@@ -503,6 +561,10 @@ function voncms_schema_index_conflicts(array $index, array $expected): bool
     array_values($index['columns'] ?? []) === array_values($expected['columns'] ?? []);
 }
 
+/**
+ * @param array{name?: string, columns?: list<string>, referenced_columns?: list<string>, column?: string, referenced_table?: string, referenced_column?: string, delete_rule?: string} $foreignKey
+ * @param array{name?: string, column?: string, referenced_table?: string, referenced_column?: string, delete_rule?: string} $expected
+ */
 function voncms_schema_foreign_key_matches(array $foreignKey, array $expected): bool
 {
   return count($foreignKey['columns'] ?? []) === 1 &&
@@ -517,6 +579,10 @@ function voncms_schema_foreign_key_matches(array $foreignKey, array $expected): 
       strtoupper((string) ($expected['delete_rule'] ?? ''));
 }
 
+/**
+ * @param array{name?: string, columns?: list<string>, referenced_columns?: list<string>, column?: string, referenced_table?: string, referenced_column?: string, delete_rule?: string} $foreignKey
+ * @param array{name?: string, column?: string, referenced_table?: string, referenced_column?: string, delete_rule?: string} $expected
+ */
 function voncms_schema_foreign_key_conflicts(array $foreignKey, array $expected): bool
 {
   if (voncms_schema_foreign_key_matches($foreignKey, $expected)) {
@@ -532,6 +598,9 @@ function voncms_schema_foreign_key_conflicts(array $foreignKey, array $expected)
     );
 }
 
+/** @param list<string> $requiredColumns
+ * @return list<string>
+ */
 function voncms_schema_missing_columns(PDO $pdo, string $table, array $requiredColumns): array
 {
   if (!voncms_schema_table_exists($pdo, $table)) {
@@ -548,9 +617,39 @@ function voncms_schema_missing_columns(PDO $pdo, string $table, array $requiredC
   );
 }
 
+/** @return array<string, array{table: string, columns: list<string>}> */
 function voncms_schema_capability_manifest(): array
 {
   return [
+    'calendar_events' => [
+      'table' => 'calendar_events',
+      'columns' => [
+        'id',
+        'title',
+        'notes',
+        'starts_at',
+        'ends_at',
+        'all_day',
+        'created_by',
+        'request_key',
+        'version',
+        'created_at',
+        'updated_at',
+      ],
+    ],
+    'calendar_event_audit' => [
+      'table' => 'calendar_event_audit',
+      'columns' => [
+        'id',
+        'event_id',
+        'action',
+        'actor_id',
+        'actor_name',
+        'event_version',
+        'request_key',
+        'created_at',
+      ],
+    ],
     'registration' => [
       'table' => 'users',
       'columns' => [
@@ -593,6 +692,14 @@ function voncms_schema_capability_manifest(): array
         'created_at',
       ],
     ],
+    'analytics_measurement' => [
+      'table' => 'analytics',
+      'columns' => ['measurement_mode'],
+    ],
+    'analytics_sessions' => [
+      'table' => 'analytics_sessions',
+      'columns' => ['visitor_hash', 'last_seen', 'expires_at'],
+    ],
     'post_daily_views' => [
       'table' => 'post_daily_views',
       'columns' => ['post_id', 'view_date', 'views'],
@@ -633,6 +740,7 @@ function voncms_schema_capability_manifest(): array
   ];
 }
 
+/** @return list<string> */
 function voncms_schema_core_repair_tables(): array
 {
   return [
@@ -650,6 +758,7 @@ function voncms_schema_core_repair_tables(): array
   ];
 }
 
+/** @return array<string, array<string, array{definition: string, type: string, nullable?: bool, default?: string|null, allow_populated_modify?: string}>> */
 function voncms_schema_core_column_specs(): array
 {
   return [
@@ -817,6 +926,7 @@ function voncms_schema_core_column_specs(): array
   ];
 }
 
+/** @return array<string, list<array{name: string, columns: list<string>, unique: bool, type: string}>> */
 function voncms_schema_core_index_specs(): array
 {
   return [
@@ -860,6 +970,7 @@ function voncms_schema_core_index_specs(): array
   ];
 }
 
+/** @return array<string, list<array{name: string, column: string, referenced_table: string, referenced_column: string, delete_rule: string}>> */
 function voncms_schema_core_foreign_key_specs(): array
 {
   return [
@@ -891,6 +1002,7 @@ function voncms_schema_core_foreign_key_specs(): array
   ];
 }
 
+/** @return list<string> */
 function voncms_schema_missing_core_repair_items(PDO $pdo): array
 {
   $missing = [];
@@ -962,6 +1074,7 @@ function voncms_schema_missing_core_repair_items(PDO $pdo): array
   return $missing;
 }
 
+/** @return list<string> */
 function voncms_schema_missing_capability(PDO $pdo, string $capability): array
 {
   $manifest = voncms_schema_capability_manifest();
@@ -1075,9 +1188,37 @@ function voncms_schema_has_capability(PDO $pdo, string $capability): bool
   }
 }
 
+/** @return array<string, string> */
 function voncms_schema_runtime_table_sql(): array
 {
   return [
+    'calendar_events' => "CREATE TABLE IF NOT EXISTS calendar_events (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(200) NOT NULL,
+      notes TEXT NOT NULL,
+      starts_at DATETIME NOT NULL,
+      ends_at DATETIME NOT NULL,
+      all_day TINYINT(1) NOT NULL DEFAULT 0,
+      created_by INT NOT NULL,
+      request_key CHAR(36) NOT NULL,
+      version INT NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL,
+      UNIQUE KEY unique_calendar_request (request_key),
+      INDEX idx_calendar_window (starts_at, ends_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'calendar_event_audit' => "CREATE TABLE IF NOT EXISTS calendar_event_audit (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      event_id INT NOT NULL,
+      action VARCHAR(12) NOT NULL,
+      actor_id INT NOT NULL,
+      actor_name VARCHAR(100) NOT NULL,
+      event_version INT NOT NULL,
+      request_key CHAR(36) DEFAULT NULL,
+      created_at DATETIME NOT NULL,
+      UNIQUE KEY unique_calendar_audit_request (request_key),
+      INDEX idx_calendar_audit_date (created_at, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     'post_daily_views' => "CREATE TABLE IF NOT EXISTS post_daily_views (
       post_id INT NOT NULL,
       view_date DATE NOT NULL,
@@ -1097,12 +1238,20 @@ function voncms_schema_runtime_table_sql(): array
       INDEX idx_remember_expires (expires_at),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'analytics_sessions' => "CREATE TABLE IF NOT EXISTS analytics_sessions (
+      visitor_hash CHAR(64) NOT NULL,
+      last_seen BIGINT NOT NULL DEFAULT 0,
+      expires_at BIGINT NOT NULL DEFAULT 0,
+      UNIQUE KEY unique_analytics_browser (visitor_hash),
+      INDEX idx_analytics_session_expiry (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     'analytics' => "CREATE TABLE IF NOT EXISTS analytics (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       page_url VARCHAR(500),
       referrer VARCHAR(500),
       user_agent TEXT,
-      ip_hash VARCHAR(64) COMMENT 'SHA256 hashed IP for privacy',
+      ip_hash VARCHAR(64) COMMENT 'SHA256 identity hash; meaning follows measurement_mode',
+      measurement_mode VARCHAR(16) NOT NULL DEFAULT 'strict',
       visit_date DATE,
       visit_time TIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1152,9 +1301,151 @@ function voncms_schema_runtime_table_sql(): array
   ];
 }
 
+/** @return array<string, array<string, array{definition: string, type: string, nullable?: bool, default?: string|null, safe?: bool}>> */
 function voncms_schema_runtime_column_specs(): array
 {
   return [
+    'analytics_sessions' => [
+      'visitor_hash' => [
+        'definition' => 'CHAR(64) NOT NULL',
+        'type' => 'char(64)',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'last_seen' => [
+        'definition' => 'BIGINT NOT NULL DEFAULT 0',
+        'type' => 'bigint',
+        'nullable' => false,
+        'default' => '0',
+        'safe' => true,
+      ],
+      'expires_at' => [
+        'definition' => 'BIGINT NOT NULL DEFAULT 0',
+        'type' => 'bigint',
+        'nullable' => false,
+        'default' => '0',
+        'safe' => true,
+      ],
+    ],
+    'calendar_events' => [
+      'id' => [
+        'definition' => 'INT NOT NULL AUTO_INCREMENT PRIMARY KEY',
+        'type' => 'int',
+        'safe' => false,
+      ],
+      'title' => [
+        'definition' => 'VARCHAR(200) NOT NULL',
+        'type' => 'varchar(200)',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'notes' => [
+        'definition' => 'TEXT NOT NULL',
+        'type' => 'text',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'starts_at' => [
+        'definition' => 'DATETIME NOT NULL',
+        'type' => 'datetime',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'ends_at' => [
+        'definition' => 'DATETIME NOT NULL',
+        'type' => 'datetime',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'all_day' => [
+        'definition' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'type' => 'tinyint',
+        'nullable' => false,
+        'default' => '0',
+        'safe' => true,
+      ],
+      'created_by' => [
+        'definition' => 'INT NOT NULL',
+        'type' => 'int',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'request_key' => [
+        'definition' => 'CHAR(36) NOT NULL',
+        'type' => 'char(36)',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'version' => [
+        'definition' => 'INT NOT NULL DEFAULT 1',
+        'type' => 'int',
+        'nullable' => false,
+        'default' => '1',
+        'safe' => true,
+      ],
+      'created_at' => [
+        'definition' => 'DATETIME NOT NULL',
+        'type' => 'datetime',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'updated_at' => [
+        'definition' => 'DATETIME NOT NULL',
+        'type' => 'datetime',
+        'nullable' => false,
+        'safe' => false,
+      ],
+    ],
+    'calendar_event_audit' => [
+      'id' => [
+        'definition' => 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+        'type' => 'bigint unsigned',
+        'safe' => false,
+      ],
+      'event_id' => [
+        'definition' => 'INT NOT NULL',
+        'type' => 'int',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'action' => [
+        'definition' => 'VARCHAR(12) NOT NULL',
+        'type' => 'varchar(12)',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'actor_id' => [
+        'definition' => 'INT NOT NULL',
+        'type' => 'int',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'actor_name' => [
+        'definition' => 'VARCHAR(100) NOT NULL',
+        'type' => 'varchar(100)',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'event_version' => [
+        'definition' => 'INT NOT NULL',
+        'type' => 'int',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'request_key' => [
+        'definition' => 'CHAR(36) DEFAULT NULL',
+        'type' => 'char(36)',
+        'nullable' => true,
+        'default' => null,
+        'safe' => true,
+      ],
+      'created_at' => [
+        'definition' => 'DATETIME NOT NULL',
+        'type' => 'datetime',
+        'nullable' => false,
+        'safe' => false,
+      ],
+    ],
     'post_daily_views' => [
       'post_id' => [
         'definition' => 'INT NOT NULL',
@@ -1244,6 +1535,13 @@ function voncms_schema_runtime_column_specs(): array
         'definition' => 'TEXT NULL',
         'type' => 'text',
         'nullable' => true,
+        'safe' => true,
+      ],
+      'measurement_mode' => [
+        'definition' => "VARCHAR(16) NOT NULL DEFAULT 'strict'",
+        'type' => 'varchar(16)',
+        'nullable' => false,
+        'default' => 'strict',
         'safe' => true,
       ],
       'ip_hash' => [
@@ -1424,6 +1722,7 @@ function voncms_schema_runtime_column_specs(): array
   ];
 }
 
+/** @return list<string> */
 function voncms_schema_repair_runtime_columns(PDO $pdo): array
 {
   $fixes = [];
@@ -1485,6 +1784,7 @@ function voncms_schema_repair_runtime_columns(PDO $pdo): array
   return $fixes;
 }
 
+/** @return list<string> */
 function voncms_schema_repair_runtime_identities(PDO $pdo): array
 {
   $fixes = [];
@@ -1547,6 +1847,10 @@ function voncms_schema_repair_runtime_identities(PDO $pdo): array
   return $fixes;
 }
 
+/**
+ * @param array<string, list<array{name: string, columns: list<string>, unique: bool, type?: string}>> $allIndexSpecs
+ * @return list<string>
+ */
 function voncms_schema_repair_indexes(PDO $pdo, array $allIndexSpecs): array
 {
   $fixes = [];
@@ -1644,6 +1948,11 @@ function voncms_schema_repair_indexes(PDO $pdo, array $allIndexSpecs): array
   return $fixes;
 }
 
+/**
+ * @param array<string, list<array{name: string, column: string, referenced_table: string, referenced_column: string, delete_rule: string}>> $allForeignKeySpecs
+ * @param list<array{label: string, sql: string}> $orphanChecks
+ * @return list<string>
+ */
 function voncms_schema_repair_foreign_keys(
   PDO $pdo,
   array $allForeignKeySpecs,
@@ -1719,6 +2028,7 @@ function voncms_schema_repair_foreign_keys(
   return $fixes;
 }
 
+/** @return list<string> */
 function voncms_schema_repair_core_columns(PDO $pdo): array
 {
   $fixes = [];
@@ -1769,6 +2079,7 @@ function voncms_schema_repair_core_columns(PDO $pdo): array
   return $fixes;
 }
 
+/** @return list<string> */
 function voncms_schema_backfill_publication_timestamps(PDO $pdo): array
 {
   $fixes = [];
@@ -1797,6 +2108,7 @@ function voncms_schema_backfill_publication_timestamps(PDO $pdo): array
   return $fixes;
 }
 
+/** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_optional_search_indexes(PDO $pdo): array
 {
   $fixes = [];
@@ -1856,7 +2168,9 @@ function voncms_schema_repair_optional_search_indexes(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
-/** Optional performance indexes: never replace conflicting user-defined structures. */
+/** Optional performance indexes: never replace conflicting user-defined structures.
+ * @return array<string, array<string, list<string>>>
+ */
 function voncms_schema_listing_index_specs(): array
 {
   return [
@@ -1901,7 +2215,7 @@ function voncms_schema_listing_column_matches(PDO $pdo): bool
 {
   $stmt = $pdo->query("SELECT DATA_TYPE, EXTRA, GENERATION_EXPRESSION FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'listing_at'");
-  $column = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+  $column = $stmt ? DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC)) : false;
   if (!is_array($column)) {
     return false;
   }
@@ -1913,7 +2227,9 @@ function voncms_schema_listing_column_matches(PDO $pdo): bool
     $expression === 'coalesce(published_at,scheduled_at,created_at)';
 }
 
-/** Inspect only during explicit install/repair, never on a public request. */
+/** Inspect only during explicit install/repair, never on a public request.
+ * @return array<string, array<string, bool>>
+ */
 function voncms_schema_listing_capabilities(PDO $pdo): array
 {
   $capabilities = [];
@@ -1936,6 +2252,7 @@ function voncms_schema_listing_capabilities(PDO $pdo): array
   return $capabilities;
 }
 
+/** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_listing_indexes(PDO $pdo): array
 {
   $fixes = [];
@@ -1997,6 +2314,7 @@ function voncms_schema_repair_listing_indexes(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
+/** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_core_structures(PDO $pdo): array
 {
   $fixes = voncms_schema_repair_table_storage(
@@ -2046,6 +2364,7 @@ function voncms_schema_repair_core_structures(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
+/** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_auth_columns(PDO $pdo): array
 {
   $fixes = [];
@@ -2112,6 +2431,7 @@ function voncms_schema_repair_auth_columns(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
+/** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_runtime_capabilities(PDO $pdo): array
 {
   $fixes = [];
@@ -2173,7 +2493,14 @@ function voncms_schema_repair_runtime_capabilities(PDO $pdo): array
 
 function voncms_schema_repair_lock_name(PDO $pdo): string
 {
-  $databaseName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+  $databaseQuery = $pdo->query('SELECT DATABASE()');
+  if ($databaseQuery === false) {
+    throw new RuntimeException('Could not resolve schema repair database.');
+  }
+  $databaseName = $databaseQuery->fetchColumn();
+  if (!is_string($databaseName) || $databaseName === '') {
+    throw new RuntimeException('Could not resolve schema repair database.');
+  }
 
   return 'voncms:schema:' . substr(hash('sha256', $databaseName), 0, 32);
 }

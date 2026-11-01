@@ -32,6 +32,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
         analytics: {
           ...settings.analytics,
           cookieConsent: tempAnalytics.cookieConsent,
+          measurementMode: tempAnalytics.measurementMode || 'strict',
         },
       });
       if (saved === false) {
@@ -41,7 +42,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
 
       toast.success('Analytics settings saved!');
       onClose();
-    } catch (error) {
+    } catch {
       toast.error('Failed to save settings');
       setIsSaving(false);
     }
@@ -84,11 +85,11 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
               <CheckCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
               <div>
                 <h3 className="font-bold mb-1 text-blue-900 dark:text-blue-300">
-                  Native Tracking Active
+                  Native Visitor Measurement
                 </h3>
                 <p className="text-sm text-blue-800 dark:text-blue-400">
-                  VonCMS is currently recording visitors, top pages, and unique hits directly to
-                  your local database.
+                  VonCMS records estimated visits and visitor identities in your local database when
+                  the plugin and its server-side consent policy allow it.
                 </p>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="text-center px-4 py-2 bg-white dark:bg-admin-panel rounded-lg border border-blue-100 dark:border-blue-700">
@@ -101,7 +102,11 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                     <span className="block text-xs text-slate-500 uppercase font-bold">
                       Privacy
                     </span>
-                    <span className="text-sm font-bold text-blue-600">IP Hashing</span>
+                    <span className="text-sm font-bold text-blue-600">
+                      {tempAnalytics.measurementMode === 'balanced'
+                        ? 'Browser ID Hashing'
+                        : 'IP Hashing'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -125,6 +130,33 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
             </h3>
 
             {/* Cookie Consent */}
+            <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-300">
+              <span className="font-bold">Visitor measurement mode</span>
+              <select
+                id="vonanalytics-measurement-mode"
+                name="analyticsMeasurementMode"
+                aria-label="Visitor measurement mode"
+                value={tempAnalytics.measurementMode || 'strict'}
+                onChange={(event) => {
+                  if (!canManageAnalytics) return;
+                  setTempAnalytics({
+                    ...tempAnalytics,
+                    measurementMode: event.target.value as 'strict' | 'balanced',
+                  });
+                }}
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 dark:border-admin-border dark:bg-admin-panel"
+              >
+                <option value="strict">Strict - IP-based (default)</option>
+                <option value="balanced">Balanced - browser-based (optional)</option>
+              </select>
+              <span className="block text-xs text-slate-500">
+                Strict keeps the existing 30-minute IP window. Balanced uses a separate 30-day
+                first-party browser ID and sessions ending after 30 minutes of inactivity. Shared
+                office IPs can contain multiple browsers, not necessarily verified people. Run
+                Database Schema Repair before enabling Balanced on an existing installation.
+                Historical modes are reported separately.
+              </span>
+            </label>
             <label
               className={`flex items-center gap-3 p-4 border border-slate-200 dark:border-admin-border rounded-lg transition-colors ${canManageAnalytics ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel' : 'cursor-not-allowed'}`}
             >

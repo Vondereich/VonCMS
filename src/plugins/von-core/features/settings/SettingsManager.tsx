@@ -13,15 +13,17 @@ import {
   Image,
   ArrowLeftRight,
   ShieldCheck,
+  RotateCw,
   Globe, // Added Globe
   FolderTree,
   GripVertical,
 } from 'lucide-react';
 import { SiteSettings } from '../../../../types';
 import { decodeEntities } from '../../../../utils/textUtils';
+import { formatDateTime } from '../../../../utils/dateFormat';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
-import { mergeSettingsDraft } from '../../../../utils/settingsDraft';
+import { createSettingsPatch, mergeSettingsDraft } from '../../../../utils/settingsDraft';
 
 // Import New Sub-Modules
 import { GoogleSettings } from './components/GoogleSettings';
@@ -36,16 +38,21 @@ import { MediaSettings } from './components/MediaSettings';
 import { CategorySettings } from './components/CategorySettings';
 
 const defaultAiModel = 'gemini-3.6-flash';
-const supportedAiModels = [
+const currentAiModels = [
+  { value: defaultAiModel, label: 'Gemini 3.6 Flash (Default)' },
+  { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+  { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite' },
+  { value: 'gemini-flash-latest', label: 'Gemini Flash Latest (Automatic)' },
+];
+// Preserve a saved legacy configuration without offering it for new selections.
+const legacyAiModels = [
   'gemini-3.7-flash',
-  defaultAiModel,
   'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
 ];
+const supportedAiModels = [...currentAiModels.map(({ value }) => value), ...legacyAiModels];
 
 const isSavedAiKeyExpired = (api?: SiteSettings['api']) => {
   const aiKeyExpiresAt = api?.aiKeyExpiresAt?.trim();
@@ -62,14 +69,16 @@ const isSavedAiKeyExpired = (api?: SiteSettings['api']) => {
 interface SettingsViewProps {
   settings: SiteSettings;
   onUpdate: (s: SiteSettings) => boolean | Promise<boolean>;
-  posts?: any[];
-  pages?: any[];
+  onRotateEncryptionKey?: (revision: string) => boolean | Promise<boolean>;
+  posts?: import('../../../../types').Post[];
+  pages?: import('../../../../types').Page[];
   notify: (msg: string) => void;
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onUpdate,
+  onRotateEncryptionKey,
   notify,
   posts = [],
   pages = [],
@@ -89,40 +98,74 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   >('general');
   const [tempSettings, setTempSettings] = useState<SiteSettings>(settings);
   const draftBaselineRef = useRef<SiteSettings>(settings);
+  const settingsSnapshotRef = useRef(settings);
+  const settingsReadVersionRef = useRef(0);
+  const savePendingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRotatingKey, setIsRotatingKey] = useState(false);
   const [expiredAiKeyNotice, setExpiredAiKeyNotice] = useState(false);
   const canManageSecrets = Boolean(tempSettings._canManageSecrets);
+  const hasUnsavedSettings =
+    Object.keys(createSettingsPatch(draftBaselineRef.current, tempSettings)).length > 0;
 
+  const reconcileSettingsDraft = (incoming: SiteSettings) => {
+    // Capture the old baseline outside the updater so React can replay it safely.
+    const baseline = draftBaselineRef.current;
+    draftBaselineRef.current = incoming;
+    setTempSettings((draft) => mergeSettingsDraft(incoming, baseline, draft));
+    setExpiredAiKeyNotice(isSavedAiKeyExpired(incoming.api));
+  };
+
+  const rotateEncryptionKey = async () => {
+    if (
+      !canManageSecrets ||
+      isSubmitting ||
+      hasUnsavedSettings ||
+      !onRotateEncryptionKey ||
+      !tempSettings.api?.aiKeyCanRotate ||
+      !tempSettings.api.aiKeyRevision
+    )
+      return;
+    if (
+      !window.confirm(
+        'Replace the private encryption key and re-encrypt the saved Gemini key? Your Gemini API key and its expiry will not change. Back up the private key file again after rotation.'
+      )
+    )
+      return;
+    setIsSubmitting(true);
+    setIsRotatingKey(true);
+    try {
+      if (await onRotateEncryptionKey(tempSettings.api.aiKeyRevision)) {
+        toast.success('Encryption key rotated. Saved Gemini key remains unchanged.');
+      }
+    } finally {
+      setIsSubmitting(false);
+      setIsRotatingKey(false);
+    }
+  };
+
+  const loadInitialSettings = React.useEffectEvent(() => fetchSettings());
   useEffect(() => {
-    fetchSettings();
+    loadInitialSettings();
+    return () => {
+      settingsReadVersionRef.current += 1;
+    };
   }, []);
 
   const fetchSettings = async () => {
+    const readVersion = settingsReadVersionRef.current;
     try {
       const res = await vonFetch(API.settings);
       const data = await res.json();
-      const savedAiKeyExpired = isSavedAiKeyExpired(data.api);
-
-      if (savedAiKeyExpired) {
-        setExpiredAiKeyNotice(true);
-        const { aiKeySavedAt, aiKeyExpiresAt, ...apiWithoutExpiredKey } = data.api || {};
-        const loadedSettings: SiteSettings = {
-          ...data,
-          api: {
-            ...apiWithoutExpiredKey,
-            aiApiKey: '',
-          },
-        };
-        draftBaselineRef.current = loadedSettings;
-        setTempSettings(loadedSettings);
-        return;
+      if (readVersion !== settingsReadVersionRef.current) return;
+      if (res.ok === false || data?._settingsScope !== 'admin') {
+        throw new Error('A complete admin settings response is required.');
       }
-
-      setExpiredAiKeyNotice(false);
-      draftBaselineRef.current = data;
-      setTempSettings(data);
+      reconcileSettingsDraft(data);
     } catch (error) {
-      notify('Failed to fetch settings: ' + String(error));
+      if (readVersion === settingsReadVersionRef.current) {
+        notify('Failed to fetch settings: ' + String(error));
+      }
     }
   };
 
@@ -131,26 +174,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [draggedMenuItemIndex, setDraggedMenuItemIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    const savedAiKeyExpired = isSavedAiKeyExpired(settings.api);
-
-    if (savedAiKeyExpired) {
-      setExpiredAiKeyNotice(true);
-      const { aiKeySavedAt, aiKeyExpiresAt, ...apiWithoutExpiredKey } = settings.api || {};
-      const loadedSettings: SiteSettings = {
-        ...settings,
-        api: {
-          ...apiWithoutExpiredKey,
-          aiApiKey: '',
-        },
-      };
-      draftBaselineRef.current = loadedSettings;
-      setTempSettings(loadedSettings);
-      return;
+    if (settingsSnapshotRef.current !== settings) {
+      settingsSnapshotRef.current = settings;
+      settingsReadVersionRef.current += 1;
     }
-
-    setExpiredAiKeyNotice(false);
-    draftBaselineRef.current = settings;
-    setTempSettings(settings);
+    // The parent may publish an optimistic value and then roll it back. Neither
+    // is a saved draft baseline until the pending write has actually succeeded.
+    if (!savePendingRef.current) reconcileSettingsDraft(settings);
   }, [settings]);
 
   useEffect(() => {
@@ -159,7 +189,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     }
   }, [activeTab, canManageSecrets]);
 
-  const handleChange = (section: 'ads' | 'api' | null, key: string, value: any) => {
+  const handleChange = (section: 'ads' | 'api' | null, key: string, value: unknown) => {
     setTempSettings((prev) => {
       if (section === 'ads' || section === 'api') {
         return { ...prev, [section]: { ...prev[section], [key]: value } };
@@ -169,26 +199,42 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   // Handlers for sub-components
-  const handleGeneralChange = (key: string, value: any) => handleChange(null, key, value);
-  const handleAdsChange = (key: string, value: any) => handleChange('ads', key, value);
+  const handleGeneralChange: import('../../../../types').SettingsFieldChange<SiteSettings> = (
+    key,
+    value
+  ) => handleChange(null, key, value);
+  const handleAdsChange: import('../../../../types').SettingsFieldChange<SiteSettings['ads']> = (
+    key,
+    value
+  ) => handleChange('ads', key, value);
 
-  const handlePermalinkChange = (key: string, value: any) => {
+  const handlePermalinkChange: import('../../../../types').SettingsFieldChange<
+    Pick<SiteSettings, 'permalinkStructure'>
+  > = (key, value) => {
     // permalinkStructure is a top-level key, not nested
     // key comes as 'permalinkStructure', value is the actual value like 'slug' or 'date'
     setTempSettings((prev) => ({ ...prev, [key]: value }));
   };
-  const handleProfileChange = (key: string, value: any) => {
+  const handleProfileChange: import('../../../../types').SettingsFieldChange<
+    Pick<SiteSettings, 'adminProfile'>
+  > = (key, value) => {
     // adminProfile is already an object, set it directly
     setTempSettings((prev) => ({ ...prev, [key]: value }));
   };
   const handleAiApiKeyChange = (value: string) => {
     setExpiredAiKeyNotice(false);
     handleChange('api', 'aiApiKey', value.trim());
+    handleChange('api', 'replaceAiKey', true);
   };
 
   const save = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || savePendingRef.current) return;
+    savePendingRef.current = true;
+    settingsReadVersionRef.current += 1;
     setIsSubmitting(true);
+    const submittedDraft = tempSettings;
+    const settingsAtSubmit = settingsSnapshotRef.current;
+    let savedSuccessfully = false;
     try {
       const mergedDraft = mergeSettingsDraft(settings, draftBaselineRef.current, tempSettings);
       const rawAiModel = tempSettings.api?.aiModel?.trim() || '';
@@ -199,6 +245,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               ...tempSettings.api,
               aiProvider: 'gemini',
               aiModel: supportedAiModels.includes(rawAiModel) ? rawAiModel : defaultAiModel,
+              ...(tempSettings.api?.aiKeyStorage === 'legacy' ? { encryptStoredAiKey: true } : {}),
             },
           }
         : {
@@ -208,7 +255,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             api: settings.api,
           };
 
-      setTempSettings(settingsToSave);
       const saved = await onUpdate(settingsToSave);
       if (saved === false) {
         notify(
@@ -217,11 +263,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         return;
       }
 
-      draftBaselineRef.current = settingsToSave;
+      const canonical =
+        settingsSnapshotRef.current === settingsAtSubmit
+          ? settingsToSave
+          : settingsSnapshotRef.current;
+      draftBaselineRef.current = canonical;
+      setTempSettings((draft) => mergeSettingsDraft(canonical, submittedDraft, draft));
+      setExpiredAiKeyNotice(isSavedAiKeyExpired(canonical.api));
+      savedSuccessfully = true;
       toast.success('Settings saved successfully!');
     } catch (err) {
       notify('Unexpected error: ' + String(err));
     } finally {
+      savePendingRef.current = false;
+      if (!savedSuccessfully) reconcileSettingsDraft(settingsSnapshotRef.current);
       setIsSubmitting(false);
     }
   };
@@ -281,7 +336,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+    <fieldset
+      disabled={isRotatingKey}
+      aria-label="System settings"
+      className="min-w-0 max-w-5xl mx-auto space-y-6 animate-fade-in border-0 p-0"
+    >
       <h2 className="text-2xl font-bold text-slate-800 dark:text-white">System Settings</h2>
 
       {/* Tabs */}
@@ -781,8 +840,66 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     placeholder="Gemini API key"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Enter your Google Gemini API Key from AI Studio.
+                    Enter your Google Gemini API Key from AI Studio. Saved keys are masked; clear
+                    this field to remove the saved key, or replace it to start a new local expiry
+                    period.
                   </p>
+                  {tempSettings.api?.aiKeyStorage === 'encrypted' && (
+                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
+                      <p
+                        role="status"
+                        className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200"
+                      >
+                        <ShieldCheck size={16} aria-hidden="true" /> Saved key encrypted
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                        The private encryption key stays on the server. No file deletion or API key
+                        re-entry is needed to rotate it.
+                      </p>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                        Last rotated:{' '}
+                        {tempSettings.api.aiKeyRotatedAt
+                          ? formatDateTime(
+                              tempSettings.api.aiKeyRotatedAt,
+                              tempSettings.timeZone,
+                              tempSettings.dateFormat
+                            )
+                          : 'Not rotated yet'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={rotateEncryptionKey}
+                        disabled={
+                          isSubmitting ||
+                          hasUnsavedSettings ||
+                          !tempSettings.api.aiKeyCanRotate ||
+                          !onRotateEncryptionKey
+                        }
+                        className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                      >
+                        <RotateCw size={14} aria-hidden="true" /> Rotate Encryption Key
+                      </button>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                        {hasUnsavedSettings
+                          ? 'Save or discard your unsaved settings before rotating.'
+                          : !tempSettings.api.aiKeyCanRotate
+                            ? 'Rotation is unavailable for this private-file location. Check server permissions or restore the matching key backup.'
+                            : 'Primary Admin only. Rotation does not change the Gemini API key or its expiry. Back up the private key file separately after rotation.'}
+                      </p>
+                    </div>
+                  )}
+                  {tempSettings.api?.aiKeyStorage === 'legacy' && (
+                    <p role="status" className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                      Existing key uses legacy storage. Save Settings once to encrypt it without
+                      changing its existing expiry.
+                    </p>
+                  )}
+                  {tempSettings.api?.aiKeyStorage === 'unavailable' && (
+                    <p role="alert" className="text-xs text-red-700 dark:text-red-300 mt-2">
+                      Saved key cannot be decrypted. Restore the matching private encryption key
+                      backup. Unchanged saves keep the stored credential; it is not erased.
+                    </p>
+                  )}
                   {(savedAiKeyExpired || expiredAiKeyNotice) && (
                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
                       Saved Gemini API key expired. Enter a fresh key to continue.
@@ -816,15 +933,26 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) => handleChange('api', 'aiModel', e.target.value)}
                     className="w-full p-2.5 border rounded-lg dark:bg-admin-canvas dark:text-white dark:border-admin-border"
                   >
-                    <option value="gemini-3.6-flash">Gemini 3.6 Flash (Recommended)</option>
-                    <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
-                    <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                    <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-                    <option value="gemini-flash-latest">Gemini Flash Latest (Automatic)</option>
+                    {legacyAiModels.includes(selectedAiModel) && (
+                      <option value={selectedAiModel} disabled>
+                        {selectedAiModel} (Saved legacy model)
+                      </option>
+                    )}
+                    {currentAiModels.map(({ value, label }) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Older models are no longer offered for new selections. An existing saved model
+                    remains unchanged until you select another. Availability and pricing depend on
+                    your Google account.
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    AI writing and editing opt out of optional Gemini request storage. Google's
+                    applicable service and safety-retention terms still apply.
+                  </p>
                 </div>
               </div>
             </div>
@@ -834,7 +962,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
       <div className="admin-safe-bottom sticky bottom-0 z-10 -mx-3 flex justify-end gap-2 border-t border-slate-200/30 bg-white/90 px-3 pt-3 shadow-2xl backdrop-blur-xl dark:border-admin-border/30 dark:bg-admin-canvas/90 sm:-mx-4 sm:gap-3 sm:px-4 sm:pt-4">
         <button
-          onClick={() => setTempSettings(settings)}
+          onClick={() => {
+            settingsReadVersionRef.current += 1;
+            setTempSettings(draftBaselineRef.current);
+          }}
+          disabled={isSubmitting}
           className="min-h-11 flex-1 rounded-lg border border-slate-200/50 px-4 py-2.5 font-medium text-slate-600 backdrop-blur-xs transition-all hover:bg-white/60 dark:border-admin-border/50 dark:text-slate-400 dark:hover:bg-admin-panel/60 sm:flex-none sm:px-5"
         >
           Cancel
@@ -845,10 +977,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-500/40 sm:flex-none sm:px-8 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
         >
           <Save size={18} className={isSubmitting ? 'animate-spin' : ''} />
-          {isSubmitting ? 'Saving...' : 'Save Changes'}
+          {isRotatingKey ? 'Rotating...' : isSubmitting ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
-    </div>
+    </fieldset>
   );
 };
 

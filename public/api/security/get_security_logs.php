@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 /**
  * Get Security Logs API
  * Fetch logs for Admin Dashboard
@@ -27,6 +29,7 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 }
 
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }
@@ -37,7 +40,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
 function sanitizeSecurityCsvCell(mixed $value): string
 {
-  $text = $value === null ? '' : (string) $value;
+  $text = (string) DataBoundary::scalar($value);
   if (preg_match('/^[\t\r\n]/', $text) || preg_match('/^[\x00-\x20]*[=+\-@]/', $text)) {
     return "'" . $text;
   }
@@ -47,8 +50,8 @@ function sanitizeSecurityCsvCell(mixed $value): string
 
 try {
   // Pagination
-  $page = max(1, isset($_GET['page']) ? (int) $_GET['page'] : 1);
-  $limit = min(100, max(1, isset($_GET['limit']) ? (int) $_GET['limit'] : 20));
+  $page = max(1, isset($_GET['page']) ? DataBoundary::inputInt($_GET['page']) : 1);
+  $limit = min(100, max(1, isset($_GET['limit']) ? DataBoundary::inputInt($_GET['limit']) : 20));
   $offset = ($page - 1) * $limit;
 
   // Filters
@@ -78,7 +81,7 @@ try {
 
   if (isset($_GET['search']) && !empty($_GET['search'])) {
     $where[] = '(ip_address LIKE ? OR endpoint LIKE ?)';
-    $searchTerm = '%' . $_GET['search'] . '%';
+    $searchTerm = '%' . DataBoundary::inputText($_GET['search']) . '%';
     $params[] = $searchTerm;
     $params[] = $searchTerm;
   }
@@ -92,6 +95,9 @@ try {
     header('Content-Disposition: attachment; filename="' . $filename . '"');
 
     $output = fopen('php://output', 'w');
+    if ($output === false) {
+      ResponseHelper::sendError('Unable to open security log export', 500);
+    }
 
     // CSV Headers
     fputcsv($output, [
@@ -118,7 +124,7 @@ try {
 
     $stmt->execute();
 
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
       fputcsv(
         $output,
         array_map('sanitizeSecurityCsvCell', [
@@ -152,13 +158,13 @@ try {
   $stmt->bindValue($paramIndex++, $offset, PDO::PARAM_INT);
 
   $stmt->execute();
-  $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $logs = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   // Get Total Count
   $countSql = "SELECT COUNT(*) as total FROM security_logs $whereClause";
   $countStmt = $pdo->prepare($countSql);
   $countStmt->execute($params);
-  $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+  $total = (int) $countStmt->fetchColumn();
 
   // Get Aggregates (if requesting page 1)
   $stats = [];
@@ -173,7 +179,11 @@ try {
             FROM security_logs
             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         ";
-    $summary = $pdo->query($summarySql)->fetch(PDO::FETCH_ASSOC) ?: [];
+    $summary =
+      DataBoundary::row(
+        DataBoundary::statement($pdo->query($summarySql))->fetch(PDO::FETCH_ASSOC),
+      ) ?:
+      [];
     $stats['blocked_today'] = (int) ($summary['blocked_today'] ?? 0);
     $stats['active_last_hour'] = (int) ($summary['active_last_hour'] ?? 0);
     $stats['high_severity_today'] = (int) ($summary['high_severity_today'] ?? 0);
@@ -182,7 +192,7 @@ try {
     $topSql =
       'SELECT ip_address, COUNT(*) as count FROM security_logs WHERE created_at >= CURDATE() GROUP BY ip_address ORDER BY count DESC LIMIT 1';
     $stmt = $pdo->query($topSql);
-    $topAttacker = $stmt->fetch(PDO::FETCH_ASSOC);
+    $topAttacker = DataBoundary::row(DataBoundary::statement($stmt)->fetch(PDO::FETCH_ASSOC));
     $stats['top_attacker'] = $topAttacker ? $topAttacker['ip_address'] : 'None';
 
     // Daily Trends (Last 7 days) - For Line Chart
@@ -197,18 +207,24 @@ try {
             ORDER BY date ASC
         ";
     $stmt = $pdo->query($trendSql);
-    $stats['trends'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stats['trends'] = DataBoundary::rows(
+      DataBoundary::statement($stmt)->fetchAll(PDO::FETCH_ASSOC),
+    );
 
     // Event Distribution - For Pie Chart
     $distSql = 'SELECT event_type, COUNT(*) as count FROM security_logs GROUP BY event_type';
     $stmt = $pdo->query($distSql);
-    $stats['distribution'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stats['distribution'] = DataBoundary::rows(
+      DataBoundary::statement($stmt)->fetchAll(PDO::FETCH_ASSOC),
+    );
 
     // Top IPs - For Bar Chart
     $topIpsSql =
       'SELECT ip_address, COUNT(*) as count FROM security_logs GROUP BY ip_address ORDER BY count DESC LIMIT 10';
     $stmt = $pdo->query($topIpsSql);
-    $stats['top_ips'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stats['top_ips'] = DataBoundary::rows(
+      DataBoundary::statement($stmt)->fetchAll(PDO::FETCH_ASSOC),
+    );
   }
 
   echo json_encode([

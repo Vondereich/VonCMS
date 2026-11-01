@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
@@ -33,7 +35,7 @@ $publishedAtSelect =
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$currentUser = $_SESSION['user'] ?? null;
+$currentUser = DataBoundary::actor();
 $currentRole = strtolower((string) ($currentUser['role'] ?? ''));
 $canManagePages = voncms_role_has_capability($currentRole, 'pages.create');
 
@@ -168,7 +170,7 @@ try {
       "SELECT author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$pageId]);
-    $existingPage = $checkOwner->fetch(PDO::FETCH_ASSOC);
+    $existingPage = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
 
     if (!$existingPage) {
       ResponseHelper::sendError('Page not found', 404);
@@ -303,21 +305,13 @@ try {
           )
           : 'Page updated';
 
-      voncms_record_content_audit(
-        $pdo,
-        'page',
-        (int) $pageId,
-        'update',
-        $currentUser ?? [],
-        $summary,
-        [
-          'title' => (string) ($input['title'] ?? ''),
-          'old_status' => $oldStatus,
-          'new_status' => $newStatus,
-          'old_slug' => (string) ($existingPage['slug'] ?? ''),
-          'new_slug' => (string) ($input['slug'] ?? ''),
-        ],
-      );
+      voncms_record_content_audit($pdo, 'page', (int) $pageId, 'update', $currentUser, $summary, [
+        'title' => (string) ($input['title'] ?? ''),
+        'old_status' => $oldStatus,
+        'new_status' => $newStatus,
+        'old_slug' => (string) ($existingPage['slug'] ?? ''),
+        'new_slug' => (string) ($input['slug'] ?? ''),
+      ]);
     } catch (Throwable $auditError) {
       error_log('VonCMS Audit Update: ' . $auditError->getMessage());
     }
@@ -328,7 +322,7 @@ try {
       "SELECT updated_at, {$publishedAtSelect} FROM pages WHERE id = ?",
     );
     $savedUpdatedAtStmt->execute([$pageId]);
-    $savedTimestamps = $savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC);
+    $savedTimestamps = DataBoundary::row($savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC));
     $savedTimestamps = is_array($savedTimestamps) ? $savedTimestamps : [];
     $savedUpdatedAt = (string) ($savedTimestamps['updated_at'] ?? null ?: $savedUpdatedAt);
     $savedPublishedAt = $savedTimestamps['published_at'] ?? null;
@@ -389,7 +383,7 @@ try {
         'page',
         (int) $newId,
         'create',
-        $currentUser ?? [],
+        $currentUser,
         sprintf('Page created as %s', ucfirst($status)),
         [
           'title' => (string) ($input['title'] ?? ''),
@@ -407,7 +401,7 @@ try {
       "SELECT updated_at, {$publishedAtSelect} FROM pages WHERE id = ?",
     );
     $savedUpdatedAtStmt->execute([$newId]);
-    $savedTimestamps = $savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC);
+    $savedTimestamps = DataBoundary::row($savedUpdatedAtStmt->fetch(PDO::FETCH_ASSOC));
     $savedTimestamps = is_array($savedTimestamps) ? $savedTimestamps : [];
     $savedUpdatedAt = (string) ($savedTimestamps['updated_at'] ?? null ?: $savedUpdatedAt);
     $savedPublishedAt = $savedTimestamps['published_at'] ?? null;

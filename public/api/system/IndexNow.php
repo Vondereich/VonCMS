@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 /**
  * VonCMS - IndexNow Integration
  * Instantly notifies search engines (Bing, Yandex, etc.) when content is published/updated.
@@ -7,7 +9,10 @@
  */
 
 // Prevent direct access
-if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
+if (
+  is_string($_SERVER['PHP_SELF'] ?? null) &&
+  basename($_SERVER['PHP_SELF']) === basename(__FILE__)
+) {
   die('Direct access not allowed');
 }
 
@@ -42,11 +47,15 @@ class IndexNow
    */
   private function detectHost(): string
   {
-    $host = preg_replace(
-      '/[^a-zA-Z0-9.\-:]/',
-      '',
-      (string) ($_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost')),
-    );
+    $host =
+      preg_replace(
+        '/[^a-zA-Z0-9.\-:]/',
+        '',
+        DataBoundary::serverString(
+          'HTTP_HOST',
+          DataBoundary::serverString('SERVER_NAME', 'localhost'),
+        ),
+      ) ?? '';
     return $host;
   }
 
@@ -75,7 +84,7 @@ class IndexNow
     }
 
     $scheme = is_https() ? 'https' : 'http';
-    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
+    $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME', '/index.php'));
     $basePath = dirname($scriptName);
     if (strpos($basePath, '/api') !== false) {
       $basePath = preg_replace('#/api(/.*)?$#i', '', $basePath);
@@ -83,16 +92,6 @@ class IndexNow
     $basePath = in_array($basePath, ['/', '\\', '.'], true) ? '' : rtrim((string) $basePath, '/');
 
     return $scheme . '://' . $this->detectHost() . $basePath;
-  }
-
-  /**
-   * Get the expected key file path in the web root
-   */
-  private function getKeyFilePath(): string
-  {
-    // Navigate from /public/api/system/ to /public/
-    $publicRoot = dirname(__DIR__, 2);
-    return $publicRoot . '/' . $this->getKey() . '.txt';
   }
 
   private function getKeyLocationUrl(string $key): string
@@ -126,8 +125,8 @@ class IndexNow
         "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'indexnow_key' LIMIT 1",
       );
       $stmt->execute();
-      $result = $stmt->fetch(PDO::FETCH_ASSOC);
-      return $result ? $result['setting_value'] : null;
+      $result = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
+      return $result && is_string($result['setting_value']) ? $result['setting_value'] : null;
     } catch (Exception $e) {
       return null;
     }
@@ -149,7 +148,7 @@ class IndexNow
         "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'indexnow_enabled' LIMIT 1",
       );
       $stmt->execute();
-      $result = $stmt->fetch(PDO::FETCH_ASSOC);
+      $result = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
       return $result && ($result['setting_value'] === 'true' || $result['setting_value'] === '1');
     } catch (Exception $e) {
       return false;
@@ -186,7 +185,7 @@ class IndexNow
           'indexnow_key',
           $auditBefore,
           $key,
-          isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null,
+          DataBoundary::userText('id') !== '' ? (int) DataBoundary::userText('id') : null,
         );
       }
 
@@ -297,7 +296,7 @@ class IndexNow
    * Ping IndexNow with a single URL
    *
    * @param string $url The full URL to submit (e.g., https://example.com/my-post)
-   * @return array Result with 'success', 'status_code', 'message'
+   * @return array{success: bool, message: string, status_code?: int}
    */
   public function ping(string $url): array
   {
@@ -369,8 +368,8 @@ class IndexNow
   /**
    * Ping IndexNow with multiple URLs (batch)
    *
-   * @param array $urls Array of full URLs
-   * @return array Result with 'success', 'status_code', 'message'
+   * @param array<array-key,string> $urls Array of full URLs
+   * @return array{success: bool, message: string, status_code?: int, submitted_count?: int}
    */
   public function pingBatch(array $urls): array
   {
@@ -400,13 +399,17 @@ class IndexNow
       'keyLocation' => $this->getKeyLocationUrl($key),
       'urlList' => array_values($validUrls),
     ];
+    $encodedPayload = json_encode($payload);
+    if ($encodedPayload === false) {
+      return ['success' => false, 'message' => 'Unable to encode URLs for IndexNow'];
+    }
 
     $ch = curl_init();
     curl_setopt_array($ch, [
       CURLOPT_URL => $endpoint,
       CURLOPT_RETURNTRANSFER => true,
       CURLOPT_POST => true,
-      CURLOPT_POSTFIELDS => json_encode($payload),
+      CURLOPT_POSTFIELDS => $encodedPayload,
       CURLOPT_HTTPHEADER => ['Content-Type: application/json; charset=utf-8'],
       CURLOPT_TIMEOUT => self::TIMEOUT_SECONDS,
       CURLOPT_CONNECTTIMEOUT => 2,
@@ -455,7 +458,7 @@ class IndexNow
       'SELECT id, slug, category, created_at FROM posts WHERE id = ? LIMIT 1',
     );
     $stmt->execute([$postId]);
-    $post = $stmt->fetch(PDO::FETCH_ASSOC);
+    $post = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
     if (!$post) {
       throw new RuntimeException('Post not found');
     }

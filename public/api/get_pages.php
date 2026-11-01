@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Get Pages API
  */
@@ -31,7 +33,7 @@ try {
 
   // 1.1 Draft pages exposed to unauthenticated users (Fix)
   $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
-  $currentRole = $hasValidSession ? strtolower((string) ($_SESSION['user']['role'] ?? '')) : '';
+  $currentRole = $hasValidSession ? strtolower(DataBoundary::userText('role')) : '';
   $canReadProtectedPages = voncms_role_has_capability($currentRole, 'pages.read_protected');
   $isAdmin = $canReadProtectedPages;
   if (session_status() === PHP_SESSION_ACTIVE) {
@@ -56,18 +58,18 @@ try {
   }
 
   if (isset($_GET['id']) && $_GET['id'] !== '') {
-    if (!preg_match('/^\d+$/', (string) $_GET['id'])) {
+    if (!preg_match('/^\d+$/', DataBoundary::inputText($_GET['id']))) {
       ResponseHelper::sendError('Page ID must be numeric', 400);
     }
     $whereClauses[] = 'p.id = :id';
-    $params[':id'] = (string) $_GET['id'];
+    $params[':id'] = DataBoundary::inputText($_GET['id']);
   } elseif (isset($_GET['slug']) && $_GET['slug'] !== '') {
-    $requestedSlug = mb_substr(trim((string) $_GET['slug']), 0, 255);
+    $requestedSlug = mb_substr(trim(DataBoundary::inputText($_GET['slug'])), 0, 255);
     $whereClauses[] = 'p.slug = :slug';
     $params[':slug'] = $requestedSlug;
   }
 
-  $search = trim((string) ($_GET['search'] ?? ''));
+  $search = trim(DataBoundary::inputText($_GET['search'] ?? ''));
   if ($search !== '') {
     $search = function_exists('mb_substr')
       ? mb_substr($search, 0, 120, 'UTF-8')
@@ -80,7 +82,8 @@ try {
 
     try {
       $indexStmt = $pdo->query("SHOW INDEX FROM pages WHERE Key_name = 'ft_title_content'");
-      $hasFulltextSearch = $indexStmt && $indexStmt->fetch(PDO::FETCH_ASSOC) !== false;
+      $hasFulltextSearch =
+        $indexStmt && DataBoundary::row($indexStmt->fetch(PDO::FETCH_ASSOC)) !== false;
     } catch (Throwable $e) {
       $hasFulltextSearch = false;
     }
@@ -99,8 +102,8 @@ try {
   }
 
   $statusClause = $whereClauses ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
-  $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
-  $requestedLimit = isset($_GET['limit']) ? (int) $_GET['limit'] : 200;
+  $page = isset($_GET['page']) ? max(1, DataBoundary::inputInt($_GET['page'])) : 1;
+  $requestedLimit = isset($_GET['limit']) ? DataBoundary::inputInt($_GET['limit']) : 200;
   $limit = max(1, min(200, $requestedLimit));
   $offset = ($page - 1) * $limit;
 
@@ -128,18 +131,18 @@ try {
   $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
   $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
   $stmt->execute();
-  $pages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $pages = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   // Transform for frontend compatibility (Page interface)
   $result = array_map(function ($page) use ($isAdmin) {
-    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', ''));
     $publicPage = [
       'id' => (string) $page['id'],
       'title' => $page['title'] ?? '',
       'slug' => $page['slug'] ?? '',
       'content' =>
         is_https() && $host && isset($page['content'])
-          ? str_replace('http://' . $host, 'https://' . $host, $page['content'])
+          ? str_replace('http://' . $host, 'https://' . $host, (string) $page['content'])
           : $page['content'] ?? '',
       'excerpt' => $page['excerpt'] ?? '',
       'status' => $page['status'] ?? 'draft',

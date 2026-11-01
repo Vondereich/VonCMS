@@ -2,7 +2,7 @@
  * VonCMS - useSinglePage Hook
  * Fetches a page by id or slug when the public preload list has not resolved it yet.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Page } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
@@ -38,6 +38,16 @@ export const useSinglePage = (
     requestedPageKey && !fullPageMatchesRequest && !hasSettledCurrentRequest
   );
 
+  // A response must not retrigger the request effect that owns it.
+  const reuseResolvedPage = useEffectEvent(() => {
+    if (!fullPageMatchesRequest) return false;
+    requestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setIsLoading(false);
+    setSettledRequestKey(requestedPageKey);
+    return true;
+  });
   useEffect(() => {
     if (!enabled || (!pageId && !pageSlug)) {
       requestIdRef.current += 1;
@@ -49,14 +59,7 @@ export const useSinglePage = (
       return;
     }
 
-    if (fullPageMatchesRequest) {
-      requestIdRef.current += 1;
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
-      setIsLoading(false);
-      setSettledRequestKey(requestedPageKey);
-      return;
-    }
+    if (reuseResolvedPage()) return;
 
     const fetchFullPage = async () => {
       requestIdRef.current += 1;

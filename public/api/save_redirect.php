@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Save Redirect API
  * Create or update 301 redirect rules.
@@ -23,9 +25,27 @@ SessionManager::requireAdmin();
 CSRFProtection::requireToken();
 
 // Get JSON payload
-$data = json_decode(file_get_contents('php://input'), true);
+$data = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($data) || array_is_list($data)) {
+  ResponseHelper::sendError('Invalid redirect payload.', 400);
+}
+if (
+  !is_string($data['source_url'] ?? '') ||
+  !is_string($data['target_url'] ?? '') ||
+  (!is_int($data['redirect_type'] ?? 301) && !is_string($data['redirect_type'] ?? 301))
+) {
+  ResponseHelper::sendError('Invalid redirect fields.', 400);
+}
 
-$id = $data['id'] ?? null;
+$idValue = $data['id'] ?? null;
+$id = null;
+// Retain legacy create sentinels; every actual update ID must be validated.
+if ($idValue !== null && $idValue !== '' && $idValue !== 0 && $idValue !== '0') {
+  $id = voncms_parse_redirect_id($idValue);
+  if ($id === null) {
+    ResponseHelper::sendError('Invalid redirect ID.', 400);
+  }
+}
 $sourceUrl = trim($data['source_url'] ?? '');
 $targetUrl = trim($data['target_url'] ?? '');
 $redirectType = (int) ($data['redirect_type'] ?? 301);
@@ -51,7 +71,9 @@ if ($sourceUrl !== '/' && substr($sourceUrl, -1) === '/') {
 
 // Normalize target path for loop detection. The redirect engine matches by path only,
 // so query strings or fragments cannot be treated as a different destination.
-$currentHost = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+$currentHost =
+  preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', '')) ?? '';
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 $basePath = voncms_get_redirect_loop_base_path($pdo);
 $targetPath = voncms_normalize_redirect_loop_path($targetUrl, $currentHost, $basePath);
 
@@ -79,7 +101,7 @@ if ($targetPath !== '') {
 
     $visitedPaths[$currentPath] = true;
     $lookupStmt->execute($id ? [$currentPath, $id] : [$currentPath]);
-    $existingRule = $lookupStmt->fetch(PDO::FETCH_ASSOC);
+    $existingRule = DataBoundary::row($lookupStmt->fetch(PDO::FETCH_ASSOC));
 
     if (!$existingRule) {
       break;

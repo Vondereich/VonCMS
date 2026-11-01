@@ -9,19 +9,21 @@ const positionClasses: Record<string, string> = {
   'top-right': 'top-24 right-6',
 };
 
-export const FloatingGiftPlugin: PluginDefinition = {
+export const FloatingGiftPlugin: PluginDefinition<
+  import('../../../../../../types').GiftWidgetConfig
+> = {
   id: 'vp_gift_widget',
   name: 'Holiday Gift Widget',
   description: 'Adds a floating gift icon at the bottom right corner.',
-  version: '1.27',
+  version: '1.28',
   author: 'VonCMS Team',
-  render: (location: PluginLocation, props?: any) => {
+  render: (location: PluginLocation, props) => {
     if (location !== 'footer_bottom') return null;
 
     const targetUrl = props?.targetUrl || '#';
     const tooltipText = props?.tooltipText || 'Claim Gift';
     const buttonColor = props?.buttonColor || '#ef4444';
-    const position = positionClasses[props?.position] ? props.position : 'bottom-left';
+    const position = positionClasses[props?.position || ''] ? props!.position! : 'bottom-left';
     const iconLabel = props?.iconLabel || '';
     const targetBlank = props?.targetBlank !== false && props?.targetBlank !== 'false';
     const safeTargetUrl = normalizeSiteUrl(targetUrl);

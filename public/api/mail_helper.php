@@ -1,4 +1,14 @@
 <?php
+
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 /**
  * VonCMS - Mail Helper
  * Lightweight SMTP email sending with a PHP mail() fallback.
@@ -46,7 +56,7 @@ function voncms_loopback_request_base_url(): string
     return '';
   }
 
-  $rawHost = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
+  $rawHost = trim(DataBoundary::serverString('HTTP_HOST', ''));
   if ($rawHost === '' || preg_match('/[\x00-\x20\\\\\/@?#]/', $rawHost)) {
     return '';
   }
@@ -70,7 +80,7 @@ function voncms_loopback_request_base_url(): string
     $authority .= ':' . $port;
   }
 
-  $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+  $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME', ''));
   $basePath = preg_replace('#/api(?:/.*)?$#i', '', $scriptName);
   $basePath = $basePath === null ? '' : '/' . trim($basePath, '/');
   $basePath = $basePath === '/' ? '' : $basePath;
@@ -92,7 +102,7 @@ function voncms_resolve_trusted_public_base_url(mixed $pdo): string
         "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='domain_url' LIMIT 1",
       );
       $statement->execute();
-      $row = $statement->fetch(PDO::FETCH_ASSOC);
+      $row = DataBoundary::row($statement->fetch(PDO::FETCH_ASSOC));
       $configured = voncms_normalize_trusted_public_base_url($row['setting_value'] ?? '');
       if ($configured !== '') {
         return $configured;
@@ -139,7 +149,7 @@ function voncms_build_account_action_url(string $baseUrl, string $path, array $q
  * @param string $fromEmail
  * @param string $fromName
  * @param string $textBody
- * @return array<string, mixed>
+ * @return array{success: bool, method: string, message: string}
  */
 function vonSendMail($to, $subject, $htmlBody, $fromEmail = '', $fromName = '', $textBody = '')
 {
@@ -159,13 +169,13 @@ function vonSendMail($to, $subject, $htmlBody, $fromEmail = '', $fromName = '', 
   $smtpEncryption = $settings['smtpEncryption'] ?? 'tls';
 
   // Logic: Use provided fromName/fromEmail OR fall back to SMTP settings OR generic default
-  $finalFromName = $fromName ?: $settings['smtpFromName'] ?? 'VonCMS';
+  $finalFromName = $fromName ?: (string) ($settings['smtpFromName'] ?? 'VonCMS');
   $safeHost = preg_replace(
     '/[^a-zA-Z0-9.\-:]/',
     '',
-    (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+    DataBoundary::serverString('HTTP_HOST', 'localhost'),
   );
-  $finalFromEmail = $fromEmail ?: ($smtpUser ?: 'noreply@' . $safeHost);
+  $finalFromEmail = $fromEmail ?: ((string) $smtpUser ?: 'noreply@' . $safeHost);
 
   // SMTP Robustness: If using SMTP, some providers (Gmail/Outlook) reject the email
   // if the "From" header doesn't match the authenticated user.
@@ -216,7 +226,7 @@ function vonSendMail($to, $subject, $htmlBody, $fromEmail = '', $fromName = '', 
 /**
  * Load SMTP settings from database or JSON file
  *
- * @return array<string, mixed>
+ * @return array<string, scalar|null>
  */
 function loadSmtpSettings()
 {
@@ -228,7 +238,7 @@ function loadSmtpSettings()
     if (file_exists($configFile)) {
       include_once $configFile;
 
-      if (isset($pdo) && $pdo !== null) {
+      if (isset($pdo)) {
         // Check if settings table exists
         $tableCheck = $pdo->query("SHOW TABLES LIKE 'settings'");
         if ($tableCheck->rowCount() > 0) {
@@ -236,7 +246,7 @@ function loadSmtpSettings()
           $stmt = $pdo->query(
             "SELECT setting_key, setting_value FROM settings WHERE setting_group = 'smtp' OR setting_group = 'general'",
           );
-          $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+          $rows = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
           $settings = [];
           foreach ($rows as $row) {
@@ -285,9 +295,16 @@ function loadSmtpSettings()
   // Fallback to JSON file
   $settingsPath = dirname(__DIR__) . '/data/site_settings.json';
   if (file_exists($settingsPath)) {
-    $json = json_decode(file_get_contents($settingsPath), true);
-    if ($json) {
-      return $json;
+    $jsonText = file_get_contents($settingsPath);
+    $json = is_string($jsonText) ? json_decode($jsonText, true) : null;
+    if (is_array($json)) {
+      $settings = [];
+      foreach ($json as $key => $value) {
+        if (is_scalar($value) || $value === null) {
+          $settings[(string) $key] = $value;
+        }
+      }
+      return $settings;
     }
   }
 
@@ -355,6 +372,14 @@ function voncms_build_mail_message(
   ];
 }
 
+/**
+ * @param string $to
+ * @param string $subject
+ * @param string $htmlBody
+ * @param string $fromEmail
+ * @param string $fromName
+ * @return array{success: bool, method: string, message: string}
+ */
 function sendWithPhpMail($to, $subject, $htmlBody, $fromEmail, $fromName)
 {
   try {
@@ -386,8 +411,8 @@ function sendWithPhpMail($to, $subject, $htmlBody, $fromEmail, $fromName)
  * @param string $subject
  * @param string $htmlBody
  * @param string $textBody
- * @param array<string, mixed> $config
- * @return array<string, mixed>
+ * @param array<string, scalar|null> $config
+ * @return array{success: bool, method: string, message: string}
  */
 function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
 {
@@ -551,7 +576,7 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     $ehloHost = preg_replace(
       '/[^a-zA-Z0-9.\-:]/',
       '',
-      (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+      DataBoundary::serverString('HTTP_HOST', 'localhost'),
     );
     $ehloResp = $sendCmd('EHLO ' . $ehloHost);
     $expectResponse($ehloResp, [250], 'EHLO');
@@ -594,7 +619,7 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     error_log('SMTP Pass Response: ' . trim($passResp));
 
     // MAIL FROM (Envelope Sender)
-    $envelopeEmail = $config['authEmail'] ?: $fromEmail;
+    $envelopeEmail = (string) ($config['authEmail'] ?? '') ?: $fromEmail;
     $mailFromResp = $sendCmd("MAIL FROM:<$envelopeEmail>");
     $expectResponse($mailFromResp, [250], 'MAIL FROM');
     error_log('SMTP MAIL FROM Response: ' . trim($mailFromResp));
@@ -660,6 +685,21 @@ function generateVerificationToken()
   return bin2hex(random_bytes(32)); // 64 character token
 }
 
+/** Versioned digest fits VARCHAR(64) and cannot be confused with a legacy hex URL token. */
+function voncms_account_token_digest(string $token): string
+{
+  return 's1:' . rtrim(strtr(base64_encode(hash('sha256', $token, true)), '+/', '-_'), '=');
+}
+
+function voncms_account_token_matches(string $stored, string $token): bool
+{
+  if (preg_match('/^[a-f0-9]{64}$/iD', $token) !== 1) {
+    return false;
+  }
+  return hash_equals(voncms_account_token_digest($token), $stored) ||
+    (preg_match('/^[a-f0-9]{64}$/iD', $stored) === 1 && hash_equals($stored, $token));
+}
+
 /**
  * Send verification email to user
  *
@@ -668,7 +708,7 @@ function generateVerificationToken()
  * @param string $username
  * @param string $token
  * @param string|null $trustedBaseUrl
- * @return array<string, mixed>
+ * @return array{success: bool, method: string, message: string}
  */
 function sendVerificationEmail($pdo, $to, $username, $token, $trustedBaseUrl = null)
 {
@@ -722,12 +762,13 @@ function sendVerificationEmail($pdo, $to, $username, $token, $trustedBaseUrl = n
         </div>
     </body>
     </html>';
-  $htmlBody = preg_replace(
-    '~<h1 style="color: white; margin: 0; font-size: 24px;">.*?Verify Your Email</h1>~',
-    '<h1 style="color: white; margin: 0; font-size: 24px;">Verify Your Email</h1>',
-    $htmlBody,
-    1,
-  );
+  $htmlBody =
+    preg_replace(
+      '~<h1 style="color: white; margin: 0; font-size: 24px;">.*?Verify Your Email</h1>~',
+      '<h1 style="color: white; margin: 0; font-size: 24px;">Verify Your Email</h1>',
+      $htmlBody,
+      1,
+    ) ?? $htmlBody;
 
   return vonSendMail($to, $subject, $htmlBody);
 }

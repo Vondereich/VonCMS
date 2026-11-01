@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - List Redirects API
  * Returns all redirect rules with pagination.
@@ -21,14 +23,15 @@ require_once __DIR__ . '/../von_config.php';
 
 // Security: Admin Only
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 // Pagination
-$page = max(1, (int) ($_GET['page'] ?? 1));
-$limit = min(100, max(10, (int) ($_GET['limit'] ?? 50)));
+$page = max(1, DataBoundary::inputInt($_GET['page'] ?? 1));
+$limit = min(100, max(10, DataBoundary::inputInt($_GET['limit'] ?? 50)));
 $offset = ($page - 1) * $limit;
 
 // Search
-$search = mb_substr(trim((string) ($_GET['search'] ?? '')), 0, 120);
+$search = mb_substr(trim(DataBoundary::inputText($_GET['search'] ?? '')), 0, 120);
 
 try {
   // Build query
@@ -58,7 +61,7 @@ try {
   $stmt->bindValue($bindIndex++, $limit, PDO::PARAM_INT);
   $stmt->bindValue($bindIndex, $offset, PDO::PARAM_INT);
   $stmt->execute();
-  $redirects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $redirects = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   echo json_encode([
     'success' => true,

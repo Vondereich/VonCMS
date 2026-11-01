@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('GET, OPTIONS');
@@ -19,7 +21,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 // Authenticate and authorize through the fixed-role capability policy.
 SessionManager::requireValidSession();
-$currentRole = $_SESSION['user']['role'] ?? '';
+$currentRole = DataBoundary::userText('role');
 if (!voncms_role_has_capability($currentRole, 'users.manage')) {
   ResponseHelper::sendError('User management access required', 403);
 }
@@ -29,14 +31,16 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
 try {
   // Check if database connection exists
-  if (!isset($pdo) || $pdo === null) {
+  if (!isset($pdo)) {
     throw new Exception('Database connection not established.');
   }
 
   // Pagination and search
-  $limit = isset($_GET['limit']) ? max(1, min(2000, (int) $_GET['limit'])) : 100;
-  $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
-  $search = isset($_GET['search']) ? mb_substr(trim((string) $_GET['search']), 0, 120) : '';
+  $limit = isset($_GET['limit']) ? max(1, min(2000, DataBoundary::inputInt($_GET['limit']))) : 100;
+  $page = isset($_GET['page']) ? max(1, DataBoundary::inputInt($_GET['page'])) : 1;
+  $search = isset($_GET['search'])
+    ? mb_substr(trim(DataBoundary::inputText($_GET['search'])), 0, 120)
+    : '';
   $offset = 0;
   $hasDisplayNameColumn = false;
   try {
@@ -79,7 +83,7 @@ try {
   $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
   $stmt->execute();
 
-  $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $users = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   // Transform specifically to cast IDs to string (Contract Enforcement)
   $result = array_map(function ($user) {

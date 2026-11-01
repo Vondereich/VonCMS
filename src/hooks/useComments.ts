@@ -89,7 +89,7 @@ export function useComments(initialComments: Comment[] = []) {
   }, []);
 
   // Helper to save comment to database
-  const saveCommentToDb = async (action: string, data: any) => {
+  const saveCommentToDb = async (action: string, data: Record<string, unknown>) => {
     try {
       const res = await vonFetch(API.saveComments, {
         method: 'POST',
@@ -290,7 +290,7 @@ export function useComments(initialComments: Comment[] = []) {
           });
           return false;
         }
-      } catch (e) {
+      } catch {
         toast.error('Server error occurred', { id: loadingToast });
         return false;
       }
@@ -326,7 +326,7 @@ export function useComments(initialComments: Comment[] = []) {
           setComments(originalComments);
           toast.error('Failed to delete on server', { id: loadingToast });
         }
-      } catch (e) {
+      } catch {
         setComments(originalComments);
         toast.error('Server error occurred', { id: loadingToast });
       }

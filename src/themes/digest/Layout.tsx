@@ -1,7 +1,9 @@
+import { hasPasswordSpecialCharacter } from '../../utils/security';
 import React, { useState, useMemo, useEffect } from 'react';
 import Gravatar from 'react-gravatar';
 import toast from 'react-hot-toast';
 import { Post, User, SiteSettings, NavItem } from '../../types';
+import type { ProfileUpdatePayload } from '../../hooks/useProfileEditor';
 import {
   Menu,
   X,
@@ -78,7 +80,11 @@ import {
   normalizeSiteUrl,
 } from '../../utils/siteUtils';
 import { isSystemPluginActive } from '../../utils/pluginRuntime';
-import { getProfileDisplayRole, isOwnUserProfile } from '../../utils/profileUtils';
+import {
+  getProfileDisplayRole,
+  isOwnUserProfile,
+  getSavedProfileUpdates,
+} from '../../utils/profileUtils';
 
 // ==========================================
 // DIGEST THEME v1.0
@@ -653,7 +659,7 @@ const DigestProfile: React.FC<{
   targetUser: User;
   currentUser?: User | null;
   posts: Post[];
-  comments: any[];
+  comments: import('../../types').Comment[];
   colors: ReturnType<typeof getColors>;
   settings: SiteSettings;
   onViewPost: (id: string) => void;
@@ -685,6 +691,13 @@ const DigestProfile: React.FC<{
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const profileSavePending = React.useRef(false);
+  const latestProfileDraft = React.useRef({
+    display_name: editDisplayName,
+    bio: editBio,
+    avatar: editAvatar,
+  });
+  latestProfileDraft.current = { display_name: editDisplayName, bio: editBio, avatar: editAvatar };
 
   // Sync state when prop changes
   useEffect(() => {
@@ -695,6 +708,8 @@ const DigestProfile: React.FC<{
   }, [displayUserProp]);
 
   const handleSaveProfile = async () => {
+    if (profileSavePending.current) return;
+    profileSavePending.current = true;
     try {
       // Validate Password Change
       if (showPasswordFields) {
@@ -707,7 +722,7 @@ const DigestProfile: React.FC<{
           (newPassword.length < 8 ||
             !/[A-Z]/.test(newPassword) ||
             !/[0-9]/.test(newPassword) ||
-            !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword))
+            !hasPasswordSpecialCharacter(newPassword))
         ) {
           toast.error('Password too weak (8+ chars, Upper, Number, Symbol)');
           return;
@@ -725,7 +740,7 @@ const DigestProfile: React.FC<{
         avatar: editAvatar,
       };
 
-      const payload: any = {
+      const payload: ProfileUpdatePayload = {
         id: currentUser?.id,
         display_name: editDisplayName,
         bio: editBio,
@@ -746,10 +761,25 @@ const DigestProfile: React.FC<{
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setLocalDisplayUser(updatedUser);
-        setIsEditing(false);
-        if (onUpdateUser) {
-          onUpdateUser({ display_name: editDisplayName, bio: editBio, avatar: editAvatar });
+        const savedUpdates = getSavedProfileUpdates(data.user, {
+          display_name: editDisplayName,
+          bio: editBio,
+          avatar: editAvatar,
+        });
+        setLocalDisplayUser({ ...updatedUser, ...savedUpdates });
+        setEditDisplayName((current) =>
+          current === editDisplayName ? savedUpdates.display_name : current
+        );
+        setEditBio((current) => (current === editBio ? savedUpdates.bio : current));
+        setEditAvatar((current) => (current === editAvatar ? savedUpdates.avatar : current));
+        if (
+          latestProfileDraft.current.display_name === editDisplayName &&
+          latestProfileDraft.current.bio === editBio &&
+          latestProfileDraft.current.avatar === editAvatar
+        )
+          setIsEditing(false);
+        if (onUpdateUser && currentUser) {
+          onUpdateUser({ ...savedUpdates, id: currentUser.id });
         }
         toast.success(data.message || 'Profile updated!');
 
@@ -762,9 +792,11 @@ const DigestProfile: React.FC<{
         toast.error(data.error || 'Failed to save profile');
         setLocalDisplayUser(displayUserProp);
       }
-    } catch (e) {
+    } catch {
       toast.error('Failed to save profile');
       setLocalDisplayUser(displayUserProp);
+    } finally {
+      profileSavePending.current = false;
     }
   };
 
@@ -1166,7 +1198,7 @@ const DigestProfile: React.FC<{
               </div>
             ) : commentItems.length > 0 ? (
               <div className="space-y-4 min-h-[360px]">
-                {commentItems.map((comment: any) => (
+                {commentItems.map((comment) => (
                   <div
                     key={comment.id}
                     className="p-5 rounded-xl border transition-all hover:shadow-lg"
@@ -1867,8 +1899,8 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
                 {/* Widgets */}
                 {settings.sidebarLayout
-                  .filter((widget: any) => widget.isVisible !== false && widget.type !== 'search')
-                  .map((widget: any) => (
+                  .filter((widget) => widget.isVisible !== false && widget.type !== 'search')
+                  .map((widget) => (
                     <VpSidebarWidget
                       key={widget.id}
                       widget={widget}

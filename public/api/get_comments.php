@@ -1,9 +1,12 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Get Comments API
  * Returns all comments from database
  */
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 // Handle preflight
@@ -29,14 +32,16 @@ if (!isset($pdo)) {
 
 try {
   // Get filter and pagination params
-  $postId = isset($_GET['post_id']) ? intval($_GET['post_id']) : null;
+  $postId = isset($_GET['post_id']) ? (int) DataBoundary::inputText($_GET['post_id']) : null;
   $flat = isset($_GET['flat']) && $_GET['flat'] === 'true';
-  $status = isset($_GET['status']) ? trim((string) $_GET['status']) : '';
-  $search = isset($_GET['search']) ? mb_substr(trim((string) $_GET['search']), 0, 120) : '';
-  $profileUserId = isset($_GET['user_id']) ? trim((string) $_GET['user_id']) : '';
-  $profileUsername = isset($_GET['user']) ? trim((string) $_GET['user']) : '';
-  $limit = isset($_GET['limit']) ? max(1, min(100, (int) $_GET['limit'])) : 10;
-  $page = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
+  $status = isset($_GET['status']) ? trim(DataBoundary::inputText($_GET['status'])) : '';
+  $search = isset($_GET['search'])
+    ? mb_substr(trim(DataBoundary::inputText($_GET['search'])), 0, 120)
+    : '';
+  $profileUserId = isset($_GET['user_id']) ? trim(DataBoundary::inputText($_GET['user_id'])) : '';
+  $profileUsername = isset($_GET['user']) ? trim(DataBoundary::inputText($_GET['user'])) : '';
+  $limit = isset($_GET['limit']) ? max(1, min(100, DataBoundary::inputInt($_GET['limit']))) : 10;
+  $page = isset($_GET['page']) ? max(1, DataBoundary::inputInt($_GET['page'])) : 1;
   $allowedStatuses = ['approved', 'pending', 'spam'];
   if (!in_array($status, $allowedStatuses, true)) {
     $status = '';
@@ -54,6 +59,11 @@ try {
   // Security: Only staff can see pending/spam comments
   $isStaff = SessionManager::isStaff();
   $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
+  $includePostContext =
+    $flat &&
+    !$postId &&
+    $isStaff &&
+    voncms_role_has_capability(DataBoundary::userText('role'), 'posts.read_any_protected');
   if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
   }
@@ -107,14 +117,22 @@ try {
     $flat && !$postId
       ? ' ORDER BY c.created_at DESC, c.id DESC'
       : ' ORDER BY c.created_at ASC, c.id ASC';
+  $postFields = $includePostContext
+    ? ', p.id AS linked_post_id, p.title AS linked_post_title, p.slug AS linked_post_slug,
+        p.category AS linked_post_category, p.created_at AS linked_post_created_at,
+        p.status AS linked_post_status, p.scheduled_at AS linked_post_scheduled_at'
+    : '';
+  $postJoin = $includePostContext ? ' LEFT JOIN posts p ON p.id = c.post_id' : '';
   $query =
     "SELECT c.id, c.post_id AS postId, c.user_id AS userId, c.parent_id AS parentId, 
                      c.user_name AS username, c.user_avatar AS userAvatar, c.content, c.likes, c.status, 
                      c.created_at AS createdAt,
                      u.email AS user_email,
-                     u.avatar AS user_live_avatar
-              FROM comments c
+                     u.avatar AS user_live_avatar" .
+    $postFields .
+    " FROM comments c
               LEFT JOIN users u ON c.user_id = u.id" .
+    $postJoin .
     $whereSql .
     $orderBy .
     " LIMIT $limit OFFSET $offset";
@@ -127,23 +145,21 @@ try {
   }
 
   $stmt->execute();
-  $allComments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $allComments = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
   // 2. Process comments into a lookup map
   $commentMap = [];
   foreach ($allComments as $c) {
-    $id = $c['id'];
-    // Avatar URL is public data (user-provided). Email hash remains staff-gated.
+    $id = (string) $c['id'];
+    // Only a linked account's current avatar is eligible; legacy guest URLs are not emitted.
     $email = $isStaff && isset($c['user_email']) ? $c['user_email'] : '';
-    $emailHash = $email ? md5(strtolower(trim($email))) : '';
+    $emailHash = $email ? md5(strtolower(trim((string) $email))) : '';
 
-    $commentAvatar = !empty($c['userId'])
-      ? $c['user_live_avatar'] ?? ''
-      : $c['user_live_avatar'] ?? ($c['userAvatar'] ?? '');
+    $commentAvatar = $c['user_live_avatar'] ?? '';
 
     $commentMap[$id] = [
       'id' => ($c['parentId'] ? 'r-' : 'c-') . $id,
-      'dbId' => $id,
+      'dbId' => $c['id'],
       'postId' => (string) $c['postId'],
       'userId' => $c['userId'],
       'hasProfile' => !empty($c['userId']),
@@ -157,6 +173,27 @@ try {
       'createdAt' => $c['createdAt'],
       'replies' => [],
     ];
+
+    if ($includePostContext) {
+      $commentMap[$id]['post'] =
+        $c['linked_post_id'] === null
+          ? null
+          : [
+            'id' => (string) $c['linked_post_id'],
+            'title' => html_entity_decode(
+              (string) $c['linked_post_title'],
+              ENT_QUOTES | ENT_HTML5,
+              'UTF-8',
+            ),
+            'slug' => (string) ($c['linked_post_slug'] ?? ''),
+            'category' => (string) ($c['linked_post_category'] ?? ''),
+            'createdAt' => (string) ($c['linked_post_created_at'] ?? ''),
+            'isPublic' =>
+              ($c['linked_post_status'] === null || $c['linked_post_status'] === 'published') &&
+              ($c['linked_post_scheduled_at'] === null ||
+                $c['linked_post_scheduled_at'] <= date('Y-m-d H:i:s')),
+          ];
+    }
 
     $commentMap[$id] = ResponseHelper::shapeCommentPayload(
       $commentMap[$id],
@@ -187,8 +224,13 @@ try {
   $rootComments = [];
 
   foreach ($commentMap as $id => &$comment) {
-    if ($comment['parentId'] && isset($commentMap[$comment['parentId']])) {
-      $commentMap[$comment['parentId']]['replies'][] = &$comment;
+    $parentId = $comment['parentId'] ?? null;
+    $parentKey = is_scalar($parentId) ? (string) $parentId : '';
+    if ($parentId && isset($commentMap[$parentKey])) {
+      if (!is_array($commentMap[$parentKey]['replies'] ?? null)) {
+        $commentMap[$parentKey]['replies'] = [];
+      }
+      $commentMap[$parentKey]['replies'][] = &$comment;
     } else {
       // It's a root comment in this batch (or orphan from previous page parent)
       $rootComments[] = &$comment;
@@ -196,7 +238,7 @@ try {
   }
 
   echo json_encode([
-    'comments' => array_values($rootComments),
+    'comments' => $rootComments,
     'meta' => [
       'total' => (int) $totalComments,
       'page' => $page,

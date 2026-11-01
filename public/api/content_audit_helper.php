@@ -1,5 +1,17 @@
 <?php
 
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+
+/**
+ * @param array<array-key, scalar|null> $actor
+ * @param array<string, mixed> $context Structured detail is JSON-encoded, not SQL syntax.
+ */
 function voncms_record_content_audit(
   PDO $pdo,
   string $contentType,

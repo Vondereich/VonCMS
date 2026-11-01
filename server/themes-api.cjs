@@ -90,6 +90,31 @@ function sanitizeRecursive(obj) {
   }
   return obj;
 }
+
+// A missing local store can be initialized; an unreadable/corrupt existing one must
+// never be treated as empty and overwritten by an otherwise valid Save.
+function readJsonStore(file, createDefault, validate) {
+  let raw;
+  try {
+    raw = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return createDefault();
+    throw error;
+  }
+  const data = JSON.parse(raw);
+  if (!validate(data)) throw new Error('Invalid local JSON store shape');
+  return data;
+}
+
+const isRecordList = (data) =>
+  Array.isArray(data) &&
+  data.every((item) => item && typeof item === 'object' && !Array.isArray(item));
+const isContentStore = (data) =>
+  data &&
+  typeof data === 'object' &&
+  !Array.isArray(data) &&
+  (data.posts === undefined || isRecordList(data.posts)) &&
+  (data.pages === undefined || isRecordList(data.pages));
 // ----------------------
 
 // Global error handlers to surface unexpected crashes in logs
@@ -101,7 +126,9 @@ process.on('uncaughtException', (err) => {
       path.join(PROJECT_ROOT, 'data', 'logs', 'server_crash.log'),
       new Date().toISOString() + ' ' + String(err && err.stack ? err.stack : err) + os.EOL
     );
-  } catch (e) {}
+  } catch {
+    // The original error is already on stderr; file logging is best-effort.
+  }
   process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
@@ -111,14 +138,16 @@ process.on('unhandledRejection', (reason) => {
       path.join(PROJECT_ROOT, 'data', 'logs', 'server_crash.log'),
       new Date().toISOString() + ' UNHANDLED_REJECTION ' + String(reason) + os.EOL
     );
-  } catch (e) {}
+  } catch {
+    // The original error is already on stderr; file logging is best-effort.
+  }
 });
 
 // rate limiter (optional dependency)
 let rateLimit;
 try {
   rateLimit = require('express-rate-limit');
-} catch (e) {
+} catch {
   console.warn(
     'express-rate-limit not installed; falling back to an in-memory limiter for the local theme API.'
   );
@@ -228,7 +257,7 @@ function logAdminAction(entry) {
 process.on('uncaughtException', (err) => {
   try {
     console.error('Uncaught exception:', err && err.stack ? err.stack : err);
-  } catch (e) {
+  } catch {
     // swallow
   }
   // give a small delay for logs to flush, then exit (process manager should restart)
@@ -243,7 +272,7 @@ process.on('unhandledRejection', (reason, p) => {
       'reason:',
       reason && reason.stack ? reason.stack : reason
     );
-  } catch (e) {
+  } catch {
     // swallow
   }
   setTimeout(() => process.exit(1), 100);
@@ -356,7 +385,7 @@ function readData() {
     const raw = fs.readFileSync(DATA_FILE, 'utf8') || '[]';
     const list = JSON.parse(raw);
     return Array.isArray(list) ? list : [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -480,7 +509,7 @@ app.get('/api/content', adminLimiter, verifyDevToken, (req, res) => {
     if (!fs.existsSync(contentFile)) return res.json({ posts: [], pages: [] });
     const data = JSON.parse(fs.readFileSync(contentFile, 'utf8'));
     res.json(data);
-  } catch (e) {
+  } catch {
     res.status(500).json({ error: 'Failed to read content' });
   }
 });
@@ -532,12 +561,11 @@ app.post('/api/save_post', adminLimiter, verifyDevToken, async (req, res) => {
     const safePost = sanitizeRecursive(post);
     const contentFile = path.join(PROJECT_ROOT, 'data', 'content.json');
 
-    let currentData = { posts: [], pages: [] };
-    if (fs.existsSync(contentFile)) {
-      try {
-        currentData = JSON.parse(fs.readFileSync(contentFile, 'utf8'));
-      } catch (e) {}
-    }
+    const currentData = readJsonStore(
+      contentFile,
+      () => ({ posts: [], pages: [] }),
+      isContentStore
+    );
 
     // Update or Add
     const idx = (currentData.posts || []).findIndex((p) => p.id === safePost.id);
@@ -564,12 +592,11 @@ app.post('/api/save_page', adminLimiter, verifyDevToken, async (req, res) => {
     const safePage = sanitizeRecursive(page);
     const contentFile = path.join(PROJECT_ROOT, 'data', 'content.json');
 
-    let currentData = { posts: [], pages: [] };
-    if (fs.existsSync(contentFile)) {
-      try {
-        currentData = JSON.parse(fs.readFileSync(contentFile, 'utf8'));
-      } catch (e) {}
-    }
+    const currentData = readJsonStore(
+      contentFile,
+      () => ({ posts: [], pages: [] }),
+      isContentStore
+    );
 
     // Update or Add
     const idx = (currentData.pages || []).findIndex((p) => p.id === safePage.id);
@@ -604,12 +631,11 @@ app.post('/api/save_content', adminLimiter, verifyDevToken, async (req, res) => 
     // Read existing to merge if needed, or just overwrite if we are sending full state
     // For simplicity in this "dummy" mode, we will overwrite with the full state sent from frontend
     // But we should preserve other keys if they exist
-    let currentData = {};
-    if (fs.existsSync(contentFile)) {
-      try {
-        currentData = JSON.parse(fs.readFileSync(contentFile, 'utf8'));
-      } catch (e) {}
-    }
+    const currentData = readJsonStore(
+      contentFile,
+      () => ({ posts: [], pages: [] }),
+      isContentStore
+    );
 
     const newData = {
       ...currentData,
@@ -621,7 +647,9 @@ app.post('/api/save_content', adminLimiter, verifyDevToken, async (req, res) => 
     const backupsDir = path.join(PROJECT_ROOT, 'data', 'backups');
     await fse.ensureDir(backupsDir);
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    await fse.copy(contentFile, path.join(backupsDir, `content.${ts}.json`));
+    if (fs.existsSync(contentFile)) {
+      await fse.copy(contentFile, path.join(backupsDir, `content.${ts}.json`));
+    }
 
     fs.writeFileSync(contentFile, JSON.stringify(newData, null, 2), 'utf8');
 
@@ -740,7 +768,9 @@ app.post(
                   try {
                     const st = await fs.promises.stat(p);
                     backupFiles.push({ path: p, time: st.mtimeMs });
-                  } catch (e) {}
+                  } catch {
+                    // A concurrently removed backup must not abort the Settings save.
+                  }
                 }
 
                 // Sort descending by time
@@ -788,7 +818,7 @@ app.post(
 // Verify reCAPTCHA token server-side
 app.post('/api/verify-recaptcha', adminLimiter, async (req, res) => {
   try {
-    const { token, action } = req.body || {};
+    const { token } = req.body || {};
     if (!token) return res.status(400).json({ success: false, message: 'Missing token' });
 
     // Prefer environment variable for secret; fall back to site settings file (dev only)
@@ -801,7 +831,7 @@ app.post('/api/verify-recaptcha', adminLimiter, async (req, res) => {
           const settings = JSON.parse(raw || '{}');
           secret = settings?.api?.recaptchaSecretKey || '';
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -836,7 +866,7 @@ app.post('/api/verify-recaptcha', adminLimiter, async (req, res) => {
             action: parsed.action,
             raw: parsed,
           });
-        } catch (e) {
+        } catch {
           return res
             .status(502)
             .json({ success: false, message: 'Invalid response from reCAPTCHA provider' });
@@ -962,7 +992,7 @@ app.post('/api/reset_password.php', (req, res) => {
 app.post('/api/install.php', (req, res) => {
   // Simulate DB Connection Delay
   setTimeout(() => {
-    const { dbHost, dbName, dbUser, siteTitle, adminEmail } = req.body;
+    const { dbHost, dbName, dbUser, adminEmail } = req.body;
 
     console.log(`[Mock Install] Connecting to ${dbHost}/${dbName} as ${dbUser}...`);
     console.log(`[Mock Install] Creating Admin: ${adminEmail}`);
@@ -1006,21 +1036,19 @@ app.post('/api/save_user', adminLimiter, verifyDevToken, async (req, res) => {
     const usersFile = path.join(PROJECT_ROOT, 'data', 'users.json');
     await fse.ensureDir(path.dirname(usersFile));
 
-    let users = [];
-    if (fs.existsSync(usersFile)) {
-      try {
-        users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-      } catch (e) {}
-    } else {
-      // Init with default admin if creating fresh file
-      users.push({
-        id: '1',
-        username: 'admin',
-        email: 'admin@local.test',
-        role: 'Admin',
-        created_at: new Date().toISOString(),
-      });
-    }
+    const users = readJsonStore(
+      usersFile,
+      () => [
+        {
+          id: '1',
+          username: 'admin',
+          email: 'admin@local.test',
+          role: 'Admin',
+          created_at: new Date().toISOString(),
+        },
+      ],
+      isRecordList
+    );
 
     if (safeUser.id) {
       // Update existing

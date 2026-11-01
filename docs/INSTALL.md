@@ -1,6 +1,8 @@
 # Installation Guide
 
-> **VonCMS v1.27.12 "OverDrive"**
+> **VonCMS v1.28.0 "The BluePrint"**
+
+PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. The dashboard recommendation does not block compatible PHP 8.2 sites. Use a supported, security-patched PHP build; CMS updates do not update PHP. See [PHP Runtime Baseline](SECURITY.md#php-runtime-baseline).
 
 ---
 
@@ -12,13 +14,17 @@ For product positioning and feature coverage, read [Features](FEATURES.md).
 
 VonCMS runs on a standard **LAMP** stack:
 
-| Requirement | Minimum |
-| ----------- | ------- |
-| PHP         | 8.2+    |
-| MySQL       | 5.7+    |
-| Storage     | 50MB    |
+| Requirement | Minimum                 |
+| ----------- | ----------------------- |
+| PHP         | 8.2+ (8.3+ recommended) |
+| MySQL       | 5.7+                    |
+| Storage     | 50MB                    |
 
 Enable the PHP DOM extension for Post/Page HTML saves and WordPress HTML imports. The installer checks the parser before reserving the setup key or accessing the database and reports a missing extension in the setup wizard. HTML saves also fail before writing content if the parser is unavailable; they do not fall back to regex-only filtering.
+
+WordPress Bridge additionally requires XMLReader and SimpleXML to validate and read WXR exports. Remote image localization requires cURL. Its XML upload limit is 64 MiB; configure PHP/server request-size limits accordingly. These optional import prerequisites do not change the CMS PHP minimum.
+
+Saving a global Gemini API key requires PHP OpenSSL with AES-256-GCM. VonCMS stores the installation's private encryption key separately from SQL backups and release ZIPs; preserve that private file for hosting moves/restores. Existing legacy API keys migrate on an explicit Primary Admin Settings save, not a guest visit or normal read. See [credential storage and recovery](SECURITY.md#global-gemini-credential-encryption). Other CMS features do not require this optional AI capability.
 
 **Server:** Apache or LiteSpeed Enterprise with `.htaccess` support
 
@@ -29,6 +35,8 @@ Enable the PHP DOM extension for Post/Page HTML saves and WordPress HTML imports
 > **HTTPS and canonical hostname:** Enable Force HTTPS and choose the preferred root or `www` hostname in Cloudflare, cPanel/DirectAdmin, the reverse proxy, or the virtual host using that fixed domain. VonCMS deliberately does not construct an absolute redirect target from the incoming request `Host` header.
 
 > **Reverse-proxy HTTPS:** If HTTPS terminates at a proxy before PHP, configure the PHP environment variable `VONCMS_TRUSTED_PROXIES` with the proxy IP addresses or CIDR ranges, separated by commas. Do not enter visitor ranges. Direct HTTPS and normal Cloudflare Full/Strict origin HTTPS need no extra setting.
+
+> **Analytics behind a proxy:** Keep the default `REMOTE_ADDR` source when the web server already restores the visitor IP. If PHP instead sees the proxy address, the operator may set `VONCMS_ANALYTICS_CLIENT_IP_HEADER=CF-Connecting-IP` or `X-Forwarded-For`, together with the exact proxy addresses/CIDRs in `VONCMS_TRUSTED_PROXIES`. Select only a header that the trusted proxy overwrites or safely appends; a proxy that passes visitor-supplied values unchanged is not a trusted identity source. Do not trust all addresses or add visitor networks. Loopback is treated as a trusted local proxy only after this separate analytics header opt-in. X-Forwarded-For is read right-to-left until the first untrusted hop; malformed used hops fall back to `REMOTE_ADDR`. No other forwarding header is used. This changes analytics quotas and Strict identity only, not login/recovery IP handling. Changing this source can count a visitor again in the current Strict window; historical records are not rewritten. Shared public IPs can still undercount.
 
 ---
 
@@ -100,7 +108,9 @@ inspection, but it cannot replace host-root robots configuration.
 
 > **Password:** 8+ chars, 1 uppercase, 1 number, 1 symbol
 
-> **Setup key:** After opening the installer, use your hosting File Manager or SFTP to open `data/install_setup.key`, then paste its 64-character value into the installer. The data directory is blocked from web access, and VonCMS removes the key after installation succeeds.
+> **Setup key:** After opening the installer, open `data/install_setup.key` in your hosting File Manager, or download it through SFTP and open it in a plain-text editor such as Notepad. Copy **only the 64-character key** into the **Installer setup key** field, not the filename, quotes or additional text. Do not insert spaces within the key. Avoid Word or LibreOffice, which may introduce formatting characters when copying.
+>
+> Ordinary spaces and line breaks before or after the key are ignored automatically. Spaces inside the key or other extra characters cause a validation error before database changes; copy the key again and retry. The data directory is blocked from web access, and VonCMS removes the key after installation succeeds.
 
 4. Click **Install Now**
 5. Done! Login at `yoursite.com/admin`
@@ -170,4 +180,4 @@ Or via FTP/File Manager: right-click the file → Permissions → set to `644`.
 
 ---
 
-_VonCMS v1.27.12 "OverDrive"_
+_VonCMS v1.28.0 "The BluePrint"_

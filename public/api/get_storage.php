@@ -38,13 +38,69 @@ function getFolderStats($dir)
       new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
     );
     foreach ($iterator as $file) {
-      if ($file->isFile()) {
+      if ($file instanceof SplFileInfo && !$file->isLink() && $file->isFile()) {
         $stats['bytes'] += $file->getSize();
         $stats['files']++;
       }
     }
   }
   return $stats;
+}
+
+/** Staff-only, bounded cache. Storage failures retain the live-read fallback.
+ * @return array{bytes: int, files: int}
+ */
+function getCachedFolderStats(string $dir): array
+{
+  $cacheFile = dirname(__DIR__) . '/data/storage_usage.json';
+  if (!is_dir(dirname($cacheFile)) || is_link(dirname($cacheFile)) || is_link($cacheFile)) {
+    return getFolderStats($dir);
+  }
+  $mask = umask(0077);
+  try {
+    $handle = @fopen($cacheFile, 'c+b');
+  } finally {
+    umask($mask);
+  }
+  if ($handle === false) {
+    return getFolderStats($dir);
+  }
+  try {
+    if (!flock($handle, LOCK_EX)) {
+      return getFolderStats($dir);
+    }
+    $cached = json_decode((string) stream_get_contents($handle, 4096), true);
+    $now = time();
+    if (
+      is_array($cached) &&
+      ($cached['version'] ?? null) === 1 &&
+      ($cached['path'] ?? null) === (realpath($dir) ?: $dir) &&
+      is_int($cached['at'] ?? null) &&
+      $cached['at'] <= $now &&
+      $cached['at'] > $now - 300 &&
+      is_int($cached['bytes'] ?? null) &&
+      $cached['bytes'] >= 0 &&
+      is_int($cached['files'] ?? null) &&
+      $cached['files'] >= 0
+    ) {
+      return ['bytes' => $cached['bytes'], 'files' => $cached['files']];
+    }
+    $stats = getFolderStats($dir);
+    $encoded = json_encode(
+      ['version' => 1, 'path' => realpath($dir) ?: $dir, 'at' => $now] + $stats,
+    );
+    if (is_string($encoded)) {
+      rewind($handle);
+      if (@ftruncate($handle, 0)) {
+        @fwrite($handle, $encoded);
+        @fflush($handle);
+      }
+    }
+    return $stats;
+  } finally {
+    flock($handle, LOCK_UN);
+    fclose($handle);
+  }
 }
 
 /**
@@ -59,7 +115,7 @@ function formatBytes($bytes, $precision = 2)
   $units = ['B', 'KB', 'MB', 'GB', 'TB'];
   $bytes = max($bytes, 0);
   $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-  $pow = min($pow, count($units) - 1);
+  $pow = (int) min($pow, count($units) - 1);
   $bytes /= pow(1024, $pow);
   return round($bytes, $precision) . ' ' . $units[$pow];
 }
@@ -68,7 +124,7 @@ function formatBytes($bytes, $precision = 2)
 $uploadsPath = dirname(__DIR__) . '/uploads';
 
 // Get used space and file count in one traversal
-$folderStats = getFolderStats($uploadsPath);
+$folderStats = getCachedFolderStats($uploadsPath);
 $usedBytes = $folderStats['bytes'];
 $fileCount = $folderStats['files'];
 $usedFormatted = formatBytes($usedBytes);

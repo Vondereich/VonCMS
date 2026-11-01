@@ -3,11 +3,14 @@
 $postQueryHelperPath = realpath(__FILE__);
 if (
   $postQueryHelperPath !== false &&
-  realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === $postQueryHelperPath
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath($_SERVER['SCRIPT_FILENAME']) === $postQueryHelperPath
 ) {
   http_response_code(403);
   exit('Forbidden');
 }
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 unset($postQueryHelperPath);
 require_once __DIR__ . '/publication_time_helper.php';
 
@@ -26,7 +29,9 @@ function voncms_query_index_hint(PDO $pdo, string $table, string $index): string
     throw new InvalidArgumentException('Unsupported query index.');
   }
   $capabilities = voncms_read_publication_capabilities();
-  if (($capabilities['query_indexes'][$table][$index] ?? false) !== true) {
+  $queryIndexes = $capabilities['query_indexes'] ?? null;
+  $tableIndexes = is_array($queryIndexes) ? $queryIndexes[$table] ?? null : null;
+  if (!is_array($tableIndexes) || ($tableIndexes[$index] ?? false) !== true) {
     return '';
   }
   try {

@@ -77,7 +77,7 @@ const ContactManager = () => {
       if (data.success) {
         setForms(data.forms);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load contact forms');
     }
   };
@@ -107,7 +107,7 @@ const ContactManager = () => {
       } else {
         toast.error(data.message || data.error || 'Failed to save');
       }
-    } catch (err) {
+    } catch {
       toast.error('Network error during save');
     } finally {
       setLoading(false);
@@ -136,7 +136,7 @@ const ContactManager = () => {
           setCurrentForm(null);
         }
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to delete form');
     }
   };
@@ -158,7 +158,7 @@ const ContactManager = () => {
       } else {
         toast.error(data.message);
       }
-    } catch (err) {
+    } catch {
       toast.error('Migration failed');
     } finally {
       setLoading(false);

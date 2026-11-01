@@ -1,7 +1,10 @@
 const serializeSettingValue = (value: unknown): string | undefined => JSON.stringify(value);
+const isSettingsObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /**
  * Apply only fields that changed inside a settings draft to the latest global settings.
+ * Nested groups retain refreshed sibling fields; ordered lists remain atomic values.
  * This prevents an older full-form snapshot from overwriting settings owned by another screen.
  */
 export const mergeSettingsDraft = <T extends object>(latest: T, baseline: T, draft: T): T => {
@@ -11,7 +14,22 @@ export const mergeSettingsDraft = <T extends object>(latest: T, baseline: T, dra
 
   Object.keys(draftRecord).forEach((key) => {
     if (serializeSettingValue(draftRecord[key]) !== serializeSettingValue(baselineRecord[key])) {
-      merged[key] = draftRecord[key];
+      const latestValue = merged[key];
+      const baselineValue = baselineRecord[key];
+      const draftValue = draftRecord[key];
+      if (
+        isSettingsObject(latestValue) &&
+        isSettingsObject(baselineValue) &&
+        isSettingsObject(draftValue)
+      ) {
+        const group = mergeSettingsDraft(latestValue, baselineValue, draftValue);
+        for (const field of Object.keys(baselineValue)) {
+          if (!Object.hasOwn(draftValue, field)) delete group[field];
+        }
+        merged[key] = group;
+      } else {
+        merged[key] = draftValue;
+      }
     }
   });
 

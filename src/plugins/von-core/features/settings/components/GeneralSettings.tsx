@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { HeaderIdentityMode, SiteSettings } from '../../../../../types';
 import { API } from '../../../../../config/site.config';
 import { getAuthHeader } from '../../../../../config/auth.config';
-import { vonFetch } from '../../../../../utils/api';
+import { vonFetch, getErrorMessage } from '../../../../../utils/api';
 import {
   DEFAULT_SITE_DATE_FORMAT,
   SITE_DATE_FORMAT_OPTIONS,
@@ -15,7 +15,7 @@ import { AdminPalettePicker } from './AdminPalettePicker';
 
 interface GeneralSettingsProps {
   settings: SiteSettings;
-  onChange: (key: string, value: any) => void;
+  onChange: import('../../../../../types').SettingsFieldChange<SiteSettings>;
   canManageSecrets?: boolean;
 }
 
@@ -67,7 +67,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
       }
 
       if (data && data.success && data.url) {
-        let key = 'logoUrl';
+        let key: 'logoUrl' | 'faviconUrl' | 'ogImageUrl' | 'ogImageSquareUrl' = 'logoUrl';
         if (type === 'favicon') key = 'faviconUrl';
         if (type === 'ogImage') key = 'ogImageUrl';
         if (type === 'ogImageSquare') key = 'ogImageSquareUrl';
@@ -77,10 +77,10 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
       } else {
         throw new Error(data?.error || 'Unknown upload error');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Upload error:', error);
       // Show the actual error message from server if available
-      toast.error(error.message || 'Failed to upload file. Check console.');
+      toast.error(getErrorMessage(error, 'Failed to upload file. Check console.'));
     } finally {
       setUploading(null);
       // Reset input
@@ -88,18 +88,8 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
     }
   };
 
-  // Local state for buffered input to allow smooth typing (e.g. clearing box, typed '0')
-  const [postsPerPageLocal, setPostsPerPageLocal] = useState<string>(
-    settings.postsPerPage.toString()
-  );
-
-  // Sync local state when settings change externally
-  React.useEffect(() => {
-    setPostsPerPageLocal(settings.postsPerPage.toString());
-  }, [settings.postsPerPage]);
-
-  const handlePostsPerPageBlur = () => {
-    let val = parseInt(postsPerPageLocal);
+  const handlePostsPerPageBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    let val = parseInt(event.currentTarget.value, 10);
 
     if (isNaN(val) || val < 6) {
       val = 6;
@@ -109,8 +99,6 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
       toast.error('Maximum posts per page is 50');
     }
 
-    // Update both local and parent to sanitized value
-    setPostsPerPageLocal(val.toString());
     onChange('postsPerPage', val);
   };
 
@@ -528,7 +516,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             name="generalsettingsDateFormat"
             aria-label="Date Format"
             value={settings.dateFormat || DEFAULT_SITE_DATE_FORMAT}
-            onChange={(e) => onChange('dateFormat', e.target.value)}
+            onChange={(e) => onChange('dateFormat', e.target.value as SiteSettings['dateFormat'])}
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           >
             {SITE_DATE_FORMAT_OPTIONS.map((option) => (
@@ -681,8 +669,8 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="number"
             min="6"
             max="50"
-            value={postsPerPageLocal}
-            onChange={(e) => setPostsPerPageLocal(e.target.value)}
+            value={settings.postsPerPage === 0 ? '' : settings.postsPerPage}
+            onChange={(e) => onChange('postsPerPage', Number(e.target.value))}
             onBlur={handlePostsPerPageBlur}
             className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           />
@@ -761,7 +749,9 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             name="generalsettings614"
             aria-label="Share Buttons Placement"
             value={settings.sharePlacement || 'bottom'}
-            onChange={(e) => onChange('sharePlacement', e.target.value)}
+            onChange={(e) =>
+              onChange('sharePlacement', e.target.value as SiteSettings['sharePlacement'])
+            }
             className="w-full p-2 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           >
             <option value="none">Disabled</option>

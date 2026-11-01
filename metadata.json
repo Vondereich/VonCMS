@@ -1,6 +1,7 @@
 {
   "name": "VonCMS",
   "description": "Content Management System with admin dashboard, user management, and discussion system.",
-  "version": "1.27.12",
-  "requestFramePermissions": ["camera", "microphone"]
+  "version": "1.28.0",
+  "minPhp": "8.2.0",
+  "recommendedPhp": "8.3.0"
 }

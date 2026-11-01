@@ -24,7 +24,7 @@ const emptyMeta = (limit: number): ProfileActivityMeta => ({
   hasMore: false,
 });
 
-const normalizePost = (post: any): Post => ({
+const normalizePost = (post: import('../types').PostApiRecord): Post => ({
   ...post,
   image: post.image || post.image_url || '',
   imageSrcSet: post.imageSrcSet || post.image_srcset || '',

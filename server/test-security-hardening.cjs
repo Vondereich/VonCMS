@@ -37,6 +37,11 @@ function uploadChecks() {
     fs.mkdirSync(path.join(fixture, 'php-tmp'));
     for (const file of ['upload_file.php', 'ImageProcessor.php'])
       fs.copyFileSync(path.join(root, 'public/api', file), path.join(api, file));
+    fs.mkdirSync(path.join(site, 'core'));
+    fs.copyFileSync(
+      path.join(root, 'public/core/DataBoundary.php'),
+      path.join(site, 'core/DataBoundary.php')
+    );
     fs.copyFileSync(
       path.join(root, 'public/media_variants.php'),
       path.join(site, 'media_variants.php')
@@ -44,6 +49,7 @@ function uploadChecks() {
     fs.writeFileSync(
       path.join(site, 'security.php'),
       `<?php
+require_once __DIR__.'/core/DataBoundary.php';
 class ResponseHelper {
   static function sendError($error, $status=500) { http_response_code($status); echo json_encode(['success'=>false,'error'=>$error instanceof Throwable?'QA database failed':$error]); exit; }
   static function scrubUrl($url) { return $url; }
@@ -93,7 +99,9 @@ $pdo=new QaDatabase;
       fields = {},
       failure = false,
       filename = 'test.png',
-      bytes = png
+      bytes = png,
+      expectedSuccess,
+      fileField = 'file'
     ) {
       fs.writeFileSync(settingsPath, JSON.stringify(settings));
       const boundary = 'VonCMSMediaFixtureBoundary';
@@ -104,7 +112,7 @@ $pdo=new QaDatabase;
           )
         ),
         Buffer.from(
-          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: image/png\r\n\r\n`
+          `--${boundary}\r\nContent-Disposition: form-data; name="${fileField}"; filename="${filename}"\r\nContent-Type: image/png\r\n\r\n`
         ),
         bytes,
         Buffer.from(`\r\n--${boundary}--\r\n`),
@@ -135,7 +143,7 @@ $pdo=new QaDatabase;
       const payload = JSON.parse(run.stdout.slice(split).trim());
       assert.equal(
         payload.success,
-        !failure && bytes === png && /\.png$/i.test(filename),
+        expectedSuccess ?? (!failure && bytes === png && /\.png$/i.test(filename)),
         JSON.stringify(payload)
       );
       assert.equal(
@@ -206,7 +214,86 @@ $pdo=new QaDatabase;
       assert.equal(result.url, '/zangetsu/uploads/' + result.filename);
       assert.ok(fs.existsSync(path.join(site, 'uploads', result.filename)));
     }
+    for (const media of [
+      'invalid',
+      { storage: 'invalid', optimization: 'invalid' },
+      {
+        storage: { cdnUrl: [] },
+        optimization: { maxWidth: [], quality: [], compressionLevel: [] },
+      },
+    ]) {
+      const result = upload({ media }, '/api/upload_file.php');
+      assert.match(result.path, /^\d{4}\/\d{2}\/[^/]+$/);
+      assert.ok(
+        fs.existsSync(path.join(site, 'uploads', result.path)),
+        'Malformed old media settings blocked a valid upload.'
+      );
+    }
+    // Variants run here against the copied app's registry, never the source checkout's data/.
+    for (const [width, height] of [
+      [1, 4000],
+      [4000, 1],
+      [1200, 1],
+      [1200, 80],
+    ]) {
+      const thin = spawnSync(
+        php,
+        [
+          '-r',
+          '$im=imagecreatetruecolor((int)$argv[1],(int)$argv[2]); imagepng($im);',
+          String(width),
+          String(height),
+        ],
+        { encoding: null }
+      );
+      assert.equal(thin.status, 0, thin.stderr.toString());
+      const result = upload(flat, '/api/upload_file.php', {}, false, 'thin.png', thin.stdout, true);
+      assert.ok(fs.existsSync(path.join(site, 'uploads', result.path)));
+      assert.equal(result.extension, 'webp');
+      assert.equal(
+        JSON.parse(fs.readFileSync(path.join(site, 'data/last-row.json'))).filepath,
+        'uploads/' + result.path
+      );
+      const ratio = Math.min(1, 1920 / width, 1080 / height);
+      const outputWidth = Math.max(1, Math.round(width * ratio));
+      const outputHeight = Math.max(1, Math.round(height * ratio));
+      const widths = [480, 768, 960].filter((candidate) => candidate < outputWidth);
+      const stored = path.join(site, 'uploads', result.path);
+      const variantPaths = widths.map((candidate) =>
+        stored.replace(/\.webp$/, '_' + candidate + 'w.webp')
+      );
+      const sizes = spawnSync(
+        php,
+        [
+          '-r',
+          'echo json_encode(array_map("getimagesize",array_slice($argv,1)));',
+          stored,
+          ...variantPaths,
+        ],
+        { encoding: 'utf8' }
+      );
+      assert.equal(sizes.status, 0, sizes.stderr);
+      const dimensions = JSON.parse(sizes.stdout).map((size) => [size[0], size[1]]);
+      assert.deepEqual(dimensions, [
+        [outputWidth, outputHeight],
+        ...widths.map((candidate) => [
+          candidate,
+          Math.max(1, Math.round((outputHeight * candidate) / outputWidth)),
+        ]),
+      ]);
+    }
     const before = fs.readdirSync(path.join(site, 'uploads'), { recursive: true }).sort();
+    const malformed = upload(
+      flat,
+      '/api/upload_file.php',
+      {},
+      false,
+      'array.png',
+      png,
+      false,
+      'file[]'
+    );
+    assert.equal(malformed.error, 'Invalid image upload data.');
     upload(flat, '/api/upload_file.php', {}, true);
     upload(
       flat,
@@ -217,6 +304,52 @@ $pdo=new QaDatabase;
       Buffer.from('<?php echo "not an image";')
     );
     upload(flat, '/api/upload_file.php', {}, false, 'image.png.php');
+    // Force a processor exception after it has written the canonical WebP and a variant.
+    // Only this disposable copied class is replaced; the actual endpoint/CGI path is unchanged.
+    const processorPath = path.join(api, 'ImageProcessor.php');
+    const realProcessor = fs.readFileSync(processorPath);
+    const lastRow = fs.readFileSync(path.join(site, 'data/last-row.json'));
+    try {
+      fs.writeFileSync(
+        processorPath,
+        `<?php
+class ImageProcessor {
+  static function isGdAvailable() { return true; }
+  function __construct($settings) {}
+  function processUpload($path) {
+    $webp=dirname($path).'/'.pathinfo($path,PATHINFO_FILENAME).'.webp';
+    file_put_contents($webp,'qa incomplete conversion');
+    $variant=voncms_build_responsive_variant_relative_path($webp,480);
+    file_put_contents($variant,'qa incomplete variant');
+    if (!voncms_record_generated_media_variants($webp,[$variant])) throw new RuntimeException('QA registry setup failed');
+    file_put_contents(dirname(__DIR__).'/data/qa-variant-registered','yes');
+    throw new ValueError('QA processor failure must not escape to the client');
+  }
+}
+`
+      );
+      const failed = upload(flat, '/api/upload_file.php', {}, false, 'exception.png', png, false);
+      assert.equal(failed.error, 'Image processing failed safely. Please try another image.');
+      assert.equal(fs.readFileSync(path.join(site, 'data/qa-variant-registered'), 'utf8'), 'yes');
+      assert.deepEqual(fs.readFileSync(path.join(site, 'data/last-row.json')), lastRow);
+      const registry = spawnSync(
+        php,
+        [
+          '-r',
+          'require $argv[1]; echo json_encode(voncms_load_generated_media_variant_registry($argv[2]));',
+          path.join(site, 'media_variants.php'),
+          path.join(site, 'uploads'),
+        ],
+        { encoding: 'utf8' }
+      );
+      assert.equal(registry.status, 0, registry.stderr);
+      assert.ok(
+        !registry.stdout.includes('exception_'),
+        'Failed upload left a variant registry entry'
+      );
+    } finally {
+      fs.writeFileSync(processorPath, realProcessor);
+    }
     assert.deepEqual(
       fs.readdirSync(path.join(site, 'uploads'), { recursive: true }).sort(),
       before,
@@ -294,6 +427,14 @@ $sync=file_get_contents(__DIR__.'/sync_media.php');
 eval(substr($sync,strpos($sync,'function scanAndSync('),strpos($sync,"\ntry {",strpos($sync,'function scanAndSync('))-strpos($sync,'function scanAndSync(')));
 $tools=file_get_contents(__DIR__.'/media_tools.php');
 eval(substr($tools,strpos($tools,'function formatMediaToolBytes(')));
+$review=[['path'=>'test.webp','size'=>12,'sizeFormatted'=>'0.01 KB','modified'=>'2026-10-30 00:00:00']];
+$reviewToken=createMediaCleanupPreview($review);
+if(!is_string($reviewToken) || ($reviewPayload=loadMediaCleanupPreview($reviewToken))===null || $reviewPayload['orphaned']!==$review) throw new RuntimeException('Ordinary media review did not round-trip');
+$reviewPath=$reviewPayload['__path'];
+$reviewPayload['orphaned'][0]['size']=[];
+file_put_contents($reviewPath,json_encode($reviewPayload));
+if(loadMediaCleanupPreview($reviewToken)!==null) throw new RuntimeException('Malformed media review admitted for deletion');
+if(!is_file($probeSource)) throw new RuntimeException('Rejected media review touched an image');
 $pdo=new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
 $pdo->exec('CREATE TABLE media(id INTEGER PRIMARY KEY,filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,uploaded_at TEXT)');
@@ -582,6 +723,7 @@ echo json_encode(array_map(static fn($html) => voncms_sanitize_content_attribute
               ({ name, value }) =>
                 /^on/i.test(name) ||
                 (['href', 'src', 'xlink:href'].includes(name) &&
+                  // eslint-disable-next-line no-control-regex -- Model browser URL whitespace normalization in the hostile-payload check.
                   /^(?:javascript|vbscript|data):/i.test(value.replace(/[\x00-\x20]/g, '')))
             ),
             href: parsed.querySelector('a')?.getAttribute('href'),
