@@ -590,6 +590,29 @@ async function main() {
         );
       return result.result.value;
     };
+    // Keep fixture data separate from JavaScript source, including </script> text.
+    const evaluateFunction = async (functionDeclaration, ...values) => {
+      const target = await send('Runtime.evaluate', { expression: 'globalThis' });
+      assert.ok(target.result.objectId, 'Browser evaluation needs its current context');
+      try {
+        const result = await send('Runtime.callFunctionOn', {
+          objectId: target.result.objectId,
+          functionDeclaration,
+          arguments: values.map((value) => ({ value })),
+          returnByValue: true,
+          awaitPromise: true,
+          userGesture: true,
+        });
+        if (result.exceptionDetails)
+          throw new Error(
+            result.exceptionDetails.exception?.description || result.exceptionDetails.text
+          );
+        return result.result.value;
+      } finally {
+        // Navigation can destroy the old context before its handle is released.
+        await send('Runtime.releaseObject', { objectId: target.result.objectId }).catch(() => {});
+      }
+    };
     const wait = async (expression) => {
       const endTime = Date.now() + 20000;
       while (Date.now() < endTime) {
@@ -600,12 +623,15 @@ async function main() {
     };
     const click = async (selector) => {
       assert.ok(await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`), selector);
-      const point = await evaluate(`(() => {
-        const element = document.querySelector(${JSON.stringify(selector)});
+      const point = await evaluateFunction(
+        `function(selector) {
+        const element = document.querySelector(selector);
         element.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
         const box = element.getBoundingClientRect();
         return {x:box.x+box.width/2,y:box.y+box.height/2};
-      })()`);
+      }`,
+        selector
+      );
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
       await send('Input.dispatchMouseEvent', {
         type: 'mousePressed',
@@ -686,6 +712,20 @@ async function main() {
     };
     await send('Page.enable');
     await send('Runtime.enable');
+    const argumentCases = [
+      'nav button[title="Create"]',
+      "R&D <Test> - Nur'Aini",
+      '</script><script>globalThis.__qaArgumentExecuted=true</script>',
+      '");globalThis.__qaArgumentExecuted=true;//',
+      'quote" slash\\ newline\n\u2028\u2029 emoji \u{1F642}',
+    ];
+    assert.deepEqual(
+      await evaluateFunction('function(value) { return value; }', argumentCases),
+      argumentCases,
+      'CDP must preserve exact fixture text without parsing it as JavaScript or HTML'
+    );
+    assert.equal(await evaluate('globalThis.__qaArgumentExecuted'), undefined);
+    console.log('PASS CDP argument transport: selectors and hostile/Unicode text remain data.');
     if (useExtensionLifecycle) {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
       const card = (name) =>
@@ -1055,17 +1095,24 @@ async function main() {
     if (useUsers) {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
       const fill = (selector, value) =>
-        evaluate(`(() => {
-        const field=document.querySelector(${JSON.stringify(selector)});
+        evaluateFunction(
+          `function(selector,value) {
+        const field=document.querySelector(selector);
         const proto=field.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;
-        Object.getOwnPropertyDescriptor(proto,'value').set.call(field,${JSON.stringify(value)});
+        Object.getOwnPropertyDescriptor(proto,'value').set.call(field,value);
         field.dispatchEvent(new Event(field.tagName==='SELECT'?'change':'input',{bubbles:true}));
-      })()`);
+      }`,
+          selector,
+          value
+        );
       const edit = async (name) => {
-        await evaluate(`(() => {
-          const row=[...document.querySelectorAll('tr')].find(r=>r.textContent.includes(${JSON.stringify(name)}));
+        await evaluateFunction(
+          `function(name) {
+          const row=[...document.querySelectorAll('tr')].find(r=>r.textContent.includes(name));
           if(!row)throw new Error('Missing user fixture row');row.querySelector('button[title="Edit User"]')?.click();
-        })()`);
+        }`,
+          name
+        );
         await wait(`!!document.querySelector('[role="dialog"][aria-label="Edit user"]')`);
       };
       for (const base of ['', '/zangetsu']) {
@@ -1187,11 +1234,15 @@ async function main() {
     }
     if (useAuth) {
       const fill = (selector, value) =>
-        evaluate(`(() => {
-        const input=document.querySelector(${JSON.stringify(selector)});
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});
+        evaluateFunction(
+          `function(selector,value) {
+        const input=document.querySelector(selector);
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);
         input.dispatchEvent(new Event('input',{bubbles:true}));
-      })()`);
+      }`,
+          selector,
+          value
+        );
       const resendVisible = () =>
         evaluate(
           `!![...document.querySelectorAll('button')].find(b=>/Resend verification email|Sending verification email/.test(b.textContent))`
@@ -1770,14 +1821,18 @@ async function main() {
           );
       };
       const fill = async (selector, value) => {
-        await evaluate(
-          `(() => {const f=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(f instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(f,${JSON.stringify(value)});f.dispatchEvent(new Event('input',{bubbles:true}));})()`
+        await evaluateFunction(
+          `function(selector,value) {const f=document.querySelector(selector);Object.getOwnPropertyDescriptor(f instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(f,value);f.dispatchEvent(new Event('input',{bubbles:true}));}`,
+          selector,
+          value
         );
         await pause(100);
       };
       const press = async (text, within = 'section[aria-labelledby="calendar-heading"]') => {
-        await evaluate(
-          `(() => {const b=Array.from(document.querySelectorAll(${JSON.stringify(within + ' button')})).find(b=>b.textContent.trim()===${JSON.stringify(text)});if(!b)throw new Error('Missing button '+${JSON.stringify(text)});b.setAttribute('data-qa-calendar-click','true');})()`
+        await evaluateFunction(
+          `function(within,text) {const b=Array.from(document.querySelectorAll(within+' button')).find(b=>b.textContent.trim()===text);if(!b)throw new Error('Missing button '+text);b.setAttribute('data-qa-calendar-click','true');}`,
+          within,
+          text
         );
         await click('[data-qa-calendar-click="true"]');
         await evaluate(
@@ -2382,12 +2437,15 @@ async function main() {
             others[index + 1],
             index === 0 ? '<!-- In-feed sample -->' : '<!-- Popup sample -->'
           );
-        const point = await evaluate(`(() => {
-          const field=document.querySelector(${JSON.stringify(selector)});
+        const point = await evaluateFunction(
+          `function(selector) {
+          const field=document.querySelector(selector);
           field.scrollIntoView({block:'center'});
           const box=field.getBoundingClientRect();
           return {x:box.right-4,y:box.bottom-4,height:box.height,width:box.width};
-        })()`);
+        }`,
+          selector
+        );
         await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
         await send('Input.dispatchMouseEvent', {
           type: 'mousePressed',
@@ -2405,11 +2463,14 @@ async function main() {
             buttons: 1,
           });
           await pause(16);
-          const motion = await evaluate(`(() => {
-            const field=document.querySelector(${JSON.stringify(selector)});
+          const motion = await evaluateFunction(
+            `function(selector) {
+            const field=document.querySelector(selector);
             return {height:field.getBoundingClientRect().height,target:parseFloat(field.style.height),
               heightTransition:field.getAnimations().some(a=>a.transitionProperty==='height')};
-          })()`);
+          }`,
+            selector
+          );
           assert.ok(Number.isFinite(motion.target), 'Native resize must update an explicit height');
           assert.ok(
             Math.abs(motion.height - motion.target) <= 1 && !motion.heightTransition,
@@ -2467,11 +2528,14 @@ async function main() {
     if (useRealEditor) {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
       const title = async (value) => {
-        await evaluate(`(() => {
+        await evaluateFunction(
+          `function(value) {
           const field=document.querySelector('#post-title');
-          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,${JSON.stringify(value)});
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,value);
           field.dispatchEvent(new Event('input',{bubbles:true}));
-        })()`);
+        }`,
+          value
+        );
         await pause(150);
       };
       const open = async (base, type = 'post') => {
@@ -2858,8 +2922,9 @@ async function main() {
       'PASS Browser: root/subfolder paths, role transitions, dark mode, and no uncaught JavaScript exceptions.'
     );
     const sampleNavigationColor = (selector) =>
-      evaluate(`(() => {
-      const element=document.querySelector(${JSON.stringify(selector)});
+      evaluateFunction(
+        `function(selector) {
+      const element=document.querySelector(selector);
       const style=getComputedStyle(element),canvas=document.createElement('canvas');
       canvas.width=canvas.height=1;const context=canvas.getContext('2d');
       context.fillStyle=getComputedStyle(document.querySelector('aside')).backgroundColor;
@@ -2872,10 +2937,13 @@ async function main() {
       const luminance=rgb=>rgb.map(value=>{value/=255;return value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4}).reduce((sum,value,index)=>sum+value*[0.2126,0.7152,0.0722][index],0);
       const bg=luminance(background),fg=luminance(foreground);
       return {background,luminance:bg,contrast:(Math.max(bg,fg)+0.05)/(Math.min(bg,fg)+0.05),alpha,border:parseFloat(style.borderTopWidth),shadow:style.boxShadow,blur:style.backdropFilter};
-    })()`);
+    }`,
+        selector
+      );
     const hoverNavigation = async (selector) => {
-      const point = await evaluate(
-        `(() => {const element=document.querySelector(${JSON.stringify(selector)});element.scrollIntoView();const box=element.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2}})()`
+      const point = await evaluateFunction(
+        `function(selector) {const element=document.querySelector(selector);element.scrollIntoView();const box=element.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2}}`,
+        selector
       );
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
       await pause(220);
@@ -2899,8 +2967,9 @@ async function main() {
         const pageSelector = 'nav a[title="Pages"]';
         const createSelector = 'nav button[title="Create"]';
         assert.equal(
-          await evaluate(
-            `(() => {const style=getComputedStyle(document.querySelector(${JSON.stringify(createSelector)}));const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const context=canvas.getContext('2d');context.fillStyle=style.backgroundColor;context.fillRect(0,0,1,1);return context.getImageData(0,0,1,1).data[3]===255&&style.backdropFilter==='none'&&style.opacity==='1';})()`
+          await evaluateFunction(
+            `function(selector) {const style=getComputedStyle(document.querySelector(selector));const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const context=canvas.getContext('2d');context.fillStyle=style.backgroundColor;context.fillRect(0,0,1,1);return context.getImageData(0,0,1,1).data[3]===255&&style.backdropFilter==='none'&&style.opacity==='1';}`,
+            createSelector
           ),
           true,
           'Create must use an opaque solid background without glass blur'
