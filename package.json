@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@openrouter/sdk": "^1.5.6",
-    "@tiptap/core": "^3.32.0",
+    "@tiptap/core": "^3.32.1",
     "@tiptap/extension-image": "^3.32.0",
     "@tiptap/extension-link": "^3.32.0",
     "@tiptap/extension-table": "^3.32.0",
