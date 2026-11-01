@@ -1,8 +1,8 @@
-# VonCMS Extension Development Guide v1.27.12
+# VonCMS Extension Development Guide v1.28.0
 
-This guide describes the v1.27.12 source baseline, a focused corrective follow-up to the planned v1.27.x maintenance closeout.
+This guide describes the v1.28.0 "The BluePrint" development baseline, carried forward from v1.27.12 with a PHP 8.2 minimum and PHP 8.3+ recommended. The opening version bump does not introduce new extension behavior or publish a release.
 
-This guide is the public source of truth for VonCMS theme and plugin development in the OverDrive line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
+This guide is the public source of truth for VonCMS theme and plugin development in The BluePrint line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 
 Use the shared contracts first, then the theme-specific or plugin-specific sections below.
 
@@ -116,7 +116,7 @@ For comments, appointed Admin/Moderator/Writer payloads may expose only `hasEmai
 
 Public theme props and public plugin payloads are already shaped by PHP response helpers before they reach React. Do not rebuild public privacy rules inside an extension.
 
-The public contract retained in v1.27.12 is:
+The public contract retained in v1.28.0 is:
 
 - public post/page/bootstrap payloads do not expose internal `author_id`
 - public comment payloads omit `dbId`, `userId`, moderation `status`, and `emailHash`
@@ -650,7 +650,7 @@ export const MyPlugin: PluginDefinition = {
   id: 'vp_my_plugin',
   name: 'My Plugin',
   description: 'Short admin-facing description.',
-  version: '1.27',
+  version: '1.28',
   author: 'VonCMS Team',
   render: (location: PluginLocation, rawConfig?: unknown) => {
     if (location !== 'header_top') return null;
@@ -715,7 +715,7 @@ src/plugins/von-core/features/plugins/built-in/[plugin]/SettingsModal.tsx
 
 Then wire the modal from `ExtensionsManager.tsx`.
 
-Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.27.12 baseline keeps per-extension config in Extensions, while site identity stays in General Settings. Public settings include only effectively active system-plugin configuration and enabled custom HTML plugins; authorized admin settings still include saved inactive configuration. Do not infer defaults by stripping OFF flags or intentional empty lists.
+Do not mirror one plugin's settings in multiple admin areas unless there is a current runtime owner for that split. The v1.28.0 baseline keeps per-extension config in Extensions, while site identity stays in General Settings. Public settings include only effectively active system-plugin configuration and enabled custom HTML plugins; authorized admin settings still include saved inactive configuration. Do not infer defaults by stripping OFF flags or intentional empty lists.
 
 Secret-bearing configuration does not belong in public plugin config. Store it in a protected settings group or dedicated backend path, let `get_settings.php` mask it for non-primary admins, and make save paths ignore protected secret keys from non-primary admins.
 

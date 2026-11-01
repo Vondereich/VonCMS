@@ -61,6 +61,7 @@ export const normalizePublicMediaUrl = (value: unknown, maxLength = 2048): strin
   if (
     !url ||
     url.length > Math.max(1, maxLength) ||
+    // eslint-disable-next-line no-control-regex -- URL validation must reject control characters.
     /[\u0000-\u0020\u007f<>"'`\\]/u.test(url) ||
     url.startsWith('//')
   ) {
@@ -84,6 +85,7 @@ export const normalizePublicMediaUrl = (value: unknown, maxLength = 2048): strin
   if (!path) return '';
   try {
     const decodedPath = decodeURIComponent(path);
+    // eslint-disable-next-line no-control-regex -- Also reject URL-encoded control characters after decoding.
     if (/[\u0000-\u0020\u007f\\]/u.test(decodedPath)) return '';
     if (decodedPath.split('/').some((segment) => segment === '.' || segment === '..')) return '';
   } catch {

@@ -40,6 +40,7 @@ export const API = {
   deletePost: `${BASE_PATH}api/delete_post.php`,
   deletePage: `${BASE_PATH}api/delete_page.php`,
   contentAuditLogs: `${BASE_PATH}api/get_content_audit_logs.php`,
+  calendar: `${BASE_PATH}api/calendar.php`,
   manageCategories: `${BASE_PATH}api/manage_categories.php`,
 
   // Comments endpoints

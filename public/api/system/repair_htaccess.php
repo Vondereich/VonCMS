@@ -72,6 +72,9 @@ function getHtaccessContent($prefix)
   <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # OTA payloads and rollback files are never public, including crawler requests.
+    RewriteRule ^(?:public/)?temp_update(?:/|$) - [F,L,NC]
+
     # Reject PHP PATH_INFO aliases before any crawler or file fast-path can exit.
     RewriteRule ^.+\.php/ - [R=404,L,NC]
     RewriteRule ^(?:public/)?core(/.*)?$ - [F,L,NC]
@@ -487,10 +490,10 @@ function repairUploadsShield($publicPath, $projectRoot)
 
 /**
  * @param string $publicPath
+ * @param 'data'|'core' $directory
  * @return array{status: string, path: string}
  */
-/** @param 'data'|'core' $directory */
-function repairDataShield($publicPath, $directory = 'data')
+function repairDataShield(string $publicPath, string $directory = 'data'): array
 {
   if (!in_array($directory, ['data', 'core'], true)) {
     throw new InvalidArgumentException('Invalid internal shield directory.');

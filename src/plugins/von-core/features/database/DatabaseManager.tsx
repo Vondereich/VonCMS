@@ -31,7 +31,7 @@ const DatabaseManager: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: 'SELECT DATABASE() as name' }),
         });
-        const dbData = await dbRes.json();
+        const dbData: Omit<SqlResult, 'data'> & { data?: string[][] } = await dbRes.json();
         if (!dbData.success || !dbData.data || dbData.data.length === 0) {
           throw new Error(dbData.message || 'Could not read the active database name.');
         }
@@ -43,13 +43,13 @@ const DatabaseManager: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: 'SHOW TABLES' }),
         });
-        const data = await response.json();
+        const data: Omit<SqlResult, 'data'> & { data?: string[][] } = await response.json();
         if (!data.success || !data.data) {
           throw new Error(data.message || 'Could not read database tables.');
         }
 
         // Flatten the array of arrays [[table1], [table2]] -> [table1, table2]
-        setDatabases(data.data.map((row: any[]) => row[0]));
+        setDatabases(data.data.map((row) => row[0]));
         setIsConnected(true);
       } catch (e) {
         console.error('Failed to load tables', e);
@@ -90,7 +90,7 @@ const DatabaseManager: React.FC = () => {
           data: [],
         });
       }
-    } catch (error) {
+    } catch {
       setResult({
         success: false,
         message: 'Network Error: Failed to connect to database API.',
@@ -152,13 +152,13 @@ const DatabaseManager: React.FC = () => {
       toast.error(`Import failed: ${importError}`);
     };
 
-    input.onchange = async (e: any) => {
-      const file = e.target.files[0];
+    input.onchange = async () => {
+      const file = input.files?.[0];
       if (file) {
         setIsImporting(true);
         try {
           await uploadImportFile(file);
-        } catch (error) {
+        } catch {
           toast.error('Import failed: Network error');
         } finally {
           setIsImporting(false);
@@ -226,7 +226,7 @@ const DatabaseManager: React.FC = () => {
       } else {
         toast.error('Repair failed: ' + (data.error || data.message || 'Unknown error'));
       }
-    } catch (error) {
+    } catch {
       toast.error('Repair failed: Network Error');
     } finally {
       window.dispatchEvent(new Event(DATABASE_STATUS_INVALIDATED_EVENT));
@@ -432,7 +432,7 @@ const DatabaseManager: React.FC = () => {
                           key={i}
                           className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors group"
                         >
-                          {row.map((c: any, j: number) => (
+                          {row.map((c, j) => (
                             <td
                               key={j}
                               className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 font-mono whitespace-nowrap group-hover:text-blue-600 dark:group-hover:text-blue-400"

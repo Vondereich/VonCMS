@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/schema_repair_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
@@ -20,9 +22,9 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 SessionManager::requireValidSession();
 
-$contentType = strtolower((string) ($_GET['type'] ?? 'post'));
-$contentId = (int) ($_GET['id'] ?? 0);
-$currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+$contentType = strtolower(DataBoundary::inputText($_GET['type'] ?? 'post'));
+$contentId = (int) DataBoundary::inputText($_GET['id'] ?? 0);
+$currentRole = strtolower(DataBoundary::userText('role'));
 
 if (!in_array($contentType, ['post', 'page'], true)) {
   ResponseHelper::sendError('Invalid content type', 400);
@@ -49,14 +51,14 @@ try {
   $contentTable = $contentType === 'page' ? 'pages' : 'posts';
   $contentStmt = $pdo->prepare("SELECT author_id FROM $contentTable WHERE id = ? LIMIT 1");
   $contentStmt->execute([$contentId]);
-  $contentRow = $contentStmt->fetch(PDO::FETCH_ASSOC);
+  $contentRow = DataBoundary::row($contentStmt->fetch(PDO::FETCH_ASSOC));
   if (!$contentRow) {
     ResponseHelper::sendError('Content not found', 404);
   }
 
   if (
     $currentRole === 'writer' &&
-    (string) ($contentRow['author_id'] ?? '') !== (string) ($_SESSION['user']['id'] ?? '')
+    (string) ($contentRow['author_id'] ?? '') !== DataBoundary::userText('id')
   ) {
     ResponseHelper::sendError('Not authorized to view this edit history', 403);
   }
@@ -104,7 +106,7 @@ try {
         'createdAt' => (string) ($row['created_at'] ?? ''),
       ];
     },
-    $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+    DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)) ?: [],
   );
 
   echo json_encode([

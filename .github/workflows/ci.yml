@@ -20,6 +20,10 @@ jobs:
     name: Verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
 
     steps:
       - name: Check out repository
@@ -34,14 +38,31 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php }}
+          extensions: dom, mbstring, pdo_sqlite, gd, curl, exif, fileinfo, zip
           coverage: none
+          tools: composer:v2
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Install locked development PHP tools
+        run: composer install --no-interaction --no-plugins --no-scripts --prefer-dist
+
+      - name: Analyse PHP API, core and security (Level 9, PHP 8.2 target)
+        run: npm run lint:phpstan
+
+      - name: Check formatting and BOM (read-only)
+        run: npm run check:format && npm run check:bom
+
+      - name: Audit locked npm dependencies
+        run: npm audit
 
       - name: Lint PHP
         run: npm run lint:php
 
       - name: Run VonCMS release gate
         run: npm run ci:gate
+
+      - name: Lint JavaScript and TypeScript
+        run: npm run lint

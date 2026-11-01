@@ -75,7 +75,7 @@ export function extractSentences(
     sentences = blocks.flatMap((block) =>
       [...segmenter.segment(block)].map((s) => s.segment.trim()).filter((s) => s.length > 5)
     );
-  } catch (e) {
+  } catch {
     // Fallback: Basic Regex split
     sentences = blocks.flatMap((block) =>
       block
@@ -103,7 +103,7 @@ export function extractSentences(
         wordFreq[w] = (wordFreq[w] || 0) + 1;
       });
     });
-  } catch (e) {
+  } catch {
     // Fallback word tokenizer
     sentences.forEach((s) => {
       const words = s.toLowerCase().split(/\W+/).filter(Boolean);
@@ -278,14 +278,14 @@ export function extractSummary(
     .replace(/\u00A0/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  let wordCount = 0;
+  let wordCount: number;
 
   try {
     const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
     wordCount = [...wordSegmenter.segment(visibleText)].filter(
       (segment) => segment.isWordLike
     ).length;
-  } catch (e) {
+  } catch {
     wordCount = visibleText ? visibleText.split(/\s+/).filter(Boolean).length : 0;
   }
 

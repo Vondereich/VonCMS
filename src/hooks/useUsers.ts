@@ -8,8 +8,12 @@ import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
 import toast from 'react-hot-toast';
+import { getSavedProfileUpdates } from '../utils/profileUtils';
 
-export function useUsers() {
+export function useUsers(
+  currentUser: User | null = null,
+  onUpdateCurrentUser?: (updates: Partial<User>) => void
+) {
   const [users, setUsers] = useState<User[]>([]);
 
   // Load users from API
@@ -135,7 +139,7 @@ export function useUsers() {
           body: JSON.stringify(updatedUser),
         });
         const data = await res.json();
-        if (!data.success) {
+        if (!res.ok || !data.success) {
           if (previousUser) {
             setUsers((prev) => prev.map((u) => (u.id === previousUser.id ? previousUser : u)));
           }
@@ -143,12 +147,26 @@ export function useUsers() {
           toast.error(data.message || data.error || 'Failed to update user.');
           return false;
         }
-        if (previousUser && (data.unchanged || (data.user && typeof data.user === 'object'))) {
-          const canonicalUser =
-            data.user && typeof data.user === 'object'
-              ? { ...previousUser, ...data.user }
-              : previousUser;
-          setUsers((prev) => prev.map((u) => (u.id === previousUser.id ? canonicalUser : u)));
+        const canonicalUser: User =
+          data.user && typeof data.user === 'object' && !Array.isArray(data.user)
+            ? { ...(previousUser || optimisticUser), ...data.user }
+            : previousUser && data.unchanged
+              ? previousUser
+              : optimisticUser;
+        if (data.unchanged || (data.user && typeof data.user === 'object')) {
+          setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? canonicalUser : u)));
+        }
+        if (currentUser && String(canonicalUser.id) === String(currentUser.id)) {
+          onUpdateCurrentUser?.({
+            id: currentUser.id,
+            username: canonicalUser.username,
+            email: canonicalUser.email,
+            ...getSavedProfileUpdates(canonicalUser, {
+              display_name: canonicalUser.display_name || '',
+              bio: canonicalUser.bio || '',
+              avatar: canonicalUser.avatar || '',
+            }),
+          });
         }
         if (data.unchanged) {
           toast(data.message || 'No changes detected.');
@@ -165,7 +183,7 @@ export function useUsers() {
         return false;
       }
     },
-    [users]
+    [users, currentUser, onUpdateCurrentUser]
   );
 
   return {

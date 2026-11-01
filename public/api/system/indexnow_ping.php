@@ -33,6 +33,9 @@ try {
   }
 
   $input = json_decode(CSRFProtection::getRequestBody(), true);
+  if (!is_array($input)) {
+    ResponseHelper::sendError('Invalid IndexNow request', 400);
+  }
   $url = $input['url'] ?? null;
 
   $indexNow = new IndexNow($pdo);
@@ -47,7 +50,7 @@ try {
   }
 
   // Validate URL
-  if (!filter_var($url, FILTER_VALIDATE_URL)) {
+  if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
     ResponseHelper::sendError('Invalid URL format', 400);
   }
 

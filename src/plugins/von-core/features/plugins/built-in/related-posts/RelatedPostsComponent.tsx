@@ -18,6 +18,7 @@ interface ThemeColors {
   text?: string;
   textSecondary?: string;
   primary?: string;
+  secondary?: string;
 }
 
 type RelatedPostCardStyle = React.CSSProperties & {
@@ -69,15 +70,26 @@ export const RelatedPostsComponent: React.FC<RelatedPostsComponentProps> = ({
     .join('|');
 
   // Find related posts
+  const { id: currentId, category: currentCategory, keywords: currentKeywords } = currentPost;
+  const { orderBy, count } = config;
   const relatedPosts = useMemo(
-    () => findRelatedPosts(currentPost, allPosts, config, permalinkSettings.timeZone),
+    () =>
+      relatedPostsSignature
+        ? findRelatedPosts(
+            { id: currentId, category: currentCategory, keywords: currentKeywords },
+            allPosts,
+            { orderBy, count },
+            permalinkSettings.timeZone
+          )
+        : [],
     [
-      currentPost.id,
-      currentPost.category,
-      currentPost.keywords,
-      config.orderBy,
-      config.count,
+      currentId,
+      currentCategory,
+      currentKeywords,
+      orderBy,
+      count,
       permalinkSettings.timeZone,
+      allPosts,
       relatedPostsSignature,
     ]
   );

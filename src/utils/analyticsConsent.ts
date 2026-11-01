@@ -31,8 +31,23 @@ export const readAnalyticsConsent = (): AnalyticsConsentDecision => {
 export const analyticsTrackingAllowed = (consentRequired: boolean): boolean =>
   !consentRequired || readAnalyticsConsent() === 'accepted';
 
+export const nativeAnalyticsCookieName = (): string =>
+  'von_analytics_id_' +
+  Array.from(new TextEncoder().encode(getConsentCookiePath()), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
+
+export const clearNativeAnalyticsIdentity = (): void => {
+  if (typeof document === 'undefined' || !document.cookie.includes('von_analytics_id_')) return;
+  const name = nativeAnalyticsCookieName();
+  if (!document.cookie.split(';').some((part) => part.trim().startsWith(name + '='))) return;
+  const secure = window.location.protocol === 'https:' ? ';Secure' : '';
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${getConsentCookiePath()};SameSite=Lax${secure}`;
+};
+
 export const writeAnalyticsConsent = (accepted: boolean): void => {
   if (typeof document === 'undefined') return;
+  if (!accepted) clearNativeAnalyticsIdentity();
 
   const expiresAt = new Date();
   expiresAt.setTime(expiresAt.getTime() + CONSENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);

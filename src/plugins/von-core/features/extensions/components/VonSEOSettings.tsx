@@ -122,7 +122,7 @@ Disallow: /`;
             setDefaultRobots(normalizeRobotsRules(data.robots));
           }
         }
-      } catch (e) {
+      } catch {
         // Keep fallback default
       }
     };
@@ -160,11 +160,16 @@ Disallow: /`;
   const isIndexNowReadOnly = activeTab === 'indexnow' && !canManageIndexNow;
 
   // IndexNow state
-  const [indexNowStatus, setIndexNowStatus] = useState<any>(null);
+  const [indexNowStatus, setIndexNowStatus] = useState<{
+    key_configured?: boolean;
+    key_preview?: string;
+    key_file_exists?: boolean;
+    status?: string;
+  } | null>(null);
   const [indexNowLoading, setIndexNowLoading] = useState(false);
   const [pingLoading, setPingLoading] = useState(false);
 
-  const fetchIndexNowStatus = async () => {
+  const fetchIndexNowStatus = React.useCallback(async () => {
     if (!canManageIndexNow) return;
     try {
       const response = await vonFetch(`${BASE_PATH}api/system/indexnow_status.php`);
@@ -172,12 +177,14 @@ Disallow: /`;
         const data = await response.json();
         if (data.success) setIndexNowStatus(data);
       }
-    } catch (e) {}
-  };
+    } catch {
+      // Status is advisory; retain the last known result if the request fails.
+    }
+  }, [canManageIndexNow]);
 
   React.useEffect(() => {
     if (activeTab === 'indexnow' && canManageIndexNow) fetchIndexNowStatus();
-  }, [activeTab, canManageIndexNow]);
+  }, [activeTab, canManageIndexNow, fetchIndexNowStatus]);
 
   const handleGenerateKey = async () => {
     if (!canManageIndexNow) return;
@@ -194,7 +201,7 @@ Disallow: /`;
       } else {
         toast.error(data.error || 'Failed to generate key');
       }
-    } catch (e) {
+    } catch {
       toast.error('Failed to generate key');
     } finally {
       setIndexNowLoading(false);
@@ -212,7 +219,7 @@ Disallow: /`;
       const data = await response.json();
       if (data.success) toast.success('Homepage submitted!');
       else toast.error(data.error || 'Ping failed');
-    } catch (e) {
+    } catch {
       toast.error('Ping failed');
     } finally {
       setPingLoading(false);
@@ -241,7 +248,7 @@ Disallow: /`;
 
       toast.success('SEO settings saved!');
       onClose();
-    } catch (error) {
+    } catch {
       toast.error('Failed to save SEO settings');
       setIsSaving(false);
     }

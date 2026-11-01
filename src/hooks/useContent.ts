@@ -3,6 +3,7 @@
  * Handles posts and pages CRUD operations
  */
 import { useState, useCallback, useRef } from 'react';
+import type { PostApiRecord, PageApiRecord, ContentSaveResult } from '../types';
 import { Post, Page, SiteSettings, User, type PostSaveOptions } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
@@ -41,7 +42,7 @@ const getInitialPosts = (): Post[] => {
   return contentSeed.posts as Post[];
 };
 
-export const normalizePage = (p: any): Page => ({
+export const normalizePage = (p: PageApiRecord): Page => ({
   ...p,
   createdAt: p.created_at || p.createdAt || '',
   updatedAt: p.updated_at || p.updatedAt || p.created_at || '',
@@ -52,7 +53,7 @@ export const normalizePage = (p: any): Page => ({
 });
 
 const INITIAL_POSTS: Post[] = getInitialPosts();
-const INITIAL_PAGES: Page[] = contentSeed.pages.map(normalizePage);
+const INITIAL_PAGES: Page[] = (contentSeed.pages as PageApiRecord[]).map(normalizePage);
 const MAX_ADMIN_CONTENT_LIMIT = 200;
 
 const normalizeAdminContentLimit = (requestedLimit: number): number => {
@@ -111,8 +112,7 @@ export function useContent() {
       if (postLoadCoverageRef.current >= limit) return true;
     }
 
-    let request: Promise<boolean>;
-    request = (async () => {
+    const request: Promise<boolean> = (async () => {
       try {
         const res = await vonFetch(`${API.getPosts}?limit=${limit}`);
         if (!res.ok) return false;
@@ -120,7 +120,7 @@ export function useContent() {
         const data = await res.json();
         // Handle new envelope format { posts, meta } OR legacy array format
         const rawPosts = Array.isArray(data) ? data : data.posts || [];
-        const normalizedPosts = rawPosts.map((p: any) => ({
+        const normalizedPosts = rawPosts.map((p: PostApiRecord) => ({
           ...p,
           image: p.image || p.image_url || '',
           imageSrcSet: p.imageSrcSet || p.image_srcset || '',
@@ -164,8 +164,7 @@ export function useContent() {
       if (pageLoadCoverageRef.current >= limit) return true;
     }
 
-    let request: Promise<boolean>;
-    request = (async () => {
+    const request: Promise<boolean> = (async () => {
       try {
         const res = await vonFetch(`${API.getPages}?limit=${limit}`);
         if (!res.ok) return false;
@@ -229,7 +228,7 @@ export function useContent() {
     (
       id: string | null,
       isPage: boolean = false,
-      navigate: any,
+      navigate: (destination: string) => void,
       currentUser: Pick<User, 'username' | 'avatar'> | null
     ) => {
       setIsEditingPage(isPage);
@@ -255,7 +254,7 @@ export function useContent() {
     async (
       item: Post | Page,
       addToMenu: boolean,
-      navigate: any,
+      navigate: (destination: string) => void,
       settings: SiteSettings,
       onUpdateSettings: (settings: SiteSettings) => boolean | Promise<boolean>,
       skipNavigate: boolean = false,
@@ -282,13 +281,13 @@ export function useContent() {
       if (newItem.slug) {
         newItem.slug = newItem.slug
           .toLowerCase()
-          .replace(/[^a-z0-9\-]+/g, '-')
+          .replace(/[^a-z0-9-]+/g, '-')
           .replace(/-+/g, '-')
           .replace(/^-+|-+$/g, '');
       } else {
         newItem.slug = newItem.title
           .toLowerCase()
-          .replace(/[^a-z0-9\-]+/g, '-')
+          .replace(/[^a-z0-9-]+/g, '-')
           .replace(/-+/g, '-')
           .replace(/^-+|-+$/g, '');
       }
@@ -357,7 +356,7 @@ export function useContent() {
           throw error;
         }
 
-        const data = await res.json();
+        const data: ContentSaveResult = await res.json();
 
         if (data && data.id) {
           // SUCCESS: Update State with Real Data
@@ -463,7 +462,7 @@ export function useContent() {
         } else {
           throw new Error('Invalid response from server');
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to save content:', err);
         // Re-throw to let caller (PostEditor) know it failed
         throw err;

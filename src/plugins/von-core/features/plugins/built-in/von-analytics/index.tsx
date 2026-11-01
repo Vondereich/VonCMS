@@ -4,9 +4,9 @@ export const VonAnalyticsPlugin: PluginDefinition = {
   id: 'vp_analytics',
   name: 'VonAnalytics',
   description: 'Privacy-focused visitor tracking dashboard.',
-  version: '1.27',
+  version: '1.28',
   author: 'VonCMS Team',
-  render: (_location: PluginLocation, _props?: any) => {
+  render: (_location: PluginLocation, _props?: object) => {
     // Analytics runs via scripts (headless), so it renders nothing in slots
     return null;
   },

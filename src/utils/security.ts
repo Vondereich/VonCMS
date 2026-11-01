@@ -2,6 +2,10 @@ import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import { BASE_PATH } from '../config/site.config';
 import { normalizeEditorLinkRel } from '../components/editor/editorLinkUtils';
 
+/** Match PHP's new-password symbol check; whitespace alone is not a symbol. */
+export const hasPasswordSpecialCharacter = (password: string): boolean =>
+  /[\p{P}\p{S}]/u.test(password);
+
 // Safe CSS properties that are needed for editor alignment and layout
 const ALLOWED_STYLE_PROPS = new Set([
   'text-align',
@@ -457,6 +461,8 @@ const filterPasteStyles = (styleValue: string): string =>
 interface SanitizeHtmlOptions extends DOMPurifyConfig {
   styleAllowlist?: Set<string>;
   sandboxedAdContent?: boolean;
+  // Only opt in when the resulting markup is guaranteed to use an opaque-origin iframe.
+  preserveSandboxedAdStyles?: boolean;
   trustedPluginStyles?: boolean;
 }
 
@@ -475,6 +481,7 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
   const {
     styleAllowlist,
     sandboxedAdContent = false,
+    preserveSandboxedAdStyles = false,
     trustedPluginStyles = false,
     ...purifyOptions
   } = options || {};
@@ -510,7 +517,7 @@ export const sanitizeHtml = (content: string, options?: SanitizeHtmlOptions): st
 
   // Hook: filter inline styles to whitelist-only safe properties
   DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
-    if (data.attrName === 'style') {
+    if (data.attrName === 'style' && !(sandboxedAdContent && preserveSandboxedAdStyles)) {
       const filtered = filterStyleProps(data.attrValue, activeStyleAllowlist);
       if (filtered) {
         data.attrValue = filtered;
@@ -638,7 +645,7 @@ export const htmlToPlainText = (
   if (options.preserveBlockSpacing) {
     normalizedContent = normalizedContent
       .replace(/<(script|style|noscript|template)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '')
-      .replace(/<(br|hr)(?=[\s\/>])(?:[^<>"']|"[^"]*"|'[^']*')*>/gi, ' ')
+      .replace(/<(br|hr)(?=[\s/>])(?:[^<>"']|"[^"]*"|'[^']*')*>/gi, ' ')
       .replace(
         /<\/(p|div|section|article|blockquote|figure|figcaption|h[1-6]|li|tr|td|th|table|ul|ol|pre|dl|dt|dd)\s*>/gi,
         ' '
@@ -651,7 +658,7 @@ export const htmlToPlainText = (
       ''
     );
     normalizedContent = normalizedContent.replace(
-      /<(?!(?=[^<>]*>)\/?[a-z][a-z0-9:-]*(?:\s*\/?>|\s+[a-z_:][a-z0-9_.:-]*\s*=|\s+(?:allowfullscreen|autoplay|checked|controls|disabled|hidden|itemscope|loop|multiple|muted|open|readonly|required|selected)(?=[\s\/>])))/gi,
+      /<(?!(?=[^<>]*>)\/?[a-z][a-z0-9:-]*(?:\s*\/?>|\s+[a-z_:][a-z0-9_.:-]*\s*=|\s+(?:allowfullscreen|autoplay|checked|controls|disabled|hidden|itemscope|loop|multiple|muted|open|readonly|required|selected)(?=[\s/>])))/gi,
       '&lt;'
     );
   }

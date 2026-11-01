@@ -81,12 +81,34 @@ const helpers = {
 };
 
 // Exercise real theme/component code with fixed public data and no network or database writes.
-function load(file, react = React, mocks = {}, runtime = {}) {
+function load(file, react = React, mocks = {}, runtime = {}, extraExports = '', sourceOverride) {
   const module = { exports: {} };
   const proxy = new Proxy(helpers, { get: (object, key) => object[key] ?? Blank });
   const requireMock = (name) => {
-    if (Object.hasOwn(mocks, name)) return mocks[name];
-    if (name === 'react') return { __esModule: true, ...react, default: react };
+    if (Object.hasOwn(mocks, name)) {
+      if (name.endsWith('/utils/api'))
+        return { getErrorMessage: apiErrorHelpers.getErrorMessage, ...mocks[name] };
+      return mocks[name];
+    }
+    if (name === 'react') {
+      // Fixed-render component fixtures supply Hook snapshots without a React dispatcher.
+      // Real committed Effect Event behavior is covered by the isolated Chrome fixtures.
+      const hooks =
+        react === React
+          ? react
+          : {
+              ...react,
+              useCallback:
+                react.useCallback === React.useCallback
+                  ? (callback) => callback
+                  : react.useCallback,
+              useEffectEvent:
+                react.useEffectEvent === React.useEffectEvent
+                  ? (callback) => callback
+                  : react.useEffectEvent,
+            };
+      return { __esModule: true, ...hooks, default: hooks };
+    }
     if (name === 'react/jsx-runtime') return require(name);
     if (name === 'react-hot-toast')
       return { __esModule: true, default: { success: noop, error: noop } };
@@ -118,7 +140,7 @@ function load(file, react = React, mocks = {}, runtime = {}) {
     if (name.includes('/utils/') || name.includes('/hooks/')) return proxy;
     return new Proxy({ __esModule: true, default: Blank }, { get: (o, key) => o[key] ?? Blank });
   };
-  const code = ts.transpileModule(read(file), {
+  const code = ts.transpileModule((sourceOverride ?? read(file)) + extraExports, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
@@ -139,6 +161,10 @@ function load(file, react = React, mocks = {}, runtime = {}) {
   );
   return module.exports;
 }
+
+const apiErrorHelpers = load('src/utils/api.ts', React, { './security': { getCsrfToken: noop } });
+helpers.getErrorMessage = apiErrorHelpers.getErrorMessage;
+helpers.getSavedProfileUpdates = load('src/utils/profileUtils.ts').getSavedProfileUpdates;
 
 const base = {
   posts,
@@ -1138,6 +1164,9 @@ async function checkAdminSettingsReadiness() {
   const reads = [];
   const writes = [];
   const errors = [];
+  let credentialProjection = null;
+  const rotations = [];
+  const rotationSessionEvents = [];
   let cursor = 0,
     effects = [],
     dirty = false,
@@ -1213,7 +1242,13 @@ async function checkAdminSettingsReadiness() {
           if (url === 'settings') return new Promise((resolve) => reads.push({ resolve }));
           assert.equal(url, 'save');
           writes.push(JSON.parse(options.body));
-          return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
+          if (writes.at(-1)._credentialAction === 'rotate') {
+            return new Promise((resolve, reject) => rotations.push({ resolve, reject }));
+          }
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ success: true, apiCredential: credentialProjection }),
+          });
         },
       },
       'react-hot-toast': {
@@ -1226,7 +1261,9 @@ async function checkAdminSettingsReadiness() {
         __INITIAL_SETTINGS__: publicState,
         addEventListener: noop,
         removeEventListener: noop,
+        dispatchEvent: (event) => rotationSessionEvents.push(event.type),
       },
+      Event,
       console: { error: noop, warn: noop },
     }
   );
@@ -1303,6 +1340,142 @@ async function checkAdminSettingsReadiness() {
   assert.equal(writes[1].pluginConfig, undefined);
   assert.equal(current.settings.discussionEnabled, false);
   assert.ok(errors.length >= 4);
+  credentialProjection = {
+    aiApiKey: '******** (PROTECTED)',
+    aiKeyStorage: 'encrypted',
+    aiKeySavedAt: '2026-10-27T00:00:00Z',
+    aiKeyExpiresAt: '',
+  };
+  assert.equal(
+    await current.handleUpdateSettings(
+      {
+        ...current.settings,
+        api: {
+          aiApiKey: 'qa-unsaved-plaintext',
+          aiModel: 'gemini-3.8-flash',
+          encryptStoredAiKey: true,
+        },
+      },
+      { optimistic: false }
+    ),
+    true
+  );
+  draw();
+  assert.equal(current.settings.api.aiApiKey, '******** (PROTECTED)');
+  assert.equal(current.settings.api.aiKeyStorage, 'encrypted');
+  assert.equal(current.settings.api.encryptStoredAiKey, undefined);
+  assert.ok(!JSON.stringify(current.settings).includes('qa-unsaved-plaintext'));
+
+  const writeCountBeforeRotation = writes.length;
+  assert.equal(await current.handleRotateAiEncryptionKey('a'.repeat(64)), false);
+  assert.equal(writes.length, writeCountBeforeRotation, 'Non-owner hook cannot request rotation');
+  const ownerState = {
+    ...current.settings,
+    siteName: 'Owner settings fixture',
+    _canManageSecrets: true,
+    api: { ...current.settings.api, aiKeyRevision: 'a'.repeat(64), aiKeyCanRotate: true },
+  };
+  const ownerRead = current.loadSettings(true, true);
+  reads.at(-1).resolve(response(ownerState));
+  await ownerRead;
+  draw();
+  const pendingRotation = current.handleRotateAiEncryptionKey('a'.repeat(64));
+  assert.equal(
+    current.settings.api.aiKeyRevision,
+    'a'.repeat(64),
+    'No optimistic credential change'
+  );
+  assert.equal(
+    await current.handleRotateAiEncryptionKey('a'.repeat(64)),
+    false,
+    'Duplicate pending request blocked'
+  );
+  assert.equal(rotations.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(writes.at(-1))), {
+    _credentialAction: 'rotate',
+    _credentialRevision: 'a'.repeat(64),
+  });
+  rotations[0].resolve({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: true,
+      apiCredential: {
+        ...credentialProjection,
+        aiKeyRevision: 'b'.repeat(64),
+        aiKeyRotatedAt: '2026-10-27T01:00:00Z',
+        aiKeyCanRotate: true,
+      },
+    }),
+  });
+  assert.equal(await pendingRotation, true);
+  draw();
+  assert.equal(current.settings.api.aiKeyRevision, 'b'.repeat(64));
+  assert.equal(current.settings.api.aiApiKey, '******** (PROTECTED)');
+  assert.equal(
+    current.settings.siteName,
+    'Owner settings fixture',
+    'Rotation retains unrelated canonical settings'
+  );
+  const failedRotation = current.handleRotateAiEncryptionKey('b'.repeat(64));
+  rotations[1].resolve({
+    ok: false,
+    status: 503,
+    json: async () => ({ error: 'Unconfirmed rotation' }),
+  });
+  for (let turn = 0; turn < 12; turn++) await Promise.resolve();
+  reads.at(-1).resolve(
+    response({
+      ...current.settings,
+      api: { ...current.settings.api, aiKeyRevision: 'c'.repeat(64) },
+    })
+  );
+  assert.equal(await failedRotation, false);
+  draw();
+  assert.equal(
+    current.settings.api.aiKeyRevision,
+    'c'.repeat(64),
+    'Uncertain response reconciles with a fresh server read'
+  );
+  const deniedRotation = current.handleRotateAiEncryptionKey('c'.repeat(64));
+  rotations[2].resolve({
+    ok: false,
+    status: 401,
+    json: async () => ({ error: 'Authentication required' }),
+  });
+  assert.equal(await deniedRotation, false);
+  assert.deepEqual(rotationSessionEvents, ['von:session-expired']);
+  const networkRotation = current.handleRotateAiEncryptionKey('c'.repeat(64));
+  rotations[3].reject(new Error('Isolated transport failure'));
+  for (let turn = 0; turn < 12; turn++) await Promise.resolve();
+  reads.at(-1).resolve(response(current.settings));
+  assert.equal(
+    await networkRotation,
+    false,
+    'Network uncertainty returns a failed acknowledgement'
+  );
+  draw();
+  const lostSessionRotation = current.handleRotateAiEncryptionKey('c'.repeat(64));
+  const publicRead = current.loadSettings(true, false);
+  reads.at(-1).resolve(response(publicState));
+  await publicRead;
+  draw();
+  const guestRotationState = JSON.stringify(current.settings.api);
+  rotations[4].resolve({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: true,
+      apiCredential: { ...credentialProjection, aiKeyRotatedAt: '2099-01-01T00:00:00Z' },
+    }),
+  });
+  assert.equal(await lostSessionRotation, false);
+  draw();
+  assert.equal(
+    JSON.stringify(current.settings.api),
+    guestRotationState,
+    'Delayed rotation cannot modify a later guest settings snapshot'
+  );
 
   const Loader = () => null,
     Navigate = () => null;
@@ -2043,6 +2216,8 @@ async function checkAnalyticsReadOnly() {
         (node) => node.props?.['aria-label'] === 'Google Analytics settings'
       )[0];
       assert.equal(panel.props.disabled, !canManage);
+      assert.equal(input('googlesettings-171'), undefined, 'obsolete GA4 privacy toggle removed');
+      assert.ok(renderToStaticMarkup(tree).includes('not a GDPR compliance switch'));
       assert.equal(
         renderToStaticMarkup(tree).includes('Read-only. Only the Primary Admin'),
         !canManage
@@ -2050,7 +2225,6 @@ async function checkAnalyticsReadOnly() {
       for (const [id, key, value] of [
         ['googlesettings-148', 'googleAnalyticsId', 'G-CHANGED'],
         ['googlesettings-161', 'enableTracking', true],
-        ['googlesettings-171', 'anonymizeIP', false],
       ]) {
         assert.equal(input(id).props.disabled, !canManage);
         input(id).props.onChange({ target: { value, checked: value } });
@@ -2148,7 +2322,11 @@ async function checkAnalyticsReadOnly() {
       if (canManage) {
         assert.equal(saves.length, 1);
         assert.equal(closed, 1);
-        assert.deepEqual(plain(saves[0].analytics), { ...analytics, cookieConsent: true });
+        assert.deepEqual(plain(saves[0].analytics), {
+          ...analytics,
+          cookieConsent: true,
+          measurementMode: analytics?.measurementMode || 'strict',
+        });
         closed = 0;
         for (const failure of [false, new Error('Fixture save failure')]) {
           saveOutcome = failure;
@@ -2178,6 +2356,1605 @@ async function checkAnalyticsReadOnly() {
   );
 }
 
+async function checkAiSettingsModels() {
+  const current = [
+    'gemini-3.6-flash',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+  ];
+  const legacy = [
+    'gemini-3.7-flash',
+    'gemini-3.5-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+  ];
+  const walk = (node, match) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, match));
+    return [...(match(node) ? [node] : []), ...walk(node.props?.children, match)];
+  };
+  for (const savedModel of [undefined, ...current, ...legacy, 'unknown-model']) {
+    const fixture = {
+      ...settings,
+      _canManageSecrets: true,
+      api: { aiProvider: 'gemini', aiApiKey: 'qa-fake-key', aiModel: savedModel },
+    };
+    const before = JSON.stringify(fixture);
+    const slots = [];
+    const saves = [];
+    let cursor = 0;
+    const Manager = load('src/plugins/von-core/features/settings/SettingsManager.tsx', {
+      ...React,
+      useState(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = slot === 0 ? 'api' : initial;
+        return [
+          slots[slot],
+          (value) => {
+            slots[slot] = typeof value === 'function' ? value(slots[slot]) : value;
+          },
+        ];
+      },
+      useRef: (value) => ({ current: value }),
+      useEffect: noop,
+    }).default;
+    const draw = () => {
+      cursor = 0;
+      return Manager({
+        settings: fixture,
+        notify: noop,
+        onUpdate: async (value) => {
+          saves.push(JSON.parse(JSON.stringify(value)));
+          return true;
+        },
+      });
+    };
+    const tree = draw();
+    const select = walk(tree, (node) => node.props?.id === 'settingsmanager-655')[0];
+    const options = walk(select, (node) => node.type === 'option');
+    assert.deepEqual(
+      Array.from(
+        options.filter((node) => !node.props.disabled),
+        (node) => node.props.value
+      ),
+      current,
+      'new selections must not offer legacy models'
+    );
+    const expected = [...current, ...legacy].includes(savedModel) ? savedModel : current[0];
+    assert.equal(select.props.value, expected);
+    assert.equal(
+      options.filter((node) => node.props.disabled).length,
+      legacy.includes(savedModel) ? 1 : 0
+    );
+    const save = (view) =>
+      walk(view, (node) => node.type === 'button' && node.props.onClick?.name === 'save')[0];
+    await save(tree).props.onClick();
+    assert.equal(
+      saves.at(-1).api.aiModel,
+      expected,
+      'unrelated saves preserve legacy/current models'
+    );
+    assert.equal(saves.at(-1).api.aiApiKey, 'qa-fake-key');
+    select.props.onChange({ target: { value: 'gemini-3.8-flash' } });
+    const changed = draw();
+    assert.equal(
+      walk(changed, (node) => node.props?.id === 'settingsmanager-655')[0].props.value,
+      'gemini-3.8-flash'
+    );
+    await save(changed).props.onClick();
+    assert.equal(saves.at(-1).api.aiModel, 'gemini-3.8-flash');
+    assert.equal(JSON.stringify(fixture), before, 'model selection must not mutate saved settings');
+  }
+  console.log(
+    'PASS AI Model Settings Runtime: current selections, legacy preservation, default, explicit 3.8 change and unchanged API key. No provider request was made.'
+  );
+}
+
+async function checkSettingsDraftLifecycle() {
+  const merge = load('src/utils/settingsDraft.ts').mergeSettingsDraft;
+  const original = {
+    api: { aiApiKey: 'masked', aiKeyStorage: 'encrypted', aiKeyRevision: 'old' },
+    media: {
+      optimization: { enabled: true, compressionLevel: 'medium' },
+      storage: { location: 'local' },
+    },
+    theme: { default: { footerLinks: ['first', 'second'], retired: 'remove me' } },
+  };
+  const latest = {
+    ...original,
+    api: { ...original.api, aiKeyStorage: 'unavailable', aiKeyRevision: 'new' },
+    media: { ...original.media, storage: { location: 'cdn' } },
+    theme: { default: { ...original.theme.default, newField: 'keep me' } },
+  };
+  const edited = {
+    ...original,
+    api: { ...original.api, aiApiKey: 'new user input' },
+    media: { ...original.media, optimization: { ...original.media.optimization, enabled: false } },
+    theme: { default: { footerLinks: [] } },
+  };
+  const inputSnapshot = JSON.stringify([original, latest, edited]);
+  const combined = merge(latest, original, edited);
+  assert.equal(combined.api.aiApiKey, 'new user input');
+  assert.equal(combined.api.aiKeyStorage, 'unavailable');
+  assert.equal(combined.api.aiKeyRevision, 'new');
+  assert.equal(combined.media.optimization.enabled, false);
+  assert.equal(combined.media.storage.location, 'cdn');
+  assert.equal(combined.theme.default.newField, 'keep me');
+  assert.equal(combined.theme.default.retired, undefined);
+  assert.equal(
+    combined.theme.default.footerLinks.length,
+    0,
+    'Arrays are replaced, not index-merged'
+  );
+  assert.equal(
+    JSON.stringify([original, latest, edited]),
+    inputSnapshot,
+    'Merge must not mutate its inputs'
+  );
+  const walk = (node, match) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, match));
+    return [...(match(node) ? [node] : []), ...walk(node.props?.children, match)];
+  };
+  const copy = (value) => JSON.parse(JSON.stringify(value));
+  const fixture = {
+    ...settings,
+    _settingsScope: 'admin',
+    _canManageSecrets: true,
+    api: { aiProvider: 'gemini', aiModel: 'gemini-3.6-flash' },
+  };
+  const setup = () => {
+    const slots = [],
+      reads = [],
+      writes = [],
+      notifications = [];
+    let cursor = 0,
+      dirty = false,
+      effects = [],
+      tree,
+      canonical = copy(fixture),
+      resolveSave;
+    const hooks = {
+      ...React,
+      useState(initial) {
+        const index = cursor++;
+        if (!(index in slots))
+          slots[index] = { value: typeof initial === 'function' ? initial() : initial };
+        return [
+          slots[index].value,
+          (update) => {
+            const previous = slots[index].value;
+            const next = typeof update === 'function' ? update(previous) : update;
+            if (typeof update === 'function') {
+              assert.equal(
+                JSON.stringify(update(previous)),
+                JSON.stringify(next),
+                'State updaters must be replay-safe'
+              );
+            }
+            if (!Object.is(previous, next)) {
+              slots[index].value = next;
+              dirty = true;
+            }
+          },
+        ];
+      },
+      useRef(initial) {
+        const index = cursor++;
+        if (!(index in slots)) slots[index] = { current: initial };
+        return slots[index];
+      },
+      useEffect(effect, deps) {
+        const index = cursor++;
+        if (!slots[index] || deps.some((value, i) => !Object.is(value, slots[index].deps[i]))) {
+          const previous = slots[index];
+          slots[index] = { deps };
+          effects.push(() => {
+            previous?.cleanup?.();
+            slots[index].cleanup = effect();
+          });
+        }
+      },
+    };
+    const Manager = load('src/plugins/von-core/features/settings/SettingsManager.tsx', hooks, {
+      '../../../../config/site.config': { API: { settings: 'fixture-read' } },
+      '../../../../utils/api': {
+        vonFetch: async () => ({
+          ok: true,
+          json: () => new Promise((resolve) => reads.push(resolve)),
+        }),
+      },
+    }).default;
+    const draw = () => {
+      let attempts = 0;
+      do {
+        assert.ok(attempts++ < 15, 'Settings reconciliation must settle');
+        cursor = 0;
+        dirty = false;
+        effects = [];
+        tree = Manager({
+          settings: canonical,
+          notify: (message) => notifications.push(message),
+          onUpdate: (value) => {
+            writes.push(copy(value));
+            return new Promise((resolve) => {
+              resolveSave = resolve;
+            });
+          },
+        });
+        effects.forEach((effect) => effect());
+      } while (dirty);
+      return tree;
+    };
+    const edit = (key, value) => {
+      const form = walk(
+        draw(),
+        (node) => node.props?.settings && typeof node.props.onChange === 'function'
+      )[0];
+      form.props.onChange(key, value);
+      draw();
+    };
+    const button = (label) =>
+      walk(
+        draw(),
+        (node) =>
+          node.type === 'button' &&
+          (label === 'Save' ? node.props.onClick?.name === 'save' : node.props.children === label)
+      )[0];
+    draw();
+    return {
+      draw,
+      edit,
+      button,
+      reads,
+      writes,
+      notifications,
+      draft: () => slots[1].value,
+      refresh: (value) => {
+        canonical = value;
+        draw();
+      },
+      finishSave: (value) => resolveSave(value),
+      flush: async () => {
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+        draw();
+      },
+    };
+  };
+  let cases = 0;
+  const fields = {
+    siteName: 'Edited name',
+    postsPerPage: 24,
+    siteDescription: 'Edited description',
+    timeZone: 'Asia/Kuala_Lumpur',
+    dateFormat: 'iso',
+    ads: { headerAd: '<!-- edited -->' },
+    api: { ...fixture.api, aiModel: 'gemini-3.8-flash' },
+    media: { defaultView: 'list' },
+    adminProfile: { name: 'Edited profile' },
+    categories: ['Edited category'],
+    navigation: [{ id: 'edited', label: 'Edited menu', url: 'home', type: 'internal' }],
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    const run = setup();
+    await run.flush();
+    run.edit(key, value);
+    const incoming = { ...fixture, siteTagline: 'Late read' };
+    run.reads[0](incoming);
+    await run.flush();
+    assert.equal(JSON.stringify(run.draft()[key]), JSON.stringify(value), key + ' lost after read');
+    assert.equal(run.draft().siteTagline, 'Late read');
+    const refreshed = { ...incoming, siteTagline: 'Parent refresh' };
+    run.refresh(refreshed);
+    assert.equal(
+      JSON.stringify(run.draft()[key]),
+      JSON.stringify(value),
+      key + ' lost after refresh'
+    );
+    run.button('Cancel').props.onClick();
+    run.draw();
+    assert.equal(
+      JSON.stringify(run.draft()),
+      JSON.stringify(refreshed),
+      'Cancel must use the accepted baseline'
+    );
+    cases++;
+  }
+  let numberSettings = { ...settings, postsPerPage: 6 };
+  const General = load(
+    'src/plugins/von-core/features/settings/components/GeneralSettings.tsx',
+    {
+      ...React,
+      useState: (initial) => [initial, noop],
+      useEffect: noop,
+    },
+    {
+      '../../../../../utils/siteUtils': {
+        resolveHeaderIdentityMode: () => 'logo_and_text',
+        DEFAULT_SITE_DATE_FORMAT: 'month_day_year_long',
+        SITE_DATE_FORMAT_OPTIONS: [],
+      },
+    }
+  ).GeneralSettings;
+  const numberInput = () =>
+    walk(
+      General({
+        settings: numberSettings,
+        onChange: (key, value) => {
+          numberSettings = { ...numberSettings, [key]: value };
+        },
+      }),
+      (node) => node.props?.['aria-label'] === 'Posts Per Page'
+    )[0];
+  numberInput().props.onChange({ target: { value: '24' } });
+  const numberIncoming = { ...settings, postsPerPage: 12 };
+  numberSettings = merge(numberIncoming, { ...settings, postsPerPage: 6 }, numberSettings);
+  assert.equal(numberInput().props.value, 24, 'An unblurred number must participate in the draft');
+  numberSettings = numberIncoming;
+  assert.equal(numberInput().props.value, 12, 'Cancel must also reset the visible numeric input');
+  numberInput().props.onChange({ target: { value: '' } });
+  assert.equal(numberInput().props.value, '', 'Clearing the input remains possible');
+  for (const [value, expected] of [
+    ['', 6],
+    ['0', 6],
+    ['51', 50],
+    ['24', 24],
+  ]) {
+    numberInput().props.onBlur({ currentTarget: { value } });
+    assert.equal(numberInput().props.value, expected, 'Number bounds remain 6-50');
+  }
+  for (const success of [false, true]) {
+    const run = setup();
+    await run.flush();
+    run.edit('siteName', 'Submitted title');
+    const request = run.button('Save').props.onClick();
+    run.draw();
+    const optimistic = run.writes[0];
+    run.refresh(optimistic);
+    if (success) {
+      run.edit('siteName', 'Newer unsaved title');
+      run.refresh({ ...optimistic, api: { ...optimistic.api, aiApiKey: '******** (PROTECTED)' } });
+    } else {
+      run.refresh(copy(fixture));
+    }
+    run.finishSave(success);
+    await request;
+    run.draw();
+    assert.equal(run.draft().siteName, success ? 'Newer unsaved title' : 'Submitted title');
+    assert.equal(run.button('Save').props.disabled, false);
+    if (success) assert.equal(run.draft().api.aiApiKey, '******** (PROTECTED)');
+    // The pre-save read cannot resurrect a stale title after either outcome.
+    run.reads[0]({ ...fixture, siteName: 'Stale pre-save read' });
+    await run.flush();
+    assert.equal(run.draft().siteName, success ? 'Newer unsaved title' : 'Submitted title');
+    run.button('Cancel').props.onClick();
+    run.draw();
+    assert.equal(run.draft().siteName, success ? 'Submitted title' : fixture.siteName);
+    cases++;
+  }
+  for (const action of ['refresh', 'cancel', 'partial']) {
+    const run = setup();
+    await run.flush();
+    run.edit('siteName', 'Keep this draft');
+    if (action === 'refresh') run.refresh({ ...fixture, siteTagline: 'Newer canonical' });
+    if (action === 'cancel') {
+      run.button('Cancel').props.onClick();
+      run.draw();
+    }
+    run.reads[0](
+      action === 'partial' ? { _settingsScope: 'public' } : { ...fixture, siteName: 'Stale read' }
+    );
+    await run.flush();
+    assert.equal(run.draft().siteName, action === 'cancel' ? fixture.siteName : 'Keep this draft');
+    if (action === 'refresh') assert.equal(run.draft().siteTagline, 'Newer canonical');
+    if (action === 'partial') assert.equal(run.notifications.length, 1);
+    cases++;
+  }
+  console.log(
+    `PASS Settings Draft Lifecycle Runtime: ${cases} field/read/refresh/save/rollback/Cancel cases preserve drafts, accepted baselines and masked credential projections; state updaters are replay-safe. No installed settings were changed.`
+  );
+}
+
+function checkDiscussionPostLinks() {
+  const collectionReads = [];
+  let route = '/admin/discussion';
+  const appSource = ts.createSourceFile(
+    'src/App.tsx',
+    read('src/App.tsx'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  );
+  const routeLoader = appSource.statements.find(
+    (statement) =>
+      ts.isVariableStatement(statement) &&
+      statement.declarationList.declarations.some(
+        (declaration) => declaration.name.getText(appSource) === 'AdminContentRouteLoader'
+      )
+  );
+  assert.ok(routeLoader, 'Actual route collection loader must be available');
+  const routeLoaderSource =
+    "import React, {useRef,useEffect,useLayoutEffect} from 'react'; import {useLocation} from 'react-router';\n" +
+    routeLoader.getText(appSource);
+  const Loader = load(
+    'src/App.tsx',
+    {
+      ...React,
+      useRef: (value) => ({ current: value }),
+      useLayoutEffect: noop,
+      useEffect: (effect) => effect(),
+    },
+    { 'react-router': { useLocation: () => ({ pathname: route }) } },
+    {},
+    '\nexport { AdminContentRouteLoader as DiscussionLoaderFixture };',
+    routeLoaderSource
+  ).DiscussionLoaderFixture;
+  const loaderProps = {
+    user,
+    resetContentLoadCoverage: noop,
+    loadPosts: async (limit) => {
+      collectionReads.push(['posts', limit]);
+      return true;
+    },
+    loadPages: async (limit) => {
+      collectionReads.push(['pages', limit]);
+      return true;
+    },
+  };
+  Loader(loaderProps);
+  assert.equal(collectionReads.length, 0, 'Discussion must not preload 200 article bodies');
+  route = '/admin/dashboard';
+  Loader(loaderProps);
+  route = '/admin/posts';
+  Loader(loaderProps);
+  route = '/admin/pages';
+  Loader(loaderProps);
+  assert.equal(
+    JSON.stringify(collectionReads),
+    JSON.stringify([
+      ['posts', 5],
+      ['posts', 200],
+      ['pages', 200],
+    ]),
+    'Other admin collection budgets must be unchanged'
+  );
+  const file = 'src/plugins/von-core/features/discussion/DiscussionManager.tsx';
+  let cases = 0;
+  for (const base of ['/', '/zangetsu/']) {
+    const utils = load(
+      'src/utils/siteUtils.ts',
+      React,
+      { '../config/site.config': { BASE_PATH: base } },
+      { URL }
+    );
+    const Row = load(
+      file,
+      React,
+      { '../../../../utils/siteUtils': utils },
+      {},
+      '\nexport { CommentRow as DiscussionRowFixture };'
+    ).DiscussionRowFixture;
+    const prefix = base === '/' ? '' : '/zangetsu';
+    for (const [style, path] of [
+      ['slug', '/2026'],
+      ['post_name', '/2026'],
+      ['category', '/technology/2026'],
+      ['date', '/2026/10/01/2026'],
+      ['day_name', '/2026/10/01/2026'],
+      ['month_name', '/2026/10/2026'],
+      ['plain', '/post/987654'],
+    ]) {
+      const actions = [];
+      const comment = {
+        id: 'c-8',
+        postId: '987654',
+        username: 'QA',
+        content: 'QA comment',
+        status: 'pending',
+        createdAt: '2026-10-01T12:00:00',
+        post: {
+          id: '987654',
+          title: 'Parent beyond cached posts',
+          slug: '2026',
+          category: 'Technology',
+          createdAt: '2026-10-01T12:00:00',
+          isPublic: true,
+        },
+      };
+      const props = {
+        comment,
+        settings: { ...settings, permalinkStructure: style },
+        isDeleting: null,
+        updatingStatusId: null,
+        getPostTitle: () => 'Stale cached title',
+        onStatusChange: (...args) => actions.push(args),
+        onDeleteClick: (value) => actions.push(['delete', value.id]),
+      };
+      const tree = Row(props);
+      const link = find(
+        tree,
+        (node) => node.type === 'a' && node.props.title === 'View article (opens in a new tab)'
+      );
+      assert.ok(link, 'Published parent must be clickable without the cached posts list');
+      assert.equal(link.props.href, prefix + path, style + ' ' + base);
+      assert.equal(link.props.target, '_blank');
+      assert.equal(link.props.rel, 'noopener noreferrer');
+      assert.ok(link.props['aria-label'].includes(comment.post.title));
+      assert.ok(!renderToStaticMarkup(tree).includes('Stale cached title'));
+      find(
+        tree,
+        (node) => node.type === 'button' && node.props.title === 'Approve'
+      ).props.onClick();
+      find(tree, (node) => node.type === 'button' && node.props.title === 'Delete').props.onClick();
+      assert.equal(
+        JSON.stringify(actions),
+        JSON.stringify([
+          ['c-8', 'approved'],
+          ['delete', 'c-8'],
+        ])
+      );
+      for (const post of [
+        null,
+        undefined,
+        { ...comment.post, isPublic: false },
+        { ...comment.post, isPublic: 'true' },
+      ]) {
+        const unavailable = Row({ ...props, comment: { ...comment, post } });
+        assert.equal(
+          find(unavailable, (node) => node.type === 'a'),
+          undefined,
+          'Unavailable/malformed parents must have no misleading link'
+        );
+      }
+      const unsafeText = Row({
+        ...props,
+        comment: { ...comment, post: { ...comment.post, title: '<img src=x onerror=bad()>' } },
+      });
+      assert.ok(!renderToStaticMarkup(unsafeText).includes('<img src="x"'));
+      assert.ok(renderToStaticMarkup(unsafeText).includes('&lt;img'));
+      cases++;
+    }
+  }
+  console.log(
+    `PASS Discussion Post Links Runtime: ${cases} root/subfolder permalink cases use authoritative compact parents, retain safe new tabs and moderation handlers, escape titles, and omit unavailable links without article fetches.`
+  );
+}
+
+async function checkAvatarState() {
+  const profileUtils = load('src/utils/profileUtils.ts');
+  const original = { display_name: 'Old', bio: 'Old bio', avatar: 'http://qa.invalid/raw.webp' };
+  const canonical = { display_name: 'Saved & Name', bio: 'Saved bio', avatar: '' };
+  assert.equal(
+    JSON.stringify(
+      profileUtils.getSavedProfileUpdates(
+        { ...canonical, role: 'Root', password: 'ignored' },
+        original
+      )
+    ),
+    JSON.stringify(canonical)
+  );
+  assert.equal(profileUtils.getSavedProfileUpdates({ avatar: null }, original).avatar, '');
+  assert.equal(profileUtils.getSavedProfileUpdates([], original).avatar, original.avatar);
+
+  const harness = () => {
+    const slots = [];
+    let cursor = 0,
+      effects = [],
+      dirty = false;
+    const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+    const hooks = {
+      ...React,
+      useState(initial) {
+        const i = cursor++;
+        if (!(i in slots))
+          slots[i] = { value: typeof initial === 'function' ? initial() : initial };
+        return [
+          slots[i].value,
+          (next) => {
+            slots[i].value = typeof next === 'function' ? next(slots[i].value) : next;
+            dirty = true;
+          },
+        ];
+      },
+      useRef(initial) {
+        const i = cursor++;
+        return (slots[i] ||= { current: initial });
+      },
+      useCallback(callback, deps) {
+        const i = cursor++;
+        if (!slots[i] || !same(slots[i].deps, deps)) slots[i] = { value: callback, deps };
+        return slots[i].value;
+      },
+      useEffect(effect, deps) {
+        const i = cursor++;
+        if (!slots[i] || !same(slots[i].deps, deps)) {
+          slots[i] = { deps };
+          effects.push(effect);
+        }
+      },
+    };
+    return {
+      hooks,
+      slots,
+      draw(render) {
+        let value,
+          limit = 0;
+        do {
+          assert.ok(limit++ < 10);
+          cursor = 0;
+          effects = [];
+          dirty = false;
+          value = render();
+          effects.forEach((effect) => effect());
+        } while (dirty);
+        return value;
+      },
+    };
+  };
+  for (const base of ['/', '/zangetsu/']) {
+    const utils = load(
+      'src/utils/siteUtils.ts',
+      React,
+      { '../config/site.config': { BASE_PATH: base } },
+      { URL }
+    );
+    const imageState = harness();
+    const image = load('src/components/SafeImage.tsx', imageState.hooks, {
+      '../utils/siteUtils': utils,
+    }).SafeImage;
+    let src = 'uploads/missing.webp';
+    const drawImage = () =>
+      imageState.draw(() => image({ src, alt: 'Avatar', fallback: 'Gravatar fallback' }));
+    assert.equal(drawImage().props.src, base + 'uploads/missing.webp');
+    drawImage().props.onError({});
+    assert.equal(drawImage().props.children, 'Gravatar fallback');
+    src = 'uploads/replacement.webp';
+    assert.equal(
+      drawImage().props.src,
+      base + 'uploads/replacement.webp',
+      'changed failed URL must retry'
+    );
+    src = 'javascript:bad()';
+    assert.equal(drawImage().props.children, 'Gravatar fallback');
+    src = '';
+    assert.equal(drawImage().props.children, 'Gravatar fallback');
+  }
+  for (const file of [
+    'src/components/layouts/AdminLayout.tsx',
+    'src/plugins/von-core/features/users/UserManager.tsx',
+    'src/plugins/von-core/features/discussion/DiscussionManager.tsx',
+    'src/plugins/von-core/features/public/components/Comments.tsx',
+    'src/themes/corporate-pro/Layout.tsx',
+    'src/themes/portfolio/Layout.tsx',
+  ]) {
+    const source = ts.createSourceFile(
+      file,
+      read(file),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+    let sharedSinks = 0;
+    const visit = (node) => {
+      if (ts.isJsxSelfClosingElement(node)) {
+        const src = node.attributes.properties.find((p) => p.name?.text === 'src');
+        if (src && /avatar|\burl\b/i.test(src.getText(source))) {
+          assert.equal(
+            node.tagName.getText(source),
+            'SafeImage',
+            file + ' must use the shared image lifecycle'
+          );
+          assert.ok(node.attributes.properties.some((p) => p.name?.text === 'fallback'));
+          sharedSinks++;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    assert.ok(sharedSinks > 0, file);
+  }
+  const target = { ...user, ...original, email: 'private@example.invalid' };
+  for (const [file, name] of [
+    ['src/hooks/useProfileEditor.ts', null],
+    ['src/themes/corporate-pro/Layout.tsx', 'CorporateProfile'],
+    ['src/themes/portfolio/Layout.tsx', 'PortfolioProfile'],
+    ['src/themes/digest/Layout.tsx', 'DigestProfile'],
+    ['src/themes/prism/components/PrismProfile.tsx', 'PrismProfile'],
+  ]) {
+    const h = harness(),
+      published = [],
+      requests = [];
+    let ok = true,
+      hold = false,
+      release;
+    const transport = {
+      vonFetch: async (_url, options) => {
+        requests.push(JSON.parse(options.body));
+        if (hold)
+          return new Promise((resolve) => {
+            release = resolve;
+          });
+        return {
+          ok,
+          json: async () => ({
+            success: ok,
+            user: { ...canonical, role: 'Root', password: 'ignored' },
+          }),
+        };
+      },
+    };
+    const prefix =
+      file.includes('corporate-pro') || file.includes('portfolio') || file.includes('digest')
+        ? '../../'
+        : file.includes('prism')
+          ? '../../../'
+          : '../';
+    const module = load(
+      file,
+      h.hooks,
+      { [prefix + 'utils/api']: transport },
+      {},
+      name ? `\nexport { ${name} as AvatarProfileFixture };` : ''
+    );
+    const component = name ? module.AvatarProfileFixture : module.useProfileEditor;
+    const props = {
+      targetUser: target,
+      profileUser: target,
+      currentUser: target,
+      isOwner: true,
+      onUpdateUser: (value) => published.push(value),
+      posts: [],
+      comments: [],
+      projects: [],
+      settings,
+      colors: {},
+      onBack: noop,
+      onViewPost: noop,
+      onPostClick: noop,
+    };
+    const draw = () => h.draw(() => component(props));
+    let view = draw();
+    const save = async () => {
+      if (!name) {
+        await view.handleSaveProfile();
+        return;
+      }
+      h.slots[0].value = true;
+      view = draw();
+      const button = find(view, (node) =>
+        ['handleSaveProfile', 'handleSave'].includes(node.props?.onClick?.name)
+      );
+      assert.ok(button, file + ' exposes its real save handler');
+      await button.props.onClick();
+    };
+    await save();
+    view = draw();
+    assert.equal(requests[0].avatar, original.avatar);
+    assert.equal(
+      JSON.stringify(published[0]),
+      JSON.stringify({ ...canonical, id: target.id }),
+      file
+    );
+    assert.equal(h.slots[3].value, '', file + ' edit form must use the canonical avatar');
+    assert.equal(h.slots[1].value, canonical.display_name);
+    assert.equal(h.slots[2].value, canonical.bio);
+    ok = false;
+    await save();
+    draw();
+    assert.equal(published.length, 1, file + ' failed save must not publish auth state');
+    // A response for submitted A must not replace B typed while that request waits.
+    ok = true;
+    hold = true;
+    h.slots[0].value = true;
+    h.slots[1].value = 'Submitted A';
+    h.slots[2].value = 'Submitted bio A';
+    h.slots[3].value = 'https://qa.invalid/avatar-A.webp';
+    view = draw();
+    const pendingA = save();
+    view = draw();
+    h.slots[0].value = true;
+    h.slots[1].value = 'Unsaved B';
+    h.slots[2].value = 'Unsaved bio B';
+    h.slots[3].value = 'https://qa.invalid/avatar-B.webp';
+    view = draw();
+    const requestsWhilePending = requests.length;
+    await save();
+    assert.equal(requests.length, requestsWhilePending, file + ' must serialize pending saves');
+    release({ ok: true, json: async () => ({ success: true, user: canonical }) });
+    await pendingA;
+    view = draw();
+    assert.equal(h.slots[0].value, true, file + ' newer editor must remain open');
+    assert.equal(h.slots[1].value, 'Unsaved B', file + ' newer display name was lost');
+    assert.equal(h.slots[2].value, 'Unsaved bio B', file + ' newer bio was lost');
+    assert.equal(
+      h.slots[3].value,
+      'https://qa.invalid/avatar-B.webp',
+      file + ' newer avatar was lost'
+    );
+    assert.equal(
+      published.at(-1).avatar,
+      canonical.avatar,
+      'Auth must use the accepted server avatar, not unsaved B'
+    );
+    hold = false;
+    const retryCount = requests.length;
+    await save();
+    view = draw();
+    assert.equal(requests.length, retryCount + 1, file + ' settlement must permit retry');
+    if (!name) {
+      const publishedBeforeNavigation = published.length;
+      hold = true;
+      const pendingSave = view.handleSaveProfile();
+      props.targetUser = { ...target, id: 'next-profile', avatar: 'https://qa.invalid/next.webp' };
+      view = draw();
+      release({ ok: true, json: async () => ({ success: true, user: canonical }) });
+      await pendingSave;
+      view = draw();
+      assert.equal(view.displayUser.id, 'next-profile');
+      assert.equal(view.editAvatar, 'https://qa.invalid/next.webp');
+      assert.equal(
+        published.length,
+        publishedBeforeNavigation,
+        'late profile response must not publish after navigation'
+      );
+    }
+  }
+
+  assert.ok(
+    read('src/themes/corporate-pro/Layout.tsx').includes('key={targetProfile.username}'),
+    'Corporate profile instances must not be reused for a different profile'
+  );
+
+  const h = harness(),
+    published = [];
+  let ok = true,
+    unchanged = false;
+  const module = load('src/hooks/useUsers.ts', h.hooks, {
+    '../utils/api': {
+      vonFetch: async () => ({
+        ok,
+        json: async () => ({
+          success: true,
+          unchanged,
+          user: { ...target, ...canonical, role: 'Root' },
+        }),
+      }),
+    },
+    'react-hot-toast': {
+      __esModule: true,
+      default: Object.assign(noop, { success: noop, error: noop }),
+    },
+  });
+  const drawUsers = () => h.draw(() => module.useUsers(target, (value) => published.push(value)));
+  let list = drawUsers();
+  list.setUsers([target]);
+  list = drawUsers();
+  await list.handleUpdateUserInList(target);
+  list = drawUsers();
+  assert.equal(list.users[0].avatar, '');
+  assert.equal(published[0].avatar, '');
+  assert.equal(published[0].id, target.id);
+  assert.equal(Object.hasOwn(published[0], 'role'), false);
+  assert.equal(Object.hasOwn(published[0], 'password'), false);
+  unchanged = true;
+  await list.handleUpdateUserInList(target);
+  drawUsers();
+  assert.equal(published.length, 2, 'canonical no-op must refresh own auth presentation');
+  ok = false;
+  await drawUsers().handleUpdateUserInList(target);
+  drawUsers();
+  assert.equal(published.length, 2, 'HTTP failure must not publish a success body');
+  ok = true;
+  const other = h.draw(() =>
+    module.useUsers({ ...target, id: 'different' }, (value) => published.push(value))
+  );
+  await other.handleUpdateUserInList(target);
+  drawUsers();
+  assert.equal(published.length, 2, 'editing another account must not replace current avatar');
+
+  const auth = harness(),
+    cached = [];
+  const authModule = load(
+    'src/hooks/useAuth.ts',
+    auth.hooks,
+    {
+      './usePublicProfile': { updatePublicProfileCache: (...args) => cached.push(args) },
+      '../utils/api': { vonFetch: async () => ({ ok: false }) },
+    },
+    {
+      setTimeout: () => 1,
+      clearTimeout: noop,
+      window: { location: {}, addEventListener: noop, removeEventListener: noop },
+    }
+  );
+  const drawAuth = () => auth.draw(() => authModule.useAuth());
+  let session = drawAuth();
+  session.setUser(target);
+  session = drawAuth();
+  const delayedUpdate = session.handleUpdateUser;
+  delayedUpdate({ ...canonical, id: 'different' });
+  session = drawAuth();
+  assert.equal(
+    session.user.avatar,
+    original.avatar,
+    'foreign response must not change current user'
+  );
+  delayedUpdate({ ...canonical, id: target.id });
+  session = drawAuth();
+  assert.equal(session.user.avatar, '');
+  assert.equal(cached.at(-1)[1].avatar, '');
+  session.setUser(null);
+  drawAuth();
+  delayedUpdate({ ...canonical, id: target.id });
+  assert.equal(drawAuth().user, null, 'late response must never recreate a logged-out session');
+  const publicCacheState = harness();
+  const publicProfiles = load('src/hooks/usePublicProfile.ts', {
+    ...publicCacheState.hooks,
+    useMemo: (fn) => fn(),
+  });
+  publicProfiles.updatePublicProfileCache(target.username, target);
+  const emptyUsers = [];
+  const publicProfile = publicCacheState.draw(() =>
+    publicProfiles.usePublicProfile(target.username, emptyUsers)
+  );
+  assert.equal(
+    publicProfile.targetProfile.email,
+    '',
+    'auth cache refresh must not expose a private email'
+  );
+  assert.equal(
+    publicProfile.targetProfile.role,
+    'Member',
+    'auth cache refresh must not publish a private role'
+  );
+  console.log(
+    'PASS Avatar State Runtime: shared Profile editor and four theme forms adopt canonical/cleared server values; own User Manager updates/no-ops sync presentation, failures/other users/stale logout responses do not; authority fields are not published. Isolated transports only.'
+  );
+}
+
+async function checkNewsletterSaveResult() {
+  const find = (node, predicate) => {
+    if (!node || typeof node !== 'object') return null;
+    if (Array.isArray(node)) return node.map((child) => find(child, predicate)).find(Boolean);
+    return predicate(node) ? node : find(node.props?.children, predicate);
+  };
+  const successes = [],
+    errors = [],
+    writes = [],
+    slots = [];
+  let cursor = 0,
+    finish,
+    fail;
+  const Manager = load(
+    'src/plugins/von-core/features/newsletter/NewsletterManager.tsx',
+    {
+      ...React,
+      useState(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = typeof initial === 'function' ? initial() : initial;
+        return [
+          slots[slot],
+          (value) => {
+            slots[slot] = typeof value === 'function' ? value(slots[slot]) : value;
+          },
+        ];
+      },
+      useRef(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = { current: initial };
+        return slots[slot];
+      },
+      useEffect: noop,
+    },
+    {
+      'react-hot-toast': {
+        toast: {
+          success: (message) => successes.push(message),
+          error: (message) => errors.push(message),
+        },
+      },
+    }
+  ).default;
+  const draw = () => {
+    cursor = 0;
+    return Manager({
+      settings,
+      onUpdateSettings: (value) => {
+        writes.push(value);
+        return new Promise((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        });
+      },
+    });
+  };
+  const button = () =>
+    find(draw(), (node) => node.type === 'button' && node.props.onClick?.name === 'handleSave');
+  for (const outcome of ['reject', 'throw', 'success']) {
+    const oldSuccesses = successes.length,
+      oldErrors = errors.length,
+      oldWrites = writes.length;
+    const request = button().props.onClick();
+    assert.equal(button().props.disabled, true, 'Newsletter remains busy until Save settles');
+    await button().props.onClick();
+    assert.equal(writes.length, oldWrites + 1, 'Pending Save must not submit twice');
+    assert.equal(successes.length, oldSuccesses, 'Pending Save must not report success');
+    if (outcome === 'throw') fail(new Error('Controlled failure'));
+    else finish(outcome === 'success');
+    await request;
+    assert.equal(successes.length, oldSuccesses + (outcome === 'success' ? 1 : 0));
+    assert.equal(errors.length, oldErrors + (outcome === 'success' ? 0 : 1));
+    assert.equal(button().props.disabled, false, 'Settled Save releases its retry control');
+    assert.equal(
+      JSON.stringify(slots[1]),
+      JSON.stringify(writes.at(-1).newsletter),
+      'Failed Save retains the draft'
+    );
+  }
+  console.log(
+    'PASS Newsletter Save Result Runtime: pending/duplicate, rejected, exception and successful writes retain drafts and show success only after acceptance. No delivery or installed-site writes.'
+  );
+}
+
+async function checkAiKeyStorageUi() {
+  const walk = (node, match) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, match));
+    return [...(match(node) ? [node] : []), ...walk(node.props?.children, match)];
+  };
+  for (const storage of ['legacy', 'encrypted', 'unavailable']) {
+    for (const expired of [false, true]) {
+      const fixture = {
+        ...settings,
+        _canManageSecrets: true,
+        api: {
+          aiProvider: 'gemini',
+          aiModel: 'gemini-3.8-flash',
+          aiApiKey: '******** (PROTECTED)',
+          aiKeyStorage: storage,
+          expireAiKeyAfter30Days: true,
+          aiKeySavedAt: '2026-01-01T00:00:00Z',
+          aiKeyExpiresAt: expired ? '2000-01-01T00:00:00Z' : '2100-01-01T00:00:00Z',
+        },
+      };
+      const original = JSON.stringify(fixture),
+        slots = [],
+        saved = [];
+      let cursor = 0,
+        effects = [];
+      const Manager = load('src/plugins/von-core/features/settings/SettingsManager.tsx', {
+        ...React,
+        useState(initial) {
+          const slot = cursor++;
+          if (!(slot in slots)) slots[slot] = slot === 0 ? 'api' : initial;
+          return [
+            slots[slot],
+            (value) => {
+              slots[slot] = typeof value === 'function' ? value(slots[slot]) : value;
+            },
+          ];
+        },
+        useRef: (value) => ({ current: value }),
+        useEffect: (effect) => effects.push(effect),
+      }).default;
+      const draw = () => {
+        cursor = 0;
+        effects = [];
+        return Manager({
+          settings: fixture,
+          notify: noop,
+          onUpdate: async (value) => {
+            saved.push(value);
+            return true;
+          },
+        });
+      };
+      const save = (tree) =>
+        walk(tree, (node) => node.type === 'button' && node.props.onClick?.name === 'save')[0];
+      draw();
+      effects[1](); // Execute the actual props/expiry reconciliation, not the network effect.
+      let tree = draw();
+      const input = (view) => walk(view, (node) => node.props?.id === 'api-ai-key')[0];
+      assert.equal(
+        input(tree).props.value,
+        '******** (PROTECTED)',
+        'expiry must not turn a saved key into an implicit deletion'
+      );
+      await save(tree).props.onClick();
+      assert.equal(saved.at(-1).api.aiApiKey, fixture.api.aiApiKey);
+      assert.equal(saved.at(-1).api.aiKeyExpiresAt, fixture.api.aiKeyExpiresAt);
+      if (storage === 'legacy') {
+        assert.equal(saved.at(-1).api.encryptStoredAiKey, true);
+        assert.ok(
+          load('src/utils/settingsDraft.ts').createSettingsPatch(fixture, saved.at(-1)).api,
+          'migration intent must not be dropped as an unchanged group'
+        );
+      }
+      input(tree).props.onChange({ target: { value: 'qa-explicit-edit' } });
+      tree = draw();
+      await save(tree).props.onClick();
+      assert.equal(saved.at(-1).api.replaceAiKey, true);
+      assert.equal(saved.at(-1).api.aiApiKey, 'qa-explicit-edit');
+      input(tree).props.onChange({ target: { value: '' } });
+      tree = draw();
+      await save(tree).props.onClick();
+      assert.equal(saved.at(-1).api.aiApiKey, '', 'only explicit clearing removes a key');
+      assert.equal(JSON.stringify(fixture), original);
+    }
+  }
+  console.log(
+    'PASS AI Key Storage UI Runtime: legacy migration intent reaches the patch, encrypted/unavailable/expired keys stay masked, explicit field edits carry replacement intent, and clearing remains deliberate.'
+  );
+}
+
+async function checkAiKeyRotationUi() {
+  const walk = (node, match) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, match));
+    return [...(match(node) ? [node] : []), ...walk(node.props?.children, match)];
+  };
+  const fixture = {
+    ...settings,
+    _settingsScope: 'admin',
+    _canManageSecrets: true,
+    api: {
+      aiApiKey: '******** (PROTECTED)',
+      aiKeyStorage: 'encrypted',
+      aiKeyCanRotate: true,
+      aiKeyRevision: 'a'.repeat(64),
+    },
+  };
+  let props = { settings: fixture },
+    cursor = 0,
+    effects = [],
+    confirmation = false,
+    confirmations = 0;
+  const slots = [],
+    calls = [];
+  let release;
+  const Manager = load(
+    'src/plugins/von-core/features/settings/SettingsManager.tsx',
+    {
+      ...React,
+      useState(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = slot === 0 ? 'api' : initial;
+        return [
+          slots[slot],
+          (value) => {
+            slots[slot] = typeof value === 'function' ? value(slots[slot]) : value;
+          },
+        ];
+      },
+      useRef(value) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = { current: value };
+        return slots[slot];
+      },
+      useEffect(effect) {
+        effects.push(effect);
+      },
+    },
+    {},
+    {
+      window: {
+        confirm: () => {
+          confirmations++;
+          return confirmation;
+        },
+      },
+    }
+  ).default;
+  const draw = () => {
+    cursor = 0;
+    effects = [];
+    return Manager({
+      ...props,
+      onUpdate: async () => true,
+      notify: noop,
+      onRotateEncryptionKey: (revision) => {
+        calls.push(revision);
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      },
+    });
+  };
+  const button = (tree) =>
+    walk(
+      tree,
+      (node) => node.type === 'button' && node.props.onClick?.name === 'rotateEncryptionKey'
+    )[0];
+  let tree = draw();
+  assert.equal(button(tree).props.disabled, false);
+  await button(tree).props.onClick();
+  assert.equal(calls.length, 0, 'Cancel must not call the server');
+  confirmation = true;
+  const pending = button(tree).props.onClick();
+  assert.deepEqual(calls, [fixture.api.aiKeyRevision]);
+  tree = draw();
+  assert.equal(button(tree).props.disabled, true, 'Pending rotation must freeze its control');
+  assert.equal(tree.type, 'fieldset');
+  assert.equal(tree.props.disabled, true, 'All Settings fields stay frozen during rotation');
+  await button(tree).props.onClick();
+  assert.equal(calls.length, 1, 'Busy handler must not submit twice');
+  release(false);
+  await pending;
+  tree = draw();
+  assert.equal(button(tree).props.disabled, false, 'Failure must release busy state');
+  const input = walk(tree, (node) => node.props?.id === 'api-ai-key')[0];
+  input.props.onChange({ target: { value: 'qa-unsaved-new-key' } });
+  tree = draw();
+  assert.equal(button(tree).props.disabled, true, 'Unsaved settings must block rotation');
+  await button(tree).props.onClick();
+  assert.equal(calls.length, 1);
+  for (const changed of [
+    { ...fixture, _canManageSecrets: false },
+    { ...fixture, api: { ...fixture.api, aiKeyStorage: 'legacy' } },
+    { ...fixture, api: { ...fixture.api, aiKeyStorage: 'unavailable' } },
+    { ...fixture, api: { ...fixture.api, aiKeyCanRotate: false } },
+  ]) {
+    props = { settings: changed };
+    draw();
+    effects[1]();
+    tree = draw();
+    if (changed._canManageSecrets && changed.api.aiKeyStorage === 'encrypted')
+      assert.equal(button(tree).props.disabled, true);
+    else
+      assert.equal(button(tree), undefined, 'Unavailable/non-owner state must not expose rotation');
+  }
+  assert.equal(confirmations, 2, 'Rejected/busy/dirty actions must not prompt');
+  console.log(
+    'PASS AI Encryption Rotation UI: owner gating, confirmation/cancel, busy guard, unsaved-draft protection, unavailable/legacy storage and failure recovery. No live Settings were changed.'
+  );
+}
+
+function checkGoogleTrackingRuntime() {
+  const file = 'src/components/AnalyticsInjector.tsx';
+  for (const legacyFlag of [undefined, false, true]) {
+    const scripts = new Map();
+    const browserWindow = {
+      location: { href: 'https://qa.test/zangetsu/news/item', pathname: '/zangetsu/news/item' },
+    };
+    const browserDocument = {
+      title: 'QA article',
+      getElementById: (id) => scripts.get(id),
+      createElement: () => ({}),
+      head: { appendChild: (script) => scripts.set(script.id, script) },
+    };
+    const { AnalyticsInjector } = load(
+      file,
+      { ...React, useEffect: (effect) => effect() },
+      {
+        'react-router': { useLocation: () => ({ pathname: '/zangetsu/news/item' }) },
+        '../utils/analyticsPrivacy': {
+          resolveAnalyticsPageLocation: () => browserWindow.location.href,
+        },
+        '../utils/analyticsConsent': { analyticsTrackingAllowed: () => true },
+      },
+      { window: browserWindow, document: browserDocument }
+    );
+    const analytics = { googleAnalyticsId: 'G-QA', enableTracking: true, anonymizeIP: legacyFlag };
+    AnalyticsInjector({ analytics });
+    AnalyticsInjector({ analytics });
+    assert.equal(scripts.size, 1, 'SPA navigation must not duplicate the Google loader');
+    const calls = browserWindow.dataLayer.map((args) => Array.from(args));
+    const configs = calls.filter((args) => args[0] === 'config');
+    assert.equal(configs.length, 1);
+    assert.equal(configs[0][2].send_page_view, false);
+    assert.ok(
+      !Object.hasOwn(configs[0][2], 'anonymize_ip'),
+      'legacy privacy flag must not be presented as GA4 control'
+    );
+    assert.equal(calls.filter((args) => args[0] === 'event' && args[1] === 'page_view').length, 2);
+    AnalyticsInjector({ analytics: { ...analytics, enableTracking: false } });
+    assert.equal(
+      browserWindow.dataLayer.length,
+      calls.length,
+      'disabled tracking must not emit another view'
+    );
+  }
+  console.log(
+    'PASS Google Tracking Runtime: single loader, manual SPA views, tracking OFF and retired privacy flag behavior; Google delivery was not contacted.'
+  );
+}
+
+async function checkMediaSettingsRuntime() {
+  const walk = (node, match) => {
+    if (!node || typeof node !== 'object') return [];
+    if (Array.isArray(node)) return node.flatMap((child) => walk(child, match));
+    return [...(match(node) ? [node] : []), ...walk(node.props?.children, match)];
+  };
+  const text = (node) =>
+    typeof node === 'string'
+      ? node
+      : Array.isArray(node)
+        ? node.map(text).join('')
+        : text(node?.props?.children || '');
+  const fixture = {
+    ...settings,
+    media: {
+      optimization: {
+        enabled: true,
+        compressionLevel: 'medium',
+        convertToWebP: false,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      },
+      storage: { location: 'local', folderStructure: 'flat', cdnUrl: 'https://cdn.qa.test' },
+      performance: { lazyLoadImages: true, lazyLoadIframes: true },
+      defaultView: 'list',
+    },
+  };
+  const before = JSON.stringify(fixture);
+  const slots = [],
+    changes = [],
+    requests = [],
+    errors = [];
+  let cursor = 0,
+    confirmation = false,
+    response = { success: false, error: 'Fixture operation failed' };
+  const { MediaSettings } = load(
+    'src/plugins/von-core/features/settings/components/MediaSettings.tsx',
+    {
+      ...React,
+      useState(initial) {
+        const slot = cursor++;
+        if (!(slot in slots)) slots[slot] = initial;
+        return [
+          slots[slot],
+          (value) => {
+            slots[slot] = typeof value === 'function' ? value(slots[slot]) : value;
+          },
+        ];
+      },
+    },
+    {
+      '../../../../../config/site.config': {
+        API: {
+          mediaTools: 'media-tools-fixture',
+          syncMedia: 'sync-fixture',
+          cleanupMediaVariantRows: 'rows-fixture',
+        },
+      },
+      '../../../../../utils/api': {
+        vonFetch: async (url, options) => {
+          requests.push({ url, options });
+          if (response instanceof Error) throw response;
+          return { json: async () => response };
+        },
+      },
+      'react-hot-toast': {
+        __esModule: true,
+        default: { success: noop, error: (value) => errors.push(value) },
+      },
+    },
+    { FormData, window: { confirm: () => confirmation } }
+  );
+  const draw = () => {
+    cursor = 0;
+    return MediaSettings({
+      settings: fixture,
+      onChange: (key, value) => changes.push({ key, value }),
+    });
+  };
+  const changeTab = (tab) => {
+    walk(draw(), (node) => node.props?.id === 'media-settings-section')[0].props.onChange({
+      target: { value: tab },
+    });
+    return draw();
+  };
+  for (const [tab, id, section, key, value] of [
+    ['optimization', 'mediasettings-365', 'optimization', 'enabled', false],
+    ['optimization', 'mediasettings-402', 'optimization', 'convertToWebP', true],
+    ['sizes', 'mediasettings-421', 'optimization', 'maxWidth', 1280],
+    ['sizes', 'mediasettings-434', 'optimization', 'maxHeight', 720],
+    ['storage', 'mediasettings-459', 'storage', 'location', 'local'],
+    ['storage', 'mediasettings-474', 'storage', 'folderStructure', 'year_month'],
+    ['storage', 'mediasettings-487', 'storage', 'cdnUrl', 'https://next.qa.test'],
+    ['performance', 'mediasettings-511', 'performance', 'lazyLoadImages', false],
+    ['performance', 'mediasettings-530', 'performance', 'lazyLoadIframes', false],
+  ]) {
+    const field = walk(changeTab(tab), (node) => node.props?.id === id)[0];
+    field.props.onChange({ target: { value: String(value), checked: value } });
+    assert.deepEqual(JSON.parse(JSON.stringify(changes.pop())), {
+      key: 'media',
+      value: { ...fixture.media, [section]: { ...fixture.media[section], [key]: value } },
+    });
+  }
+  const button = (view, label) =>
+    walk(view, (node) => node.type === 'button' && text(node).includes(label))[0];
+  button(changeTab('optimization'), 'high').props.onClick();
+  assert.equal(changes.pop().value.optimization.compressionLevel, 'high');
+  button(changeTab('gallery'), 'Grid View').props.onClick();
+  assert.equal(changes.pop().value.defaultView, 'grid');
+  button(changeTab('gallery'), 'List View').props.onClick();
+  assert.equal(changes.pop().value.defaultView, 'list');
+  for (const [label, endpoint, action] of [
+    ['Start Media Sync', 'sync-fixture', undefined],
+    ['Start Rebuild', 'media-tools-fixture', 'rebuild_responsive_variants'],
+    ['Preview Generated Variants Only', 'media-tools-fixture', 'preview_responsive_variants'],
+    ['Scan Untracked Files', 'media-tools-fixture', 'cleanup_unused'],
+    ['Clean Old Variant Rows', 'rows-fixture', undefined],
+  ]) {
+    confirmation = true;
+    for (const outcome of [
+      { success: false, error: 'Fixture operation failed' },
+      new Error('Fixture network failed'),
+    ]) {
+      response = outcome;
+      await button(changeTab('tools'), label).props.onClick();
+      assert.equal(requests.at(-1).url, endpoint);
+      assert.equal(requests.at(-1).options.method, 'POST');
+      if (action) assert.equal(requests.at(-1).options.body.get('action'), action);
+      assert.ok(
+        text(draw()).includes(outcome.error || outcome.message),
+        'failure must remain visible'
+      );
+      assert.equal(
+        button(draw(), label).props.disabled,
+        false,
+        'failure must release the busy state'
+      );
+    }
+  }
+  const count = requests.length;
+  confirmation = false;
+  await button(changeTab('tools'), 'Clean Old Variant Rows').props.onClick();
+  assert.equal(requests.length, count, 'cancel must not request a row deletion');
+  response = {
+    success: true,
+    message: 'Review fixture',
+    stats: { count: 1, isExecuted: false },
+    previewToken: 'qa-review-token',
+    orphaned: [{ path: 'qa.webp', size: 12, modified: 'QA' }],
+  };
+  await button(draw(), 'Scan Untracked Files').props.onClick();
+  await button(draw(), 'Delete Reviewed Files').props.onClick();
+  assert.equal(requests.length, count + 1, 'cancel must not delete reviewed files');
+  confirmation = true;
+  response = { success: false, error: 'Review expired; scan again' };
+  await button(draw(), 'Delete Reviewed Files').props.onClick();
+  assert.equal(requests.at(-1).options.body.get('preview_token'), 'qa-review-token');
+  assert.equal(requests.at(-1).options.body.get('execute_cleanup'), 'true');
+  assert.ok(text(draw()).includes('Review expired; scan again'));
+  assert.equal(
+    JSON.stringify(fixture),
+    before,
+    'controls must not mutate saved media configuration'
+  );
+  console.log(
+    'PASS Media Settings Runtime: six tabs, all settings controls, real handler endpoints, cancelled deletion, reviewed token, API/network failure feedback and released busy states; transport was isolated, no live media was touched.'
+  );
+}
+
+function checkRelatedMemoOwnership() {
+  const directory = 'src/plugins/von-core/features/plugins/built-in/related-posts/';
+  const dates = load('src/utils/dateFormat.ts');
+  const matcher = load(directory + 'matcher.ts', React, {
+    '../../../../../../utils/dateFormat': dates,
+  });
+  let cached,
+    calls = 0;
+  const hooks = {
+    ...React,
+    useMemo(factory, deps) {
+      if (!cached || deps.some((value, index) => !Object.is(value, cached.deps[index])))
+        cached = { value: factory(), deps };
+      return cached.value;
+    },
+  };
+  const Component = load(directory + 'RelatedPostsComponent.tsx', hooks, {
+    './matcher': {
+      findRelatedPosts: (...args) => {
+        calls++;
+        return matcher.findRelatedPosts(...args);
+      },
+    },
+  }).RelatedPostsComponent;
+  const candidates = posts.slice(0, 4).map((post) => ({ ...post }));
+  const config = { enabled: true, count: 4, orderBy: 'random', layout: 'grid', showDate: true };
+  const currentPost = { ...posts[5] };
+  Component({ currentPost, allPosts: candidates, config, settings });
+  const original = cached.value.map((post) => post.id).join(',');
+  Component({
+    currentPost: { ...currentPost, content: 'Unrelated edit' },
+    allPosts: candidates,
+    config: { ...config, titleText: 'New heading', layout: 'list' },
+    settings,
+  });
+  assert.equal(calls, 1, 'Unrelated UI/config objects must not reshuffle random results');
+  assert.equal(cached.value.map((post) => post.id).join(','), original);
+  candidates[0].title = 'Updated card title';
+  Component({ currentPost, allPosts: candidates, config, settings });
+  assert.equal(calls, 2, 'Visible in-place candidate changes must invalidate cards');
+  assert.equal(
+    cached.value.find((post) => post.id === candidates[0].id)?.title,
+    'Updated card title'
+  );
+  Component({ currentPost, allPosts: candidates, config: { ...config, count: 3 }, settings });
+  assert.equal(calls, 3, 'Count changes must refresh the selection');
+  assert.equal(cached.value.length, 3);
+  Component({
+    currentPost: { ...currentPost, category: 'Updated category' },
+    allPosts: candidates,
+    config,
+    settings,
+  });
+  assert.equal(calls, 4, 'Current-post matching inputs must refresh the selection');
+  console.log(
+    'PASS Related Memo Ownership: actual random matcher retains order through unrelated renders, refreshes card fields/count/taxonomy and keeps bounded candidates. No live requests.'
+  );
+}
+
+function checkPortfolioNavigationResolver() {
+  const file = 'src/themes/portfolio/Layout.tsx';
+  const ast = ts.createSourceFile(
+    file,
+    read(file),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  );
+  const resolvers = [];
+  function visit(node) {
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.name.getText(ast) === 'handleNavigationItem' &&
+      node.initializer
+    )
+      resolvers.push(node.initializer);
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.equal(resolvers.length, 1, 'Portfolio navigation must retain one shared action resolver');
+  const code = ts.transpileModule(`module.exports = ${resolvers[0].getText(ast)};`, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const calls = [];
+  const runtime = {
+    module: { exports: {} },
+    setIsMobileMenuOpen: (value) => calls.push(['menu', value]),
+    onBackToHome: () => calls.push(['home']),
+    onPageClick: (value) => calls.push(['page', value]),
+    onPostClick: (value) => calls.push(['post', value]),
+    onCategoryClick: (value) => calls.push(['category', value]),
+    pages: [{ id: '91', slug: 'qa-page' }],
+    getSameSiteCategoryNavigation: (url) => (url === '/?category=News' ? 'News' : null),
+    normalizeSiteUrl: (url) => url,
+    window: { location: { href: 'unchanged' } },
+  };
+  vm.runInNewContext(code, runtime, { filename: file });
+  for (const closeMobileMenu of [false, true]) {
+    for (const [url, expected] of [
+      ['home', ['home']],
+      ['page:91', ['page', 'qa-page']],
+      ['page:qa-page', ['page', 'qa-page']],
+      ['page:unknown', ['page', 'unknown']],
+      ['post:17', ['post', '17']],
+      ['/?category=News', ['category', 'News']],
+      ['https://qa.test/', null],
+    ]) {
+      calls.length = 0;
+      runtime.window.location.href = 'unchanged';
+      runtime.module.exports({ url }, closeMobileMenu);
+      assert.deepEqual(calls, [
+        ...(closeMobileMenu ? [['menu', false]] : []),
+        ...(expected ? [expected] : []),
+      ]);
+      assert.equal(runtime.window.location.href, expected ? 'unchanged' : url);
+    }
+  }
+  console.log(
+    'PASS Portfolio Navigation Runtime: 14 desktop/mobile resolver cases preserve home, page ID/slug/fallback, post, category and external delegation. Browser navigation is not exercised.'
+  );
+}
+
+checkRelatedMemoOwnership();
+checkPortfolioNavigationResolver();
+checkGoogleTrackingRuntime();
 checkContentManagerActions();
 checkContentManagerExcerpts();
 checkCategoryFolderAdvisory();
@@ -2185,12 +3962,20 @@ checkPublicPluginHydration();
 checkSettingsPresentation();
 checkAdsManager();
 checkAdminSettingsReadiness()
+  .then(checkAiSettingsModels)
+  .then(checkSettingsDraftLifecycle)
+  .then(checkAiKeyStorageUi)
+  .then(checkAiKeyRotationUi)
+  .then(checkMediaSettingsRuntime)
   .then(checkIndexNowReadOnly)
   .then(checkAnalyticsReadOnly)
   .then(checkPublicProfileArticles)
   .then(checkSettings)
   .then(checkOtherCustomizers)
   .then(checkNewsletterPagination)
+  .then(checkNewsletterSaveResult)
+  .then(checkAvatarState)
+  .then(checkDiscussionPostLinks)
   .then(() => {
     console.log(
       'PASS Theme Maintenance Runtime: global limits, account placeholders, comments, animations, Digest article retention, six independent customizers, legacy appearance migration, public settings projection, and latest-settings draft merge.'

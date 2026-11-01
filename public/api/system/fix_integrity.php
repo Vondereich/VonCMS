@@ -85,7 +85,7 @@ function hasManagedFragmentNoise($content)
 /**
  * @param string $filePath
  * @param string $label
- * @return array<string, mixed>
+ * @return array{label: string, path: string, exists: bool, readable: bool, beginMarkers: int|false, endMarkers: int|false, legacyTemplate: bool, corruptedManagedFragment: bool, unsafeHostRedirect: bool, healthy: bool, issues: list<string>}
  */
 function analyzeHtaccessState($filePath, $label)
 {
@@ -152,7 +152,7 @@ function analyzeHtaccessState($filePath, $label)
 /**
  * @param string $publicPath
  * @param string $projectRoot
- * @return array<string, mixed>
+ * @return array{path: string, directoryExists: bool, shieldExists: bool, readable: bool, healthy: bool, issues: list<string>}
  */
 function analyzeUploadsShieldState($publicPath, $projectRoot)
 {
@@ -212,7 +212,7 @@ function analyzeUploadsShieldState($publicPath, $projectRoot)
 /**
  * @param array<int, string> $checks
  * @param string $title
- * @param array<string, mixed> $state
+ * @param array{sharedWithProjectRoot?: bool, healthy: bool, issues: list<string>} $state
  * @return void
  */
 function appendHtaccessChecks(&$checks, $title, $state)

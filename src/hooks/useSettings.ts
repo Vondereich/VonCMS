@@ -129,6 +129,7 @@ export function useSettings() {
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SETTINGS);
   const settingsRef = useRef<SiteSettings>(INITIAL_SETTINGS);
   const loadSettingsInFlightRef = useRef<Promise<boolean> | null>(null);
+  const encryptionRotationInFlightRef = useRef(false);
   const [isSettingsLoading, setIsSettingsLoading] = useState(false);
   const [settingsLoadFailed, setSettingsLoadFailed] = useState(false);
 
@@ -288,6 +289,8 @@ export function useSettings() {
         return false;
       }
       const settingsPatch = createSettingsPatch(previousSettings, newSettings);
+      let canonicalSettings = newSettings;
+      let hasCredentialProjection = false;
       if (Object.keys(settingsPatch).length === 0) {
         return true;
       }
@@ -356,11 +359,34 @@ export function useSettings() {
             }
             return false;
           }
+          if (
+            settingsPatch.api &&
+            data.apiCredential &&
+            typeof data.apiCredential === 'object' &&
+            !Array.isArray(data.apiCredential)
+          ) {
+            canonicalSettings = {
+              ...newSettings,
+              api: { ...newSettings.api, ...data.apiCredential },
+            };
+            if (
+              typeof data.aiAssistant?.sharedAvailable === 'boolean' &&
+              typeof data.aiAssistant?.model === 'string'
+            ) {
+              canonicalSettings.aiAssistant = {
+                sharedAvailable: data.aiAssistant.sharedAvailable,
+                model: data.aiAssistant.model,
+              };
+            }
+            delete canonicalSettings.api!.encryptStoredAiKey;
+            delete canonicalSettings.api!.replaceAiKey;
+            hasCredentialProjection = true;
+          }
         }
 
-        if (!optimistic) {
-          settingsRef.current = newSettings;
-          setSettings(newSettings);
+        if (!optimistic || hasCredentialProjection) {
+          settingsRef.current = canonicalSettings;
+          setSettings(canonicalSettings);
         }
 
         return true;
@@ -374,15 +400,81 @@ export function useSettings() {
     [loadSettings]
   );
 
+  const handleRotateAiEncryptionKey = useCallback(
+    async (revision: string): Promise<boolean> => {
+      const current = settingsRef.current;
+      if (
+        encryptionRotationInFlightRef.current ||
+        current._settingsScope !== 'admin' ||
+        !current._canManageSecrets ||
+        !revision ||
+        current.api?.aiKeyRevision !== revision
+      ) {
+        return false;
+      }
+      encryptionRotationInFlightRef.current = true;
+      try {
+        const response = await vonFetch(API.saveSettings, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(getAuthHeader() ? { Authorization: getAuthHeader() } : {}),
+          },
+          body: JSON.stringify({ _credentialAction: 'rotate', _credentialRevision: revision }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (
+          !response.ok ||
+          !data.success ||
+          !data.apiCredential ||
+          typeof data.apiCredential !== 'object' ||
+          Array.isArray(data.apiCredential)
+        ) {
+          if (
+            response.status === 401 ||
+            (response.status === 403 && data.error === 'Invalid CSRF token')
+          ) {
+            window.dispatchEvent(new Event('von:session-expired'));
+          } else {
+            toast.error(
+              data.error || 'Encryption key rotation could not be confirmed. Reload Settings.'
+            );
+            await loadSettings(true);
+          }
+          return false;
+        }
+        const latest = settingsRef.current;
+        if (latest._settingsScope !== 'admin' || !latest._canManageSecrets) return false;
+        if (latest.api?.aiKeyRevision !== revision) {
+          await loadSettings(true);
+          return true;
+        }
+        const next = { ...latest, api: { ...latest.api, ...data.apiCredential } };
+        settingsRef.current = next;
+        setSettings(next);
+        return true;
+      } catch {
+        toast.error(
+          'Encryption key rotation could not be confirmed. Reload Settings before retrying.'
+        );
+        await loadSettings(true);
+        return false;
+      } finally {
+        encryptionRotationInFlightRef.current = false;
+      }
+    },
+    [loadSettings]
+  );
+
   // Toggle navigation item
   const onToggleNav = useCallback(async (pageId: string, pages: Page[]) => {
     // Compute new navigation state once — shared between UI and server save
-    const computeNavigation = (currentNav: any[]) => {
-      const exists = currentNav.find((n: any) => n.url === `page:${pageId}`);
+    const computeNavigation = (currentNav: SiteSettings['navigation']) => {
+      const exists = currentNav.find((n) => n.url === `page:${pageId}`);
       if (exists) {
-        return currentNav.filter((n: any) => n.url !== `page:${pageId}`);
+        return currentNav.filter((n) => n.url !== `page:${pageId}`);
       }
-      const pg = pages.find((p: any) => p.id === pageId);
+      const pg = pages.find((p) => p.id === pageId);
       const label = pg ? pg.title : `Page ${pageId}`;
       return [
         ...currentNav,
@@ -403,7 +495,7 @@ export function useSettings() {
     settingsRef.current = nextSettings;
     setSettings(nextSettings);
 
-    let saved = false;
+    let saved: boolean;
     try {
       const res = await vonFetch(API.saveSettings, {
         method: 'POST',
@@ -415,7 +507,7 @@ export function useSettings() {
       });
       const data = await res.json().catch(() => ({}));
       saved = res.ok && data.success !== false;
-    } catch (e) {
+    } catch {
       saved = false;
     }
 
@@ -431,6 +523,7 @@ export function useSettings() {
     isSettingsLoading,
     settingsLoadFailed,
     handleUpdateSettings,
+    handleRotateAiEncryptionKey,
     onToggleNav,
     INITIAL_SETTINGS,
   };

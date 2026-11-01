@@ -1,9 +1,13 @@
 <?php
 /** Shared Post/Page slug reservation. Public routing priority is deliberately unchanged. */
-if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === realpath(__FILE__)) {
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath($_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
   http_response_code(403);
   exit('Forbidden');
 }
+require_once __DIR__ . '/../core/DataBoundary.php';
 
 final class VonCmsContentSlugLock
 {
@@ -16,7 +20,14 @@ final class VonCmsContentSlugLock
       return new self($pdo, null);
     }
 
-    $database = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+    $databaseStatement = $pdo->query('SELECT DATABASE()');
+    if ($databaseStatement === false) {
+      throw new RuntimeException('Content save could not identify the database.');
+    }
+    $database = $databaseStatement->fetchColumn();
+    if (!is_string($database) || $database === '') {
+      throw new RuntimeException('Content save could not identify the database.');
+    }
     $name = 'voncms:content-slugs:' . substr(hash('sha256', $database), 0, 32);
     $statement = $pdo->prepare('SELECT GET_LOCK(?, ?)');
     $statement->execute([$name, 3]);
@@ -59,14 +70,17 @@ function voncms_content_slug_conflicts(PDO $pdo, string $contentType, string $sl
   return $statement->fetchColumn() !== false;
 }
 
-/** Import localization runs before this short reservation; release before redirects or more HTTP. */
+/**
+ * Capture the inserted identity before MySQL's unlock SELECT resets PDO::lastInsertId().
+ * @param array<array-key, mixed> $values PDO execution parameters.
+ */
 function voncms_insert_with_slug_reservation(
   PDO $pdo,
   string $contentType,
   string $slug,
   PDOStatement $statement,
   array $values,
-): void {
+): string {
   $lock = VonCmsContentSlugLock::acquire($pdo);
   try {
     if (voncms_content_slug_conflicts($pdo, $contentType, $slug)) {
@@ -83,6 +97,7 @@ function voncms_insert_with_slug_reservation(
       throw new PDOException('Slug already exists.', 23000);
     }
     $statement->execute($values);
+    return (string) $pdo->lastInsertId();
   } finally {
     $lock->release();
   }

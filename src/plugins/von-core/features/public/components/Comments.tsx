@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Gravatar from 'react-gravatar';
+import { SafeImage } from '../../../../../components/SafeImage';
 import toast from 'react-hot-toast';
 import { Comment, User, SiteSettings } from '../../../../../types';
 import { MessageCircle, CornerDownRight, ThumbsUp, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -15,28 +16,24 @@ const UserAvatar: React.FC<{
   size?: string;
   className?: string;
 }> = ({ url, name, email, md5, size = 'w-10 h-10', className = '' }) => {
-  const [imageFailed, setImageFailed] = useState(false);
-
   return (
     <div
       className={`${size} rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 shrink-0 ${className}`}
     >
-      {url && !imageFailed ? (
-        <img
-          src={url}
-          alt={name}
-          className="w-full h-full object-cover"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <Gravatar
-          email={email || name}
-          md5={md5}
-          size={100}
-          className="w-full h-full object-cover"
-          default="identicon"
-        />
-      )}
+      <SafeImage
+        src={url}
+        alt={name}
+        className="w-full h-full object-cover"
+        fallback={
+          <Gravatar
+            email={email || name}
+            md5={md5}
+            size={100}
+            className="w-full h-full object-cover"
+            default="identicon"
+          />
+        }
+      />
     </div>
   );
 };

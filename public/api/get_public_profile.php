@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Public Profile API
  * Returns public profile data for any user (accessible by guests)
@@ -28,7 +30,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 // Get username from query parameter
-$username = isset($_GET['username']) ? trim((string) $_GET['username']) : '';
+$username = isset($_GET['username']) ? trim(DataBoundary::inputText($_GET['username'])) : '';
 
 if (empty($username)) {
   ResponseHelper::sendError('Username is required', 400);
@@ -38,7 +40,7 @@ if (mb_strlen($username) > 100 || !preg_match('/^[a-zA-Z0-9_.-]+$/', $username))
 }
 
 try {
-  if (!isset($pdo) || $pdo === null) {
+  if (!isset($pdo)) {
     throw new Exception('Database connection not established.');
   }
 
@@ -55,7 +57,7 @@ try {
     "SELECT username, $displayNameSelect, avatar, bio FROM users WHERE username = ? LIMIT 1",
   );
   $stmt->execute([$username]);
-  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+  $user = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if ($user) {
     if (isset($user['avatar'])) {

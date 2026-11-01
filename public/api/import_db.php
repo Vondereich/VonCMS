@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Database Import API
  * Imports SQL file to database
@@ -22,7 +24,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 // Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
@@ -34,11 +36,16 @@ CSRFProtection::requireToken();
 SessionManager::requirePrimaryAdmin();
 
 // Check for uploaded file
-if (!isset($_FILES['sqlfile']) || $_FILES['sqlfile']['error'] !== UPLOAD_ERR_OK) {
+$file = $_FILES['sqlfile'] ?? null;
+if (
+  !is_array($file) ||
+  ($file['error'] ?? null) !== UPLOAD_ERR_OK ||
+  !is_string($file['name'] ?? null) ||
+  !is_string($file['tmp_name'] ?? null) ||
+  !is_int($file['size'] ?? null)
+) {
   ResponseHelper::sendError('No SQL file uploaded', 400);
 }
-
-$file = $_FILES['sqlfile'];
 
 // Validate file type
 $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -575,14 +582,19 @@ function createPreImportSafetyBackup($pdo)
     }
 
     try {
-      $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      $tables = DataBoundary::column(
+        DataBoundary::statement($pdo->query('SHOW TABLES'))->fetchAll(PDO::FETCH_COLUMN),
+      );
       foreach ($tables as $table) {
         $table = (string) $table;
         $quotedTable = quoteImportBackupMysqlIdentifier($table);
         $tableLabel = sanitizeImportBackupCommentLabel($table);
-        $createStmt = $pdo->query("SHOW CREATE TABLE {$quotedTable}");
-        $createRow = $createStmt->fetch(PDO::FETCH_ASSOC);
+        $createStmt = DataBoundary::statement($pdo->query("SHOW CREATE TABLE {$quotedTable}"));
+        $createRow = DataBoundary::row($createStmt->fetch(PDO::FETCH_ASSOC));
         $createStmt->closeCursor();
+        if (!$createRow || !is_string($createRow['Create Table'] ?? null)) {
+          throw new RuntimeException('Cannot verify table definition for the safety backup.');
+        }
 
         writePreImportSafetyBackupData($handle, "-- \n");
         writePreImportSafetyBackupData($handle, "-- Table structure: {$tableLabel}\n");
@@ -590,13 +602,13 @@ function createPreImportSafetyBackup($pdo)
         writePreImportSafetyBackupData($handle, "DROP TABLE IF EXISTS {$quotedTable};\n");
         writePreImportSafetyBackupData($handle, $createRow['Create Table'] . ";\n\n");
 
-        $stmt = $pdo->query("SELECT * FROM {$quotedTable}");
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $stmt = DataBoundary::statement($pdo->query("SELECT * FROM {$quotedTable}"));
+        while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
           $columns = array_keys($row);
           $quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);
           $values = [];
           foreach ($row as $value) {
-            $values[] = $value === null ? 'NULL' : $pdo->quote($value);
+            $values[] = $value === null ? 'NULL' : $pdo->quote((string) $value);
           }
 
           writePreImportSafetyBackupData(
@@ -674,7 +686,6 @@ requireCompatibleImportSqlMode($pdo);
 try {
   if (($file['size'] ?? 0) <= 0) {
     ResponseHelper::sendError('Empty SQL file', 400);
-    exit();
   }
 
   $executed = 0;
@@ -693,13 +704,11 @@ try {
         'Only unqualified DROP TABLE IF EXISTS, CREATE TABLE, INSERT INTO, and SET FOREIGN_KEY_CHECKS statements from a VonCMS backup are allowed.',
         403,
       );
-      exit();
     }
   }
 
   if (!$hasExecutableStatements) {
     ResponseHelper::sendError('Empty SQL file', 400);
-    exit();
   }
 
   $destructiveSummary = detectDestructiveImportStatements(
@@ -747,7 +756,6 @@ try {
         'Only unqualified DROP TABLE IF EXISTS, CREATE TABLE, INSERT INTO, and SET FOREIGN_KEY_CHECKS statements from a VonCMS backup are allowed.',
         403,
       );
-      exit();
     }
 
     try {

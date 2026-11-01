@@ -78,7 +78,7 @@ const VonNewsletter: React.FC<VonNewsletterProps> = ({
         setMessage(data.error || 'Subscription failed');
         setTimeout(() => setStatus('idle'), 3000);
       }
-    } catch (error) {
+    } catch {
       setStatus('error');
       setMessage('Network error. Please try again.');
       setTimeout(() => setStatus('idle'), 3000);

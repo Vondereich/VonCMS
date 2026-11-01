@@ -42,6 +42,25 @@ function updaterRollbackWrite(string $path, string $contents): void
 $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-updater-' . bin2hex(random_bytes(6));
 
 try {
+  // Even an explicitly false test flag must not enable fault configuration.
+  $guardProbe =
+    "define('VONCMS_UPDATER_TESTING', false); define('IN_API', true); require " .
+    var_export(__DIR__ . '/../public/api/system/updater.php', true) .
+    "; try { (new SystemUpdater())->configureTestFailures(afterActivations: 1); exit(1); } catch (LogicException) { echo 'blocked'; }";
+  $guardProcess = proc_open(
+    [PHP_BINARY, '-r', $guardProbe],
+    [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+    $guardPipes,
+  );
+  $guardOutput = stream_get_contents($guardPipes[1]);
+  $guardError = stream_get_contents($guardPipes[2]);
+  fclose($guardPipes[1]);
+  fclose($guardPipes[2]);
+  updaterRollbackAssert(
+    proc_close($guardProcess) === 0 && $guardOutput === 'blocked' && $guardError === '',
+    'Fault injection was configurable without the explicit true test flag.',
+  );
+
   $livePath = $basePath . '/live';
   $tempPath = $livePath . '/temp_update';
   $sourcePath = $tempPath . '/extracted/VonCMS';
@@ -71,7 +90,6 @@ try {
       'tempPath' => $tempPath,
       'backupPath' => $livePath . '/backups',
       'logFile' => $basePath . '/updater.log',
-      'testFailureAfterActivations' => 3,
     ]
     as $propertyName => $value
   ) {
@@ -79,7 +97,27 @@ try {
     $property->setValue($updater, $value);
   }
 
+  $updater->configureTestFailures(afterActivations: 3);
   $swap = $reflection->getMethod('performSwap');
+  foreach (['99.0.0', '8.2', 'invalid', [], null] as $minimum) {
+    updaterRollbackWrite(
+      $sourcePath . '/metadata.json',
+      json_encode(['version' => '9.9.9', 'minPhp' => $minimum], JSON_THROW_ON_ERROR),
+    );
+    $rejected = false;
+    try {
+      $swap->invoke($updater, '9.9.9');
+    } catch (Throwable $error) {
+      $rejected = str_contains($error->getMessage(), 'PHP');
+    }
+    updaterRollbackAssert($rejected, 'Incompatible or malformed minimum PHP was accepted.');
+    updaterRollbackAssert(
+      file_get_contents($livePath . '/api/runtime.txt') === 'old-api' &&
+        !is_dir($tempPath . '/staged-release'),
+      'PHP rejection staged or changed live files.',
+    );
+  }
+  updaterRollbackWrite($sourcePath . '/metadata.json', '{"version":"9.9.9","minPhp":"8.2.0"}');
   $failureInjected = false;
   try {
     $swap->invoke($updater, '9.9.9');
@@ -115,8 +153,8 @@ try {
     'Untouched release file changed after activation failure.',
   );
 
-  $failureProperty = $reflection->getProperty('testFailureAfterActivations');
-  $failureProperty->setValue($updater, null);
+  updaterRollbackWrite($sourcePath . '/metadata.json', '{"version":"9.9.9"}');
+  $updater->configureTestFailures();
   $swap->invoke($updater, '9.9.9');
 
   updaterRollbackAssert(
@@ -151,9 +189,92 @@ try {
   );
 
   $cleanup = $reflection->getMethod('cleanup');
+  $prepare = $reflection->getMethod('prepareTemporaryDirectory');
   $tempProperty = $reflection->getProperty('tempPath');
-  $cleanupFailureProperty = $reflection->getProperty('testCleanupFailure');
   $cleanupPath = $basePath . '/cleanup-probe';
+
+  $downloadProbe = $basePath . '/download-probe';
+  $tempProperty->setValue($updater, $downloadProbe);
+  $downloadRefused = false;
+  try {
+    // Rejected before network/file transfer, after the real downloader seals its root.
+    $reflection
+      ->getMethod('downloadFile')
+      ->invoke($updater, 'http://untrusted.invalid/update.zip', str_repeat('a', 64));
+  } catch (Throwable $error) {
+    $downloadRefused = true;
+  }
+  updaterRollbackAssert(
+    $downloadRefused &&
+      is_file($downloadProbe . '/.htaccess') &&
+      !file_exists($downloadProbe . '/update.zip'),
+    'Downloader did not seal its directory before attempting transport.',
+  );
+
+  $extractProbe = $basePath . '/extract-probe';
+  $archivePath = $basePath . '/fixture-release.zip';
+  $archive = new ZipArchive();
+  updaterRollbackAssert(
+    $archive->open($archivePath, ZipArchive::CREATE) === true,
+    'Could not create isolated release ZIP.',
+  );
+  $archive->addFromString('api/sentinel.php', 'ISOLATED-PAYLOAD');
+  $archive->close();
+  $tempProperty->setValue($updater, $extractProbe);
+  $reflection->getMethod('extractUpdate')->invoke($updater, $archivePath);
+  updaterRollbackAssert(
+    is_file($extractProbe . '/.htaccess') &&
+      file_get_contents($extractProbe . '/extracted/api/sentinel.php') === 'ISOLATED-PAYLOAD',
+    'Extraction failed or wrote payload without a parent shield.',
+  );
+
+  $tempProperty->setValue($updater, $cleanupPath);
+  $prepare->invoke($updater);
+  $shieldBytes = file_get_contents($cleanupPath . '/.htaccess');
+  updaterRollbackAssert(
+    str_contains($shieldBytes, 'Require all denied'),
+    'Temporary directory was not sealed before payload writes.',
+  );
+  $prepare->invoke($updater);
+  updaterRollbackAssert(
+    file_get_contents($cleanupPath . '/.htaccess') === $shieldBytes,
+    'Repeated preparation changed the shield.',
+  );
+
+  // Invalid shield destinations must refuse preparation rather than writing payload.
+  unlink($cleanupPath . '/.htaccess');
+  mkdir($cleanupPath . '/.htaccess');
+  $refused = false;
+  try {
+    $prepare->invoke($updater);
+  } catch (Throwable $error) {
+    $refused = str_contains($error->getMessage(), 'protection');
+  }
+  updaterRollbackAssert(
+    $refused && !file_exists($cleanupPath . '/update.zip'),
+    'Unprotectable staging was accepted.',
+  );
+  rmdir($cleanupPath . '/.htaccess');
+  $prepare->invoke($updater);
+
+  updaterRollbackWrite($cleanupPath . '/a-removed.txt', 'remove-before-failure');
+  updaterRollbackWrite($cleanupPath . '/z-blocked.php', 'payload-that-must-remain-private');
+  $updater->configureTestFailures(removalPath: $cleanupPath . '/z-blocked.php');
+  updaterRollbackAssert(
+    $cleanup->invoke($updater) === false,
+    'Partial cleanup failure was not surfaced.',
+  );
+  updaterRollbackAssert(
+    !file_exists($cleanupPath . '/a-removed.txt') &&
+      file_exists($cleanupPath . '/z-blocked.php') &&
+      file_get_contents($cleanupPath . '/.htaccess') === $shieldBytes,
+    'Partial cleanup removed the shield before the remaining payload.',
+  );
+  $updater->configureTestFailures();
+  updaterRollbackAssert(
+    $cleanup->invoke($updater) === true && !file_exists($cleanupPath),
+    'Cleanup could not recover after partial failure.',
+  );
 
   updaterRollbackWrite($cleanupPath . '/nested/runtime.txt', 'temporary-data');
   $tempProperty->setValue($updater, $cleanupPath);
@@ -166,7 +287,7 @@ try {
   );
 
   updaterRollbackWrite($cleanupPath . '/nested/runtime.txt', 'locked-test-data');
-  $cleanupFailureProperty->setValue($updater, true);
+  $updater->configureTestFailures(cleanupFailure: true);
   ob_start();
   $cleanupSucceeded = $cleanup->invoke($updater);
   $cleanupOutput = ob_get_clean();
@@ -175,7 +296,7 @@ try {
     'Failed updater cleanup emitted output or reported a false success.',
   );
 
-  $cleanupFailureProperty->setValue($updater, false);
+  $updater->configureTestFailures();
   updaterRollbackAssert(
     $cleanup->invoke($updater) === true && !file_exists($cleanupPath),
     'Updater cleanup did not recover after a deferred failure.',

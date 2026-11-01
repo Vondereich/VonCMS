@@ -31,65 +31,65 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
+$needsRepair = false;
+$missingItems = [];
+
+// 1. Check every structure owned by the explicit core repair path.
 try {
-  $needsRepair = false;
-  $missingItems = [];
-
-  // 1. Check every structure owned by the explicit core repair path.
-  try {
-    foreach (voncms_schema_missing_core_repair_items($pdo) as $missingItem) {
-      $needsRepair = true;
-      $missingItems[] = "Core schema requires Database Repair: {$missingItem}";
-    }
-  } catch (Throwable $e) {
+  foreach (voncms_schema_missing_core_repair_items($pdo) as $missingItem) {
     $needsRepair = true;
-    $missingItems[] = 'Core schema could not be verified';
+    $missingItems[] = "Core schema requires Database Repair: {$missingItem}";
   }
-
-  // 2. Check shared runtime capabilities without mutating the schema.
-  $capabilityLabels = [
-    'registration' => 'Registration schema',
-    'password_reset' => 'Password reset schema',
-    'profile_display_name' => 'Profile display-name schema',
-    'remember_tokens' => 'Remember-token storage',
-    'analytics' => 'Analytics storage',
-    'post_daily_views' => 'Daily article view storage',
-    'comment_likes' => 'Comment-like storage',
-    'content_audit' => 'Content audit storage',
-    'security_logs' => 'Security log storage',
-  ];
-
-  foreach ($capabilityLabels as $capability => $label) {
-    try {
-      if (!voncms_schema_has_capability($pdo, $capability)) {
-        $needsRepair = true;
-        $missingItems[] = $label . ' requires Database Repair';
-      }
-    } catch (Throwable $e) {
-      $needsRepair = true;
-      $missingItems[] = $label . ' could not be verified';
-    }
-  }
-
-  try {
-    $userColumns = voncms_schema_column_map($pdo, 'users');
-    foreach (['verification_token', 'reset_token'] as $tokenColumn) {
-      $tokenType = strtolower((string) ($userColumns[$tokenColumn]['Type'] ?? ''));
-      if ($tokenType !== '' && $tokenType !== 'varchar(64)') {
-        $needsRepair = true;
-        $missingItems[] = "Column users.{$tokenColumn} requires VARCHAR(64) reconciliation";
-      }
-    }
-  } catch (Throwable $e) {
-    $needsRepair = true;
-    $missingItems[] = 'Token column widths could not be verified';
-  }
-
-  echo json_encode([
-    'success' => true,
-    'needs_repair' => $needsRepair,
-    'details' => $missingItems,
-  ]);
-} catch (Exception $e) {
-  ResponseHelper::sendError($e);
+} catch (Throwable $e) {
+  $needsRepair = true;
+  $missingItems[] = 'Core schema could not be verified';
 }
+
+// 2. Check shared runtime capabilities without mutating the schema.
+$capabilityLabels = [
+  'calendar_events' => 'Editorial calendar events',
+  'calendar_event_audit' => 'Calendar event audit storage',
+  'registration' => 'Registration schema',
+  'password_reset' => 'Password reset schema',
+  'profile_display_name' => 'Profile display-name schema',
+  'remember_tokens' => 'Remember-token storage',
+  'analytics' => 'Analytics storage',
+  'analytics_measurement' => 'Analytics measurement modes',
+  'analytics_sessions' => 'Balanced analytics sessions',
+  'post_daily_views' => 'Daily article view storage',
+  'comment_likes' => 'Comment-like storage',
+  'content_audit' => 'Content audit storage',
+  'security_logs' => 'Security log storage',
+];
+
+foreach ($capabilityLabels as $capability => $label) {
+  try {
+    if (!voncms_schema_has_capability($pdo, $capability)) {
+      $needsRepair = true;
+      $missingItems[] = $label . ' requires Database Repair';
+    }
+  } catch (Throwable $e) {
+    $needsRepair = true;
+    $missingItems[] = $label . ' could not be verified';
+  }
+}
+
+try {
+  $userColumns = voncms_schema_column_map($pdo, 'users');
+  foreach (['verification_token', 'reset_token'] as $tokenColumn) {
+    $tokenType = strtolower((string) ($userColumns[$tokenColumn]['Type'] ?? ''));
+    if ($tokenType !== '' && $tokenType !== 'varchar(64)') {
+      $needsRepair = true;
+      $missingItems[] = "Column users.{$tokenColumn} requires VARCHAR(64) reconciliation";
+    }
+  }
+} catch (Throwable $e) {
+  $needsRepair = true;
+  $missingItems[] = 'Token column widths could not be verified';
+}
+
+echo json_encode([
+  'success' => true,
+  'needs_repair' => $needsRepair,
+  'details' => $missingItems,
+]);

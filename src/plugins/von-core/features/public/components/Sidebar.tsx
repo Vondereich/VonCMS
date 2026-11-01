@@ -67,7 +67,7 @@ const formatSidebarFreshness = (
   return formatDate(dateValue, settings.timeZone, settings.dateFormat);
 };
 
-const normalizeSidebarPost = (post: any): Post => ({
+const normalizeSidebarPost = (post: import('../../../../../types').PostApiRecord): Post => ({
   ...post,
   image: post.image || post.image_url || '',
   imageSrcSet: post.imageSrcSet || post.image_srcset || '',
@@ -151,7 +151,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
     : 'bg-white dark:bg-slate-900 p-8 border border-gray-100 dark:border-gray-800 animate-fade-in shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]';
 
   switch (widget.type) {
-    case 'trending':
+    case 'trending': {
       // Get configurable number of published posts as "Trending" (default 5)
       const limit = widget.itemCount || 5;
       const sidebarPosts = fetchedPosts.length > 0 ? fetchedPosts : posts;
@@ -232,6 +232,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
           </ul>
         </div>
       );
+    }
 
     case 'categories': {
       const categories = normalizePublicCategories(settings.publicCategories);
@@ -285,7 +286,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
       );
     }
 
-    case 'profile':
+    case 'profile': {
       const profile = settings.adminProfile;
       if (!profile || (!profile.name && !profile.bio && !profile.email && !profile.avatar)) {
         return null;
@@ -340,6 +341,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
           </div>
         </div>
       );
+    }
 
     case 'custom':
       return (

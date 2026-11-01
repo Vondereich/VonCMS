@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 /**
  * VonCMS - Get Public Contact Form (By ID)
  */
@@ -29,12 +31,13 @@ if (!is_string($id) || !preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $id)) {
   ResponseHelper::sendError('Invalid form ID', 400);
 }
 
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 try {
   $stmt = $pdo->prepare(
     'SELECT id, title, template, msg_success, msg_error, msg_validation FROM contact_forms WHERE id = ?',
   );
   $stmt->execute([$id]);
-  $f = $stmt->fetch(PDO::FETCH_ASSOC);
+  $f = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$f) {
     // Fallback to settings (for transition)
@@ -42,13 +45,13 @@ try {
       "SELECT setting_value FROM settings WHERE setting_group = 'contact' AND setting_key = 'forms' LIMIT 1",
     );
     $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
-    $forms = $row ? json_decode($row['setting_value'], true) : [];
+    $forms = $row ? json_decode((string) $row['setting_value'], true) : [];
     $found = null;
     if (is_array($forms)) {
       foreach ($forms as $item) {
-        if ($item['id'] === $id) {
+        if (is_array($item) && ($item['id'] ?? null) === $id) {
           $found = [
             'id' => $item['id'],
             'title' => $item['title'],

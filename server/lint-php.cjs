@@ -22,7 +22,6 @@ function findPhpBinary() {
     }
 
     candidates.push('C:\\xampp\\php\\php.exe');
-    candidates.push('C:\\laragon\\bin\\php\\php-8.2.0-Win32-vs16-x64\\php.exe');
     candidates.push('C:\\laragon\\bin\\php\\php-8.3.0-Win32-vs16-x64\\php.exe');
 
     const laragonPhpRoot = 'C:\\laragon\\bin\\php';
@@ -78,36 +77,41 @@ function collectPhpFiles(dir) {
   return files;
 }
 
-const phpBinary = findPhpBinary();
-if (!phpBinary) {
-  console.warn(
-    'PHP Lint: no PHP binary found; skipping syntax lint checks. Set PHP_BIN to enable PHP lint.'
-  );
-  process.exit(0);
-}
-
-const phpFiles = collectPhpFiles(path.join(root, 'public')).sort();
-if (phpFiles.length === 0) {
-  console.log('PHP Lint: no PHP files found under public/.');
-  process.exit(0);
-}
-
-let failed = false;
-for (const file of phpFiles) {
-  const result = spawnSync(phpBinary, ['-l', file], { encoding: 'utf8' });
-  const relativePath = path.relative(root, file).replace(/\\/g, '/');
-
-  if (result.status === 0) {
-    console.log(`PASS PHP Lint: ${relativePath}`);
-  } else {
-    failed = true;
-    console.error(`FAIL PHP Lint: ${relativePath}`);
-    console.error((result.stderr || result.stdout || '').trim());
+function runLint() {
+  const phpBinary = findPhpBinary();
+  if (!phpBinary) {
+    console.warn(
+      'PHP Lint: no PHP binary found; skipping syntax lint checks. Set PHP_BIN to enable PHP lint.'
+    );
+    process.exit(0);
   }
+
+  const phpFiles = collectPhpFiles(path.join(root, 'public')).sort();
+  if (phpFiles.length === 0) {
+    console.log('PHP Lint: no PHP files found under public/.');
+    process.exit(0);
+  }
+
+  let failed = false;
+  for (const file of phpFiles) {
+    const result = spawnSync(phpBinary, ['-l', file], { encoding: 'utf8' });
+    const relativePath = path.relative(root, file).replace(/\\/g, '/');
+
+    if (result.status === 0) {
+      console.log(`PASS PHP Lint: ${relativePath}`);
+    } else {
+      failed = true;
+      console.error(`FAIL PHP Lint: ${relativePath}`);
+      console.error((result.stderr || result.stdout || '').trim());
+    }
+  }
+
+  if (failed) {
+    process.exit(1);
+  }
+
+  console.log(`PHP Lint: ${phpFiles.length} PHP files checked.`);
 }
 
-if (failed) {
-  process.exit(1);
-}
-
-console.log(`PHP Lint: ${phpFiles.length} PHP files checked.`);
+if (require.main === module) runLint();
+module.exports = { findPhpBinary };

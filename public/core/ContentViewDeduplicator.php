@@ -3,7 +3,7 @@
 // Internal module only; even a server without rewrite rules must refuse direct requests.
 if (
   !defined('VONCMS_CORE_LOADED') ||
-  (isset($_SERVER['SCRIPT_FILENAME']) &&
+  (is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
     realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__))
 ) {
   http_response_code(403);
@@ -37,13 +37,11 @@ class ContentViewDeduplicator
     $windowSeconds = max(30, min(3600, $windowSeconds));
     $maxEntries = max(8, min(256, $maxEntries));
     $storedClaims = $_SESSION[self::SESSION_KEY] ?? [];
-    $claims = is_array($storedClaims) ? $storedClaims : [];
+    $claims = [];
     $minimumTimestamp = $now - $windowSeconds;
 
-    foreach ($claims as $key => $timestamp) {
-      if (!is_string($key) || !is_numeric($timestamp) || (int) $timestamp <= $minimumTimestamp) {
-        unset($claims[$key]);
-      } else {
+    foreach (is_array($storedClaims) ? $storedClaims : [] as $key => $timestamp) {
+      if (is_string($key) && is_numeric($timestamp) && (int) $timestamp > $minimumTimestamp) {
         $claims[$key] = (int) $timestamp;
       }
     }

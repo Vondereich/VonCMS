@@ -1,5 +1,9 @@
 <?php
 // Disposable boundary probes; --mysql uses ONLY the dedicated localhost QA instance.
+if (PHP_SAPI !== 'cli') {
+  http_response_code(403);
+  exit('Forbidden');
+}
 $root = dirname(__DIR__, 2);
 $checks = 0;
 function check(bool $ok, string $message): void
@@ -47,6 +51,217 @@ function between(string $source, string $start, string $end): string
   }
   return substr($source, $offset, $limit - $offset);
 }
+
+// Explicit opt-in: exercise the complete backup controller against owned MySQL schemas.
+if (in_array('--backup-mysql', $argv, true)) {
+  $serverDsn = (string) getenv('VONCMS_TEST_MYSQL_DSN');
+  if (!preg_match('/^mysql:host=127\.0\.0\.1;port=\d+;charset=utf8mb4$/', $serverDsn)) {
+    throw new RuntimeException(
+      'Set VONCMS_TEST_MYSQL_DSN to the explicit loopback fixture server.',
+    );
+  }
+  $server = new PDO(
+    $serverDsn,
+    getenv('VONCMS_TEST_MYSQL_USER') ?: 'root',
+    getenv('VONCMS_TEST_MYSQL_PASSWORD') ?: '',
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+  );
+  $schema = 'voncms_backup_qa_' . bin2hex(random_bytes(6));
+  $restoreSchema = $schema . '_restore';
+  $fixture = sys_get_temp_dir() . '/voncms-backup-qa-' . bin2hex(random_bytes(6));
+  $db = $restore = null;
+  $ownedSchemas = [];
+  try {
+    foreach ([$schema, $restoreSchema] as $name) {
+      $server->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+      $ownedSchemas[] = $name;
+    }
+    $fixtureDsn = str_replace(';charset=', ";dbname=$schema;charset=", $serverDsn);
+    $db = new PDO(
+      $fixtureDsn,
+      getenv('VONCMS_TEST_MYSQL_USER') ?: 'root',
+      getenv('VONCMS_TEST_MYSQL_PASSWORD') ?: '',
+      [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+    );
+    $db->exec(
+      'CREATE TABLE settings (setting_group VARCHAR(30), setting_key VARCHAR(30), setting_value TEXT)',
+    );
+    $db->exec("INSERT INTO settings VALUES ('general','site_name','Backup QA')");
+    $db->exec(
+      'CREATE TABLE items (id INT PRIMARY KEY, body LONGTEXT, note TEXT NULL, number_value INT)',
+    );
+    $db->exec('CREATE TABLE empty_items (id INT PRIMARY KEY)');
+    $insert = $db->prepare('INSERT INTO items VALUES (?, ?, ?, ?)');
+    $body =
+      'QA_ROW_FAIL_MARKER ' .
+      str_repeat("Unicode 界, 'quotes', backslash \\ and newline\n", 130000);
+    $insert->execute([1, $body, null, 0]);
+    $insert->execute([2, '0', '', -7]);
+    $before = $db->query('SELECT * FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+    mkdir($fixture . '/api', 0700, true);
+    mkdir($fixture . '/core', 0700, true);
+    $backupSource = getenv('VONCMS_BACKUP_TEST_SOURCE') ?: $root . '/public/api/backup_db.php';
+    copy($backupSource, $fixture . '/api/backup_db.php');
+    copy($root . '/public/core/DataBoundary.php', $fixture . '/core/DataBoundary.php');
+    file_put_contents(
+      $fixture . '/security.php',
+      <<<'PHP'
+      <?php
+      $_SERVER['REQUEST_METHOD'] = 'POST';
+      $_SERVER['HTTP_HOST'] = 'backup-qa.invalid';
+      function sendApiHeaders($methods) {}
+      class SessionManager {
+        public static function requireValidSession(): void {}
+        public static function requirePrimaryAdmin(): void {}
+      }
+      class CSRFProtection { public static function requireToken(): void {} }
+      class ResponseHelper {
+        public static function sendError($error, $status = 500): never {
+          echo json_encode(['success' => false, 'error' => $error instanceof Throwable ? $error->getMessage() : $error]);
+          exit;
+        }
+      }
+      PHP
+      ,
+    );
+    file_put_contents(
+      $fixture . '/von_config.php',
+      <<<'PHP'
+      <?php
+      $attribute = defined('Pdo\Mysql::ATTR_USE_BUFFERED_QUERY')
+        ? constant('Pdo\Mysql::ATTR_USE_BUFFERED_QUERY')
+        : constant('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY');
+      class BackupFixturePDO extends PDO {
+        public array $streamModes = [];
+        public function query(string $query, ?int $fetchMode = null, mixed ...$args): PDOStatement|false {
+          global $attribute;
+          if (str_starts_with($query, 'SELECT * FROM ')) $this->streamModes[] = (bool) $this->getAttribute($attribute);
+          if (getenv('VONCMS_BACKUP_SCENARIO') === 'count-failure' && str_starts_with($query, 'SELECT COUNT(*) FROM ')) throw new RuntimeException('Controlled count failure');
+          return parent::query($query, $fetchMode, ...$args);
+        }
+        public function quote(string $string, int $type = PDO::PARAM_STR): string|false {
+          if (getenv('VONCMS_BACKUP_SCENARIO') === 'row-failure' && str_contains($string, 'QA_ROW_FAIL_MARKER')) throw new RuntimeException('Controlled row failure');
+          return parent::quote($string, $type);
+        }
+      }
+      $pdo = new BackupFixturePDO(getenv('VONCMS_BACKUP_FIXTURE_DSN'), getenv('VONCMS_TEST_MYSQL_USER') ?: 'root', getenv('VONCMS_TEST_MYSQL_PASSWORD') ?: '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+      register_shutdown_function(static function () use ($pdo, $attribute): void {
+        $state = ['buffered' => (bool) $pdo->getAttribute($attribute), 'streamModes' => $pdo->streamModes];
+        try { $state['reusable'] = $pdo->query('SELECT 1')->fetchAll(PDO::FETCH_COLUMN) === [1]; }
+        catch (Throwable $error) { $state['reusable'] = false; }
+        file_put_contents(getenv('VONCMS_BACKUP_STATE'), json_encode($state, JSON_THROW_ON_ERROR));
+      });
+      PHP
+      ,
+    );
+    chmod($fixture . '/von_config.php', 0600);
+    foreach (['success', 'count-failure', 'row-failure'] as $scenario) {
+      $statePath = $fixture . '/state-' . $scenario . '.json';
+      $process = proc_open(
+        [PHP_BINARY, $fixture . '/api/backup_db.php'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        null,
+        array_merge(getenv(), [
+          'VONCMS_BACKUP_FIXTURE_DSN' => $fixtureDsn,
+          'VONCMS_BACKUP_SCENARIO' => $scenario,
+          'VONCMS_BACKUP_STATE' => $statePath,
+        ]),
+      );
+      $output = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      check(proc_close($process) === 0 && $stderr === '', 'Backup worker failed: ' . $stderr);
+      $state = json_decode(file_get_contents($statePath), true, 512, JSON_THROW_ON_ERROR);
+      if ($scenario === 'success') {
+        check(
+          str_starts_with($output, "-- VonCMS Database Backup\n"),
+          'Backup generation failed: ' . substr($output, 0, 400),
+        );
+        check(str_ends_with($output, "-- End of backup\n"), 'Incomplete SQL download');
+        check(strlen($output) > 5242880, 'Fixture did not exercise disk-spilled temporary output');
+        check(
+          count($state['streamModes']) === 2 && !in_array(true, $state['streamModes'], true),
+          'Backup stopped streaming table data',
+        );
+        $restore = new PDO(
+          str_replace(';charset=', ";dbname=$restoreSchema;charset=", $serverDsn),
+          getenv('VONCMS_TEST_MYSQL_USER') ?: 'root',
+          getenv('VONCMS_TEST_MYSQL_PASSWORD') ?: '',
+          [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
+        $restore->exec($output);
+        check(
+          $restore->query('SELECT * FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) ===
+            $before,
+          'SQL round-trip changed Unicode, quotes, zero, null or row bytes',
+        );
+        check(
+          (int) $restore->query('SELECT COUNT(*) FROM empty_items')->fetchColumn() === 0,
+          'Empty table definition missing',
+        );
+        check(
+          $restore->query('SELECT setting_value FROM settings')->fetchColumn() === 'Backup QA',
+          'Settings table missing from backup',
+        );
+      } else {
+        $error = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        check(
+          ($error['success'] ?? null) === false &&
+            str_contains(
+              $error['error'] ?? '',
+              $scenario === 'count-failure' ? 'Controlled count failure' : 'Controlled row failure',
+            ),
+          'Wrong controlled failure: ' . substr($output, 0, 400),
+        );
+        check(
+          !str_contains($output, '-- VonCMS Database Backup'),
+          'Failed backup leaked partial SQL as a download',
+        );
+      }
+      check(
+        $state['buffered'] === true && $state['reusable'] === true,
+        'Backup did not release its cursor and restore the connection after ' . $scenario,
+      );
+      check(
+        $db->query('SELECT * FROM items ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) === $before,
+        'Backup changed its source rows',
+      );
+    }
+    echo 'PASS MySQL backup controller: ' .
+      $checks .
+      ' checks; complete SQL round-trip and failure cleanup, fixture auth/CSRF only. MySQL ' .
+      $server->getAttribute(PDO::ATTR_SERVER_VERSION) .
+      PHP_EOL;
+  } finally {
+    $insert = $restore = $db = null;
+    foreach (array_reverse($ownedSchemas) as $name) {
+      if (!preg_match('/^voncms_backup_qa_[a-f0-9]{12}(?:_restore)?$/', $name)) {
+        throw new RuntimeException('Unsafe schema cleanup');
+      }
+      $server->exec("DROP DATABASE IF EXISTS `$name`");
+    }
+    if (is_dir($fixture)) {
+      if (
+        dirname(str_replace('\\', '/', $fixture)) !== str_replace('\\', '/', sys_get_temp_dir()) ||
+        !str_starts_with(basename($fixture), 'voncms-backup-qa-')
+      ) {
+        throw new RuntimeException('Unsafe fixture cleanup');
+      }
+      $entries = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($fixture, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST,
+      );
+      foreach ($entries as $entry) {
+        $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
+      }
+      rmdir($fixture);
+    }
+  }
+  exit();
+}
+
 class ResponseHelper
 {
   public static function sendError(mixed $error, int $status = 500): never
@@ -141,7 +356,10 @@ check(
 );
 
 foreach ([str_repeat('a', 69) . 'A1!', str_repeat('界', 23) . 'A1!'] as $password) {
-  SecurityHelper::requireNewPasswordLength($password);
+  check(
+    SecurityHelper::requireNewPasswordLength($password) === $password,
+    'Password validation changed bytes',
+  );
   check(strlen($password) === 72, 'Boundary password fixture');
   rejects(fn() => SecurityHelper::requireNewPasswordLength($password . 'x'), 400);
 }
@@ -152,7 +370,7 @@ foreach (
     'reset_password.php' => '$newPassword',
     'update_profile.php' => '$newPasswordValue',
     'install.php' => '$adminPass',
-    'save_user.php' => "$" . "input['password']",
+    'save_user.php' => '$passwordValue',
   ]
   as $file => $value
 ) {
@@ -227,7 +445,7 @@ check(
 $defaultEnabled = $mediaSettings['enabled'];
 $enabledAssignment = between(
   $uploadSource,
-  "      \$mediaSettings['enabled'] =",
+  "      \$enabled =",
   "      \$mediaSettings['maxWidth']",
 );
 foreach (
@@ -347,7 +565,7 @@ if ($mysql) {
   // This schema exists only on the dedicated QA port created for this test.
   $pdo->exec('DROP TABLE IF EXISTS users');
   $pdo->exec(
-    'CREATE TABLE users(id INT PRIMARY KEY, username VARCHAR(50) UNIQUE, display_name VARCHAR(100), email VARCHAR(100) UNIQUE, role VARCHAR(20), avatar TEXT, bio TEXT, email_verified INT, verification_token VARCHAR(64), verification_token_expires DATETIME, reset_token VARCHAR(64), reset_token_expires DATETIME)',
+    'CREATE TABLE users(id INT PRIMARY KEY, username VARCHAR(50) UNIQUE, display_name VARCHAR(100), email VARCHAR(100) UNIQUE, password VARCHAR(255), role VARCHAR(20), avatar TEXT, bio TEXT, email_verified INT, verification_token VARCHAR(64), verification_token_expires DATETIME, reset_token VARCHAR(64), reset_token_expires DATETIME)',
   );
   $pdo->exec(
     "INSERT INTO users(id,username,email,role,email_verified) VALUES(1,'owner','owner@example.invalid','Root',1),(2,'qa_member','old@example.invalid','Member',1),(3,'other_qa','duplicate@example.invalid','Member',1)",
@@ -431,6 +649,11 @@ if ($mysql) {
   $pdo->exec(
     'CREATE TABLE IF NOT EXISTS remember_tokens(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT,selector VARCHAR(24),token_hash VARCHAR(64),expires_at DATETIME,last_used_at DATETIME NULL)',
   );
+  eval(declaration($root . '/public/api/mail_helper.php', 'function voncms_account_token_digest('));
+  eval(declaration($root . '/public/api/login.php', 'function voncms_issue_login_credentials('));
+  $clockPasswordHash = password_hash('FixtureClockPass9!', PASSWORD_BCRYPT, ['cost' => 4]);
+  $seedPassword = $pdo->prepare('UPDATE users SET password = ? WHERE id = 1');
+  $seedPassword->execute([$clockPasswordHash]);
   $user = ['id' => 1];
   foreach (
     [['UTC', '+00:00'], ['Asia/Kuala_Lumpur', '+00:00'], ['UTC', '+08:00']]
@@ -450,21 +673,28 @@ if ($mysql) {
       ->fetchColumn();
     check(abs($remaining - 3600) < 3, 'Reset expiry depends on PHP timezone');
     $pdo->exec('DELETE FROM remember_tokens');
-    $rememberTokenHash = '';
-    eval(
-      between(
-        file_get_contents($root . '/public/api/login.php'),
-        '        $rememberSelector = bin2hex(random_bytes(12));',
-        '        setcookie(',
-      )
+    $remember = voncms_issue_login_credentials($pdo, $user, $clockPasswordHash, true);
+    check(
+      is_array($remember) && isset($remember['selector'], $remember['validator']),
+      'Current credential issuer did not return remember credentials',
     );
+    $rememberTokenHash = hash('sha256', $remember['validator']);
     check(preg_match('/^[a-f0-9]{64}$/', $rememberTokenHash) === 1, 'Missing remember token hash');
+    $issuedToken = $pdo->prepare(
+      'SELECT id, token_hash FROM remember_tokens WHERE selector = ? AND user_id = ?',
+    );
+    $issuedToken->execute([$remember['selector'], $user['id']]);
+    $rememberRow = $issuedToken->fetch(PDO::FETCH_ASSOC);
+    check(
+      is_array($rememberRow) && hash_equals($rememberTokenHash, $rememberRow['token_hash']),
+      'Issued validator does not match the stored remember token',
+    );
     $remaining = (int) $pdo
       ->query('SELECT TIMESTAMPDIFF(SECOND,NOW(),expires_at) FROM remember_tokens')
       ->fetchColumn();
     check(abs($remaining - 2592000) < 3, 'Remember creation expiry mismatch');
     $rememberUser = [
-      'remember_token_id' => $pdo->lastInsertId(),
+      'remember_token_id' => $rememberRow['id'],
       'token_hash' => $rememberTokenHash,
     ];
     eval(

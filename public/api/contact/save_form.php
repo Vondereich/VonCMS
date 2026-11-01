@@ -23,7 +23,7 @@ CSRFProtection::requireToken();
 RateLimiter::requireNotLimited();
 
 $requestBody = CSRFProtection::getRequestBody();
-if (!is_string($requestBody) || strlen($requestBody) > 131072) {
+if (strlen($requestBody) > 131072) {
   ResponseHelper::sendError('Contact form payload is too large.', 413);
 }
 
@@ -47,13 +47,12 @@ $formValues = [
   'msg_validation' => $messages['validationError'] ?? '',
 ];
 
-foreach ($formValues as $value) {
-  if (!is_scalar($value) && $value !== null) {
+foreach ($formValues as $field => $value) {
+  if (!is_scalar($value)) {
     ResponseHelper::sendError('Invalid contact form fields.', 400);
   }
+  $formValues[$field] = (string) $value;
 }
-
-$formValues = array_map(static fn($value) => (string) $value, $formValues);
 if (!preg_match('/^[a-zA-Z0-9_-]{1,50}$/', $formValues['id'])) {
   ResponseHelper::sendError('Invalid contact form ID.', 400);
 }
@@ -89,6 +88,7 @@ if (!$validRecipient || preg_match('/[\r\n\0]/', $formValues['mail_to'])) {
   );
 }
 $formValues['mail_to'] = $recipient;
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   $stmt = $pdo->prepare("

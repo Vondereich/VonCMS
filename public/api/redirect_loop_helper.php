@@ -1,5 +1,27 @@
 <?php
 
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+require_once __DIR__ . '/../core/DataBoundary.php';
+
+/** Validate a database record ID before any numeric conversion. */
+function voncms_parse_redirect_id(mixed $value): ?int
+{
+  if (
+    (!is_int($value) && !is_string($value)) ||
+    preg_match('/^[0-9]{1,10}$/D', (string) $value) !== 1
+  ) {
+    return null;
+  }
+  $id = (int) $value;
+  return $id > 0 && $id <= 2147483647 ? $id : null;
+}
+
 function voncms_normalize_redirect_loop_authority(
   string $host = '',
   ?int $port = null,
@@ -30,7 +52,7 @@ function voncms_get_redirect_loop_request_scheme(): string
     return is_https() ? 'https' : 'http';
   }
 
-  $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+  $https = strtolower(DataBoundary::serverString('HTTPS', ''));
   return $https !== '' && $https !== 'off' ? 'https' : 'http';
 }
 
@@ -54,11 +76,8 @@ function voncms_get_redirect_loop_base_path(?PDO $pdo = null): string
     }
   }
 
-  $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/api/index.php'));
-  if (
-    preg_match('#^(.*?)(?:/public)?/api(?:/[^/]*)?$#i', $scriptName, $matches) &&
-    isset($matches[1])
-  ) {
+  $scriptName = str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME', '/api/index.php'));
+  if (preg_match('#^(.*?)(?:/public)?/api(?:/[^/]*)?$#i', $scriptName, $matches)) {
     $derivedBase = '/' . trim((string) $matches[1], '/');
     return $derivedBase === '/' ? '/' : $derivedBase . '/';
   }
@@ -127,6 +146,7 @@ function voncms_normalize_redirect_loop_path(
   return $path;
 }
 
+/** @return array{summary: array{totalRules: int, localRules: int, issueCount: int, selfLoopCount: int, cycleCount: int}, issues: list<array{type: string, message: string, paths: list<string>, ruleIds: list<int>}>} */
 function voncms_scan_redirect_loops(
   PDO $pdo,
   string $currentHost = '',
@@ -149,7 +169,7 @@ function voncms_scan_redirect_loops(
   $stmt = $pdo->query(
     'SELECT id, source_url, target_url, redirect_type, hit_count, created_at FROM redirects ORDER BY id ASC',
   );
-  $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+  $rows = $stmt ? DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)) : [];
 
   $graph = [];
   $issues = [];
@@ -235,7 +255,7 @@ function voncms_scan_redirect_loops(
       $pathOrder[] = $currentPath;
       $visited[$currentPath] = true;
 
-      $nextPath = (string) ($graph[$currentPath]['normalized_target'] ?? '');
+      $nextPath = $graph[$currentPath]['normalized_target'];
       if ($nextPath === '' || !isset($graph[$nextPath])) {
         break;
       }
@@ -316,6 +336,7 @@ function voncms_store_permalink_redirect(PDO $pdo, array $paths): ?string
   return null;
 }
 
+/** @param array{source: string, target: string, targetSource: string} $paths */
 function voncms_store_post_slug_redirect(PDO $pdo, array $paths): ?string
 {
   return voncms_store_permalink_redirect($pdo, $paths);

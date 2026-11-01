@@ -32,7 +32,7 @@ interface ProfileProps {
   onViewPost: (id: string) => void;
   onNavigateAdmin?: () => void;
   onUpdateUser?: (user: Partial<User>) => void;
-  colors: any; // Theme colors passed from parent
+  colors: import('./Layout').TechPressColors;
   postsPerPage?: number;
   settings: SiteSettings;
 }

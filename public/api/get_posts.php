@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Get Posts API
  * Returns posts with pagination meta for Load More support
@@ -36,7 +38,7 @@ if (file_exists($settingsFile)) {
   $siteSettings = json_decode((string) file_get_contents($settingsFile), true);
   if (is_array($siteSettings)) {
     $filePostsPerPage = $siteSettings['posts_per_page'] ?? ($siteSettings['postsPerPage'] ?? null);
-    if ($filePostsPerPage !== null) {
+    if (is_numeric($filePostsPerPage)) {
       $defaultLimit = max(6, min(50, (int) $filePostsPerPage));
     }
   }
@@ -130,7 +132,6 @@ require_once __DIR__ . '/role_capability_helper.php';
 try {
   if (!isset($pdo) || !($pdo instanceof PDO)) {
     ResponseHelper::sendError('Database not configured', 503);
-    return;
   }
   /** @var PDO $db */
   $db = $pdo;
@@ -149,13 +150,13 @@ try {
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
   $isAdmin = !$forcePublic && SessionManager::isAdmin();
-  $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $currentRole = strtolower(DataBoundary::userText('role'));
   $canReviewPosts = !$forcePublic && voncms_role_can_review_posts($currentRole);
   $canReadOwnProtectedPosts =
     !$forcePublic && voncms_role_has_capability($currentRole, 'posts.read_own_protected');
   $canReadProtectedPosts = $canReviewPosts || $canReadOwnProtectedPosts;
   $mustOwnProtectedPosts = $canReadOwnProtectedPosts && !$canReviewPosts;
-  $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
+  $currentUserId = DataBoundary::userText('id');
   $currentTimestamp = date('Y-m-d H:i:s');
   if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
@@ -329,7 +330,7 @@ try {
     $stmt->bindValue(':statusFilter', $statusFilter);
   }
   $stmt->execute();
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $rows = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
   $hasMore = false;
   if ($canSkipTotal) {
     $hasMore = count($rows) > $limit;
@@ -354,7 +355,7 @@ try {
     $chars = (int) ($row['content_chars'] ?? 0);
     $readTime = voncms_format_read_time($chars);
 
-    $imagePath = $row['image_url'] ?? '';
+    $imagePath = (string) ($row['image_url'] ?? '');
     $responsiveImage = voncms_build_responsive_image_data(
       $imagePath,
       dirname(__DIR__) . '/uploads/',

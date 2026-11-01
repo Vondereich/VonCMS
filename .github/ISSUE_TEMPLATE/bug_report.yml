@@ -18,7 +18,7 @@ body:
     id: environment
     attributes:
       label: Hosting or local stack
-      placeholder: 'cPanel Apache/PHP 8.2/MySQL 8, Laragon, aaPanel Nginx, etc.'
+      placeholder: 'cPanel Apache/PHP 8.3/MySQL 8, Laragon, aaPanel Nginx, etc.'
     validations:
       required: true
   - type: textarea

@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Delete Page API
  */
@@ -24,8 +26,8 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$currentUser = $_SESSION['user'] ?? null;
-$currentRole = strtolower((string) ($currentUser['role'] ?? ''));
+$currentUser = DataBoundary::actor();
+$currentRole = strtolower($currentUser['role']);
 $canManagePages = voncms_role_has_capability($currentRole, 'pages.delete_any');
 
 if (!$canManagePages) {
@@ -33,6 +35,9 @@ if (!$canManagePages) {
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid page data', 400);
+}
 $pageId = $input['id'] ?? null;
 
 if (!$pageId || !is_numeric($pageId)) {
@@ -47,7 +52,7 @@ try {
   // SECURITY: Check ownership before delete
   $stmt = $pdo->prepare('SELECT author_id, title, status, slug FROM pages WHERE id = ?');
   $stmt->execute([$pageId]);
-  $page = $stmt->fetch(PDO::FETCH_ASSOC);
+  $page = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$page) {
     ResponseHelper::sendError('Page not found', 404);
@@ -72,7 +77,7 @@ try {
         'page',
         (int) $pageId,
         'delete',
-        $currentUser ?? [],
+        $currentUser,
         'Page deleted',
         [
           'title' => (string) ($page['title'] ?? ''),

@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Newsletter List API (Admin Only)
  * SECURITY: Admin authentication required
@@ -23,14 +25,14 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 // Require admin authentication
 SessionManager::requireValidSession();
-$userRole = strtolower($_SESSION['user']['role'] ?? '');
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Get pagination params
-    $page = max(1, intval($_GET['page'] ?? 1));
-    $limit = min(100, max(10, intval($_GET['limit'] ?? 20)));
+    $page = max(1, DataBoundary::inputInt($_GET['page'] ?? 1));
+    $limit = min(100, max(10, DataBoundary::inputInt($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
     $searchInput = $_GET['search'] ?? '';
     $search = is_scalar($searchInput) ? mb_substr(trim((string) $searchInput), 0, 120) : '';
@@ -57,7 +59,7 @@ try {
     // Get total count
     $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM newsletter_subscribers $whereClause");
     $countStmt->execute($params);
-    $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+    $total = (int) $countStmt->fetchColumn();
 
     // Get subscribers
     $sql = "SELECT id, email, status, subscribed_at, unsubscribed_at, source 
@@ -68,7 +70,7 @@ try {
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    $subscribers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $subscribers = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
     // Get stats
     $statsStmt = $pdo->query("SELECT 
@@ -76,7 +78,7 @@ try {
             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
             SUM(CASE WHEN status = 'unsubscribed' THEN 1 ELSE 0 END) as unsubscribed
             FROM newsletter_subscribers");
-    $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
+    $stats = DataBoundary::row(DataBoundary::statement($statsStmt)->fetch(PDO::FETCH_ASSOC));
 
     echo json_encode([
       'success' => true,
@@ -94,7 +96,10 @@ try {
     CSRFProtection::requireToken();
 
     $input = json_decode(CSRFProtection::getRequestBody(), true);
-    $id = intval($input['id'] ?? 0);
+    if (!is_array($input)) {
+      ResponseHelper::sendError('Invalid subscriber data', 400);
+    }
+    $id = (int) DataBoundary::inputText($input['id'] ?? 0);
 
     if (!$id) {
       ResponseHelper::sendError('Invalid subscriber ID', 400);

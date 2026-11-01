@@ -148,7 +148,8 @@ export const GlobalLightbox: React.FC = () => {
       return;
     }
 
-    deltaX < 0 ? next() : prev();
+    if (deltaX < 0) next();
+    else prev();
   };
 
   // Sync currentImage with index when it changes

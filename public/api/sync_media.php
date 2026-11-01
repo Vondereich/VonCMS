@@ -23,10 +23,11 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 SessionManager::requirePrimaryAdmin();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.admin_tools')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.admin_tools')) {
   ResponseHelper::sendError('Media administration access required', 403);
 }
 CSRFProtection::requireToken();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 /** @var string $uploadsDir */
 $uploadsDir = rtrim(str_replace('\\', '/', dirname(__DIR__) . '/uploads/'), '/');
@@ -35,7 +36,7 @@ $uploadsDir = rtrim(str_replace('\\', '/', dirname(__DIR__) . '/uploads/'), '/')
 $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
 
 /** @var int $uploadedBy */
-$uploadedBy = (int) ($_SESSION['user']['id'] ?? 1);
+$uploadedBy = (int) DataBoundary::userText('id');
 
 /** @var int $synced */
 $synced = 0;
@@ -112,7 +113,7 @@ function scanAndSync(
         }
 
         // Get relative path from uploads folder
-        $relativePath = preg_replace('#/+#', '/', $relativePath);
+        $relativePath = preg_replace('#/+#', '/', $relativePath) ?? '';
         if ($relativePath === '' || strpos($relativePath, '../') !== false) {
           continue;
         }
@@ -135,6 +136,10 @@ function scanAndSync(
 
         // Get file info
         $stat = stat($fullPath);
+        if ($stat === false) {
+          $errors[] = "Failed to stat $item";
+          continue;
+        }
         $mimeType = mime_content_type($fullPath);
 
         // Insert into database

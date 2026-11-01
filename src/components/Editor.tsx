@@ -507,7 +507,7 @@ const Editor: React.FC<EditorProps> = ({
     const revisionChanged = contentRevision !== lastAppliedContentRevision.current;
     if (nextInitialContent === lastAppliedInitialContent.current && !revisionChanged) return;
 
-    const currentEditorHtml = getCurrentEditorHtml();
+    const currentEditorHtml = editor.getHTML() || '';
     const currentCleanContent = cleanContent(currentEditorHtml);
     if (!revisionChanged && nextInitialContent === currentCleanContent) {
       lastAppliedInitialContent.current = nextInitialContent;
@@ -609,12 +609,13 @@ const Editor: React.FC<EditorProps> = ({
             .run();
         }
         break;
-      case 'createLink':
+      case 'createLink': {
         if (!finalValue) break;
         const normalizedUrl = normalizeEditorUrl(finalValue);
         if (!normalizedUrl) break;
         insertSafeLink(normalizedUrl);
         break;
+      }
       case 'insertText':
         chain.insertContent(finalValue).run();
         break;
@@ -787,7 +788,7 @@ const Editor: React.FC<EditorProps> = ({
             totalItems: data.totalItems || 0,
           }));
         }
-      } catch (error) {
+      } catch {
         if (requestId === mediaRequestIdRef.current) {
           notify.error('Failed to load media library');
         }

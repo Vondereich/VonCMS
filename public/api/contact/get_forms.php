@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 /**
  * VonCMS - Get Contact Forms (Dedicated Table)
  */
@@ -20,11 +22,12 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 }
 
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   try {
     $stmt = $pdo->query('SELECT * FROM contact_forms ORDER BY created_at DESC');
-    $forms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $forms = $stmt === false ? [] : DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
   } catch (Exception $e) {
     // Table might be missing in older versions, return empty array to allow migration
     $forms = [];

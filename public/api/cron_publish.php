@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Cron Publish
  * Optional: shared-hosting cron can call this endpoint for quiet sites.
@@ -26,7 +28,7 @@ voncms_apply_site_timezone($pdo ?? null);
 
 // SECURITY: Keep long-lived cron credentials out of URL logs and browser history.
 // Define CRON_KEY in von_config.php and send it only through X-Cron-Key.
-$providedKey = (string) ($_SERVER['HTTP_X_CRON_KEY'] ?? '');
+$providedKey = DataBoundary::serverString('HTTP_X_CRON_KEY', '');
 $configuredKey = defined('CRON_KEY') ? (string) constant('CRON_KEY') : '';
 
 if (!empty($configuredKey) && !hash_equals($configuredKey, $providedKey)) {

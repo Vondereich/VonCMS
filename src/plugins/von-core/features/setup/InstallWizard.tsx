@@ -1,3 +1,4 @@
+import { hasPasswordSpecialCharacter } from '../../../../utils/security';
 import React, { useState } from 'react';
 import {
   AlertCircle,
@@ -39,7 +40,7 @@ const InstallWizard: React.FC = () => {
     if (password.length < 8) errors.push('Minimum 8 characters');
     if (!/[A-Z]/.test(password)) errors.push('At least 1 uppercase letter');
     if (!/[0-9]/.test(password)) errors.push('At least 1 number');
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('At least 1 special character');
+    if (!hasPasswordSpecialCharacter(password)) errors.push('At least 1 special character');
     return errors;
   };
 
@@ -118,7 +119,7 @@ const InstallWizard: React.FC = () => {
       } else {
         setError(data.message || data.error || 'Installation failed.');
       }
-    } catch (err) {
+    } catch {
       setError('Connection failed. Make sure your PHP server is running.');
     } finally {
       setLoading(false);
@@ -170,7 +171,7 @@ const InstallWizard: React.FC = () => {
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
           <div className="mb-10 flex items-center justify-between border-b border-[#d9d9d4] pb-4">
             <span className="text-sm font-medium text-slate-600">Step {step} of 3</span>
-            <span className="text-xs text-slate-500">VonCMS v1.27</span>
+            <span className="text-xs text-slate-500">VonCMS v1.28</span>
           </div>
 
           <div className="my-auto">
@@ -184,7 +185,8 @@ const InstallWizard: React.FC = () => {
                   </h2>
                   <p className="mt-3 text-sm leading-6 text-slate-600">
                     You can usually find these details in your hosting control panel. Nothing is
-                    saved until the final step.
+                    saved until the final step. PHP 8.2 or newer is required; PHP 8.3+ is
+                    recommended.
                   </p>
                 </div>
 

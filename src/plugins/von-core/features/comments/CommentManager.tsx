@@ -106,7 +106,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
             {paginatedComments.length > 0 ? (
-              paginatedComments.map((comment: any) => (
+              paginatedComments.map((comment) => (
                 <tr
                   key={comment.id}
                   className={`hover:bg-slate-50 dark:hover:bg-admin-hover/50 ${comment.isReply ? 'bg-slate-50/50 dark:bg-admin-canvas/30' : ''}`}

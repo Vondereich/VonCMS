@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useEffectEvent } from 'react';
 import notify from '../utils/toast';
 import {
   Post,
@@ -9,11 +9,12 @@ import {
   type PostStatus,
   type PostWorkflowAction,
   type UserRole,
+  type SiteSettings,
 } from '../types';
 import Editor from './Editor';
 import { API } from '../config/site.config';
 import { useDebouncedSearchQuery } from '../hooks/useDebouncedSearchQuery';
-import { vonFetch } from '../utils/api';
+import { vonFetch, getErrorMessage } from '../utils/api';
 import { getAuthHeader } from '../config/auth.config';
 import { getCategoryFolderConflict } from '../utils/siteUtils';
 import {
@@ -67,10 +68,10 @@ interface PostEditorProps {
     addToMenu: boolean,
     isAutoSave?: boolean,
     saveOptions?: PostSaveOptions
-  ) => Promise<any>;
+  ) => Promise<import('../types').ContentSaveResult | null | undefined>;
   onBack: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
-  settings?: any; // Added settings prop
+  settings?: SiteSettings;
 }
 
 const TITLE_MAX_LENGTH = 255;
@@ -140,28 +141,21 @@ const PostEditor: React.FC<PostEditorProps> = ({
     }
   }
 
-  // SEO Analysis Effect
+  const hasSeoItem = Boolean(item);
+  const seoTitle = item?.title || '';
+  const seoDescription = item?.metaDescription || item?.excerpt || '';
+  const seoContent = item?.content || '';
+  const seoKeywords = item?.keywords || '';
+  // Only fields consumed by analysis should trigger it, not unrelated item metadata.
   useEffect(() => {
-    if (!item || isSeoRestoring) {
+    if (!hasSeoItem || isSeoRestoring) {
       setSeoResult(null);
       return;
     }
 
-    const result = analyzeSEO(
-      item.title || '',
-      item.metaDescription || item.excerpt || '',
-      item.content || '',
-      item.keywords || ''
-    );
+    const result = analyzeSEO(seoTitle, seoDescription, seoContent, seoKeywords);
     setSeoResult(result);
-  }, [
-    isSeoRestoring,
-    item?.title,
-    item?.content,
-    item?.metaDescription,
-    item?.excerpt,
-    item?.keywords,
-  ]);
+  }, [isSeoRestoring, hasSeoItem, seoTitle, seoDescription, seoContent, seoKeywords]);
 
   // Keep editor content ownership tied to the item only; navigation changes must not reset full SEO data.
   useEffect(() => {
@@ -333,7 +327,12 @@ const PostEditor: React.FC<PostEditorProps> = ({
     );
   }, [addToMenu, item, onDirtyChange]);
 
-  // Autosave Timer — uses refs to avoid timer reset on every keystroke
+  // Read the latest save callback/settings without restarting the timer on each edit.
+  const autoSaveLatest = useEffectEvent((currentItem: Post | Page) =>
+    handleSave(undefined, true, currentItem)
+  );
+
+  // Autosave Timer - uses refs to avoid timer reset on every keystroke
   useEffect(() => {
     refreshAutoSaveCountdown();
 
@@ -345,7 +344,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
       const { currentItem, isChanged, hasMeaningfulData, canAutoSave } = getAutoSaveCandidate();
       if (currentItem && isChanged && hasMeaningfulData && canAutoSave && !isSavingRef.current) {
-        void handleSave(undefined, true, currentItem).finally(() => {
+        void autoSaveLatest(currentItem).finally(() => {
           scheduleNextAutoSave();
         });
         return;
@@ -556,16 +555,12 @@ const PostEditor: React.FC<PostEditorProps> = ({
         if (mountedRef.current) setSaveStatus('idle');
       }, 6000);
       return savedData;
-    } catch (err: any) {
+    } catch (err) {
       console.error('Save failed:', err);
       const isConflict =
-        err?.status === 409 ||
-        String(err?.message || '').includes('Content changed in another tab');
-      const reason = isConflict
-        ? SAVE_CONFLICT_MESSAGE
-        : typeof err?.message === 'string'
-          ? err.message.trim()
-          : '';
+        (typeof err === 'object' && err !== null && 'status' in err && err.status === 409) ||
+        getErrorMessage(err).includes('Content changed in another tab');
+      const reason = isConflict ? SAVE_CONFLICT_MESSAGE : getErrorMessage(err).trim();
       setSaveError(reason);
       setSaveStatus('error');
       if (manualSaveToastId) notify.dismiss(manualSaveToastId);
@@ -599,7 +594,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
       throw new Error(`${actionLabel} failed: empty server response (HTTP ${res.status})`);
     }
 
-    let data: any;
+    let data: import('../types').ContentEditorResponse;
     try {
       data = JSON.parse(rawText);
     } catch {
@@ -626,59 +621,58 @@ const PostEditor: React.FC<PostEditorProps> = ({
     settings,
     parseJsonResponse,
   });
+  const { onGenerate, onCheck, pendingResult, clearPendingResult } = aiAssistant;
 
   const handleAiGenerate = React.useCallback(() => {
     if (!item) return;
-    void aiAssistant.onGenerate({
+    void onGenerate({
       title: item.title || '',
       content: item.content || '',
     });
-  }, [aiAssistant.onGenerate, item]);
+  }, [onGenerate, item]);
 
   const handleAiCheckRequest = React.useCallback(() => {
     if (!item) return;
-    void aiAssistant.onCheck({
+    void onCheck({
       content: item.content || '',
     });
-  }, [aiAssistant.onCheck, item]);
+  }, [onCheck, item]);
 
   const handleApplyAiAppend = React.useCallback(() => {
-    if (!aiAssistant.pendingResult) return;
+    if (!pendingResult) return;
 
     setItem((prev) => {
       if (!prev) return null;
       const currentContent = prev.content || '';
       const nextContent =
-        currentContent.trim() && aiAssistant.pendingResult?.html.trim()
-          ? `${currentContent}\n${aiAssistant.pendingResult.html}`
-          : `${currentContent}${aiAssistant.pendingResult?.html || ''}`;
+        currentContent.trim() && pendingResult.html.trim()
+          ? `${currentContent}\n${pendingResult.html}`
+          : `${currentContent}${pendingResult.html || ''}`;
       return { ...prev, content: nextContent };
     });
 
-    aiAssistant.clearPendingResult();
+    clearPendingResult();
     setEditorContentRevision((revision) => revision + 1);
     notify.success('AI draft appended to the article.');
-  }, [aiAssistant.clearPendingResult, aiAssistant.pendingResult]);
+  }, [clearPendingResult, pendingResult]);
 
   const handleApplyAiReplace = React.useCallback(() => {
-    if (!aiAssistant.pendingResult) return;
+    if (!pendingResult) return;
 
-    setItem((prev) =>
-      prev ? { ...prev, content: aiAssistant.pendingResult?.html || prev.content } : null
-    );
+    setItem((prev) => (prev ? { ...prev, content: pendingResult.html || prev.content } : null));
     setEditorContentRevision((revision) => revision + 1);
     notify.success(
-      aiAssistant.pendingResult.mode === 'check'
+      pendingResult.mode === 'check'
         ? 'AI-reviewed copy applied.'
         : 'AI draft replaced the current article body.'
     );
-    aiAssistant.clearPendingResult();
-  }, [aiAssistant.clearPendingResult, aiAssistant.pendingResult]);
+    clearPendingResult();
+  }, [clearPendingResult, pendingResult]);
 
   const handleDiscardAiResult = React.useCallback(() => {
-    aiAssistant.clearPendingResult();
+    clearPendingResult();
     notify.success('AI draft discarded.');
-  }, [aiAssistant.clearPendingResult]);
+  }, [clearPendingResult]);
 
   const loadAuditLogs = React.useCallback(
     async (contentId: string, pageMode: boolean) => {
@@ -740,7 +734,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
         } else {
           notify.error(data.message || 'Failed to load media library');
         }
-      } catch (error: any) {
+      } catch {
         if (requestId === featuredMediaRequestIdRef.current) {
           notify.error('Failed to load media library');
         }
@@ -803,8 +797,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
       } else {
         notify.error('Upload failed: ' + (data.error || data.message || 'Unknown error'));
       }
-    } catch (error: any) {
-      notify.error('Upload failed: ' + (error?.message || 'Unknown error'));
+    } catch (error) {
+      notify.error('Upload failed: ' + getErrorMessage(error, 'Unknown error'));
     } finally {
       e.target.value = '';
     }

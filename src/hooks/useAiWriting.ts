@@ -15,8 +15,11 @@ export interface AiAssistantResult {
 }
 
 interface UseAiWritingOptions {
-  settings?: any;
-  parseJsonResponse: (res: Response, actionLabel: string) => Promise<any>;
+  settings?: import('../types').SiteSettings;
+  parseJsonResponse: (
+    res: Response,
+    actionLabel: string
+  ) => Promise<import('../types').ContentEditorResponse>;
 }
 
 const stripMarkdownCodeFences = (value: string) =>
@@ -32,7 +35,7 @@ const toPlainText = (html: string) => {
   return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
 };
 
-const resolveAiModel = (settings?: any) => {
+const resolveAiModel = (settings?: import('../types').SiteSettings) => {
   const configuredModel =
     settings?.aiAssistant?.model?.trim() || settings?.api?.aiModel?.trim() || '';
   return configuredModel.startsWith('gemini-') ? configuredModel : 'gemini-3.6-flash';
@@ -168,8 +171,10 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
 
         const data = await parseJsonResponse(res, 'AI generation');
         setResultFromText('write', data.text || '', data.model || model);
-      } catch (err: any) {
-        notify.error('AI Generation Failed: ' + err.message);
+      } catch (err) {
+        notify.error(
+          'AI Generation Failed: ' + (err instanceof Error ? err.message : 'Unknown error')
+        );
       } finally {
         setIsGenerating(false);
       }
@@ -207,8 +212,8 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
 
         const data = await parseJsonResponse(res, 'AI check');
         setResultFromText('check', data.text || '', data.model || model);
-      } catch (err: any) {
-        notify.error('AI Check Failed: ' + err.message);
+      } catch (err) {
+        notify.error('AI Check Failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
       } finally {
         setIsChecking(false);
       }

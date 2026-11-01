@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - List Media API
  * Returns media files from database with filesystem fallback
@@ -20,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 // 2. Enforce Staff Media Security
 SessionManager::requireValidSession();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.access')) {
   ResponseHelper::sendError('Media access required', 403);
 }
 
@@ -46,7 +48,7 @@ function formatFileSize($bytes)
 // Base URL for uploaded files
 // Auto-detect base URL
 /** @var string $scriptDir */
-$scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+$scriptDir = dirname(DataBoundary::serverString('SCRIPT_NAME'));
 // If script_name is /VonCMS/api/list_media.php, dirname is /VonCMS/api
 // We want /VonCMS/uploads/
 /** @var string $baseUrl */
@@ -56,10 +58,9 @@ $baseUrl = str_replace('\\', '/', $baseUrl);
 // Prevent double slash (//uploads)
 $baseUrl = rtrim($baseUrl, '/') . '/uploads/';
 
-/** @var string $uploadsDir */
 $uploadsDir = dirname(__DIR__) . '/uploads/';
 
-/** @var array<int, array<string, mixed>> $files */
+/** @var array<int, array<string, scalar|null>> $files */
 $files = [];
 
 /** @var string $source */
@@ -67,10 +68,10 @@ $source = 'database';
 
 // Pagination - Declared before DB block so filesystem fallback can use them
 /** @var int $page */
-$page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
+$page = isset($_GET['page']) ? DataBoundary::inputInt($_GET['page']) : 1;
 
 /** @var int $limit */
-$limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 32;
+$limit = isset($_GET['limit']) ? DataBoundary::inputInt($_GET['limit']) : 32;
 $page = max(1, $page);
 $limit = min(100, max(1, $limit));
 $search = voncms_normalize_media_search($_GET['search'] ?? '');
@@ -90,7 +91,7 @@ $databaseReady = false;
 $databaseHasRows = false;
 
 // Try to get files from database first
-if (isset($pdo) && $pdo !== null) {
+if (isset($pdo)) {
   try {
     // Check if media table exists
     $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
@@ -111,7 +112,7 @@ if (isset($pdo) && $pdo !== null) {
       $columnStmt = $pdo->query('SHOW COLUMNS FROM media');
       $availableMediaColumns = array_map(
         static fn($column) => $column['Field'] ?? '',
-        $columnStmt ? $columnStmt->fetchAll(PDO::FETCH_ASSOC) : [],
+        $columnStmt ? DataBoundary::rows($columnStmt->fetchAll(PDO::FETCH_ASSOC)) : [],
       );
       $selectedMediaColumns = array_values(array_intersect($mediaColumns, $availableMediaColumns));
       if (
@@ -171,7 +172,7 @@ if (isset($pdo) && $pdo !== null) {
       $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
       $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
       $stmt->execute();
-      $mediaRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      $mediaRows = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
 
       foreach ($mediaRows as $row) {
         // Handle different column names (schema compatibility)
@@ -187,11 +188,11 @@ if (isset($pdo) && $pdo !== null) {
           continue;
         }
 
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $ext = strtolower(pathinfo((string) $filename, PATHINFO_EXTENSION));
 
         // Ensure filepath is relative for URL construction
         // Normalize slashes
-        $cleanPath = str_replace(['\\', '//'], '/', $filepath);
+        $cleanPath = str_replace(['\\', '//'], '/', (string) $filepath);
 
         // Remove 'uploads/' prefix if present in DB path to avoid double prefixing
         if (strpos($cleanPath, 'uploads/') === 0) {
@@ -203,7 +204,7 @@ if (isset($pdo) && $pdo !== null) {
         // Detect WebP variant (hotfix)
         $webpUrl = null;
         $webpVariant =
-          ($pathInfo['dirname'] !== '.' ? $pathInfo['dirname'] . '/' : '') .
+          (($pathInfo['dirname'] ?? '.') !== '.' ? $pathInfo['dirname'] . '/' : '') .
           $pathInfo['filename'] .
           '.webp';
         if ($ext !== 'webp' && file_exists($uploadsDir . $webpVariant)) {
@@ -217,9 +218,9 @@ if (isset($pdo) && $pdo !== null) {
           'url' => ResponseHelper::scrubUrl($baseUrl . $cleanPath),
           'webpUrl' => $webpUrl,
           'type' => 'image',
-          'size' => formatFileSize($filesize),
+          'size' => formatFileSize((int) $filesize),
           'sizeBytes' => (int) $filesize,
-          'uploadedAt' => date('Y-m-d', strtotime($uploadedAt)),
+          'uploadedAt' => date('Y-m-d', strtotime((string) $uploadedAt) ?: 0),
           'extension' => $ext,
           'uploadedBy' => $uploadedBy,
           'altText' => $row['alt_text'] ?? '',
@@ -241,7 +242,7 @@ if (isset($pdo) && $pdo !== null) {
  * @param string $dir
  * @param string $baseUrl
  * @param array<int, string> $allowedExtensions
- * @param array<int, array<string, mixed>> $files
+ * @param array<int, array<string, scalar|null>> $files
  * @return void
  */
 function scanDirectory($dir, $baseUrl, $allowedExtensions, &$files)
@@ -276,12 +277,15 @@ function scanDirectory($dir, $baseUrl, $allowedExtensions, &$files)
         }
 
         $stat = stat($fullPath);
+        if ($stat === false) {
+          continue;
+        }
         $pathInfo = pathinfo($relativePath);
 
         // Detect WebP variant (hotfix)
         $webpUrl = null;
         $webpVariant =
-          ($pathInfo['dirname'] !== '.' ? $pathInfo['dirname'] . '/' : '') .
+          (($pathInfo['dirname'] ?? '.') !== '.' ? $pathInfo['dirname'] . '/' : '') .
           $pathInfo['filename'] .
           '.webp';
         if ($ext !== 'webp' && file_exists(dirname(__DIR__) . '/uploads/' . $webpVariant)) {
@@ -328,12 +332,13 @@ if (!$databaseReady || !$databaseHasRows) {
   // Sort by upload date descending
   usort(
     $files /**
-     * @param array<string, mixed> $a
-     * @param array<string, mixed> $b
+     * @param array<string, scalar|null> $a
+     * @param array<string, scalar|null> $b
      * @return int
      */,
     function ($a, $b) {
-      return strtotime($b['uploadedAt']) - strtotime($a['uploadedAt']);
+      return (strtotime((string) $b['uploadedAt']) ?: 0) -
+        (strtotime((string) $a['uploadedAt']) ?: 0);
     },
   );
 

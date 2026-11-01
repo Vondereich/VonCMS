@@ -1,4 +1,5 @@
 const SEO_QUERY_WHITESPACE =
+  // eslint-disable-next-line no-control-regex -- This exact shared Unicode whitespace set includes tab/CR/LF.
   /[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]+/gu;
 
 export const normalizeSeoQueryWhitespace = (value: string): string =>

@@ -2,7 +2,7 @@
  * VonCMS - useSinglePost Hook
  * Fetches full post content for single post view (Slim Query optimization)
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useEffectEvent, useRef } from 'react';
 import { Post } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
@@ -76,17 +76,8 @@ export const useSinglePost = (
     requestedPostKey && !hasInjectedPost && !fullPostMatchesRequest && !hasSettledCurrentRequest
   );
 
-  useEffect(() => {
-    if (!enabled || (!postId && !postSlug)) {
-      requestIdRef.current += 1;
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
-      setFullPost(null);
-      setIsLoading(false);
-      setSettledRequestKey('');
-      return;
-    }
-
+  // Read reusable state only when a new route request starts, not after its own response.
+  const reuseResolvedPost = useEffectEvent(() => {
     // If PHP already injected this data, skip the first fetch
     if (hasInjectedPost) {
       requestIdRef.current += 1;
@@ -99,7 +90,7 @@ export const useSinglePost = (
       setSettledRequestKey(requestedPostKey);
       // Cleanup: Remove hydration data after consuming to prevent stale matches on SPA navigation
       delete window.__INITIAL_STATE__;
-      return;
+      return true;
     }
 
     // Skip if already fetched
@@ -109,8 +100,22 @@ export const useSinglePost = (
       abortControllerRef.current = null;
       setIsLoading(false);
       setSettledRequestKey(requestedPostKey);
+      return true;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (!enabled || (!postId && !postSlug)) {
+      requestIdRef.current += 1;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      setFullPost(null);
+      setIsLoading(false);
+      setSettledRequestKey('');
       return;
     }
+    if (reuseResolvedPost()) return;
 
     const fetchFullPost = async () => {
       requestIdRef.current += 1;

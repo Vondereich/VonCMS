@@ -15,7 +15,7 @@ import SmartPagination from '../../../../components/SmartPagination';
 import { toast } from 'react-hot-toast';
 import { SiteSettings, NewsletterSettings, NewsletterSubscriber } from '../../../../types';
 import { BASE_PATH } from '../../../../config/site.config';
-import { vonFetch } from '../../../../utils/api';
+import { vonFetch, getErrorMessage } from '../../../../utils/api';
 
 interface NewsletterManagerProps {
   settings: SiteSettings;
@@ -48,6 +48,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [saving, setSaving] = useState(false);
+  const savePendingRef = useRef(false);
   const subscribersRequestId = useRef(0);
 
   // Load subscribers
@@ -79,9 +80,11 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
     }
   };
 
+  // A tab/page/filter transition reads the latest query; typing alone stays manual.
+  const loadSelectedSubscribers = React.useEffectEvent(() => loadSubscribers());
   useEffect(() => {
     if (activeTab === 'subscribers') {
-      loadSubscribers();
+      loadSelectedSubscribers();
     }
     return () => {
       subscribersRequestId.current += 1;
@@ -95,18 +98,26 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
 
   // Save settings
   const handleSave = async () => {
+    if (savePendingRef.current) return;
+    savePendingRef.current = true;
     setSaving(true);
     try {
       const updatedSettings = {
         ...settings,
         newsletter: newsletterSettings,
       };
-      onUpdateSettings(updatedSettings);
+      const saved = await onUpdateSettings(updatedSettings);
+      if (saved === false) {
+        toast.error('Failed to save newsletter settings. Your changes have been kept.');
+        return;
+      }
       toast.success('Newsletter settings saved successfully!');
-    } catch (error) {
+    } catch {
       toast.error('Failed to save settings');
+    } finally {
+      savePendingRef.current = false;
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   // Delete subscriber
@@ -126,7 +137,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       } else {
         toast.error(data.message || 'Failed to delete subscriber');
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete subscriber');
     }
   };
@@ -156,8 +167,10 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       anchor.remove();
       window.URL.revokeObjectURL(url);
       toast.success('Export ready!', { id: 'newsletter-export' });
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to export subscribers', { id: 'newsletter-export' });
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to export subscribers'), {
+        id: 'newsletter-export',
+      });
     }
   };
 

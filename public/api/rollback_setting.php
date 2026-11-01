@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Settings Rollback API
  * Rollback a setting to a previous version from audit log
@@ -35,13 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid rollback data', 400);
+}
 $auditLogId = $input['audit_log_id'] ?? null;
 
 if (!$auditLogId) {
   ResponseHelper::sendError('audit_log_id required', 400);
 }
 
-$userId = $_SESSION['user']['id'] ?? null;
+$userId = (int) DataBoundary::userText('id');
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   $pdo->beginTransaction();
@@ -49,7 +55,7 @@ try {
   // Get the audit log entry
   $stmt = $pdo->prepare('SELECT * FROM settings_audit_log WHERE id = ?');
   $stmt->execute([$auditLogId]);
-  $auditEntry = $stmt->fetch(PDO::FETCH_ASSOC);
+  $auditEntry = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$auditEntry) {
     $pdo->rollBack();
@@ -58,8 +64,8 @@ try {
 
   // Rollback to old_value
   $rollbackValue = $auditEntry['old_value'];
-  $settingGroup = $auditEntry['setting_group'];
-  $settingKey = $auditEntry['setting_key'];
+  $settingGroup = (string) $auditEntry['setting_group'];
+  $settingKey = (string) $auditEntry['setting_key'];
 
   if (voncms_setting_audit_is_sensitive($settingGroup, $settingKey)) {
     $deleteAuditStmt = $pdo->prepare('DELETE FROM settings_audit_log WHERE id = ?');

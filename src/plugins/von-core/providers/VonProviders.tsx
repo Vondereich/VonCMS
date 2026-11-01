@@ -11,7 +11,7 @@ export const useTheme = useNewTheme;
 // --- PLUGIN CONTEXT ---
 interface PluginContextType {
   activePlugins: string[];
-  pluginConfig: Record<string, any>;
+  pluginConfig: NonNullable<SiteSettings['pluginConfig']>;
 }
 
 const PluginContext = createContext<PluginContextType>({

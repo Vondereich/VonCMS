@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS AI Grammar Check API
  * Proxies requests to Google Gemini API for grammar/style checking.
@@ -23,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 SessionManager::requireValidSession();
-$currentRole = voncms_normalize_role($_SESSION['user']['role'] ?? '');
+$currentRole = voncms_normalize_role(DataBoundary::userText('role'));
 if (!voncms_role_has_capability($currentRole, 'posts.create')) {
   ResponseHelper::sendError('Staff content access required.', 403);
 }
@@ -33,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   ResponseHelper::sendError('Method not allowed', 405);
 }
 
-$providedApiKey = $_SERVER['HTTP_X_GEMINI_KEY'] ?? '';
+$providedApiKey = DataBoundary::serverString('HTTP_X_GEMINI_KEY');
 
 // Get request body
 $rawInput = CSRFProtection::getRequestBody();
@@ -98,7 +100,7 @@ if ($aiRequest === null) {
   voncms_ai_send_error('No usable Gemini API key is configured.', 400, 'AI_KEY_UNAVAILABLE');
 }
 
-$userId = (string) ($_SESSION['user']['id'] ?? '');
+$userId = DataBoundary::userText('id');
 if ($userId === '' || !voncms_ai_authorize_quota($userId, $aiRequest['shared'])) {
   voncms_ai_send_error('AI request limit reached. Please try again later.', 429, 'AI_RATE_LIMITED');
 }
@@ -125,9 +127,10 @@ if (!$aiResponse['ok']) {
 }
 $data = $aiResponse['data'];
 
-$generatedText = trim((string) ($data['candidates'][0]['content']['parts'][0]['text'] ?? ''));
-$blockReason = $data['promptFeedback']['blockReason'] ?? '';
-$finishReason = strtoupper((string) ($data['candidates'][0]['finishReason'] ?? ''));
+$providerFields = voncms_ai_response_fields($data);
+$generatedText = $providerFields['text'];
+$blockReason = $providerFields['blocked'];
+$finishReason = $providerFields['finishReason'];
 
 if (!empty($blockReason)) {
   voncms_ai_send_error(
@@ -155,8 +158,8 @@ if (empty($generatedText)) {
 
 // CLEANUP: Remove markdown code blocks if the AI "hallucinates" them into the response
 // Strip ```text ... ``` or just ``` ... ```
-$generatedText = preg_replace('/^```[a-z]*\s*/i', '', $generatedText);
-$generatedText = preg_replace('/```\s*$/', '', $generatedText);
+$generatedText = preg_replace('/^```[a-z]*\s*/i', '', $generatedText) ?? $generatedText;
+$generatedText = preg_replace('/```\s*$/', '', $generatedText) ?? $generatedText;
 $generatedText = trim($generatedText);
 
 if (!voncms_ai_html_structure_matches($text, $generatedText)) {

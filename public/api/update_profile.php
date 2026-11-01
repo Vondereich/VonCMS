@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 ob_start(); // Buffer output to prevent warnings from corrupting JSON
 /**
  * VonCMS - Update Profile API
@@ -8,7 +10,7 @@ ob_start(); // Buffer output to prevent warnings from corrupting JSON
 
 // Dynamic CORS - Only allow same-origin or configured origins
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+$host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', ''));
 
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
@@ -36,19 +38,22 @@ CSRFProtection::requireToken();
 // Get JSON input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 
-if (!$input || !isset($input['id'])) {
+if (!is_array($input) || !$input || !isset($input['id'])) {
   ResponseHelper::sendError('Invalid input or missing user ID', 400);
 }
 
 // Authorization: Only allow updating self OR if current user is admin
-$currentUser = $_SESSION['user'];
-$isOwnProfile = (string) ($currentUser['id'] ?? '') === (string) $input['id'];
+$currentUser = DataBoundary::actor();
+if (!is_scalar($input['id'])) {
+  ResponseHelper::sendError('Invalid user ID', 400);
+}
+$isOwnProfile = $currentUser['id'] === (string) $input['id'];
 if (!$isOwnProfile && !SessionManager::isAdmin()) {
   ResponseHelper::sendError('Unauthorized to update this profile', 403);
 }
 
 // Check database connection
-if (!isset($pdo) || $pdo === null) {
+if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
@@ -58,7 +63,7 @@ try {
 
   $targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
   $targetStmt->execute([$userId]);
-  $targetUser = $targetStmt->fetch(PDO::FETCH_ASSOC);
+  $targetUser = DataBoundary::row($targetStmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$targetUser) {
     ResponseHelper::sendError('User not found', 404);
@@ -89,6 +94,9 @@ try {
   if ($displayNameLength > 100) {
     ResponseHelper::sendError('Display name must be 100 characters or fewer', 400);
   }
+  if (isset($input['bio']) && !is_string($input['bio'])) {
+    ResponseHelper::sendError('Bio must be text.', 400);
+  }
   $bio = trim((string) ($input['bio'] ?? ''));
 
   $avatar = $input['avatar'] ?? '';
@@ -106,13 +114,13 @@ try {
     if (strlen($currentPasswordValue) > 4096 || strlen($newPasswordValue) > 4096) {
       ResponseHelper::sendError('Password input is too long', 400);
     }
-    SecurityHelper::requireNewPasswordLength($newPasswordValue);
+    $newPasswordValue = SecurityHelper::requireNewPasswordLength($newPasswordValue);
 
     if (
       strlen($newPasswordValue) < 8 ||
       !preg_match('/[A-Z]/', $newPasswordValue) ||
       !preg_match('/[0-9]/', $newPasswordValue) ||
-      !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $newPasswordValue)
+      !SecurityHelper::hasPasswordSpecialCharacter($newPasswordValue)
     ) {
       ResponseHelper::sendError('Password must be 8+ chars with uppercase, number & symbol', 400);
     }
@@ -128,18 +136,15 @@ try {
       // Lock the credential row so two concurrent password changes cannot overwrite each other.
       $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ? FOR UPDATE');
       $stmt->execute([$userId]);
-      $user = $stmt->fetch(PDO::FETCH_ASSOC);
+      $user = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
-      if (!$user || !password_verify($currentPasswordValue, $user['password'])) {
+      if (!$user || !password_verify($currentPasswordValue, (string) $user['password'])) {
         $pdo->rollBack();
         $transactionStarted = false;
         ResponseHelper::sendError('Incorrect current password', 400);
       }
 
       $newHash = password_hash($newPasswordValue, PASSWORD_BCRYPT);
-      if (!is_string($newHash) || $newHash === '') {
-        throw new Exception('Failed to hash password');
-      }
 
       $stmt = $pdo->prepare(
         'UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
@@ -181,26 +186,24 @@ try {
     ResponseHelper::sendError('Failed to update profile');
   }
 
-  if ($result) {
-    voncms_public_cache_clear();
+  voncms_public_cache_clear();
 
-    // Update session if updating own profile
-    if ($currentUser['id'] == $userId) {
-      $_SESSION['user']['bio'] = $bio;
-      $_SESSION['user']['display_name'] = $displayName;
-      $_SESSION['user']['avatar'] = $avatar;
-    }
-
-    echo json_encode([
-      'success' => true,
-      'message' => 'Profile updated successfully',
-      'user' => [
-        'display_name' => $displayName,
-        'bio' => $bio,
-        'avatar' => ResponseHelper::scrubAvatarUrl($avatar),
-      ],
-    ]);
+  // Update session if updating own profile
+  if ($currentUser['id'] == $userId && is_array($_SESSION['user'] ?? null)) {
+    $_SESSION['user']['bio'] = $bio;
+    $_SESSION['user']['display_name'] = $displayName;
+    $_SESSION['user']['avatar'] = $avatar;
   }
+
+  echo json_encode([
+    'success' => true,
+    'message' => 'Profile updated successfully',
+    'user' => [
+      'display_name' => $displayName,
+      'bio' => $bio,
+      'avatar' => ResponseHelper::scrubAvatarUrl($avatar),
+    ],
+  ]);
 } catch (Throwable $e) {
   if (voncms_schema_mutation_error_requires_repair($e)) {
     ResponseHelper::sendError('Database schema update required. Run Database Repair first.', 503);

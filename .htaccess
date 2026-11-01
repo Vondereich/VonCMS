@@ -9,6 +9,9 @@ DirectoryIndex index.php index.html
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # OTA payloads and rollback files are never public, including crawler requests.
+  RewriteRule ^(?:public/)?temp_update(?:/|$) - [F,L,NC]
+
   # Reject PHP PATH_INFO aliases before any crawler or file fast-path can exit.
   RewriteRule ^.+\.php/ - [R=404,L,NC]
   RewriteRule ^(?:public/)?core(/.*)?$ - [F,L,NC]

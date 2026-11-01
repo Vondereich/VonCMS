@@ -14,47 +14,51 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
   const location = useLocation();
   const pathname = location.pathname;
 
-  const safeContent = useMemo(
-    () =>
-      content
-        ? (() => {
-            try {
-              return sanitizeHtml(content, {
-                ADD_TAGS: ['script', 'iframe', 'ins', 'div', 'span', 'a', 'img'],
-                ADD_ATTR: [
-                  'src',
-                  'async',
-                  'crossorigin',
-                  'style',
-                  'class',
-                  'id',
-                  'target',
-                  'width',
-                  'height',
-                  'allow',
-                  'frameborder',
-                  'scrolling',
-                  'href',
-                  'alt',
-                ],
-                ALLOW_DATA_ATTR: true,
-                FORCE_BODY: true,
-                styleAllowlist: AD_ALLOWED_STYLE_PROPS,
-                sandboxedAdContent: true,
-              });
-            } catch {
-              return '';
-            }
-          })()
-        : '',
-    [content]
-  );
-
-  // Stylesheets can affect the parent page even without scripts. Keep them isolated too.
-  const requiresIsolation = useMemo(
-    () => /<(script|iframe|style|form|input|button|select|textarea)(?:\s|\/?>)/i.test(safeContent),
-    [safeContent]
-  );
+  const { safeContent, requiresIsolation } = useMemo(() => {
+    if (!content) return { safeContent: '', requiresIsolation: false };
+    try {
+      const adOptions = {
+        ADD_TAGS: ['script', 'iframe', 'ins', 'div', 'span', 'a', 'img'],
+        ADD_ATTR: [
+          'src',
+          'async',
+          'crossorigin',
+          'style',
+          'class',
+          'id',
+          'target',
+          'width',
+          'height',
+          'allow',
+          'frameborder',
+          'scrolling',
+          'href',
+          'alt',
+        ],
+        ALLOW_DATA_ATTR: true,
+        FORCE_BODY: true,
+        styleAllowlist: AD_ALLOWED_STYLE_PROPS,
+        sandboxedAdContent: true,
+      };
+      const boundedContent = sanitizeHtml(content, adOptions);
+      const isolatedContent = sanitizeHtml(content, {
+        ...adOptions,
+        preserveSandboxedAdStyles: true,
+      });
+      // Additional layout CSS is safe only inside the opaque-origin iframe, never the page.
+      const requiresIsolation =
+        boundedContent !== isolatedContent ||
+        /<(script|iframe|style|form|input|button|select|textarea)(?:\s|\/?>)/i.test(
+          isolatedContent
+        );
+      return {
+        safeContent: requiresIsolation ? isolatedContent : boundedContent,
+        requiresIsolation,
+      };
+    } catch {
+      return { safeContent: '', requiresIsolation: false };
+    }
+  }, [content]);
 
   useEffect(() => {
     if (!requiresIsolation || !containerRef.current || !safeContent) return;
@@ -66,6 +70,8 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
     iframe.style.border = 'none';
     iframe.style.overflow = 'hidden';
     iframe.style.display = 'block';
+    iframe.style.height = '1px';
+    iframe.title = 'Advertisement';
     iframe.setAttribute('scrolling', 'no');
     iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-modals');
 
@@ -73,7 +79,7 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
       if (event.source !== iframe.contentWindow) return;
       const height = Number(event.data?.height);
       if (event.data?.type === 'adHeight' && Number.isFinite(height) && height > 0 && iframe) {
-        iframe.style.height = Math.ceil(height) + 'px';
+        iframe.style.height = Math.min(Math.ceil(height), 10000) + 'px';
       }
     };
     window.addEventListener('message', handleMessage);
@@ -94,35 +100,9 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
               box-sizing: border-box;
             }
 
-            *, *::before, *::after {
-              box-sizing: border-box;
-              max-width: 100%;
-            }
-
             body {
-              display: flex;
-              justify-content: center;
-              align-items: center;
+              display: flow-root;
               min-height: 1px;
-            }
-
-            img, iframe, ins, div, span, a {
-              max-width: 100%;
-              min-width: 0;
-            }
-
-            img {
-              height: auto;
-            }
-
-            iframe, ins {
-              display: block;
-              margin-left: auto;
-              margin-right: auto;
-            }
-
-            ins {
-              width: 100% !important;
             }
           </style>
         </head>
@@ -132,9 +112,7 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
             const updateHeight = () => {
               const height = Math.ceil(Math.max(
                 document.body.scrollHeight,
-                document.documentElement.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.offsetHeight
+                document.body.offsetHeight
               ));
               if (height > 0 && window.parent) {
                 window.parent.postMessage({ type: 'adHeight', height: height }, '*');
@@ -159,7 +137,8 @@ export const AdBlock: React.FC<AdBlockProps> = ({ content, className, slotId }) 
 
     return () => {
       window.removeEventListener('message', handleMessage);
-      if (containerRef.current) containerRef.current.replaceChildren();
+      // Remove only the iframe owned by this effect, never a newer container's markup.
+      iframe.remove();
     };
   }, [safeContent, pathname, requiresIsolation]);
 

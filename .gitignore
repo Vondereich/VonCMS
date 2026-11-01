@@ -1,5 +1,6 @@
 # Node
 node_modules/
+/vendor/
 npm-debug.log*
 .env
 
@@ -72,6 +73,8 @@ public/data/generated_media_variants.php.tmp.*
 public/data/media_cleanup_previews/
 public/data/schema-capabilities.json
 public/data/schema-capabilities.json.*
+public/data/storage_usage.json
+/data/storage_usage.json
 public/data/install_setup.key
 logs/
 
@@ -87,3 +90,13 @@ VISION_2.0_3.0.md
 THEME_ROADMAP.md
 *.todo
 *.notes
+# Installation-owned analytics signing key (never a source or release input).
+public/data/analytics_signing.key
+
+# Installation-owned encryption key; back up separately, never publish or package it.
+credential_master.key.php
+credential_master.key.php.*
+public/data/credential_master.key.php
+public/data/credential_master.key.php.*
+/data/credential_master.key.php
+/data/credential_master.key.php.*

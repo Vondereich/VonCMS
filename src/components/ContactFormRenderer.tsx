@@ -45,7 +45,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
           setForm(null);
           setAntiBotChallenge(null);
         }
-      } catch (err) {
+      } catch {
         setForm(null);
         setAntiBotChallenge(null);
       } finally {
@@ -233,7 +233,7 @@ const ContactFormRenderer: React.FC<ContactFormRendererProps> = ({ id, className
         setViewState('error');
         setMessage(result.message || form.messages.error);
       }
-    } catch (error) {
+    } catch {
       setViewState('error');
       setMessage(form.messages.error);
     }

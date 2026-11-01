@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Category Management API
  * Admin-only helper for listing, adding, renaming, and removing post categories.
@@ -16,7 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../von_config.php';
 
 SessionManager::requireAdmin();
-$userId = $_SESSION['user']['id'] ?? null;
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+$userId = (int) DataBoundary::userText('id');
 
 /**
  * @param mixed $value
@@ -24,13 +27,13 @@ $userId = $_SESSION['user']['id'] ?? null;
  */
 function normalizeCategoryLabel($value)
 {
-  $label = trim((string) $value);
-  $label = preg_replace('/\s+/', ' ', $label ?? '');
+  $label = trim(DataBoundary::inputText($value));
+  $label = preg_replace('/\s+/', ' ', $label);
   return mb_substr($label ?? '', 0, 100);
 }
 
 /**
- * @param array<int, mixed> $categories
+ * @param array<array-key, mixed> $categories
  * @return array<int, string>
  */
 function categories_case_insensitive_unique($categories)
@@ -74,7 +77,7 @@ function loadStoredCategories($pdo)
     return ['Uncategorized'];
   }
 
-  $decoded = json_decode($rawValue, true);
+  $decoded = json_decode((string) $rawValue, true);
   if (!is_array($decoded)) {
     return ['Uncategorized'];
   }
@@ -105,7 +108,7 @@ function saveStoredCategories($pdo, $categories, $actorUserId = null)
 
   $encodedValue = json_encode(
     array_values($normalized),
-    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
   );
   $auditBefore = voncms_get_setting_audit_snapshot($pdo, 'content', 'categories');
 
@@ -147,7 +150,7 @@ function buildCategorySummary($pdo)
      GROUP BY category_name
      ORDER BY category_name ASC",
   );
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $rows = DataBoundary::rows(DataBoundary::statement($stmt)->fetchAll(PDO::FETCH_ASSOC));
 
   foreach ($rows as $row) {
     $category = normalizeCategoryLabel($row['category_name'] ?? '');
@@ -169,7 +172,10 @@ function buildCategorySummary($pdo)
         'postCount' => (int) ($row['post_count'] ?? 0),
       ];
     } else {
-      $summary[$matchedIndex]['postCount'] = (int) ($row['post_count'] ?? 0);
+      $summary[$matchedIndex] = [
+        'name' => $summary[$matchedIndex]['name'],
+        'postCount' => (int) ($row['post_count'] ?? 0),
+      ];
     }
   }
 
@@ -205,8 +211,11 @@ try {
 
   CSRFProtection::requireToken();
 
-  $input = json_decode(file_get_contents('php://input'), true) ?: [];
-  $action = strtolower(trim((string) ($input['action'] ?? '')));
+  $input = json_decode(CSRFProtection::getRequestBody(), true);
+  if (!is_array($input)) {
+    ResponseHelper::sendError('Invalid category data.', 400);
+  }
+  $action = strtolower(trim(DataBoundary::inputText($input['action'] ?? '')));
 
   if ($action === '') {
     ResponseHelper::sendError('Missing category action.', 400);
@@ -325,7 +334,7 @@ try {
   $pdo->rollBack();
   ResponseHelper::sendError('Unsupported category action.', 400);
 } catch (Throwable $e) {
-  if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+  if ($pdo->inTransaction()) {
     $pdo->rollBack();
   }
   ResponseHelper::sendError($e);

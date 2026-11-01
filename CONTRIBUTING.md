@@ -14,7 +14,8 @@ You can contribute with any workflow you prefer: Cursor, Visual Studio Code, Ant
 ```bash
 git clone https://github.com/YOUR-USERNAME/VonCMS.git
 cd VonCMS
-npm install
+npm ci
+composer install --no-interaction --no-plugins --no-scripts --prefer-dist
 ```
 
 Check your local tools:
@@ -96,7 +97,7 @@ Before release:
 
 1. Run TypeScript checks.
 2. Run formatting.
-3. Run BOM cleanup.
+3. Run the read-only BOM check.
 4. Run PHP lint with a known PHP binary when PHP files changed.
 5. Run the smoke gate.
 6. Run the production build.
@@ -109,13 +110,20 @@ Before release:
 The minimum expectation for ordinary contributor work is:
 
 - `npm run typecheck` passes
-- `npx prettier --check .` passes
-- `node remove-bom.cjs` passes
+- `npm run check:format` passes
+- `npm run check:bom` passes without changing source files
+- `npm run lint` reports the JavaScript/TypeScript and React Hooks findings
+- `npm run lint:phpstan` passes for `public/api`, `public/core` and `public/security.php` at Level 9, targeting PHP 8.2
+- `npm audit` has no unresolved advisories
 - `npm run build` passes
 - `npm run lint:php` passes when PHP files changed
 - docs and changelog match the shipped behavior
 
 For behavior changes, pull requests, and release preparation, also run `npm run test:integration`. This command executes VonCMS' maintainer smoke gate. It is a regression net, not a tutorial file, and most contributors should not edit `server/test-integration.cjs` unless they are changing a runtime contract.
+
+`npm run check:quality` runs the read-only static checks and npm audit. ESLint rejects errors without rewriting source; React dependency warnings remain visible and require an ownership review, not automatic dependency insertion. A successful lint exit is not proof that every warning or runtime path is correct. PHPStan analyses the complete `public/api` and `public/core` directories plus `public/security.php` at Level 9. Other PHP declarations are scanned only for symbol discovery; installed configuration and runtime data are excluded. It does not execute endpoints, connect to the database or load installation credentials. Composer and `vendor/` are development-only and are not required on deployed sites; `vendor/` is excluded from Git and release packages.
+
+The PHPStan configuration preserves defensive boundary checks for untyped callers, treats repeated filesystem reads as potentially changing, and models the crawler flag as a runtime boolean. These are analysis assumptions, not error suppressions or changes to runtime guards. `remove-bom.cjs` remains an explicit repair command that writes files; it is not the CI check.
 
 If verification cannot be run, say exactly what was not run and why. Do not claim a change is complete from code inspection alone.
 

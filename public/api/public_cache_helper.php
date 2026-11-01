@@ -1,4 +1,12 @@
 <?php
+
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
 /**
  * VonCMS - Lightweight Public JSON Cache Helper
  *
@@ -33,7 +41,10 @@ if (!function_exists('voncms_public_cache_normalize_value')) {
       return $value;
     }
 
-    return trim((string) $value);
+    if (is_string($value) || is_resource($value) || $value instanceof Stringable) {
+      return trim((string) $value);
+    }
+    throw new InvalidArgumentException('Invalid public cache key value.');
   }
 }
 
@@ -101,7 +112,8 @@ if (!function_exists('voncms_public_cache_acquire_gate')) {
       return false;
     }
 
-    if (!is_writable($cacheDir)) {
+    // On Windows, let the actual file open/write decide rather than the directory attribute.
+    if (PHP_OS_FAMILY !== 'Windows' && !is_writable($cacheDir)) {
       return false;
     }
 
@@ -258,7 +270,7 @@ if (!function_exists('voncms_public_cache_set')) {
       return;
     }
 
-    if (!is_writable($cacheDir)) {
+    if (PHP_OS_FAMILY !== 'Windows' && !is_writable($cacheDir)) {
       return;
     }
 

@@ -9,7 +9,11 @@ import { GlobalLightbox } from '../../../../components/GlobalLightbox';
 import { CookieBanner } from '../../../../components/CookieBanner';
 import PublicRouteLoader from '../../../../components/PublicRouteLoader';
 import { isSystemPluginActive } from '../../../../utils/pluginRuntime';
-import { analyticsTrackingAllowed } from '../../../../utils/analyticsConsent';
+import {
+  analyticsTrackingAllowed,
+  clearNativeAnalyticsIdentity,
+  nativeAnalyticsCookieName,
+} from '../../../../utils/analyticsConsent';
 import { resolvePublicThemeSettings } from '../../../../themes/shared/themeSettings';
 import { PUBLIC_LISTING_MAX_PAGE } from '../../../../hooks/usePublicPostsQuery';
 import {
@@ -57,6 +61,11 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
   const { activeTheme } = useTheme();
   const location = useLocation();
   const analyticsPluginActive = isSystemPluginActive(props.settings, 'vp_analytics');
+  const currentView = props.currentView;
+  const selectedPostId = props.selectedPost?.id;
+  const selectedPageId = props.selectedPage?.id;
+  const consentRequired = Boolean(props.settings.analytics?.cookieConsent);
+  const measurementMode = props.settings.analytics?.measurementMode;
   const requestedThemeId = resolvePublicThemeId(activeTheme.id);
   const themeSettings = useMemo(
     () => resolvePublicThemeSettings(props.settings, requestedThemeId),
@@ -144,9 +153,10 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
 
   // Track page views (Monolithic Tracking)
   useEffect(() => {
-    const analyticsActive = isSystemPluginActive(props.settings, 'vp_analytics');
-    const consentRequired = Boolean(props.settings.analytics?.cookieConsent);
-    const analyticsAllowed = analyticsActive && analyticsTrackingAllowed(consentRequired);
+    const analyticsAllowed = analyticsPluginActive && analyticsTrackingAllowed(consentRequired);
+    if (!analyticsAllowed || measurementMode !== 'balanced') {
+      clearNativeAnalyticsIdentity();
+    }
     const payload: {
       url?: string;
       referrer?: string;
@@ -159,26 +169,51 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
       payload.referrer = document.referrer;
     }
 
-    if (props.currentView === 'single-post' && props.selectedPost) {
-      payload.postId = props.selectedPost.id;
-    } else if (props.currentView === 'page' && props.selectedPage) {
-      payload.pageId = props.selectedPage.id;
+    if (currentView === 'single-post' && selectedPostId) {
+      payload.postId = selectedPostId;
+    } else if (currentView === 'page' && selectedPageId) {
+      payload.pageId = selectedPageId;
     }
 
     // Keep aggregate content views available without enabling visitor analytics.
-    if (!analyticsActive && !payload.postId && !payload.pageId) return;
+    if (!analyticsPluginActive && !payload.postId && !payload.pageId) return;
 
-    vonFetch(API.trackMonolithic, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
+    const request = () =>
+      vonFetch(API.trackMonolithic, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    let cancelled = false;
+    request()
+      .then(async (response) => {
+        if (!analyticsAllowed || measurementMode !== 'balanced') return;
+        const result = await response.json();
+        if (!analyticsTrackingAllowed(consentRequired)) {
+          clearNativeAnalyticsIdentity();
+          return;
+        }
+        if (
+          !cancelled &&
+          result.retry === true &&
+          document.cookie
+            .split(';')
+            .some((part) => part.trim().startsWith(nativeAnalyticsCookieName() + '='))
+        ) {
+          await request();
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [
-    props.currentView,
-    props.selectedPost?.id,
-    props.selectedPage?.id,
+    currentView,
+    selectedPostId,
+    selectedPageId,
     analyticsPluginActive,
-    props.settings.analytics?.cookieConsent,
+    consentRequired,
+    measurementMode,
     location.pathname,
   ]);
 

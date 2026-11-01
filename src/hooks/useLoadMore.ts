@@ -4,6 +4,7 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Post } from '../types';
+import type { PostApiRecord } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 
@@ -77,8 +78,8 @@ export function useLoadMore(options: UseLoadMoreOptions = {}): UseLoadMoreReturn
         const data = await res.json();
 
         // Handle new envelope format { posts, meta }
-        const rawPosts: any[] = Array.isArray(data) ? data : data.posts || [];
-        const fetchedPosts: Post[] = rawPosts.map((p: any) => ({
+        const rawPosts: PostApiRecord[] = Array.isArray(data) ? data : data.posts || [];
+        const fetchedPosts: Post[] = rawPosts.map((p) => ({
           ...p,
           image: p.image || p.image_url || '',
           imageSrcSet: p.imageSrcSet || p.image_srcset || '',

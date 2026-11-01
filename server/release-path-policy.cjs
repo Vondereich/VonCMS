@@ -42,6 +42,15 @@ function isForbiddenReleasePath(input) {
   if (parts.some((part) => FORBIDDEN_DIRECTORY_NAMES.has(part))) return true;
   if (parts.some((part) => part.startsWith('.env'))) return true;
   if (fileName === 'von_config.php') return true;
+  if (fileName === 'credential_master.key.php' || fileName.startsWith('credential_master.key.php.'))
+    return true;
+  if (
+    lower === 'public/data/storage_usage.json' ||
+    lower.startsWith('public/data/storage_usage.json.') ||
+    lower === 'data/storage_usage.json' ||
+    lower.startsWith('data/storage_usage.json.')
+  )
+    return true;
   if (
     lower === 'public/data/site_settings.json' ||
     lower.startsWith('public/data/site_settings.json.') ||

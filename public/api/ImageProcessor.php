@@ -1,4 +1,12 @@
 <?php
+
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
 /**
  * VonCMS - Image Processor
  *
@@ -9,15 +17,22 @@
  */
 
 // Prevent direct access
-if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) {
+if (
+  is_string($_SERVER['PHP_SELF'] ?? null) &&
+  basename($_SERVER['PHP_SELF']) === basename(__FILE__)
+) {
   die('Direct access not allowed');
 }
 
 require_once __DIR__ . '/../media_variants.php';
 
+/**
+ * @phpstan-type Settings array{enabled: bool, maxWidth: int, maxHeight: int, quality: int, convertToWebP: bool, generateResponsiveVariants: bool, responsiveWidths: array<int,int>, skipAbsolute?: bool, compressionLevel?: string}
+ * @phpstan-type Result array{success: bool, original: string, processed: string, resized: bool, compressed: bool, message: string, responsiveVariants: array<int,string>, responsiveVariantStatus: string, responsiveVariantMessage: string, convertedToWebP?: bool, webpPath?: string}
+ */
 class ImageProcessor
 {
-  /** @var array Supported MIME types */
+  /** @var array<string,int> Supported MIME types */
   private const SUPPORTED_TYPES = [
     'image/jpeg' => IMAGETYPE_JPEG,
     'image/png' => IMAGETYPE_PNG,
@@ -27,13 +42,13 @@ class ImageProcessor
 
   private const MAX_PROCESSING_PIXELS = 50000000;
 
-  /** @var array Default settings */
+  /** @var Settings Default settings */
   private array $settings;
 
   /**
    * Constructor
    *
-   * @param array $settings Media optimization settings
+   * @param array{enabled?: bool, maxWidth?: int, maxHeight?: int, quality?: int, convertToWebP?: bool, generateResponsiveVariants?: bool, responsiveWidths?: array<int,int>, skipAbsolute?: bool, compressionLevel?: string} $settings Media optimization settings
    */
   public function __construct(array $settings = [])
   {
@@ -55,7 +70,7 @@ class ImageProcessor
    * Process an uploaded image file
    *
    * @param string $filePath Absolute path to uploaded file
-   * @return array Result with processed file info
+   * @return Result Result with processed file info
    */
   public function processUpload(string $filePath): array
   {
@@ -152,8 +167,8 @@ class ImageProcessor
 
     if ($originalWidth > $maxWidth || $originalHeight > $maxHeight) {
       $ratio = min($maxWidth / $originalWidth, $maxHeight / $originalHeight);
-      $newWidth = (int) round($originalWidth * $ratio);
-      $newHeight = (int) round($originalHeight * $ratio);
+      $newWidth = max(1, (int) round($originalWidth * $ratio));
+      $newHeight = max(1, (int) round($originalHeight * $ratio));
       $needsResize = true;
     }
 
@@ -167,8 +182,8 @@ class ImageProcessor
         $newHeight,
       );
       if ($resizedImage !== null) {
-        imagedestroy($sourceImage);
         $sourceImage = $resizedImage;
+        unset($resizedImage);
         $result['resized'] = true;
       }
     }
@@ -180,7 +195,7 @@ class ImageProcessor
     if ($convertToWebP && function_exists('imagewebp') && $mimeType !== 'image/webp') {
       // Generate WebP version with same name but .webp extension
       $pathInfo = pathinfo($filePath);
-      $webpPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '.webp';
+      $webpPath = ($pathInfo['dirname'] ?? '.') . '/' . $pathInfo['filename'] . '.webp';
 
       $quality = (int) $this->settings['quality'];
       $webpSuccess = imagewebp($sourceImage, $webpPath, $quality);
@@ -196,9 +211,7 @@ class ImageProcessor
         // Skip deletion if it's a "System Asset" (Logo/Favicon) requiring max compatibility
         $skipAbsolute = $this->settings['skipAbsolute'] ?? false;
         if (!$skipAbsolute) {
-          if (file_exists($filePath)) {
-            unlink($filePath);
-          }
+          @unlink($filePath);
           $filePath = $webpPath;
           $mimeType = 'image/webp';
           $result['processed'] = $filePath;
@@ -209,7 +222,7 @@ class ImageProcessor
     // Save processed image (with compression) - keep original format too
     $quality = (int) $this->settings['quality'];
     $saveSuccess = $this->saveImage($sourceImage, $filePath, $mimeType, $quality);
-    imagedestroy($sourceImage);
+    unset($sourceImage);
 
     if ($saveSuccess) {
       $result['compressed'] = true;
@@ -291,11 +304,11 @@ class ImageProcessor
       if ($angle !== 0) {
         $rotated = imagerotate($image, $angle, 0);
         if ($rotated === false) {
-          imagedestroy($image);
+          unset($image);
           return null;
         }
-        imagedestroy($image);
         $image = $rotated;
+        unset($rotated);
       }
     }
     return $image;
@@ -318,6 +331,9 @@ class ImageProcessor
     int $dstWidth,
     int $dstHeight,
   ): ?GdImage {
+    if ($dstWidth <= 0 || $dstHeight <= 0) {
+      return null;
+    }
     $destination = imagecreatetruecolor($dstWidth, $dstHeight);
     if ($destination === false) {
       return null;
@@ -327,6 +343,9 @@ class ImageProcessor
     imagealphablending($destination, false);
     imagesavealpha($destination, true);
     $transparent = imagecolorallocatealpha($destination, 0, 0, 0, 127);
+    if ($transparent === false) {
+      return null;
+    }
     imagefill($destination, 0, 0, $transparent);
 
     // High-quality resize
@@ -344,7 +363,7 @@ class ImageProcessor
     );
 
     if (!$success) {
-      imagedestroy($destination);
+      unset($destination);
       return null;
     }
 
@@ -460,18 +479,18 @@ class ImageProcessor
 
       $pathInfo = pathinfo($sourcePath);
       $variantPath =
-        $pathInfo['dirname'] .
+        ($pathInfo['dirname'] ?? '.') .
         '/' .
         $pathInfo['filename'] .
         '_' .
         $targetWidth .
         'w.' .
-        $pathInfo['extension'];
+        ($pathInfo['extension'] ?? '');
       if (is_link($variantPath)) {
         continue;
       }
 
-      $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+      $targetHeight = max(1, (int) round($sourceHeight * ($targetWidth / $sourceWidth)));
       $variantImage = $this->resizeImage(
         $sourceImage,
         $sourceWidth,
@@ -490,13 +509,13 @@ class ImageProcessor
         $mimeType,
         (int) $this->settings['quality'],
       );
-      imagedestroy($variantImage);
+      unset($variantImage);
       if ($saved) {
         $generated[$targetWidth] = $variantPath;
       }
     }
 
-    imagedestroy($sourceImage);
+    unset($sourceImage);
 
     if (!empty($generated)) {
       voncms_record_generated_media_variants($sourcePath, array_values($generated));
@@ -529,7 +548,7 @@ class ImageProcessor
       return true;
     }
 
-    $multiplier = match (strtoupper($matches[2] ?? '')) {
+    $multiplier = match (strtoupper($matches[2])) {
       'G' => 1073741824,
       'M' => 1048576,
       'K' => 1024,
@@ -544,7 +563,7 @@ class ImageProcessor
   /**
    * Get settings
    *
-   * @return array
+   * @return Settings
    */
   public function getSettings(): array
   {

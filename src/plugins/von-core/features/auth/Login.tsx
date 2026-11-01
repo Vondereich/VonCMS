@@ -1,16 +1,18 @@
 /// <reference types="vite/client" />
+import { hasPasswordSpecialCharacter } from '../../../../utils/security';
 import React, { useState } from 'react';
 import {
-  Lock,
-  User,
+  LockKeyhole,
+  UserRound,
   ShieldCheck,
   Eye,
   EyeOff,
   Mail,
   ArrowLeft,
-  LogIn,
-  UserPlus,
-  Home,
+  KeyRound,
+  ArrowRightToLine,
+  UserRoundPlus,
+  House,
 } from 'lucide-react';
 import { User as UserType, SiteSettings } from '../../../../types';
 import { vonFetch } from '../../../../utils/api';
@@ -42,6 +44,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(false);
+  const credentialRevision = React.useRef(0);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [registrationResult, setRegistrationResult] = useState<{
     message: string;
@@ -73,6 +78,8 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   }, []);
 
   const clearForm = () => {
+    credentialRevision.current += 1;
+    setVerificationRequired(false);
     setUsername('');
     setEmail('');
     setPassword('');
@@ -83,7 +90,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   };
 
   // === LOGIN HANDLER ===
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.SyntheticEvent, resendVerification = false) => {
     e.preventDefault();
 
     if (lockoutTime && Date.now() < lockoutTime) {
@@ -107,20 +114,42 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
       return;
     }
 
+    const submittedRevision = credentialRevision.current;
+    if (!resendVerification) setVerificationRequired(false);
     setLoading(true);
     setMessage(null);
+    setResendingVerification(resendVerification);
 
     try {
       const apiUrl = API.login;
       const response = await vonFetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, hp_field: honeypot, remember_me: rememberMe }),
+        body: JSON.stringify({
+          username,
+          password,
+          hp_field: honeypot,
+          remember_me: rememberMe,
+          action: resendVerification ? 'resend_verification' : 'login',
+        }),
       });
 
       const data = await response.json();
 
+      // Verification feedback belongs to the submitted credentials, not later edits.
+      // A successful login still owns the server session and must be handled.
+      if (
+        submittedRevision !== credentialRevision.current &&
+        !(data.success && !resendVerification)
+      ) {
+        return;
+      }
+
       if (data.success) {
+        if (resendVerification) {
+          setMessage({ type: 'success', text: data.message });
+          return;
+        }
         if (data.csrf_token) {
           setCsrfToken(data.csrf_token);
         }
@@ -128,6 +157,16 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
         setAttempts(0);
         localStorage.removeItem('login_lockout');
       } else {
+        const needsVerification =
+          response.status === 403 && data.error === 'Please verify your email before logging in.';
+        if (needsVerification) setVerificationRequired(true);
+        if (resendVerification || needsVerification) {
+          setMessage({
+            type: 'error',
+            text: data.error || 'Verification email could not be sent.',
+          });
+          return;
+        }
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
 
@@ -146,10 +185,13 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
           });
         }
       }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Connection error. Please check your network.' });
+    } catch {
+      if (submittedRevision === credentialRevision.current) {
+        setMessage({ type: 'error', text: 'Connection error. Please check your network.' });
+      }
     } finally {
       setLoading(false);
+      setResendingVerification(false);
     }
   };
 
@@ -169,7 +211,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
       password.length < 8 ||
       !/[A-Z]/.test(password) ||
       !/[0-9]/.test(password) ||
-      !/[!@#$%^&*(),.?":{}|<>]/.test(password)
+      !hasPasswordSpecialCharacter(password)
     ) {
       setMessage({
         type: 'error',
@@ -219,7 +261,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
         // Registration failures intentionally retain the submitted fields for correction.
         setMessage({ type: 'error', text: data.error || data.message || 'Registration failed.' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Connection error. Please try again.' });
     } finally {
       setLoading(false);
@@ -307,36 +349,56 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
     ? 'flex items-center justify-center font-sans bg-transparent'
     : 'min-h-screen flex items-center justify-center bg-slate-100 px-4 py-10 font-sans dark:bg-admin-inset';
 
-  const cardClass =
-    'max-w-lg w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel';
+  const cardClass = `w-full ${view === 'register' ? 'max-w-160' : 'max-w-lg'} rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel ${
+    isModal ? 'max-h-[calc(100dvh-8rem)] overflow-y-auto' : 'overflow-hidden'
+  }`;
   const labelClass =
     'mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400';
   const inputClass =
     'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
   const iconInputClass =
     'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+  const registrationLabelClass =
+    'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300';
+  const registrationInputClass = `${inputClass.replace('py-3.5', 'py-3')} text-base sm:text-sm`;
+  const primaryButtonClass =
+    'flex w-full items-center justify-center gap-2 rounded-xl bg-black font-bold text-white transition-colors hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 dark:ring-1 dark:ring-neutral-700';
   const headerIcon =
     view === 'login' ? (
-      <LogIn size={28} />
+      <KeyRound size={28} />
     ) : view === 'register' ? (
-      <UserPlus size={28} />
+      <UserRoundPlus size={28} />
     ) : view === 'register-success' ? (
       <ShieldCheck size={28} />
     ) : view === 'forgot' ? (
       <Mail size={28} />
     ) : (
-      <Lock size={28} />
+      <LockKeyhole size={28} />
     );
 
   return (
     <div className={outerClass}>
-      <div className={cardClass}>
+      <div className={cardClass} data-auth-view={view}>
         {/* Header */}
-        <div className="border-b border-slate-200 bg-admin-panel p-6 text-center dark:border-admin-border dark:bg-admin-panel">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-admin-border-strong bg-admin-hover text-slate-100 shadow-lg shadow-slate-950/20">
+        <div
+          className={
+            view === 'register'
+              ? 'px-6 pt-6 text-center sm:px-8'
+              : 'border-b border-slate-200 bg-black p-6 text-center dark:border-admin-border dark:bg-black'
+          }
+        >
+          <div
+            className={
+              view === 'register'
+                ? 'mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-900 dark:bg-neutral-900 dark:text-white'
+                : 'mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 text-slate-100 shadow-lg shadow-slate-950/20'
+            }
+          >
             {headerIcon}
           </div>
-          <h2 className="mb-1 text-2xl font-bold tracking-tight text-white">
+          <h2
+            className={`mb-1 text-2xl font-bold tracking-tight ${view === 'register' ? 'text-slate-900 dark:text-white' : 'text-white'}`}
+          >
             {view === 'login'
               ? 'Welcome Back'
               : view === 'register'
@@ -347,7 +409,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                     ? 'Reset Password'
                     : 'New Password'}
           </h2>
-          <p className="text-sm text-slate-300">
+          <p
+            className={`text-sm ${view === 'register' ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300'}`}
+          >
             {view === 'login'
               ? 'Sign in to continue'
               : view === 'register'
@@ -360,7 +424,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
           </p>
         </div>
 
-        <div className="p-6 sm:p-8">
+        <div className={view === 'register' ? 'p-6 sm:px-8 sm:pb-8' : 'p-6 sm:p-8'}>
           {/* Message Alert */}
           {message && (
             <div
@@ -404,7 +468,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 <span className={labelClass}>Username or Email</span>
                 <div className="relative">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                    <User size={18} />
+                    <UserRound size={18} />
                   </div>
                   <input
                     id="login-374"
@@ -412,7 +476,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                     aria-label="Username or Email"
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      credentialRevision.current += 1;
+                      setVerificationRequired(false);
+                      setUsername(e.target.value);
+                    }}
                     className={iconInputClass}
                     placeholder="Enter your username"
                     required
@@ -436,7 +504,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 </div>
                 <div className="relative">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                    <Lock size={18} />
+                    <LockKeyhole size={18} />
                   </div>
                   <input
                     aria-label="Password"
@@ -444,7 +512,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                     name="login403"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      credentialRevision.current += 1;
+                      setVerificationRequired(false);
+                      setPassword(e.target.value);
+                    }}
                     className={`${iconInputClass} pr-12`}
                     placeholder="Enter your password"
                     required
@@ -479,19 +551,38 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-admin-panel py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:text-white dark:hover:bg-admin-hover"
+                className={`${primaryButtonClass} py-4 shadow-lg shadow-slate-900/10`}
               >
-                {loading ? (
+                {loading && !resendingVerification ? (
                   <>
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     Signing in...
                   </>
                 ) : (
                   <>
-                    <LogIn size={20} /> Sign In
+                    <ArrowRightToLine size={20} /> Sign In
                   </>
                 )}
               </button>
+
+              {verificationRequired && (
+                <>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={(event) => void handleLoginSubmit(event, true)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-admin-border-strong dark:text-slate-200 dark:hover:bg-admin-hover"
+                  >
+                    {resendingVerification
+                      ? 'Sending verification email...'
+                      : 'Resend verification email'}
+                  </button>
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                    To resend, use the username or email and password above. This does not sign you
+                    in.
+                  </p>
+                </>
+              )}
 
               {registrationEnabled && (
                 <div className="pt-2 text-center">
@@ -515,12 +606,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
           {view === 'register' &&
             (registrationEnabled ? (
               <form onSubmit={handleRegisterSubmit} className="space-y-4">
-                <div>
-                  <span className={labelClass}>Username</span>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                      <User size={18} />
-                    </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={registrationLabelClass} htmlFor="login-483">
+                      Username
+                    </label>
                     <input
                       id="login-483"
                       name="login483"
@@ -528,19 +618,15 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className={iconInputClass.replace('py-3.5', 'py-3')}
+                      className={registrationInputClass}
                       placeholder="Choose a username"
                       required
                     />
                   </div>
-                </div>
-
-                <div>
-                  <span className={labelClass}>Email Address</span>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                      <Mail size={18} />
-                    </div>
+                  <div>
+                    <label className={registrationLabelClass} htmlFor="login-500">
+                      Email address
+                    </label>
                     <input
                       aria-label="Email Address"
                       id="login-500"
@@ -548,16 +634,15 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={iconInputClass.replace('py-3.5', 'py-3')}
+                      className={registrationInputClass}
                       placeholder="you@example.com"
                       required
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <span className={labelClass}>Password</span>
+                    <label className={registrationLabelClass} htmlFor="login-514">
+                      Password
+                    </label>
                     <input
                       id="login-514"
                       name="login514"
@@ -565,13 +650,15 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className={inputClass.replace('py-3.5', 'py-3')}
+                      className={registrationInputClass}
                       placeholder="Min 8 characters"
                       required
                     />
                   </div>
                   <div>
-                    <span className={labelClass}>Confirm</span>
+                    <label className={registrationLabelClass} htmlFor="login-525">
+                      Confirm password
+                    </label>
                     <input
                       aria-label="Confirm"
                       id="login-525"
@@ -579,8 +666,8 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className={inputClass.replace('py-3.5', 'py-3')}
-                      placeholder="Confirm password"
+                      className={registrationInputClass}
+                      placeholder="Repeat your password"
                       required
                     />
                   </div>
@@ -589,7 +676,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-admin-panel py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:hover:bg-admin-hover"
+                  className={`${primaryButtonClass} mt-2 py-3 text-sm`}
                 >
                   {loading ? (
                     <>
@@ -598,7 +685,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                     </>
                   ) : (
                     <>
-                      <UserPlus size={20} /> Create Account
+                      <UserRoundPlus size={20} /> Create Account
                     </>
                   )}
                 </button>
@@ -620,7 +707,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
             ) : (
               <div className="space-y-4 py-8 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-300">
-                  <UserPlus size={32} />
+                  <UserRoundPlus size={32} />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                   Registration Disabled
@@ -664,7 +751,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   clearForm();
                   setView('login');
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-admin-panel py-4 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover dark:bg-admin-canvas dark:hover:bg-admin-hover"
+                className={`${primaryButtonClass} py-4 shadow-lg shadow-slate-900/10`}
               >
                 <ArrowLeft size={18} /> Back to Sign In
               </button>
@@ -696,7 +783,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-admin-panel py-3.5 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:text-white dark:hover:bg-admin-hover"
+                className={`${primaryButtonClass} py-3.5 shadow-lg shadow-slate-900/10`}
               >
                 {loading ? 'Sending...' : 'Send Recovery Link'}
               </button>
@@ -755,7 +842,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-admin-panel py-3.5 font-bold text-white shadow-lg shadow-slate-900/10 transition-colors hover:bg-admin-hover disabled:cursor-not-allowed disabled:opacity-50 dark:bg-admin-canvas dark:hover:bg-admin-hover"
+                className={`${primaryButtonClass} py-3.5 shadow-lg shadow-slate-900/10`}
               >
                 {loading ? 'Resetting...' : 'Update Password'}
               </button>
@@ -769,7 +856,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
             href={BASE_PATH}
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
           >
-            <Home size={16} />
+            <House size={16} />
             Back to Site
           </a>
           <p className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-slate-400">

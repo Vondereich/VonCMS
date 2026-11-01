@@ -5,11 +5,15 @@
  */
 
 $publicationTimeHelperPath = realpath(__FILE__);
-$requestedScriptPath = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''));
+$requestedScriptPath = realpath(
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) ? $_SERVER['SCRIPT_FILENAME'] : '',
+);
 if ($publicationTimeHelperPath !== false && $requestedScriptPath === $publicationTimeHelperPath) {
   http_response_code(403);
   exit('Forbidden');
 }
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 unset($publicationTimeHelperPath, $requestedScriptPath);
 
 if (!function_exists('voncms_has_publication_column')) {
@@ -47,9 +51,11 @@ if (!function_exists('voncms_has_publication_column')) {
 
     unset($pdo);
     $capabilities = voncms_read_publication_capabilities();
-    return ($capabilities['published_at'][$table] ?? false) === true;
+    $columns = $capabilities['published_at'] ?? null;
+    return is_array($columns) && ($columns[$table] ?? false) === true;
   }
 
+  /** @param array<string, array<string, bool>> $queryIndexes */
   function voncms_mark_publication_columns_ready(
     array $queryIndexes = [],
     bool $postDailyViews = false,
@@ -61,15 +67,15 @@ if (!function_exists('voncms_has_publication_column')) {
     }
 
     $previous = voncms_read_publication_capabilities();
+    $dailyViewsSince = $previous['post_daily_views_since'] ?? time();
+    $dailyViewsSince = is_numeric($dailyViewsSince) ? (int) $dailyViewsSince : time();
     $payload = json_encode(
       [
         'version' => 1,
         'published_at' => ['posts' => true, 'pages' => true],
         'query_indexes' => $queryIndexes,
         'post_daily_views' => $postDailyViews,
-        'post_daily_views_since' => $postDailyViews
-          ? (int) ($previous['post_daily_views_since'] ?? time())
-          : null,
+        'post_daily_views_since' => $postDailyViews ? $dailyViewsSince : null,
       ],
       JSON_UNESCAPED_SLASHES,
     );

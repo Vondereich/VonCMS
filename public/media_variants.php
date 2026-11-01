@@ -672,6 +672,7 @@ function voncms_is_registered_generated_media_variant(
     : false;
 }
 
+/** @return array{uploadsDir: string|null, sources: list<string>, variants: list<array{path: string, source: string, size: int, modified: string}>} */
 function voncms_collect_registered_generated_media_variant_inventory(
   ?string $uploadsDir = null,
 ): array {

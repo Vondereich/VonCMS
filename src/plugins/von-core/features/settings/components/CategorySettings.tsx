@@ -57,8 +57,9 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
     }
   };
 
+  const loadInitialCategories = React.useEffectEvent(() => refreshCategories());
   useEffect(() => {
-    refreshCategories();
+    loadInitialCategories();
   }, []);
 
   useEffect(() => {

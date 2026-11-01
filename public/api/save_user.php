@@ -1,5 +1,8 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
+global $pdo;
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/schema_repair_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
@@ -21,7 +24,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$currentRole = $_SESSION['user']['role'] ?? '';
+$currentRole = DataBoundary::userText('role');
 if (!voncms_role_has_capability($currentRole, 'users.manage')) {
   ResponseHelper::sendError('User management access required', 403);
 }
@@ -29,7 +32,7 @@ if (!voncms_role_has_capability($currentRole, 'users.manage')) {
 // Get JSON input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 
-if (!$input) {
+if (!is_array($input) || $input === []) {
   ResponseHelper::sendError('Invalid JSON input', 400);
 }
 
@@ -50,7 +53,11 @@ if (isset($input['bio']) && !is_string($input['bio'])) {
 }
 $rawBio = trim((string) ($input['bio'] ?? ''));
 
-/** Preserve unchanged legacy identities, but validate each new or edited identity. */
+/**
+ * Preserve unchanged legacy identities, but validate each new or edited identity.
+ * @param array{username: string, email: string} $input
+ * @param array<array-key, scalar|null> $existing
+ */
 function voncms_validate_managed_user_identity(array $input, array $existing = []): void
 {
   if (
@@ -64,6 +71,23 @@ function voncms_validate_managed_user_identity(array $input, array $existing = [
     (strlen($input['email']) > 100 || !filter_var($input['email'], FILTER_VALIDATE_EMAIL))
   ) {
     ResponseHelper::sendError('Please enter a valid email address (maximum 100 characters).', 400);
+  }
+}
+
+/**
+ * Refresh only this session's own presentation fields, never authentication authority.
+ * @param array<array-key, scalar|null> $user
+ */
+function voncms_sync_managed_user_profile(array $user): void
+{
+  if (DataBoundary::userText('id') !== (string) ($user['id'] ?? '') || empty($user['id'])) {
+    return;
+  }
+  if (!is_array($_SESSION['user'] ?? null)) {
+    return;
+  }
+  foreach (['username', 'display_name', 'email', 'avatar', 'bio'] as $field) {
+    $_SESSION['user'][$field] = $user[$field] ?? '';
   }
 }
 
@@ -85,10 +109,12 @@ $input['username'] = $rawUsername;
 $input['email'] = $rawEmail;
 $input['display_name'] = $rawDisplayName;
 $input['bio'] = $rawBio;
-$hasNewPassword = isset($input['password']) && $input['password'] !== '';
+$passwordValue = $input['password'] ?? '';
+$hasNewPassword = $passwordValue !== '';
 if ($hasNewPassword) {
-  SecurityHelper::requireNewPasswordLength($input['password']);
+  $passwordValue = SecurityHelper::requireNewPasswordLength($passwordValue);
 }
+$input['password'] = $passwordValue;
 
 $displayName = trim((string) ($input['display_name'] ?? ''));
 $displayNameLength = function_exists('mb_strlen') ? mb_strlen($displayName) : strlen($displayName);
@@ -97,7 +123,7 @@ if ($displayNameLength > 100) {
 }
 
 // Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
+if (!($pdo instanceof PDO)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
@@ -116,11 +142,15 @@ try {
     $pdo->rollBack();
     ResponseHelper::sendError('Invalid user ID', 400);
   }
-  $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
-  $currentUserRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $currentUserId = DataBoundary::userText('id');
+  $currentUserRole = strtolower(DataBoundary::userText('role'));
   $isPrimaryAdminActor = $currentUserId === '1' || $currentUserRole === 'root';
   $approveEmail = !empty($input['approve_email']);
-  $requestedRole = strtolower(trim((string) ($input['role'] ?? '')));
+  $roleValue = $input['role'] ?? '';
+  if (!is_string($roleValue)) {
+    ResponseHelper::sendError('Invalid user role', 400);
+  }
+  $requestedRole = strtolower(trim($roleValue));
   $allowedNonPrimaryRoles = ['member', 'writer', 'moderator'];
   $assignableRoles = [
     'member' => 'Member',
@@ -158,12 +188,12 @@ try {
     }
 
     // Password strength validation for new users
-    $password = $input['password'] ?? '';
+    $password = $passwordValue;
     if (
       strlen($password) < 8 ||
       !preg_match('/[A-Z]/', $password) ||
       !preg_match('/[0-9]/', $password) ||
-      !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)
+      !SecurityHelper::hasPasswordSpecialCharacter($password)
     ) {
       $pdo->rollBack();
       ResponseHelper::sendError(
@@ -172,11 +202,7 @@ try {
       );
     }
 
-    if (
-      !$isPrimaryAdminActor &&
-      $requestedRole !== '' &&
-      !in_array($requestedRole, $allowedNonPrimaryRoles, true)
-    ) {
+    if (!$isPrimaryAdminActor && !in_array($requestedRole, $allowedNonPrimaryRoles, true)) {
       $pdo->rollBack();
       ResponseHelper::sendError(
         'System owner permission is required to assign admin-level roles',
@@ -196,7 +222,7 @@ try {
       $input['username'],
       $displayName !== '' ? $displayName : null,
       $input['email'],
-      password_hash($input['password'], PASSWORD_BCRYPT),
+      password_hash($passwordValue, PASSWORD_BCRYPT),
       $newRole,
       $input['avatar'] ?? '',
       $input['bio'] ?? '',
@@ -227,7 +253,7 @@ try {
       'SELECT id, username, display_name, email, role, avatar, bio FROM users WHERE id = ? FOR UPDATE',
     );
     $targetStmt->execute([$inputId]);
-    $targetUser = $targetStmt->fetch(PDO::FETCH_ASSOC);
+    $targetUser = DataBoundary::row($targetStmt->fetch(PDO::FETCH_ASSOC));
 
     if (!$targetUser) {
       $pdo->rollBack();
@@ -263,7 +289,6 @@ try {
 
     if (
       !$isPrimaryAdminActor &&
-      $requestedRole !== '' &&
       !in_array($requestedRole, $allowedNonPrimaryRoles, true) &&
       $requestedRole !== $targetUserRole
     ) {
@@ -278,10 +303,7 @@ try {
     if ($targetUserId === '1') {
       if (
         isset($input['role']) &&
-        !(
-          strtolower((string) $input['role']) === 'admin' ||
-          strtolower((string) $input['role']) === 'root'
-        )
+        !(strtolower($roleValue) === 'admin' || strtolower($roleValue) === 'root')
       ) {
         $pdo->rollBack();
         ResponseHelper::sendError('Cannot change role of Super Admin', 400);
@@ -331,12 +353,12 @@ try {
     // Only update password if provided
     if ($hasNewPassword) {
       // Validate password strength
-      $password = $input['password'];
+      $password = $passwordValue;
       if (
         strlen($password) < 8 ||
         !preg_match('/[A-Z]/', $password) ||
         !preg_match('/[0-9]/', $password) ||
-        !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)
+        !SecurityHelper::hasPasswordSpecialCharacter($password)
       ) {
         $pdo->rollBack();
         ResponseHelper::sendError(
@@ -345,7 +367,7 @@ try {
         );
       }
       $sql .= ', password = ?';
-      $params[] = password_hash($input['password'], PASSWORD_BCRYPT);
+      $params[] = password_hash($passwordValue, PASSWORD_BCRYPT);
     }
 
     $sql .= ' WHERE id = ?';
@@ -359,6 +381,7 @@ try {
     // idempotent no-op instead of reporting a false missing-user error.
     if ($stmt->rowCount() === 0) {
       $pdo->rollBack();
+      voncms_sync_managed_user_profile($targetUser);
       echo json_encode([
         'success' => true,
         'unchanged' => true,
@@ -383,6 +406,14 @@ try {
     }
 
     $pdo->commit();
+    voncms_sync_managed_user_profile([
+      'id' => $inputId,
+      'username' => (string) $input['username'],
+      'display_name' => $displayName !== '' ? $displayName : null,
+      'email' => (string) $input['email'],
+      'avatar' => (string) ($input['avatar'] ?? ''),
+      'bio' => (string) ($input['bio'] ?? ''),
+    ]);
     voncms_public_cache_clear();
     echo json_encode([
       'success' => true,
@@ -400,7 +431,7 @@ try {
     ]);
   }
 } catch (Throwable $e) {
-  if (isset($pdo) && $pdo->inTransaction()) {
+  if ($pdo->inTransaction()) {
     $pdo->rollBack();
   }
   if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {

@@ -101,7 +101,7 @@ const getTimeZoneOffsetMs = (date: Date, timeZone: string): number => {
 export const normalizeSchemaDateTime = (value?: string, timeZone?: string): string | undefined => {
   const rawValue = value?.trim();
   if (!rawValue) return undefined;
-  if (/[zZ]|[+\-]\d{2}:\d{2}$/.test(rawValue)) return rawValue;
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(rawValue)) return rawValue;
 
   const sqlDateTime = SQL_DATETIME_PATTERN.exec(rawValue);
   if (!sqlDateTime) {

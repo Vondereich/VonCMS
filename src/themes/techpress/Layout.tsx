@@ -153,6 +153,7 @@ const getColors = (isDark: boolean, primaryColor: string) => {
 };
 
 // ===== COMPONENTS =====
+export type TechPressColors = ReturnType<typeof getColors> & { isDark?: boolean };
 
 function LatestTickerBanner({
   colors,
@@ -161,7 +162,7 @@ function LatestTickerBanner({
   onClick,
   enableMarquee = true,
 }: {
-  colors: any;
+  colors: TechPressColors;
   latestTickerItems: Post[];
   settings: SiteSettings;
   onClick: (id: string) => void;
@@ -228,7 +229,7 @@ function HeroArticle({
   authorAvatar,
 }: {
   article: Post;
-  colors: any;
+  colors: TechPressColors;
   settings: SiteSettings;
   onClick: (id: string) => void;
   onCategoryClick?: (category: string) => void;
@@ -359,7 +360,7 @@ function NewsCard({
   expandedHorizontalImage = false,
 }: {
   article: Post;
-  colors: any;
+  colors: TechPressColors;
   layout?: 'horizontal' | 'vertical' | 'minimal';
   settings: SiteSettings;
   onClick: (id: string) => void;
@@ -695,215 +696,232 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     }
   };
 
-  // Header Logic (wrapped in useMemo to prevent re-creation and input focus loss)
-  const headerIdentity = useMemo(
-    () => getHeaderIdentityState(settings),
-    [settings.headerIdentityMode, settings.logoUrl, settings.useLogoAsTitle]
-  );
-
-  const Header = useMemo(
-    () => () => (
-      <header
-        className="sticky top-0 z-50 backdrop-blur-md transition-all duration-300 border-b"
-        style={{
-          background: isDark ? 'rgba(18, 18, 20, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-          borderColor: colors.border,
-        }}
-      >
-        <ProseDarkModeStyles />
-        <div className="max-w-7xl mx-auto px-5 py-4">
-          <div className="flex items-center justify-between">
-            <a
-              href={getPublicHomeHref()}
-              className="min-w-0 max-w-[58%] md:max-w-[320px] flex items-center gap-3 cursor-pointer"
-              onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
-            >
-              {headerIdentity.showUploadedLogo ? (
-                <ThemeLogo
-                  src={settings.logoUrl || ''}
-                  alt={settings.siteName}
-                  useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
-                  invertLogoInDarkMode={settings.invertLogoInDarkMode}
-                  className="transition-all"
-                />
-              ) : headerIdentity.showFallbackMark ? (
-                <VonLogo
-                  variant="default"
-                  className="w-10! h-10! md:w-12! md:h-12! mr-0! shrink-0"
-                />
-              ) : null}
-              {headerIdentity.showTitle && (
-                <div className="min-w-0 flex-1">
-                  <h1
-                    className="text-base sm:text-lg md:text-xl lg:text-2xl font-black leading-none tracking-tight truncate"
-                    style={{ color: colors.text }}
-                    title={settings.siteName}
+  const headerIdentity = getHeaderIdentityState(settings);
+  // Keep the DOM element type stable across renders, including while typing in search.
+  const header = (
+    <header
+      className="sticky top-0 z-50 backdrop-blur-md transition-all duration-300 border-b"
+      style={{
+        background: isDark ? 'rgba(18, 18, 20, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+        borderColor: colors.border,
+      }}
+    >
+      <ProseDarkModeStyles />
+      <div className="max-w-7xl mx-auto px-5 py-4">
+        <div className="flex items-center justify-between">
+          <a
+            href={getPublicHomeHref()}
+            className="min-w-0 max-w-[58%] md:max-w-[320px] flex items-center gap-3 cursor-pointer"
+            onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
+          >
+            {headerIdentity.showUploadedLogo ? (
+              <ThemeLogo
+                src={settings.logoUrl || ''}
+                alt={settings.siteName}
+                useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
+                invertLogoInDarkMode={settings.invertLogoInDarkMode}
+                className="transition-all"
+              />
+            ) : headerIdentity.showFallbackMark ? (
+              <VonLogo variant="default" className="w-10! h-10! md:w-12! md:h-12! mr-0! shrink-0" />
+            ) : null}
+            {headerIdentity.showTitle && (
+              <div className="min-w-0 flex-1">
+                <h1
+                  className="text-base sm:text-lg md:text-xl lg:text-2xl font-black leading-none tracking-tight truncate"
+                  style={{ color: colors.text }}
+                  title={settings.siteName}
+                >
+                  {settings.siteName}
+                </h1>
+                {settings.siteDescription && (
+                  <p
+                    className="text-xs mt-1 font-medium hidden md:block truncate opacity-80"
+                    style={{ color: colors.textSecondary }}
+                    title={settings.siteDescription}
                   >
-                    {settings.siteName}
-                  </h1>
-                  {settings.siteDescription && (
-                    <p
-                      className="text-xs mt-1 font-medium hidden md:block truncate opacity-80"
-                      style={{ color: colors.textSecondary }}
-                      title={settings.siteDescription}
-                    >
-                      {settings.siteDescription}
-                    </p>
-                  )}
-                </div>
-              )}
-            </a>
+                    {settings.siteDescription}
+                  </p>
+                )}
+              </div>
+            )}
+          </a>
 
-            <nav className={desktopNavigationClassName}>
-              {visibleNavigationItems.map((nav: NavItem) => (
-                <PublicNavigationLink
-                  key={nav.id}
-                  nav={nav}
-                  settings={settings}
-                  posts={posts}
-                  pages={pages}
-                  onNavigate={() => handleNavClick(nav)}
-                  className="hover:opacity-70 transition bg-transparent border-0 cursor-pointer"
+          <nav className={desktopNavigationClassName}>
+            {visibleNavigationItems.map((nav: NavItem) => (
+              <PublicNavigationLink
+                key={nav.id}
+                nav={nav}
+                settings={settings}
+                posts={posts}
+                pages={pages}
+                onNavigate={() => handleNavClick(nav)}
+                className="hover:opacity-70 transition bg-transparent border-0 cursor-pointer"
+                style={{ color: colors.text }}
+              >
+                {nav.label}
+              </PublicNavigationLink>
+            ))}
+            {/* More Dropdown */}
+            {overflowNavigationItems.length > 0 && (
+              <div className="relative group">
+                <button
+                  className="hover:opacity-70 transition bg-transparent border-0 cursor-pointer flex items-center gap-1"
                   style={{ color: colors.text }}
                 >
-                  {nav.label}
-                </PublicNavigationLink>
-              ))}
-              {/* More Dropdown */}
-              {overflowNavigationItems.length > 0 && (
-                <div className="relative group">
-                  <button
-                    className="hover:opacity-70 transition bg-transparent border-0 cursor-pointer flex items-center gap-1"
-                    style={{ color: colors.text }}
+                  More
+                  <svg
+                    className="w-3 h-3 transition-transform group-hover:rotate-180"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    More
-                    <svg
-                      className="w-3 h-3 transition-transform group-hover:rotate-180"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
-                  <div
-                    className="absolute top-full right-0 mt-2 w-48 py-2 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50 before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']"
-                    style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                  >
-                    {overflowNavigationItems.map((nav: NavItem) => (
-                      <PublicNavigationLink
-                        key={nav.id}
-                        nav={nav}
-                        settings={settings}
-                        posts={posts}
-                        pages={pages}
-                        onNavigate={() => handleNavClick(nav)}
-                        className="block w-full px-4 py-2 text-left text-sm hover:opacity-70 transition"
-                        style={{ color: colors.text }}
-                      >
-                        {nav.label}
-                      </PublicNavigationLink>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </nav>
-
-            <div className="flex items-center gap-3">
-              {isAuthLoading ? (
-                <span
-                  className="block h-10 w-24 shrink-0 rounded-lg border pointer-events-none"
-                  style={{ backgroundColor: colors.surfaceAlt, borderColor: colors.border }}
-                  data-auth-placeholder="true"
-                  aria-hidden="true"
-                />
-              ) : user ? (
-                <div className="relative" ref={dropdownRef}>
-                  {/* User Avatar Button */}
-                  <button
-                    onClick={() => setShowUserDropdown(!showUserDropdown)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:opacity-80"
-                    style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                    aria-label="User Menu"
-                  >
-                    <TechPressAvatar
-                      url={user.avatar}
-                      name={user.username}
-                      email={user.email}
-                      size="w-8 h-8"
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
                     />
-                    <span
-                      className="text-sm font-medium hidden sm:block"
+                  </svg>
+                </button>
+                <div
+                  className="absolute top-full right-0 mt-2 w-48 py-2 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-50 before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:content-['']"
+                  style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                >
+                  {overflowNavigationItems.map((nav: NavItem) => (
+                    <PublicNavigationLink
+                      key={nav.id}
+                      nav={nav}
+                      settings={settings}
+                      posts={posts}
+                      pages={pages}
+                      onNavigate={() => handleNavClick(nav)}
+                      className="block w-full px-4 py-2 text-left text-sm hover:opacity-70 transition"
                       style={{ color: colors.text }}
                     >
-                      {user.username}
-                    </span>
-                    <svg
-                      className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`}
-                      style={{ color: colors.textSecondary }}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
+                      {nav.label}
+                    </PublicNavigationLink>
+                  ))}
+                </div>
+              </div>
+            )}
+          </nav>
 
-                  {/* Dropdown Menu */}
-                  {showUserDropdown && (
-                    <div
-                      className="absolute right-0 mt-2 w-56 rounded-lg shadow-2xl border overflow-hidden z-50 animate-fade-in"
-                      style={{ background: colors.surface, borderColor: colors.border }}
-                    >
-                      {/* User Info Header */}
-                      <div className="p-4 border-b" style={{ borderColor: colors.border }}>
-                        <div className="flex items-center gap-3">
-                          <TechPressAvatar
-                            url={user.avatar}
-                            name={user.username}
-                            email={user.email}
-                            size="w-10 h-10"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className="font-bold text-sm truncate"
-                              style={{ color: colors.text }}
-                            >
-                              {user.username}
-                            </p>
-                            <p
-                              className={`text-xs truncate ${String(user.id) === '1' ? 'font-semibold' : ''}`}
-                              style={{
-                                color: String(user.id) === '1' ? '#ef4444' : colors.textSecondary,
-                              }}
-                            >
-                              {getUserDisplayRole(user)}
-                            </p>
-                          </div>
+          <div className="flex items-center gap-3">
+            {isAuthLoading ? (
+              <span
+                className="block h-10 w-24 shrink-0 rounded-lg border pointer-events-none"
+                style={{ backgroundColor: colors.surfaceAlt, borderColor: colors.border }}
+                data-auth-placeholder="true"
+                aria-hidden="true"
+              />
+            ) : user ? (
+              <div className="relative" ref={dropdownRef}>
+                {/* User Avatar Button */}
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:opacity-80"
+                  style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                  aria-label="User Menu"
+                >
+                  <TechPressAvatar
+                    url={user.avatar}
+                    name={user.username}
+                    email={user.email}
+                    size="w-8 h-8"
+                  />
+                  <span
+                    className="text-sm font-medium hidden sm:block"
+                    style={{ color: colors.text }}
+                  >
+                    {user.username}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`}
+                    style={{ color: colors.textSecondary }}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Dropdown Menu */}
+                {showUserDropdown && (
+                  <div
+                    className="absolute right-0 mt-2 w-56 rounded-lg shadow-2xl border overflow-hidden z-50 animate-fade-in"
+                    style={{ background: colors.surface, borderColor: colors.border }}
+                  >
+                    {/* User Info Header */}
+                    <div className="p-4 border-b" style={{ borderColor: colors.border }}>
+                      <div className="flex items-center gap-3">
+                        <TechPressAvatar
+                          url={user.avatar}
+                          name={user.username}
+                          email={user.email}
+                          size="w-10 h-10"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm truncate" style={{ color: colors.text }}>
+                            {user.username}
+                          </p>
+                          <p
+                            className={`text-xs truncate ${String(user.id) === '1' ? 'font-semibold' : ''}`}
+                            style={{
+                              color: String(user.id) === '1' ? '#ef4444' : colors.textSecondary,
+                            }}
+                          >
+                            {getUserDisplayRole(user)}
+                          </p>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Menu Items */}
-                      <div className="py-2">
-                        {/* View Profile */}
-                        <a
-                          href={getPublicProfileHref(user.username)}
-                          onClick={(event) =>
-                            handleCrawlableLinkClick(event, () => {
-                              onViewProfile(user.username);
-                              setShowUserDropdown(false);
-                            })
-                          }
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      {/* View Profile */}
+                      <a
+                        href={getPublicProfileHref(user.username)}
+                        onClick={(event) =>
+                          handleCrawlableLinkClick(event, () => {
+                            onViewProfile(user.username);
+                            setShowUserDropdown(false);
+                          })
+                        }
+                        className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3"
+                        style={{ color: colors.text }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = colors.border)}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
+                        </svg>
+                        View Profile
+                      </a>
+
+                      {/* Dashboard (Admin/Moderator/Writer only) */}
+                      {['Admin', 'Moderator', 'Writer'].includes(user.role) && (
+                        <button
+                          onClick={() => {
+                            onNavigateAdmin();
+                            setShowUserDropdown(false);
+                          }}
                           className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3"
                           style={{ color: colors.text }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = colors.border)}
@@ -919,162 +937,117 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth={2}
-                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                             />
                           </svg>
-                          View Profile
-                        </a>
-
-                        {/* Dashboard (Admin/Moderator/Writer only) */}
-                        {['Admin', 'Moderator', 'Writer'].includes(user.role) && (
-                          <button
-                            onClick={() => {
-                              onNavigateAdmin();
-                              setShowUserDropdown(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3"
-                            style={{ color: colors.text }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = colors.border)}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                              />
-                            </svg>
-                            Dashboard
-                          </button>
-                        )}
-
-                        {/* Divider */}
-                        <div className="my-2 border-t" style={{ borderColor: colors.border }}></div>
-
-                        {/* Logout */}
-                        <button
-                          onClick={() => {
-                            onLogout();
-                            setShowUserDropdown(false);
-                          }}
-                          className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3 text-red-600 dark:text-red-400"
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)')
-                          }
-                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                            />
-                          </svg>
-                          Logout
+                          Dashboard
                         </button>
-                      </div>
+                      )}
+
+                      {/* Divider */}
+                      <div className="my-2 border-t" style={{ borderColor: colors.border }}></div>
+
+                      {/* Logout */}
+                      <button
+                        onClick={() => {
+                          onLogout();
+                          setShowUserDropdown(false);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-sm font-medium transition-colors flex items-center gap-3 text-red-600 dark:text-red-400"
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)')
+                        }
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                          />
+                        </svg>
+                        Logout
+                      </button>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={onLogin}
-                  className="px-5 py-2 rounded-sm text-sm font-bold transition-all hover:opacity-90"
-                  style={{ background: colors.primary, color: 'white' }}
-                >
-                  Login
-                </button>
-              )}
-
-              {config.enableDarkMode && (
-                <button
-                  onClick={toggleDarkMode}
-                  className="w-10 h-10 rounded-sm flex items-center justify-center transition-all hover:opacity-70 border"
-                  style={{ background: colors.surface, borderColor: colors.border }}
-                  aria-label="Toggle Dark Mode"
-                >
-                  {isDark ? (
-                    <Moon size={18} className="text-blue-400" />
-                  ) : (
-                    <Sun size={18} className="text-amber-500" />
-                  )}
-                </button>
-              )}
-
-              {/* Mobile Menu Toggle */}
+                  </div>
+                )}
+              </div>
+            ) : (
               <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className={`${compactNavigationClassName} w-10 h-10 rounded-sm flex items-center justify-center transition-all hover:opacity-70 border`}
-                style={{
-                  background: colors.surface,
-                  borderColor: colors.border,
-                  color: colors.text,
-                }}
-                aria-label={isMobileMenuOpen ? 'Close Menu' : 'Open Menu'}
+                onClick={onLogin}
+                className="px-5 py-2 rounded-sm text-sm font-bold transition-all hover:opacity-90"
+                style={{ background: colors.primary, color: 'white' }}
               >
-                {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+                Login
               </button>
-            </div>
-          </div>
+            )}
 
-          {/* Mobile Menu Overlay */}
-          {isMobileMenuOpen && (
-            <div
-              className={`${compactNavigationClassName} border-t mt-4 py-4 animate-fade-in`}
-              style={{ borderColor: colors.border }}
+            {config.enableDarkMode && (
+              <button
+                onClick={toggleDarkMode}
+                className="w-10 h-10 rounded-sm flex items-center justify-center transition-all hover:opacity-70 border"
+                style={{ background: colors.surface, borderColor: colors.border }}
+                aria-label="Toggle Dark Mode"
+              >
+                {isDark ? (
+                  <Moon size={18} className="text-blue-400" />
+                ) : (
+                  <Sun size={18} className="text-amber-500" />
+                )}
+              </button>
+            )}
+
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className={`${compactNavigationClassName} w-10 h-10 rounded-sm flex items-center justify-center transition-all hover:opacity-70 border`}
+              style={{
+                background: colors.surface,
+                borderColor: colors.border,
+                color: colors.text,
+              }}
+              aria-label={isMobileMenuOpen ? 'Close Menu' : 'Open Menu'}
             >
-              <nav className="flex flex-col gap-2">
-                {navigationItems.map((nav: NavItem) => (
-                  <PublicNavigationLink
-                    key={nav.id}
-                    nav={nav}
-                    settings={settings}
-                    posts={posts}
-                    pages={pages}
-                    onNavigate={() => {
-                      handleNavClick(nav);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="text-left px-4 py-3 rounded-sm hover:opacity-70 transition font-semibold"
-                    style={{ color: colors.text, background: colors.surface }}
-                  >
-                    {nav.label}
-                  </PublicNavigationLink>
-                ))}
-              </nav>
-            </div>
-          )}
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
-      </header>
-    ),
-    [
-      colors,
-      headerIdentity,
-      settings,
-      user,
-      isDark,
-      config,
-      handleReturnHome,
-      onNavigateAdmin,
-      onLogin,
-      toggleDarkMode,
-      onViewProfile,
-      activeSearchQuery,
-      handleClearSearch,
-      currentView,
-    ]
+
+        {/* Mobile Menu Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            className={`${compactNavigationClassName} border-t mt-4 py-4 animate-fade-in`}
+            style={{ borderColor: colors.border }}
+          >
+            <nav className="flex flex-col gap-2">
+              {navigationItems.map((nav: NavItem) => (
+                <PublicNavigationLink
+                  key={nav.id}
+                  nav={nav}
+                  settings={settings}
+                  posts={posts}
+                  pages={pages}
+                  onNavigate={() => {
+                    handleNavClick(nav);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="text-left px-4 py-3 rounded-sm hover:opacity-70 transition font-semibold"
+                  style={{ color: colors.text, background: colors.surface }}
+                >
+                  {nav.label}
+                </PublicNavigationLink>
+              ))}
+            </nav>
+          </div>
+        )}
+      </div>
+    </header>
   );
 
   // Plugin Hooks (v1.9.9) - Hooks must be at top level
@@ -1119,7 +1092,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             selectedProfile={targetProfileForSEO}
           />
         )}
-        <Header />
+        {header}
         {/* HEADER AD SLOT */}
         {settings.ads.adsEnabled && settings.ads.headerAd && (
           <div
@@ -1386,8 +1359,8 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     />
                   )}
                 {settings.sidebarLayout
-                  .filter((widget: any) => widget.isVisible !== false && widget.type !== 'search')
-                  .map((widget: any) => (
+                  .filter((widget) => widget.isVisible !== false && widget.type !== 'search')
+                  .map((widget) => (
                     <VpSidebarWidget
                       key={widget.id}
                       widget={widget}
@@ -1435,7 +1408,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             selectedProfile={targetProfileForSEO}
           />
         )}
-        <Header />
+        {header}
         {/* HEADER AD SLOT */}
         {settings.ads.adsEnabled && settings.ads.headerAd && (
           <div
@@ -1502,7 +1475,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             selectedProfile={targetProfileForSEO}
           />
         )}
-        <Header />
+        {header}
         <main className="max-w-5xl mx-auto px-5 py-12 flex-1 w-full">
           <a
             href={getPublicHomeHref()}
@@ -1564,7 +1537,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
         />
       )}
 
-      <Header />
+      {header}
 
       {selectedCategory && (
         <div
@@ -1820,8 +1793,8 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                 <StickySidebar className="lg:w-[350px] shrink-0 space-y-6">
                   {/* Dynamic Widgets */}
                   {settings.sidebarLayout
-                    .filter((widget: any) => widget.isVisible !== false)
-                    .map((widget: any) => (
+                    .filter((widget) => widget.isVisible !== false)
+                    .map((widget) => (
                       <VpSidebarWidget
                         key={widget.id}
                         widget={widget}

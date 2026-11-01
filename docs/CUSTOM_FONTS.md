@@ -61,9 +61,11 @@ Then use the font inside the owning theme:
 
 ```tsx
 <main className="my-theme-root">
-  <h1 className="font-[var(--my-theme-display)]">{post.title}</h1>
+  <h1 className="font-(family-name:--my-theme-display)">{post.title}</h1>
 </main>
 ```
+
+The `family-name:` hint tells Tailwind to set `font-family`, not `font-weight`.
 
 Keep the default Inter bundle available unless the whole install intentionally changes the global font contract.
 

@@ -69,6 +69,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Lazy Load Admin Features
 const Dashboard = lazy(() => import('./plugins/von-core/features/dashboard/Dashboard'));
 const SettingsManager = lazy(() => import('./plugins/von-core/features/settings/SettingsManager'));
+const CalendarManager = lazy(() => import('./plugins/von-core/features/calendar/CalendarManager'));
 const DatabaseManager = lazy(() => import('./plugins/von-core/features/database/DatabaseManager'));
 const UserManager = lazy(() => import('./plugins/von-core/features/users/UserManager'));
 const ContentManager = lazy(() => import('./plugins/von-core/features/content/ContentManager'));
@@ -160,8 +161,6 @@ const AdminContentRouteLoader: React.FC<AdminContentRouteLoaderProps> = ({
       void loadWithOneRetry(loadPosts, 5);
     } else if (routePath === '/admin/posts') {
       void loadWithOneRetry(loadPosts, 200);
-    } else if (routePath === '/admin/discussion' && canManageEditorialContent) {
-      void loadWithOneRetry(loadPosts, 200);
     } else if (routePath === '/admin/pages' && canManageEditorialContent) {
       void loadWithOneRetry(loadPages, 200);
     }
@@ -176,7 +175,32 @@ const AdminContentRouteLoader: React.FC<AdminContentRouteLoaderProps> = ({
 };
 
 // Public Site Wrapper to handle Params
-const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
+type ContentActions = ReturnType<typeof useContent>;
+type UpdateSettings = ReturnType<typeof useSettings>['handleUpdateSettings'];
+type PublicSiteWrapperProps = Omit<
+  React.ComponentProps<typeof PublicSite>,
+  | 'pages'
+  | 'currentView'
+  | 'selectedPost'
+  | 'selectedPage'
+  | 'selectedProfile'
+  | 'onPostClick'
+  | 'onPageClick'
+  | 'onViewProfile'
+  | 'onBackToHome'
+  | 'onNavigateAdmin'
+> & {
+  pages: Page[];
+  handleEditContent?: ContentActions['handleEdit'];
+  handleSaveContent: ContentActions['handleSaveContent'];
+  handleUpdateSettings: UpdateSettings;
+  loadPublicComments?: ReturnType<typeof useComments>['loadPublicComments'];
+  loadMorePublicComments?: ReturnType<typeof useComments>['loadMorePublicComments'];
+  hasMoreComments?: boolean;
+  commentsLoading?: boolean;
+  commentsError?: string | null;
+};
+const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...props }) => {
   const { id, username, slug, category } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -317,12 +341,13 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
           : null)
       : null;
   const publicCommentPostId = publicCommentPost?.id ? String(publicCommentPost.id) : '';
+  const { loadPublicComments } = props;
 
   useEffect(() => {
-    if (!publicCommentPostId || typeof props.loadPublicComments !== 'function') return;
+    if (!publicCommentPostId || typeof loadPublicComments !== 'function') return;
 
-    void props.loadPublicComments(publicCommentPostId);
-  }, [props.loadPublicComments, publicCommentPostId]);
+    void loadPublicComments(publicCommentPostId);
+  }, [loadPublicComments, publicCommentPostId]);
 
   if (isAmbiguousSlugRoute) {
     if (fullPageMatchesCurrentRoute) {
@@ -564,7 +589,7 @@ const PublicSiteWrapper: React.FC<any> = ({ posts, pages, ...props }) => {
                     slug: rawPage.slug,
                   } as Page;
                 }
-              } catch (error) {
+              } catch {
                 // Fall through to the user-facing error below.
               }
             }
@@ -688,6 +713,7 @@ const App: React.FC = () => {
     settings,
     loadSettings,
     handleUpdateSettings,
+    handleRotateAiEncryptionKey,
     onToggleNav,
     isSettingsLoading,
     settingsLoadFailed,
@@ -718,7 +744,10 @@ const App: React.FC = () => {
     loadMorePublicComments,
     publicCommentPagination,
   } = useComments();
-  const { users, loadUsers, handleAddUser, handleDeleteUser, handleUpdateUserInList } = useUsers();
+  const { users, loadUsers, handleAddUser, handleDeleteUser, handleUpdateUserInList } = useUsers(
+    user,
+    handleUpdateUser
+  );
   const isPrimaryAdmin =
     String(user?.role || '').toLowerCase() === 'root' || String(user?.id || '') === '1';
 
@@ -807,7 +836,7 @@ const App: React.FC = () => {
     };
 
     initData();
-  }, []);
+  }, [loadSettings]);
 
   // Smart Session Check (Visibility API) - Option Auto-Kick + Message
   useEffect(() => {
@@ -841,7 +870,7 @@ const App: React.FC = () => {
             // Just redirect to Home, no scary messages
             window.location.href = BASE_PATH;
           }
-        } catch (e) {
+        } catch {
           // Ignore network errors (offline, etc)
         } finally {
           sessionVisibilityCheckInFlightRef.current = false;
@@ -865,7 +894,7 @@ const App: React.FC = () => {
       // A guest settings request may have started before session restoration or interactive login.
       loadSettings(true, requiresAdminSettings);
     }
-  }, [user]);
+  }, [user, isPrimaryAdmin, loadUsers, loadSettings, requiresAdminSettings]);
 
   // Notification helper
   const notify = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -1021,6 +1050,7 @@ const App: React.FC = () => {
                                 currentUser={user}
                                 serverInfo={settings._serverInfo}
                                 timeZone={settings.timeZone}
+                                analyticsMode={settings.analytics?.measurementMode}
                               />
                             }
                           />
@@ -1062,6 +1092,14 @@ const App: React.FC = () => {
                                   invalidateContentLoadCoverage={invalidateContentLoadCoverage}
                                   user={user}
                                 />
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="calendar"
+                            element={
+                              <ProtectedRoute user={user} allowedRoles={['Admin', 'Moderator']}>
+                                <CalendarManager settings={settings} />
                               </ProtectedRoute>
                             }
                           />
@@ -1118,6 +1156,7 @@ const App: React.FC = () => {
                                 <DiscussionManager
                                   comments={comments}
                                   posts={posts}
+                                  settings={settings}
                                   onUpdateCommentStatus={handleUpdateCommentStatus}
                                   onDeleteComment={handleDeleteComment}
                                 />
@@ -1171,6 +1210,7 @@ const App: React.FC = () => {
                                 <SettingsManager
                                   settings={settings}
                                   onUpdate={handleUpdateSettings}
+                                  onRotateEncryptionKey={handleRotateAiEncryptionKey}
                                   notify={notify}
                                 />
                               </ProtectedRoute>
@@ -1203,7 +1243,7 @@ const App: React.FC = () => {
           {/* Auth Modal */}
           {showAuthModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in">
-              <div className="relative w-full max-w-lg">
+              <div className="relative w-full max-w-lg has-[[data-auth-view=register]]:max-w-160">
                 <button
                   onClick={() => setShowAuthModal(false)}
                   className="absolute -top-12 right-0 text-white transition-colors hover:text-slate-300"
@@ -1228,7 +1268,20 @@ const App: React.FC = () => {
 };
 
 // Helper Wrappers to use Hooks
-const ContentManagerWrapper: React.FC<any> = ({
+interface ContentManagerWrapperProps {
+  type: 'post' | 'page';
+  posts?: Post[];
+  pages?: Page[];
+  setPosts?: ContentActions['setPosts'];
+  setPages?: ContentActions['setPages'];
+  settings: import('./types').SiteSettings;
+  handleEdit: ContentActions['handleEdit'];
+  navigation?: import('./types').NavItem[];
+  onToggleNav?: (id: string) => void;
+  user: User | null;
+  invalidateContentLoadCoverage: ContentActions['invalidateContentLoadCoverage'];
+}
+const ContentManagerWrapper: React.FC<ContentManagerWrapperProps> = ({
   type,
   posts,
   pages,
@@ -1276,9 +1329,9 @@ const ContentManagerWrapper: React.FC<any> = ({
           if (data.success) {
             invalidateContentLoadCoverage(isPage ? 'page' : 'post');
             if (isPage) {
-              setPages((prev: any) => prev.filter((p: any) => p.id !== id));
+              setPages!((prev) => prev.filter((p) => p.id !== id));
             } else {
-              setPosts((prev: any) => prev.filter((p: any) => p.id !== id));
+              setPosts!((prev) => prev.filter((p) => p.id !== id));
               window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
               window.dispatchEvent(new Event('voncms:pending-review-invalidated'));
             }
@@ -1295,7 +1348,18 @@ const ContentManagerWrapper: React.FC<any> = ({
   );
 };
 
-const PostEditorWrapper: React.FC<any> = ({
+interface PostEditorWrapperProps {
+  editingItem: Post | Page | null;
+  isPage: boolean;
+  navigation: import('./types').NavItem[];
+  posts?: Post[];
+  pages?: Page[];
+  handleSaveContent: ContentActions['handleSaveContent'];
+  settings: import('./types').SiteSettings;
+  handleUpdateSettings: UpdateSettings;
+  user: User | null;
+}
+const PostEditorWrapper: React.FC<PostEditorWrapperProps> = ({
   editingItem,
   isPage,
   navigation,
@@ -1312,6 +1376,10 @@ const PostEditorWrapper: React.FC<any> = ({
   // Read from URL query param - this persists across hard refresh
   const editorType = searchParams.get('type');
   const editorItemId = searchParams.get('id') || '';
+  const editorLocation = useLocation();
+  // The sidebar counter can restart after reload; the committed route key cannot collide with it.
+  const createDraftKey =
+    !editorItemId && editorLocation.state?.createDraftKey != null ? editorLocation.key : null;
   const hasEditorType = editorType === 'post' || editorType === 'page';
   const effectiveIsPage = hasEditorType ? editorType === 'page' : isPage;
   const [recoveredEditorItem, setRecoveredEditorItem] = useState<Post | Page | null>(null);
@@ -1319,12 +1387,106 @@ const PostEditorWrapper: React.FC<any> = ({
   const [isRecoveringEditorItem, setIsRecoveringEditorItem] = useState(false);
   const [hasTriedEditorRecovery, setHasTriedEditorRecovery] = useState(false);
   const recoveredEditorIdentityRef = useRef('');
-  const newEditorItem = useMemo(
-    () =>
-      hasEditorType && !editorItemId ? createEmptyEditorItem(effectiveIsPage, user || null) : null,
-    [editorItemId, effectiveIsPage, hasEditorType, user?.avatar, user?.username]
+  const draftUsername = user?.username;
+  const draftAvatar = user?.avatar;
+  const newEditorSeed = useMemo(
+    () => ({
+      key: createDraftKey,
+      item:
+        hasEditorType && !editorItemId
+          ? createEmptyEditorItem(
+              effectiveIsPage,
+              draftUsername === undefined ? null : { username: draftUsername, avatar: draftAvatar }
+            )
+          : null,
+    }),
+    [editorItemId, effectiveIsPage, hasEditorType, createDraftKey, draftAvatar, draftUsername]
   );
-  const effectiveEditingItem = editingItem || recoveredEditorItem || newEditorItem;
+  const newEditorItem = newEditorSeed.item;
+  // URL identity owns the editor; a Create link must never reuse the previous article.
+  const routedEditingItem =
+    !hasEditorType ||
+    (editorItemId && effectiveIsPage === isPage && String(editingItem?.id || '') === editorItemId)
+      ? editingItem
+      : null;
+  const recoveryIdentity = `${effectiveIsPage ? 'page' : 'post'}:${editorItemId}`;
+  const matchingRecoveredItem =
+    recoveredEditorIdentityRef.current === recoveryIdentity ? recoveredEditorItem : null;
+  const effectiveEditingItem = routedEditingItem || newEditorItem || matchingRecoveredItem;
+  // A completed save may update its own record, but cannot control a later editor entry.
+  const editorEntry = useMemo(
+    () => ({
+      active: false,
+      type: editorType,
+      id: editorItemId,
+      draftKey: newEditorSeed.key,
+      routeKey: editorLocation.key,
+    }),
+    [editorType, editorItemId, newEditorSeed.key, editorLocation.key]
+  );
+  useLayoutEffect(() => {
+    editorEntry.active = true;
+    return () => {
+      editorEntry.active = false;
+    };
+  }, [editorEntry]);
+  const editorDirtyRef = useRef(false);
+  const trackEditorDirty = React.useCallback(
+    (dirty: boolean) => {
+      if (editorEntry.active) editorDirtyRef.current = dirty;
+    },
+    [editorEntry]
+  );
+  const navigateAfterSave = (destination: string) => {
+    if (editorEntry.active) navigate(destination);
+  };
+  const confirmEditorLeave = () =>
+    !editorDirtyRef.current || window.confirm('Discard the unsaved changes in this editor?');
+
+  useEffect(() => {
+    editorDirtyRef.current = false;
+    const guardLinkNavigation = (event: MouseEvent) => {
+      if (
+        !editorDirtyRef.current ||
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!(link instanceof HTMLAnchorElement) || link.hasAttribute('download')) return;
+      if (link.target && link.target.toLowerCase() !== '_self') return;
+      const destination = new URL(link.href);
+      const sameDocument =
+        destination.origin === window.location.origin &&
+        destination.pathname === window.location.pathname &&
+        destination.search === window.location.search;
+      // Create is a fresh draft even at the same URL: it MUST reach confirmation.
+      const requestsFreshDraft = link.dataset['adminCreate'] === 'true';
+      if (sameDocument) {
+        if (!requestsFreshDraft) return;
+      }
+      if (!window.confirm('Discard the unsaved changes in this editor?')) {
+        // Cancel before the router/Create onClick can change the draft-entry state.
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const guardUnload = (event: BeforeUnloadEvent) => {
+      if (!editorDirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    document.addEventListener('click', guardLinkNavigation, true);
+    window.addEventListener('beforeunload', guardUnload);
+    return () => {
+      document.removeEventListener('click', guardLinkNavigation, true);
+      window.removeEventListener('beforeunload', guardUnload);
+    };
+  }, [editorType, editorItemId, createDraftKey]);
   const normalizedUserRole = String(user?.role || '').toLowerCase();
   const canManagePages = ['admin', 'root', 'moderator'].includes(normalizedUserRole);
 
@@ -1335,7 +1497,7 @@ const PostEditorWrapper: React.FC<any> = ({
   useEffect(() => {
     let cancelled = false;
 
-    if (editingItem) {
+    if (routedEditingItem) {
       recoveredEditorIdentityRef.current = '';
       setRecoveredEditorItem(null);
       setRecoveredEditorItemIsComplete(false);
@@ -1354,7 +1516,6 @@ const PostEditorWrapper: React.FC<any> = ({
     }
 
     // Collection refreshes after save must not reseed the active editor's draft.
-    const recoveryIdentity = `${effectiveIsPage ? 'page' : 'post'}:${editorItemId}`;
     if (recoveredEditorIdentityRef.current === recoveryIdentity) return;
 
     const localEditorSource = effectiveIsPage ? pages : posts;
@@ -1459,7 +1620,7 @@ const PostEditorWrapper: React.FC<any> = ({
     return () => {
       cancelled = true;
     };
-  }, [editingItem, editorItemId, effectiveIsPage, pages, posts]);
+  }, [routedEditingItem, editorItemId, effectiveIsPage, recoveryIdentity, pages, posts]);
 
   useEffect(() => {
     if (
@@ -1488,6 +1649,7 @@ const PostEditorWrapper: React.FC<any> = ({
 
   return (
     <PostEditor
+      key={`${effectiveIsPage ? 'page' : 'post'}:${editorItemId || 'new'}${createDraftKey === null ? '' : `:${createDraftKey}`}`}
       initialItem={effectiveEditingItem}
       initialItemIsComplete={Boolean(
         recoveredEditorItem &&
@@ -1499,11 +1661,12 @@ const PostEditorWrapper: React.FC<any> = ({
       posts={posts}
       settings={settings}
       userRole={user?.role}
+      onDirtyChange={trackEditorDirty}
       onSave={(item, addToMenu, isAutoSave, saveOptions) =>
         handleSaveContent(
           item,
           addToMenu,
-          navigate,
+          navigateAfterSave,
           settings,
           handleUpdateSettings,
           isAutoSave,
@@ -1511,7 +1674,9 @@ const PostEditorWrapper: React.FC<any> = ({
           saveOptions
         )
       }
-      onBack={() => navigate(effectiveIsPage ? '/admin/pages' : '/admin/posts')}
+      onBack={() => {
+        if (confirmEditorLeave()) navigate(effectiveIsPage ? '/admin/pages' : '/admin/posts');
+      }}
     />
   );
 };

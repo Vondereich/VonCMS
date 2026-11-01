@@ -47,6 +47,7 @@ function validatePortableEntryName(entryName) {
     if (
       segment === '.' ||
       segment === '..' ||
+      // eslint-disable-next-line no-control-regex -- Archive paths must reject Windows-invalid control characters.
       /[<>:"|?*\u0000-\u001f]/.test(segment) ||
       /[. ]$/.test(segment) ||
       /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(windowsStem)

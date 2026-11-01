@@ -1,5 +1,13 @@
 <?php
 
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
+  http_response_code(403);
+  exit('Forbidden');
+}
+
 require_once __DIR__ . '/../media_variants.php';
 
 function voncms_normalize_media_library_path(string $path): string
@@ -107,7 +115,7 @@ function voncms_is_legacy_generated_media_variant_path(
     return false;
   }
 
-  $sourceFilename = trim((string) ($matches[1] ?? ''));
+  $sourceFilename = trim($matches[1]);
   if ($sourceFilename === '') {
     return false;
   }

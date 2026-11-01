@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { SiteSettings, MediaConfig } from '../../../../../types';
 import { API } from '../../../../../config/site.config';
-import { vonFetch } from '../../../../../utils/api';
+import { vonFetch, getErrorMessage } from '../../../../../utils/api';
 import {
   Image,
   HardDrive,
@@ -19,7 +19,7 @@ import {
 
 interface MediaSettingsProps {
   settings: SiteSettings;
-  onChange: (key: string, value: any) => void;
+  onChange: import('../../../../../types').SettingsFieldChange<SiteSettings>;
 }
 
 interface MediaCleanupEntry {
@@ -51,12 +51,27 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
   const [toolResult, setToolResult] = useState<{
     type: string;
     message: string;
-    stats?: any;
+    stats?: {
+      processed?: number;
+      skipped?: number;
+      skippedWebP?: number;
+      skippedVariants?: number;
+      errors?: number;
+      count?: number;
+      sourceCount?: number;
+      deleted?: number;
+      scanned?: number;
+      deletedCount?: number;
+      failedCount?: number;
+      isExecuted?: boolean;
+      totalSizeFormatted?: string;
+      deletedSizeFormatted?: string;
+    };
     previewToken?: string | null;
     orphaned?: MediaCleanupEntry[];
     failedDeletions?: string[];
   } | null>(null);
-  const media = {
+  const media: MediaConfig = {
     optimization: settings.media?.optimization || {
       enabled: false,
       compressionLevel: 'medium',
@@ -69,10 +84,13 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
     defaultView: settings.media?.defaultView,
   };
 
-  const updateMedia = (
-    section: Exclude<keyof MediaConfig, 'defaultView'>,
-    key: string,
-    value: any
+  const updateMedia = <
+    S extends Exclude<keyof MediaConfig, 'defaultView'>,
+    K extends keyof MediaConfig[S],
+  >(
+    section: S,
+    key: K,
+    value: MediaConfig[S][K]
   ) => {
     const updatedMedia = {
       ...media,
@@ -102,9 +120,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         toast.error(data.error || 'Failed to rebuild responsive variants');
         setToolResult({ type: 'error', message: data.error });
       }
-    } catch (err: any) {
-      toast.error('Error: ' + (err?.message || 'Unknown error'));
-      setToolResult({ type: 'error', message: err?.message || 'Unknown error' });
+    } catch (err) {
+      toast.error('Error: ' + getErrorMessage(err, 'Unknown error'));
+      setToolResult({ type: 'error', message: getErrorMessage(err, 'Unknown error') });
     } finally {
       setIsRebuildingVariants(false);
     }
@@ -133,9 +151,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         toast.error(data.error || 'Failed to sync media library');
         setToolResult({ type: 'error', message: data.error || 'Failed to sync media library' });
       }
-    } catch (err: any) {
-      toast.error('Error: ' + (err?.message || 'Unknown error'));
-      setToolResult({ type: 'error', message: err?.message || 'Unknown error' });
+    } catch (err) {
+      toast.error('Error: ' + getErrorMessage(err, 'Unknown error'));
+      setToolResult({ type: 'error', message: getErrorMessage(err, 'Unknown error') });
     } finally {
       setIsSyncingMedia(false);
     }
@@ -158,9 +176,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         toast.error(data.error || 'Failed to preview responsive variants');
         setToolResult({ type: 'error', message: data.error });
       }
-    } catch (err: any) {
-      toast.error('Error: ' + (err?.message || 'Unknown error'));
-      setToolResult({ type: 'error', message: err?.message || 'Unknown error' });
+    } catch (err) {
+      toast.error('Error: ' + getErrorMessage(err, 'Unknown error'));
+      setToolResult({ type: 'error', message: getErrorMessage(err, 'Unknown error') });
     } finally {
       setIsManagingVariants(false);
     }
@@ -199,9 +217,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
           message: data.error || 'Failed to clean generated variant rows',
         });
       }
-    } catch (err: any) {
-      toast.error('Error: ' + (err?.message || 'Unknown error'));
-      setToolResult({ type: 'error', message: err?.message || 'Unknown error' });
+    } catch (err) {
+      toast.error('Error: ' + getErrorMessage(err, 'Unknown error'));
+      setToolResult({ type: 'error', message: getErrorMessage(err, 'Unknown error') });
     } finally {
       setIsCleaningVariantRows(false);
     }
@@ -241,9 +259,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         toast.error(data.error || 'Failed to manage responsive variants');
         setToolResult({ type: 'error', message: data.error });
       }
-    } catch (err: any) {
-      toast.error('Error: ' + (err?.message || 'Unknown error'));
-      setToolResult({ type: 'error', message: err?.message || 'Unknown error' });
+    } catch (err) {
+      toast.error('Error: ' + getErrorMessage(err, 'Unknown error'));
+      setToolResult({ type: 'error', message: getErrorMessage(err, 'Unknown error') });
     } finally {
       setIsManagingVariants(false);
     }
@@ -291,9 +309,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
         toast.error(data.error || 'Failed to scan files');
         setToolResult({ type: 'error', message: data.error });
       }
-    } catch (err: any) {
-      toast.error('Error: ' + (err?.message || 'Unknown error'));
-      setToolResult({ type: 'error', message: err?.message || 'Unknown error' });
+    } catch (err) {
+      toast.error('Error: ' + getErrorMessage(err, 'Unknown error'));
+      setToolResult({ type: 'error', message: getErrorMessage(err, 'Unknown error') });
     } finally {
       setIsScanning(false);
     }
@@ -406,7 +424,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   Compression Level
                 </span>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {['low', 'medium', 'high'].map((level) => (
+                  {(['low', 'medium', 'high'] as const).map((level) => (
                     <button
                       key={level}
                       onClick={() => updateMedia('optimization', 'compressionLevel', level)}
@@ -500,7 +518,13 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     id="mediasettings-459"
                     name="mediasettings459"
                     value={media.storage.location}
-                    onChange={(e) => updateMedia('storage', 'location', e.target.value)}
+                    onChange={(e) =>
+                      updateMedia(
+                        'storage',
+                        'location',
+                        e.target.value as MediaConfig['storage']['location']
+                      )
+                    }
                     className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   >
                     <option value="local">Local Server</option>
@@ -518,7 +542,13 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     name="mediasettings474"
                     aria-label="Folder Structure"
                     value={media.storage.folderStructure}
-                    onChange={(e) => updateMedia('storage', 'folderStructure', e.target.value)}
+                    onChange={(e) =>
+                      updateMedia(
+                        'storage',
+                        'folderStructure',
+                        e.target.value as MediaConfig['storage']['folderStructure']
+                      )
+                    }
                     className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
                   >
                     <option value="year_month">Year / Month (e.g. 2025/12/image.jpg)</option>
@@ -709,32 +739,35 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                                 ` (${toolResult.stats.deletedSizeFormatted})`}
                             </div>
                           )}
-                        {toolResult.stats.failedCount > 0 && (
+                        {(toolResult.stats.failedCount ?? 0) > 0 && (
                           <div className="font-bold text-red-600 dark:text-red-400">
                             Failed to delete: {toolResult.stats.failedCount}
                           </div>
                         )}
                       </div>
                     )}
-                    {toolResult.type === 'variants-preview' && toolResult.stats?.count > 0 && (
-                      <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                        <p className="text-sm text-orange-800 dark:text-orange-300 font-medium mb-3">
-                          Warning: deleting generated responsive variants does not remove original
-                          uploads, but it can remove current srcset candidates until you rebuild
-                          them again. For WebP-heavy imports, some variants may not come back
-                          automatically with the current rebuild rules.
-                        </p>
-                        <button
-                          onClick={() => handlePurgeResponsiveVariants(true)}
-                          disabled={isManagingVariants}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                        >
-                          Delete {toolResult.stats.count} Generated Variants Anyway
-                        </button>
-                      </div>
-                    )}
+                    {toolResult.type === 'variants-preview' &&
+                      toolResult.stats?.count !== undefined &&
+                      toolResult.stats.count > 0 && (
+                        <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                          <p className="text-sm text-orange-800 dark:text-orange-300 font-medium mb-3">
+                            Warning: deleting generated responsive variants does not remove original
+                            uploads, but it can remove current srcset candidates until you rebuild
+                            them again. For WebP-heavy imports, some variants may not come back
+                            automatically with the current rebuild rules.
+                          </p>
+                          <button
+                            onClick={() => handlePurgeResponsiveVariants(true)}
+                            disabled={isManagingVariants}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                          >
+                            Delete {toolResult.stats.count} Generated Variants Anyway
+                          </button>
+                        </div>
+                      )}
                     {toolResult.type === 'cleanup' &&
-                      toolResult.stats?.count > 0 &&
+                      toolResult.stats?.count !== undefined &&
+                      toolResult.stats.count > 0 &&
                       !toolResult.stats?.isExecuted && (
                         <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
                           <p className="text-sm text-orange-800 dark:text-orange-300 font-medium mb-3">

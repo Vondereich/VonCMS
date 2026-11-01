@@ -3,7 +3,7 @@ import { SiteSettings } from '../../../../../types';
 
 interface ProfileSettingsProps {
   settings: SiteSettings;
-  onChange: (key: string, value: any) => void;
+  onChange: import('../../../../../types').SettingsFieldChange<Pick<SiteSettings, 'adminProfile'>>;
   readOnly?: boolean;
 }
 

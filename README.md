@@ -2,11 +2,53 @@
 
 # VonCMS
 
-VonCMS is a lightweight PHP and React CMS not only for shared hosting, but on many levels that suite your needs. It is built for publishers who want a modern admin dashboard, clean public themes, SEO-friendly output, and extensibility without running a heavy plugin stack.
-
-Current version: **v1.27.12 "OverDrive"**. This maintenance and security follow-up improves Post/Page HTML validation, metadata consistency, editor save feedback, media storage consistency, contact handling and profile text. Owner-only settings controls are read-only for appointed Admins, and existing public sidebars follow desktop scrolling. No new database repair is required if earlier upgrade steps are complete. Review [CHANGELOG.md](CHANGELOG.md) and [Upgrade](docs/UPGRADE.md) before updating.
+VonCMS is a lightweight, self-hosted CMS built with PHP and React for publishers, independent newsrooms, and content-driven websites. It combines a modern admin dashboard, bundled public themes, server-generated SEO metadata, and built-in publishing tools without requiring a heavy plugin stack or a Node.js server in production.
 
 [Website](https://getvoncms.com/) | [Live Demo](https://skripglobal.com/) | [Releases](https://github.com/Vondereich/VonCMS/releases) | [Sponsor](https://github.com/sponsors/Vondereich)
+
+## v1.28.x: The BluePrint
+
+**The BluePrint** is the v1.28.x series, following v1.27.x "OverDrive", whose maintenance line closed at v1.27.12. The BluePrint line focuses on clearer editorial workflows, safer content recovery, leaner public settings, and better staff tools while retaining VonCMS's PHP/MySQL hosting model.
+
+> [!IMPORTANT]
+> **Current package version: v1.28.0 "The BluePrint".** The highlights below describe this version. Later roadmap entries remain planned, not currently available features. Download availability and publication dates are listed on [Releases](https://github.com/Vondereich/VonCMS/releases).
+
+### v1.28.0 Highlights
+
+- **Grouped navigation and Create actions:** admin destinations grouped by purpose, with role-aware shortcuts for posts, pages, and internal events.
+- **Editorial Calendar:** Month/Agenda views, private event management, and read-only publication entries. Reviewing the calendar does not change an article's publication schedule.
+- **VonAnalytics measurement modes:** Strict remains the default; optional Balanced distinguishes browsers behind a shared IP. Reports separate the modes; visitor estimates are not verified people.
+- **Owner AI credential protection:** encrypted shared Gemini key storage, masked settings responses, and owner-only encryption-key rotation. Personal staff credential storage remains a later roadmap item.
+- **Maintenance and developer tooling:** publishing, media, metadata, import, and update corrections, plus locked ESLint/PHPStan checks for source development. These tools are not production runtime requirements.
+
+Existing installations require Primary Admin **Database > Schema Repair** to enable Calendar storage and optional Balanced analytics storage. Back up first and follow [Upgrade](docs/UPGRADE.md); uploading application files alone does not activate every new storage capability. Exact implemented changes belong in [CHANGELOG.md](CHANGELOG.md).
+
+### v1.28.0 Screenshots
+
+**Grouped admin navigation and Create menu**
+
+![VonCMS v1.28.0 grouped admin navigation and Create menu](https://i.ibb.co/7Nnk0sF7/new-dropdown.png)
+
+**Editorial Calendar**
+
+![VonCMS v1.28.0 Editorial Calendar](https://i.ibb.co/0VmVfFKN/calendar.png)
+
+### 1.28.x Roadmap
+
+| Version    | Focus                                                                                                       | Status          |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | --------------- |
+| **1.28.0** | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Current package |
+| **1.28.1** | Post/Page Trash and Restore: recover content as a draft before choosing to publish again                    | Planned         |
+| **1.28.2** | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | Planned         |
+| **1.28.3** | Personal AI keys in eligible staff account profiles, with explicit credential selection                     | Planned         |
+| **1.28.4** | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned         |
+| **1.28.5** | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned         |
+
+Each milestone is delivered and verified separately. Scope and order may change; this roadmap is not a release-date commitment. The 1.28.6 and later slots are reserved for maintenance, compatibility, security, and confirmed regression fixes. Interface translation does not automatically translate articles or create multilingual URLs.
+
+## PHP: 8.2 minimum, 8.3+ recommended
+
+**PHP 8.2 remains supported for compatibility. PHP 8.3 or newer is recommended. Use a security-patched PHP build from your hosting/OS vendor. Updating VonCMS does not update PHP.** The dashboard shows a non-blocking recommendation on PHP 8.2; compatible sites are not locked out solely for using that branch.
 
 ## Project Status
 
@@ -14,10 +56,6 @@ VonCMS is actively maintained open-source software. Review, test, and back up yo
 
 > [!NOTE]
 > Before updating a production site, back up its files and database, review the [release notes](CHANGELOG.md), and test the Deploy ZIP on a local or staging installation when possible. After updating, verify the homepage, one post, one page, and the admin dashboard.
-
-The OverDrive release line closed its planned maintenance scope with v1.27.11; v1.27.12 is a focused corrective follow-up. New feature development is planned for v1.28.x and is not included in this update. Exact changes belong in [CHANGELOG.md](CHANGELOG.md); version-specific upgrade and repair instructions belong in [docs/UPGRADE.md](docs/UPGRADE.md).
-
-<img width="1920" height="957" alt="126" src="https://github.com/user-attachments/assets/c0fdec1a-827f-457b-9feb-d84ce0d62c0c" />
 
 ## Why VonCMS?
 
@@ -35,7 +73,7 @@ VonCMS keeps the runtime simple:
 
 **Content**: posts, pages, drafts, Writer review submissions, scheduled publishing, rich TipTap editor, media manager, categories, excerpts, metadata, keywords, responsive images, and quick edit.
 
-**Admin**: dashboard, reviewer queue, settings, users, fixed-role boundaries, comments moderation, contact forms, newsletter tools, database utilities, audit logs, and repair tools.
+**Admin**: dashboard, grouped navigation, Editorial Calendar, reviewer queue, settings, users, fixed-role boundaries, comments moderation, contact forms, newsletter tools, database utilities, audit logs, and repair tools.
 
 **Public site**: bundled themes, navigation menus, profiles, category views, search, comments, feeds, sitemap, robots output, `llms.txt`, JSON-LD, canonical URLs, Open Graph, and Twitter cards.
 
@@ -47,7 +85,7 @@ VonCMS keeps the runtime simple:
 
 | Layer              | Requirement                          |
 | ------------------ | ------------------------------------ |
-| PHP                | 8.2 or newer                         |
+| PHP                | 8.2 minimum; 8.3+ recommended        |
 | Database           | MySQL 5.7 or newer                   |
 | Web server         | Apache or LiteSpeed with `.htaccess` |
 | Local PHP checks   | Laragon, XAMPP, WAMP, or PHP on PATH |

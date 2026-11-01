@@ -1,4 +1,6 @@
-# VonCMS User Manual v1.27.12
+# VonCMS User Manual v1.28.0
+
+This development line supports PHP 8.2 or newer; PHP 8.3+ is recommended. Use a supported, patched PHP build; see [Installation](INSTALL.md) and [Security](SECURITY.md).
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -11,18 +13,63 @@ Open your site and go to:
 
 Sign in with the account created during installation.
 
+If a registration verification email is missing or expired, enter that account's username/email and password on the login form and choose **Resend verification email**. This sends a new 24-hour link without signing in or verifying the account. Only the latest link works. Wait at least one minute between requests; the limit is three resends in 15 minutes. If delivery fails, retry later or ask the site administrator; the account is not automatically approved.
+
 If you cannot see a menu that this manual mentions, the most common reasons are:
 
 - your role does not have access
 - the related module is disabled
 - the current screen is hidden by the active layout or plugin state
 
+## Admin navigation
+
+Dashboard stays directly accessible. Content groups Posts, Pages and Calendar; Extensions opens Plugins or Themes; Monitoring contains the existing Security screen. Only destinations allowed for your account appear. Gallery, Widgets and Database retain their Primary Admin restriction.
+
+Use Create for New Post, New Page or New Event / Agenda when your role permits it. These open a fresh form, not the last item you edited. Selecting Create again while writing unsaved text asks before starting over. Status and Activity Log remain unavailable until their own implementation.
+
+Click or press Enter/Space on a group to open or close it, including the current page's group. Entering a child route opens its group automatically; closing that group manually does not change the current page or its active highlighting. On a compact desktop sidebar, selecting a group expands the sidebar; on phones and tablets, use the navigation button and Escape to close the drawer. Create and group links are also included in admin search.
+
+Unsaved dashboard edits prompt before following navigation links or using the editor's Back action. Cancel keeps the current draft open. Reload/close uses the browser warning; browser-history Back/Forward and session-expiry redirects are not blocked by this link guard. Save important work before using history navigation.
+
+## Google services and AI usage
+
+Settings > Google configures Search Console verification, Google Analytics 4 and AdSense. A saved code means configured, not verified ownership, working collection or advertising approval. Google tracking follows the analytics master plugin, its own Enable Tracking switch and the configured consent requirement. Native VonAnalytics is a separate local reporting flow.
+
+GA4 privacy and IP handling are managed through Google's service and property controls. The retired IP-masking checkbox was not a GDPR compliance switch; existing stored settings are retained without rewriting them. Review [Google's privacy controls](https://support.google.com/analytics/answer/9019185?hl=en) and the site's actual consent requirements.
+
+Settings > API uses Google Gemini for AI writing and editing. New selections offer Gemini 3.8 Flash, 3.6 Flash, 3.5 Flash-Lite and the automatic Flash Latest alias. The default remains 3.6 Flash. Older saved models remain visible only as the current legacy configuration and are not silently replaced when unrelated settings are saved; select a current model explicitly to migrate. Account access, provider retirements and pricing still apply.
+
+Writing and editing requests, including the existing model-not-found fallback, explicitly send `store: false` to opt out of optional Generate Content request storage. This does not promise zero provider retention: Google's applicable service, safety and abuse-monitoring terms still apply. Built-in local AI Summary is not a Gemini request.
+
+The Primary Admin's saved global Gemini key is masked in Settings. On an upgraded site, a **legacy storage** notice means the existing key has not been rewritten yet: click Save Settings once to encrypt it, preserving its existing expiry. New or replaced keys are encrypted on Save. An expired key stays masked and cannot be used until explicitly replaced/re-entered or the owner changes the expiry policy; unrelated Saves do not renew or erase it. Clear the key field and Save to remove it deliberately.
+
+Back up the installation's private `data/credential_master.key.php` separately from the SQL backup. It is not included in release ZIPs or SQL exports, and OTA keeps the existing file. A restore or hosting move needs the matching file; if it is missing or corrupt, Settings shows an unavailable-key notice instead of erasing the saved value. See [credential recovery and advanced deployment](SECURITY.md#global-gemini-credential-encryption). This is global owner-key storage, not the planned personal key section for individual staff.
+
+To replace the private encryption key, save/discard outstanding Settings edits, then choose **Rotate Encryption Key** and confirm as Primary Admin. The panel shows status and the last successful rotation time, not the master key. No manual file deletion, SQL editing or provider-key re-entry is needed. The saved Gemini key and its expiry do not change. Back up the private file again afterward. If rotation cannot be confirmed, reload Settings before retrying; the transition keeps the old/pending credential readable. A missing/corrupt key still needs recovery, and a read-only/mounted secret location may require server-operator management.
+
+## Editorial Calendar
+
+Open **Content > Calendar** as an Admin or Moderator. Writers, Members and guests have no Calendar access. On an upgraded installation, ask the Primary Admin to run **Database > Schema Repair** if Calendar reports missing storage. Opening the page never creates tables.
+
+- Use Month or Agenda, previous/next, Today and the month field to navigate. Select a day, then an item, to see its details. The details panel becomes an accessible side drawer on phones/tablets.
+- All, Events / Agenda, Posts and Pages filter record types. Content author filters apply to Post/Page entries, not event organisers. The list shows authors represented in the requested date range, not the complete user directory.
+- New event, or **Create > New Event / Agenda**, opens the event form. Supply a title, start/end and optional plain-text notes. All-day events include the Last day shown in the form. Events are limited to 366 days; titles to 200 characters and notes to 10,000. HTML-like notes are text, not executable markup.
+- Save, reopen and edit an event, or use Delete event with confirmation. An event deletion never deletes an article/page. Failed saves preserve the form. If another editor changed/deleted the event, reload before editing again; stale changes are rejected rather than overwriting the newer version. Retrying the same successful create request does not create a second event.
+- Post/Page details show author, publication date and Published/Scheduled labels. Open editor is available only with the existing edit permission. Reading Calendar does not run the scheduler or change article statuses, slugs or publication times.
+- Calendar uses the site's existing General timezone, with no separate General Calendar settings. Dates are stored in the site's wall-clock format, like existing publication timestamps; changing the site timezone does not rewrite existing rows. All-day storage uses an exclusive end internally; the form shows the included last day.
+- Results are paginated, 200 records per request. If more exist, use Load more; counts describe loaded records only. Refresh retries the current date/type/author range. There is no background polling or full-body article download.
+- Event changes record actor, action, event ID, version and time in private audit storage, not a full content revision. Mutations opportunistically prune up to 500 audit rows older than 90 days. Event deletion retains its audit record until pruning. No public calendar, reminders, recurring events, invitations or external calendar sync is included.
+
+Sidebar and search Create actions both ask before discarding an edited event form. If you accept a new entry while an earlier save is pending, the earlier request still finishes its own operation but cannot replace the newer form or its feedback.
+
+Save important work before using browser-history navigation or leaving after session expiry; the link/unload guard is not a history-navigation blocker.
+
 ## First things to do after install
 
 Before you start publishing, check these basics:
 
 1. Confirm `Site Name`, `Site URL`, and tagline.
-2. Set your main theme in the Appearance section.
+2. Set your main theme under Extensions > Themes.
 3. Review SEO defaults, sitemap, and robots.txt.
 4. Confirm **Settings > General > Domain URL** contains the exact public HTTPS URL, including any installation subfolder. VonCMS intentionally does not derive production crawler URLs from an untrusted request Host when this value is missing.
 5. Upload your logo and favicon, then choose Logo + Text, Logo Only, or Text Only under Header Identity.
@@ -31,7 +78,11 @@ Before you start publishing, check these basics:
 
 ## Dashboard
 
+Storage usage is staff-only and may be cached for up to five minutes to avoid repeatedly scanning the complete media archive. Successful uploads and media deletions invalidate the cache. An unavailable cache falls back to a live count; existing files are not moved or modified.
+
 The Analytics card offers Visitor Traffic and Top Articles. Top Articles lists up to 10 currently published articles by recorded views for the last 7 or 30 calendar days, including today in the site's timezone. These are anonymous aggregate views, not unique readers. Existing sites need Database Repair once to activate daily storage; the tab shows its activation date because previous lifetime views cannot be backfilled. Temporary reporting faults do not change lifetime article/page counters.
+
+Visitor Traffic totals cover the entire selected 7/30-day period. The chart shows daily visits and daily unique IPs (Strict) or browsers (Balanced). A returning IP/browser is counted once on each active day in the chart, but only once across the selected period in the unique total. Daily unique counts therefore must not be added together to calculate that total; neither mode measures verified individual people.
 
 The dashboard is your control center. It usually gives you a quick read on:
 
@@ -142,6 +193,14 @@ Typical tasks:
 VonCMS supports a WebP-aware media flow. Depending on the upload context and settings, some image uploads may be converted during processing.
 
 Gallery, editor and system-image uploads use the saved Flat or Year/Month folder default unless an upload supplies an explicit override. Changing that setting does not move existing images. WordPress import retains its Year/Month layout.
+
+### Moving content from WordPress
+
+Use **Settings > WordPress Bridge** as Primary Admin with a WordPress WXR export and a current backup. The Bridge imports supported Post/Page HTML and images, native excerpts/tags and supported Yoast/Rank Math descriptions. Password-protected items become Drafts with a warning; WordPress passwords are not transferred. Long metadata is shortened to the editor limits with a warning, while articles above 1 MiB pause rather than losing their ending.
+
+Let both import and final link-resolution phases finish. A failed item pauses with its XML/checkpoint retained; resume retries it. A completed import with warnings is not an all-content success claim. Temporary files expire after 24 hours when a later scan cleans them up. Do not change the destination domain or permalink setting during an import.
+
+Verify article bodies, source-URL redirects, metadata and images before retiring WordPress. Query-based external redirects need server configuration. Authors, comments, schedules, page hierarchy, custom post types, arbitrary metadata and dynamic/plugin-rendered blocks are not transferred in full. Duplicate slugs are skipped, not updated, and older imported content is not rewritten automatically. See the [Bridge API contract](API.md#wordpress-bridge-endpoints).
 
 ## Comments and discussion
 

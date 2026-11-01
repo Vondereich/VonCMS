@@ -1,0 +1,21 @@
+parameters:
+    level: 9
+    phpVersion: 80200
+    # Boundary helpers validate raw callers too, not only their PHPDoc contracts.
+    treatPhpDocTypesAsCertain: false
+    # Filesystem reads may change between calls (including installer races).
+    rememberPossiblyImpureFunctionValues: false
+    dynamicConstantNames:
+        CRAWLER_PAGE_RENDER: bool
+    paths:
+        - public/core
+        - public/api
+        - public/security.php
+    scanDirectories:
+        - public
+    excludePaths:
+        analyseAndScan:
+            - public/von_config.php (?)
+            - public/data/*
+            - public/uploads/*
+    tmpDir: node_modules/.cache/phpstan

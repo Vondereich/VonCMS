@@ -683,6 +683,11 @@ if (!function_exists('voncms_content_slug_redirect_paths')) {
 }
 
 if (!function_exists('voncms_post_slug_redirect_paths')) {
+  /**
+   * @param array<string, mixed> $oldPost
+   * @param array<string, mixed> $newPost
+   * @return array{source: string, target: string, targetSource: string}|null
+   */
   function voncms_post_slug_redirect_paths(
     array $oldPost,
     array $newPost,
@@ -700,6 +705,11 @@ if (!function_exists('voncms_post_slug_redirect_paths')) {
 }
 
 if (!function_exists('voncms_page_slug_redirect_paths')) {
+  /**
+   * @param array<string, mixed> $oldPage
+   * @param array<string, mixed> $newPage
+   * @return array{source: string, target: string, targetSource: string}|null
+   */
   function voncms_page_slug_redirect_paths(array $oldPage, array $newPage, string $basePath): ?array
   {
     return voncms_content_slug_redirect_paths($oldPage, $newPage, 'slug', $basePath, 'page');

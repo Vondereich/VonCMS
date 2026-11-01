@@ -2,7 +2,7 @@
 
 /**
  * VonCMS - Multi-Stage Safe Installer
- * Version: 1.27 "OverDrive"
+ * Version: 1.28 "The BluePrint"
  */
 
 // PHP Version Enforcement
@@ -10,7 +10,8 @@ if (version_compare(PHP_VERSION, '8.2.0', '<')) {
   header('Content-Type: application/json');
   echo json_encode([
     'success' => false,
-    'error' => 'VonCMS requires PHP 8.2 or higher. Current version: ' . PHP_VERSION,
+    'error' =>
+      'VonCMS requires PHP 8.2 or higher; PHP 8.3+ is recommended. Current version: ' . PHP_VERSION,
   ]);
   exit();
 }
@@ -74,10 +75,10 @@ if (!InstallBootstrap::claim($setupKey)) {
   );
 }
 
-$dbHost = $input['dbHost'] ?? 'localhost';
-$dbName = $input['dbName'] ?? '';
-$dbUser = $input['dbUser'] ?? '';
-$dbPass = $input['dbPass'] ?? '';
+$dbHost = DataBoundary::inputText($input['dbHost'] ?? 'localhost');
+$dbName = DataBoundary::inputText($input['dbName'] ?? '');
+$dbUser = DataBoundary::inputText($input['dbUser'] ?? '');
+$dbPass = DataBoundary::inputText($input['dbPass'] ?? '');
 $siteTitle = $input['siteTitle'] ?? 'My Website';
 $adminUsername = $input['adminUsername'] ?? 'admin';
 $adminEmail = $input['adminEmail'] ?? '';
@@ -88,15 +89,15 @@ if (!$dbName || !$dbUser || !$adminUsername || !$adminEmail || !$adminPass) {
 }
 
 // Password strength validation
-SecurityHelper::requireNewPasswordLength($adminPass);
+$adminPass = SecurityHelper::requireNewPasswordLength($adminPass);
 if (
   strlen($adminPass) < 8 ||
   !preg_match('/[A-Z]/', $adminPass) ||
   !preg_match('/[0-9]/', $adminPass) ||
-  !preg_match('/[!@#$%^&*(),.?":{}|<>]/', $adminPass)
+  !SecurityHelper::hasPasswordSpecialCharacter($adminPass)
 ) {
   ResponseHelper::sendError(
-    'Password must be at least 8 characters with uppercase letter, number, and special character (!@#$%^&*(),.?":{}|<>).',
+    'Password must be at least 8 characters with uppercase letter, number, and a punctuation mark or symbol.',
     400,
   );
 }
@@ -343,11 +344,11 @@ try {
 
   // 5. Detect Base URL for domain_url setting
   $protocol = is_https() ? 'https://' : 'http://';
-  $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+  $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST')) ?? '';
   // SCRIPT_NAME is like /voncms/api/install.php
-  $scriptPath = $_SERVER['SCRIPT_NAME'] ?? '';
+  $scriptPath = DataBoundary::serverString('SCRIPT_NAME');
   // Subdirectory detection (Path Agnostic Standard)
-  $subDir = preg_replace('#/api(/.*)?$#i', '', (string) $scriptPath);
+  $subDir = preg_replace('#/api(/.*)?$#i', '', $scriptPath) ?? '';
   $subDir = rtrim($subDir, '/');
   $detectedDomainUrl = $protocol . $host . ($subDir === '/' ? '' : $subDir);
 
@@ -366,6 +367,7 @@ try {
     ['general', 'invert_logo_in_dark_mode', 'false', 'boolean'],
     ['general', 'favicon_url', '', 'string'],
     ['general', 'discussion_enabled', 'true', 'boolean'],
+    ['general', 'registration_enabled', 'true', 'boolean'],
     ['general', 'permalink_structure', 'slug', 'string'],
     ['general', 'time_zone', 'UTC', 'string'],
     ['general', 'date_format', 'month_day_year_long', 'string'],
@@ -634,6 +636,9 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
 
   <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # OTA payloads and rollback files are never public, including crawler requests.
+    RewriteRule ^(?:public/)?temp_update(?:/|$) - [F,L,NC]
 
     # Reject PHP PATH_INFO aliases before any crawler or file fast-path can exit.
     RewriteRule ^.+\.php/ - [R=404,L,NC]

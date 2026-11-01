@@ -1,10 +1,13 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Get Single Post API
  * Fetch a single post by ID or slug
  */
 
 require_once __DIR__ . '/../security.php';
+global $pdo;
 require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
@@ -27,8 +30,8 @@ require_once __DIR__ . '/../content_metrics_helper.php';
 require_once __DIR__ . '/../scheduler_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
 
-$id = isset($_GET['id']) ? trim((string) $_GET['id']) : null;
-$slug = isset($_GET['slug']) ? trim((string) $_GET['slug']) : null;
+$id = isset($_GET['id']) ? trim(DataBoundary::inputText($_GET['id'])) : null;
+$slug = isset($_GET['slug']) ? trim(DataBoundary::inputText($_GET['slug'])) : null;
 
 if ($slug !== null && mb_strlen($slug) > 255) {
   ResponseHelper::sendError('Post slug is too long', 400);
@@ -42,12 +45,12 @@ if (($id === null || $id === '') && ($slug === null || $slug === '')) {
   ResponseHelper::sendError('ID or slug required', 400);
 }
 
-if (!isset($pdo) || $pdo === null) {
+if (!($pdo instanceof PDO)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
 
 try {
-  voncms_apply_site_timezone($pdo ?? null);
+  voncms_apply_site_timezone($pdo);
   $hasDisplayNameColumn = false;
   try {
     $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
@@ -61,12 +64,12 @@ try {
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
   $isAdmin = SessionManager::isAdmin();
-  $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+  $currentRole = strtolower(DataBoundary::userText('role'));
   $canReadAnyProtectedPost = voncms_role_has_capability($currentRole, 'posts.read_any_protected');
   $canReadOwnProtectedPost = voncms_role_has_capability($currentRole, 'posts.read_own_protected');
   $canReadProtectedPost = $canReadAnyProtectedPost || $canReadOwnProtectedPost;
   $mustOwnProtectedPost = $canReadOwnProtectedPost && !$canReadAnyProtectedPost;
-  $currentUserId = (string) ($_SESSION['user']['id'] ?? '');
+  $currentUserId = DataBoundary::userText('id');
   $currentTimestamp = date('Y-m-d H:i:s');
 
   // Keep dashboard behavior practical: when admin opens edit view, due scheduled posts are advanced.
@@ -126,7 +129,7 @@ try {
     $stmt->execute($params);
   }
 
-  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$row) {
     ResponseHelper::sendError('Post not found', 404);
@@ -147,7 +150,7 @@ try {
 
   $readTime = voncms_calculate_read_time((string) ($normalized['content'] ?? ''));
 
-  $imagePath = $normalized['image_url'] ?? '';
+  $imagePath = (string) ($normalized['image_url'] ?? '');
   $responsiveImage = voncms_build_responsive_image_data($imagePath, dirname(__DIR__) . '/uploads/');
 
   $post = [
@@ -157,7 +160,9 @@ try {
     'content' => $normalized['content'] ?? '',
     'excerpt' =>
       $normalized['excerpt'] ??
-      (isset($normalized['content']) ? substr(strip_tags($normalized['content']), 0, 200) : ''),
+      (isset($normalized['content'])
+        ? substr(strip_tags((string) $normalized['content']), 0, 200)
+        : ''),
     'readTime' => $readTime,
     'status' => $normalized['status'] ?? 'published',
     'category' => $normalized['category'] ?? 'Uncategorized',
@@ -185,9 +190,13 @@ try {
   $post = ResponseHelper::shapeContentPayload($post, $isAdmin);
 
   if (isset($post['content']) && is_https()) {
-    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $host = preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', ''));
     if ($host) {
-      $post['content'] = str_replace('http://' . $host, 'https://' . $host, $post['content']);
+      $post['content'] = str_replace(
+        'http://' . $host,
+        'https://' . $host,
+        (string) DataBoundary::scalar($post['content']),
+      );
     }
   }
 

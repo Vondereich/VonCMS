@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Redirect Loop Scanner API
  * Scans existing redirect rules for self-loops and local redirect cycles.
@@ -21,8 +23,10 @@ require_once __DIR__ . '/../von_config.php';
 require_once __DIR__ . '/redirect_loop_helper.php';
 
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
-$currentHost = preg_replace('/[^a-zA-Z0-9.\-:]/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+$currentHost =
+  preg_replace('/[^a-zA-Z0-9.\-:]/', '', DataBoundary::serverString('HTTP_HOST', '')) ?? '';
 $basePath = voncms_get_redirect_loop_base_path($pdo);
 
 try {

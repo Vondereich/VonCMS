@@ -40,6 +40,7 @@ function walkSync(dir, baseDir = basePath) {
     if (
       (baseDir === basePath && sourcePackageExcludedRootItems.has(normalizedRelativePath)) ||
       item === 'node_modules' ||
+      item === 'vendor' ||
       item === '.git' ||
       item === 'dist' ||
       item === 'logs' ||
@@ -133,7 +134,7 @@ try {
   } else {
     console.warn('Warning: skeleton.css missing from build artifacts!');
   }
-} catch (e) {
+} catch {
   console.error('Build failed. Aborting release.');
   process.exit(1);
 }

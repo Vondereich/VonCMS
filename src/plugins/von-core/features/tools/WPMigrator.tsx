@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Upload, CheckCircle, AlertTriangle, Activity } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { API } from '../../../../config/site.config';
+import { API, BASE_PATH } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 
-const CHECKPOINT_KEY = 'voncms_wp_import_checkpoint';
+const CHECKPOINT_KEY = `voncms_wp_import_checkpoint:${BASE_PATH}`;
 const CHECKPOINT_VERSION = 2;
 const BATCH_LIMIT = 10;
 
@@ -12,7 +12,7 @@ interface ScanStats {
   posts: number;
   pages: number;
   media: number;
-  authors: any[];
+  authors: unknown[];
 }
 
 interface ImportCheckpoint {
@@ -27,6 +27,7 @@ interface ImportCheckpoint {
   skippedCount: number;
   importedCount: number;
   progress: number;
+  warningCount?: number;
   logs: string[];
   lastUpdated: string;
 }
@@ -46,6 +47,7 @@ export const WPMigrator: React.FC = () => {
   const [processedCount, setProcessedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
   const [importedCount, setImportedCount] = useState(0);
+  const [warningCount, setWarningCount] = useState(0);
   const [nextBatchIndex, setNextBatchIndex] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [resumeCheckpoint, setResumeCheckpoint] = useState<ImportCheckpoint | null>(null);
@@ -62,7 +64,7 @@ export const WPMigrator: React.FC = () => {
       } else {
         window.localStorage.removeItem(CHECKPOINT_KEY);
       }
-    } catch (error) {
+    } catch {
       // Ignore malformed checkpoints.
     }
   }, []);
@@ -70,7 +72,7 @@ export const WPMigrator: React.FC = () => {
   const clearCheckpoint = () => {
     try {
       window.localStorage.removeItem(CHECKPOINT_KEY);
-    } catch (error) {
+    } catch {
       // Ignore storage failures.
     }
     setResumeCheckpoint(null);
@@ -80,7 +82,7 @@ export const WPMigrator: React.FC = () => {
     try {
       window.localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(payload));
       setResumeCheckpoint(payload);
-    } catch (error) {
+    } catch {
       // Ignore storage failures.
     }
   };
@@ -100,6 +102,7 @@ export const WPMigrator: React.FC = () => {
       skippedCount,
       importedCount,
       progress,
+      warningCount,
       logs,
       lastUpdated: new Date().toISOString(),
       ...overrides,
@@ -120,6 +123,7 @@ export const WPMigrator: React.FC = () => {
     setSkippedCount(resumeCheckpoint.skippedCount || 0);
     setImportedCount(resumeCheckpoint.importedCount || 0);
     setProgress(resumeCheckpoint.progress || 0);
+    setWarningCount(resumeCheckpoint.warningCount || 0);
     setLogs(resumeCheckpoint.logs || []);
     setStep('ready');
     toast.success('Importer checkpoint restored. Ready to resume.');
@@ -159,6 +163,7 @@ export const WPMigrator: React.FC = () => {
         setSkippedCount(0);
         setImportedCount(0);
         setProgress(0);
+        setWarningCount(0);
         setLogs([]);
         setStep('ready');
 
@@ -183,7 +188,7 @@ export const WPMigrator: React.FC = () => {
         toast.error(data.message || 'Scan failed');
         setStep('upload');
       }
-    } catch (err) {
+    } catch {
       toast.error('Scan error');
       setStep('upload');
     }
@@ -223,7 +228,7 @@ export const WPMigrator: React.FC = () => {
           result = JSON.parse(rawText);
         } catch (error) {
           pushLog(`Server Error: ${rawText.substring(0, 150)}...`);
-          throw new Error('Invalid server response (not JSON).');
+          throw new Error('Invalid server response (not JSON).', { cause: error });
         }
 
         if (!result.success) {
@@ -246,12 +251,15 @@ export const WPMigrator: React.FC = () => {
         const localizedMediaInBatch = Number(result.localized_media_in_batch || 0);
         const nextBatch = Number(result.next_batch_index ?? currentBatchIndex + 1);
 
-        processedSoFar += processedInBatch;
-        skippedSoFar += skippedInBatch;
-        importedSoFar += importedInBatch;
+        processedSoFar = Number(result.processed_total ?? processedSoFar + processedInBatch);
+        skippedSoFar = Number(result.skipped_total ?? skippedSoFar + skippedInBatch);
+        importedSoFar = Number(result.imported_total ?? importedSoFar + importedInBatch);
+        const serverWarnings = Number(result.warning_count || 0);
+        setWarningCount(serverWarnings);
 
-        const percent =
-          totalItems > 0 ? Math.min(100, Math.round((processedSoFar / totalItems) * 100)) : 100;
+        const percent = result.has_more
+          ? Math.min(95, Math.round((processedSoFar / Math.max(1, totalItems)) * 95))
+          : 100;
 
         setProcessedCount(processedSoFar);
         setSkippedCount(skippedSoFar);
@@ -266,7 +274,13 @@ export const WPMigrator: React.FC = () => {
         );
 
         if (Array.isArray(result.errors)) {
-          result.errors.forEach((message: string) => pushLog(`Warning: ${message}`));
+          result.errors.forEach((message: string) => pushLog(`Error: ${message}`));
+        }
+        if (Array.isArray(result.warnings)) {
+          result.warnings.forEach((message: string) => pushLog(`Warning: ${message}`));
+        }
+        if (result.phase === 'links' && result.has_more && !result.paused) {
+          pushLog('Resolving imported links and source redirects...');
         }
 
         const checkpoint = buildCheckpoint({
@@ -277,11 +291,27 @@ export const WPMigrator: React.FC = () => {
           skippedCount: skippedSoFar,
           importedCount: importedSoFar,
           progress: percent,
+          warningCount: serverWarnings,
           logs: logBuffer,
         });
         if (checkpoint) persistCheckpoint(checkpoint);
 
-        if (!(result.has_more && processedInBatch > 0)) {
+        if (result.paused) {
+          setStep('ready');
+          toast.error(
+            'Import paused at a failed item. The XML and checkpoint were retained for retry.'
+          );
+          return;
+        }
+
+        if (!result.has_more) {
+          if (serverWarnings > 0) {
+            toast('Import completed with warnings. Review the migration summary.', {
+              duration: 6000,
+            });
+          } else {
+            toast.success('Migration Complete!', { duration: 5000 });
+          }
           break;
         }
 
@@ -291,7 +321,6 @@ export const WPMigrator: React.FC = () => {
       setStep('complete');
       setNextBatchIndex(0);
       clearCheckpoint();
-      toast.success('Migration Complete!', { duration: 5000 });
     } catch (error) {
       pushLog(`Import paused: ${String(error)}`);
       setStep('ready');
@@ -446,6 +475,11 @@ export const WPMigrator: React.FC = () => {
                 Smart import will clean Gutenberg blocks, convert supported embeds, remap internal
                 links, and localize supported WordPress images into this site's uploads.
               </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Password-protected items become Drafts. Authors, comments, custom post types,
+                schedules and dynamic WordPress blocks are not migrated in full. Keep the source
+                export and media until verification is complete. Resume files expire after 24 hours.
+              </p>
             </div>
           )}
 
@@ -475,7 +509,9 @@ export const WPMigrator: React.FC = () => {
             </button>
           )}
 
-          {(step === 'importing' || step === 'complete') && (
+          {(step === 'importing' ||
+            step === 'complete' ||
+            (step === 'ready' && logs.length > 0)) && (
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-1 dark:text-slate-300">
@@ -511,10 +547,14 @@ export const WPMigrator: React.FC = () => {
 
           {step === 'complete' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-600 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
-                <CheckCircle size={20} />
+              <div
+                className={`flex items-center gap-2 p-4 rounded-lg border ${warningCount > 0 ? 'text-amber-800 bg-amber-50 border-amber-200 dark:text-amber-200 dark:bg-amber-900/20 dark:border-amber-800' : 'text-green-600 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'}`}
+              >
+                {warningCount > 0 ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
                 <span className="font-medium">
-                  Import successfully completed! Check your posts.
+                  {warningCount > 0
+                    ? `Import completed with ${warningCount} warning(s). Review the log and imported content.`
+                    : 'Import completed. Verify your posts, pages and media.'}
                 </span>
               </div>
               <button
@@ -531,6 +571,7 @@ export const WPMigrator: React.FC = () => {
                   setSkippedCount(0);
                   setImportedCount(0);
                   setProgress(0);
+                  setWarningCount(0);
                   setLogs([]);
                   setSafetyChecked(false);
                   if (fileInputRef.current) fileInputRef.current.value = '';

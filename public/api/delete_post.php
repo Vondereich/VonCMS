@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Delete Post API
  * Deletes a post from the database
@@ -26,8 +28,8 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
-$currentUser = $_SESSION['user'] ?? null;
-$currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+$currentUser = DataBoundary::actor();
+$currentRole = strtolower(DataBoundary::userText('role'));
 $canManagePosts =
   voncms_role_has_capability($currentRole, 'posts.delete_any') ||
   voncms_role_has_capability($currentRole, 'posts.delete_own_draft');
@@ -37,6 +39,9 @@ if (!$canManagePosts) {
 }
 
 $input = json_decode(CSRFProtection::getRequestBody(), true);
+if (!is_array($input)) {
+  ResponseHelper::sendError('Invalid post data', 400);
+}
 
 $postId = $input['id'] ?? null;
 
@@ -58,7 +63,7 @@ try {
     'SELECT id, author_id, title, status, slug FROM posts WHERE id = ? FOR UPDATE',
   );
   $stmt->execute([$postId]);
-  $post = $stmt->fetch(PDO::FETCH_ASSOC);
+  $post = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$post) {
     $db->rollBack();
@@ -91,7 +96,7 @@ try {
         'post',
         (int) $postId,
         'delete',
-        $_SESSION['user'] ?? [],
+        $currentUser,
         'Post deleted',
         [
           'title' => (string) ($post['title'] ?? ''),

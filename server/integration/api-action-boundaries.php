@@ -31,6 +31,16 @@ function actionDeclaration(string $file, string $needle): string
 // MySQL buffers these one-row reads; release SQLite cursors before later writes.
 class ActionFixtureStatement extends PDOStatement
 {
+  public function rowCount(): int
+  {
+    if (
+      !empty($GLOBALS['actionNoopUpdate']) &&
+      str_starts_with($this->queryString, 'UPDATE users SET')
+    ) {
+      return 0;
+    }
+    return parent::rowCount();
+  }
   public function fetch(
     int $mode = PDO::FETCH_DEFAULT,
     int $cursorOrientation = PDO::FETCH_ORI_NEXT,
@@ -52,6 +62,13 @@ class ActionFixtureStatement extends PDOStatement
 // Only adapt dialect-specific locking/retention syntax. Business SQL is unchanged.
 class ActionFixturePDO extends VonCmsFixtureSqlitePDO
 {
+  public function commit(): bool
+  {
+    if (!empty($GLOBALS['actionFailCommit'])) {
+      throw new RuntimeException('Controlled profile commit failure');
+    }
+    return parent::commit();
+  }
   public function prepare(string $query, array $options = []): PDOStatement|false
   {
     if (
@@ -63,8 +80,20 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
     }
     return parent::prepare(
       str_replace(
-        [' FOR UPDATE', 'DATE_ADD(NOW(), INTERVAL 1 HOUR)'],
-        ['', "datetime('now', '+1 hour')"],
+        [
+          ' FOR UPDATE',
+          'DATE_ADD(NOW(), INTERVAL 1 HOUR)',
+          'DATE_ADD(NOW(), INTERVAL 24 HOUR)',
+          '? >= UNIX_TIMESTAMP()',
+          'ON DUPLICATE KEY UPDATE visitor_hash=visitor_hash',
+        ],
+        [
+          '',
+          "datetime('now', '+1 hour')",
+          "datetime('now', '+24 hours')",
+          'CAST(? AS INTEGER) >= UNIX_TIMESTAMP()',
+          'ON CONFLICT(visitor_hash) DO NOTHING',
+        ],
         $query,
       ),
       $options,
@@ -73,6 +102,14 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
 
   public function exec(string $statement): int|false
   {
+    if (
+      str_starts_with(
+        $statement,
+        'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY)',
+      )
+    ) {
+      $statement = "DELETE FROM analytics WHERE visit_date < date('now', '-30 days')";
+    }
     if (
       $statement ===
       'DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)'
@@ -95,7 +132,337 @@ function actionDatabase(string $directory): ActionFixturePDO
     PDO::ATTR_STATEMENT_CLASS => [ActionFixtureStatement::class],
   ]);
   $pdo->createFunction('NOW', fn() => gmdate('Y-m-d H:i:s'));
+  $pdo->createFunction('CURDATE', fn() => gmdate('Y-m-d'));
+  $pdo->createFunction('CURTIME', fn() => gmdate('H:i:s'));
+  $pdo->createFunction('UNIX_TIMESTAMP', fn() => time());
   return $pdo;
+}
+
+// Optional real InnoDB probe. Uses a newly created random fixture database only.
+function actionMysqlAuthConnection(string $database = '', bool $holdCommit = false): PDO
+{
+  $dsn = getenv('VONCMS_TEST_MYSQL_DSN') ?: '';
+  if (!str_starts_with($dsn, 'mysql:') || preg_match('/(?:^|;)dbname=/i', $dsn)) {
+    throw new RuntimeException('Set VONCMS_TEST_MYSQL_DSN without a database name.');
+  }
+  if ($database !== '' && !preg_match('/^voncms_auth_[a-f0-9]{16}$/D', $database)) {
+    throw new RuntimeException('Invalid owned fixture database.');
+  }
+  $type = $holdCommit ? ActionMysqlAuthHoldPDO::class : PDO::class;
+  return new $type(
+    $dsn . ($database !== '' ? ';dbname=' . $database : ''),
+    getenv('VONCMS_TEST_MYSQL_USER') ?: 'root',
+    getenv('VONCMS_TEST_MYSQL_PASSWORD') ?: '',
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC],
+  );
+}
+
+class ActionMysqlAuthHoldPDO extends PDO
+{
+  public string $barrierDirectory = '';
+  public bool $failCommit = false;
+  public function commit(): bool
+  {
+    if ($this->failCommit) {
+      throw new RuntimeException('Controlled credential commit failure.');
+    }
+    if ($this->barrierDirectory !== '') {
+      touch($this->barrierDirectory . '/ready');
+      actionMysqlAuthWait($this->barrierDirectory . '/go');
+    }
+    return parent::commit();
+  }
+}
+
+function actionMysqlAuthWait(string $path): void
+{
+  $deadline = microtime(true) + 20;
+  while (!is_file($path)) {
+    if (microtime(true) > $deadline) {
+      throw new RuntimeException('Owned MySQL fixture barrier timeout.');
+    }
+    usleep(10000);
+    clearstatcache();
+  }
+}
+
+if (($argv[1] ?? '') === '--mysql-auth-worker') {
+  $options = json_decode($argv[2], true, 512, JSON_THROW_ON_ERROR);
+  eval(
+    actionDeclaration($root . '/public/api/login.php', 'function voncms_verify_login_candidate(')
+  );
+  $issuer = actionDeclaration(
+    $root . '/public/api/login.php',
+    'function voncms_issue_login_credentials(',
+  );
+  if ($options['mode'] === 'unguarded-before') {
+    // Disposable mutation control: remove only the new serialized password guard.
+    $issuer = preg_replace(
+      '/    \$lock = \$db->prepare\(\x27SELECT password FROM users WHERE id = \? FOR UPDATE\x27\);.*?    \$remember = \[\];/s',
+      '    $remember = [];',
+      $issuer,
+      1,
+      $removed,
+    );
+    if ($removed !== 1) {
+      throw new RuntimeException('Missing credential guard mutation point.');
+    }
+  }
+  eval($issuer);
+  $db = actionMysqlAuthConnection($options['database'], $options['mode'] === 'hold');
+  $stored = $db->query('SELECT password FROM users WHERE id=1')->fetchColumn();
+  if (!voncms_verify_login_candidate(['password' => $stored], 'Fixture_Old9!')) {
+    throw new RuntimeException('Ordinary old-password control failed.');
+  }
+  if (str_ends_with($options['mode'], 'before')) {
+    touch($options['directory'] . '/ready');
+    actionMysqlAuthWait($options['directory'] . '/go');
+  } else {
+    $db->barrierDirectory = $options['directory'];
+  }
+  $result = voncms_issue_login_credentials($db, ['id' => 1], $stored, true);
+  echo json_encode(['issued' => is_array($result) && $result !== []]);
+  exit();
+}
+
+if (($argv[1] ?? '') === '--mysql-auth-race') {
+  if (!getenv('VONCMS_TEST_MYSQL_DSN')) {
+    fwrite(STDERR, "NOT_RUN MySQL auth: set VONCMS_TEST_MYSQL_DSN without dbname.\n");
+    exit(2);
+  }
+  eval(
+    actionDeclaration($root . '/public/api/login.php', 'function voncms_issue_login_credentials(')
+  );
+  $database = 'voncms_auth_' . bin2hex(random_bytes(8));
+  $directory = sys_get_temp_dir() . '/voncms-auth-mysql-' . bin2hex(random_bytes(8));
+  $admin = actionMysqlAuthConnection();
+  mkdir($directory, 0700);
+  $created = false;
+  $active = null;
+  $db = null;
+  $count = 0;
+  $check = static function (bool $ok, string $message) use (&$count): void {
+    if (!$ok) {
+      throw new RuntimeException($message);
+    }
+    $count++;
+  };
+  try {
+    $admin->exec('CREATE DATABASE `' . $database . '`');
+    $created = true;
+    $db = actionMysqlAuthConnection($database);
+    $db->exec(
+      'CREATE TABLE users(id INT PRIMARY KEY,password VARCHAR(255) NOT NULL) ENGINE=InnoDB',
+    );
+    $db->exec(
+      'CREATE TABLE remember_tokens(id INT AUTO_INCREMENT PRIMARY KEY,user_id INT,selector VARCHAR(24),token_hash VARCHAR(64),expires_at DATETIME) ENGINE=InnoDB',
+    );
+    $old = password_hash('Fixture_Old9!', PASSWORD_BCRYPT);
+    $new = password_hash('Fixture_New9!', PASSWORD_BCRYPT);
+    $db->prepare('INSERT INTO users VALUES(1,?)')->execute([$old]);
+    $reset = static function () use ($db, $new): void {
+      $db->beginTransaction();
+      try {
+        $db->query('SELECT id FROM users WHERE id=1 FOR UPDATE')->fetchColumn();
+        $db->prepare('UPDATE users SET password=? WHERE id=1')->execute([$new]);
+        $db->exec('DELETE FROM remember_tokens WHERE user_id=1');
+        $db->commit();
+      } catch (Throwable $error) {
+        if ($db->inTransaction()) {
+          $db->rollBack();
+        }
+        throw $error;
+      }
+    };
+    $launch = static function (string $mode) use ($database, $directory): array {
+      foreach (['ready', 'go'] as $name) {
+        @unlink($directory . '/' . $name);
+      }
+      $process = proc_open(
+        [
+          PHP_BINARY,
+          __FILE__,
+          '--mysql-auth-worker',
+          json_encode(compact('database', 'directory', 'mode'), JSON_THROW_ON_ERROR),
+        ],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+      );
+      if (!is_resource($process)) {
+        throw new RuntimeException('MySQL fixture worker failed to start.');
+      }
+      fclose($pipes[0]);
+      return [$process, $pipes];
+    };
+    $join = static function (array $worker): array {
+      [$process, $pipes] = $worker;
+      $out = stream_get_contents($pipes[1]);
+      $errors = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      if (proc_close($process) !== 0 || $errors !== '') {
+        throw new RuntimeException('MySQL worker: ' . $errors . $out);
+      }
+      return json_decode($out, true, 512, JSON_THROW_ON_ERROR);
+    };
+    $ordinary = voncms_issue_login_credentials($db, ['id' => 1], $old, true);
+    $check(
+      is_array($ordinary) && isset($ordinary['validator']),
+      'Ordinary remember issuance failed.',
+    );
+    $check(
+      hash_equals(
+        $db->query('SELECT token_hash FROM remember_tokens')->fetchColumn(),
+        hash('sha256', $ordinary['validator']),
+      ),
+      'Issued remember credential does not match stored digest.',
+    );
+    $check(
+      voncms_issue_login_credentials($db, ['id' => 1], $old, false) === [],
+      'Ordinary session-only login failed.',
+    );
+    $db->exec('DELETE FROM remember_tokens');
+
+    // Failure must roll back INSERT and never yield credentials to the caller.
+    $failureDb = actionMysqlAuthConnection($database, true);
+    $failureDb->failCommit = true;
+    $failed = false;
+    try {
+      voncms_issue_login_credentials($failureDb, ['id' => 1], $old, true);
+    } catch (RuntimeException $error) {
+      $failed = $error->getMessage() === 'Controlled credential commit failure.';
+    }
+    $check(
+      $failed && !$failureDb->inTransaction(),
+      'Failed commit did not refuse credentials and release its transaction.',
+    );
+    $check(
+      (int) $db->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 0,
+      'Failed commit left an orphan remember token.',
+    );
+    $failureDb = null;
+    $db->exec(
+      "CREATE TRIGGER refuse_token BEFORE INSERT ON remember_tokens FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Controlled token failure'",
+    );
+    $failed = false;
+    try {
+      voncms_issue_login_credentials($db, ['id' => 1], $old, true);
+    } catch (PDOException $error) {
+      $failed = ($error->errorInfo[0] ?? '') === '45000';
+    }
+    $check(
+      $failed && !$db->inTransaction(),
+      'Unexpected INSERT failure was swallowed or left a transaction open.',
+    );
+    $db->exec('DROP TRIGGER refuse_token');
+    $check(
+      voncms_issue_login_credentials($db, ['id' => 999], $old, true) === false,
+      'Deleted user can issue credentials.',
+    );
+
+    // Reset commits after real bcrypt verification, before the issuance guard.
+    $active = $launch('before');
+    actionMysqlAuthWait($directory . '/ready');
+    $reset();
+    touch($directory . '/go');
+    $result = $join($active);
+    $active = null;
+    $check(!$result['issued'], 'A reset-before-issuance login retained persistent authority.');
+    $check(
+      (int) $db->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 0,
+      'Stale token survived reset.',
+    );
+
+    // The same schedule must expose a surviving token with the guard disabled.
+    $db->prepare('UPDATE users SET password=? WHERE id=1')->execute([$old]);
+    $active = $launch('unguarded-before');
+    actionMysqlAuthWait($directory . '/ready');
+    $reset();
+    touch($directory . '/go');
+    $result = $join($active);
+    $active = null;
+    $check(
+      $result['issued'] &&
+        (int) $db->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 1,
+      'Race regression fails to detect its unguarded counterexample.',
+    );
+    $db->exec('DELETE FROM remember_tokens');
+
+    // Login holds the user lock through INSERT/commit; reset must wait.
+    $db->prepare('UPDATE users SET password=? WHERE id=1')->execute([$old]);
+    $active = $launch('hold');
+    actionMysqlAuthWait($directory . '/ready');
+    $db->exec('SET SESSION innodb_lock_wait_timeout=1');
+    $blocked = false;
+    try {
+      $reset();
+    } catch (PDOException $error) {
+      $blocked = (int) ($error->errorInfo[1] ?? 0) === 1205;
+    }
+    $check($blocked, 'Reset did not contend on the same users-row lock.');
+    touch($directory . '/go');
+    $result = $join($active);
+    $active = null;
+    $check($result['issued'], 'Issuance-before-reset control failed.');
+    $reset();
+    $check(
+      (int) $db->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 0,
+      'Reset failed to revoke newly issued token.',
+    );
+
+    // Missing optional remember storage must not weaken the password guard.
+    $db->exec('DROP TABLE remember_tokens');
+    $check(
+      voncms_issue_login_credentials($db, ['id' => 1], $new, false) === [],
+      'Session-only compatibility failed.',
+    );
+    $sessionOnly = voncms_issue_login_credentials($db, ['id' => 1], $new, true);
+    $check($sessionOnly === [], 'Missing optional storage must produce no remember credential.');
+    $check(
+      voncms_issue_login_credentials($db, ['id' => 1], $old, true) === false,
+      'Compatibility fallback accepted an old password.',
+    );
+    $check(!$db->inTransaction(), 'Credential guard leaked its transaction.');
+    $db->exec('DROP TABLE users');
+    $failed = false;
+    try {
+      voncms_issue_login_credentials($db, ['id' => 1], $new, true);
+    } catch (PDOException $error) {
+      $failed = ($error->errorInfo[0] ?? '') === '42S02';
+    }
+    $check(
+      $failed && !$db->inTransaction(),
+      'Mandatory users-row guard failure was treated as optional storage.',
+    );
+  } finally {
+    touch($directory . '/go');
+    if ($active && is_resource($active[0])) {
+      if (proc_get_status($active[0])['running']) {
+        proc_terminate($active[0]);
+      }
+      foreach ([1, 2] as $i) {
+        if (is_resource($active[1][$i])) {
+          fclose($active[1][$i]);
+        }
+      }
+      proc_close($active[0]);
+    }
+    $db = null;
+    if ($created && preg_match('/^voncms_auth_[a-f0-9]{16}$/D', $database)) {
+      $admin->exec('DROP DATABASE `' . $database . '`');
+    }
+    foreach (['ready', 'go'] as $name) {
+      @unlink($directory . '/' . $name);
+    }
+    if (
+      dirname($directory) === sys_get_temp_dir() &&
+      str_starts_with(basename($directory), 'voncms-auth-mysql-')
+    ) {
+      @rmdir($directory);
+    }
+  }
+  echo "PASS MySQL auth issuance: $count checks; real InnoDB/two-process orderings, failure rollback, ordinary controls and optional-storage fallback. Owned fixture database removed.\n";
+  exit();
 }
 
 if (($argv[1] ?? '') === '--contact-session-probe') {
@@ -115,8 +482,11 @@ if (($argv[1] ?? '') === '--worker') {
   $directory = $argv[2];
   $options = json_decode($argv[3], true, 512, JSON_THROW_ON_ERROR);
   $index = $options['index'];
+  if (isset($options['phpTimezone'])) {
+    date_default_timezone_set((string) $options['phpTimezone']);
+  }
   ob_start();
-  register_shutdown_function(static function () use ($directory, $index): void {
+  register_shutdown_function(static function () use ($directory, $index, $options): void {
     $output = '';
     while (ob_get_level() > 0) {
       $output = ob_get_clean() . $output;
@@ -127,9 +497,13 @@ if (($argv[1] ?? '') === '--worker') {
       json_encode(
         [
           'status' => http_response_code() ?: 200,
-          'body' => json_decode($output, true),
+          'body' =>
+            ($options['endpoint'] ?? '') === 'verify_email.php'
+              ? ['html' => $output]
+              : json_decode($output, true),
           'output' => $output,
           'fatal' => $error && in_array($error['type'], [E_ERROR, E_PARSE, E_COMPILE_ERROR], true),
+          'sessionUser' => $_SESSION['user'] ?? null,
           'contactSession' => [
             'cooldown' => isset($_SESSION['last_contact_submit']),
             'used' => count($_SESSION['contact_honeypot_used'] ?? []),
@@ -178,7 +552,8 @@ if (($argv[1] ?? '') === '--worker') {
     }
     public static function isAdmin(): bool
     {
-      return self::isPrimaryAdmin();
+      return self::isPrimaryAdmin() ||
+        strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin';
     }
     public static function isValid(): bool
     {
@@ -186,7 +561,11 @@ if (($argv[1] ?? '') === '--worker') {
     }
     public static function isStaff(): bool
     {
-      return self::isPrimaryAdmin();
+      return in_array(
+        strtolower((string) ($_SESSION['user']['role'] ?? '')),
+        ['root', 'admin', 'moderator', 'writer'],
+        true,
+      );
     }
     public static function establishAuthenticatedSession(array $user, string $passwordHash): void
     {
@@ -238,6 +617,13 @@ if (($argv[1] ?? '') === '--worker') {
       {
         return ['site_name' => 'QA'];
       }
+      /**
+       * @param string $to
+       * @param string $subject
+       * @param string $body
+       * @param string $from
+       * @param string $name
+       */
       function sendWithPhpMail($to, $subject, $body, $from, $name): array
       {
         global $pdo;
@@ -247,6 +633,7 @@ if (($argv[1] ?? '') === '--worker') {
         return ['success' => true];
       }
     } else {
+      /** @param string $to */
       function vonSendMail($to, ...$arguments): array
       {
         global $pdo, $case, $directory;
@@ -335,20 +722,54 @@ if (($argv[1] ?? '') === '--worker') {
       $input['current_password'] = $case === 'wrong-password' ? 'Wrong1!Password' : 'Old1!Password';
       $input['new_password'] = 'New1!Password';
     }
-  } elseif ($endpoint === 'login.php') {
-    $input = ['username' => 'qa_member', 'password' => $options['password'] ?? 'Wrong1!Password'];
-  } elseif ($endpoint === 'reset_password.php') {
+  } elseif (in_array($endpoint, ['save_redirect.php', 'delete_redirect.php'], true)) {
+    require $root . '/public/api/redirect_loop_helper.php';
+    $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
+    $input =
+      $endpoint === 'delete_redirect.php'
+        ? ['id' => 2]
+        : ['id' => null, 'source_url' => '/new', 'target_url' => '/new-target'];
+    $_SERVER['REQUEST_METHOD'] = $options['method'] ?? 'POST';
+    $_GET = $options['query'] ?? [];
+  } elseif (in_array($endpoint, ['login.php', 'register.php'], true)) {
     foreach (
       [
         'voncms_normalize_trusted_public_base_url',
         'voncms_loopback_request_base_url',
         'voncms_resolve_trusted_public_base_url',
         'voncms_build_account_action_url',
+        'voncms_account_token_digest',
+        'generateVerificationToken',
+        'sendVerificationEmail',
       ]
       as $name
     ) {
       eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function ' . $name . '('));
     }
+    function vonSendMail($to, ...$arguments): array
+    {
+      global $pdo, $case;
+      $pdo
+        ->prepare('INSERT INTO mail_calls(recipient,payload) VALUES (?,?)')
+        ->execute([$to, json_encode($arguments)]);
+      return ['success' => $case !== 'mail-failure'];
+    }
+    $input = ['username' => 'qa_member', 'password' => $options['password'] ?? 'Wrong1!Password'];
+  } elseif ($endpoint === 'reset_password.php' || $endpoint === 'verify_email.php') {
+    foreach (
+      [
+        'voncms_normalize_trusted_public_base_url',
+        'voncms_loopback_request_base_url',
+        'voncms_resolve_trusted_public_base_url',
+        'voncms_build_account_action_url',
+        'voncms_account_token_digest',
+        'voncms_account_token_matches',
+      ]
+      as $name
+    ) {
+      eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function ' . $name . '('));
+    }
+    /** @param string $to */
     function vonSendMail($to, ...$arguments): array
     {
       global $pdo;
@@ -357,9 +778,70 @@ if (($argv[1] ?? '') === '--worker') {
     }
     $input = ['action' => 'request', 'email' => $options['email'] ?? 'qa@example.invalid'];
     $input['hp_field'] = $case === 'bot' ? '0' : '';
+    if ($endpoint === 'verify_email.php') {
+      $_SERVER['REQUEST_METHOD'] = 'GET';
+      $_GET['token'] = $options['token'] ?? '';
+    }
   } elseif ($endpoint === 'save_comments.php') {
-    $_SESSION['user'] = ['id' => '2', 'role' => 'Member'];
-    $input = ['action' => 'delete', 'commentId' => $case === 'not-owner' ? '12' : '10'];
+    $_SESSION['user'] = ['id' => '2', 'role' => 'Member', 'avatar' => '/uploads/member.webp'];
+    if (!empty($options['guest'])) {
+      unset($_SESSION['user']);
+    }
+    $input =
+      $case === 'add'
+        ? ['action' => 'add', 'postId' => '42', 'content' => 'hello world friend']
+        : ['action' => 'delete', 'commentId' => $case === 'not-owner' ? '12' : '10'];
+  } elseif ($endpoint === 'get_settings.php') {
+    require $root . '/public/public_render_helper.php';
+    require $root . '/public/api/ai_provider_helper.php';
+    function voncms_public_cache_key(string $scope, array $parts): string
+    {
+      return $scope;
+    }
+    function voncms_public_cache_get(string $key, int $ttl): ?string
+    {
+      return null;
+    }
+    function voncms_public_cache_acquire_gate()
+    {
+      return null;
+    }
+    function voncms_public_cache_release_gate($gate): void {}
+    function voncms_public_cache_set(...$arguments): bool
+    {
+      return true;
+    }
+    $_SERVER['REQUEST_METHOD'] = 'GET';
+    if (($options['actor'] ?? null) === null) {
+      unset($_SESSION['user']);
+    }
+    $input = [];
+  } elseif ($endpoint === 'get_comments.php') {
+    $_SERVER['REQUEST_METHOD'] = 'GET';
+    $_GET = $options['query'] ?? ['flat' => 'true', 'limit' => '20'];
+    $_SESSION['user'] = $options['actor'] ?? ['id' => '1', 'role' => 'Root'];
+    if ($case === 'guest') {
+      unset($_SESSION['user']);
+    }
+    $input = [];
+  } elseif (in_array($endpoint, ['track_visit.php', 'track_monolithic.php'], true)) {
+    foreach (['voncms_ip_matches_proxy_rule', 'voncms_is_trusted_proxy_address'] as $name) {
+      eval(actionDeclaration($root . '/public/security.php', 'function ' . $name . '('));
+    }
+    putenv('VONCMS_TRUSTED_PROXIES');
+    putenv('VONCMS_ANALYTICS_CLIENT_IP_HEADER');
+    if (!empty($options['trackingProxy'])) {
+      putenv('VONCMS_TRUSTED_PROXIES=10.42.0.0/16');
+      putenv('VONCMS_ANALYTICS_CLIENT_IP_HEADER=CF-Connecting-IP');
+      $_SERVER['REMOTE_ADDR'] = '10.42.3.7';
+    }
+    define('VONCMS_ANALYTICS_TEST_KEY_FILE', $directory . '/analytics_signing.key');
+    require_once $root . '/public/api/analytics_consent_helper.php';
+    require_once $root . '/public/api/post_query_helper.php';
+    require_once $root . '/public/api/post_views_helper.php';
+    require_once $root . '/public/core/ContentViewDeduplicator.php';
+    $_SERVER['SCRIPT_NAME'] = '/zangetsu/api/' . $endpoint;
+    $input = ['url' => '/tracking-qa', 'postId' => '42'];
   } else {
     $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
     $input = [
@@ -387,12 +869,66 @@ if (($argv[1] ?? '') === '--worker') {
     }
   }
   $input = array_replace($input, $options['input'] ?? []);
+  if (isset($options['actor'])) {
+    $_SESSION['user'] = $options['actor'];
+  }
+  $GLOBALS['actionNoopUpdate'] = !empty($options['noopUpdate']);
+  $GLOBALS['actionFailCommit'] = !empty($options['failCommit']);
   $_SERVER['HTTP_X_CSRF_TOKEN'] = $case === 'csrf' ? 'forged' : CSRFProtection::getToken();
   $cachedInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
-  $cachedInput->setValue(null, json_encode($input, JSON_THROW_ON_ERROR));
+  $cachedInput->setValue(null, $options['rawBody'] ?? json_encode($input, JSON_THROW_ON_ERROR));
   $source = file_get_contents($root . '/public/api/' . $endpoint);
   $source = preg_replace('/^<\?php\s*/', '', $source, 1);
   $source = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $source);
+  if ($endpoint === 'get_settings.php') {
+    $source = str_replace(
+      "__DIR__ . '/../von_config.php'",
+      var_export($directory . '/config.php', true),
+      $source,
+    );
+  }
+  if ($endpoint === 'register.php') {
+    // Resolve only the optional settings mirror into this disposable request fixture.
+    $source = str_replace(
+      "__DIR__ . '/../data/site_settings.json'",
+      var_export($directory . '/site_settings.json', true),
+      $source,
+    );
+  }
+  if (!empty($options['trackingBatch'])) {
+    $counts = ['success' => true, 'admitted' => 0, 'denied' => 0];
+    $key = voncms_analytics_signing_key();
+    for ($i = 0; $i < $options['trackingBatch']; $i++) {
+      if (!empty($options['trackingProxy'])) {
+        $_SERVER['HTTP_CF_CONNECTING_IP'] = $i < 250 ? '198.51.100.41' : '198.51.100.42';
+      }
+      $name = $i % 2 ? 'track_visit.php' : 'track_monolithic.php';
+      $_SERVER['SCRIPT_NAME'] = '/zangetsu/api/' . $name;
+      $_SESSION = [];
+      $_SERVER['HTTP_X_CSRF_TOKEN'] = CSRFProtection::getToken();
+      $_COOKIE = [
+        voncms_analytics_identity_name() => voncms_analytics_signed_identity(
+          bin2hex(random_bytes(32)),
+          time() + 86400,
+          $key,
+        ),
+      ];
+      $cachedInput->setValue(null, json_encode($input, JSON_THROW_ON_ERROR));
+      $iteration = file_get_contents($root . '/public/api/' . $name);
+      $iteration = preg_replace('/^<\?php\s*/', '', $iteration, 1);
+      $iteration = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $iteration);
+      $iteration = str_replace('exit();', 'return;', $iteration);
+      ob_start();
+      eval($iteration);
+      $response = json_decode(ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+      if (empty($response['success'])) {
+        throw new RuntimeException('Tracking denial changed success semantics');
+      }
+      $counts[!empty($response['throttled']) ? 'denied' : 'admitted']++;
+    }
+    echo json_encode($counts);
+    exit();
+  }
   if (!empty($options['unknownBatch'])) {
     // Execute the real endpoint repeatedly; replace exit only to retain this disposable worker.
     $source = str_replace('exit();', 'return;', $source);
@@ -494,6 +1030,12 @@ function actionFixture(string $label): string
   $pdo->exec('INSERT INTO remember_tokens VALUES(2)');
   $pdo->exec('CREATE TABLE comments(id INTEGER PRIMARY KEY,user_id INT,parent_id INT)');
   $pdo->exec('INSERT INTO comments VALUES(10,2,NULL),(11,3,10),(12,3,NULL)');
+  $pdo->exec(
+    'CREATE TABLE redirects(id INTEGER PRIMARY KEY,source_url TEXT UNIQUE,target_url TEXT,redirect_type INT DEFAULT 301)',
+  );
+  $pdo->exec(
+    "INSERT INTO redirects VALUES(1,'/first','/first-target',301),(2,'/second','/second-target',301)",
+  );
   return $directory;
 }
 
@@ -570,7 +1112,807 @@ function actionRun(string $directory, array $requests): array
   }
 }
 
+/** Read the real Settings controller/projection with isolated SQL and fixture authority. */
+function actionSettingsChecks(): void
+{
+  $directory = actionFixture('settings-read');
+  file_put_contents($directory . '/config.php', '<?php');
+  $pdo = actionDatabase($directory);
+  $pdo->exec("ALTER TABLE settings ADD COLUMN setting_type TEXT DEFAULT 'string'");
+  $pdo->exec('CREATE TABLE posts(id INT,category TEXT,status TEXT,scheduled_at TEXT)');
+  $pdo->exec(
+    "INSERT INTO posts VALUES(1,'Visible','published',NULL),(2,'Private draft','draft',NULL)",
+  );
+  $insert = $pdo->prepare('INSERT INTO settings VALUES(?,?,?,?)');
+  foreach (
+    [
+      ['general', 'site_name', 'Tom & Jerry', 'string'],
+      [
+        'general',
+        'admin_profile',
+        json_encode([
+          'name' => 'Owner',
+          'email' => 'public@example.invalid',
+          'password' => 'PRIVATE_PROFILE',
+        ]),
+        'json',
+      ],
+      ['general', 'admin_palette', 'harbour-amber', 'string'],
+      ['content', 'categories', '["Saved category"]', 'json'],
+      ['media', 'default_view', 'grid', 'string'],
+      [
+        'api',
+        'config',
+        json_encode(['aiApiKey' => 'PRIVATE_API', 'aiModel' => 'gemini-3.8-flash']),
+        'json',
+      ],
+      ['smtp', 'smtp_password', 'PRIVATE_SMTP', 'string'],
+      ['contact', 'forms', '[{"id":"private-form"}]', 'json'],
+    ]
+    as $row
+  ) {
+    $insert->execute($row);
+  }
+  foreach (
+    [
+      null,
+      ['id' => '2', 'role' => 'Member'],
+      ['id' => '3', 'role' => 'Writer'],
+      ['id' => '4', 'role' => 'Moderator'],
+      ['id' => '5', 'role' => 'Admin'],
+      ['id' => '1', 'role' => 'Root'],
+    ]
+    as $actor
+  ) {
+    $response = actionRun($directory, [['endpoint' => 'get_settings.php', 'actor' => $actor]])[0];
+    $settings = $response['body'];
+    $role = $actor['role'] ?? 'Guest';
+    $admin = in_array($role, ['Admin', 'Root'], true);
+    $staff = in_array($role, ['Writer', 'Moderator', 'Admin', 'Root'], true);
+    actionCheck(
+      $response['status'] === 200 && $response['diagnostics'] === '',
+      'Settings failed for ' . $role . ': ' . $response['diagnostics'],
+    );
+    actionCheck($settings['siteName'] === 'Tom & Jerry', 'Settings changed plain text.');
+    actionCheck(
+      ($settings['_canManageSecrets'] ?? false) === ($role === 'Root'),
+      'Settings owner hint changed.',
+    );
+    actionCheck(
+      isset($settings['aiAssistant']) === $staff,
+      'Settings staff capability projection changed.',
+    );
+    actionCheck(
+      isset($settings['api']) === $admin && isset($settings['contactForms']) === $admin,
+      'Settings exposed private configuration.',
+    );
+    actionCheck(
+      in_array('Private draft', $settings['categories'], true) === $admin,
+      'Settings category role visibility changed.',
+    );
+    actionCheck(
+      $settings['publicCategories'] === ['Visible'],
+      'Settings public category projection changed.',
+    );
+    actionCheck(
+      $settings['adminProfile']['email'] === 'public@example.invalid',
+      'Settings lost intentional public contact email.',
+    );
+    actionCheck(
+      !str_contains($response['output'], 'PRIVATE_API'),
+      'Settings leaked provider credential.',
+    );
+    if ($role !== 'Root') {
+      actionCheck(
+        !str_contains($response['output'], 'PRIVATE_SMTP') &&
+          !str_contains($response['output'], 'PRIVATE_PROFILE'),
+        'Settings masking failed.',
+      );
+    }
+    if ($admin) {
+      actionCheck(
+        $settings['_settingsScope'] === 'admin' &&
+          $settings['adminPalette'] === 'harbour-amber' &&
+          $settings['media']['defaultView'] === 'grid',
+        'Settings admin reconstruction changed.',
+      );
+    }
+  }
+}
+
+/** Execute malformed-type regressions through the real endpoint bodies and SQLite. */
+function actionInputValidationChecks(): void
+{
+  foreach (
+    [
+      [],
+      [2],
+      (object) ['id' => 2],
+      true,
+      false,
+      -1,
+      1.5,
+      '1e0',
+      '2suffix',
+      '2147483648',
+      '9999999999999999999',
+    ]
+    as $id
+  ) {
+    foreach (['delete_redirect.php', 'save_redirect.php'] as $endpoint) {
+      $directory = actionFixture('redirect-id-' . bin2hex(random_bytes(4)));
+      $pdo = actionDatabase($directory);
+      $before = $pdo->query('SELECT * FROM redirects ORDER BY id')->fetchAll();
+      $result = actionRun($directory, [['endpoint' => $endpoint, 'input' => ['id' => $id]]])[0];
+      actionCheck($result['status'] === 400, $endpoint . ' accepted a malformed record ID');
+      actionCheck(
+        $pdo->query('SELECT * FROM redirects ORDER BY id')->fetchAll() === $before,
+        $endpoint . ' changed a rule after an invalid ID',
+      );
+    }
+  }
+  foreach (
+    [
+      ['input' => ['id' => 2]],
+      ['input' => ['id' => '2']],
+      ['input' => ['id' => '0000000002']],
+      ['method' => 'DELETE', 'rawBody' => '', 'query' => ['id' => '2']],
+    ]
+    as $request
+  ) {
+    $directory = actionFixture('redirect-delete-valid-' . bin2hex(random_bytes(4)));
+    $result = actionRun($directory, [['endpoint' => 'delete_redirect.php'] + $request])[0];
+    actionCheck($result['status'] === 200, 'Supported redirect deletion was rejected');
+    actionCheck(
+      actionDatabase($directory)
+        ->query('SELECT id FROM redirects ORDER BY id')
+        ->fetchAll(PDO::FETCH_COLUMN) === [1],
+      'Redirect deletion did not preserve the unrelated first rule',
+    );
+  }
+  foreach (
+    [
+      ['input' => ['id' => 0]],
+      ['rawBody' => '', 'query' => ['id' => [2]]],
+      ['rawBody' => '{broken', 'query' => ['id' => 2]],
+      ['rawBody' => 'true', 'query' => ['id' => 2]],
+      ['rawBody' => '[2]', 'query' => ['id' => 2]],
+      ['case' => 'csrf'],
+      ['actor' => ['id' => '2', 'role' => 'Member']],
+    ]
+    as $request
+  ) {
+    $directory = actionFixture('redirect-delete-denied-' . bin2hex(random_bytes(4)));
+    $result = actionRun($directory, [['endpoint' => 'delete_redirect.php'] + $request])[0];
+    actionCheck(
+      $result['status'] === (isset($request['case']) || isset($request['actor']) ? 403 : 400),
+      'Redirect delete validation or denial order changed',
+    );
+    actionCheck(
+      (int) actionDatabase($directory)->query('SELECT COUNT(*) FROM redirects')->fetchColumn() ===
+        2,
+      'Rejected redirect deletion changed rows',
+    );
+  }
+  foreach (['source_url', 'target_url', 'redirect_type'] as $field) {
+    foreach ([[], (object) ['invalid' => true], true, 1.5] as $value) {
+      $directory = actionFixture('redirect-field-' . bin2hex(random_bytes(4)));
+      $result = actionRun($directory, [
+        ['endpoint' => 'save_redirect.php', 'input' => [$field => $value]],
+      ])[0];
+      actionCheck(
+        $result['status'] === 400,
+        'Compound/wrong redirect field was not rejected: ' . $field,
+      );
+      actionCheck(
+        (int) actionDatabase($directory)->query('SELECT COUNT(*) FROM redirects')->fetchColumn() ===
+          2,
+        'Invalid redirect fields wrote a rule',
+      );
+    }
+  }
+  foreach ([null, '', 0, '0'] as $createId) {
+    $directory = actionFixture('redirect-create-' . bin2hex(random_bytes(4)));
+    $result = actionRun($directory, [
+      ['endpoint' => 'save_redirect.php', 'input' => ['id' => $createId, 'redirect_type' => '308']],
+    ])[0];
+    actionCheck($result['status'] === 200, 'Legacy redirect create sentinel changed');
+    actionCheck(
+      (int) actionDatabase($directory)
+        ->query("SELECT redirect_type FROM redirects WHERE source_url='/new'")
+        ->fetchColumn() === 308,
+      'Valid redirect type changed',
+    );
+  }
+  foreach (['update', 'loop', 'csrf', 'member'] as $case) {
+    $directory = actionFixture('redirect-save-' . $case);
+    $request = [
+      'endpoint' => 'save_redirect.php',
+      'input' => ['id' => 2, 'source_url' => '/second', 'target_url' => '/changed'],
+    ];
+    if ($case === 'loop') {
+      $request['input'] = ['id' => null, 'source_url' => '/first-target', 'target_url' => '/first'];
+    }
+    if ($case === 'csrf') {
+      $request['case'] = 'csrf';
+    }
+    if ($case === 'member') {
+      $request['actor'] = ['id' => '2', 'role' => 'Member'];
+    }
+    $result = actionRun($directory, [$request])[0];
+    actionCheck(
+      $result['status'] === ($case === 'update' ? 200 : ($case === 'loop' ? 400 : 403)),
+      'Redirect save control failed: ' . $case,
+    );
+    actionCheck(
+      actionDatabase($directory)
+        ->query('SELECT target_url FROM redirects WHERE id=2')
+        ->fetchColumn() === ($case === 'update' ? '/changed' : '/second-target'),
+      'Redirect control changed the wrong state: ' . $case,
+    );
+  }
+  foreach ([[], ['bad'], (object) ['text' => 'bad'], true, 42] as $bio) {
+    $directory = actionFixture('profile-bio-invalid-' . bin2hex(random_bytes(4)));
+    $pdo = actionDatabase($directory);
+    $before = $pdo->query('SELECT * FROM users WHERE id=2')->fetch();
+    $result = actionRun($directory, [
+      ['endpoint' => 'update_profile.php', 'input' => ['bio' => $bio]],
+    ])[0];
+    actionCheck($result['status'] === 400, 'Non-text bio was accepted');
+    actionCheck(
+      $pdo->query('SELECT * FROM users WHERE id=2')->fetch() === $before,
+      'Rejected bio changed profile/password/token',
+    );
+    actionCheck(
+      (int) $pdo->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 1,
+      'Rejected bio revoked remember token',
+    );
+  }
+  foreach (['R&D 名 <example> &amp;', '', null] as $bio) {
+    $directory = actionFixture('profile-bio-valid-' . bin2hex(random_bytes(4)));
+    $result = actionRun($directory, [
+      ['endpoint' => 'update_profile.php', 'case' => 'profile-only', 'input' => ['bio' => $bio]],
+    ])[0];
+    actionCheck($result['status'] === 200, 'Supported profile bio was rejected');
+    actionCheck(
+      actionDatabase($directory)->query('SELECT bio FROM users WHERE id=2')->fetchColumn() ===
+        ($bio ?? ''),
+      'Profile plain text/empty bio changed',
+    );
+  }
+}
+
+/** Baseline contracts for the type-only managed-user cleanup. No live accounts. */
+function actionManagedContractChecks(): void
+{
+  foreach ([false, true] as $create) {
+    foreach (
+      ['Member', 'Writer', 'Moderator', 'Admin', '', null, 'Root', 'unknown', '0']
+      as $role
+    ) {
+      $directory = actionFixture('managed-contract-' . bin2hex(random_bytes(4)));
+      $pdo = actionDatabase($directory);
+      $before = $pdo->query('SELECT * FROM users WHERE id=2')->fetch();
+      $allowed = !in_array($role, ['Root', 'unknown', '0'], true);
+      $input = ['role' => $role];
+      if ($create) {
+        $input += [
+          'id' => '',
+          'username' => 'qa_create',
+          'email' => 'created@example.invalid',
+          'password' => 'Create1!Password',
+        ];
+      }
+      $result = actionRun($directory, [
+        ['endpoint' => 'save_user.php', 'case' => 'profile-only', 'input' => $input],
+      ])[0];
+      actionCheck(
+        $result['status'] === ($allowed ? 200 : 400),
+        'Managed role contract changed: ' . json_encode([$create, $role]),
+      );
+      actionCheck(
+        (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() ===
+          ($create && $allowed ? 2 : 1),
+        'Managed role create count changed.',
+      );
+      if ($create || !$allowed) {
+        actionCheck(
+          $pdo->query('SELECT * FROM users WHERE id=2')->fetch() === $before,
+          'Managed role request changed an unrelated/rejected account.',
+        );
+      } else {
+        actionCheck(
+          $pdo->query('SELECT role FROM users WHERE id=2')->fetchColumn() ===
+            ($role === '' || $role === null ? 'Member' : $role),
+          'Managed role value changed.',
+        );
+        actionCheck(
+          $pdo->query('SELECT password FROM users WHERE id=2')->fetchColumn() ===
+            $before['password'],
+          'Profile-only role edit changed password.',
+        );
+      }
+    }
+  }
+  foreach (['Root', 'Admin', 'Moderator', 'Writer', 'Member', 'guest'] as $actorRole) {
+    foreach ([false, true] as $create) {
+      foreach (['', 'Member', 'Admin'] as $requestedRole) {
+        $directory = actionFixture('managed-actor-' . bin2hex(random_bytes(4)));
+        $pdo = actionDatabase($directory);
+        $before = $pdo->query('SELECT * FROM users WHERE id=2')->fetch();
+        $actor = ['id' => $actorRole === 'Root' ? '1' : '3', 'role' => $actorRole];
+        $allowed = $actorRole === 'Root' || ($actorRole === 'Admin' && $requestedRole !== 'Admin');
+        $input = ['role' => $requestedRole];
+        if ($create) {
+          $input += [
+            'id' => '',
+            'username' => 'qa_create',
+            'email' => 'created@example.invalid',
+            'password' => 'Create1!Password',
+          ];
+        }
+        $result = actionRun($directory, [
+          [
+            'endpoint' => 'save_user.php',
+            'case' => 'profile-only',
+            'actor' => $actor,
+            'input' => $input,
+          ],
+        ])[0];
+        actionCheck(
+          $result['status'] === ($allowed ? 200 : 403),
+          'Actor create/update role boundary changed: ' .
+            json_encode([$actorRole, $create, $requestedRole]),
+        );
+        actionCheck(
+          (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() ===
+            ($create && $allowed ? 2 : 1),
+          'Actor role denial allocated an account.',
+        );
+        if (!$allowed || $create) {
+          actionCheck(
+            $pdo->query('SELECT * FROM users WHERE id=2')->fetch() === $before,
+            'Actor role denial/create changed an existing account.',
+          );
+        }
+      }
+    }
+  }
+  foreach (
+    [
+      ['Admin', '2', 'Admin', '', 200],
+      ['Admin', '2', 'Admin', 'Member', 403],
+      ['Root', '1', 'Root', '', 200],
+      ['Admin', '3', 'Root', '', 403],
+    ]
+    as [$actorRole, $actorId, $storedRole, $requestedRole, $status]
+  ) {
+    $directory = actionFixture('managed-preserve-' . bin2hex(random_bytes(4)));
+    $pdo = actionDatabase($directory);
+    $pdo->prepare('UPDATE users SET role=? WHERE id=2')->execute([$storedRole]);
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'save_user.php',
+        'case' => 'profile-only',
+        'actor' => ['id' => $actorId, 'role' => $actorRole],
+        'input' => ['role' => $requestedRole],
+      ],
+    ])[0];
+    actionCheck($result['status'] === $status, 'Existing protected role preservation changed.');
+    actionCheck(
+      $pdo->query('SELECT role FROM users WHERE id=2')->fetchColumn() === $storedRole,
+      'Protected/self role changed.',
+    );
+  }
+  foreach (['zero', 'array', 'object', 'null', 'omitted'] as $kind) {
+    $directory = actionFixture('managed-contract-password-' . $kind);
+    $pdo = actionDatabase($directory);
+    $before = $pdo->query('SELECT password,reset_token FROM users WHERE id=2')->fetch();
+    $result = actionRun($directory, [
+      ['endpoint' => 'save_user.php', 'case' => 'password-' . $kind],
+    ])[0];
+    actionCheck(
+      $result['status'] === (in_array($kind, ['null', 'omitted'], true) ? 200 : 400),
+      'Managed password validation contract changed: ' . $kind,
+    );
+    actionCheck(
+      $pdo->query('SELECT password,reset_token FROM users WHERE id=2')->fetch() === $before &&
+        (int) $pdo->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 1,
+      'Rejected/omitted managed password changed credentials.',
+    );
+  }
+}
+
 try {
+  actionSettingsChecks();
+  if (($argv[1] ?? '') === '--settings-read') {
+    echo 'PASS Settings read contracts: ' .
+      $checks .
+      " checks (actual controller/projection, SQLite, fixture authority).\n";
+    return;
+  }
+  actionManagedContractChecks();
+  if (($argv[1] ?? '') === '--managed-validation') {
+    echo 'PASS Managed User Contracts: ' .
+      $checks .
+      " checks (real endpoint bodies/SQLite; fixture authority).\n";
+    return;
+  }
+  actionInputValidationChecks();
+  if (($argv[1] ?? '') === '--input-validation') {
+    echo 'PASS Input Validation: ' .
+      $checks .
+      " checks (real endpoint bodies/SQLite; fixture sessions, real CSRF).\n";
+    return;
+  }
+  $normalizer = actionDeclaration(
+    $root . '/public/api/save_settings.php',
+    "if (\$jsonKey === 'spamKeywords')",
+  );
+  $jsonKey = 'spamKeywords';
+  $value = 'Casino, casino,, ÉCOLE, école,0,';
+  eval($normalizer);
+  actionCheck(
+    $value === 'casino, école, 0',
+    'Settings normalizes empty, repeated and Unicode keywords without dropping zero',
+  );
+  actionCheck(
+    ($settings['spamKeywords'] ?? null) === $value,
+    'Settings mirror receives the same normalized keyword list',
+  );
+  foreach (
+    [
+      ['casino,,', 'hello world friend', 'approved', ''],
+      [' , , ', 'hello world friend', 'approved', ''],
+      ['casino,', 'hello casino friend', 'pending', ''],
+      ['ÉCOLE,', 'une école ouverte', 'pending', ''],
+      ['0', 'hello 0 friend', 'pending', ''],
+      ['0', 'hello casino friend', 'approved', ''],
+      ['casino,,', 'hello world friend', 'spam', 'bot'],
+    ]
+    as $index => [$keywords, $content, $expected, $honeypot]
+  ) {
+    $directory = actionFixture('comment-keywords-' . $index);
+    $pdo = actionDatabase($directory);
+    $pdo->exec('DROP TABLE comments');
+    $pdo->exec(
+      'CREATE TABLE comments(id INTEGER PRIMARY KEY,post_id INT,user_id INT,parent_id INT,user_name TEXT,user_avatar TEXT,content TEXT,likes INT,status TEXT,created_at TEXT)',
+    );
+    $pdo->exec('CREATE TABLE posts(id INT,status TEXT,scheduled_at TEXT)');
+    $pdo->exec("INSERT INTO posts VALUES(42,'published',NULL)");
+    $pdo->prepare("INSERT INTO settings VALUES('general','spam_keywords',?)")->execute([$keywords]);
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'save_comments.php',
+        'case' => 'add',
+        'input' => ['content' => $content, 'hp_field' => $honeypot],
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === 200 && ($result['body']['status'] ?? '') === $expected,
+      'Real comment add retains expected keyword verdict: ' . $index,
+    );
+    actionCheck(
+      $pdo->query('SELECT status FROM comments')->fetchColumn() === $expected,
+      'Persisted comment keyword verdict: ' . $index,
+    );
+    $pdo = null;
+  }
+  $directory = actionFixture('tracking-shared-budget');
+  foreach ([true, false] as $guest) {
+    $avatarDirectory = actionFixture('comment-avatar-' . (int) $guest);
+    $avatarDb = actionDatabase($avatarDirectory);
+    $avatarDb->exec('DROP TABLE comments');
+    $avatarDb->exec(
+      'CREATE TABLE comments(id INTEGER PRIMARY KEY,post_id INT,user_id INT,parent_id INT,user_name TEXT,user_avatar TEXT,content TEXT,likes INT,status TEXT,created_at TEXT)',
+    );
+    $avatarDb->exec('CREATE TABLE posts(id INT,status TEXT,scheduled_at TEXT)');
+    $avatarDb->exec("INSERT INTO posts VALUES(42,'published',NULL)");
+    $result = actionRun($avatarDirectory, [
+      [
+        'endpoint' => 'save_comments.php',
+        'case' => 'add',
+        'guest' => $guest,
+        'input' => ['userAvatar' => 'https://tracking.example.invalid/pixel'],
+      ],
+    ])[0];
+    actionCheck($result['status'] === 200, 'Ordinary guest/member comment remains accepted');
+    actionCheck(
+      $avatarDb->query('SELECT user_avatar FROM comments')->fetchColumn() ===
+        ($guest ? '' : '/uploads/member.webp'),
+      'Guest avatar ignored; member avatar comes from the session',
+    );
+    $avatarDb = null;
+  }
+  $pdo = actionDatabase($directory);
+  $pdo->exec(
+    'CREATE TABLE analytics(id INTEGER PRIMARY KEY,page_url TEXT,referrer TEXT,user_agent TEXT,ip_hash TEXT,visit_date TEXT,visit_time TEXT,created_at TEXT,measurement_mode TEXT)',
+  );
+  $pdo->exec(
+    'CREATE TABLE analytics_sessions(visitor_hash TEXT PRIMARY KEY,last_seen INT,expires_at INT)',
+  );
+  $pdo->exec('CREATE TABLE posts(id INT PRIMARY KEY,status TEXT,views INT,updated_at TEXT)');
+  $pdo->exec("INSERT INTO posts VALUES(42,'published',0,'2026-10-24 00:00:00')");
+  $pdo->exec(
+    "INSERT INTO settings VALUES('plugins','active_plugins','[\"vp_analytics\"]'),('analytics','config','{\"measurementMode\":\"balanced\"}')",
+  );
+  $result = actionRun($directory, [
+    ['endpoint' => 'track_monolithic.php', 'trackingBatch' => 500],
+  ])[0];
+  actionCheck(
+    ($result['body']['admitted'] ?? 0) === 120 && ($result['body']['denied'] ?? 0) === 380,
+    '500 mixed tracking endpoint calls share 120 POST admissions',
+  );
+  actionCheck(
+    (int) $pdo->query('SELECT COUNT(*) FROM analytics')->fetchColumn() === 120,
+    'Denied tracking calls cannot add analytics rows',
+  );
+  actionCheck(
+    (int) $pdo->query('SELECT views FROM posts')->fetchColumn() === 60,
+    'New guest sessions cannot inflate content views after the shared quota',
+  );
+  actionCheck(
+    $pdo->query('SELECT updated_at FROM posts')->fetchColumn() === '2026-10-24 00:00:00',
+    'Tracking admission preserves editorial timestamps',
+  );
+  $result = actionRun($directory, [
+    ['endpoint' => 'track_monolithic.php', 'trackingBatch' => 500, 'trackingProxy' => true],
+  ])[0];
+  actionCheck(
+    ($result['body']['admitted'] ?? 0) === 240 && ($result['body']['denied'] ?? 0) === 260,
+    'Both actual POST routes give independent budgets to two clients behind one opted-in proxy',
+  );
+  actionCheck(
+    (int) $pdo->query('SELECT COUNT(*) FROM analytics')->fetchColumn() === 360 &&
+      (int) $pdo->query('SELECT views FROM posts')->fetchColumn() === 180,
+    'Proxy-resolved admission bounds both analytics rows and content views',
+  );
+  file_put_contents($directory . '/analytics_signing.key', 'invalid');
+  $result = actionRun($directory, [
+    ['endpoint' => 'track_monolithic.php', 'case' => 'normal', 'ip' => '198.51.100.250'],
+  ])[0];
+  actionCheck(
+    $result['status'] === 200 &&
+      ($result['body']['view'] ?? false) &&
+      !($result['body']['visit'] ?? true),
+    'Optional signing failure preserves admitted content views without recording analytics',
+  );
+  actionCheck(
+    (int) $pdo->query('SELECT views FROM posts')->fetchColumn() === 181,
+    'Optional analytics failure does not suppress the ordinary content counter',
+  );
+  $pdo = null;
+  foreach (['voncms_account_token_digest', 'voncms_account_token_matches'] as $name) {
+    eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function ' . $name . '('));
+  }
+  foreach (['legacy', 'digest'] as $format) {
+    $directory = actionFixture('account-token-' . $format);
+    $pdo = actionDatabase($directory);
+    $raw = bin2hex(random_bytes(32));
+    $stored = $format === 'digest' ? voncms_account_token_digest($raw) : $raw;
+    actionCheck(
+      strlen($stored) <= 64 && ($format !== 'digest' || $stored !== $raw),
+      'Token storage format',
+    );
+    $pdo->prepare('UPDATE users SET reset_token=? WHERE id=2')->execute([$stored]);
+    if ($format === 'digest') {
+      foreach ([$stored, hash('sha256', $raw)] as $stolenRepresentation) {
+        $result = actionRun($directory, [
+          [
+            'endpoint' => 'reset_password.php',
+            'input' => [
+              'action' => 'reset',
+              'token' => $stolenRepresentation,
+              'password' => 'New1!Password',
+            ],
+          ],
+        ])[0];
+        actionCheck(
+          $result['status'] === 400 &&
+            $pdo->query('SELECT reset_token FROM users WHERE id=2')->fetchColumn() === $stored,
+          'Stored token digest or decoded digest cannot authorize reset',
+        );
+      }
+    }
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'reset_password.php',
+        'input' => [
+          'action' => 'reset',
+          'token' => $raw,
+          'password' => 'New1!Password',
+        ],
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === 200 &&
+        password_verify(
+          'New1!Password',
+          $pdo->query('SELECT password FROM users WHERE id=2')->fetchColumn(),
+        ),
+      'Reset succeeds using the emailed raw secret: ' . $format,
+    );
+    actionCheck(
+      $pdo->query('SELECT reset_token FROM users WHERE id=2')->fetchColumn() === null &&
+        (int) $pdo->query('SELECT COUNT(*) FROM remember_tokens')->fetchColumn() === 0,
+      'Reset consumes token and revokes remember credentials',
+    );
+    actionCheck(
+      actionRun($directory, [
+        [
+          'endpoint' => 'reset_password.php',
+          'input' => [
+            'action' => 'reset',
+            'token' => $raw,
+            'password' => 'Other1!Password',
+          ],
+        ],
+      ])[0]['status'] === 400,
+      'Consumed reset cannot replay',
+    );
+    $pdo
+      ->prepare(
+        'UPDATE users SET email_verified=0,verification_token=?,verification_token_expires=? WHERE id=2',
+      )
+      ->execute([
+        $stored,
+        $format === 'digest'
+          ? gmdate('Y-m-d H:i:s', time() + 3600)
+          : date('Y-m-d H:i:s', time() + 3600),
+      ]);
+    if ($format === 'digest') {
+      actionRun($directory, [['endpoint' => 'verify_email.php', 'token' => $stored]]);
+      actionCheck(
+        (int) $pdo->query('SELECT email_verified FROM users WHERE id=2')->fetchColumn() === 0,
+        'Stored verification digest cannot authorize verification',
+      );
+    }
+    $verified = actionRun($directory, [
+      ['endpoint' => 'verify_email.php', 'token' => $raw],
+      ['endpoint' => 'verify_email.php', 'token' => $raw],
+    ]);
+    actionCheck(
+      count(
+        array_filter(
+          $verified,
+          fn($row) => str_contains($row['body']['html'], 'Email verified successfully!'),
+        ),
+      ) === 1,
+      'One verification succeeds under duplicate requests: ' . $format,
+    );
+    actionCheck(
+      (int) $pdo->query('SELECT email_verified FROM users WHERE id=2')->fetchColumn() === 1 &&
+        $pdo->query('SELECT verification_token FROM users WHERE id=2')->fetchColumn() === null,
+      'Verification consumes the stored credential',
+    );
+    $pdo
+      ->prepare(
+        'UPDATE users SET email_verified=0,verification_token=?,verification_token_expires=? WHERE id=2',
+      )
+      ->execute([
+        $stored,
+        $format === 'digest'
+          ? gmdate('Y-m-d H:i:s', time() - 3600)
+          : date('Y-m-d H:i:s', time() - 3600),
+      ]);
+    actionRun($directory, [['endpoint' => 'verify_email.php', 'token' => $raw]]);
+    actionCheck(
+      (int) $pdo->query('SELECT email_verified FROM users WHERE id=2')->fetchColumn() === 0,
+      'Expired verification credential is rejected',
+    );
+  }
+  foreach (['legacy', 'digest'] as $format) {
+    foreach (['UTC', 'Pacific/Honolulu', 'Asia/Kuala_Lumpur'] as $zone) {
+      foreach ([3600, -3600] as $remaining) {
+        $directory = actionFixture(
+          'verification-clock-' .
+            $format .
+            '-' .
+            str_replace('/', '-', $zone) .
+            '-' .
+            ($remaining > 0 ? 'valid' : 'expired'),
+        );
+        $pdo = actionDatabase($directory);
+        $raw = bin2hex(random_bytes(32));
+        $stored = $format === 'digest' ? voncms_account_token_digest($raw) : $raw;
+        $expiryZone = new DateTimeZone($format === 'digest' ? 'UTC' : $zone);
+        $expiry = (new DateTimeImmutable('@' . (time() + $remaining)))
+          ->setTimezone($expiryZone)
+          ->format('Y-m-d H:i:s');
+        $pdo
+          ->prepare(
+            'UPDATE users SET email_verified=0,verification_token=?,verification_token_expires=? WHERE id=2',
+          )
+          ->execute([$stored, $expiry]);
+        actionRun($directory, [
+          ['endpoint' => 'verify_email.php', 'token' => $raw, 'phpTimezone' => $zone],
+        ]);
+        actionCheck(
+          (int) $pdo->query('SELECT email_verified FROM users WHERE id=2')->fetchColumn() ===
+            (int) ($remaining > 0),
+          'Verification preserves ' . $format . ' expiry with PHP zone ' . $zone,
+        );
+      }
+    }
+  }
+  // Preserve baseline strtotime semantics in a repeated DST hour, not wall-string ordering.
+  $verificationSource = file_get_contents($root . '/public/api/verify_email.php');
+  preg_match(
+    '/\x27(UPDATE users SET email_verified = 1[^\x27]+)\x27/',
+    $verificationSource,
+    $consumeMatch,
+  );
+  $legacyStart = strpos($verificationSource, '  $legacyExpiry = 0;');
+  $legacyEnd = strpos($verificationSource, '  // Mark email as verified', $legacyStart ?: 0);
+  actionCheck(
+    isset($consumeMatch[1]) && $legacyStart !== false && $legacyEnd !== false,
+    'Actual verification expiry controls can be inspected',
+  );
+  $legacyValidation = substr($verificationSource, $legacyStart, $legacyEnd - $legacyStart);
+  foreach (
+    ['2026-11-01 05:15:00 UTC' => true, '2026-11-01 06:15:00 UTC' => false]
+    as $reference => $valid
+  ) {
+    $epoch = (new DateTimeImmutable($reference))->getTimestamp();
+    $directory = actionFixture('verification-dst-' . ($valid ? 'valid' : 'expired'));
+    $pdo = actionDatabase($directory);
+    $pdo->createFunction('UNIX_TIMESTAMP', fn(): int => $epoch);
+    $raw = bin2hex(random_bytes(32));
+    $expiry = '2026-11-01 01:30:00';
+    $zoneBefore = date_default_timezone_get();
+    date_default_timezone_set('America/New_York');
+    $expiryEpoch = strtotime($expiry);
+    date_default_timezone_set($zoneBefore);
+    $program =
+      'namespace VerifyLegacyClockFixture; date_default_timezone_set("America/New_York");' .
+      'function time(): int { return ' .
+      $epoch .
+      '; } function showResult(bool $success,string $message): void {echo !$success && $message!=="" ? "rejected" : "allowed";}' .
+      '$token=' .
+      var_export($raw, true) .
+      ';$user=' .
+      var_export(['verification_token' => $raw, 'verification_token_expires' => $expiry], true) .
+      ';' .
+      $legacyValidation .
+      'echo "allowed";';
+    $pipes = [];
+    $process = proc_open(
+      [PHP_BINARY, '-r', $program],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+    );
+    if (!is_resource($process)) {
+      throw new RuntimeException('Cannot start controlled verification clock fixture');
+    }
+    fclose($pipes[0]);
+    $output = stream_get_contents($pipes[1]);
+    $errors = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    actionCheck(
+      proc_close($process) === 0 && $errors === '' && $output === ($valid ? 'allowed' : 'rejected'),
+      'Real legacy PHP validation preserves DST absolute expiry',
+    );
+    $pdo
+      ->prepare(
+        'UPDATE users SET email_verified=0,verification_token=?,verification_token_expires=? WHERE id=2',
+      )
+      ->execute([$raw, $expiry]);
+    $consume = $pdo->prepare($consumeMatch[1]);
+    $consume->execute([
+      2,
+      voncms_account_token_digest($raw),
+      $raw,
+      voncms_account_token_digest($raw),
+      $raw,
+      $expiry,
+      $expiryEpoch,
+    ]);
+    actionCheck(
+      $consume->rowCount() === (int) $valid,
+      'Atomic legacy consumption preserves DST absolute expiry',
+    );
+  }
   foreach (['save_post.php', 'save_page.php'] as $endpoint) {
     foreach (['root', 'moderator'] as $role) {
       $directory = actionFixture(pathinfo($endpoint, PATHINFO_FILENAME) . '-inline-' . $role);
@@ -945,6 +2287,173 @@ try {
       'Legacy display name was decoded or compounded',
     );
   }
+  foreach (['own', 'other', 'noop', 'rejected', 'commit-failure'] as $scenario) {
+    $directory = actionFixture('managed-avatar-' . $scenario);
+    $pdo = actionDatabase($directory);
+    $pdo->exec("UPDATE users SET role='Root'");
+    $actor = [
+      'id' => $scenario === 'other' ? '1' : '2',
+      'role' => 'Root',
+      'username' => 'old-session',
+      'avatar' => 'https://qa.invalid/old.webp',
+      'auth_fingerprint' => 'unchanged-auth',
+    ];
+    $input = [
+      'role' => 'Root',
+      'avatar' => 'https://qa.invalid/new.webp',
+      'display_name' => 'QA',
+      'bio' => '',
+    ];
+    if ($scenario === 'noop') {
+      $pdo->exec("UPDATE users SET avatar='https://qa.invalid/new.webp'");
+    }
+    if ($scenario === 'rejected') {
+      $input['display_name'] = str_repeat('a', 101);
+    }
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'save_user.php',
+        'case' => 'profile-only',
+        'actor' => $actor,
+        'input' => $input,
+        'noopUpdate' => $scenario === 'noop',
+        'failCommit' => $scenario === 'commit-failure',
+      ],
+    ])[0];
+    $accepted = in_array($scenario, ['own', 'other', 'noop'], true);
+    actionCheck(
+      $result['status'] === ($accepted ? 200 : ($scenario === 'rejected' ? 400 : 500)),
+      'Managed avatar response: ' . $scenario,
+    );
+    $expected = $actor;
+    if ($accepted && $scenario !== 'other') {
+      $expected = array_merge($actor, [
+        'username' => 'qa_member',
+        'email' => 'qa@example.invalid',
+        'display_name' => 'QA',
+        'bio' => '',
+        'avatar' => $input['avatar'],
+      ]);
+    }
+    $actualSession = $result['sessionUser'];
+    ksort($actualSession);
+    ksort($expected);
+    actionCheck(
+      $actualSession === $expected,
+      'Managed profile changed stale/foreign/auth session fields: ' . $scenario,
+    );
+    if (!$accepted) {
+      actionCheck(
+        $pdo->query('SELECT avatar FROM users WHERE id=2')->fetchColumn() === '',
+        'Failed save changed persisted avatar',
+      );
+    }
+  }
+  foreach (['Root', 'Admin', 'Moderator', 'Writer', 'Member', 'guest'] as $role) {
+    $directory = actionFixture('comment-post-context-' . strtolower($role));
+    $pdo = actionDatabase($directory);
+    $pdo->exec(
+      'CREATE TABLE posts(id INTEGER PRIMARY KEY,title TEXT,slug TEXT,category TEXT,created_at TEXT,status TEXT,scheduled_at TEXT)',
+    );
+    $pdo->exec('DROP TABLE comments');
+    $pdo->exec(
+      'CREATE TABLE comments(id INTEGER PRIMARY KEY,post_id INT,user_id INT,parent_id INT,user_name TEXT,user_avatar TEXT,content TEXT,likes INT,status TEXT,created_at TEXT)',
+    );
+    $insertPost = $pdo->prepare('INSERT INTO posts VALUES(?,?,?,?,?,?,?)');
+    $insertComment = $pdo->prepare('INSERT INTO comments VALUES(?,?,2,NULL,?,?,?,0,?,?)');
+    foreach (['published', 'draft', 'future', 'past', 'missing', 'legacy'] as $index => $kind) {
+      $id = 1000 + $index;
+      if ($kind !== 'missing') {
+        $insertPost->execute([
+          $id,
+          'QA &amp; ' . $kind,
+          (string) $id,
+          'Technology',
+          '2026-10-01 12:00:00',
+          $kind === 'legacy' ? null : ($kind === 'draft' ? 'draft' : 'published'),
+          $kind === 'future'
+            ? '2099-01-01 00:00:00'
+            : ($kind === 'past'
+              ? '2000-01-01 00:00:00'
+              : null),
+        ]);
+      }
+      $insertComment->execute([
+        $id,
+        $id,
+        'QA',
+        '',
+        'Comment ' . $kind,
+        'approved',
+        '2026-10-01 12:00:00',
+      ]);
+    }
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'get_comments.php',
+        'case' => $role === 'guest' ? 'guest' : 'normal',
+        'actor' =>
+          $role === 'guest' ? null : ['id' => $role === 'Root' ? '1' : '3', 'role' => $role],
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === 200 && !empty($result['body']['success']),
+      'Comment context read failed: ' . $role,
+    );
+    $canReadContext = in_array($role, ['Root', 'Admin', 'Moderator'], true);
+    $staff = $role !== 'guest' && $role !== 'Member';
+    actionCheck(
+      count($result['body']['comments']) === ($staff ? 6 : 3),
+      'Comment visibility changed: ' . $role,
+    );
+    foreach ($result['body']['comments'] as $comment) {
+      if (!$canReadContext) {
+        actionCheck(!array_key_exists('post', $comment), 'Post metadata leaked to ' . $role);
+        continue;
+      }
+      $kind = substr($comment['content'], strlen('Comment '));
+      if ($kind === 'missing') {
+        actionCheck(
+          $comment['post'] === null,
+          'Deleted parent must not link through a stale cached post',
+        );
+        continue;
+      }
+      actionCheck(
+        $comment['post']['id'] === $comment['postId'] &&
+          $comment['post']['title'] === 'QA & ' . $kind,
+        'Incorrect parent post context',
+      );
+      actionCheck(
+        $comment['post']['isPublic'] === in_array($kind, ['published', 'past', 'legacy'], true),
+        'Parent publication visibility drifted',
+      );
+      actionCheck(
+        array_keys($comment['post']) === [
+          'id',
+          'title',
+          'slug',
+          'category',
+          'createdAt',
+          'isPublic',
+        ],
+        'Comment post context grew beyond compact presentation fields',
+      );
+    }
+    if ($canReadContext) {
+      $detail = actionRun($directory, [
+        [
+          'endpoint' => 'get_comments.php',
+          'actor' => ['id' => '1', 'role' => 'Root'],
+          'query' => ['post_id' => '1000', 'flat' => 'true'],
+        ],
+      ])[0];
+      actionCheck(
+        !array_key_exists('post', $detail['body']['comments'][0]),
+        'Public-post comment reads gained unnecessary metadata',
+      );
+    }
+  }
   $directory = actionFixture('managed-bio-type');
   $invalidBio = actionRun($directory, [
     ['endpoint' => 'save_user.php', 'case' => 'profile-only', 'input' => ['bio' => ['invalid']]],
@@ -995,20 +2504,252 @@ try {
       );
       $resetSource = file_get_contents($root . '/public/api/reset_password.php');
       preg_match(
-        "~'(SELECT id FROM users WHERE reset_token = \\? AND reset_token_expires > NOW\\(\\) FOR UPDATE)'~",
+        "~'(SELECT id, reset_token FROM users WHERE reset_token IN \\(\\?, \\?\\) AND reset_token_expires > NOW\\(\\) FOR UPDATE)'~",
         $resetSource,
         $match,
       );
       actionCheck(isset($match[1]), 'Actual reset consumer was not found');
       $lookup = $pdo->prepare($match[1]);
-      $lookup->execute([str_repeat('a', 64)]);
+      $lookup->execute(['s1:legacy-lookup-control', str_repeat('a', 64)]);
       actionCheck(
         ($lookup->fetchColumn() === false) === $changed,
         'Old bearer authority survived password replacement',
       );
     }
   }
+  foreach (
+    [
+      ['missing', null, null, true],
+      ['db-on', 'true', null, true],
+      ['db-one', '1', null, true],
+      ['db-off', 'false', null, false],
+      ['db-zero', '0', null, false],
+      ['mirror-empty', null, [], true],
+      ['mirror-on', null, ['registrationEnabled' => true], true],
+      ['mirror-off', null, ['registrationEnabled' => false], false],
+      ['mirror-string-off', null, ['registrationEnabled' => 'false'], false],
+      ['db-off-mirror-on', 'false', ['registrationEnabled' => true], false],
+      ['db-on-mirror-off', 'true', ['registrationEnabled' => false], true],
+    ]
+    as [$label, $stored, $mirror, $enabled]
+  ) {
+    $registrationDirectory = actionFixture('registration-default-' . $label);
+    $registrationDb = actionDatabase($registrationDirectory);
+    if ($stored !== null) {
+      $registrationDb
+        ->prepare('INSERT INTO settings VALUES(?,?,?)')
+        ->execute(['general', 'registration_enabled', $stored]);
+    }
+    if ($mirror !== null) {
+      file_put_contents(
+        $registrationDirectory . '/site_settings.json',
+        json_encode($mirror, JSON_THROW_ON_ERROR),
+      );
+    }
+    $result = actionRun($registrationDirectory, [
+      ['endpoint' => 'register.php', 'input' => ['username' => []]],
+    ])[0];
+    actionCheck(
+      $result['status'] === ($enabled ? 400 : 403),
+      'Registration default or explicit owner setting changed: ' . $label,
+    );
+    actionCheck(
+      (int) $registrationDb->query('SELECT COUNT(*) FROM users')->fetchColumn() === 1 &&
+        (int) $registrationDb->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() === 0,
+      'Registration policy probe created an account or sent mail: ' . $label,
+    );
+    if ($label === 'missing') {
+      $result = actionRun($registrationDirectory, [
+        [
+          'endpoint' => 'register.php',
+          'input' => [
+            'username' => 'qa_default_member',
+            'email' => 'qa-default@example.invalid',
+            'password' => 'Fixture_New9!',
+            'confirmPassword' => 'Fixture_New9!',
+          ],
+        ],
+      ])[0];
+      actionCheck(
+        $result['status'] === 200 &&
+          !empty($result['body']['requiresVerification']) &&
+          empty($result['body']['user']) &&
+          (int) $registrationDb->query('SELECT COUNT(*) FROM users')->fetchColumn() === 2 &&
+          (int) $registrationDb->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() === 1,
+        'Missing registration setting did not preserve ordinary unverified signup.',
+      );
+    }
+    $registrationDb = null;
+  }
+  $installerDefaults = (static function () use ($root): array {
+    $source = file_get_contents($root . '/public/api/install.php');
+    $start = strpos($source, '$defaultSettings = [') + strlen('$defaultSettings = ');
+    $end = strpos($source, '];', $start);
+    $detectedDomainUrl = 'https://qa.invalid';
+    $siteTitle = 'QA';
+    return eval('return ' . substr($source, $start, $end - $start + 2));
+  })();
+  $registrationDefaults = array_values(
+    array_filter(
+      $installerDefaults,
+      static fn(array $row): bool => $row[1] === 'registration_enabled',
+    ),
+  );
+  actionCheck(
+    $registrationDefaults === [['general', 'registration_enabled', 'true', 'boolean']],
+    'Fresh installer does not explicitly seed the registration default.',
+  );
   $directory = actionFixture('distributed-login');
+  $registrationDirectory = actionFixture('registration-ipv6');
+  $registrationDb = actionDatabase($registrationDirectory);
+  $registrationDb->exec("INSERT INTO settings VALUES('general','registration_enabled','true')");
+  for ($i = 1; $i <= 8; $i++) {
+    $result = actionRun($registrationDirectory, [
+      [
+        'endpoint' => 'register.php',
+        'ip' => '2001:db8:1234:5::' . dechex($i),
+        'input' => ['username' => [], 'password' => ''],
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === ($i <= 5 ? 400 : 429),
+      'Registration endpoint failed IPv6 /64 reservation: ' . json_encode($result),
+    );
+  }
+  $result = actionRun($registrationDirectory, [
+    [
+      'endpoint' => 'register.php',
+      'ip' => '2001:db8:1234:6::1',
+      'input' => ['username' => [], 'password' => ''],
+    ],
+  ])[0];
+  actionCheck(
+    $result['status'] === 400,
+    'Independent IPv6 network lost its registration allowance.',
+  );
+  actionCheck(
+    count(glob($registrationDirectory . '/rates/*.json')) === 1,
+    'Registration endpoint allocates per-address files.',
+  );
+  actionCheck(
+    (int) $registrationDb->query('SELECT COUNT(*) FROM users')->fetchColumn() === 1,
+    'Rejected registration creates accounts.',
+  );
+  $result = actionRun($registrationDirectory, [
+    [
+      'endpoint' => 'register.php',
+      'ip' => '2001:db8:1234:7::1',
+      'input' => [
+        'username' => 'qa_new_member',
+        'email' => 'qa-new@example.invalid',
+        'password' => 'Fixture_New9!',
+        'confirmPassword' => 'Fixture_New9!',
+      ],
+    ],
+  ])[0];
+  actionCheck(
+    $result['status'] === 200 &&
+      !empty($result['body']['requiresVerification']) &&
+      empty($result['body']['user']),
+    'Ordinary registration or unverified-account boundary changed: ' . json_encode($result),
+  );
+  actionCheck(
+    (int) $registrationDb->query('SELECT COUNT(*) FROM users')->fetchColumn() === 2,
+    'Ordinary registration failed to persist its fixture account.',
+  );
+  actionCheck(
+    (int) $registrationDb->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() === 1,
+    'Ordinary registration did not deliver exactly one stubbed verification email.',
+  );
+  $registrationDb = null;
+  foreach (['normal', 'wrong-password', 'csrf', 'mail-failure', 'verified'] as $resendCase) {
+    $resendDirectory = actionFixture('verification-resend-' . $resendCase);
+    $resendDb = actionDatabase($resendDirectory);
+    $oldVerification = str_repeat('b', 64);
+    $resendDb
+      ->prepare(
+        'UPDATE users SET email_verified=?,verification_token=?,verification_token_expires=? WHERE id=2',
+      )
+      ->execute([$resendCase === 'verified' ? 1 : 0, $oldVerification, '2000-01-01 00:00:00']);
+    $request = [
+      'endpoint' => 'login.php',
+      'case' => $resendCase,
+      'password' => $resendCase === 'wrong-password' ? 'Wrong1!Password' : 'Old1!Password',
+      'input' => ['action' => 'resend_verification'],
+    ];
+    $result = actionRun($resendDirectory, [$request])[0];
+    $expected = match ($resendCase) {
+      'wrong-password' => 401,
+      'csrf' => 403,
+      'mail-failure' => 503,
+      default => 200,
+    };
+    actionCheck(
+      $result['status'] === $expected,
+      'Verification resend status: ' . $resendCase . ' ' . json_encode($result),
+    );
+    actionCheck(!isset($result['body']['user']), 'Resend never authenticates a user');
+    $changed = in_array($resendCase, ['normal', 'mail-failure'], true);
+    $stored = $resendDb->query('SELECT verification_token FROM users WHERE id=2')->fetchColumn();
+    actionCheck(
+      $changed ? str_starts_with($stored, 's1:') : $stored === $oldVerification,
+      'Resend token mutation is credential/CSRF bound',
+    );
+    actionCheck(
+      (int) $resendDb->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() === (int) $changed,
+      'Resend sends exactly one authorized email',
+    );
+    actionCheck(
+      (int) $resendDb->query('SELECT email_verified FROM users WHERE id=2')->fetchColumn() ===
+        ($resendCase === 'verified' ? 1 : 0),
+      'Resend never auto-verifies an account',
+    );
+    if ($resendCase === 'normal') {
+      $retry = actionRun($resendDirectory, [$request + ['ip' => '203.0.113.88']])[0];
+      actionCheck(
+        $retry['status'] === 429 &&
+          $resendDb->query('SELECT verification_token FROM users WHERE id=2')->fetchColumn() ===
+            $stored,
+        'Credential-bound resend cooldown spans IPs without replacing the token',
+      );
+      $payload = json_decode(
+        $resendDb->query('SELECT payload FROM mail_calls')->fetchColumn(),
+        true,
+      );
+      preg_match('/token=([a-f0-9]{64})/', implode('', $payload), $sentToken);
+      actionCheck(
+        isset($sentToken[1]) &&
+          str_contains(
+            $stored,
+            rtrim(strtr(base64_encode(hash('sha256', $sentToken[1], true)), '+/', '-_'), '='),
+          ),
+        'Resend stores only a digest of the delivered credential',
+      );
+    }
+    $resendDb = null;
+  }
+  $raceDirectory = actionFixture('verification-resend-race');
+  $raceDb = actionDatabase($raceDirectory);
+  $raceDb
+    ->prepare('UPDATE users SET email_verified=0,verification_token=? WHERE id=2')
+    ->execute([str_repeat('b', 64)]);
+  $raceRequest = [
+    'endpoint' => 'login.php',
+    'password' => 'Old1!Password',
+    'input' => ['action' => 'resend_verification'],
+  ];
+  $raceResults = actionRun($raceDirectory, [
+    $raceRequest + ['ip' => '198.51.100.80'],
+    $raceRequest + ['ip' => '198.51.100.81'],
+  ]);
+  $statuses = array_column($raceResults, 'status');
+  sort($statuses);
+  actionCheck($statuses === [200, 429], 'Concurrent credential-bound resend has one winner');
+  actionCheck(
+    (int) $raceDb->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() === 1,
+    'Concurrent resend sends one email',
+  );
+  $raceDb = null;
   for ($attempt = 1; $attempt <= 21; $attempt++) {
     $result = actionRun($directory, [
       ['endpoint' => 'login.php', 'ip' => '198.51.100.' . $attempt],
@@ -1250,11 +2991,353 @@ try {
       );
     }
   }
+  require_once $root . '/public/api/content_embed_helper.php';
+  $commentsSource = file_get_contents($root . '/public/api/get_comments.php');
+  preg_match('/\$commentAvatar = [^;]+;/', $commentsSource, $avatarProjection);
+  actionCheck(isset($avatarProjection[0]), 'Comment avatar projection owner found');
+  foreach (
+    [
+      [
+        [
+          'userId' => null,
+          'user_live_avatar' => null,
+          'userAvatar' => 'https://tracking.invalid/pixel',
+        ],
+        '',
+      ],
+      [
+        [
+          'userId' => 2,
+          'user_live_avatar' => '/uploads/current.webp',
+          'userAvatar' => 'https://stale.invalid/avatar',
+        ],
+        '/uploads/current.webp',
+      ],
+      [
+        ['userId' => 2, 'user_live_avatar' => '', 'userAvatar' => 'https://stale.invalid/avatar'],
+        '',
+      ],
+    ]
+    as [$c, $expectedAvatar]
+  ) {
+    eval($avatarProjection[0]);
+    actionCheck(
+      ResponseHelper::scrubAvatarUrl($commentAvatar) === $expectedAvatar,
+      'Legacy guest and cleared account avatars stay suppressed',
+    );
+  }
+  eval(actionDeclaration($root . '/public/security.php', 'class SecurityHelper'));
+  foreach (['_', '-', '+', '=', '[', ']', '~', ';', "'", '\\', '/', '!', '。', '😀'] as $symbol) {
+    actionCheck(
+      SecurityHelper::hasPasswordSpecialCharacter('Abc12345' . $symbol),
+      'Password accepts punctuation/symbol: ' . $symbol,
+    );
+  }
+  foreach (
+    [
+      'Abc12345',
+      'Abc12345 ',
+      "Abc12345\t",
+      'Abc12345名',
+      "Abc12345\u{0085}",
+      "Abc12345\u{FEFF}",
+      "Abc12345\u{200B}",
+      "Abc12345\u{0301}",
+    ]
+    as $plain
+  ) {
+    actionCheck(
+      !SecurityHelper::hasPasswordSpecialCharacter($plain),
+      'Letters/numbers/whitespace alone are not password symbols',
+    );
+  }
+  $unsafeHtml =
+    '<base href="https://evil.invalid/"><meta http-equiv="refresh" content="0;url=https://evil.invalid"><object data="https://evil.invalid"></object><embed src="https://evil.invalid"><form action="https://evil.invalid"><input value="private"></form><svg><foreignObject><img src=x onerror=bad()></foreignObject></svg><math><mtext>x</mtext></math><p>Keep</p>';
+  $clean = voncms_sanitize_content_attributes($unsafeHtml);
+  actionCheck(
+    !preg_match('/<(?:base|meta|object|embed|form|input|svg|math)\b/i', $clean) &&
+      str_contains($clean, '<p>Keep</p>'),
+    'Active containers are removed before storage',
+  );
+  foreach (
+    [
+      'background-color:url(https://tracking.invalid/pixel)',
+      'width:expression(bad())',
+      'width:e/**/xpression(bad())',
+      'width:u\\72l(https://tracking.invalid/pixel)',
+      'color:var(--remote)',
+    ]
+    as $style
+  ) {
+    actionCheck(voncms_sanitize_content_style($style) === '', 'Unsafe CSS value removed');
+  }
+  actionCheck(
+    voncms_sanitize_content_srcset(
+      '/uploads/a.webp 480w, https://cdn.example.invalid/b.webp 960w',
+    ) !== '',
+    'Ordinary responsive image retained',
+  );
+  foreach (
+    [
+      'javascript:bad() 2x',
+      '/safe.webp 1x, data:image/svg+xml;base64,AAAA 2x',
+      'java' . "\t" . 'script:bad() 2x',
+    ]
+    as $srcset
+  ) {
+    actionCheck(voncms_sanitize_content_srcset($srcset) === '', 'Unsafe srcset removed');
+  }
+  $ordinary =
+    '<h2>Heading</h2><p style="text-align:center;color:rgb(1, 2, 3)">R&amp;D</p><table><tbody><tr><td>Keep</td></tr></tbody></table><pre><code>&lt;script&gt;example&lt;/script&gt;</code></pre><a href="mailto:qa@example.invalid">Mail</a><img src="/uploads/qa.webp" srcset="/uploads/qa.webp 1x, /uploads/qa2.webp 2x">';
+  $clean = voncms_sanitize_content_attributes($ordinary);
+  foreach (
+    [
+      '<h2>',
+      '<table>',
+      '<pre>',
+      '&lt;script&gt;',
+      'mailto:qa@example.invalid',
+      'text-align:center',
+      'srcset=',
+    ]
+    as $expected
+  ) {
+    actionCheck(str_contains($clean, $expected), 'Ordinary rich content retained: ' . $expected);
+  }
+  $video = voncms_sanitize_content_attributes(
+    voncms_sanitize_content_iframes(
+      '<iframe src="https://www.youtube.com/embed/example" allowfullscreen></iframe>',
+    ),
+  );
+  actionCheck(str_contains($video, 'youtube.com/embed/example'), 'Supported video retained');
+  eval(
+    actionDeclaration(
+      $root . '/public/api/tools/wp_import.php',
+      'function sanitize_imported_content_html(',
+    )
+  );
+  actionCheck(
+    sanitize_imported_content_html($unsafeHtml) === voncms_sanitize_content_attributes($unsafeHtml),
+    'Import shares the stored-content boundary',
+  );
+  $importSource = file_get_contents($root . '/public/api/tools/wp_import.php');
+  $sizeGuard = actionDeclaration(
+    $root . '/public/api/tools/wp_import.php',
+    'if (strlen($rawContent) > 1048576)',
+  );
+  foreach ([str_repeat('a', 1048575), str_repeat('a', 1048575) . '😀'] as $rawContent) {
+    $rejected = false;
+    try {
+      eval($sizeGuard);
+    } catch (RuntimeException $error) {
+      $rejected = true;
+    }
+    actionCheck(
+      $rejected === strlen($rawContent) > 1048576 && mb_check_encoding($rawContent, 'UTF-8'),
+      'Import rejects oversized UTF-8 without truncation',
+    );
+  }
+
+  $storageDirectory = actionFixture('storage-cache');
+  mkdir($storageDirectory . '/api');
+  mkdir($storageDirectory . '/data');
+  mkdir($storageDirectory . '/uploads');
+  foreach (['getFolderStats', 'getCachedFolderStats'] as $name) {
+    $declaration = actionDeclaration(
+      $root . '/public/api/get_storage.php',
+      'function ' . $name . '(',
+    );
+    eval(str_replace('__DIR__', var_export($storageDirectory . '/api', true), $declaration));
+  }
+  file_put_contents($storageDirectory . '/uploads/one.webp', '123');
+  actionCheck(
+    getCachedFolderStats($storageDirectory . '/uploads') === ['bytes' => 3, 'files' => 1],
+    'Storage first scan',
+  );
+  file_put_contents($storageDirectory . '/uploads/two.webp', '4567');
+  actionCheck(
+    getCachedFolderStats($storageDirectory . '/uploads') === ['bytes' => 3, 'files' => 1],
+    'Storage cache avoids another traversal within TTL',
+  );
+  $cachePath = $storageDirectory . '/data/storage_usage.json';
+  $cached = json_decode(file_get_contents($cachePath), true);
+  $cached['at'] = time() - 301;
+  file_put_contents($cachePath, json_encode($cached));
+  actionCheck(
+    getCachedFolderStats($storageDirectory . '/uploads') === ['bytes' => 7, 'files' => 2],
+    'Expired storage cache refreshes',
+  );
+  file_put_contents($cachePath, 'corrupted');
+  actionCheck(
+    getCachedFolderStats($storageDirectory . '/uploads') === ['bytes' => 7, 'files' => 2],
+    'Malformed storage cache falls back safely',
+  );
+  unlink($cachePath);
+  rmdir($storageDirectory . '/data');
+  actionCheck(
+    getCachedFolderStats($storageDirectory . '/uploads') === ['bytes' => 7, 'files' => 2],
+    'Unavailable cache retains live counts',
+  );
+
+  // The real import file localizer/rollback must invalidate usage, including attachment-only
+  // writes and files retained after best-effort media registration. Network/DB transport is fake.
+  mkdir($storageDirectory . '/data');
+  mkdir($storageDirectory . '/api/tools');
+  $GLOBALS['qa_import_storage_root'] = $storageDirectory;
+  function absolutize_import_media_url($url, $bases)
+  {
+    return $url;
+  }
+  function should_rehost_import_image($url, $bases, $target)
+  {
+    return true;
+  }
+  function get_import_upload_context($target)
+  {
+    return [
+      'absolute_dir' => $GLOBALS['qa_import_storage_root'] . '/uploads/',
+      'relative_dir' => '',
+      'url_prefix' => 'https://qa.invalid/uploads/',
+    ];
+  }
+  function fetch_remote_import_image_to_temp($url)
+  {
+    $path = $GLOBALS['qa_import_storage_root'] . '/image-temp.png';
+    file_put_contents(
+      $path,
+      base64_decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF9sAAAAASUVORK5CYII=',
+      ),
+    );
+    return $path;
+  }
+  function register_imported_media(...$args)
+  {
+    /* Transport intentionally unavailable. */
+  }
+  function import_media_table_exists($connection)
+  {
+    return false;
+  }
+  function debug_log($message) {}
+  if (!defined('VONCMS_WP_IMPORT_MAX_IMAGE_BYTES')) {
+    define('VONCMS_WP_IMPORT_MAX_IMAGE_BYTES', 10 * 1024 * 1024);
+  }
+  foreach (
+    [
+      'sanitize_import_media_name',
+      'get_import_image_extension',
+      'rehost_import_image_url',
+      'rollback_imported_media_since',
+    ]
+    as $name
+  ) {
+    $declaration = actionDeclaration(
+      $root . '/public/api/tools/wp_import.php',
+      'function ' . $name . '(',
+    );
+    eval(str_replace('__DIR__', var_export($storageDirectory . '/api/tools', true), $declaration));
+  }
+  $GLOBALS['voncms_wp_import_created_media'] = [];
+  $oldStats = getCachedFolderStats($storageDirectory . '/uploads');
+  $localized = rehost_import_image_url(
+    'https://source.invalid/attachment.png',
+    [],
+    'https://qa.invalid',
+    new stdClass(),
+    1,
+  );
+  actionCheck(
+    is_string($localized) && !is_file($cachePath),
+    'Attachment-only import invalidates usage before media registration',
+  );
+  $newStats = getCachedFolderStats($storageDirectory . '/uploads');
+  actionCheck(
+    $newStats['files'] === $oldStats['files'] + 1 && $newStats['bytes'] > $oldStats['bytes'],
+    'Imported image has immediate live storage totals',
+  );
+  $cachedBeforeReuse = file_get_contents($cachePath);
+  rehost_import_image_url(
+    'https://source.invalid/attachment.png',
+    [],
+    'https://qa.invalid',
+    new stdClass(),
+    1,
+  );
+  actionCheck(
+    file_get_contents($cachePath) === $cachedBeforeReuse,
+    'Reusing an import image does not unnecessarily invalidate counts',
+  );
+  rollback_imported_media_since(new PDO('sqlite::memory:'), 0);
+  actionCheck(
+    !is_file($cachePath) && getCachedFolderStats($storageDirectory . '/uploads') === $oldStats,
+    'Insert rollback invalidates usage after removing the imported file',
+  );
+  $retriedImport = rehost_import_image_url(
+    'https://source.invalid/attachment.png',
+    [],
+    'https://qa.invalid',
+    new stdClass(),
+    1,
+  );
+  $retryFile =
+    $storageDirectory .
+    '/uploads/' .
+    basename((string) parse_url((string) $retriedImport, PHP_URL_PATH));
+  actionCheck(
+    is_string($retriedImport) && is_file($retryFile) && !is_file($cachePath),
+    'Same-URL import after rollback recreates its file and invalidates totals',
+  );
+  actionCheck(
+    getCachedFolderStats($storageDirectory . '/uploads')['files'] === $oldStats['files'] + 1,
+    'Retried image immediately appears in storage counts',
+  );
+
+  foreach (
+    [
+      'ai_provider_helper',
+      'content_audit_helper',
+      'ImageProcessor',
+      'mail_helper',
+      'media_library_filter_helper',
+      'public_cache_helper',
+      'redirect_loop_helper',
+      'role_capability_helper',
+      'schema_repair_helper',
+      'settings_audit_helper',
+    ]
+    as $helper
+  ) {
+    $file = $root . '/public/api/' . $helper . '.php';
+    $code =
+      '$_SERVER["SCRIPT_FILENAME"]=' .
+      var_export($file, true) .
+      ';register_shutdown_function(static function(){echo ":".(http_response_code()?:200);});require ' .
+      var_export($file, true) .
+      ';';
+    $process = proc_open(
+      [PHP_BINARY, '-r', $code],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+    );
+    actionCheck(is_resource($process), 'Direct helper probe starts');
+    fclose($pipes[0]);
+    $out = stream_get_contents($pipes[1]);
+    $err = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $status = proc_close($process);
+    actionCheck(
+      $status === 0 && $out === 'Forbidden:403' && $err === '',
+      'Direct helper request denied: ' . $helper,
+    );
+  }
+
   echo 'PASS API Action Boundaries: ' .
     $checks .
     " checks (isolated PHP processes/SQLite; SMTP stub).\n";
 } finally {
-  unset($lookup, $pdo);
+  unset($consume, $lookup, $pdo, $resendDb, $avatarDb, $raceDb, $insertPost, $insertComment);
   // The only deletion target is the random, test-created fixture directory above.
   $iterator = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator($fixtureRoot, FilesystemIterator::SKIP_DOTS),

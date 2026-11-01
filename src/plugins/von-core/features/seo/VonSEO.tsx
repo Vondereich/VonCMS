@@ -65,6 +65,7 @@ const normalizeConfiguredCanonicalBase = (
   const candidate = typeof value === 'string' ? value.trim() : '';
   if (
     !candidate ||
+    // eslint-disable-next-line no-control-regex -- Reject control characters in untrusted URLs.
     /[\u0000-\u0020\\]/.test(candidate) ||
     /(?:^|\/)(?:\.{1,2}|%2e(?:%2e)?)(?:\/|$)/i.test(candidate)
   ) {
@@ -129,7 +130,7 @@ const clearUrlBearingSeo = () => {
   document.head.querySelector('script[type="application/ld+json"].vp-seo')?.remove();
 };
 
-const setJsonLd = (obj: any, schemaUrl: string) => {
+const setJsonLd = (obj: unknown, schemaUrl: string) => {
   let el = document.head.querySelector('script[type="application/ld+json"].vp-seo');
   if (!el) {
     el = document.createElement('script');
@@ -190,7 +191,7 @@ type SsrSeoSnapshot = {
   canonical: string;
   robots: string;
   title: string;
-  schema: any;
+  schema: unknown;
 };
 const ssrSeoSnapshots = new WeakMap<Document, SsrSeoSnapshot | null>();
 const getSsrSeoSnapshot = (): SsrSeoSnapshot | null => {
@@ -415,7 +416,9 @@ const VonSEO: React.FC<VonSEOProps> = ({
     if (!canonicalBase) {
       try {
         document.title = title;
-      } catch (e) {}
+      } catch {
+        // A restricted document title must not prevent the remaining metadata update.
+      }
       ensureMeta('description', 'name', description);
       ensureMeta('generator', 'name', 'VonSEO 3.0');
       ensureMeta('og:title', 'property', title);
@@ -433,7 +436,9 @@ const VonSEO: React.FC<VonSEOProps> = ({
     // --- 2. Apply Document Title ---
     try {
       document.title = title;
-    } catch (e) {}
+    } catch {
+      // A restricted document title must not prevent the remaining metadata update.
+    }
 
     // --- 3. Canonical Link ---
     canonical = setLinkCanonical(canonical) ?? canonical;
@@ -499,7 +504,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     ensureMeta('twitter:image:alt', 'name', twitterImage ? title : '');
 
     // --- 7. JSON-LD (Advanced Schema) ---
-    const jsonLd: any = {
+    const jsonLd: { '@context': string; '@graph': Record<string, unknown>[] } = {
       '@context': 'https://schema.org',
       '@graph': [],
     };
@@ -661,6 +666,9 @@ const VonSEO: React.FC<VonSEOProps> = ({
     selectedCategory,
     categoryPostCount,
     fetchedListingCount,
+    countKey,
+    hasPublicSearchQuery,
+    publicPage,
     location.pathname,
     location.search,
   ]);

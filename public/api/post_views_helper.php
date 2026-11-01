@@ -1,9 +1,14 @@
 <?php
 /** Daily anonymous article aggregates. No visitor identifiers or runtime DDL. */
-if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) === realpath(__FILE__)) {
+if (
+  is_string($_SERVER['SCRIPT_FILENAME'] ?? null) &&
+  realpath($_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)
+) {
   http_response_code(403);
   exit('Forbidden');
 }
+require_once __DIR__ . '/../core/DataBoundary.php';
+
 require_once __DIR__ . '/publication_time_helper.php';
 
 function voncms_post_views_ready(): bool
@@ -32,7 +37,9 @@ function voncms_record_daily_post_view(PDO $pdo, int $postId): void
   }
 }
 
-/** Staff authorization belongs to track_visit.php, before this read-only function. */
+/** Staff authorization belongs to track_visit.php, before this read-only function.
+ * @return array{articles: list<array{id: string, title: string, category: string, views: int, url: string}>, days: int, from: string, through: string, since: string|null, timeZone: string}
+ */
 function voncms_top_articles(PDO $pdo, int $days, string $basePath): array
 {
   require_once dirname(__DIR__) . '/seo_route_helper.php';
@@ -53,7 +60,7 @@ function voncms_top_articles(PDO $pdo, int $days, string $basePath): array
      ORDER BY period_views DESC, p.id DESC LIMIT 10",
   );
   $stmt->execute([$from, $today->format('Y-m-d'), date('Y-m-d H:i:s')]);
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $rows = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
   $styleStmt = $pdo->prepare(
     "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'permalink_structure' LIMIT 1",
   );
@@ -70,7 +77,8 @@ function voncms_top_articles(PDO $pdo, int $days, string $basePath): array
       'url' => $base . '/' . ltrim(buildCanonicalContentPath($row, $style), '/'),
     ];
   }, $rows);
-  $since = (int) (voncms_read_publication_capabilities()['post_daily_views_since'] ?? 0);
+  $sinceValue = voncms_read_publication_capabilities()['post_daily_views_since'] ?? 0;
+  $since = is_numeric($sinceValue) ? (int) $sinceValue : 0;
   return [
     'articles' => $articles,
     'days' => $days,

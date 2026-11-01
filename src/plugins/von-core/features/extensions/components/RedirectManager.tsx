@@ -66,7 +66,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
 
   const itemsPerPage = 25;
 
-  const fetchRedirects = async () => {
+  const fetchRedirects = React.useCallback(async () => {
     const requestId = ++redirectRequestId.current;
     setLoading(true);
     try {
@@ -97,14 +97,14 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
         setLoading(false);
       }
     }
-  };
+  }, [search, currentPage]);
 
   useEffect(() => {
     void fetchRedirects();
     return () => {
       redirectRequestId.current += 1;
     };
-  }, [search, currentPage]);
+  }, [fetchRedirects]);
 
   const handleSave = async () => {
     if (!sourceUrl.trim() || !targetUrl.trim()) {
@@ -132,7 +132,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
       } else {
         toast.error(data.message || 'Failed to save redirect');
       }
-    } catch (err) {
+    } catch {
       toast.error('Network error');
     }
   };
@@ -153,7 +153,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
       } else {
         toast.error(data.message || 'Failed to delete');
       }
-    } catch (err) {
+    } catch {
       toast.error('Network error');
     }
   };
@@ -198,7 +198,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
       } else {
         toast.error(data.message || 'Failed to scan redirect loops');
       }
-    } catch (err) {
+    } catch {
       toast.error('Network error while scanning redirects');
     } finally {
       setIsScanningLoops(false);

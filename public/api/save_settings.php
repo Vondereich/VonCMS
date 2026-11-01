@@ -21,8 +21,11 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 }
 
 // Try to create settings table if missing (hotfix for new installs/migrations)
+$pdo = DataBoundary::optionalDatabase($GLOBALS['pdo'] ?? null);
 try {
-  $pdo->query('SELECT 1 FROM settings LIMIT 1');
+  if ($pdo instanceof PDO) {
+    $pdo->query('SELECT 1 FROM settings LIMIT 1');
+  }
 } catch (Throwable $e) {
   // If table doesn't exist, we might be in the middle of a migration or repair
   // Don't die, just continue (will return default below if no rows)
@@ -35,21 +38,22 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Enforce Security
 SessionManager::requireValidSession();
 CSRFProtection::requireToken();
+$pdo = DataBoundary::database($pdo);
 
-$currentRole = $_SESSION['user']['role'] ?? '';
+$currentRole = DataBoundary::userText('role');
 if (!voncms_role_has_capability($currentRole, 'settings.manage')) {
   ResponseHelper::sendError('Settings management access required', 403);
 }
 $isPrimaryAdmin = SessionManager::isPrimaryAdmin();
 
-$userId = $_SESSION['user']['id'] ?? null;
+$userId = (int) DataBoundary::userText('id');
 
 // Get input (Support both JSON and FormData for legacy compatibility)
 $input = CSRFProtection::getRequestBody();
 $settings = json_decode($input, true);
 
 if (!$settings) {
-  if (isset($_POST['settings'])) {
+  if (isset($_POST['settings']) && is_string($_POST['settings'])) {
     $settings = json_decode($_POST['settings'], true);
   }
 }
@@ -58,6 +62,45 @@ if (!$settings || !is_array($settings)) {
   ResponseHelper::sendError('Invalid settings data', 400);
 }
 
+// Rotation is a separate owner action, never a partially applied normal Settings save.
+if (array_key_exists('_credentialAction', $settings)) {
+  if (!$isPrimaryAdmin) {
+    ResponseHelper::sendError(
+      'Primary Admin permission is required for encryption key rotation.',
+      403,
+    );
+  }
+  if (
+    ($settings['_credentialAction'] ?? null) !== 'rotate' ||
+    !is_string($settings['_credentialRevision'] ?? null) ||
+    count($settings) !== 2
+  ) {
+    ResponseHelper::sendError('Invalid encryption key rotation request.', 400);
+  }
+  require_once __DIR__ . '/ai_provider_helper.php';
+  try {
+    $projection = voncms_ai_rotate_global_key(
+      $pdo,
+      $settings['_credentialRevision'],
+      (int) $userId,
+    );
+    voncms_public_cache_clear();
+    echo json_encode(['success' => true, 'apiCredential' => $projection]);
+  } catch (InvalidArgumentException $e) {
+    ResponseHelper::sendError($e->getMessage(), 400);
+  } catch (Throwable $e) {
+    $status = $e->getCode() === 409 ? 409 : 503;
+    ResponseHelper::sendError(
+      $status === 409
+        ? $e->getMessage()
+        : 'Encryption key rotation could not be confirmed. Reload Settings before retrying; do not delete the private key file.',
+      $status,
+    );
+  }
+  exit();
+}
+
+/** @param array<array-key, mixed> $settings */
 function voncms_normalize_legacy_domain_setting(array &$settings): void
 {
   if (!isset($settings['system']) || !is_array($settings['system'])) {
@@ -91,6 +134,10 @@ function voncms_normalize_legacy_domain_setting(array &$settings): void
 // Legacy input must cross the same owner-only boundary as the canonical field.
 voncms_normalize_legacy_domain_setting($settings);
 
+/**
+ * @param array<array-key, mixed> $settings
+ * @return list<string>
+ */
 function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings): array
 {
   $restrictedTopLevelKeys = [
@@ -154,8 +201,31 @@ if (!$isPrimaryAdmin) {
   }
 }
 
+if (
+  is_array($settings['analytics'] ?? null) &&
+  array_key_exists('measurementMode', $settings['analytics'])
+) {
+  $measurementMode = $settings['analytics']['measurementMode'];
+  if (!is_string($measurementMode) || !in_array($measurementMode, ['strict', 'balanced'], true)) {
+    ResponseHelper::sendError('Invalid analytics measurement mode', 400);
+  }
+  if ($measurementMode === 'balanced') {
+    require_once __DIR__ . '/analytics_consent_helper.php';
+    require_once __DIR__ . '/schema_repair_helper.php';
+    if (
+      !voncms_analytics_mode_storage_ready($pdo) ||
+      !voncms_schema_has_capability($pdo, 'analytics_sessions')
+    ) {
+      ResponseHelper::sendError(
+        'Run Database Schema Repair before enabling Balanced analytics.',
+        409,
+      );
+    }
+  }
+}
+
 if (array_key_exists('smtpEncryption', $settings)) {
-  $smtpEncryption = strtolower(trim((string) $settings['smtpEncryption']));
+  $smtpEncryption = strtolower(trim(DataBoundary::inputText($settings['smtpEncryption'])));
   if (!in_array($smtpEncryption, ['tls', 'ssl'], true)) {
     ResponseHelper::sendError('SMTP authentication requires TLS or SSL encryption.', 400);
   }
@@ -169,7 +239,7 @@ $maintenanceFlagTouched = false;
 $settingsCommitted = false;
 
 if (isset($settings['domainUrl'])) {
-  $domainUrl = rtrim(trim((string) $settings['domainUrl']), '/');
+  $domainUrl = rtrim(trim(DataBoundary::inputText($settings['domainUrl'])), '/');
   if ($domainUrl !== '') {
     $domainScheme = strtolower((string) parse_url($domainUrl, PHP_URL_SCHEME));
     if (
@@ -182,6 +252,7 @@ if (isset($settings['domainUrl'])) {
   $settings['domainUrl'] = $domainUrl;
 }
 
+/** @return list<array-key> */
 function voncms_normalize_active_plugins(mixed $value): array
 {
   if (!is_array($value) || count($value) > 100) {
@@ -209,6 +280,9 @@ function voncms_normalize_active_plugins(mixed $value): array
   return array_keys($activePlugins);
 }
 
+/** @param array<array-key, mixed> $theme
+ * @return array<array-key, mixed>
+ */
 function voncms_remove_confirmed_legacy_theme_customizations(array $theme): array
 {
   // These namespaces no longer have a registered theme owner. Keep unknown/custom
@@ -220,6 +294,9 @@ function voncms_remove_confirmed_legacy_theme_customizations(array $theme): arra
   return $theme;
 }
 
+/** @param array<array-key, mixed> $navigation
+ * @return array<array-key, array<array-key, mixed>>
+ */
 function voncms_strip_navigation_runtime_projection(array $navigation): array
 {
   return array_map(static function ($item): array {
@@ -231,6 +308,7 @@ function voncms_strip_navigation_runtime_projection(array $navigation): array
   }, $navigation);
 }
 
+/** @return list<array{id: string, name: string, location: string, htmlContent: string, cssContent: string, enabled: bool}> */
 function voncms_normalize_custom_plugins(mixed $value): array
 {
   if (!is_array($value) || count($value) > 25) {
@@ -438,12 +516,19 @@ if (array_key_exists('headerIdentityMode', $settings)) {
 // Remove metadata fields
 unset($settings['_source'], $settings['_access_level'], $settings['_warning']);
 
-/** SMTP fallback remains private; AI/IndexNow credentials have no mirror consumer. */
+/** SMTP fallback remains private; AI/IndexNow credentials have no mirror consumer.
+ * @param array<array-key, mixed> $settings
+ * @return array<array-key, mixed>
+ */
 function voncms_filter_settings_mirror(array $settings): array
 {
   foreach ($settings as $key => $value) {
     if (
-      in_array(strtolower(str_replace('_', '', (string) $key)), ['aiapikey', 'indexnowkey'], true)
+      in_array(
+        strtolower(str_replace('_', '', (string) $key)),
+        ['aiapikey', 'indexnowkey', 'encryptstoredaikey', 'replaceaikey', 'aikeystorage'],
+        true,
+      )
     ) {
       unset($settings[$key]);
     } elseif (is_array($value)) {
@@ -453,6 +538,7 @@ function voncms_filter_settings_mirror(array $settings): array
   return $settings;
 }
 
+/** @param array<array-key, mixed> $settingsForFile */
 function voncms_write_settings_json_mirror(string $settingsFile, array $settingsForFile): void
 {
   $settingsDir = dirname($settingsFile);
@@ -508,12 +594,15 @@ function voncms_write_settings_json_mirror(string $settingsFile, array $settings
       throw new Exception('Failed to commit private settings mirror.');
     }
   } finally {
-    if (isset($tempFile) && file_exists($tempFile)) {
+    if (file_exists($tempFile)) {
       @unlink($tempFile);
     }
   }
 }
 
+/** @param array<array-key, mixed> $settingsForFile
+ * @return array<array-key, mixed>
+ */
 function voncms_prepare_settings_domain_mirror(array $settingsForFile, string $domainUrl): array
 {
   $settingsForFile['domainUrl'] = rtrim(trim($domainUrl), '/');
@@ -526,13 +615,14 @@ function voncms_prepare_settings_domain_mirror(array $settingsForFile, string $d
   return $settingsForFile;
 }
 
+/** @param array<array-key, mixed> $settings */
 function voncms_preserve_admin_profile_email_placeholder(PDO $pdo, array &$settings): void
 {
   if (!isset($settings['adminProfile']) || !is_array($settings['adminProfile'])) {
     return;
   }
 
-  $email = trim((string) ($settings['adminProfile']['email'] ?? ''));
+  $email = trim(DataBoundary::inputText($settings['adminProfile']['email'] ?? ''));
   if ($email === '' || strpos($email, '******** (PROTECTED)') === false) {
     return;
   }
@@ -544,13 +634,18 @@ function voncms_preserve_admin_profile_email_placeholder(PDO $pdo, array &$setti
   $existingRaw = $stmt->fetchColumn();
   $existingProfile = is_string($existingRaw) ? json_decode($existingRaw, true) : null;
 
-  if (is_array($existingProfile) && !empty($existingProfile['email'])) {
+  if (
+    is_array($existingProfile) &&
+    !empty($existingProfile['email']) &&
+    is_scalar($existingProfile['email'])
+  ) {
     $settings['adminProfile']['email'] = (string) $existingProfile['email'];
   } else {
     unset($settings['adminProfile']['email']);
   }
 }
 
+/** @param array<array-key, mixed> $settings */
 function voncms_scrub_admin_profile_avatar(array &$settings): void
 {
   if (!isset($settings['adminProfile']) || !is_array($settings['adminProfile'])) {
@@ -558,10 +653,11 @@ function voncms_scrub_admin_profile_avatar(array &$settings): void
   }
 
   $settings['adminProfile']['avatar'] = ResponseHelper::scrubAvatarUrl(
-    (string) ($settings['adminProfile']['avatar'] ?? ''),
+    $settings['adminProfile']['avatar'] ?? '',
   );
 }
 
+$apiCredentialFailureStatus = null;
 try {
   $pdo->beginTransaction();
   voncms_purge_sensitive_setting_audit_history($pdo);
@@ -582,6 +678,7 @@ try {
     ");
 
   $updated = 0;
+  $savedApiConfig = null;
 
   // Map settings to database structure
   $mappings = [
@@ -662,7 +759,23 @@ try {
       }
 
       if ($jsonKey === 'postsPerPage') {
-        $value = max(6, min(50, (int) $value));
+        $value = max(6, min(50, DataBoundary::inputInt($value)));
+      }
+
+      if ($jsonKey === 'spamKeywords') {
+        if (!is_string($value)) {
+          ResponseHelper::sendError('Spam keywords must be text.', 400);
+        }
+        $value = implode(
+          ', ',
+          array_unique(
+            array_filter(
+              array_map('trim', explode(',', mb_strtolower($value, 'UTF-8'))),
+              static fn(string $keyword): bool => $keyword !== '',
+            ),
+          ),
+        );
+        $settings[$jsonKey] = $value;
       }
 
       if ($jsonKey === 'theme' && is_array($value)) {
@@ -673,11 +786,16 @@ try {
         $value = voncms_strip_navigation_runtime_projection($value);
       }
 
-      if ($jsonKey === 'api' && is_array($value)) {
+      if ($jsonKey === 'api') {
+        // Owner-only work: legacy/guest writes must not depend on the encryption module.
+        require_once __DIR__ . '/ai_provider_helper.php';
+        if (!is_array($value)) {
+          ResponseHelper::sendError('Invalid API settings data.', 400);
+        }
         $existingApiConfig = [];
         try {
           $existingApiStmt = $pdo->prepare(
-            "SELECT setting_value FROM settings WHERE setting_group = 'api' AND setting_key = 'config' LIMIT 1",
+            "SELECT setting_value FROM settings WHERE setting_group = 'api' AND setting_key = 'config' LIMIT 1 FOR UPDATE",
           );
           $existingApiStmt->execute();
           $existingApiRaw = $existingApiStmt->fetchColumn();
@@ -686,81 +804,36 @@ try {
             : null;
           if (is_array($decodedApiConfig)) {
             $existingApiConfig = $decodedApiConfig;
+          } elseif (is_string($existingApiRaw) && $existingApiRaw !== '') {
+            throw new RuntimeException('Existing API settings are invalid.');
           }
         } catch (Throwable $e) {
-          $existingApiConfig = [];
+          throw new RuntimeException(
+            'Existing API settings could not be verified. Nothing was saved.',
+          );
         }
 
-        $aiKey = trim((string) ($value['aiApiKey'] ?? ''));
-        $rotationEnabled = filter_var(
-          $value['expireAiKeyAfter30Days'] ?? false,
-          FILTER_VALIDATE_BOOLEAN,
-        );
-        $value['expireAiKeyAfter30Days'] = $rotationEnabled;
-        $existingAiKey = trim((string) ($existingApiConfig['aiApiKey'] ?? ''));
-        $existingSavedAt = trim((string) ($existingApiConfig['aiKeySavedAt'] ?? ''));
-        $existingExpiresAt = trim((string) ($existingApiConfig['aiKeyExpiresAt'] ?? ''));
-        $rotationWasEnabled = filter_var(
-          $existingApiConfig['expireAiKeyAfter30Days'] ?? false,
-          FILTER_VALIDATE_BOOLEAN,
-        );
-        $aiKeyIsProtectedPlaceholder =
-          str_contains($aiKey, '*') || str_starts_with(strtolower($aiKey), 'protected:');
-        $existingAiKeyExpired = false;
-
-        if ($rotationEnabled && $existingAiKey !== '' && $existingExpiresAt !== '') {
-          try {
-            $expiresAt = new DateTimeImmutable($existingExpiresAt);
-            $existingAiKeyExpired =
-              $expiresAt <= new DateTimeImmutable('now', new DateTimeZone('UTC'));
-          } catch (Exception $e) {
-            $existingAiKeyExpired = true;
-          }
-        }
-
-        if ($aiKeyIsProtectedPlaceholder && !$existingAiKeyExpired) {
-          $aiKey = $existingAiKey;
-          $value['aiApiKey'] = $existingAiKey;
-        }
-
-        if (
-          $existingAiKeyExpired &&
-          ($aiKey === '' || $aiKeyIsProtectedPlaceholder || hash_equals($existingAiKey, $aiKey))
-        ) {
-          unset($value['aiApiKey'], $value['aiKeySavedAt'], $value['aiKeyExpiresAt']);
-        } elseif ($aiKey === '') {
-          unset($value['aiKeySavedAt'], $value['aiKeyExpiresAt']);
-        } else {
-          $refreshSavedAt =
-            $existingAiKey !== $aiKey ||
-            $existingSavedAt === '' ||
-            ($rotationEnabled && !$rotationWasEnabled);
-
-          $value['aiKeySavedAt'] = $refreshSavedAt ? gmdate('c') : $existingSavedAt;
-
-          if ($rotationEnabled) {
-            try {
-              $savedAt = new DateTimeImmutable($value['aiKeySavedAt']);
-            } catch (Exception $e) {
-              $savedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-              $value['aiKeySavedAt'] = $savedAt->format(DateTimeInterface::ATOM);
-            }
-            $value['aiKeyExpiresAt'] = $savedAt
-              ->modify('+30 days')
-              ->format(DateTimeInterface::ATOM);
-          } else {
-            unset($value['aiKeyExpiresAt']);
-          }
+        try {
+          $value = voncms_ai_prepare_stored_config($value, $existingApiConfig);
+          $savedApiConfig = $value;
+        } catch (InvalidArgumentException $e) {
+          $apiCredentialFailureStatus = 400;
+          throw $e;
+        } catch (Throwable $e) {
+          $apiCredentialFailureStatus = 503;
+          throw new RuntimeException(
+            'API key encryption is unavailable. Restore the private key backup or check PHP OpenSSL and private-file permissions. Nothing was saved.',
+          );
         }
       }
 
       // Type conversion
       if ($type === 'boolean') {
         $value = $value ? 'true' : 'false';
-      } elseif ($type === 'number') {
-        $value = (string) $value;
-      } elseif ($type === 'json' || $type === 'array') {
-        $value = json_encode($value);
+      } elseif ($type === 'json') {
+        $value = json_encode($value, JSON_THROW_ON_ERROR);
+      } else {
+        $value = DataBoundary::inputText($value);
       }
 
       $isPublicInDb =
@@ -833,7 +906,7 @@ try {
     $robotsTxt = preg_replace(
       '/^\s*Crawl-delay\s*:\s*\d+\s*$/mi',
       '',
-      (string) $settings['seo']['robotsTxt'],
+      DataBoundary::inputText($settings['seo']['robotsTxt']),
     );
     $robotsTxt = preg_replace('/^\s*Sitemap\s*:\s*.*$/mi', '', (string) $robotsTxt);
     $robotsTxt = trim((string) preg_replace("/\n{3,}/", "\n\n", (string) $robotsTxt));
@@ -874,13 +947,15 @@ try {
     if (isset($media['optimization']) && is_array($media['optimization'])) {
       $media['optimization']['maxWidth'] = max(
         320,
-        min(7680, (int) ($media['optimization']['maxWidth'] ?? 1920)),
+        min(7680, DataBoundary::inputInt($media['optimization']['maxWidth'] ?? 1920)),
       );
       $media['optimization']['maxHeight'] = max(
         240,
-        min(4320, (int) ($media['optimization']['maxHeight'] ?? 1080)),
+        min(4320, DataBoundary::inputInt($media['optimization']['maxHeight'] ?? 1080)),
       );
-      $compressionLevel = (string) ($media['optimization']['compressionLevel'] ?? 'medium');
+      $compressionLevel = DataBoundary::inputText(
+        $media['optimization']['compressionLevel'] ?? 'medium',
+      );
       $media['optimization']['compressionLevel'] = in_array(
         $compressionLevel,
         ['low', 'medium', 'high'],
@@ -891,11 +966,13 @@ try {
     }
 
     if (isset($media['storage']) && is_array($media['storage'])) {
-      $storageLocation = (string) ($media['storage']['location'] ?? 'local');
+      $storageLocation = DataBoundary::inputText($media['storage']['location'] ?? 'local');
       $media['storage']['location'] = in_array($storageLocation, ['local', 'cdn'], true)
         ? $storageLocation
         : 'local';
-      $folderStructure = (string) ($media['storage']['folderStructure'] ?? 'year_month');
+      $folderStructure = DataBoundary::inputText(
+        $media['storage']['folderStructure'] ?? 'year_month',
+      );
       $media['storage']['folderStructure'] = in_array(
         $folderStructure,
         ['year_month', 'flat'],
@@ -904,7 +981,7 @@ try {
         ? $folderStructure
         : 'year_month';
 
-      $cdnUrl = rtrim(trim((string) ($media['storage']['cdnUrl'] ?? '')), '/');
+      $cdnUrl = rtrim(trim(DataBoundary::inputText($media['storage']['cdnUrl'] ?? '')), '/');
       if ($cdnUrl !== '') {
         $cdnScheme = strtolower((string) parse_url($cdnUrl, PHP_URL_SCHEME));
         if (
@@ -921,7 +998,7 @@ try {
     foreach (['optimization', 'storage', 'performance'] as $key) {
       if (isset($media[$key])) {
         $isPublic = SecurityHelper::isSensitiveKey($key) ? 0 : 1;
-        $encodedValue = json_encode($media[$key]);
+        $encodedValue = json_encode($media[$key], JSON_THROW_ON_ERROR);
         $auditBefore = voncms_get_setting_audit_snapshot($pdo, 'media', $key);
         try {
           $upsertStmt->execute(['media', $key, $encodedValue, 'json', $isPublic, $userId]);
@@ -949,6 +1026,7 @@ try {
       }
     }
     if (isset($media['defaultView'])) {
+      $media['defaultView'] = DataBoundary::inputText($media['defaultView']);
       $isPublic = SecurityHelper::isSensitiveKey('default_view') ? 0 : 1;
       $auditBefore = voncms_get_setting_audit_snapshot($pdo, 'media', 'default_view');
       try {
@@ -1016,7 +1094,10 @@ try {
     }
   }
   if (isset($settingsForFile['postsPerPage'])) {
-    $settingsForFile['postsPerPage'] = max(6, min(50, (int) $settingsForFile['postsPerPage']));
+    $settingsForFile['postsPerPage'] = max(
+      6,
+      min(50, DataBoundary::inputInt($settingsForFile['postsPerPage'])),
+    );
     $settingsForFile['posts_per_page'] = $settingsForFile['postsPerPage'];
   }
 
@@ -1047,10 +1128,14 @@ try {
     'updated' => $updated,
     'ignored' => $ignoredSettingsKeys,
     'source' => 'database',
+    'apiCredential' =>
+      $savedApiConfig === null ? null : voncms_ai_credential_status($savedApiConfig),
+    'aiAssistant' =>
+      $savedApiConfig === null ? null : voncms_ai_safe_config_projection($savedApiConfig),
     'warning' => $mirrorWarning,
   ]);
 } catch (Throwable $e) {
-  if (isset($pdo) && $pdo->inTransaction()) {
+  if ($pdo->inTransaction()) {
     $pdo->rollBack();
   }
   if (!$settingsCommitted && $maintenanceFlagTouched) {
@@ -1059,6 +1144,9 @@ try {
     } catch (Throwable $restoreError) {
       error_log('Maintenance flag rollback failed: ' . $restoreError->getMessage());
     }
+  }
+  if ($apiCredentialFailureStatus !== null) {
+    ResponseHelper::sendError($e->getMessage(), $apiCredentialFailureStatus);
   }
   ResponseHelper::sendError($e);
 }

@@ -1,11 +1,13 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 ob_start(); // Buffer output to prevent warnings from corrupting JSON
 /**
  * VonCMS - User Registration API
  * Handles new user registration with spam protection
  */
 
-$requestMethod = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+$requestMethod = strtoupper(DataBoundary::serverString('REQUEST_METHOD', 'GET'));
 
 if ($requestMethod !== 'POST' && $requestMethod !== 'OPTIONS') {
   header('Content-Type: application/json');
@@ -33,25 +35,25 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 // Session already started in security.php
 
 // Check if registration is enabled in settings
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 try {
   $regCheck = $pdo->prepare(
     "SELECT setting_value FROM settings WHERE setting_key = 'registration_enabled' LIMIT 1",
   );
   $regCheck->execute();
-  $regSetting = $regCheck->fetch(PDO::FETCH_ASSOC);
+  $regSetting = DataBoundary::row($regCheck->fetch(PDO::FETCH_ASSOC));
+  // Match the public UI default without overriding an owner's explicit OFF value.
   $regEnabled =
-    $regSetting &&
-    ($regSetting['setting_value'] === 'true' || $regSetting['setting_value'] === '1');
+    !$regSetting || $regSetting['setting_value'] === 'true' || $regSetting['setting_value'] === '1';
 
   // Also check file-based fallback if DB is not exhaustive
   if (!$regSetting && file_exists(__DIR__ . '/../data/site_settings.json')) {
-    $jsonSettings = json_decode(file_get_contents(__DIR__ . '/../data/site_settings.json'), true);
-    $regEnabled = $jsonSettings['registrationEnabled'] ?? true;
-  }
-
-  // Default to true if not set (to avoid breaking existing sites)
-  if (!isset($regEnabled)) {
-    $regEnabled = true;
+    $settingsText = file_get_contents(__DIR__ . '/../data/site_settings.json');
+    $jsonSettings = is_string($settingsText) ? json_decode($settingsText, true) : null;
+    $regEnabled = filter_var(
+      is_array($jsonSettings) ? $jsonSettings['registrationEnabled'] ?? true : true,
+      FILTER_VALIDATE_BOOLEAN,
+    );
   }
 
   if (!$regEnabled) {
@@ -62,8 +64,13 @@ try {
 }
 
 CSRFProtection::requireToken();
-$registrationRateIdentifier = 'registration:ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-RateLimiter::requireAttempt($registrationRateIdentifier);
+$registrationRateIdentifier =
+  'registration:ip:' .
+  RateLimiter::normalizeLoginAddress(DataBoundary::serverString('REMOTE_ADDR', '0.0.0.0'));
+if (!RateLimiter::consumeFixedWindow($registrationRateIdentifier, 5, 900, 'registration')) {
+  header('Retry-After: 900');
+  ResponseHelper::sendError('Too many registration attempts. Please try again in 15 minutes.', 429);
+}
 
 // Get JSON input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
@@ -86,13 +93,14 @@ $honeypot = (string) ($input['hp_field'] ?? '');
 // Honeypot check
 if ($honeypot !== '') {
   error_log(
-    'Honeypot triggered during registration from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+    'Honeypot triggered during registration from IP: ' .
+      DataBoundary::serverString('REMOTE_ADDR', 'unknown'),
   );
   ResponseHelper::sendError('Registration failed', 400);
 }
 
 // Validation
-SecurityHelper::requireNewPasswordLength($password);
+$password = SecurityHelper::requireNewPasswordLength($password);
 $errors = [];
 
 if (empty($username) || strlen($username) < 3) {
@@ -117,7 +125,7 @@ if (!preg_match('/[A-Z]/', $password)) {
 if (!preg_match('/[0-9]/', $password)) {
   $errors[] = 'Password must contain at least one number';
 }
-if (!preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)) {
+if (!SecurityHelper::hasPasswordSpecialCharacter($password)) {
   $errors[] = 'Password must contain at least one special character';
 }
 
@@ -132,11 +140,6 @@ if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
 
 if (!empty($errors)) {
   ResponseHelper::sendError(implode('. ', $errors), 400);
-}
-
-// Check if database connection exists
-if (!isset($pdo) || $pdo === null) {
-  ResponseHelper::sendError('Database not configured. Please complete installation first.', 503);
 }
 
 try {
@@ -162,13 +165,17 @@ try {
 
   // Verification token generation
   $verificationToken = generateVerificationToken();
-  $tokenExpires = date('Y-m-d H:i:s', strtotime('+24 hours'));
 
   // Insert new user (email_verified = 0, let DB handle AUTO_INCREMENT ID)
   $stmt = $pdo->prepare(
-    "INSERT INTO users (username, email, password, role, email_verified, verification_token, verification_token_expires, created_at) VALUES (?, ?, ?, 'Member', 0, ?, ?, NOW())",
+    "INSERT INTO users (username, email, password, role, email_verified, verification_token, verification_token_expires, created_at) VALUES (?, ?, ?, 'Member', 0, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), NOW())",
   );
-  $stmt->execute([$username, $email, $hashedPassword, $verificationToken, $tokenExpires]);
+  $stmt->execute([
+    $username,
+    $email,
+    $hashedPassword,
+    voncms_account_token_digest($verificationToken),
+  ]);
 
   $userId = $pdo->lastInsertId();
 
@@ -209,10 +216,10 @@ try {
 
     if ($failedMethod === 'php_mail' || $failedMethod === 'mail') {
       $message .=
-        'Your account was created, but the verification email could not be delivered. Please contact the site administrator before signing in.';
+        'Your account was created, but the verification email could not be delivered. Use Resend verification email on the login form, or contact the site administrator.';
     } else {
       $message .=
-        'Your account was created, but the verification email could not be sent right now. Please contact the site administrator before signing in.';
+        'Your account was created, but the verification email could not be sent right now. Use Resend verification email on the login form, or contact the site administrator.';
     }
   }
 

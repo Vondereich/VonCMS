@@ -1,6 +1,9 @@
 import type React from 'react';
 
-export type PublicThemeLayoutComponent = React.ComponentType<any>;
+type LayoutProps = import('../../../../themes/types').ThemeLayoutProps;
+export type PublicThemeLayoutComponent = React.ComponentType<
+  LayoutProps & Required<Pick<LayoutProps, 'onPageClick'>>
+>;
 
 type PublicThemeLayoutModule = {
   default: PublicThemeLayoutComponent;

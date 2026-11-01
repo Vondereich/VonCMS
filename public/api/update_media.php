@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../core/DataBoundary.php';
 /**
  * VonCMS - Update Media Metadata API
  * Allows updating Alt Text, Caption, and Description
@@ -23,10 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // 2. Verify Member Auth & CSRF
 SessionManager::requireValidSession();
-if (!voncms_role_has_capability($_SESSION['user']['role'] ?? '', 'media.access')) {
+if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.access')) {
   ResponseHelper::sendError('Media access required', 403);
 }
 CSRFProtection::requireToken();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 // 2. Get Input
 $input = json_decode(CSRFProtection::getRequestBody(), true);
@@ -41,7 +44,7 @@ $row = null;
 if ($id && $id > 0) {
   $findStmt = $pdo->prepare('SELECT id FROM media WHERE id = ? LIMIT 1');
   $findStmt->execute([$id]);
-  $row = $findStmt->fetch(PDO::FETCH_ASSOC);
+  $row = DataBoundary::row($findStmt->fetch(PDO::FETCH_ASSOC));
 }
 
 // Handle Smart Lookup: Find ID by path if ID is missing
@@ -62,14 +65,14 @@ if (!$row && $path) {
   $placeholders = implode(',', array_fill(0, count($pathVariants), '?'));
   $findStmt = $pdo->prepare("SELECT id FROM media WHERE filepath IN ($placeholders) LIMIT 1");
   $findStmt->execute($pathVariants);
-  $row = $findStmt->fetch(PDO::FETCH_ASSOC);
+  $row = DataBoundary::row($findStmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$row && strpos($normalizedPath, '/') === false) {
     $filenameStmt = $pdo->prepare(
       'SELECT id FROM media WHERE filename = ? ORDER BY id ASC LIMIT 2',
     );
     $filenameStmt->execute([$normalizedPath]);
-    $filenameMatches = $filenameStmt->fetchAll(PDO::FETCH_ASSOC);
+    $filenameMatches = DataBoundary::rows($filenameStmt->fetchAll(PDO::FETCH_ASSOC));
     if (count($filenameMatches) > 1) {
       ResponseHelper::sendError('Media filename is ambiguous. Use the full media path.', 409);
     }

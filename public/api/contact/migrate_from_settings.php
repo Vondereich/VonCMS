@@ -1,4 +1,6 @@
 <?php
+
+require_once __DIR__ . '/../../core/DataBoundary.php';
 /**
  * VonCMS - Migrate Contact Forms from Settings to Dedicated Table
  */
@@ -21,6 +23,7 @@ SessionManager::requireValidSession();
 CSRFProtection::requireToken();
 
 SessionManager::requireAdmin();
+$pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 
 try {
   // 1. Get current forms from settings
@@ -28,17 +31,16 @@ try {
     "SELECT setting_value FROM settings WHERE setting_group = 'contact' AND setting_key = 'forms' LIMIT 1",
   );
   $stmt->execute();
-  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  $row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$row || empty($row['setting_value'])) {
     echo json_encode(['success' => true, 'message' => 'No forms found in settings to migrate.']);
     exit();
   }
 
-  $forms = json_decode($row['setting_value'], true);
+  $forms = json_decode((string) $row['setting_value'], true);
   if (!is_array($forms)) {
     ResponseHelper::sendError('Invalid form data in settings.', 500);
-    exit();
   }
 
   // 2. Insert into contact_forms table
@@ -54,17 +56,22 @@ try {
 
   $count = 0;
   foreach ($forms as $f) {
+    if (!is_array($f)) {
+      throw new RuntimeException('Invalid legacy contact form.');
+    }
+    $mail = is_array($f['mail'] ?? null) ? $f['mail'] : [];
+    $messages = is_array($f['messages'] ?? null) ? $f['messages'] : [];
     $stmt->execute([
       'id' => $f['id'],
       'title' => $f['title'] ?? 'Untitled Form',
       'template' => $f['template'] ?? '',
-      'mail_to' => $f['mail']['to'] ?? '',
-      'mail_from' => $f['mail']['from'] ?? '',
-      'mail_subject' => $f['mail']['subject'] ?? '',
-      'mail_body' => $f['mail']['body'] ?? '',
-      'msg_success' => $f['messages']['success'] ?? '',
-      'msg_error' => $f['messages']['error'] ?? '',
-      'msg_validation' => $f['messages']['validationError'] ?? '',
+      'mail_to' => $mail['to'] ?? '',
+      'mail_from' => $mail['from'] ?? '',
+      'mail_subject' => $mail['subject'] ?? '',
+      'mail_body' => $mail['body'] ?? '',
+      'msg_success' => $messages['success'] ?? '',
+      'msg_error' => $messages['error'] ?? '',
+      'msg_validation' => $messages['validationError'] ?? '',
       'created_at' => $f['createdAt'] ?? date('Y-m-d H:i:s'),
     ]);
     if ($stmt->rowCount() > 0) {

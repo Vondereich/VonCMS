@@ -57,7 +57,10 @@ export const getCategoryFolderConflict = (category: string | null | undefined): 
 };
 
 export const getPermalink = (
-  post: Post,
+  post: Pick<Post, 'id'> &
+    Partial<
+      Pick<Post, 'slug' | 'category' | 'createdAt' | 'created_at' | 'updatedAt' | 'updated_at'>
+    >,
   settings: SiteSettings,
   absolute: boolean = false,
   noBase: boolean = false
@@ -66,7 +69,7 @@ export const getPermalink = (
   const basePath = getBasePathPrefix();
   const slug = post.slug || post.id;
 
-  let path = '';
+  let path: string;
   switch (settings.permalinkStructure) {
     case 'date':
     case 'day_name': {
@@ -96,11 +99,12 @@ export const getPermalink = (
       }
       break;
     }
-    case 'category':
+    case 'category': {
       // Keep client links aligned with PHP canonical, sitemap, RSS, and llms category slugs.
       const category = getCategorySlug(post.category);
       path = `/${category}/${slug}`;
       break;
+    }
     case 'post_name':
     case 'slug': // Alias used by UI
       path = `/${slug}`;

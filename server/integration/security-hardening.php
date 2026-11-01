@@ -1,6 +1,7 @@
 <?php
 // Isolated source-level regression checks. No installed site, production DB, or mail delivery.
 $root = dirname(__DIR__, 2);
+require_once $root . '/public/core/DataBoundary.php';
 $checks = 0;
 function check(bool $ok, string $message): void
 {
@@ -70,6 +71,29 @@ class ResponseHelper
 }
 function sendApiHeaders(...$args): void {}
 
+if (($argv[1] ?? '') === '--security-log-worker') {
+  $fixture = $argv[2];
+  define('VONCMS_CORE_LOADED', true);
+  require_once $root . '/public/core/RateLimiter.php';
+  require_once $root . '/public/api/security/SecurityLogger.php';
+  (new ReflectionProperty(RateLimiter::class, 'storageDir'))->setValue(null, $fixture . '/');
+  $pdo = new PDO('sqlite:' . $fixture . '/security-events.sqlite');
+  $pdo->exec('PRAGMA busy_timeout = 5000');
+  $_SERVER['REMOTE_ADDR'] = '192.0.2.9';
+  $_SERVER['REQUEST_URI'] = '/api/login.php';
+  file_put_contents($fixture . '/event-' . $argv[3] . '.ready', 'ready');
+  $deadline = microtime(true) + 10;
+  while (!is_file($fixture . '/events.go')) {
+    if (microtime(true) > $deadline) {
+      throw new RuntimeException('Security event barrier timed out.');
+    }
+    usleep(10000);
+    clearstatcache();
+  }
+  echo RateLimiter::consumeAttempt('login:ip:security-race') ? 'admitted' : 'rejected';
+  exit();
+}
+
 // Force both legacy prechecks through one barrier; the real atomic gate must
 // still admit only one request. No endpoint bootstrap or comment DB is loaded.
 if (($argv[1] ?? '') === '--comment-quota-worker') {
@@ -124,7 +148,56 @@ if (($argv[1] ?? '') === '--comment-quota-worker') {
 }
 $temp = sys_get_temp_dir() . '/voncms-hardening-' . bin2hex(random_bytes(6));
 mkdir($temp);
+$checkingImageDeprecations = false;
 try {
+  eval(declaration($root . '/public/security.php', 'class CSRFProtection'));
+  $savedRequestState = [$_SERVER, $_POST, $_SESSION ?? []];
+  $csrfInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
+  $_SESSION = [];
+  $csrfToken = CSRFProtection::getToken();
+  check(strlen($csrfToken) === 64 && ctype_xdigit($csrfToken), 'CSRF token format changed.');
+  check(CSRFProtection::getToken() === $csrfToken, 'CSRF token unexpectedly rotated.');
+  foreach ([false, 17, [], new stdClass()] as $invalidToken) {
+    $_SESSION['csrf_token'] = $invalidToken;
+    check(is_string(CSRFProtection::getToken()), 'Malformed session CSRF token was not repaired.');
+  }
+  $_SESSION['csrf_token'] = $csrfToken;
+  foreach (
+    [
+      [$csrfToken, '', '{}', true],
+      ['forged', $csrfToken, '{}', false],
+      ['', $csrfToken, '{}', true],
+      ['', '', json_encode(['csrf_token' => $csrfToken]), true],
+      ['', '', '{invalid', false],
+      [[], [], '{"csrf_token":[]}', false],
+      ['', '', '{"csrf_token":17}', false],
+      ['', '', '{}', false],
+    ]
+    as [$headerToken, $postToken, $body, $valid]
+  ) {
+    $_SERVER['CONTENT_TYPE'] = 'application/json';
+    $_SERVER['HTTP_X_CSRF_TOKEN'] = $headerToken;
+    $_POST = ['csrf_token' => $postToken];
+    $csrfInput->setValue(null, $body);
+    check(
+      CSRFProtection::validateToken() === $valid,
+      'CSRF precedence or malformed-input boundary changed.',
+    );
+    check(CSRFProtection::getRequestBody() === $body, 'CSRF body cache changed request bytes.');
+  }
+  $csrfInput->setValue(null, false);
+  try {
+    CSRFProtection::getRequestBody();
+    check(false, 'Unreadable CSRF body was accepted.');
+  } catch (RuntimeException $error) {
+    check($error->getCode() === 400, 'Unreadable CSRF body must be a validation failure.');
+  }
+  $csrfInput->setValue(null, null);
+  [$_SERVER, $_POST, $_SESSION] = $savedRequestState;
+  if (($argv[1] ?? '') === '--csrf-only') {
+    echo "PASS CSRF boundary: $checks assertions (real extracted class; isolated request/session data).\n";
+    return;
+  }
   require_once $root . '/public/seo_schema_helper.php';
   require_once $root . '/public/api/content_embed_helper.php';
   class SessionManager
@@ -346,6 +419,7 @@ try {
       'convert_supported_embeds',
       'strip_gutenberg_comments',
       'should_remap_internal_href',
+      'voncms_wp_source_link',
       'remap_internal_links',
       'sanitize_imported_content_html',
       'normalize_imported_content',
@@ -456,6 +530,24 @@ try {
       'WXR unsafe stored HTML survived.',
     );
   }
+  foreach (['image/png', 'image/jpeg', 'image/svg+xml'] as $mime) {
+    $placeholder = normalize_imported_content(
+      '<p>Keep imported text</p><img src="data:' .
+        $mime .
+        ';base64,AAAA" alt="Inline placeholder"><p>Keep after image</p>',
+      [],
+      'https://example.test/newsroom',
+    );
+    check(
+      str_contains($placeholder, 'Keep imported text') &&
+        str_contains($placeholder, 'Keep after image') &&
+        !str_contains($placeholder, 'src='),
+      'Import discards unsupported inline source without losing the item.',
+    );
+  }
+  $GLOBALS['voncms_wp_import_link_map'] = [
+    'old.test:443/news/story' => 'https://example.test/newsroom/news/story',
+  ];
   $rich = normalize_imported_content(
     '<!-- wp:paragraph --><p style="text-align:center">Teks <strong>tebal</strong> &amp; sah</p>' .
       '<figure><img src="uploads/photo.webp" alt="Photo" width="640"><figcaption>Caption</figcaption></figure>' .
@@ -466,6 +558,7 @@ try {
     ['https://old.test'],
     'https://example.test/newsroom',
   );
+  unset($GLOBALS['voncms_wp_import_link_map']);
   foreach (
     [
       'text-align:center',
@@ -515,6 +608,19 @@ try {
   );
 
   // Capture the real shared provider function at its cURL boundary, without networking.
+  loadFunction('public/api/ai_provider_helper.php', 'voncms_ai_supported_models');
+  loadFunction('public/api/ai_provider_helper.php', 'voncms_ai_normalize_model');
+  foreach (voncms_ai_supported_models() as $model) {
+    check(
+      voncms_ai_normalize_model($model) === $model,
+      'Configured Gemini model changed: ' . $model,
+    );
+  }
+  check(voncms_ai_normalize_model('unknown') === 'gemini-3.6-flash', 'Gemini default changed.');
+  check(
+    in_array('gemini-3.8-flash', voncms_ai_supported_models(), true),
+    'Current Gemini model missing.',
+  );
   eval(
     'namespace GeminiHeaderProbe;
     function curl_init($url) { $GLOBALS["gemini_calls"][] = ["url" => $url]; return count($GLOBALS["gemini_calls"]) - 1; }
@@ -537,7 +643,7 @@ try {
   ) {
     $GLOBALS['gemini_calls'] = [];
     $GLOBALS['gemini_responses'] = $responses;
-    $result = $generateProbe('qa-fake-key', 'gemini-2.5-pro', ['contents' => []], 12);
+    $result = $generateProbe('qa-fake-key', 'gemini-3.8-flash', ['contents' => []], 12);
     check(
       $result['ok'] && $result['fallback_used'] === (count($responses) === 2),
       'Gemini success/fallback changed.',
@@ -554,7 +660,7 @@ try {
       check(
         $call['options'][CURLOPT_SSL_VERIFYPEER] === true &&
           $call['options'][CURLOPT_TIMEOUT] === 12 &&
-          $call['options'][CURLOPT_POSTFIELDS] === '{"contents":[]}',
+          $call['options'][CURLOPT_POSTFIELDS] === '{"contents":[],"store":false}',
         'Gemini transport/payload contract changed.',
       );
     }
@@ -565,6 +671,15 @@ try {
       );
     }
   }
+  $GLOBALS['gemini_calls'] = [];
+  $GLOBALS['gemini_responses'] = [$success];
+  $privacyPayload = ['contents' => [], 'store' => true];
+  $generateProbe('qa-fake-key', 'gemini-3.6-flash', $privacyPayload, 12);
+  check(
+    json_decode($GLOBALS['gemini_calls'][0]['options'][CURLOPT_POSTFIELDS], true)['store'] ===
+      false && $privacyPayload['store'] === true,
+    'Gemini request-storage opt-out must override caller flags without mutating caller data.',
+  );
   foreach (
     [
       ['status' => 0, 'body' => false, 'error' => 1],
@@ -995,6 +1110,98 @@ try {
     $one !== RateLimiter::normalizeLoginAddress('2001:db8:1234:6::1'),
     'Independent IPv6 subnets combined.',
   );
+  $registrationLedger = $temp . '/' . md5('registration-ledger:v1') . '.json';
+  $registrationFilesBefore = glob($temp . '/*.json') ?: [];
+  for ($i = 1; $i <= 32; $i++) {
+    $identifier =
+      'registration:ip:' . RateLimiter::normalizeLoginAddress('2001:db8:1234:5::' . dechex($i));
+    check(
+      RateLimiter::consumeFixedWindow($identifier, 5, 900, 'registration') === $i <= 5,
+      'IPv6 address rotation bypasses registration quota or blocks an admitted attempt.',
+    );
+  }
+  for ($i = 1; $i <= 64; $i++) {
+    $identifier =
+      'registration:ip:' .
+      RateLimiter::normalizeLoginAddress('2001:db8:abcd:' . dechex($i) . '::1');
+    check(
+      RateLimiter::consumeFixedWindow($identifier, 5, 900, 'registration'),
+      'Independent registration network blocked.',
+    );
+  }
+  check(
+    count(glob($temp . '/*.json') ?: []) === count($registrationFilesBefore) + 1,
+    'Registration allocates a persistent file per address instead of one bounded ledger.',
+  );
+  $registrationId = 'registration:ip:' . RateLimiter::normalizeLoginAddress('192.0.2.91');
+  for ($i = 0; $i < 5; $i++) {
+    check(
+      RateLimiter::consumeFixedWindow($registrationId, 5, 900, 'registration'),
+      'IPv4 registration allowance changed.',
+    );
+  }
+  check(
+    !RateLimiter::consumeFixedWindow(
+      'registration:ip:' . RateLimiter::normalizeLoginAddress('::ffff:192.0.2.91'),
+      5,
+      900,
+      'registration',
+    ),
+    'IPv4-mapped alias bypasses registration quota.',
+  );
+  $registrationBuckets = json_decode(file_get_contents($registrationLedger), true);
+  foreach ($registrationBuckets as &$bucket) {
+    $bucket['window_started_at'] = time() - 901;
+  }
+  unset($bucket);
+  file_put_contents($registrationLedger, json_encode($registrationBuckets));
+  check(
+    RateLimiter::consumeFixedWindow($registrationId, 5, 900, 'registration'),
+    'Registration window does not expire.',
+  );
+  check(
+    count(json_decode(file_get_contents($registrationLedger), true)) === 1,
+    'Expired registration keys are not pruned.',
+  );
+  $fullRegistration = [];
+  for ($i = 0; $i < 4096; $i++) {
+    $fullRegistration[hash('sha256', 'capacity:' . $i)] = [
+      'attempts' => 1,
+      'window_started_at' => time(),
+      'window_seconds' => 900,
+    ];
+  }
+  file_put_contents($registrationLedger, json_encode($fullRegistration));
+  check(
+    !RateLimiter::consumeFixedWindow('new-network', 5, 900, 'registration'),
+    'Full registration ledger admits new keys.',
+  );
+  check(
+    RateLimiter::consumeFixedWindow('capacity:0', 5, 900, 'registration'),
+    'Full registration ledger blocks remaining allowance.',
+  );
+  check(
+    count(json_decode(file_get_contents($registrationLedger), true)) === 4096,
+    'Capacity handling evicts live registration quotas.',
+  );
+  foreach (['broken', str_repeat('x', 1048577)] as $invalidLedger) {
+    file_put_contents($registrationLedger, $invalidLedger);
+    check(
+      !RateLimiter::consumeFixedWindow($registrationId, 5, 900, 'registration'),
+      'Invalid registration storage fails open.',
+    );
+  }
+  unlink($registrationLedger);
+  mkdir($registrationLedger);
+  check(
+    !RateLimiter::consumeFixedWindow($registrationId, 5, 900, 'registration'),
+    'Unavailable registration storage fails open.',
+  );
+  rmdir($registrationLedger);
+  check(
+    RateLimiter::consumeFixedWindow('registration-isolation-control', 5, 900),
+    'Registration storage failure affects recovery.',
+  );
   for ($i = 0; $i < 5; $i++) {
     check(RateLimiter::consumeAttempt('login:ip:control'), 'Ordinary IP attempt rejected early.');
   }
@@ -1016,6 +1223,189 @@ try {
       !RateLimiter::consumeAttempt('login:ip:failures'),
     'Owned-account success erased earlier failures.',
   );
+  require_once $root . '/public/api/security/SecurityLogger.php';
+  $eventIdentifier = 'login:ip:security-events';
+  $eventFile = $temp . '/' . md5($eventIdentifier) . '.json';
+  $pdo = new class ($eventFile) extends PDO {
+    public bool $limiterLockReleased = false;
+    public function __construct(private string $eventFile)
+    {
+      parent::__construct('sqlite::memory:');
+      $this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    }
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+      $handle = fopen($this->eventFile, 'r+');
+      $this->limiterLockReleased = flock($handle, LOCK_EX | LOCK_NB);
+      if ($this->limiterLockReleased) {
+        flock($handle, LOCK_UN);
+      }
+      fclose($handle);
+      return parent::prepare($query, $options);
+    }
+  };
+  $eventSchema =
+    'CREATE TABLE security_logs (event_type TEXT, ip_address TEXT, user_agent TEXT, endpoint TEXT, severity TEXT, details TEXT, blocked INTEGER)';
+  $pdo->exec($eventSchema);
+  $_SERVER['REMOTE_ADDR'] = '192.0.2.9';
+  $_SERVER['REQUEST_URI'] = '/api/login.php?private=not-for-logs';
+  for ($i = 0; $i < 5; $i++) {
+    check(RateLimiter::consumeAttempt($eventIdentifier), 'Logging changed admitted login quota.');
+  }
+  check(
+    (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn() === 0,
+    'A lone attempt was classified as a repeated-login pattern.',
+  );
+  check(!RateLimiter::consumeAttempt($eventIdentifier), 'Logged login denial was admitted.');
+  $event = $pdo->query('SELECT * FROM security_logs')->fetch(PDO::FETCH_ASSOC);
+  check(
+    $event['event_type'] === 'login_rate_limited' && (int) $event['blocked'] === 1,
+    'Login denial is missing from security events.',
+  );
+  check($pdo->limiterLockReleased, 'Logging holds the authentication file lock.');
+  check(
+    json_decode($event['details'], true)['attempt_limit'] === 5 &&
+      $event['endpoint'] === '/api/login.php',
+    'Pattern evidence or query secrecy changed.',
+  );
+  $lockedState = json_decode(file_get_contents($eventFile), true);
+  for ($i = 0; $i < 20; $i++) {
+    check(
+      !RateLimiter::consumeAttempt($eventIdentifier),
+      'Duplicate observation weakened lockout.',
+    );
+  }
+  check(
+    (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn() === 1,
+    'Repeated denied requests flooded the event log.',
+  );
+  check(
+    json_decode(file_get_contents($eventFile), true) === $lockedState,
+    'Observation extended lockout or changed quota state.',
+  );
+  $lockedState['lockout_until'] = time() - 1;
+  file_put_contents($eventFile, json_encode($lockedState));
+  $securityLedger = $temp . '/' . md5('security-event-ledger:v1') . '.json';
+  $eventBuckets = json_decode(file_get_contents($securityLedger), true);
+  foreach ($eventBuckets as &$eventBucket) {
+    $eventBucket['window_started_at'] = time() - 901;
+  }
+  unset($eventBucket);
+  file_put_contents($securityLedger, json_encode($eventBuckets));
+  for ($i = 0; $i < 5; $i++) {
+    check(RateLimiter::consumeAttempt($eventIdentifier), 'Observation changed expiry admission.');
+  }
+  check(!RateLimiter::consumeAttempt($eventIdentifier), 'Next lockout failed.');
+  check(
+    (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn() === 2,
+    'An expired sampling window lost its next event.',
+  );
+
+  // Simultaneous denials share one independent sampling reservation.
+  $pdo = new PDO('sqlite:' . $temp . '/security-events.sqlite');
+  $pdo->exec($eventSchema);
+  for ($i = 0; $i < 5; $i++) {
+    check(RateLimiter::consumeAttempt('login:ip:security-race'), 'Race setup quota changed.');
+  }
+  $eventWorkers = [];
+  for ($i = 0; $i < 2; $i++) {
+    $worker = proc_open(
+      [PHP_BINARY, __FILE__, '--security-log-worker', $temp, (string) $i],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+    );
+    check(is_resource($worker), 'Unable to launch event race worker.');
+    fclose($pipes[0]);
+    $eventWorkers[] = [$worker, $pipes];
+  }
+  $eventDeadline = microtime(true) + 10;
+  while (!is_file($temp . '/event-0.ready') || !is_file($temp . '/event-1.ready')) {
+    if (microtime(true) >= $eventDeadline) {
+      throw new RuntimeException('Security event workers did not reach the barrier.');
+    }
+    usleep(10000);
+    clearstatcache();
+  }
+  file_put_contents($temp . '/events.go', 'go');
+  foreach ($eventWorkers as [$worker, $pipes]) {
+    $output = stream_get_contents($pipes[1]);
+    $errors = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    check(
+      proc_close($worker) === 0 && $output === 'rejected' && $errors === '',
+      'Concurrent event logging changed denial or failed.',
+    );
+  }
+  check(
+    (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn() === 1,
+    'Concurrent denials duplicated the pattern event.',
+  );
+  $pdo = null;
+  $pdo = new PDO('sqlite::memory:');
+  $pdo->exec($eventSchema);
+  file_put_contents($securityLedger, '{}');
+  for ($i = 1; $i <= 61; $i++) {
+    $_SERVER['REMOTE_ADDR'] = '192.0.2.' . $i;
+    $id = 'login:ip:' . $_SERVER['REMOTE_ADDR'];
+    $state = ['attempts' => 5, 'lockout_until' => time() + 900, 'penalty_level' => 1];
+    $statePath = $temp . '/' . md5($id) . '.json';
+    file_put_contents($statePath, json_encode($state));
+    check(!RateLimiter::consumeAttempt($id), 'Exhausted sampling budget changed login denial.');
+    check(
+      json_decode(file_get_contents($statePath), true) === $state,
+      'Sampling rewrote authentication state.',
+    );
+  }
+  check(
+    (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn() === 60,
+    'Site-wide log cap failed.',
+  );
+  check(
+    count(json_decode(file_get_contents($securityLedger), true)) === 61,
+    'Denied sampling allocated extra source state.',
+  );
+  $oldSamplingLog = ini_get('error_log');
+  ini_set('error_log', $temp . '/security-sampling-errors.log');
+  try {
+    file_put_contents($securityLedger, 'corrupt');
+    check(
+      !RateLimiter::consumeAttempt('login:ip:192.0.2.61'),
+      'Corrupt sampling storage admitted login.',
+    );
+    check(
+      (int) $pdo->query('SELECT COUNT(*) FROM security_logs')->fetchColumn() === 60,
+      'Corrupt sampling storage bypassed the log bound.',
+    );
+  } finally {
+    ini_set('error_log', $oldSamplingLog);
+    file_put_contents($securityLedger, '{}');
+  }
+  // Missing event storage is best-effort; it must not turn a denial into admission.
+  $pdo = new PDO('sqlite::memory:');
+  $oldEventLog = ini_get('error_log');
+  ini_set('error_log', $temp . '/security-event-errors.log');
+  try {
+    for ($i = 0; $i < 5; $i++) {
+      check(
+        RateLimiter::consumeAttempt('login:ip:no-event-table'),
+        'No-log-storage control blocked early.',
+      );
+    }
+    check(
+      !RateLimiter::consumeAttempt('login:ip:no-event-table'),
+      'Failed event INSERT admitted login.',
+    );
+    for ($i = 0; $i < 6; $i++) {
+      check(
+        RateLimiter::consumeAttempt('newsletter:ip:control') === $i < 5,
+        'Unrelated limiter behavior changed.',
+      );
+    }
+  } finally {
+    ini_set('error_log', $oldEventLog);
+    $pdo = null;
+  }
   for ($i = 0; $i < 20; $i++) {
     check(
       RateLimiter::consumeFixedWindow('login:account:1', 20, 900, 'login'),
@@ -1266,6 +1656,15 @@ try {
     );
   }
 
+  set_error_handler(static function (
+    int $severity,
+    string $message,
+    string $file,
+    int $line,
+  ): never {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+  }, E_DEPRECATED);
+  $checkingImageDeprecations = true;
   $_SERVER['PHP_SELF'] = '/qa.php';
   require $root . '/public/api/ImageProcessor.php';
   $processor = new ImageProcessor(['convertToWebP' => true, 'generateResponsiveVariants' => false]);
@@ -1283,6 +1682,43 @@ try {
     $processor->generateResponsiveVariants($temp . '/animated.gif', [1]) === [],
     'GIF variants flattened.',
   );
+  $transparentImage = imagecreatetruecolor(120, 60);
+  imagealphablending($transparentImage, false);
+  imagesavealpha($transparentImage, true);
+  imagefill($transparentImage, 0, 0, imagecolorallocatealpha($transparentImage, 0, 0, 0, 127));
+  imagepng($transparentImage, $temp . '/transparent.png');
+  unset($transparentImage);
+  $resizeProcessor = new ImageProcessor([
+    'maxWidth' => 60,
+    'maxHeight' => 30,
+    'generateResponsiveVariants' => false,
+  ]);
+  $resized = $resizeProcessor->processUpload($temp . '/transparent.png');
+  check($resized['success'] && $resized['resized'], 'Transparent PNG resize failed.');
+  $transparentImage = imagecreatefrompng($temp . '/transparent.png');
+  check(
+    imagesx($transparentImage) === 60 && imagesy($transparentImage) === 30,
+    'PNG resize dimensions changed.',
+  );
+  check(
+    imagecolorsforindex($transparentImage, imagecolorat($transparentImage, 0, 0))['alpha'] === 127,
+    'PNG resize lost transparency.',
+  );
+  unset($transparentImage);
+  // Valid one-pixel images must never round a resize/variant dimension down to zero.
+  foreach ([[1, 4000, 1, 1080], [4000, 1, 1920, 1], [1200, 80, 1200, 80]] as $index => $dims) {
+    [$width, $height, $expectedWidth, $expectedHeight] = $dims;
+    $path = $temp . '/thin-main-' . $index . '.png';
+    $image = imagecreatetruecolor($width, $height);
+    imagepng($image, $path);
+    unset($image);
+    $result = (new ImageProcessor(['generateResponsiveVariants' => false]))->processUpload($path);
+    $size = getimagesize($path);
+    check(
+      $result['success'] && $size[0] === $expectedWidth && $size[1] === $expectedHeight,
+      'Main resize rounded a valid thin image to zero or changed ordinary dimensions.',
+    );
+  }
   $image = imagecreatetruecolor(30, 20);
   foreach (
     [
@@ -1303,7 +1739,7 @@ try {
     );
   }
   imagejpeg($image, $temp . '/plain.jpg', 100);
-  imagedestroy($image);
+  unset($image);
   $jpeg = file_get_contents($temp . '/plain.jpg');
   foreach (range(1, 8) as $orientation) {
     $tiff =
@@ -1351,7 +1787,7 @@ try {
               ? 'g'
               : 'b'));
     }
-    imagedestroy($processed);
+    unset($processed);
     check(
       $corners === $expectedCorners[$orientation],
       'JPEG orientation pixels wrong: ' . $orientation,
@@ -1359,5 +1795,8 @@ try {
   }
   echo "PASS security hardening: $checks assertions\n";
 } finally {
+  if ($checkingImageDeprecations) {
+    restore_error_handler();
+  }
   cleanup($temp);
 }

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { hasPasswordSpecialCharacter } from '../utils/security';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { API } from '../config/site.config';
 import { User } from '../types';
 import { vonFetch } from '../utils/api';
+import { getSavedProfileUpdates } from '../utils/profileUtils';
 
 interface UseProfileEditorOptions {
   targetUser: User;
@@ -11,7 +13,7 @@ interface UseProfileEditorOptions {
   onUpdateUser?: (user: Partial<User>) => void;
 }
 
-interface ProfileUpdatePayload {
+export interface ProfileUpdatePayload {
   id?: string;
   display_name: string;
   bio: string;
@@ -35,6 +37,9 @@ export function useProfileEditor({
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [displayUser, setDisplayUser] = useState(targetUser);
+  const activeProfileId = useRef(targetUser.id);
+  const profileSavePending = useRef(false);
+  activeProfileId.current = targetUser.id;
 
   useEffect(() => {
     setDisplayUser(targetUser);
@@ -44,6 +49,7 @@ export function useProfileEditor({
   }, [targetUser]);
 
   const handleSaveProfile = async () => {
+    if (profileSavePending.current) return;
     if (showPasswordFields && newPassword) {
       if (!currentPassword) {
         toast.error('Current password is required to change password');
@@ -57,7 +63,7 @@ export function useProfileEditor({
         newPassword.length < 8 ||
         !/[A-Z]/.test(newPassword) ||
         !/[0-9]/.test(newPassword) ||
-        !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+        !hasPasswordSpecialCharacter(newPassword)
       ) {
         toast.error('Password too weak (8+ chars, Upper, Number, Symbol)');
         return;
@@ -79,6 +85,7 @@ export function useProfileEditor({
       payload.new_password = newPassword;
     }
 
+    profileSavePending.current = true;
     setDisplayUser((user) => ({ ...user, ...profileUpdates }));
     setIsEditing(false);
 
@@ -89,6 +96,7 @@ export function useProfileEditor({
         body: JSON.stringify(payload),
       });
       const data = await response.json();
+      if (activeProfileId.current !== targetUser.id) return;
 
       if (!response.ok || !data.success) {
         toast.error(data.error || 'Failed to save profile');
@@ -96,8 +104,15 @@ export function useProfileEditor({
         return;
       }
 
-      if (onUpdateUser && isOwner) {
-        onUpdateUser(profileUpdates);
+      const savedUpdates = getSavedProfileUpdates(data.user, profileUpdates);
+      setDisplayUser((user) => ({ ...user, ...savedUpdates }));
+      setEditDisplayName((current) =>
+        current === editDisplayName ? savedUpdates.display_name : current
+      );
+      setEditBio((current) => (current === editBio ? savedUpdates.bio : current));
+      setEditAvatar((current) => (current === editAvatar ? savedUpdates.avatar : current));
+      if (onUpdateUser && isOwner && currentUser) {
+        onUpdateUser({ ...savedUpdates, id: currentUser.id });
       }
       setCurrentPassword('');
       setNewPassword('');
@@ -105,8 +120,11 @@ export function useProfileEditor({
       setShowPasswordFields(false);
       toast.success(data.message || 'Profile updated!');
     } catch {
+      if (activeProfileId.current !== targetUser.id) return;
       toast.error('Failed to save profile');
       setDisplayUser(targetUser);
+    } finally {
+      profileSavePending.current = false;
     }
   };
 
