@@ -28,6 +28,7 @@ import { usePublicSearchUrlState } from './hooks/usePublicSearchUrlState';
 import { normalizeDiscoveryQueryValue } from './utils/seoQuery';
 import { toAbsolutePublicMediaUrl } from './utils/socialMetadata';
 import { isPostWriter } from './utils/contentCapabilities';
+import { isSystemPluginActive } from './utils/pluginRuntime';
 
 const SESSION_VISIBILITY_CHECK_COOLDOWN = 60 * 1000;
 
@@ -730,6 +731,7 @@ const App: React.FC = () => {
     loadPages,
     resetContentLoadCoverage,
     invalidateContentLoadCoverage,
+    contentRefreshKeys,
     handleEdit,
     handleSaveContent,
   } = useContent();
@@ -1051,6 +1053,8 @@ const App: React.FC = () => {
                                 serverInfo={settings._serverInfo}
                                 timeZone={settings.timeZone}
                                 analyticsMode={settings.analytics?.measurementMode}
+                                analyticsEnabled={isSystemPluginActive(settings, 'vp_analytics')}
+                                canManageAnalytics={settings._canManageSecrets === true}
                               />
                             }
                           />
@@ -1068,6 +1072,7 @@ const App: React.FC = () => {
                             element={
                               <ContentManagerWrapper
                                 type="post"
+                                refreshKey={contentRefreshKeys.post}
                                 posts={posts}
                                 setPosts={setPosts}
                                 settings={settings}
@@ -1083,6 +1088,7 @@ const App: React.FC = () => {
                               <ProtectedRoute user={user} allowedRoles={['Admin', 'Moderator']}>
                                 <ContentManagerWrapper
                                   type="page"
+                                  refreshKey={contentRefreshKeys.page}
                                   pages={pages}
                                   setPages={setPages}
                                   settings={settings}
@@ -1270,6 +1276,7 @@ const App: React.FC = () => {
 // Helper Wrappers to use Hooks
 interface ContentManagerWrapperProps {
   type: 'post' | 'page';
+  refreshKey: number;
   posts?: Post[];
   pages?: Page[];
   setPosts?: ContentActions['setPosts'];
@@ -1283,6 +1290,7 @@ interface ContentManagerWrapperProps {
 }
 const ContentManagerWrapper: React.FC<ContentManagerWrapperProps> = ({
   type,
+  refreshKey,
   posts,
   pages,
   setPosts,
@@ -1295,12 +1303,10 @@ const ContentManagerWrapper: React.FC<ContentManagerWrapperProps> = ({
   invalidateContentLoadCoverage,
 }) => {
   const navigate = useNavigate();
-  const [refreshKey, setRefreshKey] = React.useState(0);
-
-  const triggerRefresh = () => setRefreshKey((k) => k + 1);
 
   return (
     <ContentManager
+      key={type}
       type={type}
       posts={posts}
       pages={pages}
@@ -1310,13 +1316,7 @@ const ContentManagerWrapper: React.FC<ContentManagerWrapperProps> = ({
       refreshKey={refreshKey}
       userRole={user?.role}
       onEdit={(id, isPage) => handleEdit(id, isPage, navigate, user)}
-      onDelete={async (id, isPage, skipConfirm = false) => {
-        if (
-          !skipConfirm &&
-          !confirm('Are you sure you want to delete this ' + (isPage ? 'page' : 'post') + '?')
-        )
-          return;
-
+      onDelete={async (id, isPage) => {
         try {
           const endpoint = isPage ? API.deletePage : API.deletePost;
           const res = await vonFetch(endpoint, {
@@ -1326,7 +1326,7 @@ const ContentManagerWrapper: React.FC<ContentManagerWrapperProps> = ({
           });
           const data = await res.json();
 
-          if (data.success) {
+          if (res.ok && data.success === true) {
             invalidateContentLoadCoverage(isPage ? 'page' : 'post');
             if (isPage) {
               setPages!((prev) => prev.filter((p) => p.id !== id));
@@ -1335,13 +1335,15 @@ const ContentManagerWrapper: React.FC<ContentManagerWrapperProps> = ({
               window.dispatchEvent(new Event('voncms:public-categories-invalidated'));
               window.dispatchEvent(new Event('voncms:pending-review-invalidated'));
             }
-            triggerRefresh(); // Re-fetch current page in ContentManager
+            return true;
           } else {
             toast.error('Failed to delete: ' + (data.message || data.error));
+            return false;
           }
         } catch (e) {
           console.error('Delete error:', e);
           toast.error('Failed to delete. Check console for details.');
+          return false;
         }
       }}
     />

@@ -1,8 +1,8 @@
 # VonCMS Features
 
-> VonCMS v1.28.0 feature baseline for The BluePrint line. This version builds on v1.27.12. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. Grouped navigation and role-aware Create actions accompany the internal Editorial Calendar. This guide describes the current package; later roadmap modules remain planned. Published downloads are listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
+> VonCMS v1.28.1 feature baseline for The BluePrint line. It extends v1.28.0 with opt-in Hybrid analytics, Post/Page deletion previews, an optional News Sitemap, and targeted reliability and authorization corrections recorded in the [Changelog](../CHANGELOG.md). Existing collection modes and history remain unchanged until the Primary Admin selects Hybrid. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. Published downloads are listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
 
-## Introduction to VonCMS v1.28.0 "The BluePrint"
+## Introduction to VonCMS v1.28.1 "The BluePrint"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -134,7 +134,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Package version | `v1.28.0 "The BluePrint"`                 |
+| Package version | `v1.28.1 "The BluePrint"`                 |
 | Minimum PHP     | `8.2+`, with `8.3+` recommended           |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |
@@ -188,6 +188,7 @@ The admin dashboard is where you'll spend most of your time. It should feel good
 You shouldn't need an SEO degree to make your site visible. VonCMS handles the technical SEO automatically so you can focus on writing good content.
 
 - **Dynamic sitemap.xml** - updates automatically when you publish, with bounded 1,000-URL chunks for both posts and pages.
+- **Optional News sitemap** - `/sitemap-news.xml` lists only eligible published articles from the last 48 hours. VonSEO controls publication metadata and category selection; chunks of up to 1,000 articles are discovered through the ordinary sitemap index.
 - **Dynamic robots.txt** - generated crawl-policy defaults discourage indexing of internal paths; server access controls remain authoritative.
 - **Dynamic llms.txt** - publishes a concise Markdown content index for compatible AI/LLM clients.
 - **Canonical URL handling** - no duplicate content penalties.

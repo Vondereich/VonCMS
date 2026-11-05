@@ -1862,7 +1862,6 @@ function checkContentManagerActions() {
           const before = JSON.stringify(items);
           let stateIndex = 0;
           let tree;
-          let confirmed = false;
           const edits = [];
           const deletes = [];
           const navChanges = [];
@@ -1883,7 +1882,11 @@ function checkContentManagerActions() {
               '../../../../utils/contentCapabilities': capabilities,
               '../../../../utils/textUtils': { decodeEntities: (value) => value || '' },
             },
-            { confirm: () => confirmed }
+            {
+              confirm: () => {
+                throw new Error('Content actions must use the preview, not native confirm');
+              },
+            }
           ).default;
           const fixtureSettings = {
             ...settings,
@@ -1976,13 +1979,12 @@ function checkContentManagerActions() {
               );
             }
             const previousDeletes = deletes.length;
-            confirmed = false;
             deleteButtons[0].props.onClick();
-            assert.equal(deletes.length, previousDeletes, 'cancelled confirmation must not delete');
-            confirmed = true;
-            deleteButtons[0].props.onClick();
-            assert.equal(deletes.length, previousDeletes + 1);
-            assert.equal(deletes.at(-1)[1], type === 'page');
+            assert.equal(
+              deletes.length,
+              previousDeletes,
+              'opening a deletion preview must never delete'
+            );
             if (type === 'page') {
               const nav = walk(
                 layout,
@@ -2003,7 +2005,7 @@ function checkContentManagerActions() {
     }
   }
   console.log(
-    `PASS Content Manager Actions Runtime: ${cases} root/subfolder, post/page, permalink and role cases in both layouts preserve past auto-publications, future exclusion, safe new-tab links, edit dispatch, Nav dispatch, delete permission and confirmation.`
+    `PASS Content Manager Actions Runtime: ${cases} root/subfolder, post/page, permalink and role cases in both layouts preserve past auto-publications, future exclusion, safe new-tab links, edit dispatch, Nav dispatch, delete permission and preview opening without mutation. Confirmation is exercised in the dedicated browser fixture.`
   );
 }
 
@@ -3611,6 +3613,104 @@ async function checkAiKeyRotationUi() {
   );
 }
 
+async function checkNativeCrawlerTracking() {
+  const file = 'src/plugins/von-core/features/public/PublicSite.tsx';
+  const browserUA =
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36';
+  let cases = 0;
+  for (const prefix of ['', '/zangetsu']) {
+    for (const mode of ['strict', 'balanced', 'hybrid']) {
+      for (const view of ['home', 'category', 'single-post', 'page', 'profile']) {
+        for (const marker of [null, 'excluded', 'unrecognized']) {
+          const calls = [],
+            effects = [];
+          const publicLocation = { pathname: `${prefix}/news/qa`, search: '' };
+          const hooks = {
+            ...React,
+            useState: (initial) => [typeof initial === 'function' ? initial() : initial, noop],
+            useMemo: (factory) => factory(),
+            useEffect: (effect) => effects.push(effect),
+          };
+          const Component = load(
+            file,
+            hooks,
+            {
+              'react-router': { useLocation: () => publicLocation },
+              '../themes/ThemeContext': { useTheme: () => ({ activeTheme: { id: 'default' } }) },
+              './themeLayoutLoader': {
+                resolvePublicThemeId: () => 'default',
+                getLoadedPublicThemeLayout: () => Blank,
+              },
+              '../../../../themes/shared/themeSettings': { resolvePublicThemeSettings: (s) => s },
+              '../../../../utils/pluginRuntime': { isSystemPluginActive: () => true },
+              '../../../../utils/analyticsConsent': {
+                analyticsTrackingAllowed: () => true,
+                clearNativeAnalyticsIdentity: noop,
+                nativeAnalyticsCookieName: () => 'qa_identity',
+              },
+              '../../../../config/site.config': {
+                API: { trackMonolithic: `${prefix}/api/track_monolithic.php` },
+              },
+              '../../../../utils/api': {
+                vonFetch: async (url, options) => {
+                  calls.push({ url, payload: JSON.parse(options.body) });
+                  return { json: async () => ({ retry: false }) };
+                },
+              },
+            },
+            {
+              navigator: { userAgent: browserUA },
+              window: { location: publicLocation },
+              document: {
+                cookie: '',
+                referrer: '',
+                querySelector: (selector) => {
+                  assert.equal(selector, 'meta[name="voncms-tracking"]');
+                  return marker === null ? null : { getAttribute: () => marker };
+                },
+              },
+            }
+          ).default;
+          const props = {
+            ...base,
+            settings: { ...settings, analytics: { measurementMode: mode } },
+            currentView: view,
+            selectedPost: view === 'single-post' ? posts[0] : null,
+            selectedPage: view === 'page' ? { id: '8', title: 'QA Page' } : null,
+          };
+          Component(props);
+          for (const effect of effects) effect();
+          await Promise.resolve();
+          assert.equal(
+            calls.length,
+            marker === 'excluded' ? 0 : 1,
+            `${prefix}/${mode}/${view}/${marker}`
+          );
+          if (calls.length) {
+            assert.equal(calls[0].payload.postId, view === 'single-post' ? posts[0].id : undefined);
+            assert.equal(calls[0].payload.pageId, view === 'page' ? '8' : undefined);
+            assert.equal(calls[0].url, `${prefix}/api/track_monolithic.php`);
+          }
+          cases++;
+        }
+      }
+    }
+  }
+  assert.ok(
+    read('public/index.php').includes('echo voncms_tracking_document_meta();'),
+    'PHP entry must emit its real shared document classification'
+  );
+  assert.ok(
+    read('public/api/analytics_consent_helper.php').includes(
+      '<meta name="voncms-tracking" content="excluded">'
+    ),
+    'Client marker must match the server-emitted fragment'
+  );
+  console.log(
+    `PASS Native Crawler Tracking: ${cases} root/subfolder, five-route and three-mode actual component Effect cases retain crawler-document exclusion after changing to Linux/Chrome, while unmarked ordinary browsers still track. Controlled React/transport simulation, not a live bot.`
+  );
+}
+
 function checkGoogleTrackingRuntime() {
   const file = 'src/components/AnalyticsInjector.tsx';
   for (const legacyFlag of [undefined, false, true]) {
@@ -3830,6 +3930,307 @@ async function checkMediaSettingsRuntime() {
   );
 }
 
+async function checkRelatedCandidateReliability() {
+  const directory = 'src/plugins/von-core/features/plugins/built-in/related-posts/';
+  const dates = load('src/utils/dateFormat.ts');
+  const matcher = load(directory + 'matcher.ts', React, {
+    '../../../../../../utils/dateFormat': dates,
+  });
+  const pluginRuntime = load('src/utils/pluginRuntime.ts');
+  const article = (id, fields = {}) => ({
+    ...posts[0],
+    id: String(id),
+    category: 'Sports',
+    views: 0,
+    ...fields,
+  });
+  const current = article('current');
+  const localSports = Array.from({ length: 25 }, (_, index) => article(index));
+  const localBusiness = localSports.map((post) => ({ ...post, category: 'Business' }));
+  const config = { enabled: true, count: 6, orderBy: 'relevance' };
+  const response = (values) => ({ ok: true, json: async () => ({ posts: values }) });
+  const setup = (base, transport, savedConfig = config, active = true) => {
+    const slots = [],
+      requests = [];
+    let cursor = 0,
+      dirty = false,
+      effects = [],
+      args,
+      result;
+    const hooks = {
+      ...React,
+      useState(initial) {
+        const index = cursor++;
+        if (!(index in slots)) slots[index] = { value: initial };
+        return [
+          slots[index].value,
+          (update) => {
+            const next = typeof update === 'function' ? update(slots[index].value) : update;
+            if (!Object.is(next, slots[index].value)) {
+              slots[index].value = next;
+              dirty = true;
+            }
+          },
+        ];
+      },
+      useEffect(effect, deps) {
+        const index = cursor++,
+          previous = slots[index];
+        if (!previous || deps.some((value, i) => !Object.is(value, previous.deps[i]))) {
+          effects.push(() => {
+            previous?.cleanup?.();
+            slots[index] = { deps, cleanup: effect() };
+          });
+        }
+      },
+    };
+    const hook = load(
+      'src/hooks/usePlugins.tsx',
+      hooks,
+      {
+        ['../plugins/von-core/features/plugins/built-in/related-posts/matcher']: matcher,
+        '../utils/pluginRuntime': pluginRuntime,
+        '../config/site.config': { API: { getPosts: `${base}/api/get_posts.php` } },
+        '../utils/api': {
+          vonFetch: (url, options) => {
+            requests.push({ url: new URL(url, 'https://fixture.invalid'), signal: options.signal });
+            return transport(requests.at(-1).url, options);
+          },
+        },
+      },
+      { URLSearchParams, AbortController }
+    );
+    const configured = {
+      activePlugins: active ? ['vp_related_posts'] : [],
+      pluginConfig: { vp_related_posts: savedConfig },
+    };
+    const draw = (post = args?.[0] || current, candidates = args?.[1] || []) => {
+      args = [post, candidates];
+      let attempts = 0;
+      do {
+        assert.ok(attempts++ < 10, 'Related candidate reconciliation must settle');
+        cursor = 0;
+        dirty = false;
+        effects = [];
+        result = hook.useRelatedPosts(configured, post, candidates);
+        effects.forEach((effect) => effect());
+      } while (dirty);
+      return result;
+    };
+    return {
+      draw,
+      requests,
+      get result() {
+        return result;
+      },
+      async flush() {
+        await new Promise((resolve) => setImmediate(resolve));
+        return draw();
+      },
+      close() {
+        slots.forEach((slot) => slot.cleanup?.());
+      },
+    };
+  };
+  let cases = 0;
+  for (const base of ['', '/zangetsu']) {
+    for (const count of [3, 4, 6, 8]) {
+      const fixture = setup(base, async () => response(localSports), { ...config, count });
+      fixture.draw(current, localBusiness);
+      await fixture.flush();
+      assert.equal(
+        fixture.requests.length,
+        2,
+        'Unrelated local rows cannot suppress category retrieval'
+      );
+      const limit = Math.min(24, Math.max(count * 4, 12));
+      assert.ok(
+        fixture.requests.every(
+          ({ url }) =>
+            url.pathname === `${base}/api/get_posts.php` &&
+            url.searchParams.get('limit') === String(limit) &&
+            url.searchParams.get('public') === '1' &&
+            url.searchParams.get('includeTotal') === 'false'
+        )
+      );
+      assert.ok(fixture.result.props.allPosts.every((post) => post.category === 'Sports'));
+      fixture.draw();
+      assert.equal(fixture.requests.length, 2, 'Unchanged inputs must not refetch');
+      fixture.close();
+      cases++;
+    }
+    const complete = setup(base, async () => {
+      throw new Error('Unexpected request');
+    });
+    const completeLocal = localSports.map((post) => ({ ...post, category: ' SPORTS ' }));
+    const firstLocalCandidates = complete.draw(current, completeLocal).props.allPosts;
+    assert.equal(
+      complete.draw(current, completeLocal).props.allPosts,
+      firstLocalCandidates,
+      'Unrelated renders must retain the candidate array for Random memoization'
+    );
+    assert.equal(complete.requests.length, 0, 'Complete normalized category coverage stays local');
+    complete.close();
+    cases++;
+    for (const failCategory of [false, true]) {
+      for (const failure of ['http', 'network', 'json']) {
+        const fixture = setup(base, async (url) => {
+          if (url.searchParams.has('category') !== failCategory)
+            return response(localSports.slice(0, 6));
+          if (failure === 'network') throw new Error('Fixture network failure');
+          if (failure === 'json')
+            return {
+              ok: true,
+              json: async () => {
+                throw new Error('Fixture JSON failure');
+              },
+            };
+          return { ok: false };
+        });
+        fixture.draw();
+        await fixture.flush();
+        assert.equal(
+          fixture.result.props.allPosts.length,
+          6,
+          'Successful companion candidates must survive'
+        );
+        fixture.close();
+        cases++;
+      }
+    }
+    for (const failure of [true, false]) {
+      const fixture = setup(base, async () => (failure ? { ok: false } : response([])));
+      fixture.draw(current, [
+        current,
+        article('draft', { status: 'draft' }),
+        ...localSports.slice(0, 3),
+      ]);
+      await fixture.flush();
+      if (failure)
+        assert.equal(
+          Array.from(
+            matcher.findRelatedPosts(current, fixture.result.props.allPosts, config),
+            (post) => post.id
+          ).join(','),
+          '0,1,2',
+          'Only published non-current local fallback survives total failure'
+        );
+      else
+        assert.equal(
+          fixture.result,
+          null,
+          'An authoritative empty result cannot revive stale local cards'
+        );
+      fixture.close();
+      cases++;
+    }
+    const missingViews = localSports.map((post) => ({ ...post, views: undefined }));
+    const mostViewed = setup(
+      base,
+      async () => response(localSports.map((post, index) => ({ ...post, views: index + 1 }))),
+      { ...config, orderBy: 'views' }
+    );
+    mostViewed.draw(current, missingViews);
+    await mostViewed.flush();
+    assert.equal(
+      mostViewed.requests.length,
+      2,
+      'Unknown counters require the existing public candidate fetch'
+    );
+    assert.equal(
+      matcher.findRelatedPosts(current, mostViewed.result.props.allPosts, {
+        count: 6,
+        orderBy: 'views',
+      })[0].id,
+      '24'
+    );
+    mostViewed.close();
+    cases++;
+    const zeroViews = setup(
+      base,
+      async () => {
+        throw new Error('Unexpected request');
+      },
+      { ...config, orderBy: 'views' }
+    );
+    zeroViews.draw(current, localSports);
+    assert.equal(zeroViews.requests.length, 0, 'Known zero counters are valid, not missing');
+    zeroViews.close();
+    cases++;
+    const held = [];
+    const navigating = setup(
+      base,
+      (url, options) =>
+        new Promise((resolve) => held.push({ url, signal: options.signal, resolve }))
+    );
+    navigating.draw(article('A', { category: 'A' }));
+    navigating.draw(article('B', { category: 'B' }));
+    assert.ok(held.slice(0, 2).every((request) => request.signal.aborted));
+    held.slice(2).forEach((request) => request.resolve(response([article('B-result')])));
+    await navigating.flush();
+    held.slice(0, 2).forEach((request) => request.resolve(response([article('A-result')])));
+    await navigating.flush();
+    assert.equal(
+      Array.from(navigating.result.props.allPosts, (post) => post.id).join(','),
+      'B-result'
+    );
+    navigating.close();
+    cases++;
+    const disabled = setup(
+      base,
+      async () => {
+        throw new Error('Unexpected request');
+      },
+      config,
+      false
+    );
+    disabled.draw();
+    await disabled.flush();
+    assert.equal(disabled.result, null);
+    assert.equal(disabled.requests.length, 0);
+    disabled.close();
+    cases++;
+  }
+  const contentAst = ts.createSourceFile(
+    'useContent.ts',
+    read('src/hooks/useContent.ts'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  let initializer;
+  const visit = (node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(contentAst) === 'getInitialPosts')
+      initializer = node.initializer;
+    ts.forEachChild(node, visit);
+  };
+  visit(contentAst);
+  assert.ok(initializer);
+  const context = {
+    module: { exports: {} },
+    window: { __INITIAL_DATA__: localSports.map((post, index) => ({ ...post, views: index })) },
+  };
+  vm.runInNewContext(
+    ts.transpileModule(`module.exports = ${initializer.getText(contentAst)}`, {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText,
+    context
+  );
+  const hydrated = context.module.exports();
+  assert.equal(
+    Array.from(hydrated, (post) => post.views).join(','),
+    Array.from({ length: 25 }, (_, index) => index).join(','),
+    'Real hydration preserves zero/nonzero counters'
+  );
+  assert.equal(
+    matcher.findRelatedPosts(current, hydrated, { count: 6, orderBy: 'views' })[0].id,
+    '24'
+  );
+  console.log(
+    `PASS Related Candidate Reliability: ${cases} root/subfolder hook cases cover category coverage, bounded public batches, partial/total failures, authoritative empty data, views, inactive plugins and late navigation; actual hydration preserves counters. Controlled transports/lifecycle, no live requests.`
+  );
+}
+
 function checkRelatedMemoOwnership() {
   const directory = 'src/plugins/von-core/features/plugins/built-in/related-posts/';
   const dates = load('src/utils/dateFormat.ts');
@@ -3952,6 +4353,240 @@ function checkPortfolioNavigationResolver() {
   );
 }
 
+async function checkDiscoveryRouteFetch() {
+  const fixedHooks = {
+    ...React,
+    useState: (value) => [typeof value === 'function' ? value() : value, noop],
+    useMemo: (factory) => factory(),
+    useRef: (value) => ({ current: value }),
+    useCallback: (callback) => callback,
+    useEffect: noop,
+    useLayoutEffect: noop,
+    useEffectEvent: (callback) => callback,
+  };
+  const captured = [];
+  for (const theme of ['prism', 'digest', 'techpress', 'corporate-pro']) {
+    const file = `src/themes/${theme}/Layout.tsx`;
+    const Component = load(file, fixedHooks).default;
+    for (const view of ['home', 'category', 'single-post', 'page', 'profile']) {
+      queryCalls.length = 0;
+      Component({
+        ...base,
+        currentView: view,
+        selectedPost: posts[0],
+        selectedPage: { id: 'p1', title: 'QA page', content: 'QA content' },
+        selectedProfile: 'tester',
+        selectedCategory: view === 'category' ? 'News' : null,
+        isDarkMode: false,
+      });
+      assert.equal(queryCalls.length, 1, `${theme}/${view} must retain its unconditional Hook`);
+      const options = queryCalls[0];
+      assert.equal(options.enabled, view === 'home' || view === 'category', `${theme}/${view}`);
+      captured.push({ theme, view, options });
+    }
+  }
+
+  function harness(options, prefix = '') {
+    const slots = [],
+      effects = [],
+      timers = new Map(),
+      requests = [],
+      held = [];
+    let cursor = 0,
+      dirty = false,
+      result,
+      timer = 0,
+      hold = false;
+    const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
+    const memo = (factory, deps) => {
+      const i = cursor++;
+      if (!slots[i] || !same(slots[i].deps, deps)) slots[i] = { deps, value: factory() };
+      return slots[i].value;
+    };
+    const hooks = {
+      ...React,
+      useState: (initial) => {
+        const i = cursor++;
+        if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial;
+        return [
+          slots[i],
+          (next) => {
+            const value = typeof next === 'function' ? next(slots[i]) : next;
+            if (!Object.is(slots[i], value)) {
+              slots[i] = value;
+              dirty = true;
+            }
+          },
+        ];
+      },
+      useRef: (initial) => {
+        const i = cursor++;
+        if (!(i in slots)) slots[i] = { current: initial };
+        return slots[i];
+      },
+      useMemo: memo,
+      useCallback: (callback, deps) => memo(() => callback, deps),
+      useEffect: (effect, deps) => {
+        const i = cursor++,
+          previous = slots[i];
+        if (previous && same(previous.deps, deps)) return;
+        slots[i] = { deps };
+        effects.push(() => {
+          previous?.cleanup?.();
+          slots[i].cleanup = effect();
+        });
+      },
+    };
+    const query = new URLSearchParams();
+    const response = (url) => ({
+      ok: true,
+      json: async () => {
+        const page = Number(url.searchParams.get('page')),
+          limit = Number(url.searchParams.get('limit'));
+        return {
+          posts: posts.slice((page - 1) * limit, page * limit),
+          meta: { page, limit, total: posts.length, hasMore: page * limit < posts.length },
+        };
+      },
+    });
+    const hook = load(
+      'src/hooks/usePublicPostsQuery.ts',
+      hooks,
+      {
+        'react-router': { useSearchParams: () => [query] },
+        '../config/site.config': { API: { getPosts: `${prefix}/api/get_posts.php` } },
+        '../utils/siteUtils': { normalizeSiteUrl: (value) => `${prefix}${value}` },
+        '../utils/api': {
+          vonFetch: async (url, { signal }) => {
+            const target = new URL(url, 'https://fixture.invalid');
+            requests.push({ url: target, signal });
+            return hold
+              ? new Promise((resolve) => held.push(() => resolve(response(target))))
+              : response(target);
+          },
+        },
+      },
+      {
+        AbortController,
+        URLSearchParams,
+        window: {
+          setTimeout: (callback) => {
+            timers.set(++timer, callback);
+            return timer;
+          },
+          clearTimeout: (id) => timers.delete(id),
+        },
+      }
+    );
+    const paint = (next = options) => {
+      options = next;
+      cursor = 0;
+      dirty = false;
+      effects.length = 0;
+      result = hook.usePublicPostsQuery(options);
+      effects.splice(0).forEach((effect) => effect());
+    };
+    const flush = async () => {
+      for (let i = 0; i < 24; i++) {
+        await Promise.resolve();
+        if (dirty) paint();
+      }
+      assert.equal(dirty, false, 'Discovery Hook must settle without a render loop');
+      return result;
+    };
+    return {
+      paint,
+      flush,
+      requests,
+      get value() {
+        return result;
+      },
+      set hold(value) {
+        hold = value;
+      },
+      searchTick: () => {
+        const callbacks = [...timers.values()];
+        timers.clear();
+        callbacks.forEach((callback) => callback());
+      },
+      release: () => held.splice(0).forEach((resolve) => resolve()),
+    };
+  }
+
+  for (const { theme, view, options } of captured) {
+    const test = harness(options);
+    test.paint();
+    await test.flush();
+    assert.equal(
+      test.requests.length,
+      options.enabled ? 1 : 0,
+      `${theme}/${view} actual fetch count`
+    );
+    if (view === 'single-post') {
+      const before = { ...options };
+      delete before.enabled;
+      const control = harness(before);
+      control.paint();
+      await control.flush();
+      assert.equal(
+        control.requests.length,
+        1,
+        `${theme} pre-fix default must reproduce the unused fetch`
+      );
+    }
+  }
+  for (const prefix of ['', '/zangetsu']) {
+    const initial = { initialPosts: posts, enabled: false, limit: 2, category: null, search: '' };
+    const test = harness(initial, prefix);
+    test.paint();
+    await test.flush();
+    assert.equal(test.requests.length, 0);
+    test.paint({ ...initial, enabled: true });
+    await test.flush();
+    assert.equal(test.requests.length, 1);
+    assert.equal(test.value.posts.length, 2);
+    await test.value.loadMore();
+    await test.flush();
+    assert.equal(test.requests.length, 2);
+    assert.equal(test.value.posts.length, 4);
+    assert.equal(test.requests[1].url.searchParams.get('page'), '2');
+    test.paint(initial);
+    await test.flush();
+    assert.equal(test.requests.length, 2);
+    test.paint({ ...initial, enabled: true, category: 'News' });
+    await test.flush();
+    assert.equal(test.requests.at(-1).url.searchParams.get('category'), 'News');
+    const previous = test.requests.length;
+    test.paint({ ...initial, enabled: true, category: 'News', search: 'QA' });
+    await test.flush();
+    assert.equal(test.requests.length, previous, 'Search waits for debounce');
+    test.searchTick();
+    await test.flush();
+    assert.equal(test.requests.at(-1).url.searchParams.get('search'), 'QA');
+    test.paint(initial);
+    await test.flush();
+    test.hold = true;
+    test.paint({ ...initial, enabled: true });
+    await test.flush();
+    const inFlight = test.requests.at(-1);
+    test.paint(initial);
+    await test.flush();
+    assert.equal(inFlight.signal.aborted, true, 'Leaving discovery aborts its pending request');
+    test.release();
+    await test.flush();
+    assert.equal(test.value.isLoading, false);
+    test.hold = false;
+    test.paint({ ...initial, enabled: true });
+    await test.flush();
+    assert.equal(test.requests.at(-1).url.pathname, `${prefix}/api/get_posts.php`);
+    assert.equal(test.value.posts.length, 2);
+    assert.equal(test.value.error, null);
+  }
+  console.log(
+    'PASS Theme Discovery Routes: 20 actual layout/Hook cases, four pre-fix counterexamples, root/subfolder return-home, category, debounced search, Load More and pending-request cancellation. React lifecycle simulation; no installed data or requests.'
+  );
+}
+
 checkRelatedMemoOwnership();
 checkPortfolioNavigationResolver();
 checkGoogleTrackingRuntime();
@@ -3962,6 +4597,9 @@ checkPublicPluginHydration();
 checkSettingsPresentation();
 checkAdsManager();
 checkAdminSettingsReadiness()
+  .then(checkNativeCrawlerTracking)
+  .then(checkDiscoveryRouteFetch)
+  .then(checkRelatedCandidateReliability)
   .then(checkAiSettingsModels)
   .then(checkSettingsDraftLifecycle)
   .then(checkAiKeyStorageUi)

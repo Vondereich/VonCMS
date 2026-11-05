@@ -11,7 +11,17 @@ VonCMS is a lightweight, self-hosted CMS built with PHP and React for publishers
 **The BluePrint** is the v1.28.x series, following v1.27.x "OverDrive", whose maintenance line closed at v1.27.12. The BluePrint line focuses on clearer editorial workflows, safer content recovery, leaner public settings, and better staff tools while retaining VonCMS's PHP/MySQL hosting model.
 
 > [!IMPORTANT]
-> **Current package version: v1.28.0 "The BluePrint".** The highlights below describe this version. Later roadmap entries remain planned, not currently available features. Download availability and publication dates are listed on [Releases](https://github.com/Vondereich/VonCMS/releases).
+> **Current version: v1.28.1 "The BluePrint" - 6 November 2026.** This maintenance release builds on v1.28.0 with opt-in Hybrid analytics, safer Post/Page deletion previews, an optional News Sitemap, and targeted reliability and authorization fixes. Installer, bundled theme and built-in plugin labels remain 1.28. Exact changes are listed in the [Changelog](CHANGELOG.md); published downloads are listed on [Releases](https://github.com/Vondereich/VonCMS/releases).
+
+### v1.28.1 Highlights
+
+- **Opt-in Hybrid analytics:** collect Strict IP-window and Balanced browser-session measurements independently, with separate reports and clearer collection-status guidance. Existing settings and history are retained; Hybrid must be enabled explicitly by the Primary Admin.
+- **Post/Page deletion previews:** review selected records before single or bulk permanent deletion. Cancellation sends no delete request, and partial failures retain unconfirmed records for retry. This is not Trash, Restore or Undo.
+- **Optional News Sitemap:** enable `/sitemap-news.xml` in VonSEO Advanced settings for published articles from the preceding 48 hours, with publication, language and category controls and up to 1,000 articles per file. It supplements the ordinary sitemap and does not guarantee Google News inclusion.
+- **Targeted access and reporting fixes:** revalidate protected Post reads, enforce delegated Comment/IndexNow permissions, and exclude recognized automation from new native measurements without blocking public content. Visitor counts remain estimates, not verified people.
+- **Leaner public reads and Dashboard polish:** reuse optional author-column metadata checks, avoid unused theme listing requests, improve Related Posts candidate handling, and correct dark-mode analytics contrast and activity-card spacing.
+
+Upgrading from v1.28.0 introduces no new database table or required data migration. Calendar and Balanced/Hybrid reports still require their existing storage to be ready; when upgrading from older releases, back up first and follow [Upgrade](docs/UPGRADE.md). New collection and News Sitemap options are not enabled automatically.
 
 ### v1.28.0 Highlights
 
@@ -35,14 +45,15 @@ Existing installations require Primary Admin **Database > Schema Repair** to ena
 
 ### 1.28.x Roadmap
 
-| Version    | Focus                                                                                                       | Status          |
-| ---------- | ----------------------------------------------------------------------------------------------------------- | --------------- |
-| **1.28.0** | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Current package |
-| **1.28.1** | Post/Page Trash and Restore: recover content as a draft before choosing to publish again                    | Planned         |
-| **1.28.2** | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | Planned         |
-| **1.28.3** | Personal AI keys in eligible staff account profiles, with explicit credential selection                     | Planned         |
-| **1.28.4** | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned         |
-| **1.28.5** | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned         |
+| Version        | Focus                                                                                                       | Status            |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ----------------- |
+| **1.28.0**     | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Released baseline |
+| **1.28.1**     | Hybrid analytics, deletion previews, optional News Sitemap, and targeted reliability/access corrections     | 6 November 2026   |
+| **1.28.2**     | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | Planned           |
+| **1.28.3**     | Personal AI keys in eligible staff account profiles, with explicit credential selection                     | Planned           |
+| **1.28.4**     | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned           |
+| **1.28.5**     | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned           |
+| **Unassigned** | Post/Page Trash and Restore: retained for rescheduling, not bundled into 1.28.1                             | Planned           |
 
 Each milestone is delivered and verified separately. Scope and order may change; this roadmap is not a release-date commitment. The 1.28.6 and later slots are reserved for maintenance, compatibility, security, and confirmed regression fixes. Interface translation does not automatically translate articles or create multilingual URLs.
 

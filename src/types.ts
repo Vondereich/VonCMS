@@ -77,6 +77,7 @@ export interface Post {
   }; // Hybrid Contract
   author_id?: string | number | null;
   readTime?: string;
+  views?: number;
   // New SEO Fields
   metaDescription?: string;
   keywords?: string;
@@ -347,8 +348,11 @@ export interface NewsletterSettings {
   position: 'footer' | 'sidebar' | 'both';
 }
 
+export type AnalyticsReportMode = 'strict' | 'balanced';
+export type AnalyticsCollectionMode = AnalyticsReportMode | 'hybrid';
+
 export interface AnalyticsConfig {
-  measurementMode?: 'strict' | 'balanced';
+  measurementMode?: AnalyticsCollectionMode;
   googleAnalyticsId?: string;
   enableTracking?: boolean;
   trackPageViews?: boolean;
@@ -457,6 +461,14 @@ export interface CustomPluginDefinition {
   enabled: boolean;
 }
 
+export interface NewsSitemapConfig {
+  enabled: boolean;
+  publicationName: string;
+  language: string;
+  scope: 'all' | 'categories';
+  categories: string[];
+}
+
 export interface SeoConfig {
   siteTitle?: string;
   defaultMetaDescription?: string;
@@ -465,6 +477,7 @@ export interface SeoConfig {
   /** @deprecated Canonical URLs use SiteSettings.domainUrl. */
   canonicalHost?: string;
   sitemapEnabled?: boolean;
+  newsSitemap?: NewsSitemapConfig;
   robotsTxt?: string;
   articleSchemaType?: ArticleSchemaType;
   googleSearchConsole?: string; // Verification Code

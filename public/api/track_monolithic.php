@@ -38,6 +38,18 @@ $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
 }
+if (voncms_tracking_is_automated(DataBoundary::serverString('HTTP_USER_AGENT', ''))) {
+  echo json_encode([
+    'success' => true,
+    'visit' => false,
+    'retry' => false,
+    'view' => false,
+    'view_throttled' => false,
+    'throttled' => false,
+    'excluded' => true,
+  ]);
+  exit();
+}
 if (!voncms_analytics_request_allowed()) {
   echo json_encode([
     'success' => true,
@@ -83,6 +95,7 @@ $throttleMinutes = 30;
 $recentLogs = 0;
 $visitRecorded = false;
 $visitRetry = false;
+$visit = ['visit' => false, 'throttled' => false, 'retry' => false];
 if ($recordAnalytics && is_string($analyticsMode)) {
   try {
     $visit = voncms_record_native_visit(
@@ -96,18 +109,22 @@ if ($recordAnalytics && is_string($analyticsMode)) {
     $visitRecorded = $visit['visit'];
     $recentLogs = (int) $visit['throttled'];
     $visitRetry = $visit['retry'];
-
-    if (rand(1, 100) === 1) {
-      $pdo->exec(
-        'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
-      );
-      if ($analyticsMode === 'balanced') {
-        voncms_prune_analytics_sessions($pdo, time());
-      }
-    }
   } catch (Throwable $analyticsError) {
     $recentLogs = 0;
     $visitRecorded = false;
+  }
+  // Maintenance failure must not change the acknowledgement of an already committed visit.
+  if (rand(1, 100) === 1) {
+    try {
+      $pdo->exec(
+        'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
+      );
+      if ($analyticsMode !== 'strict') {
+        voncms_prune_analytics_sessions($pdo, time());
+      }
+    } catch (Throwable $maintenanceError) {
+      // Optional bounded cleanup is retried by later requests.
+    }
   }
 }
 
@@ -160,11 +177,13 @@ try {
   $viewRecorded = false;
 }
 
-echo json_encode([
-  'success' => true,
-  'visit' => $visitRecorded,
-  'retry' => $visitRetry,
-  'view' => $viewRecorded,
-  'view_throttled' => $viewThrottled,
-  'throttled' => $recordAnalytics && $recentLogs > 0,
-]);
+echo json_encode(
+  [
+    'success' => true,
+    'visit' => $visitRecorded,
+    'retry' => $visitRetry,
+    'view' => $viewRecorded,
+    'view_throttled' => $viewThrottled,
+    'throttled' => $recordAnalytics && $recentLogs > 0,
+  ] + $visit,
+);

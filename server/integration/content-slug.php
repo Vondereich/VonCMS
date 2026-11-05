@@ -20,7 +20,7 @@ final class SlugFixturePDO extends VonCmsFixtureSqlitePDO
 final class SlugRejection extends RuntimeException {}
 final class ResponseHelper
 {
-  public static function sendError($error, int $status = 500): never
+  public static function sendError(mixed $error, int $status = 500): never
   {
     throw new SlugRejection((string) $error, $status);
   }
@@ -197,6 +197,7 @@ if (in_array($argv[1] ?? '', ['--mysql', '--mysql-worker'], true)) {
       if (stream_select($read, $write, $except, 0, 200000) !== 0) {
         throw new RuntimeException('Competing connection bypassed held database lock');
       }
+      $waiterResult = null;
       if ($action === 'timeout') {
         $waiterResult = $finish($waiter);
         if ($waiterResult['elapsed'] < 2.5 || $waiterResult['elapsed'] > 8) {
@@ -211,6 +212,7 @@ if (in_array($argv[1] ?? '', ['--mysql', '--mysql-worker'], true)) {
       }
       $children = [];
       if (
+        !is_array($waiterResult) ||
         $holderResult['status'] !== ($action === 'fail' ? 500 : 200) ||
         $waiterResult['status'] !== $expected
       ) {

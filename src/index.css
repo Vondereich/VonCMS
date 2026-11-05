@@ -240,6 +240,38 @@ html[data-admin-palette='harbour-amber'] .admin-modal-layer:not(.dark) {
   height: 100dvh;
 }
 
+/* Native report pickers and chart overlays follow the Dashboard's actual theme. */
+.dashboard-analytics-filters select {
+  color-scheme: light;
+}
+
+.dashboard-analytics-filters option {
+  color: inherit;
+  background-color: var(--color-slate-50);
+}
+
+.dashboard-analytics-chart {
+  --analytics-tooltip-background: var(--color-white);
+  --analytics-tooltip-foreground: var(--color-slate-800);
+  --analytics-tooltip-border: var(--color-slate-200);
+  --analytics-tooltip-cursor: var(--color-slate-100);
+}
+
+.dark .dashboard-analytics-filters select {
+  color-scheme: dark;
+}
+
+.dark .dashboard-analytics-filters option {
+  background-color: var(--color-admin-panel);
+}
+
+.dark .dashboard-analytics-chart {
+  --analytics-tooltip-background: var(--color-admin-panel);
+  --analytics-tooltip-foreground: var(--color-slate-100);
+  --analytics-tooltip-border: var(--color-admin-border);
+  --analytics-tooltip-cursor: var(--color-admin-hover);
+}
+
 .admin-modal-layer {
   position: fixed;
   inset: 0;

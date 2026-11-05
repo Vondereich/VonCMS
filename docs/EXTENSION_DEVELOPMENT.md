@@ -1,6 +1,6 @@
-# VonCMS Extension Development Guide v1.28.0
+# VonCMS Extension Development Guide v1.28.1
 
-This guide describes the v1.28.0 "The BluePrint" development baseline, carried forward from v1.27.12 with a PHP 8.2 minimum and PHP 8.3+ recommended. The opening version bump does not introduce new extension behavior or publish a release.
+This guide describes the v1.28.1 "The BluePrint" extension contracts, carried forward from v1.28.0 with a PHP 8.2 minimum and PHP 8.3+ recommended. Installer, bundled theme and built-in plugin labels remain 1.28. See the [Changelog](../CHANGELOG.md) for implemented runtime changes; future extension features remain roadmap items.
 
 This guide is the public source of truth for VonCMS theme and plugin development in The BluePrint line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 

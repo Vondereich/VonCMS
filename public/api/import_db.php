@@ -187,7 +187,8 @@ function maskImportSqlQuotes(string $statement): string
     }
     $result .= $quote === '`' ? 'quoted_identifier' : '0';
     $closed = false;
-    for ($i++; $i < $length; $i++) {
+    $i++;
+    while ($i < $length) {
       if ($statement[$i] === '\\' && $quote !== '`') {
         $i++;
       } elseif ($statement[$i] === $quote) {
@@ -198,6 +199,7 @@ function maskImportSqlQuotes(string $statement): string
           break;
         }
       }
+      $i++;
     }
     if (!$closed) {
       throw new RuntimeException('Unterminated SQL value or identifier.');
@@ -732,6 +734,14 @@ try {
   if ($destructiveSummary['count'] > 0) {
     $safetyBackup = createPreImportSafetyBackup($pdo);
     voncms_clear_publication_capability_marker();
+    // Also discard probes made during DDL, including a partially failed or exited restore.
+    register_shutdown_function(static function (): void {
+      try {
+        voncms_clear_display_name_cache();
+      } catch (Throwable $error) {
+        error_log('VonCMS SQL restore: optional schema read cache could not be cleared.');
+      }
+    });
   }
 
   // Transaction protects against partial imports for DML statements (INSERT, SET).

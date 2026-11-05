@@ -447,6 +447,7 @@ bridgeCheck(
   'Raw database error leaked or failure was silent',
 );
 $pdo->exec('DROP TRIGGER reject_once');
+$resumed = [];
 for ($attempt = 0; $attempt < 8; $attempt++) {
   $resumed = bridgeRequest($file, 2);
   if (!($resumed['has_more'] ?? false)) {

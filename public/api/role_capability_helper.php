@@ -34,6 +34,7 @@ function voncms_fixed_role_capabilities(): array
 
   $reviewerCapabilities = [
     'calendar.manage',
+    'comments.moderate',
     'posts.read_any_protected',
     'posts.create',
     'posts.edit_any',

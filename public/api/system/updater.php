@@ -927,6 +927,16 @@ class SystemUpdater
       throw new Exception('Could not read the staged update payload.');
     }
 
+    $schemaHelper = __DIR__ . '/../publication_time_helper.php';
+    if (is_file($schemaHelper)) {
+      require_once $schemaHelper;
+      if (function_exists('voncms_clear_display_name_cache')) {
+        voncms_clear_display_name_cache(
+          $this->rootPath . '/data/schema-capabilities.json.display-name-cache',
+        );
+      }
+    }
+
     $journal = [];
     $activationCount = 0;
 

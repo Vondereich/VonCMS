@@ -7,12 +7,14 @@
  * - /sitemap.xml - Index file (lists all sitemap chunks)
  * - /sitemap.xml?type=posts&page=1 - Posts chunk 1 (max 1,000 posts)
  * - /sitemap.xml?type=pages&page=1 - Pages chunk 1 (max 1,000 pages)
+ * - /sitemap-news.xml?page=1 - Opt-in recent News chunk (max 1,000 articles)
  */
 
 ob_start();
 require_once __DIR__ . '/von_config.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/seo_route_helper.php';
+require_once __DIR__ . '/news_sitemap_helper.php';
 ob_end_clean();
 
 // Constants
@@ -32,12 +34,14 @@ try {
   );
   $stmtGeneral->execute();
   $genRow = $stmtGeneral->fetch(PDO::FETCH_ASSOC);
+  $stmtGeneral->closeCursor();
 
   $stmt = $pdo->prepare(
     "SELECT setting_value FROM settings WHERE setting_group = 'seo' AND setting_key = 'site_config' LIMIT 1",
   );
   $stmt->execute();
   $seoRow = $stmt->fetch(PDO::FETCH_ASSOC);
+  $stmt->closeCursor();
   $seoSettings = $seoRow ? json_decode($seoRow['setting_value'], true) : [];
 
   // Check if enabled
@@ -96,15 +100,49 @@ try {
   // Determine request type
   $typeValue = $_GET['type'] ?? 'index';
   $type =
-    is_string($typeValue) && in_array($typeValue, ['index', 'posts', 'pages'], true)
+    is_string($typeValue) && in_array($typeValue, ['index', 'posts', 'pages', 'news'], true)
       ? $typeValue
       : 'index';
+  if (
+    strtolower(voncms_request_path($_SERVER['REQUEST_URI'] ?? '')) ===
+    strtolower(rtrim($sitemapBasePath, '/') . '/sitemap-news.xml')
+  ) {
+    $type = 'news';
+  }
   $pageValue = $_GET['page'] ?? 1;
   $page = is_scalar($pageValue) ? max(1, (int) $pageValue) : 1;
 
   // Set XML header
   if (!headers_sent()) {
     header('Content-Type: application/xml; charset=utf-8');
+  }
+
+  if ($type === 'news') {
+    $newsConfig = voncms_news_sitemap_settings($seoSettings['newsSitemap'] ?? null);
+    if (!$newsConfig['enabled']) {
+      http_response_code(404);
+      header('Content-Type: text/plain; charset=utf-8');
+      exit('News sitemap is disabled.');
+    }
+    $newsNow = new DateTimeImmutable($currentTime);
+    $publication = voncms_news_sitemap_publication($pdo, $newsConfig);
+    $newsCountStmt = voncms_news_sitemap_query($pdo, $newsConfig, $newsNow);
+    $newsCount = (int) $newsCountStmt->fetchColumn();
+    $newsCountStmt->closeCursor();
+    $newsPages = voncms_sitemap_page_count($newsCount, 1000);
+    $newsPage = filter_var($pageValue, FILTER_VALIDATE_INT, [
+      'options' => ['min_range' => 1, 'max_range' => $newsPages],
+    ]);
+    if ($newsPage === false) {
+      http_response_code(404);
+      echo voncms_news_sitemap_xml([], $publication, $baseUrl, $newsNow);
+      exit();
+    }
+    $newsStmt = voncms_news_sitemap_query($pdo, $newsConfig, $newsNow, $newsPage);
+    $newsPosts = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $newsStmt->closeCursor();
+    echo voncms_news_sitemap_xml($newsPosts, $publication, $baseUrl, $newsNow);
+    exit();
   }
 
   // =====================
@@ -118,6 +156,7 @@ try {
     $countStmt->bindValue(':currentTime', $currentTime);
     $countStmt->execute();
     $totalPosts = (int) $countStmt->fetchColumn();
+    $countStmt->closeCursor();
     $postPages = voncms_sitemap_page_count($totalPosts, MAX_URLS_PER_SITEMAP);
 
     // Count total pages
@@ -125,6 +164,7 @@ try {
       "SELECT COUNT(*) FROM pages WHERE status = 'published' AND slug <> 'home'",
     );
     $totalPages = (int) $pageCountStmt->fetchColumn();
+    $pageCountStmt->closeCursor();
     $pagePages = voncms_sitemap_page_count($totalPages, MAX_URLS_PER_SITEMAP);
 
     // Get last modified dates
@@ -134,11 +174,30 @@ try {
     $lastPostModStmt->bindValue(':currentTime', $currentTime);
     $lastPostModStmt->execute();
     $lastPostMod = $lastPostModStmt->fetchColumn();
-    $lastPageMod = $pdo
-      ->query(
-        "SELECT COALESCE(MAX(updated_at), MAX(created_at)) FROM pages WHERE status = 'published' AND slug <> 'home'",
-      )
-      ->fetchColumn();
+    $lastPostModStmt->closeCursor();
+    $lastPageModStmt = $pdo->query(
+      "SELECT COALESCE(MAX(updated_at), MAX(created_at)) FROM pages WHERE status = 'published' AND slug <> 'home'",
+    );
+    $lastPageMod = $lastPageModStmt->fetchColumn();
+    $lastPageModStmt->closeCursor();
+
+    // Optional News misconfiguration must not take the ordinary sitemap offline.
+    $newsPages = 0;
+    try {
+      $newsConfig = voncms_news_sitemap_settings($seoSettings['newsSitemap'] ?? null);
+      if ($newsConfig['enabled']) {
+        voncms_news_sitemap_publication($pdo, $newsConfig);
+        $newsCountStmt = voncms_news_sitemap_query(
+          $pdo,
+          $newsConfig,
+          new DateTimeImmutable($currentTime),
+        );
+        $newsPages = voncms_sitemap_page_count((int) $newsCountStmt->fetchColumn(), 1000);
+        $newsCountStmt->closeCursor();
+      }
+    } catch (Throwable $newsError) {
+      error_log('News sitemap unavailable: ' . $newsError->getMessage());
+    }
 
     echo '<?xml version="1.0" encoding="UTF-8"?>';
     echo '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
@@ -173,6 +232,13 @@ try {
       }
     }
 
+    for ($i = 1; $i <= $newsPages; $i++) {
+      echo '<sitemap><loc>' .
+        voncms_news_sitemap_xml_text($baseUrl) .
+        '/sitemap-news.xml' .
+        ($i === 1 ? '' : '?page=' . $i) .
+        '</loc></sitemap>';
+    }
     echo '</sitemapindex>';
     exit();
   }
@@ -336,6 +402,7 @@ try {
   exit();
 } catch (Throwable $e) {
   http_response_code(503);
+  header('Content-Type: text/plain; charset=utf-8');
   header('Retry-After: 300');
   error_log('Sitemap Generation Error: ' . $e->getMessage());
   echo 'Sitemap temporarily unavailable.';

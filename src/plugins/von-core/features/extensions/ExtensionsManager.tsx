@@ -87,6 +87,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('tab', tab);
+      next.delete('configure');
       return next;
     });
   };
@@ -94,6 +95,24 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
   const [searchQuery, setSearchQuery] = useState('');
   const [configuringPluginId, setConfiguringPluginId] = useState<string | null>(null);
   const [tempConfig, setTempConfig] = useState<object>({});
+  const requestedAnalyticsSettings =
+    activeTab === 'plugins' &&
+    searchParams.get('configure') === 'vp_analytics' &&
+    settings._canManageSecrets === true;
+
+  const closeAnalyticsSettings = () => {
+    setConfiguringPluginId(null);
+    if (searchParams.get('configure') === 'vp_analytics') {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete('configure');
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  };
 
   // Load plugin status from settings on mount
   React.useEffect(() => {
@@ -503,11 +522,11 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       )}
 
       {/* VonAnalytics Settings Modal */}
-      {configuringPluginId === 'vp_analytics' && (
+      {(configuringPluginId === 'vp_analytics' || requestedAnalyticsSettings) && (
         <VonAnalyticsSettings
           settings={settingsSnapshotRef.current}
           onUpdate={persistSettings}
-          onClose={() => setConfiguringPluginId(null)}
+          onClose={closeAnalyticsSettings}
         />
       )}
 

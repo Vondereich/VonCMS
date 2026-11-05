@@ -71,6 +71,8 @@ try {
   updaterRollbackWrite($livePath . '/docs/runtime.txt', 'old-docs');
   updaterRollbackWrite($livePath . '/docs/retired-guide.md', 'retired-doc');
   updaterRollbackWrite($livePath . '/data/runtime.txt', 'live-data');
+  $schemaReadCache = $livePath . '/data/schema-capabilities.json.display-name-cache';
+  updaterRollbackWrite($schemaReadCache, 'stale-schema-read-cache');
   updaterRollbackWrite($livePath . '/index.html', 'old-index');
 
   updaterRollbackWrite($sourcePath . '/api/runtime.txt', 'new-api');
@@ -127,6 +129,10 @@ try {
 
   updaterRollbackAssert($failureInjected, 'Rollback test did not inject an activation failure.');
   updaterRollbackAssert(
+    !is_file($schemaReadCache),
+    'An activation failure retained stale schema-read metadata.',
+  );
+  updaterRollbackAssert(
     file_get_contents($livePath . '/api/runtime.txt') === 'old-api',
     'API file was not restored after activation failure.',
   );
@@ -155,7 +161,13 @@ try {
 
   updaterRollbackWrite($sourcePath . '/metadata.json', '{"version":"9.9.9"}');
   $updater->configureTestFailures();
+  updaterRollbackWrite($schemaReadCache, 'stale-schema-read-cache');
   $swap->invoke($updater, '9.9.9');
+
+  updaterRollbackAssert(
+    !is_file($schemaReadCache),
+    'Successful activation retained stale schema-read metadata.',
+  );
 
   updaterRollbackAssert(
     file_get_contents($livePath . '/api/runtime.txt') === 'new-api',

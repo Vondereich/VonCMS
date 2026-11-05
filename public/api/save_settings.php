@@ -149,6 +149,7 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'smtpEncryption',
     'smtpFromName',
     'emailSmtp',
+    'indexnowEnabled',
     'indexnowKey',
     'domainUrl',
     'adminProfile',
@@ -206,10 +207,13 @@ if (
   array_key_exists('measurementMode', $settings['analytics'])
 ) {
   $measurementMode = $settings['analytics']['measurementMode'];
-  if (!is_string($measurementMode) || !in_array($measurementMode, ['strict', 'balanced'], true)) {
+  if (
+    !is_string($measurementMode) ||
+    !in_array($measurementMode, ['strict', 'balanced', 'hybrid'], true)
+  ) {
     ResponseHelper::sendError('Invalid analytics measurement mode', 400);
   }
-  if ($measurementMode === 'balanced') {
+  if ($measurementMode !== 'strict') {
     require_once __DIR__ . '/analytics_consent_helper.php';
     require_once __DIR__ . '/schema_repair_helper.php';
     if (
@@ -217,7 +221,7 @@ if (
       !voncms_schema_has_capability($pdo, 'analytics_sessions')
     ) {
       ResponseHelper::sendError(
-        'Run Database Schema Repair before enabling Balanced analytics.',
+        'Run Database Schema Repair before enabling Balanced or Hybrid analytics.',
         409,
       );
     }
@@ -456,6 +460,17 @@ if (array_key_exists('seo', $settings)) {
       !in_array($articleSchemaType, $allowedArticleSchemaTypes, true)
     ) {
       ResponseHelper::sendError('Invalid article schema type.', 400);
+    }
+  }
+
+  if (array_key_exists('newsSitemap', $settings['seo'])) {
+    require_once __DIR__ . '/../news_sitemap_helper.php';
+    try {
+      $settings['seo']['newsSitemap'] = voncms_news_sitemap_settings(
+        $settings['seo']['newsSitemap'],
+      );
+    } catch (InvalidArgumentException $e) {
+      ResponseHelper::sendError($e->getMessage(), 400);
     }
   }
 }

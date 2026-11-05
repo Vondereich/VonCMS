@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.28.0`
+Version: `1.28.1`
 
 Runtime minimum: PHP 8.2.0; PHP 8.3+ is recommended. Use a supported, patched PHP build; the CMS version guard does not install PHP security updates.
 Primary API location: `/api/*.php`
@@ -13,6 +13,14 @@ Guest settings and initial HTML use the same public projection. Inactive system-
 Complete Admin settings responses carry the runtime-only `_settingsScope: "admin"` readiness hint, including secret-masked responses for appointed Admins. It is not an authorization grant or persisted setting. The frontend waits for this response before showing Admin settings screens and rejects public-only/stale drafts; session, role and CSRF checks remain enforced by the server.
 
 ## How the API is organized
+
+### Public News sitemap
+
+`GET /sitemap-news.xml` (or `?page=N`) is served by the existing sitemap controller through the exact installation-root front-controller route. Root, subdomain and subfolder installations use the configured canonical Domain URL. Each file contains at most 1,000 selected, Published posts from the preceding 48 hours; `/sitemap.xml` advertises its chunks. The first-publication/scheduled/creation fallback is shared with public rendering, never `updated_at`. No article bodies are selected.
+
+The existing authenticated, Admin-authorized, CSRF-protected `/api/save_settings.php` persists `seo.newsSitemap` in `seo.site_config`, with `enabled` (boolean), `publicationName` (string, at most 200 characters), `language` (blank to inherit, or a two/three-letter ISO 639 code, `zh-cn`, `zh-tw`), `scope` (`all` or `categories`) and `categories` (up to 200 nonempty names). Selected-category mode requires at least one category when enabled. Merge the latest SEO configuration when saving, preserving its other fields. No public write endpoint, new table or migration is added.
+
+OFF is the default. Disabling XML Sitemap also disables News while retaining its saved options. Disabled: 404; enabled and empty: 200 with valid empty XML; invalid/out-of-range page: 404 with empty XML; unavailable metadata/database: 503 with `Retry-After: 300`. News-only configuration errors omit News links from the otherwise usable ordinary index. See the [manual](MANUAL.md#optional-news-sitemap) for publication metadata and legacy-date limitations.
 
 Dashboard article report: `GET /api/track_visit.php?report=articles&days=7` returns up to 10 published articles ranked by daily views (7 or 30 days, including today). It retains the existing staff-only permission. Existing sites must run Database Repair to enable `post_daily_views`; fresh installation creates it automatically. Unavailable storage returns 503 rather than a misleading zero result. These anonymous counts follow accepted, session-deduplicated article views, independently of consent-gated visitor logs; no reader identifiers are stored. Lifetime counts are not backfilled, and aggregate writes are best-effort so reporting faults cannot break the existing counters. Dates use the configured site timezone, and bounded opportunistic cleanup removes expired daily rows.
 
@@ -118,6 +126,8 @@ New events must start today or later in the configured site timezone. The API re
 
 Flat moderation lists include a compact parent `post` reference for Admin/Moderator roles only. It contains the current title, permalink fields and public-visibility flag, or `null` when the parent was deleted. Public comments and Writer/Member responses omit this context. No article body is included.
 
+Comment status changes and deletion of another user's comment require the server-owned `comments.moderate` capability (Root/Admin/Moderator). Authenticated users retain deletion of their own comments, including their replies; Writers cannot approve their own pending comments or moderate other users' comments. Session and CSRF checks remain required for these mutations.
+
 ### Media
 
 - `list_media.php`
@@ -202,9 +212,16 @@ The endpoint accepts the key only through `X-Cron-Key`; `?key=...` is rejected s
 
 - `track_visit.php` - staff-only GET statistics; legacy POST visitor recording uses the same server-owned consent policy as `track_monolithic.php`
 - `track_monolithic.php` - POST-only combined view and analytics endpoint; aggregate post/page views remain available while the server-owned plugin setting, consent requirement, and exact consent cookie independently gate URL, referrer, user-agent, and monthly IP-hash storage
+
+From v1.28.1, both tracking POST endpoints return `success: true`, `visit: false`, `retry: false`, `throttled: false` and `excluded: true` for recognized automation User-Agents; the combined endpoint also returns `view: false` and `view_throttled: false`. Exclusion follows CSRF/input validation and precedes measurement admission, identity issuance, deduplication claims and view/visit writes. GET reports retain their staff boundary. PHP page HTML marks a recognized crawler document with `<meta name="voncms-tracking" content="excluded">`; the bundled frontend skips native tracking for that document, even if its renderer changes User-Agent. The marker is not a credential or server authorization signal, and removing it or disguising all requests can evade this best-effort exclusion. Existing history and public crawl access are unchanged.
+
 - `submit_contact.php` - POST-only public form delivery with CSRF, bounded template-declared fields, server-side type validation, honeypot/rate controls, generic public mail failures, and 90-day lead retention
 
 Both tracking POST routes share the same 120-request/minute address budget, independent of PHP sessions and endpoint choice. Over-budget requests return HTTP 200 with `success: true`, no recorded visit/view and `throttled: true`; they do not trigger tracking cleanup or writes. GET staff reports do not consume this quota. Balanced uses signed, installation-scoped cookies with an absolute 30-day expiry, plus separate 120/hour address budgets for cookie issuance and new session rows. Missing/unsigned cookies use the existing one-retry handshake; no cookie echo means no visitor row. Busy shared addresses can undercount, and distributed-address traffic is not eliminated. These quotas use separate storage from login and recovery.
+
+The owner-saved `analytics.measurementMode` accepts `strict`, `balanced` or `hybrid`; an omitted mode retains Strict. Hybrid feeds both existing measurements after the same server-owned consent gate. Request admission runs once per incoming request, not once per measurement. Balanced identity retry must not repeat a Strict visit or aggregate content view; each measurement reports its own bounded outcome under `measurements`. The aggregate `visit` flag means at least one measurement recorded, not two people. One optional measurement's failure does not undo the other's accepted visit. Strict uses a per-database/per-identity advisory lock with a one-second acquisition bound and releases it on every acquired exit path.
+
+Both kinds of visit remain in `analytics`, partitioned by `measurement_mode`; `analytics_sessions` holds Balanced deduplication state, not a second report. GET `mode` accepts only `strict` or `balanced`. Hybrid is a collection policy, not a third report, and report selection never writes settings. Missing Balanced storage is reported as `needsRepair`; existing history is not backfilled.
 
 Analytics uses `REMOTE_ADDR` by default. The explicit, analytics-only trusted-proxy option in [INSTALL.md](INSTALL.md) applies consistently to both POST budgets, cookie/session admission and Strict identity. Header presence alone never enables it, and authentication addresses are unchanged. Invalid or missing selected headers fall back to the immediate peer.
 

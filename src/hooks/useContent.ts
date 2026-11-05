@@ -35,6 +35,7 @@ const getInitialPosts = (): Post[] => {
       publishedAt: p.published_at || p.publishedAt || '',
       published_at: p.published_at || p.publishedAt || '',
       keywords: p.keywords || '',
+      views: typeof p.views === 'number' ? p.views : undefined,
       metaDescription: p.meta_description || '',
       readTime: p.readTime || '',
     }));
@@ -94,6 +95,7 @@ export function useContent() {
   const [pages, setPages] = useState<Page[]>(INITIAL_PAGES);
   const [editingItem, setEditingItem] = useState<Post | Page | null>(null);
   const [isEditingPage, setIsEditingPage] = useState(false);
+  const [contentRefreshKeys, setContentRefreshKeys] = useState({ post: 0, page: 0 });
   const postLoadCoverageRef = useRef(0);
   const pageLoadCoverageRef = useRef(0);
   const postLoadInFlightRef = useRef<Promise<boolean> | null>(null);
@@ -212,6 +214,11 @@ export function useContent() {
   }, []);
 
   const invalidateContentLoadCoverage = useCallback((contentType: 'post' | 'page') => {
+    // This owner survives route-wrapper unmounts and only refreshes the affected collection.
+    setContentRefreshKeys((current) => ({
+      ...current,
+      [contentType]: current[contentType] + 1,
+    }));
     if (contentType === 'page') {
       pageLoadGenerationRef.current += 1;
       pageLoadCoverageRef.current = 0;
@@ -484,6 +491,7 @@ export function useContent() {
     loadPages,
     resetContentLoadCoverage,
     invalidateContentLoadCoverage,
+    contentRefreshKeys,
     handleEdit,
     handleSaveContent,
   };

@@ -218,6 +218,9 @@ if (($argv[1] ?? '') === '--mysql-auth-worker') {
     touch($options['directory'] . '/ready');
     actionMysqlAuthWait($options['directory'] . '/go');
   } else {
+    if (!($db instanceof ActionMysqlAuthHoldPDO)) {
+      throw new RuntimeException('Expected the owned commit-barrier fixture connection.');
+    }
     $db->barrierDirectory = $options['directory'];
   }
   $result = voncms_issue_login_credentials($db, ['id' => 1], $stored, true);
@@ -325,6 +328,9 @@ if (($argv[1] ?? '') === '--mysql-auth-race') {
 
     // Failure must roll back INSERT and never yield credentials to the caller.
     $failureDb = actionMysqlAuthConnection($database, true);
+    if (!($failureDb instanceof ActionMysqlAuthHoldPDO)) {
+      throw new RuntimeException('Expected the owned commit-failure fixture connection.');
+    }
     $failureDb->failCommit = true;
     $failed = false;
     try {
@@ -580,6 +586,7 @@ if (($argv[1] ?? '') === '--worker') {
   require $root . '/public/core/ResponseHelper.php';
   require $root . '/public/api/role_capability_helper.php';
   require $root . '/public/api/schema_repair_helper.php';
+  require_once $root . '/public/api/publication_time_helper.php';
   $rateStorage = new ReflectionProperty(RateLimiter::class, 'storageDir');
   $rateStorage->setValue(null, $directory . '/rates/');
   if (!RateLimiter::getStorageHealth()['healthy']) {
@@ -746,7 +753,7 @@ if (($argv[1] ?? '') === '--worker') {
     ) {
       eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function ' . $name . '('));
     }
-    function vonSendMail($to, ...$arguments): array
+    function vonSendMail(string $to, mixed ...$arguments): array
     {
       global $pdo, $case;
       $pdo
@@ -1523,7 +1530,125 @@ function actionManagedContractChecks(): void
   }
 }
 
+/** Exercise comment authority and owner-only field filtering without live configuration. */
+function actionRoleBoundaryChecks(): void
+{
+  $actors = [
+    'Guest' => null,
+    'Member' => ['id' => '2', 'role' => 'Member'],
+    'Writer' => ['id' => '6', 'role' => 'Writer'],
+    'Moderator' => ['id' => '4', 'role' => 'Moderator'],
+    'Admin' => ['id' => '5', 'role' => 'Admin'],
+    'Root' => ['id' => '1', 'role' => 'Root'],
+  ];
+
+  foreach ($actors as $role => $actor) {
+    foreach (['delete', 'updateStatus'] as $action) {
+      foreach ([false, true] as $ownComment) {
+        if ($actor === null && $ownComment) {
+          continue;
+        }
+        $directory = actionFixture(
+          'comment-role-' . strtolower($role) . '-' . $action . '-' . (int) $ownComment,
+        );
+        $pdo = actionDatabase($directory);
+        $pdo->exec("ALTER TABLE comments ADD COLUMN status TEXT DEFAULT 'pending'");
+        $pdo->exec("INSERT INTO comments VALUES(13,4,12,'pending')");
+        if ($ownComment) {
+          $pdo->prepare('UPDATE comments SET user_id=? WHERE id=12')->execute([$actor['id']]);
+        }
+        $before = $pdo->query('SELECT * FROM comments ORDER BY id')->fetchAll();
+        $request = [
+          'endpoint' => 'save_comments.php',
+          'input' => ['action' => $action, 'commentId' => 12, 'status' => 'approved'],
+        ];
+        if ($actor === null) {
+          $request['guest'] = true;
+        } else {
+          $request['actor'] = $actor;
+        }
+        $result = actionRun($directory, [$request])[0];
+        $reviewer = in_array($role, ['Root', 'Admin', 'Moderator'], true);
+        $allowed = $reviewer || ($action === 'delete' && $ownComment);
+        actionCheck(
+          $allowed ? $result['status'] === 200 : in_array($result['status'], [401, 403], true),
+          'Comment role decision: ' . $role . '/' . $action . '/' . (int) $ownComment,
+        );
+        if (!$allowed) {
+          actionCheck(
+            $pdo->query('SELECT * FROM comments ORDER BY id')->fetchAll() === $before,
+            'Denied comment mutation changed rows: ' . $role . '/' . $action,
+          );
+        } elseif ($action === 'delete') {
+          actionCheck(
+            $pdo->query('SELECT id FROM comments ORDER BY id')->fetchAll(PDO::FETCH_COLUMN) === [
+              10,
+              11,
+            ],
+            'Allowed deletion must remove only the selected parent and replies',
+          );
+        } else {
+          actionCheck(
+            $pdo->query('SELECT status FROM comments WHERE id=12')->fetchColumn() === 'approved' &&
+              $pdo->query('SELECT status FROM comments WHERE id=13')->fetchColumn() === 'pending',
+            'Allowed moderation must update only the selected comment',
+          );
+        }
+        $pdo = null;
+      }
+    }
+  }
+
+  $directory = actionFixture('comment-role-forged-csrf');
+  $pdo = actionDatabase($directory);
+  $pdo->exec("ALTER TABLE comments ADD COLUMN status TEXT DEFAULT 'pending'");
+  $before = $pdo->query('SELECT * FROM comments ORDER BY id')->fetchAll();
+  $result = actionRun($directory, [
+    [
+      'endpoint' => 'save_comments.php',
+      'case' => 'csrf',
+      'actor' => $actors['Moderator'],
+      'input' => ['action' => 'updateStatus', 'commentId' => 12, 'status' => 'approved'],
+    ],
+  ])[0];
+  actionCheck($result['status'] === 403, 'Reviewer still requires valid CSRF');
+  actionCheck(
+    $pdo->query('SELECT * FROM comments ORDER BY id')->fetchAll() === $before,
+    'Forged CSRF must not change a comment',
+  );
+  $pdo = null;
+
+  global $root;
+  eval(
+    actionDeclaration(
+      $root . '/public/api/save_settings.php',
+      'function voncms_guard_restricted_settings_for_non_primary_admin(',
+    )
+  );
+  foreach ([true, false] as $enabled) {
+    $settings = ['indexnowEnabled' => $enabled];
+    $ignored = voncms_guard_restricted_settings_for_non_primary_admin($settings);
+    actionCheck(
+      $settings === [] && $ignored === ['indexnowEnabled'],
+      'Both IndexNow toggle values are owner-only',
+    );
+    $settings = ['siteName' => 'Delegated site title', 'indexnowEnabled' => $enabled];
+    $ignored = voncms_guard_restricted_settings_for_non_primary_admin($settings);
+    actionCheck(
+      $settings === ['siteName' => 'Delegated site title'] && $ignored === ['indexnowEnabled'],
+      'Mixed delegated saves retain allowed fields without changing the owner toggle',
+    );
+  }
+}
+
 try {
+  actionRoleBoundaryChecks();
+  if (($argv[1] ?? '') === '--role-boundaries') {
+    echo 'PASS Role Boundaries: ' .
+      $checks .
+      " checks (real comment controller/SQLite, fixture sessions/real CSRF; actual owner-field guard).\n";
+    return;
+  }
   actionSettingsChecks();
   if (($argv[1] ?? '') === '--settings-read') {
     echo 'PASS Settings read contracts: ' .
@@ -3020,7 +3145,7 @@ try {
     ]
     as [$c, $expectedAvatar]
   ) {
-    eval($avatarProjection[0]);
+    $commentAvatar = eval($avatarProjection[0] . ' return $commentAvatar;');
     actionCheck(
       ResponseHelper::scrubAvatarUrl($commentAvatar) === $expectedAvatar,
       'Legacy guest and cleared account avatars stay suppressed',
@@ -3200,7 +3325,7 @@ try {
       'url_prefix' => 'https://qa.invalid/uploads/',
     ];
   }
-  function fetch_remote_import_image_to_temp($url)
+  function fetch_remote_import_image_to_temp(string $url): string
   {
     $path = $GLOBALS['qa_import_storage_root'] . '/image-temp.png';
     file_put_contents(

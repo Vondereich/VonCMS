@@ -1340,6 +1340,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
     category: selectedCategory,
     search: searchQuery,
     limit: postsPerPage,
+    enabled: currentView === 'home' || currentView === 'category',
   });
 
   const displayedPosts = publicPosts.posts;

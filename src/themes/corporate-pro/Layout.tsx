@@ -558,6 +558,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
     initialPosts: posts,
     category: selectedCategory,
     limit: postsPerPage,
+    enabled: currentView === 'home' || currentView === 'category',
   });
   // --- Refs ---
   const mobileMenuRef = useRef<HTMLDivElement>(null);

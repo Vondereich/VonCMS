@@ -368,14 +368,17 @@ try {
         'function voncms_sanitize_content_attributes(',
       )
   );
+  $sanitizeWithoutDom = Closure::fromCallable(
+    'MissingContentDom\\voncms_sanitize_content_attributes',
+  );
   try {
-    MissingContentDom\voncms_sanitize_content_attributes('<p>Do not save unchecked HTML</p>');
+    $sanitizeWithoutDom('<p>Do not save unchecked HTML</p>');
     check(false, 'Missing DOM accepted HTML content.');
   } catch (RuntimeException $error) {
     check(str_contains($error->getMessage(), 'DOM extension'), 'Wrong missing-DOM failure.');
   }
   check(
-    MissingContentDom\voncms_sanitize_content_attributes('Plain text') === 'Plain text',
+    $sanitizeWithoutDom('Plain text') === 'Plain text',
     'Missing DOM changed plain text without HTML.',
   );
   $installerSource = file_get_contents($root . '/public/api/install.php');
@@ -396,11 +399,12 @@ try {
       declaration($root . '/public/api/install.php', $domGuardNeedle) .
       ' }'
   );
+  $runInstallerDomGuard = Closure::fromCallable('InstallerDomFixture\\run');
   foreach ([['DOMDocument'], ['DOMXPath'], ['DOMDocument', 'DOMXPath'], []] as $missing) {
     $GLOBALS['missingInstallerDom'] = $missing;
     $installerError = null;
     try {
-      InstallerDomFixture\run();
+      $runInstallerDomGuard();
     } catch (Throwable $error) {
       $installerError = $error;
     }
@@ -884,6 +888,23 @@ try {
     as $sql
   ) {
     check(getAllowedImportStatementType($sql) !== '', 'Trusted backup rejected: ' . $sql);
+  }
+  foreach (
+    [
+      ["VALUES ('first','second'),(7,'third')", 'VALUES (0,0),(7,0)'],
+      ['SELECT `a``b`, "one""two", \'it\'\'s\' + 9', 'SELECT quoted_identifier, 0, 0 + 9'],
+      [
+        "SELECT 'a\\'b', \"x\\\"y\", `z` FROM posts WHERE id=7",
+        'SELECT 0, 0, quoted_identifier FROM posts WHERE id=7',
+      ],
+      ["VALUES ('你好 😀', NULL, 'x')", 'VALUES (0, NULL, 0)'],
+    ]
+    as [$sql, $expected]
+  ) {
+    check(maskImportSqlQuotes($sql) === $expected, 'SQL quote cursor skipped following syntax.');
+  }
+  foreach (["'unfinished", '"unfinished', '`unfinished', "'unfinished\\"] as $sql) {
+    check(rejected(fn() => maskImportSqlQuotes($sql)), 'Unterminated SQL quote was accepted.');
   }
   foreach (
     [

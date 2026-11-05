@@ -70,6 +70,18 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
         </div>
       </div>
 
+      <aside
+        aria-label="Public Google identifiers"
+        className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200"
+      >
+        <p className="font-semibold">Public identifiers, not private API keys</p>
+        <p className="mt-2">
+          Site verification codes, Analytics measurement IDs and AdSense publisher IDs are meant for
+          public site integration and can be read in browser developer tools. Do not enter private
+          API keys, passwords or access tokens here. Use Settings &gt; API for your Gemini key.
+        </p>
+      </aside>
+
       {/* 1. Google Search Console & SEO */}
       <section className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
         <div className="p-6 border-b border-slate-100 dark:border-admin-border flex justify-between items-center bg-blue-50/50 dark:bg-blue-900/10">

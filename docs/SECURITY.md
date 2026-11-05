@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.28.0
+# VonCMS Security Policy v1.28.1
 
 ## PHP Runtime Baseline
 
@@ -298,6 +298,8 @@ What it does claim is:
 - the system is designed to fail more safely than a plugin-heavy default install
 
 ### v1.28 account tokens and native analytics
+
+Known automation exclusion in v1.28.1 is a measurement policy, not an access-control or bot-authentication boundary. Recognized User-Agents do not record native visitor/content views; crawler-rendered PHP documents mark the bundled frontend to skip native tracking when a renderer uses a different User-Agent. No shared-IP reputation, OS/browser ban, new identity cookie or external bot lookup is introduced. An unmarked request that impersonates an ordinary browser can still be counted. The public marker grants no authority, and CSRF, authentication and consent policy remain independent. Historical analytics rows are not rewritten.
 
 New reset and email-verification tokens are random secrets sent only in account-action links. The database stores `s1:`-prefixed SHA-256 digests encoded to fit the existing token columns. The prefix separates new digests from legacy raw 64-hex tokens: a stored digest is not a usable account token. Outstanding legacy links retain their original expiry and single-use behavior. Reset consumption remains transactional and revokes remember tokens. Protect database backups regardless; digest storage does not make database disclosure harmless.
 

@@ -153,8 +153,15 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
 
   // Track page views (Monolithic Tracking)
   useEffect(() => {
+    // The PHP document remembers a declared crawler even if its renderer uses a browser UA.
+    // This is measurement hygiene, not an authentication or anti-fraud signal.
+    if (
+      document.querySelector('meta[name="voncms-tracking"]')?.getAttribute('content') === 'excluded'
+    )
+      return;
     const analyticsAllowed = analyticsPluginActive && analyticsTrackingAllowed(consentRequired);
-    if (!analyticsAllowed || measurementMode !== 'balanced') {
+    const usesBrowserIdentity = measurementMode === 'balanced' || measurementMode === 'hybrid';
+    if (!analyticsAllowed || !usesBrowserIdentity) {
       clearNativeAnalyticsIdentity();
     }
     const payload: {
@@ -187,7 +194,7 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
     let cancelled = false;
     request()
       .then(async (response) => {
-        if (!analyticsAllowed || measurementMode !== 'balanced') return;
+        if (!analyticsAllowed || !usesBrowserIdentity) return;
         const result = await response.json();
         if (!analyticsTrackingAllowed(consentRequired)) {
           clearNativeAnalyticsIdentity();

@@ -71,6 +71,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (!is_array($input)) {
     ResponseHelper::sendError('Invalid JSON payload', 400);
   }
+  if (voncms_tracking_is_automated(DataBoundary::serverString('HTTP_USER_AGENT', ''))) {
+    echo json_encode([
+      'success' => true,
+      'visit' => false,
+      'retry' => false,
+      'throttled' => false,
+      'excluded' => true,
+    ]);
+    exit();
+  }
   if (!voncms_analytics_request_allowed()) {
     echo json_encode(['success' => true, 'visit' => false, 'retry' => false, 'throttled' => true]);
     exit();
@@ -97,7 +107,7 @@ if (rand(1, 100) === 1) {
     $pdo->exec(
       'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
     );
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $analyticsMode === 'balanced') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $analyticsMode !== 'strict') {
       voncms_prune_analytics_sessions($pdo, time());
     }
   } catch (Throwable $e) {
@@ -107,9 +117,13 @@ if (rand(1, 100) === 1) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // Record a visit
-  $pageUrl = mb_substr(trim((string) ($input['url'] ?? ($_SERVER['REQUEST_URI'] ?? ''))), 0, 500);
+  $pageUrl = mb_substr(
+    trim(DataBoundary::inputText($input['url'] ?? ($_SERVER['REQUEST_URI'] ?? ''))),
+    0,
+    500,
+  );
   $referrer = mb_substr(
-    trim((string) ($input['referrer'] ?? ($_SERVER['HTTP_REFERER'] ?? ''))),
+    trim(DataBoundary::inputText($input['referrer'] ?? ($_SERVER['HTTP_REFERER'] ?? ''))),
     0,
     500,
   );
@@ -145,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ResponseHelper::sendError('Invalid analytics measurement mode', 400);
     }
     $modeReady = voncms_analytics_mode_storage_ready($pdo);
-    if (!$modeReady && $mode === 'balanced') {
+    if ($mode === 'balanced' && !voncms_analytics_balanced_storage_ready($pdo)) {
       echo json_encode([
         'success' => true,
         'analytics' => [

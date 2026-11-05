@@ -1,6 +1,8 @@
-# VonCMS User Manual v1.28.0
+# VonCMS User Manual v1.28.1
 
-This development line supports PHP 8.2 or newer; PHP 8.3+ is recommended. Use a supported, patched PHP build; see [Installation](INSTALL.md) and [Security](SECURITY.md).
+This manual covers v1.28.1 "The BluePrint", including opt-in Hybrid analytics, Post/Page deletion previews, and the optional News Sitemap. Existing v1.28.0 features remain available; follow the [Changelog](../CHANGELOG.md) for exact changes and compatibility boundaries.
+
+This release supports PHP 8.2 or newer; PHP 8.3+ is recommended. Use a supported, patched PHP build; see [Installation](INSTALL.md) and [Security](SECURITY.md).
 
 This guide is for site owners, editors, and admins who want to run VonCMS day to day without digging through the codebase.
 
@@ -30,6 +32,14 @@ Use Create for New Post, New Page or New Event / Agenda when your role permits i
 Click or press Enter/Space on a group to open or close it, including the current page's group. Entering a child route opens its group automatically; closing that group manually does not change the current page or its active highlighting. On a compact desktop sidebar, selecting a group expands the sidebar; on phones and tablets, use the navigation button and Escape to close the drawer. Create and group links are also included in admin search.
 
 Unsaved dashboard edits prompt before following navigation links or using the editor's Back action. Cancel keeps the current draft open. Reload/close uses the browser warning; browser-history Back/Forward and session-expiry redirects are not blocked by this link guard. Save important work before using history navigation.
+
+## Deleting posts and pages
+
+In Content > Posts or Pages, Delete opens a preview of the selected item's title, ID, status and available summary. Bulk Delete lists the selected items from the current manager page. Review these list details, then choose **Delete permanently**; Cancel, Escape or clicking outside the preview does not delete anything. The preview does not lock a record or replace the server's current permission checks.
+
+Deletion is permanent: this feature does not add Trash, Restore or Undo. Uploaded media files are not removed by deleting a Post/Page. Export a database backup first if you need your own recovery point.
+
+During a deletion request, the dialog cannot be dismissed as if the request were cancelled. A bulk failure stops the operation and retains the unconfirmed items for review/retry; earlier successful deletions are not rolled back. If a network response is lost, reload the list to verify the actual state before retrying. Navigating away cannot undo a request already sent, but stops further requests from that bulk operation. Within the same loaded app, a confirmed deletion still refreshes its own Post/Page list if you leave and return before the response arrives.
 
 ## Google services and AI usage
 
@@ -83,6 +93,10 @@ Storage usage is staff-only and may be cached for up to five minutes to avoid re
 The Analytics card offers Visitor Traffic and Top Articles. Top Articles lists up to 10 currently published articles by recorded views for the last 7 or 30 calendar days, including today in the site's timezone. These are anonymous aggregate views, not unique readers. Existing sites need Database Repair once to activate daily storage; the tab shows its activation date because previous lifetime views cannot be backfilled. Temporary reporting faults do not change lifetime article/page counters.
 
 Visitor Traffic totals cover the entire selected 7/30-day period. The chart shows daily visits and daily unique IPs (Strict) or browsers (Balanced). A returning IP/browser is counted once on each active day in the chart, but only once across the selected period in the unique total. Daily unique counts therefore must not be added together to calculate that total; neither mode measures verified individual people.
+
+Collection is separate from reporting. The Primary Admin selects Strict only, Balanced only, or Hybrid in **Extensions > Plugins > VonAnalytics > Settings**. Hybrid records both eligible measurements independently; Dashboard report switching only reads Strict or Balanced history and never changes collection. Existing settings are not silently switched during upgrade. Run Schema Repair before enabling Balanced/Hybrid if their storage is missing. Newly enabled modes have no earlier history; empty results do not prove tracking failure. Consent, blocked cookies, admission limits and storage availability can reduce recorded visits. Never add Strict and Balanced totals together.
+
+From v1.28.1, recognized crawler/automation User-Agents are excluded from new native visit and content-view measurements, but may still read public articles. A crawler-rendered PHP document also tells the bundled frontend not to send native tracking, including when a cooperative renderer changes its User-Agent. This does not identify all automation: an undeclared bot loading an ordinary document can still look like a browser. Older records are not reclassified or deleted, and neither mode measures verified humans. Search/crawl permissions remain a separate operator policy; this change does not block Exa, Google or Bing from reading content.
 
 The dashboard is your control center. It usually gives you a quick read on:
 
@@ -257,6 +271,19 @@ This section usually covers:
 - IndexNow setup and status
 
 If you use IndexNow, verify the status after enabling it so you know the key and verification file are ready.
+
+#### Optional News sitemap
+
+In **Extensions > VonSEO > Advanced**, enable XML Sitemap, then enable **News Sitemap**. It is OFF by default; enabling it does not change existing articles or the site's schema type.
+
+- `/sitemap-news.xml` serves the first file; if more than 1,000 articles qualify, additional files use `?page=2`, `?page=3`, and so on. `/sitemap.xml` lists every News chunk automatically. These are dynamic responses, not files to upload or regenerate manually.
+- Only Published posts whose original publication falls within the preceding 48 hours qualify. Future posts, Drafts, Pages and profiles are excluded. Editing an old article does not make it new. The shared fallback uses scheduled time, then creation time where a first-publication timestamp is unavailable; the CMS cannot reconstruct an unknown historical publication date.
+- Choose **All categories** only for a news publication, or select specific news categories. Selection does not automatically judge whether an article meets Google's news policies. At least one category is required in selected-category mode; deselecting everything never silently means all categories.
+- Leave publication name and language blank to inherit General Settings. The name must match your publication as shown in Google News, without parenthetical additions. A comma-separated site language list uses its first code, just like the shared schema language helper; the saved General setting is unchanged. Regional site codes such as `ms-MY` become `ms`; overrides use ISO 639 two/three-letter codes. Chinese needs `zh-cn` or `zh-tw` (recognized regional/script site tags are normalized automatically).
+- A recent window with no eligible articles returns valid, empty XML. No older content is used as filler; Google may show an intentional Empty Sitemap warning. A disabled feed returns 404. Missing/invalid publication metadata or a database failure returns 503, not invented publication details; a News-only configuration failure does not disable the ordinary sitemap index.
+- Images are not filtered by width. For large-image Discover previews, Google recommends source images at least 1,200px wide and permission for large previews; this is not a News sitemap admission requirement or a guarantee that Google will choose an image.
+
+The ordinary sitemap, RSS and llms.txt keep their existing roles. There is no new table, migration, cron job or need to run Database Repair merely to enable this feature. A News sitemap aids discovery; it does not guarantee Google News eligibility, indexing or ranking. See [Google's News sitemap specification](https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap) and [Discover image guidance](https://developers.google.com/search/docs/appearance/google-discover).
 
 #### Understanding orphan-page audit reports
 

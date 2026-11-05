@@ -9,6 +9,30 @@ if (
 }
 require_once __DIR__ . '/../core/DataBoundary.php';
 
+/** Measurement exclusion only. Never use a claimed User-Agent for access control. */
+function voncms_tracking_is_automated(string $userAgent): bool
+{
+  // Match declared crawler products, not arbitrary device names ending in "bot" (CUBOT).
+  $botProducts =
+    'bot|robot|googlebot|bingbot|exasearchbot|ahrefsbot|duckassistbot|duckduckbot|applebot|' .
+    'gptbot|claudebot|perplexitybot|twitterbot|adsbot|semrushbot|seznambot|dotbot|yandexbot|' .
+    'petalbot|blexbot|mj12bot|dataforseobot|amazonbot|ccbot|archive\.org_bot|nbot';
+  return preg_match(
+    '/\b(?:' .
+      $botProducts .
+      ')\b|crawl|spider|slurp|headless|lighthouse|facebookexternalhit|meta-external|mediapartners-google|exauser|ahrefssiteaudit|python-requests|go-http-client|\b(?:curl|wget)\b/i',
+    substr($userAgent, 0, 1000),
+  ) === 1;
+}
+
+/** Keep the original document classification when a crawler's renderer changes User-Agent. */
+function voncms_tracking_document_meta(): string
+{
+  return voncms_tracking_is_automated(DataBoundary::serverString('HTTP_USER_AGENT', ''))
+    ? '<meta name="voncms-tracking" content="excluded">'
+    : '';
+}
+
 /** @param array<array-key,mixed> $cookies */
 function voncms_native_analytics_allowed(PDO $pdo, array $cookies, ?string &$mode = null): bool
 {
@@ -57,7 +81,10 @@ function voncms_native_analytics_allowed(PDO $pdo, array $cookies, ?string &$mod
     $configuredMode = property_exists($analyticsConfig, 'measurementMode')
       ? $analyticsConfig->measurementMode
       : 'strict';
-    if (!is_string($configuredMode) || !in_array($configuredMode, ['strict', 'balanced'], true)) {
+    if (
+      !is_string($configuredMode) ||
+      !in_array($configuredMode, ['strict', 'balanced', 'hybrid'], true)
+    ) {
       return false;
     }
     if (
@@ -231,9 +258,22 @@ function voncms_analytics_mode_storage_ready(PDO $pdo): bool
   }
 }
 
+function voncms_analytics_balanced_storage_ready(PDO $pdo): bool
+{
+  if (!voncms_analytics_mode_storage_ready($pdo)) {
+    return false;
+  }
+  try {
+    $pdo->query('SELECT visitor_hash,last_seen,expires_at FROM analytics_sessions WHERE 1=0');
+    return true;
+  } catch (Throwable $error) {
+    return false;
+  }
+}
+
 /** Call only after applying the server-owned plugin, consent and mode policy.
  * @param array<array-key,mixed> $cookies
- * @return array{visit: bool, throttled: bool, retry: bool, needsRepair?: bool}
+ * @return array{visit: bool, throttled: bool, retry: bool, excluded?: bool, needsRepair?: bool, unavailable?: bool, measurements?: array<string,array<string,bool>>}
  */
 function voncms_record_native_visit(
   PDO $pdo,
@@ -245,36 +285,62 @@ function voncms_record_native_visit(
   ?int $now = null,
 ): array {
   $now ??= time();
-  $modeReady = voncms_analytics_mode_storage_ready($pdo);
   $result = ['visit' => false, 'throttled' => false, 'retry' => false];
+  if (voncms_tracking_is_automated($userAgent)) {
+    return $result + ['excluded' => true];
+  }
+  if ($mode === 'hybrid') {
+    $measurements = [];
+    foreach (['strict', 'balanced'] as $collector) {
+      try {
+        // Hybrid owns the cookie lifecycle: its Strict measurement must not clear the browser ID.
+        $outcome =
+          $collector === 'strict'
+            ? voncms_record_strict_visit($pdo, $url, $referrer, $userAgent, $now)
+            : voncms_record_native_visit(
+              $pdo,
+              'balanced',
+              $cookies,
+              $url,
+              $referrer,
+              $userAgent,
+              $now,
+            );
+        $measurements[$collector] = [
+          'visit' => $outcome['visit'],
+          'throttled' => $outcome['throttled'],
+          'retry' => $outcome['retry'],
+          'needsRepair' => $outcome['needsRepair'] ?? false,
+          'unavailable' => false,
+        ];
+      } catch (Throwable $error) {
+        // Failure of one optional measurement never erases the other's accepted result.
+        $measurements[$collector] = $result + ['needsRepair' => false, 'unavailable' => true];
+      }
+    }
+    $recorded = $measurements['strict']['visit'] || $measurements['balanced']['visit'];
+    return [
+      'visit' => $recorded,
+      'throttled' =>
+        !$recorded &&
+        ($measurements['strict']['throttled'] || $measurements['balanced']['throttled']),
+      'retry' => $measurements['balanced']['retry'],
+      'needsRepair' =>
+        $measurements['strict']['needsRepair'] || $measurements['balanced']['needsRepair'],
+      'unavailable' =>
+        $measurements['strict']['unavailable'] || $measurements['balanced']['unavailable'],
+      'measurements' => $measurements,
+    ];
+  }
   if ($mode === 'strict') {
     if (isset($cookies[voncms_analytics_identity_name()])) {
       voncms_analytics_identity_cookie(null, $now);
     }
-    $identity = hash_hmac(
-      'sha256',
-      'strict:' . voncms_analytics_client_address() . ':' . date('Y-m', $now),
-      voncms_analytics_signing_key(),
-    );
-    $modePredicate = $modeReady ? " AND measurement_mode='strict'" : '';
-    $recent = $pdo->prepare(
-      'SELECT 1 FROM analytics WHERE ip_hash IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)' .
-        $modePredicate .
-        ' LIMIT 1',
-    );
-    // Read legacy rows only for their remaining window; all new rows use the keyed identity.
-    $recent->execute([
-      $identity,
-      hash('sha256', voncms_analytics_client_address() . date('Y-m', $now)),
-    ]);
-    if ($recent->fetchColumn()) {
-      return array_replace($result, ['throttled' => true]);
-    }
+    return voncms_record_strict_visit($pdo, $url, $referrer, $userAgent, $now);
   } elseif ($mode === 'balanced') {
-    if (!$modeReady) {
+    if (!voncms_analytics_balanced_storage_ready($pdo)) {
       return $result + ['needsRepair' => true];
     }
-    $pdo->query('SELECT visitor_hash,last_seen,expires_at FROM analytics_sessions WHERE 1=0');
     $key = voncms_analytics_signing_key();
     $raw = $cookies[voncms_analytics_identity_name()] ?? null;
     $parts = [];
@@ -310,6 +376,7 @@ function voncms_record_native_visit(
       );
       $read->execute([$identity]);
       $session = DataBoundary::row($read->fetch(PDO::FETCH_ASSOC));
+      $read->closeCursor();
       if ($session === false) {
         throw new RuntimeException('Analytics session reservation could not be read.');
       }
@@ -339,15 +406,79 @@ function voncms_record_native_visit(
   } else {
     return $result;
   }
-  voncms_insert_native_visit(
-    $pdo,
-    $identity,
-    $modeReady ? 'strict' : null,
-    $url,
-    $referrer,
-    $userAgent,
+}
+
+/** @return array{visit: bool, throttled: bool, retry: bool} */
+function voncms_record_strict_visit(
+  PDO $pdo,
+  string $url,
+  string $referrer,
+  string $userAgent,
+  int $now,
+): array {
+  $result = ['visit' => false, 'throttled' => false, 'retry' => false];
+  $identity = hash_hmac(
+    'sha256',
+    'strict:' . voncms_analytics_client_address() . ':' . date('Y-m', $now),
+    voncms_analytics_signing_key(),
   );
-  return array_replace($result, ['visit' => true]);
+  $databaseRead = $pdo->query('SELECT DATABASE()');
+  if ($databaseRead === false) {
+    throw new RuntimeException('Analytics database identity is unavailable.');
+  }
+  $database = $databaseRead->fetchColumn();
+  $databaseRead->closeCursor();
+  if (!is_string($database) || $database === '') {
+    throw new RuntimeException('Analytics database identity is unavailable.');
+  }
+  // A bounded, per-installation/per-identity lock keeps check-and-insert atomic without a new table.
+  $lockName = 'voncms:visit:' . substr(hash('sha256', $database . ':' . $identity), 0, 50);
+  $lock = $pdo->prepare('SELECT GET_LOCK(?, 1)');
+  $lock->execute([$lockName]);
+  $acquired = $lock->fetchColumn();
+  $lock->closeCursor();
+  if ($acquired === 0 || $acquired === '0') {
+    return array_replace($result, ['throttled' => true]);
+  }
+  if ($acquired !== 1 && $acquired !== '1') {
+    throw new RuntimeException('Analytics identity reservation is unavailable.');
+  }
+  try {
+    $modeReady = voncms_analytics_mode_storage_ready($pdo);
+    $modePredicate = $modeReady ? " AND measurement_mode='strict'" : '';
+    $recent = $pdo->prepare(
+      'SELECT 1 FROM analytics WHERE ip_hash IN (?,?) AND created_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)' .
+        $modePredicate .
+        ' LIMIT 1',
+    );
+    // Retain the remaining legacy window; write only the installation-keyed identity.
+    $recent->execute([
+      $identity,
+      hash('sha256', voncms_analytics_client_address() . date('Y-m', $now)),
+    ]);
+    $alreadyRecorded = $recent->fetchColumn() !== false;
+    $recent->closeCursor();
+    if ($alreadyRecorded) {
+      return array_replace($result, ['throttled' => true]);
+    }
+    voncms_insert_native_visit(
+      $pdo,
+      $identity,
+      $modeReady ? 'strict' : null,
+      $url,
+      $referrer,
+      $userAgent,
+    );
+    return array_replace($result, ['visit' => true]);
+  } finally {
+    try {
+      $release = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+      $release->execute([$lockName]);
+      $release->closeCursor();
+    } catch (Throwable $error) {
+      error_log('VonCMS analytics identity lock release failed');
+    }
+  }
 }
 
 function voncms_insert_native_visit(
