@@ -6,6 +6,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -260,13 +261,7 @@ if (!isset($pdo)) {
 }
 
 try {
-  $hasDisplayNameColumn = false;
-  try {
-    $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-    $hasDisplayNameColumn = $columnStmt && $columnStmt->rowCount() > 0;
-  } catch (Throwable $e) {
-    $hasDisplayNameColumn = false;
-  }
+  $hasDisplayNameColumn = voncms_has_display_name_column($pdo);
   $displayNameSelect = $hasDisplayNameColumn ? 'display_name' : 'NULL AS display_name';
 
   // Authenticate against database

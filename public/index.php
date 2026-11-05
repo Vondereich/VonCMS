@@ -72,6 +72,7 @@ require_once __DIR__ . '/content_metrics_helper.php';
 require_once __DIR__ . '/scheduler_helper.php';
 require_once __DIR__ . '/seo_schema_helper.php';
 require_once __DIR__ . '/public_render_helper.php';
+require_once __DIR__ . '/api/analytics_consent_helper.php';
 
 $maintenanceFlag = __DIR__ . '/data/maintenance.flag';
 
@@ -497,13 +498,7 @@ try {
         ];
       }
 
-      $hasDisplayNameColumn = false;
-      try {
-        $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-        $hasDisplayNameColumn = $columnStmt && $columnStmt->rowCount() > 0;
-      } catch (Throwable $e) {
-        $hasDisplayNameColumn = false;
-      }
+      $hasDisplayNameColumn = voncms_has_display_name_column($pdo);
       $authorNameSql = $hasDisplayNameColumn
         ? "COALESCE(NULLIF(u.display_name, ''), u.username)"
         : 'u.username';
@@ -863,6 +858,7 @@ $cssFile = $publicAssets['cssFile'];
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php echo voncms_tracking_document_meta(); ?>
   <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>"
     data-voncms-ssr-route="<?php echo htmlspecialchars((string) ($_SERVER['REQUEST_URI'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
     data-voncms-ssr-robots="<?php echo htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8'); ?>"

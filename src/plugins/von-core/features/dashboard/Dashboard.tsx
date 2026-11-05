@@ -26,10 +26,19 @@ import {
   RefreshCw,
   Download,
   FileStack,
+  Settings2,
 } from 'lucide-react';
 import { UpdateModal } from '../settings/UpdateModal';
 import { fetchLatestOtaRelease, isNewerVersion } from '../settings/otaRelease';
-import { Post, User, Comment, Page, SiteSettings } from '../../../../types';
+import {
+  Post,
+  User,
+  Comment,
+  Page,
+  SiteSettings,
+  type AnalyticsCollectionMode,
+  type AnalyticsReportMode,
+} from '../../../../types';
 import { API } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { flattenComments } from '../../../../utils/siteUtils';
@@ -44,7 +53,9 @@ interface DashboardProps {
   currentUser?: User | null;
   serverInfo?: SiteSettings['_serverInfo'];
   timeZone?: string;
-  analyticsMode?: 'strict' | 'balanced';
+  analyticsMode?: AnalyticsCollectionMode;
+  analyticsEnabled?: boolean;
+  canManageAnalytics?: boolean;
 }
 
 interface DashboardActivity {
@@ -214,7 +225,10 @@ const VpDashboard: React.FC<DashboardProps> = ({
   serverInfo,
   timeZone = 'UTC',
   analyticsMode = 'strict',
+  analyticsEnabled = true,
+  canManageAnalytics = false,
 }) => {
+  const navigate = useNavigate();
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [storageData, setStorageData] = useState({ used: '0 MB' });
   const [contentTotals, setContentTotals] = useState({
@@ -227,9 +241,15 @@ const VpDashboard: React.FC<DashboardProps> = ({
   });
   const [days, setDays] = useState(7);
   const [analyticsTab, setAnalyticsTab] = useState<'traffic' | 'articles'>('traffic');
-  const [reportMode, setReportMode] = useState<'strict' | 'balanced'>(analyticsMode);
+  const [reportMode, setReportMode] = useState<AnalyticsReportMode>(
+    analyticsMode === 'balanced' ? 'balanced' : 'strict'
+  );
   const [analyticsUnavailable, setAnalyticsUnavailable] = useState(false);
-  useEffect(() => setReportMode(analyticsMode), [analyticsMode]);
+  const [analyticsNeedsRepair, setAnalyticsNeedsRepair] = useState(false);
+  const [trafficLoading, setTrafficLoading] = useState(true);
+  useEffect(() => {
+    if (analyticsMode !== 'hybrid') setReportMode(analyticsMode);
+  }, [analyticsMode]);
   const [chartData, setChartData] = useState<TrafficChartPoint[]>([]);
   const [trafficSummary, setTrafficSummary] = useState<TrafficSummary>({
     totalVisits: 0,
@@ -462,10 +482,13 @@ const VpDashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     if (analyticsTab !== 'traffic') return;
     let cancelled = false;
+    setTrafficLoading(true);
     vonFetch(`${API.trackVisit}?days=${days}&mode=${reportMode}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
+        setTrafficLoading(false);
+        setAnalyticsNeedsRepair(data.analytics?.needsRepair === true);
         setAnalyticsUnavailable(
           !data.success ||
             data.analytics?.needsRepair === true ||
@@ -528,6 +551,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
       })
       .catch(() => {
         if (cancelled) return;
+        setTrafficLoading(false);
+        setAnalyticsNeedsRepair(false);
         setAnalyticsUnavailable(true);
         setChartData(getDefaultChart(days));
         setTrafficSummary({ totalVisits: 0, uniqueVisitors: 0 });
@@ -751,7 +776,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
             <div
               role="group"
               aria-label="Analytics report filters"
-              className={`grid w-full gap-3 sm:flex sm:w-auto sm:shrink-0 ${analyticsTab === 'traffic' ? 'grid-cols-2' : 'grid-cols-1'}`}
+              className={`dashboard-analytics-filters grid w-full gap-3 sm:flex sm:w-auto sm:shrink-0 ${analyticsTab === 'traffic' ? 'grid-cols-2' : 'grid-cols-1'}`}
             >
               <label className="min-w-0 space-y-1.5 sm:w-32">
                 <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -779,7 +804,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
                     name="dashboardAnalyticsMode"
                     aria-label="Analytics report mode"
                     value={reportMode}
-                    onChange={(event) => setReportMode(event.target.value as 'strict' | 'balanced')}
+                    onChange={(event) => setReportMode(event.target.value as AnalyticsReportMode)}
                     className="h-11 w-full min-w-0 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none transition-colors hover:bg-slate-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200 dark:hover:bg-white/5"
                   >
                     <option value="strict">Strict</option>
@@ -794,10 +819,58 @@ const VpDashboard: React.FC<DashboardProps> = ({
               ? `${reportMode === 'strict' ? 'Strict: IP-based visitors.' : 'Balanced: browser-based visitors.'} Historical modes are shown separately; counts are not verified people.`
               : 'Top 10 articles by recorded daily views.'}
           </p>
+          {analyticsTab === 'traffic' && (
+            <p className="mb-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              Configured collection:{' '}
+              {analyticsEnabled
+                ? analyticsMode === 'hybrid'
+                  ? 'Hybrid (Strict + Balanced)'
+                  : analyticsMode === 'balanced'
+                    ? 'Balanced only'
+                    : 'Strict only'
+                : 'Off'}
+              .{' '}
+              {canManageAnalytics && (
+                <>
+                  <button
+                    type="button"
+                    id="dashboard-analytics-settings"
+                    onClick={() => navigate('/admin/extensions?tab=plugins&configure=vp_analytics')}
+                    aria-label="Change VonAnalytics collection settings"
+                    className="inline-flex items-center gap-1 font-semibold text-primary-600 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400"
+                  >
+                    <Settings2 size={13} aria-hidden="true" />
+                    Change settings
+                  </button>{' '}
+                </>
+              )}
+              Report switching is read-only. Consent and browser/storage availability still apply.
+              {(!analyticsEnabled ||
+                (analyticsMode !== 'hybrid' && analyticsMode !== reportMode)) &&
+                ' This report shows stored history only; collection for this report is currently off.'}
+              {!analyticsEnabled
+                ? canManageAnalytics
+                  ? ' Enable VonAnalytics in Extensions > Plugins to start collecting visits.'
+                  : ' Ask the Primary Admin to enable VonAnalytics to start collecting visits.'
+                : analyticsMode !== 'hybrid' &&
+                  analyticsMode !== reportMode &&
+                  ` ${canManageAnalytics ? 'Choose' : 'Ask the Primary Admin to choose'} ${reportMode === 'balanced' ? 'Balanced' : 'Strict'} or Hybrid in VonAnalytics settings to start collecting this report.`}
+              {!trafficLoading &&
+                !analyticsUnavailable &&
+                trafficSummary.totalVisits === 0 &&
+                ' No visits are recorded for this report and period. A newly enabled mode has no earlier history.'}
+            </p>
+          )}
+          {analyticsTab === 'traffic' && trafficLoading && (
+            <p role="status" className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+              Loading the selected report...
+            </p>
+          )}
           {analyticsTab === 'traffic' && analyticsUnavailable && (
             <p role="status" className="mb-3 text-sm text-amber-700 dark:text-amber-300">
-              Analytics storage is unavailable for this mode. Ask the Primary Admin to run Database
-              Schema Repair.
+              {analyticsNeedsRepair
+                ? 'Run Database Schema Repair to enable storage for this report.'
+                : 'Analytics data is temporarily unavailable. Retry the report; this is not a confirmed zero-visit result.'}
             </p>
           )}
 
@@ -878,7 +951,10 @@ const VpDashboard: React.FC<DashboardProps> = ({
                 are not summed to calculate that total.
               </p>
 
-              <div className="h-52 w-full" aria-describedby="dashboard-traffic-counting-note">
+              <div
+                className="dashboard-analytics-chart h-52 w-full"
+                aria-describedby="dashboard-traffic-counting-note"
+              >
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
                     <CartesianGrid
@@ -903,11 +979,14 @@ const VpDashboard: React.FC<DashboardProps> = ({
                     <Tooltip
                       contentStyle={{
                         borderRadius: '8px',
-                        border: 'none',
+                        border: '1px solid var(--analytics-tooltip-border)',
                         boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        backgroundColor: 'var(--analytics-tooltip-background)',
+                        color: 'var(--analytics-tooltip-foreground)',
                       }}
-                      cursor={{ fill: 'var(--color-blue-100)' }}
+                      labelStyle={{ color: 'var(--analytics-tooltip-foreground)' }}
+                      itemStyle={{ color: 'var(--analytics-tooltip-foreground)' }}
+                      cursor={{ fill: 'var(--analytics-tooltip-cursor)' }}
                     />
                     <Bar
                       dataKey="visits"
@@ -971,9 +1050,9 @@ const VpDashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Audit Log */}
-        <div className="bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border flex flex-col">
+        <div className="self-start bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Recent Activity</h3>
-          <div className="space-y-0 grow">
+          <div className="space-y-0">
             {recentActivity.slice(0, 4).map((log, i) => (
               <div
                 key={i}

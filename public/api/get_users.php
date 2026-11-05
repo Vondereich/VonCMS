@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/role_capability_helper.php';
+require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -42,13 +43,7 @@ try {
     ? mb_substr(trim(DataBoundary::inputText($_GET['search'])), 0, 120)
     : '';
   $offset = 0;
-  $hasDisplayNameColumn = false;
-  try {
-    $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-    $hasDisplayNameColumn = $columnStmt && $columnStmt->rowCount() > 0;
-  } catch (Throwable $e) {
-    $hasDisplayNameColumn = false;
-  }
+  $hasDisplayNameColumn = voncms_has_display_name_column($pdo);
   $displayNameSelect = $hasDisplayNameColumn ? 'display_name' : 'NULL AS display_name';
 
   $where = '';

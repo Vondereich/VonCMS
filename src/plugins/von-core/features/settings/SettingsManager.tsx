@@ -343,6 +343,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     >
       <h2 className="text-2xl font-bold text-slate-800 dark:text-white">System Settings</h2>
 
+      <aside
+        aria-label="Settings visibility"
+        className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200"
+      >
+        <p className="flex items-center gap-2 font-semibold">
+          <Globe size={16} aria-hidden="true" /> Public information and private credentials
+        </p>
+        <p className="mt-2">
+          Public fields are sent to visitors' browsers. Never put private API keys, passwords or
+          access tokens in site text, public profiles, ad code or custom HTML. Use the dedicated
+          protected credential fields instead.
+        </p>
+      </aside>
+
       {/* Tabs */}
       <div className="mb-6 sm:hidden">
         <label
@@ -827,19 +841,31 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <label
                     htmlFor="api-ai-key"
-                    className="block text-sm font-bold mb-1 dark:text-white"
+                    className="mb-1 flex flex-wrap items-center gap-2 text-sm font-bold dark:text-white"
                   >
                     API Key
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                      Protected credential
+                    </span>
                   </label>
                   <input
                     id="api-ai-key"
                     type="password"
+                    aria-describedby="api-ai-key-privacy api-ai-key-help"
                     value={tempSettings.api?.aiApiKey || ''}
                     onChange={(e) => handleAiApiKeyChange(e.target.value)}
                     className="w-full p-2.5 border rounded-lg dark:bg-admin-canvas dark:text-white dark:border-admin-border"
                     placeholder="Gemini API key"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p
+                    id="api-ai-key-privacy"
+                    className="mt-2 text-xs text-slate-600 dark:text-slate-300"
+                  >
+                    Enter your private Gemini API key only here, not in public fields. Saved keys
+                    are masked in settings responses; this does not hide newly typed values from
+                    your own browser.
+                  </p>
+                  <p id="api-ai-key-help" className="text-[10px] text-slate-400 mt-1">
                     Enter your Google Gemini API Key from AI Studio. Saved keys are masked; clear
                     this field to remove the saved key, or replace it to start a new local expiry
                     period.

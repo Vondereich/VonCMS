@@ -5,7 +5,7 @@ import {
 } from '../../../../../../utils/dateFormat';
 import { ScoredPost, RelatedPostsConfig } from './types';
 
-const normalizeTaxonomyValue = (value: unknown): string =>
+export const normalizeTaxonomyValue = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, ' ') : '';
 
 const getKeywordSet = (keywords: unknown): Set<string> =>

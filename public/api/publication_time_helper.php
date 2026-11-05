@@ -16,6 +16,144 @@ require_once __DIR__ . '/../core/DataBoundary.php';
 
 unset($publicationTimeHelperPath, $requestedScriptPath);
 
+/** Optional presentation metadata only; never used to authorize a user or migration. */
+if (!function_exists('voncms_has_display_name_column')) {
+  function voncms_display_name_cache_path(): string
+  {
+    return dirname(__DIR__) . '/data/schema-capabilities.json.display-name-cache';
+  }
+
+  function voncms_display_name_cache_context(PDO $pdo): ?string
+  {
+    // Only cache the installation's configured connection, not an unrelated PDO passed by a tool.
+    if (($GLOBALS['pdo'] ?? null) !== $pdo) {
+      return null;
+    }
+    $configHash = @hash_file('sha256', dirname(__DIR__) . '/von_config.php');
+    $helperHash = @hash_file('sha256', __FILE__);
+    if (!is_string($configHash) || !is_string($helperHash)) {
+      return null;
+    }
+    $markerPath = dirname(__DIR__) . '/data/schema-capabilities.json';
+    $markerHash = is_file($markerPath) ? @hash_file('sha256', $markerPath) : 'missing';
+    if (!is_string($markerHash)) {
+      return null;
+    }
+    return hash('sha256', $configHash . ':' . $helperHash . ':' . $markerHash);
+  }
+
+  function voncms_read_display_name_cache(string $context): ?bool
+  {
+    $path = voncms_display_name_cache_path();
+    clearstatcache(true, $path);
+    if (!is_file($path) || is_link($path) || filesize($path) > 4096) {
+      return null;
+    }
+    $json = @file_get_contents($path);
+    $cached = is_string($json) ? json_decode($json, true) : null;
+    $checkedAt = is_array($cached) ? $cached['checked_at'] ?? null : null;
+    if (
+      !is_array($cached) ||
+      ($cached['version'] ?? null) !== 1 ||
+      ($cached['context'] ?? null) !== $context ||
+      !is_int($checkedAt) ||
+      $checkedAt > time() ||
+      time() - $checkedAt >= 300 ||
+      !is_bool($cached['display_name'] ?? null)
+    ) {
+      return null;
+    }
+    return $cached['display_name'];
+  }
+
+  function voncms_clear_display_name_cache(?string $cachePath = null): void
+  {
+    $path = $cachePath ?? voncms_display_name_cache_path();
+    if (!is_file($path) && !is_file($path . '.lock')) {
+      return;
+    }
+    // Serialize with a cache miss so a completed invalidation cannot be overwritten by its probe.
+    $gate = @fopen($path . '.lock', 'c');
+    if (!is_resource($gate)) {
+      throw new RuntimeException('Could not invalidate the optional schema read cache.');
+    }
+    try {
+      if (!flock($gate, LOCK_EX) || (is_file($path) && !@unlink($path))) {
+        throw new RuntimeException('Could not invalidate the optional schema read cache.');
+      }
+    } finally {
+      flock($gate, LOCK_UN);
+      fclose($gate);
+    }
+  }
+
+  function voncms_has_display_name_column(PDO $pdo): bool
+  {
+    $context = voncms_display_name_cache_context($pdo);
+    if ($context !== null) {
+      $cached = voncms_read_display_name_cache($context);
+      if ($cached !== null) {
+        return $cached;
+      }
+    }
+
+    $path = voncms_display_name_cache_path();
+    $gate = $context !== null && is_dir(dirname($path)) ? @fopen($path . '.lock', 'c') : false;
+    $canWrite = is_resource($gate) && @flock($gate, LOCK_EX | LOCK_NB);
+    $exists = false;
+    try {
+      if ($canWrite) {
+        $context = voncms_display_name_cache_context($pdo);
+        $cached = $context !== null ? voncms_read_display_name_cache($context) : null;
+        if ($cached !== null) {
+          return $cached;
+        }
+      }
+
+      $statement = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
+      if (!($statement instanceof PDOStatement)) {
+        return false;
+      }
+      try {
+        $exists = $statement->fetch(PDO::FETCH_ASSOC) !== false;
+      } finally {
+        $statement->closeCursor();
+      }
+
+      // Storage failure retains the original live-query behavior. Never cache a failed query.
+      if ($canWrite && $context !== null) {
+        $json = json_encode([
+          'version' => 1,
+          'context' => $context,
+          'checked_at' => time(),
+          'display_name' => $exists,
+        ]);
+        if (is_string($json)) {
+          $temporaryPath = $path . '.' . bin2hex(random_bytes(8)) . '.tmp';
+          if (@file_put_contents($temporaryPath, $json, LOCK_EX) === strlen($json)) {
+            @chmod($temporaryPath, 0600);
+            if (!@rename($temporaryPath, $path)) {
+              @unlink($temporaryPath);
+            }
+          } else {
+            @unlink($temporaryPath);
+          }
+        }
+      }
+      return $exists;
+    } catch (Throwable $error) {
+      return $exists;
+    } finally {
+      if (is_resource($gate)) {
+        if ($canWrite) {
+          @flock($gate, LOCK_UN);
+        }
+        fclose($gate);
+      }
+    }
+  }
+}
+
 if (!function_exists('voncms_has_publication_column')) {
   function voncms_publication_capability_path(): string
   {
@@ -60,6 +198,7 @@ if (!function_exists('voncms_has_publication_column')) {
     array $queryIndexes = [],
     bool $postDailyViews = false,
   ): void {
+    voncms_clear_display_name_cache();
     $path = voncms_publication_capability_path();
     $directory = dirname($path);
     if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
@@ -107,6 +246,7 @@ if (!function_exists('voncms_has_publication_column')) {
 
   function voncms_clear_publication_capability_marker(): void
   {
+    voncms_clear_display_name_cache();
     $path = voncms_publication_capability_path();
     if (is_file($path) && !@unlink($path)) {
       throw new RuntimeException('Could not clear the schema capability marker.');

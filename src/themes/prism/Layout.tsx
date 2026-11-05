@@ -200,6 +200,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
     category: selectedCategory,
     search: activeSearchQuery,
     limit: postsPerPage,
+    enabled: currentView === 'home' || currentView === 'category',
   });
 
   const currentPosts = publicPosts.posts;

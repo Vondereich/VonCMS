@@ -61,6 +61,7 @@ final class AnalyticsFixtureSqlitePDO extends VonCmsFixtureSqlitePDO
 $schema = 'voncms_analytics_qa_' . bin2hex(random_bytes(6));
 $admin = null;
 $checks = 0;
+$heldStrictLocks = [];
 $originalTimezone = date_default_timezone_get();
 $originalProxyRules = getenv('VONCMS_TRUSTED_PROXIES');
 $originalClientHeader = getenv('VONCMS_ANALYTICS_CLIENT_IP_HEADER');
@@ -117,6 +118,28 @@ try {
     );
   }
   if ($pdo instanceof AnalyticsFixtureSqlitePDO) {
+    // SQLite adapts the service SQL; actual advisory-lock concurrency is tested in --mysql mode.
+    $pdo->createFunction('DATABASE', static fn(): string => 'analytics_fixture');
+    $strictLockResult = 1;
+    $pdo->createFunction('GET_LOCK', static function (string $name, int $timeout) use (
+      &$strictLockResult,
+      &$heldStrictLocks,
+    ): ?int {
+      if ($strictLockResult !== 1) {
+        return $strictLockResult;
+      }
+      if (isset($heldStrictLocks[$name])) {
+        return 0;
+      }
+      $heldStrictLocks[$name] = true;
+      return 1;
+    });
+    $pdo->createFunction('RELEASE_LOCK', static function (string $name) use (
+      &$heldStrictLocks,
+    ): int {
+      unset($heldStrictLocks[$name]);
+      return 1;
+    });
     $pdo->createFunction('NOW', function () use (&$testClock, &$dbOffset): string {
       return gmdate('Y-m-d H:i:s', $testClock + $dbOffset);
     });
@@ -169,6 +192,17 @@ try {
     voncms_native_analytics_allowed($pdo, ['von_consent' => 'true'], $mode) && $mode === 'balanced',
     'Accepted consent selects Balanced',
   );
+  $setting('analytics', 'config', ['measurementMode' => 'hybrid', 'cookieConsent' => true]);
+  check(!voncms_native_analytics_allowed($pdo, [], $mode), 'Hybrid cannot bypass withheld consent');
+  check(
+    !voncms_native_analytics_allowed($pdo, ['von_consent' => 'false'], $mode),
+    'Hybrid cannot bypass declined consent',
+  );
+  check(
+    voncms_native_analytics_allowed($pdo, ['von_consent' => 'true'], $mode) && $mode === 'hybrid',
+    'Explicit accepted Hybrid policy',
+  );
+  $setting('analytics', 'config', ['measurementMode' => 'balanced', 'cookieConsent' => true]);
   $setting('plugins', 'active_plugins', []);
   check(
     !voncms_native_analytics_allowed($pdo, ['von_consent' => 'true'], $mode) && $mode === null,
@@ -293,6 +327,139 @@ try {
   unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
   $_SERVER['REMOTE_ADDR'] = '192.0.2.10';
   $now = time();
+  $automatedAgents = [
+    'Mozilla/5.0 (compatible; ExaSearchBot/1.0; +https://crawler.exa.ai/)',
+    'Mozilla/5.0 (compatible; ExaUser/1.0; +https://crawler.exa.ai/exauser)',
+    'Mediapartners-Google',
+    'Mozilla/5.0 (compatible; AhrefsBot/7.0)',
+    'Mozilla/5.0 (compatible; AhrefsSiteAudit/6.1)',
+    'Mozilla/5.0 (compatible; TikTokSpider)',
+    'Googlebot/2.1',
+    'bingbot/2.0',
+    'DuckAssistBot/1.2',
+    'DuckDuckBot/1.1',
+    'Applebot/0.1',
+    'GPTBot/1.0',
+    'ClaudeBot/1.0',
+    'PerplexityBot/1.0',
+    'Twitterbot/1.0',
+    'AdsBot-Google (+http://www.google.com/adsbot.html)',
+    'SemrushBot/7~bl',
+    'SeznamBot/4.0',
+    'DotBot/1.2',
+    'YandexBot/3.0',
+    'PetalBot/1.0',
+    'BLEXBot/1.0',
+    'MJ12bot/v1.4.8',
+    'DataForSeoBot/1.0',
+    'Amazonbot/0.1',
+    'CCBot/2.0',
+    'archive.org_bot/1.0',
+    'nbot/1.0',
+    'bot/1.0',
+    'robot/1.0',
+    'Mozilla/5.0 (Linux; Android 10; CUBOT X30) ExaSearchBot/1.0',
+    'facebookexternalhit/1.1',
+    'Mozilla/5.0 HeadlessChrome/149.0.0.0',
+    'Mozilla/5.0 Chrome/136.0.0.0 Chrome-Lighthouse',
+    'curl/8.0',
+    'python-requests/2.0',
+  ];
+  foreach ($automatedAgents as $agent) {
+    $_SERVER['HTTP_USER_AGENT'] = $agent;
+    check(voncms_tracking_is_automated($agent), 'Declared automation is recognized: ' . $agent);
+    check(
+      voncms_tracking_document_meta() === '<meta name="voncms-tracking" content="excluded">',
+      'Original crawler document retains its renderer exclusion',
+    );
+    foreach (['strict', 'balanced', 'hybrid'] as $collection) {
+      $outcome = voncms_record_native_visit($pdo, $collection, [], '/crawler', '', $agent, $now);
+      check(
+        $outcome === ['visit' => false, 'throttled' => false, 'retry' => false, 'excluded' => true],
+        'Automation does not record or issue an identity in ' . $collection,
+      );
+    }
+  }
+  check(
+    (int) $pdo->query('SELECT COUNT(*) FROM analytics')->fetchColumn() === 0 &&
+      (int) $pdo->query('SELECT COUNT(*) FROM analytics_sessions')->fetchColumn() === 0 &&
+      !is_file(VONCMS_ANALYTICS_TEST_KEY_FILE) &&
+      !$pdo->inTransaction(),
+    'Crawler exclusion creates no visits, sessions, signing key or open transaction',
+  );
+  $deviceAgents = [
+    'Mozilla/5.0 (Linux; Android 10; CUBOT X30) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 13; Cubot P80 Build/TP1A.220624.014; wv) AppleWebKit/537.36 Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 10; cubot x30) Gecko/20100101 Firefox/130.0',
+    'Mozilla/5.0 CUBOT/1.0',
+    'Mozilla/5.0 ABBOT/1.0',
+  ];
+  foreach (
+    [
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/156.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Linux; Android 10; K) Chrome/156.0.0.0 Mobile Safari/537.36',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1',
+      '',
+      ...$deviceAgents,
+    ]
+    as $agent
+  ) {
+    $_SERVER['HTTP_USER_AGENT'] = $agent;
+    check(
+      !voncms_tracking_is_automated($agent),
+      'Ordinary or unknown browser is not presumed automated',
+    );
+    check(voncms_tracking_document_meta() === '', 'Ordinary documents have no crawler marker');
+  }
+  unset($_SERVER['HTTP_USER_AGENT']);
+  foreach ($deviceAgents as $deviceIndex => $agent) {
+    foreach (['strict', 'balanced', 'hybrid'] as $modeIndex => $collection) {
+      $_SERVER['REMOTE_ADDR'] = '192.0.2.' . (100 + $deviceIndex * 3 + $modeIndex);
+      $cookies = [
+        voncms_analytics_identity_name() => voncms_analytics_signed_identity(
+          bin2hex(random_bytes(32)),
+          $now + 30 * 86400,
+          voncms_analytics_signing_key(),
+        ),
+      ];
+      $outcome = voncms_record_native_visit(
+        $pdo,
+        $collection,
+        $cookies,
+        '/device',
+        '',
+        $agent,
+        $now,
+      );
+      check(
+        $outcome['visit'] && !($outcome['excluded'] ?? false),
+        'Device-name suffix does not prevent a real ' . $collection . ' visit',
+      );
+      check(
+        (int) $pdo->query('SELECT COUNT(*) FROM analytics')->fetchColumn() ===
+          ($collection === 'hybrid' ? 2 : 1) &&
+          (int) $pdo->query('SELECT COUNT(*) FROM analytics_sessions')->fetchColumn() ===
+            ($collection === 'strict' ? 0 : 1),
+        'Device visit creates only the expected measurement and session rows',
+      );
+      $repeat = voncms_record_native_visit(
+        $pdo,
+        $collection,
+        $cookies,
+        '/device',
+        '',
+        $agent,
+        $now,
+      );
+      check(
+        !$repeat['visit'] && $repeat['throttled'] && !($repeat['excluded'] ?? false),
+        'Device repeat retains ordinary deduplication in ' . $collection,
+      );
+      $pdo->exec('DELETE FROM analytics');
+      $pdo->exec('DELETE FROM analytics_sessions');
+    }
+  }
   $record = function (string $mode, array $cookies, int $time) use (
     $pdo,
     $mysql,
@@ -490,90 +657,155 @@ try {
   );
 
   if ($mysql) {
-    $raceRaw = bin2hex(random_bytes(32));
-    $raceCookie = voncms_analytics_signed_identity($raceRaw, $now + 86400, $signingKey);
-    $raceHash = hash('sha256', $raceRaw);
-    $children = [];
-    $pdo->beginTransaction();
-    try {
-      $pdo
-        ->prepare('INSERT INTO analytics_sessions VALUES (?,0,?)')
-        ->execute([$raceHash, $now + 86400]);
-      $program =
-        'define("VONCMS_CORE_LOADED",true);define("VONCMS_ANALYTICS_TEST_KEY_FILE",' .
-        var_export(VONCMS_ANALYTICS_TEST_KEY_FILE, true) .
-        ');require ' .
-        var_export(__DIR__ . '/../../public/core/RateLimiter.php', true) .
-        ';(new ReflectionProperty(RateLimiter::class,"storageDir"))->setValue(null,' .
-        var_export($fixtureStorage . '/rates/', true) .
-        ');' .
-        'require ' .
-        var_export(__DIR__ . '/../../public/api/analytics_consent_helper.php', true) .
-        ';' .
-        '$p=new PDO(' .
-        var_export($dsn . ';dbname=' . $schema, true) .
-        ',getenv("VONCMS_TEST_MYSQL_USER")?:"root",getenv("VONCMS_TEST_MYSQL_PASSWORD")?:"",[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);' .
-        '$_SERVER["SCRIPT_NAME"]="/zangetsu/api/track_visit.php";echo "ready\\n";flush();' .
-        'echo json_encode(voncms_record_native_visit($p,"balanced",[voncms_analytics_identity_name()=>' .
-        var_export($raceCookie, true) .
-        '],"/race","","Fixture",' .
-        $now .
-        '));';
-      for ($i = 0; $i < 2; $i++) {
-        $pipes = [];
-        $process = proc_open(
-          [PHP_BINARY, '-r', $program],
-          [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-          $pipes,
-        );
-        if (!is_resource($process)) {
-          throw new RuntimeException('Cannot start MySQL race worker.');
-        }
-        fclose($pipes[0]);
-        $children[] = [$process, $pipes];
-        stream_set_timeout($pipes[1], 10);
-        check(fgets($pipes[1]) === "ready\n", 'Independent race worker connected');
-      }
-      $pdo->commit();
-      $visits = 0;
-      $throttled = 0;
-      foreach ($children as [$process, $pipes]) {
-        $result = json_decode(stream_get_contents($pipes[1]), true, 512, JSON_THROW_ON_ERROR);
-        $visits += (int) $result['visit'];
-        $throttled += (int) $result['throttled'];
-        fclose($pipes[1]);
-        $errors = stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
-        check(
-          proc_close($process) === 0 && $errors === '',
-          'Race worker completes without runtime errors',
+    $race = function (string $raceMode) use (
+      $pdo,
+      $dsn,
+      $schema,
+      $fixtureStorage,
+      $signingKey,
+      $now,
+    ): void {
+      $raceRaw = bin2hex(random_bytes(32));
+      $raceCookie = voncms_analytics_signed_identity($raceRaw, $now + 86400, $signingKey);
+      $raceHash = hash('sha256', $raceRaw);
+      $raceAddress =
+        $raceMode === 'strict'
+          ? '192.0.2.190'
+          : ($raceMode === 'hybrid'
+            ? '192.0.2.191'
+            : '192.0.2.192');
+      $strictHash = hash_hmac(
+        'sha256',
+        'strict:' . $raceAddress . ':' . date('Y-m', $now),
+        $signingKey,
+      );
+      if ($raceMode !== 'balanced') {
+        // The delay makes the old unlocked check/insert counterexample observable.
+        $pdo->exec(
+          "CREATE TRIGGER analytics_fixture_race_delay BEFORE INSERT ON analytics FOR EACH ROW BEGIN IF NEW.measurement_mode='strict' THEN DO SLEEP(0.2); END IF; END",
         );
       }
       $children = [];
-      $raceCount = $pdo->prepare(
-        'SELECT COUNT(*) FROM analytics WHERE ip_hash=? AND measurement_mode=?',
-      );
-      $raceCount->execute([$raceHash, 'balanced']);
-      check(
-        $visits === 1 && $throttled === 1 && (int) $raceCount->fetchColumn() === 1,
-        'Concurrent requests for one browser commit exactly one visit',
-      );
-    } finally {
-      if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-      }
-      foreach ($children as [$process, $pipes]) {
-        if (is_resource($process)) {
-          proc_terminate($process);
+      $pdo->beginTransaction();
+      try {
+        $pdo
+          ->prepare('INSERT INTO analytics_sessions VALUES (?,0,?)')
+          ->execute([$raceHash, $now + 86400]);
+        $program =
+          'define("VONCMS_CORE_LOADED",true);define("VONCMS_ANALYTICS_TEST_KEY_FILE",' .
+          var_export(VONCMS_ANALYTICS_TEST_KEY_FILE, true) .
+          ');require ' .
+          var_export(__DIR__ . '/../../public/core/RateLimiter.php', true) .
+          ';(new ReflectionProperty(RateLimiter::class,"storageDir"))->setValue(null,' .
+          var_export($fixtureStorage . '/rates/', true) .
+          ');' .
+          'require ' .
+          var_export(__DIR__ . '/../../public/api/analytics_consent_helper.php', true) .
+          ';' .
+          '$p=new PDO(' .
+          var_export($dsn . ';dbname=' . $schema, true) .
+          ',getenv("VONCMS_TEST_MYSQL_USER")?:"root",getenv("VONCMS_TEST_MYSQL_PASSWORD")?:"",[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);' .
+          '$_SERVER["SCRIPT_NAME"]="/zangetsu/api/track_visit.php";echo "ready\\n";flush();' .
+          'echo json_encode(voncms_record_native_visit($p,"balanced",[voncms_analytics_identity_name()=>' .
+          var_export($raceCookie, true) .
+          '],"/race","","Fixture",' .
+          $now .
+          '));';
+        $program = '$_SERVER["REMOTE_ADDR"]=' . var_export($raceAddress, true) . ';' . $program;
+        $program = str_replace(
+          '$p,"balanced",',
+          '$p,' . var_export($raceMode, true) . ',',
+          $program,
+        );
+        if ($raceMode === 'strict') {
+          $program = str_replace(
+            '[voncms_analytics_identity_name()=>' . var_export($raceCookie, true) . ']',
+            '[]',
+            $program,
+          );
         }
-        foreach ($pipes as $pipe) {
-          if (is_resource($pipe)) {
-            fclose($pipe);
+        for ($i = 0; $i < 2; $i++) {
+          $pipes = [];
+          $process = proc_open(
+            [PHP_BINARY, '-r', $program],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+          );
+          if (!is_resource($process)) {
+            throw new RuntimeException('Cannot start MySQL race worker.');
+          }
+          fclose($pipes[0]);
+          $children[] = [$process, $pipes];
+          stream_set_timeout($pipes[1], 10);
+          check(fgets($pipes[1]) === "ready\n", 'Independent race worker connected');
+        }
+        $pdo->commit();
+        $visits = 0;
+        $throttled = 0;
+        $strictVisits = 0;
+        $balancedVisits = 0;
+        foreach ($children as [$process, $pipes]) {
+          $result = json_decode(stream_get_contents($pipes[1]), true, 512, JSON_THROW_ON_ERROR);
+          $visits += (int) $result['visit'];
+          $throttled += (int) $result['throttled'];
+          $strictVisits += (int) ($result['measurements']['strict']['visit'] ?? false);
+          $balancedVisits += (int) ($result['measurements']['balanced']['visit'] ?? false);
+          fclose($pipes[1]);
+          $errors = stream_get_contents($pipes[2]);
+          fclose($pipes[2]);
+          check(
+            proc_close($process) === 0 && $errors === '',
+            'Race worker completes without runtime errors',
+          );
+        }
+        $children = [];
+        $raceCount = $pdo->prepare(
+          'SELECT COUNT(*) FROM analytics WHERE ip_hash=? AND measurement_mode=?',
+        );
+        if ($raceMode === 'hybrid') {
+          foreach (
+            [['strict', $strictHash, $strictVisits], ['balanced', $raceHash, $balancedVisits]]
+            as [$kind, $hash, $accepted]
+          ) {
+            $raceCount->execute([$hash, $kind]);
+            check(
+              $accepted === 1 && (int) $raceCount->fetchColumn() === 1,
+              'Concurrent Hybrid requests commit exactly one ' . $kind . ' visit',
+            );
+            $raceCount->closeCursor();
+          }
+        } else {
+          $raceCount->execute([$raceMode === 'strict' ? $strictHash : $raceHash, $raceMode]);
+          check(
+            $visits === 1 && $throttled === 1 && (int) $raceCount->fetchColumn() === 1,
+            'Concurrent ' . $raceMode . ' requests commit exactly one visit',
+          );
+          $raceCount->closeCursor();
+        }
+      } finally {
+        if ($pdo->inTransaction()) {
+          $pdo->rollBack();
+        }
+        foreach ($children as [$process, $pipes]) {
+          if (is_resource($process)) {
+            proc_terminate($process);
+          }
+          foreach ($pipes as $pipe) {
+            if (is_resource($pipe)) {
+              fclose($pipe);
+            }
+          }
+          if (is_resource($process)) {
+            proc_close($process);
           }
         }
-        if (is_resource($process)) {
-          proc_close($process);
-        }
+      }
+    };
+    foreach (['balanced', 'strict', 'hybrid'] as $raceMode) {
+      try {
+        $race($raceMode);
+      } finally {
+        $pdo->exec('DROP TRIGGER IF EXISTS analytics_fixture_race_delay');
       }
     }
   }
@@ -887,6 +1119,135 @@ try {
       }
     }
   }
+  // Hybrid keeps the two measurements independent across identity echo, refresh and failures.
+  $_SERVER['REMOTE_ADDR'] = '192.0.2.180';
+  $modeCount = static fn(string $mode): int => (int) $pdo
+    ->query('SELECT COUNT(*) FROM analytics WHERE measurement_mode=' . $pdo->quote($mode))
+    ->fetchColumn();
+  $strictBefore = $modeCount('strict');
+  $balancedBefore = $modeCount('balanced');
+  $hybridFirst = $record('hybrid', [], $now);
+  check(
+    $hybridFirst['visit'] &&
+      $hybridFirst['retry'] &&
+      $hybridFirst['measurements']['strict']['visit'] &&
+      !$hybridFirst['measurements']['balanced']['visit'],
+    'Hybrid first request records Strict and asks for one browser-cookie echo',
+  );
+  $hybridCookie = [
+    voncms_analytics_identity_name() => voncms_analytics_signed_identity(
+      bin2hex(random_bytes(32)),
+      $now + 30 * 86400,
+      $signingKey,
+    ),
+  ];
+  $hybridEcho = $record('hybrid', $hybridCookie, $now + 1);
+  check(
+    $hybridEcho['visit'] &&
+      !$hybridEcho['retry'] &&
+      $hybridEcho['measurements']['strict']['throttled'] &&
+      $hybridEcho['measurements']['balanced']['visit'],
+    'Cookie echo records Balanced without a second Strict visit',
+  );
+  $hybridRefresh = $record('hybrid', $hybridCookie, $now + 2);
+  check(
+    !$hybridRefresh['visit'] && $hybridRefresh['throttled'] && !$hybridRefresh['retry'],
+    'Hybrid refresh deduplicates both measurements',
+  );
+  check(
+    $modeCount('strict') === $strictBefore + 1 && $modeCount('balanced') === $balancedBefore + 1,
+    'First request and cookie retry produce one row per mode',
+  );
+  $otherBrowser = [
+    voncms_analytics_identity_name() => voncms_analytics_signed_identity(
+      bin2hex(random_bytes(32)),
+      $now + 86400,
+      $signingKey,
+    ),
+  ];
+  $sharedIp = $record('hybrid', $otherBrowser, $now + 3);
+  check(
+    $sharedIp['measurements']['strict']['throttled'] &&
+      $sharedIp['measurements']['balanced']['visit'] &&
+      $modeCount('strict') === $strictBefore + 1 &&
+      $modeCount('balanced') === $balancedBefore + 2,
+    'Shared IP retains one Strict identity and two Balanced browsers',
+  );
+  $record('hybrid', $hybridCookie, $now + 1200);
+  $active = $record('hybrid', $hybridCookie, $now + 2400);
+  check(
+    $active['measurements']['strict']['visit'] && $active['measurements']['balanced']['throttled'],
+    'Hybrid preserves fixed Strict windows and independently sliding Balanced inactivity',
+  );
+  $idle = $record('hybrid', $hybridCookie, $now + 4201);
+  check(
+    $idle['measurements']['balanced']['visit'],
+    'Hybrid starts another Balanced session after inactivity',
+  );
+
+  foreach (['strict', 'balanced'] as $failedMode) {
+    $_SERVER['REMOTE_ADDR'] = $failedMode === 'strict' ? '192.0.2.181' : '192.0.2.182';
+    $failureCookie = [
+      voncms_analytics_identity_name() => voncms_analytics_signed_identity(
+        bin2hex(random_bytes(32)),
+        $now + 86400,
+        $signingKey,
+      ),
+    ];
+    $otherMode = $failedMode === 'strict' ? 'balanced' : 'strict';
+    $otherBefore = $modeCount($otherMode);
+    $pdo->exec(
+      $mysql
+        ? "CREATE TRIGGER analytics_fixture_hybrid_reject BEFORE INSERT ON analytics FOR EACH ROW BEGIN IF NEW.measurement_mode='$failedMode' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Fixture rejection'; END IF; END"
+        : "CREATE TRIGGER analytics_fixture_hybrid_reject BEFORE INSERT ON analytics WHEN NEW.measurement_mode='$failedMode' BEGIN SELECT RAISE(ABORT,'Fixture rejection'); END",
+    );
+    try {
+      $partial = $record('hybrid', $failureCookie, $now);
+      check(
+        $partial['visit'] &&
+          $partial['measurements'][$failedMode]['unavailable'] &&
+          $partial['measurements'][$otherMode]['visit'] &&
+          !$pdo->inTransaction() &&
+          $modeCount($otherMode) === $otherBefore + 1,
+        'Hybrid ' . $failedMode . ' insert failure preserves the other committed visit',
+      );
+    } finally {
+      $pdo->exec('DROP TRIGGER analytics_fixture_hybrid_reject');
+    }
+    $recovered = $record('hybrid', $failureCookie, $now + 1);
+    check(
+      $recovered['measurements'][$failedMode]['visit'] &&
+        $recovered['measurements'][$otherMode]['throttled'],
+      'Retry after ' . $failedMode . ' failure repairs only the missing measurement',
+    );
+  }
+  if (!$mysql) {
+    check($heldStrictLocks === [], 'Strict lock releases on all exercised outcomes');
+    $_SERVER['REMOTE_ADDR'] = '192.0.2.183';
+    $beforeBusy = $countVisits();
+    $strictLockResult = 0;
+    check(
+      $record('strict', [], $now)['throttled'] && $countVisits() === $beforeBusy,
+      'Busy Strict identity does not insert an unreserved visit',
+    );
+    $strictLockResult = null;
+    $lockError = false;
+    try {
+      $record('strict', [], $now);
+    } catch (RuntimeException $error) {
+      $lockError = true;
+    }
+    check(
+      $lockError && $countVisits() === $beforeBusy,
+      'Unavailable Strict reservation cannot silently accept a visit',
+    );
+    $strictLockResult = 1;
+    check(
+      $record('strict', [], $now)['visit'],
+      'Legitimate Strict visit succeeds after reservation recovery',
+    );
+  }
+
   file_put_contents(VONCMS_ANALYTICS_TEST_KEY_FILE, 'invalid');
   $failedKey = false;
   try {
@@ -895,16 +1256,28 @@ try {
     $failedKey = true;
   }
   check($failedKey, 'Corrupt signing key refuses Balanced tracking');
+  $badHybridKey = $record('hybrid', $hybridCookie, $now);
+  check(
+    !$badHybridKey['visit'] &&
+      $badHybridKey['measurements']['strict']['unavailable'] &&
+      $badHybridKey['measurements']['balanced']['unavailable'],
+    'Shared signing-key failure never downgrades Hybrid to unkeyed identities',
+  );
   file_put_contents(VONCMS_ANALYTICS_TEST_KEY_FILE, $signingKey);
 
   $pdo->exec('DROP TABLE analytics_sessions');
-  $failed = false;
-  try {
-    $record('balanced', $cookie, $now);
-  } catch (Throwable $error) {
-    $failed = true;
-  }
-  check($failed, 'Missing Balanced storage does not silently switch to Strict');
+  $missingBalanced = $record('balanced', $cookie, $now);
+  check(
+    !$missingBalanced['visit'] && ($missingBalanced['needsRepair'] ?? false),
+    'Missing Balanced storage is explicit and never silently switches to Strict',
+  );
+  $_SERVER['REMOTE_ADDR'] = '192.0.2.184';
+  $partialStorage = $record('hybrid', $hybridCookie, $now);
+  check(
+    $partialStorage['measurements']['strict']['visit'] &&
+      $partialStorage['measurements']['balanced']['needsRepair'],
+    'Missing Balanced storage preserves the permitted Strict result',
+  );
   $pdo->exec('ALTER TABLE analytics DROP COLUMN measurement_mode');
   check(
     $record('balanced', $cookie, $now)['needsRepair'] ?? false,

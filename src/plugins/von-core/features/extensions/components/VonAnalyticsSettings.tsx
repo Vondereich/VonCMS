@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SiteSettings } from '../../../../../types';
+import { SiteSettings, type AnalyticsCollectionMode } from '../../../../../types';
 import { X, Save, BarChart3, Globe, CheckCircle, AlertCircle, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AdminModal from '../../../../../components/admin/AdminModal';
@@ -103,9 +103,11 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                       Privacy
                     </span>
                     <span className="text-sm font-bold text-blue-600">
-                      {tempAnalytics.measurementMode === 'balanced'
-                        ? 'Browser ID Hashing'
-                        : 'IP Hashing'}
+                      {tempAnalytics.measurementMode === 'hybrid'
+                        ? 'IP + Browser ID Hashing'
+                        : tempAnalytics.measurementMode === 'balanced'
+                          ? 'Browser ID Hashing'
+                          : 'IP Hashing'}
                     </span>
                   </div>
                 </div>
@@ -131,7 +133,7 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
 
             {/* Cookie Consent */}
             <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-300">
-              <span className="font-bold">Visitor measurement mode</span>
+              <span className="font-bold">Visitor collection mode</span>
               <select
                 id="vonanalytics-measurement-mode"
                 name="analyticsMeasurementMode"
@@ -141,20 +143,23 @@ export const VonAnalyticsSettings: React.FC<VonAnalyticsSettingsProps> = ({
                   if (!canManageAnalytics) return;
                   setTempAnalytics({
                     ...tempAnalytics,
-                    measurementMode: event.target.value as 'strict' | 'balanced',
+                    measurementMode: event.target.value as AnalyticsCollectionMode,
                   });
                 }}
                 className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 dark:border-admin-border dark:bg-admin-panel"
               >
                 <option value="strict">Strict - IP-based (default)</option>
                 <option value="balanced">Balanced - browser-based (optional)</option>
+                <option value="hybrid">Hybrid - collect Strict and Balanced</option>
               </select>
               <span className="block text-xs text-slate-500">
                 Strict keeps the existing 30-minute IP window. Balanced uses a separate 30-day
                 first-party browser ID and sessions ending after 30 minutes of inactivity. Shared
                 office IPs can contain multiple browsers, not necessarily verified people. Run
-                Database Schema Repair before enabling Balanced on an existing installation.
-                Historical modes are reported separately.
+                Database Schema Repair before enabling Balanced or Hybrid on an existing
+                installation. Hybrid collects both measurements independently; switching the
+                Dashboard report never changes collection. Enabling a mode does not create past
+                data, and the two reports must not be added together.
               </span>
             </label>
             <label

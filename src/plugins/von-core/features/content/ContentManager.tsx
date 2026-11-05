@@ -19,6 +19,7 @@ import {
   normalizeSiteUrl,
 } from '../../../../utils/siteUtils';
 import SmartPagination from '../../../../components/SmartPagination';
+import AdminModal from '../../../../components/admin/AdminModal';
 import {
   PUBLIC_SEARCH_MAX_LENGTH,
   normalizePublicSearchInput,
@@ -44,7 +45,7 @@ interface ContentManagerProps {
   settings: SiteSettings;
   navigation?: NavItem[];
   onEdit: (id: string | null, isPage?: boolean) => void;
-  onDelete?: (id: string, isPage?: boolean, skipConfirm?: boolean) => void;
+  onDelete?: (id: string, isPage?: boolean) => Promise<boolean>;
   onToggleNav?: (pageId: string) => void;
   refreshKey?: number; // External trigger to re-fetch current page (after delete/save)
   userRole?: UserRole;
@@ -187,7 +188,15 @@ const ContentManager: React.FC<ContentManagerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<{
+    type: 'post' | 'page';
+    items: (Post | Page)[];
+  } | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const deleteInFlight = useRef(false);
+  const deleteOperation = useRef(0);
   const pageRequestId = useRef(0);
+  const lastRefreshKey = useRef(refreshKey);
   const canReviewPosts = type === 'post' && isPostReviewer(userRole);
   const writerView = type === 'post' && isPostWriter(userRole);
   const canDeleteItem = useCallback(
@@ -256,6 +265,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
 
           const items = type === 'post' ? data.posts || [] : data.pages || [];
           setPageItems(items);
+          setSelectedItems(new Set());
           if (data.meta) {
             setMeta({
               page: data.meta.page,
@@ -279,7 +289,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
     [type, canReviewPosts]
   );
 
-  // Fetch on mount, when page changes, when filters change, or when refreshKey changes
+  // Fetch on mount and when the content type or filters change.
   useEffect(() => {
     setCurrentPage(1);
     fetchPage(1, {
@@ -287,7 +297,26 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       category: selectedCategory,
       status: selectedStatus,
     });
-  }, [type, searchQuery, selectedCategory, selectedStatus, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [type, searchQuery, selectedCategory, selectedStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Revisions survive route changes; mounted batches refresh once after settling.
+  useEffect(() => {
+    if (lastRefreshKey.current === refreshKey || isProcessing) return;
+    lastRefreshKey.current = refreshKey;
+    void fetchPage(currentPage, {
+      search: searchQuery || undefined,
+      category: selectedCategory,
+      status: selectedStatus,
+    });
+  }, [
+    refreshKey,
+    isProcessing,
+    currentPage,
+    fetchPage,
+    searchQuery,
+    selectedCategory,
+    selectedStatus,
+  ]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -304,6 +333,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
   useEffect(
     () => () => {
       pageRequestId.current += 1;
+      deleteOperation.current += 1;
     },
     []
   );
@@ -356,30 +386,70 @@ const ContentManager: React.FC<ContentManagerProps> = ({
     }
   };
 
-  // Bulk Delete Logic
-  const handleBulkDelete = async () => {
-    if (!onDelete || isProcessing) return;
+  const openDeletePreview = (items: (Post | Page)[]) => {
+    if (!onDelete || deleteInFlight.current) return;
+    const allowed = items.filter(canDeleteItem);
+    if (!allowed.length) return;
+    setDeleteError('');
+    setDeletePreview({ type, items: allowed.map((item) => ({ ...item })) });
+  };
 
-    if (confirm(`Are you sure you want to delete ${selectedItems.size} items?`)) {
-      setIsProcessing(true);
-      const itemsToDelete = Array.from(selectedItems);
+  const closeDeletePreview = () => {
+    if (deleteInFlight.current) return;
+    setDeletePreview(null);
+    setDeleteError('');
+  };
 
-      try {
-        for (const id of itemsToDelete) {
-          await onDelete(id, type === 'page', true);
-          await new Promise((r) => setTimeout(r, 100));
+  const handleBulkDelete = () => {
+    openDeletePreview(pageItems.filter((item) => selectedItems.has(item.id)));
+  };
+
+  const confirmDelete = async () => {
+    if (!onDelete || !deletePreview || deletePreview.type !== type || deleteInFlight.current)
+      return;
+    deleteInFlight.current = true;
+    const operation = ++deleteOperation.current;
+    const preview = deletePreview;
+    let remaining = preview.items;
+    let deleted = 0;
+    setIsProcessing(true);
+    setDeleteError('');
+    try {
+      for (const item of preview.items) {
+        if (deleteOperation.current !== operation) return;
+        const accepted = await onDelete(item.id, preview.type === 'page');
+        if (deleteOperation.current !== operation) return;
+        if (!accepted) {
+          setDeleteError(
+            'Deletion stopped. The items shown below were not confirmed deleted. Review them before retrying.'
+          );
+          return;
         }
-        setSelectedItems(new Set());
-        // Re-fetch current page after bulk delete
-        fetchPage(currentPage, {
-          search: searchQuery || undefined,
-          category: selectedCategory,
-          status: selectedStatus,
+        deleted++;
+        remaining = remaining.filter((candidate) => candidate.id !== item.id);
+        setPageItems((current) => current.filter((candidate) => candidate.id !== item.id));
+        setSelectedItems((current) => {
+          const next = new Set(current);
+          next.delete(item.id);
+          return next;
         });
-      } catch (e) {
-        console.error('Bulk delete interrupted', e);
-      } finally {
+        if (remaining.length) setDeletePreview({ ...preview, items: remaining });
+      }
+      setDeletePreview(null);
+    } catch {
+      if (deleteOperation.current === operation)
+        setDeleteError(
+          'Deletion could not be confirmed. Reload the list if needed, then review the remaining items before retrying.'
+        );
+    } finally {
+      if (deleteOperation.current === operation) {
+        deleteInFlight.current = false;
         setIsProcessing(false);
+        if (deleted) {
+          const page =
+            currentPage > 1 && deleted === pageItems.length ? currentPage - 1 : currentPage;
+          setCurrentPage(page);
+        }
       }
     }
   };
@@ -424,6 +494,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
             </h2>
             {selectedItems.size > 0 && onDelete && (
               <button
+                type="button"
+                title="Delete selected items"
+                aria-label="Review selected items for deletion"
                 onClick={handleBulkDelete}
                 disabled={isProcessing}
                 className="flex min-h-11 items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition-colors animate-fade-in hover:bg-red-200 disabled:cursor-wait disabled:opacity-50 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
@@ -682,10 +755,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           {onDelete && canDeleteItem(item) && (
                             <button
                               type="button"
-                              onClick={() => {
-                                if (confirm('Delete this item?'))
-                                  onDelete(item.id, type === 'page');
-                              }}
+                              onClick={() => openDeletePreview([item])}
                               aria-label={`Delete ${type}: ${decodeEntities(item.title)}`}
                               title="Delete"
                               className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
@@ -724,6 +794,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 <tr className="bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border text-xs uppercase text-slate-500 font-medium">
                   <th className="px-4 py-4 w-12">
                     <button
+                      type="button"
+                      aria-label="Select all deletable items on this page"
                       onClick={toggleSelectAll}
                       className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                     >
@@ -901,10 +973,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                             <div className="ml-3 border-l border-slate-200 pl-3 dark:border-admin-border">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (confirm('Delete this item?'))
-                                    onDelete(item.id, type === 'page');
-                                }}
+                                onClick={() => openDeletePreview([item])}
                                 aria-label={`Delete ${type}: ${decodeEntities(item.title)}`}
                                 title="Delete"
                                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-900/20"
@@ -935,6 +1004,84 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           )}
         </>
       )}
+      <AdminModal
+        isOpen={deletePreview !== null && deletePreview.type === type}
+        onClose={closeDeletePreview}
+        closeOnBackdrop={!isProcessing}
+        closeOnEscape={!isProcessing}
+        ariaLabel="Review content deletion"
+        className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-xl dark:border-admin-border dark:bg-admin-panel dark:text-slate-100"
+      >
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-admin-border">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <Trash2 size={20} className="text-red-600 dark:text-red-400" aria-hidden="true" />
+            Review deletion
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            {deletePreview?.items.length} {type}
+            {deletePreview?.items.length === 1 ? '' : 's'} selected. Check the details before
+            continuing.
+          </p>
+        </div>
+        <div className="max-h-[55dvh] space-y-3 overflow-y-auto p-5">
+          {deleteError && (
+            <p
+              role="alert"
+              className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200"
+            >
+              {deleteError}
+            </p>
+          )}
+          {deletePreview?.items.map((item) => (
+            <article
+              key={item.id}
+              className="min-w-0 rounded-xl border border-slate-200 p-4 dark:border-admin-border"
+            >
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-mono text-slate-500 dark:text-slate-400">#{item.id}</span>
+                <span className={`rounded-full px-2 py-0.5 ${getPostStatusClassName(item.status)}`}>
+                  {getPostStatusLabel(item.status)}
+                </span>
+              </div>
+              <h3 className="wrap-anywhere font-semibold">
+                {decodeEntities(item.title) || 'Untitled'}
+              </h3>
+              {item.excerpt && (
+                <p className="mt-2 line-clamp-3 wrap-anywhere whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">
+                  {decodeEntities(item.excerpt)}
+                </p>
+              )}
+              <p className="mt-2 wrap-anywhere text-xs text-slate-500 dark:text-slate-400">
+                {getAuthorName(item) && `${getAuthorName(item)} · `}
+                {item.slug ? `Slug: ${item.slug}` : 'No slug'}
+              </p>
+            </article>
+          ))}
+        </div>
+        <div className="border-t border-slate-200 p-5 dark:border-admin-border">
+          <p className="mb-4 text-sm text-red-700 dark:text-red-300">
+            Deletion is permanent. There is no Trash or Undo. Uploaded media files are not deleted.
+          </p>
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={closeDeletePreview}
+              className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:opacity-50 dark:border-admin-border dark:hover:bg-admin-hover"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => void confirmDelete()}
+              className="min-h-11 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {isProcessing ? 'Deleting...' : 'Delete permanently'}
+            </button>
+          </div>
+        </div>
+      </AdminModal>
     </div>
   );
 };

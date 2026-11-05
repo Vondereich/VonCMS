@@ -10,6 +10,27 @@ interface AdSettingsProps {
 export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) => {
   return (
     <div className="bg-slate-50 dark:bg-admin-canvas/50 rounded-xl p-6 space-y-8 animate-fade-in max-w-6xl mx-auto">
+      <aside
+        id="adsettings-public-notice"
+        aria-label="Public ad code"
+        className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+      >
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
+          <Info size={16} aria-hidden="true" /> Ad code is public
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs dark:bg-amber-900">
+            Public
+          </span>
+        </p>
+        <p className="mt-2">
+          Saved ad snippets and URLs are included in public site data and can be read through
+          browser developer tools, even when an ad slot is disabled. Never paste private API keys,
+          passwords or access tokens here. Use Settings &gt; API for your Gemini key.
+        </p>
+        <p className="mt-2 text-xs">
+          AdSense publisher IDs are public identifiers, not secret keys.
+        </p>
+      </aside>
+
       {/* GLOBAL SWITCH */}
       <div className="bg-white dark:bg-admin-panel p-6 rounded-2xl border border-slate-200 dark:border-admin-border shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -54,6 +75,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
             <div className="min-w-0 md:col-span-2 md:grid">
               <textarea
                 aria-label="Header ad code"
+                aria-describedby="adsettings-public-notice"
                 id="adsettings-52"
                 name="adsettings52"
                 rows={6}
@@ -144,6 +166,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
             <div className="min-w-0 md:col-span-2 md:grid">
               <textarea
                 aria-label="In-feed ad code"
+                aria-describedby="adsettings-public-notice"
                 id="adsettings-131"
                 name="adsettings131"
                 rows={6}
@@ -226,6 +249,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 id="adsettings-208"
                 name="adsettings208"
                 aria-label="Popup ad code"
+                aria-describedby="adsettings-public-notice"
                 rows={4}
                 value={settings.ads.popupAd}
                 onChange={(e) => onChange('popupAd', e.target.value)}

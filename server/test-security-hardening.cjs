@@ -119,7 +119,15 @@ $pdo=new QaDatabase;
       ]);
       const run = spawnSync(
         cgi,
-        ['-d', 'display_errors=0', '-d', `upload_tmp_dir=${path.join(fixture, 'php-tmp')}`],
+        [
+          '-d',
+          'display_errors=0',
+          // Failure injection replaces the copied processor; CGI must read its current contents.
+          '-d',
+          'opcache.enable=0',
+          '-d',
+          `upload_tmp_dir=${path.join(fixture, 'php-tmp')}`,
+        ],
         {
           cwd: fixture,
           input: body,

@@ -276,13 +276,7 @@ try {
   $where =
     " WHERE p.status = 'published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)";
   $currentTime = date('Y-m-d H:i:s');
-  $hasDisplayNameColumn = false;
-  try {
-    $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-    $hasDisplayNameColumn = $columnStmt && $columnStmt->rowCount() > 0;
-  } catch (Throwable $e) {
-    $hasDisplayNameColumn = false;
-  }
+  $hasDisplayNameColumn = voncms_has_display_name_column($pdo);
   $authorNameSql = $hasDisplayNameColumn
     ? "COALESCE(NULLIF(u.display_name, ''), u.username)"
     : 'u.username';

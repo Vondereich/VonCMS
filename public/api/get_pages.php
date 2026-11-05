@@ -39,13 +39,7 @@ try {
   if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
   }
-  $hasDisplayNameColumn = false;
-  try {
-    $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-    $hasDisplayNameColumn = $columnStmt && $columnStmt->rowCount() > 0;
-  } catch (Throwable $e) {
-    $hasDisplayNameColumn = false;
-  }
+  $hasDisplayNameColumn = voncms_has_display_name_column($pdo);
   $authorNameSql = $hasDisplayNameColumn
     ? "COALESCE(NULLIF(u.display_name, ''), u.username)"
     : 'u.username';

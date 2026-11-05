@@ -4,6 +4,7 @@ import { AISummaryComponent } from '../plugins/von-core/features/plugins/built-i
 import { AISummaryConfig } from '../plugins/von-core/features/plugins/built-in/ai-summary/types';
 import { RelatedPostsComponent } from '../plugins/von-core/features/plugins/built-in/related-posts/RelatedPostsComponent';
 import { RelatedPostsConfig } from '../plugins/von-core/features/plugins/built-in/related-posts/types';
+import { normalizeTaxonomyValue } from '../plugins/von-core/features/plugins/built-in/related-posts/matcher';
 import { isSystemPluginActive } from '../utils/pluginRuntime';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
@@ -79,9 +80,13 @@ const fetchRelatedPostCandidates = async (
     return rawPosts.map(normalizeRelatedPostCandidate);
   };
 
-  const batches = currentPost.category
-    ? await Promise.all([fetchBatch(currentPost.category), fetchBatch()])
-    : [await fetchBatch()];
+  const results = await Promise.allSettled(
+    currentPost.category ? [fetchBatch(currentPost.category), fetchBatch()] : [fetchBatch()]
+  );
+  const batches = results.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : []
+  );
+  if (batches.length === 0) throw new Error('Failed to fetch related post candidates');
   const merged = new Map<string, Post>();
   const currentPostId = String(currentPost.id || '');
 
@@ -149,27 +154,40 @@ export function useRelatedPosts(
     count: safeRelatedCount,
   };
   const candidateFetchLimit = getRelatedCandidateLimit(safeRelatedCount);
+  const currentPostCategory = currentPost?.category || '';
+  const normalizedCurrentCategory = normalizeTaxonomyValue(currentPostCategory);
+  const localCandidates = Array.isArray(allPosts) ? allPosts : [];
+  const localPublishedCandidates = currentPost
+    ? localCandidates.filter(
+        (post) =>
+          String(post.id || '') !== String(currentPost.id || '') && post.status === 'published'
+      )
+    : [];
   const localPublishedCandidateCount =
-    Array.isArray(allPosts) && currentPost
-      ? allPosts.filter(
-          (post) =>
-            String(post.id || '') !== String(currentPost.id || '') && post.status === 'published'
-        ).length
-      : 0;
-  const hasCompleteLocalCandidateSet = localPublishedCandidateCount >= candidateFetchLimit;
+    normalizedCurrentCategory === ''
+      ? localPublishedCandidates.length
+      : localPublishedCandidates.filter(
+          (post) => normalizeTaxonomyValue(post.category) === normalizedCurrentCategory
+        ).length;
+  const hasCompleteLocalCandidateSet =
+    localPublishedCandidateCount >= candidateFetchLimit &&
+    (config.orderBy !== 'views' ||
+      localPublishedCandidates.every(
+        (post) => typeof post.views === 'number' && Number.isFinite(post.views)
+      ));
   const [fallbackCandidateState, setFallbackCandidateState] = useState<{
     postId: string;
-    posts: Post[];
+    // null means unavailable; a successful empty response remains authoritative.
+    posts: Post[] | null;
   }>({ postId: '', posts: [] });
   const relatedEnabled = config.enabled;
   const currentPostId = String(currentPost?.id || '');
-  const currentPostCategory = currentPost?.category || '';
   const currentPostStatus = currentPost?.status;
 
   useEffect(() => {
     if (!isActive || !relatedEnabled || !currentPostId || currentPostStatus !== 'published') {
       setFallbackCandidateState((current) =>
-        current.postId || current.posts.length ? { postId: '', posts: [] } : current
+        current.postId || current.posts?.length ? { postId: '', posts: [] } : current
       );
       return;
     }
@@ -192,9 +210,7 @@ export function useRelatedPosts(
       .catch((error) => {
         if (abortController.signal.aborted) return;
         console.warn('Related posts fallback fetch failed:', error);
-        setFallbackCandidateState((current) =>
-          current.postId === fallbackPostId ? { postId: '', posts: [] } : current
-        );
+        setFallbackCandidateState({ postId: fallbackPostId, posts: null });
       });
 
     return () => abortController.abort();
@@ -210,9 +226,9 @@ export function useRelatedPosts(
 
   const candidatePosts =
     fallbackCandidateState.postId === currentPostId
-      ? fallbackCandidateState.posts
+      ? (fallbackCandidateState.posts ?? localCandidates)
       : hasCompleteLocalCandidateSet
-        ? allPosts
+        ? localCandidates
         : [];
 
   if (!isActive || !currentPost || !config.enabled || candidatePosts.length === 0) return null;

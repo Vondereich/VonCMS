@@ -51,20 +51,15 @@ if (!($pdo instanceof PDO)) {
 
 try {
   voncms_apply_site_timezone($pdo);
-  $hasDisplayNameColumn = false;
-  try {
-    $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-    $hasDisplayNameColumn = $columnStmt && $columnStmt->rowCount() > 0;
-  } catch (Throwable $e) {
-    $hasDisplayNameColumn = false;
-  }
+  $hasDisplayNameColumn = voncms_has_display_name_column($pdo);
   $authorNameSql = $hasDisplayNameColumn
     ? "COALESCE(NULLIF(u.display_name, ''), u.username)"
     : 'u.username';
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
   $isAdmin = SessionManager::isAdmin();
-  $currentRole = strtolower(DataBoundary::userText('role'));
+  $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
+  $currentRole = $hasValidSession ? strtolower(DataBoundary::userText('role')) : '';
   $canReadAnyProtectedPost = voncms_role_has_capability($currentRole, 'posts.read_any_protected');
   $canReadOwnProtectedPost = voncms_role_has_capability($currentRole, 'posts.read_own_protected');
   $canReadProtectedPost = $canReadAnyProtectedPost || $canReadOwnProtectedPost;

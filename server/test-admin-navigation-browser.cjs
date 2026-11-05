@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const useRealEditor = process.argv.includes('--real-editor');
@@ -18,6 +18,11 @@ const useAuth = process.argv.includes('--auth');
 const useUsers = process.argv.includes('--users');
 const useWpBridge = process.argv.includes('--wp-bridge');
 const useThemeHooks = process.argv.includes('--theme-hooks');
+const useRelatedPosts = process.argv.includes('--related-posts');
+const useNativeTracking = process.argv.includes('--native-tracking');
+const useDeletePreview = process.argv.includes('--delete-preview');
+const useNewsSitemap = process.argv.includes('--news-sitemap');
+const legacyDeletePreview = useDeletePreview && process.argv.includes('--legacy-delete');
 const legacyHeaderMutation = useThemeHooks && process.argv.includes('--legacy-header');
 const chromePath =
   process.env.CHROME_BIN || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -44,7 +49,7 @@ async function main() {
   const start = app.indexOf('const PostEditorWrapper:');
   const end = app.indexOf('export default App;');
   assert.ok(start > 0 && end > start, 'Actual editor wrapper must be available.');
-  const wrapper = `
+  let wrapper = `
     import React, {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
     import {useNavigate,useSearchParams,useLocation,Navigate} from 'react-router';
     import {createEmptyEditorItem} from '/src/hooks/useContent.ts';
@@ -103,16 +108,18 @@ async function main() {
       useAdsWorkspace
         ? `settings.ads={adsEnabled:false,popupEnabled:false,inFeedFrequency:6,
       headerAd:'<!-- Header sample -->',inFeedAd:'<!-- In-feed sample -->',popupAd:'<!-- Popup sample -->'};
-    settings.navigation=[];settings.api={};settings._canManageSecrets=true;
+    settings.navigation=[];settings.api={};settings._canManageSecrets=params.get('appointed')!=='1';
     window.__adsFixtureSettings=settings;`
         : ''
     }
     const oldPost={id:'42',title:'Existing article',content:'Original',status:'draft',category:'News'};
-    const noWrite=()=>{throw new Error('No fixture writes allowed')};
+    const noWrite=()=>{${useDashboard ? 'window.__qaDashboardWrites += 1;' : ''}throw new Error('No fixture writes allowed')};
     ${
       useDashboard
         ? `
     window.__qaAnalyticsRequests=[];
+    window.__qaDashboardWrites=0;
+    settings._canManageSecrets=params.get('owner')==='1'||params.get('role')==='Root';
     window.__qaPendingComments=[];
     window.__qaHoldComments=true;
     window.fetch=async(input,options={})=>{
@@ -129,6 +136,8 @@ async function main() {
         else {
           const day=offset=>{const d=new Date();d.setDate(d.getDate()+offset);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
           result.analytics={daily:[{visit_date:day(-1),visits:17,unique_visitors:10},{visit_date:day(0),visits:20,unique_visitors:12}],totals:{total_views:37,unique_visitors:19},mode:url.searchParams.get('mode')};
+          const scenario=params.get('traffic');
+          if(scenario==='empty'||scenario==='repair')result.analytics={...result.analytics,daily:[],totals:{total_views:0,unique_visitors:0},needsRepair:scenario==='repair'};
         }
       }
       return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json'}});
@@ -279,7 +288,7 @@ async function main() {
       }
       ${useUsers ? 'return React.createElement(UserManager,{users:[],currentUser:user,onAddUser:noWrite,onDeleteUser:noWrite,onUpdateUser:async value=>{window.__userUpdates.push(value);return window.__userUpdateResult;}});' : ''}
       ${useRealEditor ? 'React.useEffect(()=>{window.__qaSaved={posts:contentState.posts,pages:contentState.pages}},[contentState.posts,contentState.pages]);' : ''}
-      const content=${useSecurity ? "route.pathname==='/admin/security' ? React.createElement(SecurityDashboard,{isPrimaryAdmin:false}) :" : ''} ${useDashboard ? "route.pathname==='/admin/dashboard' ? React.createElement(Dashboard,{posts:[],pages:[],users:[],comments:[],currentUser:user,timeZone:'UTC'}) :" : ''} ${useCalendar ? "route.pathname==='/admin/calendar' ? React.createElement(ProtectedRoute,{user,allowedRoles:['Admin','Moderator']},React.createElement(CalendarManager,{settings})) :" : ''} ${useAdsWorkspace ? "route.pathname==='/admin/settings' ? React.createElement(SettingsView,{settings,onUpdate:noWrite,notify:noWrite}) :" : ''} route.pathname==='/admin/extensions'
+      const content=${useSecurity ? "route.pathname==='/admin/security' ? React.createElement(SecurityDashboard,{isPrimaryAdmin:false}) :" : ''} ${useDashboard ? "route.pathname==='/admin/dashboard' ? React.createElement(Dashboard,{posts:[],pages:[],users:[],comments:[],currentUser:user,timeZone:'UTC',analyticsMode:params.get('collection')||'strict',analyticsEnabled:params.get('analytics')!=='off',canManageAnalytics:settings._canManageSecrets===true}) :" : ''} ${useCalendar ? "route.pathname==='/admin/calendar' ? React.createElement(ProtectedRoute,{user,allowedRoles:['Admin','Moderator']},React.createElement(CalendarManager,{settings})) :" : ''} ${useAdsWorkspace ? "route.pathname==='/admin/settings' ? React.createElement(SettingsView,{settings,onUpdate:noWrite,notify:noWrite}) :" : ''} route.pathname==='/admin/extensions'
         ? React.createElement(ExtensionsManager,{settings:${useExtensionLifecycle ? 'extensionSettings' : 'settings'},onUpdateSettings:${useExtensionLifecycle ? 'saveExtensionSettings' : 'noWrite'}})
         : route.pathname==='/admin/editor'
           ? React.createElement(Wrapper,{editingItem:oldPost,isPage:false,user,settings,navigation:[],posts:[oldPost],pages:[],handleSaveContent:${useRealEditor ? 'contentState.handleSaveContent' : 'noWrite'},handleUpdateSettings:noWrite})
@@ -291,6 +300,23 @@ async function main() {
       React.createElement(BrowserRouter,{basename:location.pathname.startsWith('/zangetsu/')?'/zangetsu':undefined},
         React.createElement(ThemeProvider,{},React.createElement(Fixture))));
   `;
+  if (useNewsSitemap)
+    fixture = `
+    import React from 'react';
+    import {createRoot} from 'react-dom/client';
+    import {BrowserRouter} from 'react-router';
+    import {VonSEOSettings} from '/src/plugins/von-core/features/extensions/components/VonSEOSettings.tsx';
+    import '/src/index.css';
+    const base=location.pathname.startsWith('/zangetsu/')?'/zangetsu':'';
+    const params=new URLSearchParams(location.search);
+    document.documentElement.classList.toggle('dark',params.get('dark')==='1');
+    const settings={siteName:'News QA',site_language:'ms-MY',domainUrl:location.origin+base,
+      categories:['Berita','Sukan'],seo:{sitemapEnabled:true},theme:{},pluginConfig:{}};
+    window.__newsWrites=[];window.__newsAccept=false;window.__newsClosed=0;
+    window.fetch=async()=>new Response(JSON.stringify({success:true,robots:'User-agent: *'}),{headers:{'Content-Type':'application/json'}});
+    createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{},
+      React.createElement(VonSEOSettings,{settings,onUpdate:async value=>{window.__newsWrites.push(value);return window.__newsAccept;},onClose:()=>{window.__newsClosed++;}})));
+    `;
   if (useThemeHooks)
     fixture = `
     import React from 'react';
@@ -334,6 +360,244 @@ async function main() {
     }
     createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base||undefined},React.createElement(Fixture)));
   `;
+  if (useRelatedPosts)
+    fixture = `
+    import React from 'react';
+    import {createRoot} from 'react-dom/client';
+    import {BrowserRouter,Link,useLocation,useNavigate} from 'react-router';
+    import {useRelatedPosts} from '/src/hooks/usePlugins.tsx';
+    import '/src/index.css';
+    const base=location.pathname.startsWith('/zangetsu/')?'/zangetsu':'';
+    const params=new URLSearchParams(location.search);
+    const record=(id,fields={})=>({id,title:'Article '+id,slug:'qa-'+id.toLowerCase(),content:'QA',excerpt:'QA excerpt',status:'published',category:'Sports',keywords:'football',publishedAt:'2026-11-02T00:00:00Z',views:0,...fields});
+    const articles=['A','B','C','D',...Array.from({length:24},(_,i)=>'E'+i)].map((id,index)=>record(id,{views:index+1}));
+    const local=Array.from({length:25},(_,i)=>record('local'+i,{category:'Business'}));
+    const settings={siteName:'Related fixture',domainUrl:location.origin+base,permalinkStructure:'slug',timeZone:'UTC',activePlugins:['vp_related_posts'],pluginConfig:{vp_related_posts:{enabled:true,count:Number(params.get('count')||6),orderBy:params.get('sort')||'relevance',layout:'grid',showImage:false,showExcerpt:true,showDate:true,titleText:'Related Posts'}}};
+    window.__qaRelatedRequests=[];
+    window.fetch=async(input,options={})=>{
+      const url=new URL(input,location.href);
+      if(url.origin!==location.origin||options.method&&options.method!=='GET')throw new Error('Related fixture forbids writes and external requests');
+      if(!url.pathname.endsWith('/api/get_posts.php'))throw new Error('Unexpected Related fixture endpoint');
+      window.__qaRelatedRequests.push(url.pathname+url.search);
+      const failed=params.get('fault')==='all'||params.get('fault')==='global'&&!url.searchParams.has('category');
+      return new Response(JSON.stringify(failed?{error:'Fixture candidate failure'}:{posts:articles.slice(0,Number(url.searchParams.get('limit')))}),{status:failed?503:200,headers:{'Content-Type':'application/json'}});
+    };
+    function Fixture(){
+      const route=useLocation(),navigate=useNavigate();
+      const id=route.pathname.split('/').at(-1).replace('qa-','').toUpperCase();
+      const selected=articles.find(post=>post.id===id)||null;
+      const related=useRelatedPosts(settings,selected,local,post=>navigate('/'+post.slug+route.search));
+      return React.createElement('main',{style:{maxWidth:1100,margin:'0 auto',padding:16}},
+        React.createElement('h1',{id:'qa-related-title'},selected?.title||'Homepage'),
+        React.createElement(Link,{id:'qa-related-entry',to:'/qa-a'+route.search},'Open article A'),related);
+    }
+    createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base||undefined},React.createElement(Fixture)));
+  `;
+  let nativeCrawlerMeta = '';
+  if (useNativeTracking) {
+    const php = require('./lint-php.cjs').findPhpBinary();
+    assert.ok(php, 'Native tracking browser regression requires PHP for the real document marker');
+    const marker = spawnSync(
+      php,
+      [
+        '-r',
+        `
+      $_SERVER['HTTP_USER_AGENT']='Mozilla/5.0 (compatible; ExaSearchBot/1.0)';
+      require ${JSON.stringify(path.join(root, 'public/api/analytics_consent_helper.php'))};
+      echo voncms_tracking_document_meta();
+    `,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(marker.status, 0, marker.stderr);
+    nativeCrawlerMeta = marker.stdout.trim();
+    assert.equal(nativeCrawlerMeta, '<meta name="voncms-tracking" content="excluded">');
+    fixture = `
+      import React from 'react';
+      import {createRoot} from 'react-dom/client';
+      import {BrowserRouter,useLocation,useNavigate} from 'react-router';
+      import {ThemeProvider} from '/src/plugins/von-core/features/themes/ThemeContext.tsx';
+      import PublicSite from '/src/plugins/von-core/features/public/PublicSite.tsx';
+      import '/src/index.css';
+      const params=new URLSearchParams(location.search),base=location.pathname.startsWith('/zangetsu/')?'/zangetsu':'';
+      const article={id:'7',slug:'qa-article',title:'Public QA article',excerpt:'QA excerpt',content:'<p>Public QA content</p>',category:'News',status:'published',author:'qa',publishedAt:'2026-11-04T00:00:00Z'};
+      const page={...article,id:'8',slug:'qa-page',title:'Public QA page'};
+      const settings={siteName:'Native tracking QA',domainUrl:location.origin+base,postsPerPage:10,activePlugins:['vp_analytics','vp_von_seo'],pluginConfig:{},analytics:{measurementMode:params.get('mode')||'strict',cookieConsent:false},theme:{},navigation:[],sidebarLayout:[],ads:{adsEnabled:false}};
+      window.__qaNativeCalls=[];
+      window.fetch=async(input,options={})=>{
+        const url=new URL(input,location.href);
+        if(url.origin!==location.origin)throw new Error('Native tracking fixture forbids external requests');
+        if(url.pathname.endsWith('/api/track_monolithic.php')){
+          window.__qaNativeCalls.push({path:url.pathname,payload:JSON.parse(options.body)});
+          return new Response(JSON.stringify({success:true,visit:true,retry:false,view:true}),{headers:{'Content-Type':'application/json'}});
+        }
+        if(options.method&&options.method!=='GET')throw new Error('Unexpected native fixture mutation');
+        return new Response(JSON.stringify({success:true,csrf_token:'qa-native-tracking-token',posts:[article],pages:[page],comments:[],meta:{total:1}}),{headers:{'Content-Type':'application/json'}});
+      };
+      const noop=()=>{};
+      function Fixture(){
+        const route=useLocation(),navigate=useNavigate();
+        window.__qaNativeNavigate=path=>navigate(path+route.search);
+        const view=route.pathname.endsWith('/article')?'single-post':route.pathname.endsWith('/page')?'page':'home';
+        React.useEffect(()=>{window.__qaNativeReady=true},[]);
+        return React.createElement(PublicSite,{posts:[article],pages:[page],settings,user:null,comments:[],allUsers:[],currentView:view,selectedPost:view==='single-post'?article:null,selectedPage:view==='page'?page:null,selectedProfile:null,onAddComment:noop,onLikeComment:noop,onReplyComment:noop,onNavigateAdmin:noop,onLogin:noop,onLogout:noop,isDarkMode:false,toggleDarkMode:noop,onPostClick:noop,onViewProfile:noop,onBackToHome:noop});
+      }
+      createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base||undefined},React.createElement(ThemeProvider,{initialThemeId:'theme-default'},React.createElement(Fixture))));
+    `;
+  }
+  let legacyDeleteSource;
+  if (useDeletePreview) {
+    // Preserve the real route ancestry: Page's permission guard changes wrapper lifetime.
+    const appAst = ts.createSourceFile(
+      'App.tsx',
+      app,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+    const contentRouteElements = new Map();
+    function collectContentRoutes(node) {
+      if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(appAst) === 'Route') {
+        const routePath = node.attributes.properties.find(
+          (prop) => ts.isJsxAttribute(prop) && prop.name.getText(appAst) === 'path'
+        );
+        if (
+          routePath?.initializer &&
+          ts.isStringLiteral(routePath.initializer) &&
+          ['posts', 'pages'].includes(routePath.initializer.text)
+        ) {
+          const element = node.attributes.properties.find(
+            (prop) => ts.isJsxAttribute(prop) && prop.name.getText(appAst) === 'element'
+          );
+          assert.ok(
+            element?.initializer &&
+              ts.isJsxExpression(element.initializer) &&
+              element.initializer.expression
+          );
+          const source = element.initializer.expression
+            .getText(appAst)
+            .replaceAll('ContentManagerWrapper', 'Wrapper');
+          const code = ts.transpileModule('const element = ' + source + ';', {
+            fileName: 'content-route.tsx',
+            compilerOptions: {
+              module: ts.ModuleKind.ESNext,
+              target: ts.ScriptTarget.ES2022,
+              jsx: ts.JsxEmit.React,
+            },
+          }).outputText;
+          const compiled = ts.createSourceFile(
+            'content-route.js',
+            code,
+            ts.ScriptTarget.Latest,
+            true,
+            ts.ScriptKind.JS
+          );
+          const statement = compiled.statements.find((candidate) =>
+            ts.isVariableStatement(candidate)
+          );
+          const declaration = statement?.declarationList.declarations.find(
+            (candidate) => candidate.name.getText(compiled) === 'element'
+          );
+          assert.ok(
+            declaration?.initializer && !contentRouteElements.has(routePath.initializer.text)
+          );
+          contentRouteElements.set(
+            routePath.initializer.text,
+            declaration.initializer.getText(compiled)
+          );
+        }
+      }
+      ts.forEachChild(node, collectContentRoutes);
+    }
+    collectContentRoutes(appAst);
+    assert.equal(
+      contentRouteElements.size,
+      2,
+      'Both actual App content route elements are required'
+    );
+    const contentStart = app.indexOf('const ContentManagerWrapper:');
+    const contentEnd = app.indexOf('interface PostEditorWrapperProps');
+    assert.ok(contentStart > 0 && contentEnd > contentStart);
+    wrapper = `
+      import React from 'react';
+      import {useNavigate} from 'react-router';
+      import ContentManager from '/src/plugins/von-core/features/content/ContentManager.tsx';
+      import {API} from '/src/config/site.config.ts';
+      import {vonFetch} from '/src/utils/api.ts';
+      const toast={error:message=>window.__deleteErrors.push(message)};
+      ${app.slice(contentStart, contentEnd)}
+      export default ContentManagerWrapper;
+    `;
+    if (legacyDeletePreview) {
+      const zip = require('./zip-archive-helper.cjs');
+      legacyDeleteSource = zip
+        .inflateZipArchive(
+          zip.parseZipArchive(fs.readFileSync(path.join(root, 'VonCMS_v1.28.1_Source.zip')))
+        )
+        .get('src/plugins/von-core/features/content/ContentManager.tsx')
+        .toString();
+      assert.ok(
+        legacyDeleteSource.includes("confirm('Delete this item?')"),
+        'Counterfactual requires the preceding ZIP implementation'
+      );
+    }
+    fixture = `
+      import React from 'react';
+      import {createRoot} from 'react-dom/client';
+      import {BrowserRouter,Routes,Route} from 'react-router';
+      import {ThemeProvider} from '/src/plugins/von-core/features/themes/ThemeContext.tsx';
+      import ProtectedRoute from '/src/components/ProtectedRoute.tsx';
+      import {useContent} from '/src/hooks/useContent.ts';
+      import Wrapper from '/__navigation-wrapper.tsx';
+      import '/src/index.css';
+      const base=window.VON_BASE;
+      const params=new URLSearchParams(location.search);
+      const sample={title:'R&D <img src=x onerror=bad()> - Nur\\'Aini',excerpt:'Text x<y & punctuation. No HTML execution.',slug:'sample-post',author:'QA Writer',createdAt:'2026-11-04T08:00:00Z',updatedAt:'2026-11-04T08:00:00Z'};
+      window.__deleteRecords={post:[{...sample,id:'801',status:'published'},{...sample,id:'802',title:'Draft record',status:'draft'},{...sample,id:'803',title:'Scheduled record',status:'scheduled'}],page:[{...sample,id:'901',status:'published'},{...sample,id:'902',title:'Draft page',status:'draft'}]};
+      window.__deleteCalls=[];window.__deleteReadCalls=[];window.__deleteReadRequests=[];window.__deleteErrors=[];window.__deleteFailId=null;window.__deleteFault='';window.__deleteHold=false;window.__deleteReleases=[];window.__deleteInvalidations=[];
+      window.fetch=async(input,options={})=>{
+        const url=new URL(typeof input==='string'?input:input.url,location.href);
+        const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
+        if(url.origin!==location.origin)throw Error('External request forbidden');
+        if(url.pathname===base+'api.php'&&url.searchParams.get('action')==='get_csrf_token')return reply({success:true,csrf_token:'fixture-only-token'});
+        const kind=url.pathname.includes('page')?'page':'post';
+        if(url.pathname===base+'api/get_posts.php'||url.pathname===base+'api/get_pages.php'){
+          window.__deleteReadCalls.push(kind);
+          const records=window.__deleteRecords[kind];
+          const page=Number(url.searchParams.get('page')||1),limit=20,totalPages=Math.max(1,Math.ceil(records.length/limit));
+          window.__deleteReadRequests.push({kind,page});
+          return reply({success:true,[kind==='page'?'pages':'posts']:records.slice((page-1)*limit,page*limit),meta:{page,limit,total:records.length,totalPages,hasMore:page<totalPages}});
+        }
+        if(url.pathname===base+'api/delete_post.php'||url.pathname===base+'api/delete_page.php'){
+          const body=JSON.parse(options.body||'{}');
+          window.__deleteCalls.push({kind,id:body.id,method:options.method,csrf:options.headers?.['X-CSRF-TOKEN']});
+          if(window.__deleteHold)await new Promise(resolve=>window.__deleteReleases.push(resolve));
+          if(window.__deleteFault==='network')throw Error('Fixture network failure');
+          if(window.__deleteFault==='json')return new Response('invalid-json');
+          if(window.__deleteFault==='http')return reply({success:true},503);
+          if(window.__deleteFault==='session')return reply({success:false,error:'Fixture expired session'},401);
+          if(window.__deleteFailId===body.id)return reply({success:false,error:'Fixture deletion rejected'},403);
+          window.__deleteRecords[kind]=window.__deleteRecords[kind].filter(item=>item.id!==body.id);
+          return reply({success:true,id:body.id});
+        }
+        throw Error('Unexpected fixture request '+url.pathname);
+      };
+      function Fixture(){
+        const content=useContent();
+        const {posts,pages,setPosts,setPages,contentRefreshKeys}=content;
+        const settings={siteName:'Delete preview QA',timeZone:'UTC',navigation:[]};
+        const handleEdit=()=>{},onToggleNav=()=>{};
+        const invalidateContentLoadCoverage=kind=>{window.__deleteInvalidations.push(kind);content.invalidateContentLoadCoverage(kind)};
+        React.useEffect(()=>{window.__deleteRevision=contentRefreshKeys},[contentRefreshKeys]);
+        React.useEffect(()=>{document.documentElement.classList.toggle('dark',params.get('dark')==='1');window.__deleteReady=true},[]);
+        const user={id:'1',role:params.get('role')||'Admin'};
+        return React.createElement(Routes,null,
+          React.createElement(Route,{path:'/admin/posts',element:${contentRouteElements.get('posts')}}),
+          React.createElement(Route,{path:'/admin/pages',element:${contentRouteElements.get('pages')}}));
+      }
+      createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base==='/'?undefined:base.slice(0,-1)},React.createElement(ThemeProvider,{},React.createElement(Fixture))));
+    `;
+  }
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-navigation-'));
   try {
     calendarFixture = useCalendar ? require('./test-calendar.cjs').createCalendarFixture() : null;
@@ -362,6 +626,13 @@ async function main() {
             }
           },
           transform(code, id) {
+            if (
+              legacyDeleteSource &&
+              id
+                .replaceAll('\\', '/')
+                .endsWith('/src/plugins/von-core/features/content/ContentManager.tsx')
+            )
+              return legacyDeleteSource;
             if (
               legacyHeaderMutation &&
               id.replaceAll('\\', '/').endsWith('/src/themes/techpress/Layout.tsx')
@@ -464,12 +735,18 @@ async function main() {
               }
               if (
                 !/^\/(?:zangetsu\/)?admin(?:\/|\?|$)/.test(req.url || '') &&
-                !(useAuth && /^\/(?:zangetsu\/)?login(?:\?|$)/.test(req.url || ''))
+                !(useAuth && /^\/(?:zangetsu\/)?login(?:\?|$)/.test(req.url || '')) &&
+                !(useRelatedPosts && /^\/(?:zangetsu\/)?qa-[a-z0-9-]+(?:\?|$)/.test(req.url || ''))
               )
                 return next();
               const html = await vite.transformIndexHtml(
                 req.url,
-                '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body,#root,.admin-shell{height:100%;margin:0}</style></head><body><div id="root"></div><script>window.VON_BASE=location.pathname.startsWith("/zangetsu/")?"/zangetsu/":"/"</script><script type="module" src="/__navigation-fixture.js"></script></body></html>'
+                '<!doctype html><html><head>' +
+                  (useNativeTracking &&
+                  new URL(req.url, 'http://fixture').searchParams.get('crawler') === '1'
+                    ? nativeCrawlerMeta
+                    : '') +
+                  '<meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body,#root,.admin-shell{height:100%;margin:0}</style></head><body><div id="root"></div><script>window.VON_BASE=location.pathname.startsWith("/zangetsu/")?"/zangetsu/":"/"</script><script type="module" src="/__navigation-fixture.js"></script></body></html>'
               );
               res.setHeader('Content-Type', 'text/html');
               res.end(html);
@@ -726,6 +1003,713 @@ async function main() {
     );
     assert.equal(await evaluate('globalThis.__qaArgumentExecuted'), undefined);
     console.log('PASS CDP argument transport: selectors and hostile/Unicode text remain data.');
+    if (useNewsSitemap) {
+      const field = (selector, value) =>
+        evaluateFunction(
+          `function(selector,value){const input=document.querySelector(selector);const proto=input.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(input,value);input.dispatchEvent(new Event(input.tagName==='SELECT'?'change':'input',{bubbles:true}));}`,
+          selector,
+          value
+        );
+      const save = () =>
+        evaluate(
+          "[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Save SEO Settings').click()"
+        );
+      for (const base of ['', '/zangetsu']) {
+        for (const dark of [false, true]) {
+          await metrics(1280, 900);
+          await send('Page.navigate', {
+            url: `http://127.0.0.1:${port}${base}/admin/extensions?dark=${dark ? 1 : 0}`,
+          });
+          await wait(
+            "!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Advanced')"
+          );
+          await evaluate(
+            "[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Advanced').click()"
+          );
+          await wait("!!document.querySelector('#news-sitemap-enabled')");
+          assert.equal(
+            await evaluate("document.querySelector('#news-sitemap-enabled').checked"),
+            false
+          );
+          assert.equal(
+            await evaluate("document.querySelector('#news-sitemap-language').matches(':disabled')"),
+            true
+          );
+          await click('#news-sitemap-enabled');
+          await field('#news-sitemap-scope', 'categories');
+          await pause(100);
+          await save();
+          assert.equal(
+            await evaluate('window.__newsWrites.length'),
+            0,
+            'Empty selection must not save as all categories'
+          );
+          await evaluate(
+            "[...document.querySelectorAll('label')].find(l=>l.textContent.trim()==='Berita').querySelector('input').click()"
+          );
+          await field('#news-sitemap-publication', 'Édition & Dunia');
+          await field('#news-sitemap-language', 'ms');
+          await save();
+          await wait('window.__newsWrites.length===1');
+          assert.equal(
+            await evaluate('window.__newsClosed'),
+            0,
+            'Rejected save must keep the dialog open'
+          );
+          assert.equal(
+            await evaluate("document.querySelector('#news-sitemap-publication').value"),
+            'Édition & Dunia'
+          );
+          assert.deepEqual(await evaluate('window.__newsWrites[0].seo.newsSitemap'), {
+            enabled: true,
+            publicationName: 'Édition & Dunia',
+            language: 'ms',
+            scope: 'categories',
+            categories: ['Berita'],
+          });
+          assert.equal(
+            await evaluate(
+              "[...document.querySelectorAll('a')].find(a=>a.textContent.includes('View News Sitemap')).getAttribute('href')"
+            ),
+            `http://127.0.0.1:${port}${base}/sitemap-news.xml`
+          );
+          await evaluate('window.__newsAccept=true');
+          await save();
+          await wait('window.__newsClosed===1');
+          assert.equal(
+            await evaluate('window.__newsWrites.length'),
+            2,
+            'Retry must save the retained draft'
+          );
+          await evaluate("document.querySelector('#vonseosettings-374').click()");
+          await pause(100);
+          assert.equal(
+            await evaluate("document.querySelector('#news-sitemap-enabled').matches(':disabled')"),
+            true
+          );
+          assert.equal(
+            await evaluate("document.querySelector('#news-sitemap-enabled').checked"),
+            true,
+            'Master OFF must retain News settings'
+          );
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        'PASS News settings browser: default OFF, master switch, category validation, Unicode draft, failed-save/retry and root/subfolder feed links in light/dark mode.'
+      );
+      return;
+    }
+    if (useDeletePreview) {
+      let cases = 0;
+      const dialog = '[role="dialog"][aria-label="Review content deletion"]';
+      const confirm = dialog + ' button:last-child';
+      const cancel = dialog + ' button:first-child';
+      for (const base of ['', '/zangetsu']) {
+        for (const type of ['post', 'page']) {
+          for (const width of [390, 768, 1440]) {
+            for (const dark of [false, true]) {
+              await metrics(width, 900);
+              await send('Page.navigate', {
+                url: `http://127.0.0.1:${port}${base}/admin/${type === 'post' ? 'posts' : 'pages'}?dark=${dark ? '1' : '0'}`,
+              });
+              const area = width >= 1024 ? 'table' : 'article';
+              const target = area + ` button[aria-label^="Delete ${type}:"]`;
+              await wait(
+                `window.__deleteReady && !!document.querySelector(${JSON.stringify(target)})`
+              );
+              await click(target);
+              assert.equal(
+                await evaluateFunction(
+                  'function(selector){return !!document.querySelector(selector)}',
+                  dialog
+                ),
+                true,
+                'Delete must open a real preview before any mutation'
+              );
+              assert.equal(await evaluate('window.__deleteCalls.length'), 0);
+              assert.equal(
+                await evaluateFunction(
+                  'function(selector){return document.querySelector(selector).textContent.includes("R&D <img src=x onerror=bad()> - Nur\'Aini") && !document.querySelector(selector+" img")}',
+                  dialog
+                ),
+                true,
+                'Hostile-looking titles stay plain text'
+              );
+              assert.equal(await evaluate('document.activeElement.textContent'), 'Cancel');
+              await send('Input.dispatchKeyEvent', {
+                type: 'keyDown',
+                key: 'Tab',
+                code: 'Tab',
+                windowsVirtualKeyCode: 9,
+                modifiers: 8,
+              });
+              await send('Input.dispatchKeyEvent', {
+                type: 'keyUp',
+                key: 'Tab',
+                code: 'Tab',
+                windowsVirtualKeyCode: 9,
+                modifiers: 8,
+              });
+              assert.equal(
+                await evaluate('document.activeElement.textContent'),
+                'Delete permanently',
+                'Focus stays inside the preview'
+              );
+              assert.equal(
+                await evaluateFunction(
+                  'function(selector){const el=document.querySelector(selector);const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&document.documentElement.scrollWidth<=innerWidth}',
+                  dialog
+                ),
+                true,
+                'Dialog fits desktop/tablet/phone'
+              );
+              await click(cancel);
+              assert.equal(await evaluate('window.__deleteCalls.length'), 0);
+              await click(target);
+              await send('Input.dispatchMouseEvent', {
+                type: 'mousePressed',
+                x: 2,
+                y: 2,
+                button: 'left',
+                clickCount: 1,
+              });
+              await send('Input.dispatchMouseEvent', {
+                type: 'mouseReleased',
+                x: 2,
+                y: 2,
+                button: 'left',
+                clickCount: 1,
+              });
+              await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+              assert.equal(
+                await evaluate('window.__deleteCalls.length'),
+                0,
+                'Backdrop dismissal cannot delete'
+              );
+              await click(target);
+              await send('Input.dispatchKeyEvent', {
+                type: 'keyDown',
+                key: 'Escape',
+                code: 'Escape',
+                windowsVirtualKeyCode: 27,
+              });
+              await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+              assert.equal(await evaluate('window.__deleteCalls.length'), 0);
+              await click(target);
+              if (!base && type === 'post' && width === 390 && !dark)
+                await screenshot('delete-preview-phone');
+              if (!base && type === 'post' && width === 1440 && dark)
+                await screenshot('delete-preview-desktop-dark');
+              const readsBeforeDelete = await evaluate('window.__deleteReadCalls.length');
+              await click(confirm);
+              await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+              await pause(150);
+              assert.equal(
+                await evaluate('window.__deleteReadCalls.length'),
+                readsBeforeDelete + 1,
+                'One successful mounted deletion requires exactly one listing refresh'
+              );
+              const calls = await evaluate('window.__deleteCalls');
+              assert.deepEqual(calls, [
+                {
+                  kind: type,
+                  id: type === 'post' ? '801' : '901',
+                  method: 'POST',
+                  csrf: 'fixture-only-token',
+                },
+              ]);
+              assert.equal(
+                await evaluateFunction(
+                  'function(kind){return window.__deleteRecords[kind].some(item=>item.id===(kind==="post"?"801":"901"))}',
+                  type
+                ),
+                false
+              );
+              if (width === 1440 && !dark) {
+                await evaluate(
+                  'window.__deleteFailId=' + JSON.stringify(type === 'post' ? '803' : '902')
+                );
+                await click('table thead button');
+                await click('button[title="Delete selected items"]');
+                const before = await evaluate('window.__deleteCalls.length');
+                const readsBeforePartial = await evaluate('window.__deleteReadCalls.length');
+                await click(confirm);
+                await wait(
+                  `!!document.querySelector(${JSON.stringify(dialog + ' [role="alert"]')})`
+                );
+                assert.equal(
+                  await evaluateFunction(
+                    'function(selector){return document.querySelector(selector).querySelectorAll("article").length}',
+                    dialog
+                  ),
+                  1,
+                  'Partial failure keeps only unconfirmed records'
+                );
+                assert.equal(
+                  await evaluate('window.__deleteCalls.length'),
+                  before + (type === 'post' ? 2 : 1)
+                );
+                await pause(150);
+                assert.equal(
+                  await evaluate('window.__deleteReadCalls.length'),
+                  readsBeforePartial + (type === 'post' ? 1 : 0),
+                  'Partial bulk failure refreshes once only when a deletion succeeded'
+                );
+                await evaluate('window.__deleteFailId=null');
+                const readsBeforeRetry = await evaluate('window.__deleteReadCalls.length');
+                await click(confirm);
+                await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+                await pause(150);
+                assert.equal(
+                  await evaluate('window.__deleteReadCalls.length'),
+                  readsBeforeRetry + 1,
+                  'A successful retry has one listing refresh'
+                );
+                assert.equal(
+                  await evaluateFunction(
+                    'function(kind){return window.__deleteRecords[kind].length}',
+                    type
+                  ),
+                  0
+                );
+                assert.deepEqual(
+                  await evaluate('window.__deleteCalls.map(call=>call.id)'),
+                  type === 'post' ? ['801', '802', '803', '803'] : ['901', '902', '902'],
+                  'Retry must not repeat earlier successful deletions'
+                );
+              }
+              if (width === 1440 && dark) {
+                await evaluate('window.__deleteHold=true');
+                await click('table thead button');
+                await click('button[title="Delete selected items"]');
+                const before = await evaluate('window.__deleteCalls.length');
+                await evaluateFunction(
+                  'function(selector){const button=document.querySelector(selector);button.click();button.click()}',
+                  confirm
+                );
+                await wait('window.__deleteReleases.length===1');
+                assert.equal(
+                  await evaluate('window.__deleteCalls.length'),
+                  before + 1,
+                  'Synchronous double click sends one request'
+                );
+                assert.equal(
+                  await evaluateFunction(
+                    'function(selector){return document.querySelector(selector).disabled}',
+                    cancel
+                  ),
+                  true
+                );
+                await send('Input.dispatchKeyEvent', {
+                  type: 'keyDown',
+                  key: 'Escape',
+                  code: 'Escape',
+                  windowsVirtualKeyCode: 27,
+                });
+                assert.equal(
+                  await evaluateFunction(
+                    'function(selector){return !!document.querySelector(selector)}',
+                    dialog
+                  ),
+                  true,
+                  'Pending deletion cannot be dismissed as cancelled'
+                );
+                const other = type === 'post' ? 'page' : 'post';
+                await evaluateFunction(
+                  'function(url){history.pushState({},"",url);dispatchEvent(new PopStateEvent("popstate"))}',
+                  `${base}/admin/${other === 'post' ? 'posts' : 'pages'}`
+                );
+                const nextTarget = `table button[aria-label^="Delete ${other}:"]`;
+                await wait(
+                  `!document.querySelector(${JSON.stringify(dialog)}) && !!document.querySelector(${JSON.stringify(nextTarget)})`
+                );
+                await click(nextTarget);
+                await evaluate(
+                  'window.__deleteHold=false;window.__deleteReleases.splice(0).forEach(resolve=>resolve())'
+                );
+                await pause(250);
+                assert.equal(
+                  await evaluate('window.__deleteCalls.length'),
+                  before + 1,
+                  'Leaving a bulk operation stops later deletions'
+                );
+                assert.equal(
+                  await evaluateFunction(
+                    'function(selector){return document.querySelector(selector)?.textContent.includes("#"+(location.pathname.endsWith("/pages")?"901":"801"))}',
+                    dialog
+                  ),
+                  true,
+                  'Earlier completion cannot close or replace a new preview'
+                );
+                await click(cancel);
+              }
+              cases++;
+            }
+          }
+        }
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}${base}/admin/posts?role=Writer`,
+        });
+        await wait(
+          'window.__deleteReady && !!document.querySelector("table button[aria-label^=\\"Delete post:\\"]")'
+        );
+        assert.equal(
+          await evaluate(
+            'Array.from(document.querySelectorAll("table button[aria-label^=\\"Delete post:\\"]")).length'
+          ),
+          1,
+          'Writer retains only draft deletion'
+        );
+        for (const fault of ['network', 'json', 'http', 'session']) {
+          await send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/admin/posts` });
+          await wait(
+            'window.__deleteReady && !!document.querySelector("table button[aria-label^=\\"Delete post:\\"]")'
+          );
+          await evaluateFunction('function(fault){window.__deleteFault=fault}', fault);
+          await click('table button[aria-label^="Delete post:"]');
+          await click(confirm);
+          await wait(`!!document.querySelector(${JSON.stringify(dialog + ' [role="alert"]')})`);
+          assert.equal(
+            await evaluate('window.__deleteRecords.post.length'),
+            3,
+            'Unconfirmed response cannot be treated as successful deletion'
+          );
+          assert.deepEqual(await evaluate('window.__deleteInvalidations'), []);
+          assert.deepEqual(
+            await evaluate('window.__deleteRevision'),
+            { post: 0, page: 0 },
+            'Rejected deletion cannot advance either collection revision'
+          );
+          await evaluate('window.__deleteFault=""');
+          await click(confirm);
+          await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+          assert.equal(await evaluate('window.__deleteRecords.post.length'), 2);
+          cases++;
+        }
+        const changeManager = async (kind) => {
+          await evaluateFunction(
+            'function(url){history.pushState({},"",url);dispatchEvent(new PopStateEvent("popstate"))}',
+            `${base}/admin/${kind === 'post' ? 'posts' : 'pages'}`
+          );
+          await wait(
+            '!!document.querySelector(\'table button[aria-label^="Delete ' + kind + ':"]\')'
+          );
+        };
+        for (const kind of ['post', 'page'])
+          for (const timing of ['ordinary', 'after-response', 'before-response']) {
+            await send('Page.navigate', {
+              url: `http://127.0.0.1:${port}${base}/admin/${kind === 'post' ? 'posts' : 'pages'}`,
+            });
+            const target = `table button[aria-label^="Delete ${kind}: R&D"]`;
+            await wait(
+              `window.__deleteReady && !!document.querySelector(${JSON.stringify(target)})`
+            );
+            const other = kind === 'post' ? 'page' : 'post';
+            const readsBeforeDelete = await evaluateFunction(
+              'function(kind){return window.__deleteReadCalls.filter(value=>value===kind).length}',
+              kind
+            );
+            if (timing !== 'ordinary') await evaluate('window.__deleteHold=true');
+            await click(target);
+            await click(confirm);
+            let otherReads;
+            if (timing !== 'ordinary') {
+              await wait('window.__deleteReleases.length===1');
+              await changeManager(other);
+              otherReads = await evaluateFunction(
+                'function(kind){return window.__deleteReadCalls.filter(value=>value===kind).length}',
+                other
+              );
+              if (timing === 'before-response') {
+                await changeManager(kind);
+                assert.equal(
+                  await evaluateFunction(
+                    'function(selector){return !!document.querySelector(selector)}',
+                    target
+                  ),
+                  true,
+                  'Return must happen while the record still exists'
+                );
+              }
+              await evaluate(
+                'window.__deleteHold=false;window.__deleteReleases.splice(0).forEach(resolve=>resolve())'
+              );
+            }
+            const id = kind === 'post' ? '801' : '901';
+            await wait(
+              '!window.__deleteRecords[' +
+                JSON.stringify(kind) +
+                '].some(item=>item.id===' +
+                JSON.stringify(id) +
+                ')'
+            );
+            if (timing === 'after-response') {
+              await pause(200);
+              assert.equal(
+                await evaluateFunction(
+                  'function(kind){return window.__deleteReadCalls.filter(value=>value===kind).length}',
+                  other
+                ),
+                otherReads,
+                'An inactive collection cannot refresh the other manager'
+              );
+              await changeManager(kind);
+            }
+            await wait(`!document.querySelector(${JSON.stringify(target)})`);
+            await pause(150);
+            assert.equal(
+              await evaluateFunction(
+                'function(kind){return window.__deleteReadCalls.filter(value=>value===kind).length}',
+                kind
+              ),
+              readsBeforeDelete + (timing === 'before-response' ? 2 : 1),
+              'Route changes add only the necessary mount and completion reads'
+            );
+            const calls = await evaluate('window.__deleteCalls');
+            assert.equal(calls.length, 1);
+            assert.equal(calls[0].kind, kind);
+            assert.equal(calls[0].id, id);
+            assert.deepEqual(
+              await evaluate('window.__deleteRevision'),
+              kind === 'post' ? { post: 1, page: 0 } : { post: 0, page: 1 },
+              'Only the accepted collection advances its persistent revision'
+            );
+            cases++;
+          }
+        // Two unmounted route owners may complete in either order without losing either revision.
+        await send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/admin/posts` });
+        await wait(
+          'window.__deleteReady && !!document.querySelector(\'table button[aria-label^="Delete post: R&D"]\')'
+        );
+        await evaluate('window.__deleteHold=true');
+        await click('table button[aria-label^="Delete post: R&D"]');
+        await click(confirm);
+        await wait('window.__deleteReleases.length===1');
+        await changeManager('page');
+        await click('table button[aria-label^="Delete page: R&D"]');
+        await click(confirm);
+        await wait('window.__deleteReleases.length===2');
+        await changeManager('post');
+        const postReads = await evaluate(
+          'window.__deleteReadCalls.filter(kind=>kind==="post").length'
+        );
+        await evaluate('window.__deleteReleases.splice(1,1)[0]()');
+        await wait(
+          '!window.__deleteRecords.page.some(item=>item.id==="901") && window.__deleteRevision.page===1'
+        );
+        assert.equal(
+          await evaluate('window.__deleteReadCalls.filter(kind=>kind==="post").length'),
+          postReads
+        );
+        assert.equal(
+          await evaluate(
+            '!!document.querySelector(\'table button[aria-label^="Delete post: R&D"]\')'
+          ),
+          true
+        );
+        await evaluate('window.__deleteHold=false;window.__deleteReleases.shift()()');
+        await wait('!document.querySelector(\'table button[aria-label^="Delete post: R&D"]\')');
+        assert.deepEqual(await evaluate('window.__deleteCalls.map(({kind,id})=>({kind,id}))'), [
+          { kind: 'post', id: '801' },
+          { kind: 'page', id: '901' },
+        ]);
+        assert.deepEqual(await evaluate('window.__deleteRevision'), { post: 1, page: 1 });
+        cases++;
+        for (const kind of ['post', 'page']) {
+          await send('Page.navigate', {
+            url: `http://127.0.0.1:${port}${base}/admin/${kind === 'post' ? 'posts' : 'pages'}`,
+          });
+          await wait('window.__deleteReady && !!document.querySelector("table")');
+          const readsBeforeBulk = await evaluate('window.__deleteReadCalls.length');
+          await click('table thead button');
+          await click('button[title="Delete selected items"]');
+          await click(confirm);
+          await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+          await pause(150);
+          assert.equal(await evaluate('window.__deleteCalls.length'), kind === 'post' ? 3 : 2);
+          assert.equal(
+            await evaluate('window.__deleteReadCalls.length'),
+            readsBeforeBulk + 1,
+            'A mounted successful bulk deletion refreshes once, not once per item'
+          );
+          cases++;
+
+          await send('Page.navigate', {
+            url: `http://127.0.0.1:${port}${base}/admin/${kind === 'post' ? 'posts' : 'pages'}`,
+          });
+          await wait('window.__deleteReady && !!document.querySelector("table")');
+          await evaluateFunction(
+            'function(kind){window.__deleteRecords[kind]=Array.from({length:22},(_,index)=>({...window.__deleteRecords[kind][0],id:String(1001+index),title:"Paged record "+(index+1)}))}',
+            kind
+          );
+          await changeManager(kind === 'post' ? 'page' : 'post');
+          await changeManager(kind);
+          await wait('!!document.querySelector("button[title=\\"Next Page\\"]")');
+          await click('button[title="Next Page"]');
+          const pagedTarget = (number) =>
+            `table button[aria-label="Delete ${kind}: Paged record ${number}"]`;
+          await wait(`!!document.querySelector(${JSON.stringify(pagedTarget(21))})`);
+          const readsBeforeFirst = await evaluate('window.__deleteReadRequests.length');
+          await click(pagedTarget(21));
+          await click(confirm);
+          await wait(`!document.querySelector(${JSON.stringify(dialog)})`);
+          await wait(`!!document.querySelector(${JSON.stringify(pagedTarget(22))})`);
+          await pause(150);
+          assert.deepEqual(
+            await evaluate(`window.__deleteReadRequests.slice(${readsBeforeFirst})`),
+            [{ kind, page: 2 }],
+            'One refresh retains a later page that still contains a row'
+          );
+          assert.equal(
+            await evaluateFunction(
+              'function(selector){return !!document.querySelector(selector)}',
+              pagedTarget(1)
+            ),
+            false,
+            'A deletion refresh keeps the current page when it still exists'
+          );
+          const readsBeforeLast = await evaluate('window.__deleteReadRequests.length');
+          await click(pagedTarget(22));
+          await click(confirm);
+          await wait(
+            `!document.querySelector(${JSON.stringify(dialog)}) && !!document.querySelector(${JSON.stringify(pagedTarget(1))})`
+          );
+          await pause(150);
+          assert.deepEqual(
+            await evaluate(`window.__deleteReadRequests.slice(${readsBeforeLast})`),
+            [{ kind, page: 1 }],
+            'Last-row deletion refreshes only the preceding page, not an out-of-range page'
+          );
+          assert.equal(
+            await evaluate('document.querySelectorAll("table tbody tr").length'),
+            20,
+            'Deleting the last item returns to an existing page'
+          );
+          cases++;
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        'PASS Content deletion preview browser: ' +
+          cases +
+          ' root/subfolder, Post/Page, light/dark and phone/tablet/desktop cases; actual App route elements/guards, content hook and callback, plain-text preview, focus/cancel/Escape/backdrop, exact endpoint, CSRF transport, partial-failure retry, double-click and real route unmount/remount. Single/bulk operations use one settled-list refresh; both collections retain or fall back from later pages without redundant reads. Timing controls and out-of-order completions preserve per-type revisions. Writer draft-only UI retained. Fixture responses only; no installed data deleted.'
+      );
+      return;
+    }
+    if (useNativeTracking) {
+      let cases = 0;
+      for (const base of ['', '/zangetsu']) {
+        for (const mode of ['strict', 'balanced', 'hybrid']) {
+          for (const crawler of [true, false]) {
+            await send('Page.navigate', {
+              url: `http://127.0.0.1:${port}${base}/admin/native-tracking?mode=${mode}&crawler=${crawler ? '1' : '0'}`,
+            });
+            await wait(
+              'window.__qaNativeReady===true && document.querySelector("#root").textContent.length>0'
+            );
+            await pause(300);
+            assert.equal(await evaluate('navigator.userAgent.includes("Chrome")'), true);
+            assert.equal(await evaluate('navigator.userAgent.includes("ExaSearchBot")'), false);
+            assert.equal(
+              await evaluate('document.querySelector("meta[name=voncms-tracking]")?.content||""'),
+              crawler ? 'excluded' : ''
+            );
+            assert.equal(await evaluate('window.__qaNativeCalls.length'), crawler ? 0 : 1);
+            for (const [route, key, id] of [
+              ['article', 'postId', '7'],
+              ['page', 'pageId', '8'],
+            ]) {
+              const before = await evaluate('window.__qaNativeCalls.length');
+              await evaluateFunction(
+                'function(route){window.__qaNativeNavigate(route)}',
+                `/admin/${route}`
+              );
+              await wait(`location.pathname.endsWith('/${route}')`);
+              await pause(200);
+              assert.equal(
+                await evaluate('window.__qaNativeCalls.length'),
+                before + (crawler ? 0 : 1)
+              );
+              if (!crawler)
+                assert.equal(
+                  await evaluateFunction(
+                    'function(key){return window.__qaNativeCalls.at(-1).payload[key]}',
+                    key
+                  ),
+                  id
+                );
+            }
+            await send('Page.reload', {});
+            await wait(
+              'window.__qaNativeReady===true && document.querySelector("#root").textContent.length>0'
+            );
+            await pause(250);
+            assert.equal(await evaluate('window.__qaNativeCalls.length'), crawler ? 0 : 1);
+            cases++;
+          }
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Native tracking browser: ${cases} real Chrome root/subfolder and collection-mode cases preserve PHP crawler markers through homepage/article/Page SPA changes and reload; ordinary Chrome/Linux still sends tracking. Fixture transport, no live CMS or external requests.`
+      );
+      return;
+    }
+
+    if (useRelatedPosts) {
+      await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+      for (const base of ['', '/zangetsu']) {
+        await metrics(base ? 390 : 1440, 1000);
+        await send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/qa-home` });
+        await wait('document.querySelector("#qa-related-title")?.textContent==="Homepage"');
+        assert.equal(await evaluate('window.__qaRelatedRequests.length'), 0);
+        await click('#qa-related-entry');
+        for (const next of ['b', 'c', 'd']) {
+          await wait('document.querySelectorAll(".related-posts a").length===6');
+          assert.equal(
+            await evaluate(
+              'Array.from(document.querySelectorAll(".related-posts a")).some(a=>a.textContent.includes("local"))'
+            ),
+            false,
+            'Unrelated hydration must not bypass category retrieval'
+          );
+          await click(`.related-posts a[href$="/qa-${next}"]`);
+          await wait(
+            `document.querySelector("#qa-related-title")?.textContent==="Article ${next.toUpperCase()}"`
+          );
+        }
+        await wait('document.querySelectorAll(".related-posts a").length===6');
+        assert.equal(
+          await evaluate('window.__qaRelatedRequests.length'),
+          8,
+          'A/B/C/D each use at most the two existing batches'
+        );
+        await send('Page.reload');
+        await wait(
+          'document.querySelector("#qa-related-title")?.textContent==="Article D" && document.querySelectorAll(".related-posts a").length===6'
+        );
+        for (const [query, count] of [
+          ['count=3&fault=global', 3],
+          ['count=6&fault=all', 6],
+          ['count=6&sort=views', 6],
+        ]) {
+          await send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/qa-a?${query}` });
+          await wait(`document.querySelectorAll(".related-posts a").length===${count}`);
+          if (query.includes('sort=views'))
+            assert.equal(
+              await evaluate('document.querySelector(".related-posts a h4").textContent'),
+              'Article E19'
+            );
+          assert.equal(await evaluate('document.documentElement.scrollWidth>innerWidth'), false);
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        'PASS Related Posts browser: actual hook/cards navigate homepage->A->B->C->D and reload at root/subfolder, recover partial/total candidate failures, keep3/6 cards and Most Viewed order, and avoid horizontal overflow at390/1440px. Fixture-only transport; no installed-site data accessed.'
+      );
+      return;
+    }
     if (useExtensionLifecycle) {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
       const card = (name) =>
@@ -1734,6 +2718,84 @@ async function main() {
       await wait(
         `Array.from(document.querySelectorAll('h3')).some(e=>e.textContent==='Comments'&&e.parentElement.textContent.includes('23'))`
       );
+      for (const palette of ['charcoal-blue', 'meadow-gold', 'harbour-amber']) {
+        await evaluateFunction(
+          `function(palette) {document.documentElement.dataset.adminPalette=palette;}`,
+          palette
+        );
+        for (const dark of [false, true]) {
+          if (
+            (await evaluate(
+              'document.querySelector(".admin-shell").classList.contains("dark")'
+            )) !== dark
+          )
+            await click('header button[aria-label="Use ' + (dark ? 'dark' : 'light') + ' mode"]');
+          await metrics(1440, 1000);
+          const point = await evaluateFunction(`function() {
+            const bar=[...document.querySelectorAll('.recharts-bar-rectangle path')].findLast(e=>e.getBoundingClientRect().height>1);
+            if(!bar)throw new Error('Traffic contrast check needs a real data bar');
+            bar.scrollIntoView({block:'center',behavior:'instant'});
+            const r=bar.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};
+          }`);
+          await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+          await wait(
+            `!![...document.querySelectorAll('.recharts-default-tooltip')].find(e=>getComputedStyle(e).visibility==='visible')`
+          );
+          const colors = await evaluateFunction(`function() {
+            const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+            const ctx=canvas.getContext('2d',{willReadFrequently:true});
+            const rgba=color=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data];};
+            const background=e=>{if(!e)return [255,255,255];const c=rgba(getComputedStyle(e).backgroundColor),below=background(e.parentElement);return c.slice(0,3).map((v,i)=>v*c[3]/255+below[i]*(1-c[3]/255));};
+            const luminance=rgb=>rgb.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+            const sample=e=>{const c=rgba(getComputedStyle(e).color),bg=background(e),fg=c.slice(0,3).map((v,i)=>v*c[3]/255+bg[i]*(1-c[3]/255)),a=luminance(fg),b=luminance(bg);return {label:e.textContent.trim(),ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};};
+            const tooltip=[...document.querySelectorAll('.recharts-default-tooltip')].find(e=>getComputedStyle(e).visibility==='visible');
+            const selects=[...document.querySelectorAll('[aria-label="Analytics report filters"] select')];
+            return {schemes:selects.map(e=>getComputedStyle(e).colorScheme),rows:[...selects,...selects.flatMap(e=>[...e.options]),...tooltip.querySelectorAll('.recharts-tooltip-label,.recharts-tooltip-item')].map(sample),tooltipBackground:getComputedStyle(tooltip).backgroundColor};
+          }`);
+          assert.equal(
+            colors.rows.length,
+            9,
+            'Contrast checks cover both selects, four options and tooltip label/values'
+          );
+          for (const row of colors.rows)
+            assert(
+              row.ratio >= 4.5,
+              `${palette}/${dark}: ${row.label} contrast ${row.ratio.toFixed(2)}`
+            );
+          if (dark)
+            assert(
+              colors.schemes.every((scheme) => scheme === 'dark'),
+              `${palette}: native dropdowns need the dark color scheme`
+            );
+          for (const selector of ['#dashboard-traffic-range', '#dashboard-analytics-mode']) {
+            const value = await evaluateFunction(
+              `function(selector) {return document.querySelector(selector).value;}`,
+              selector
+            );
+            await click(selector);
+            for (const type of ['keyDown', 'keyUp'])
+              await send('Input.dispatchKeyEvent', {
+                type,
+                key: 'Escape',
+                code: 'Escape',
+                windowsVirtualKeyCode: 27,
+              });
+            assert.equal(
+              await evaluateFunction(
+                `function(selector) {return document.querySelector(selector).value;}`,
+                selector
+              ),
+              value,
+              'Opening/dismissing native options must not change the report'
+            );
+          }
+          console.log(
+            `PASS Dashboard contrast: ${palette}/${dark ? 'dark' : 'light'}, native option scheme, open/dismiss and tooltip text >=4.5:1.`
+          );
+        }
+      }
+      await evaluate('document.documentElement.dataset.adminPalette="charcoal-blue"');
+      await click('header button[aria-label="Use light mode"]');
       for (const dark of [false, true]) {
         if (dark) await click('header button[aria-label="Use dark mode"]');
         for (const width of [320, 390, 768, 1024, 1440, 1920]) {
@@ -1752,6 +2814,25 @@ async function main() {
           assert(boxes.b.right <= boxes.group.right + 1, 'Mode stays inside its toolbar');
           assert.equal(boxes.sameStyle, true);
           assert.equal(boxes.overflow, false, `No horizontal overflow at ${width}px`);
+          const activity = await evaluate(`(() => {
+            const title=[...document.querySelectorAll('h3')].find(e=>e.textContent==='Recent Activity');
+            const card=title.parentElement,list=title.nextElementSibling,button=card.querySelector('button');
+            const a=list.getBoundingClientRect(),b=button.getBoundingClientRect(),c=card.getBoundingClientRect();
+            return {alignment:getComputedStyle(card).alignSelf,growth:getComputedStyle(list).flexGrow,
+              gap:b.top-a.bottom,bottom:c.bottom-b.bottom};
+          })()`);
+          assert.equal(
+            activity.alignment,
+            'flex-start',
+            'Recent Activity keeps its own content height'
+          );
+          assert.equal(
+            activity.growth,
+            '0',
+            'The short activity list must not fill the chart height'
+          );
+          assert(activity.gap >= 15 && activity.gap <= 17, 'History sits directly below the list');
+          assert(activity.bottom >= 19 && activity.bottom <= 22, 'No large blank footer space');
           if (!dark && [390, 768, 1440].includes(width)) {
             await evaluate(
               'document.querySelector("#dashboard-traffic-counting-note").scrollIntoView({block:"center"})'
@@ -1793,9 +2874,146 @@ async function main() {
         await evaluate('document.querySelector("#dashboard-traffic-range").value'),
         '30'
       );
+      for (const scenario of [
+        {
+          query: 'collection=hybrid',
+          text: 'Configured collection: Hybrid (Strict + Balanced)',
+          empty: false,
+        },
+        {
+          query: 'collection=hybrid&traffic=empty',
+          text: 'A newly enabled mode has no earlier history.',
+          empty: true,
+        },
+        {
+          query: 'collection=strict&traffic=empty',
+          text: 'collection for this report is currently off.',
+          empty: true,
+        },
+        {
+          query: 'collection=hybrid&analytics=off&traffic=empty',
+          text: 'Configured collection: Off',
+          empty: true,
+        },
+        {
+          query: 'collection=hybrid&traffic=repair',
+          text: 'Run Database Schema Repair to enable storage for this report.',
+          repair: true,
+        },
+      ]) {
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}/zangetsu/admin/dashboard?role=Admin&${scenario.query}`,
+        });
+        await wait(
+          '!!document.querySelector("#dashboard-analytics-mode") && !document.body.textContent.includes("Loading the selected report...")'
+        );
+        await evaluate(
+          `(() => {const e=document.querySelector('#dashboard-analytics-mode');e.value='balanced';e.dispatchEvent(new Event('change',{bubbles:true}));})()`
+        );
+        await wait(
+          'window.__qaAnalyticsRequests.some(q=>q.includes("mode=balanced")) && !document.body.textContent.includes("Loading the selected report...")'
+        );
+        assert.equal(
+          await evaluateFunction(
+            `function(text){return document.body.textContent.includes(text);}`,
+            scenario.text
+          ),
+          true,
+          scenario.query
+        );
+        assert.deepEqual(
+          await evaluate(
+            `Array.from(document.querySelector('#dashboard-analytics-mode').options,e=>e.value)`
+          ),
+          ['strict', 'balanced'],
+          'Hybrid is collection policy, never a third report'
+        );
+        assert.equal(
+          await evaluate('window.__qaAnalyticsRequests.some(q=>q.includes("mode=hybrid"))'),
+          false
+        );
+        if (scenario.repair)
+          assert.equal(
+            await evaluate(
+              'document.body.textContent.includes("A newly enabled mode has no earlier history.")'
+            ),
+            false,
+            'Unavailable storage is not a healthy zero report'
+          );
+      }
+      for (const role of ['Admin', 'Moderator']) {
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}/zangetsu/admin/dashboard?role=${role}&collection=strict`,
+        });
+        await wait('!!document.querySelector("#dashboard-analytics-mode")');
+        assert.equal(
+          await evaluate('!!document.querySelector("#dashboard-analytics-settings")'),
+          false,
+          `${role} without the server capability must not receive a settings shortcut`
+        );
+        await evaluate(
+          `(() => {const e=document.querySelector('#dashboard-analytics-mode');e.value='balanced';e.dispatchEvent(new Event('change',{bubbles:true}));})()`
+        );
+        await wait(
+          'document.body.textContent.includes("Ask the Primary Admin to choose Balanced or Hybrid")'
+        );
+      }
+      for (const [base, actor] of [
+        ['', 'role=Root'],
+        ['/zangetsu', 'role=Admin&owner=1'],
+      ]) {
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}${base}/admin/dashboard?${actor}&collection=strict`,
+        });
+        await wait('!!document.querySelector("#dashboard-analytics-settings")');
+        await evaluate(
+          `(() => {const e=document.querySelector('#dashboard-analytics-mode');e.value='balanced';e.dispatchEvent(new Event('change',{bubbles:true}));})()`
+        );
+        await wait('document.body.textContent.includes("Choose Balanced or Hybrid")');
+        await metrics(base ? 390 : 1440, 1000);
+        assert.equal(
+          await evaluate('document.documentElement.scrollWidth>innerWidth'),
+          false,
+          'Collection guidance and the owner shortcut must wrap without horizontal overflow'
+        );
+        await click('#dashboard-analytics-settings');
+        await wait(
+          `!!document.querySelector('[role=dialog][aria-label="Analytics and privacy settings"]')`
+        );
+        assert.equal(
+          await evaluate('location.pathname+location.search'),
+          `${base}/admin/extensions?tab=plugins&configure=vp_analytics`,
+          'The shortcut must honor the router basename and open the actual analytics panel'
+        );
+        await click('[aria-label="Close analytics settings"]');
+        await wait('!document.querySelector("[role=dialog]")');
+        assert.equal(await evaluate('window.__qaDashboardWrites'), 0);
+        assert.equal(
+          await evaluate('location.pathname+location.search'),
+          `${base}/admin/extensions?tab=plugins`,
+          'Closing the panel removes only its configuration request'
+        );
+        await evaluate('history.back()');
+        await wait('!!document.querySelector("#dashboard-analytics-mode")');
+      }
+      for (const query of [
+        'owner=1&tab=plugins&configure=unknown',
+        'role=Admin&tab=plugins&configure=vp_analytics',
+        'owner=1&tab=themes&configure=vp_analytics',
+      ]) {
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}/zangetsu/admin/extensions?${query}`,
+        });
+        await wait('window.__qaReady===true');
+        assert.equal(
+          await evaluate('!!document.querySelector("[role=dialog]")'),
+          false,
+          'Unknown configuration requests and missing capabilities must not auto-open a panel'
+        );
+      }
       assert.deepEqual(errors, []);
       console.log(
-        'PASS Dashboard browser: actual component/CSS at 320/390/768/1024/1440/1920px, light/dark aligned 44px filters, no page overflow, live 7/30-day and Strict/Balanced state/query wiring, Top Articles mode omission and state restoration; read-only fixture transport, not installed Zangetsu.'
+        'PASS Dashboard browser: actual component/CSS at 320/390/768/1024/1440/1920px, three palettes/light-dark contrast; 7/30-day reports, Hybrid collection/report separation, historical/off/empty/repair states and Top Articles restoration; Primary Admin settings shortcut opens/closes the real plugin panel at root/subfolder, with capability-gated hints and no writes. Read-only fixture transport, not installed Zangetsu.'
       );
       return;
     }
@@ -2358,6 +3576,27 @@ async function main() {
     if (useAdsWorkspace) {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
       const fields = ['Header ad code', 'In-feed ad code', 'Popup ad code'];
+      const checkVisibilityNotice = async (label, expected) => {
+        const notice = await evaluateFunction(
+          `function(label) {const node=document.querySelector('aside[aria-label="'+label+'"]');
+          return node && {text:node.innerText,visible:node.getClientRects().length>0};}`,
+          label
+        );
+        assert.ok(notice?.visible, `${label}: the notice must remain visible`);
+        for (const text of expected) assert.ok(notice.text.includes(text), `${label}: ${text}`);
+        assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'));
+      };
+      const chooseSection = async (section, label) => {
+        await evaluateFunction(
+          `function(section,label) {
+          const select=document.querySelector('#settings-section');
+          if(select.getClientRects().length){select.value=section;select.dispatchEvent(new Event('change',{bubbles:true}));return;}
+          const button=Array.from(document.querySelectorAll('.settings-tab-strip button')).find(node=>node.textContent.trim()===label);
+          if(!button)throw new Error('Missing settings section '+section);button.click();}`,
+          section,
+          label
+        );
+      };
       const measure = () =>
         evaluate(`Array.from(document.querySelectorAll('textarea[aria-label$="ad code"]')).map(field=>{
           const box=field.getBoundingClientRect(),cell=field.parentElement.getBoundingClientRect();
@@ -2374,6 +3613,17 @@ async function main() {
         });
         await wait('window.__qaReady && document.querySelectorAll("textarea").length===3');
         await pause(600);
+        await checkVisibilityNotice('Settings visibility', ['Public fields', 'private API keys']);
+        await checkVisibilityNotice('Public ad code', [
+          'even when an ad slot is disabled',
+          'AdSense publisher IDs are public identifiers, not secret keys',
+        ]);
+        assert.equal(
+          await evaluate(
+            `Array.from(document.querySelectorAll('textarea')).every(field=>field.getAttribute('aria-describedby')==='adsettings-public-notice')`
+          ),
+          true
+        );
         const dimensions = await measure();
         assert.deepEqual(
           dimensions.map((item) => item.label),
@@ -2518,9 +3768,72 @@ async function main() {
       for (const field of await measure()) {
         assert.ok(field.height >= 255.9 && Math.abs(field.height - field.cellHeight) <= 1);
       }
+      for (const base of ['', '/zangetsu']) {
+        await metrics(base ? 390 : 1440, 1000);
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}${base}/admin/settings?owner=1`,
+        });
+        await wait('window.__qaReady && document.querySelectorAll("textarea").length===3');
+        for (const dark of [false, true]) {
+          if (dark) await click('button[aria-label="Use dark mode"]');
+          await chooseSection('profile', 'Profile');
+          await wait('!!document.querySelector("#profilesettings-public-notice")');
+          await checkVisibilityNotice('Public profile information', [
+            'even if no widget displays them',
+            'email address you are willing to publish',
+            'not your account',
+          ]);
+          assert.equal(
+            await evaluate(
+              `Array.from(document.querySelectorAll('#profilesettings-30,#profilesettings-42,#profilesettings-avatar-url,#profilesettings-54')).filter(field=>field.getAttribute('aria-describedby')==='profilesettings-public-notice'&&!field.disabled).length`
+            ),
+            4
+          );
+          await chooseSection('google', 'Google');
+          await wait(
+            'Array.from(document.querySelectorAll("aside")).some(node=>node.getAttribute("aria-label")==="Public Google identifiers")'
+          );
+          await checkVisibilityNotice('Public Google identifiers', [
+            'not private API keys',
+            'Analytics measurement IDs',
+            'AdSense publisher IDs',
+          ]);
+          await chooseSection('api', 'API');
+          await wait('!!document.querySelector("#api-ai-key-privacy")');
+          assert.equal(await evaluate('document.querySelector("#api-ai-key").type'), 'password');
+          assert.equal(
+            await evaluate(
+              'document.querySelector("#api-ai-key").getAttribute("aria-describedby")'
+            ),
+            'api-ai-key-privacy api-ai-key-help'
+          );
+          assert.ok(
+            await evaluate(
+              'document.querySelector("#api-ai-key-privacy").innerText.includes("newly typed values")'
+            )
+          );
+          assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'));
+          await chooseSection('ads', 'Ads');
+          await wait('document.querySelectorAll("textarea").length===3');
+          await checkVisibilityNotice('Public ad code', ['even when an ad slot is disabled']);
+        }
+      }
+      await send('Page.navigate', {
+        url: `http://127.0.0.1:${port}/zangetsu/admin/settings?appointed=1`,
+      });
+      await wait('window.__qaReady && document.querySelectorAll("textarea").length===3');
+      await checkVisibilityNotice('Settings visibility', ['protected credential fields']);
+      assert.equal(
+        await evaluate('!!document.querySelector("#settings-section option[value=api]")'),
+        false
+      );
+      await chooseSection('profile', 'Profile');
+      await wait('!!document.querySelector("#profilesettings-public-notice")');
+      assert.equal(await evaluate('document.querySelector("#profilesettings-42").disabled'), true);
+      await checkVisibilityNotice('Public profile information', ['public site data']);
       assert.deepEqual(errors, []);
       console.log(
-        'PASS Browser Ads workspace: desktop/tablet height, phone stacking, native vertical resize, exact code input and independent controls. ' +
+        'PASS Browser Ads workspace: desktop/tablet height, phone stacking, native vertical resize, exact code input and independent controls; public/profile/ad/Google and protected-key guidance at root/subfolder in light/dark mode, with unchanged appointed-admin restrictions. Fixture transport only, no installed-site writes. ' +
           JSON.stringify(cases)
       );
       return;

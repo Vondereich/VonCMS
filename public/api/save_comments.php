@@ -7,6 +7,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
  */
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/schema_repair_helper.php';
+require_once __DIR__ . '/role_capability_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -451,7 +452,7 @@ try {
       ? intval(preg_replace('/[^0-9]/', '', (string) $input['commentId']))
       : 0;
 
-    // SECURITY: Check ownership or staff status before delete
+    // Owners can delete their own comments; only reviewers may delete another user's.
     $checkOwner = $pdo->prepare('SELECT user_id FROM comments WHERE id = ?');
     $checkOwner->execute([$commentId]);
     $existingComment = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
@@ -463,9 +464,12 @@ try {
     $isOwner =
       DataBoundary::userText('id') !== '' &&
       (string) $existingComment['user_id'] === DataBoundary::userText('id');
-    $isStaff = SessionManager::isStaff();
+    $canModerateComments = voncms_role_has_capability(
+      DataBoundary::userText('role'),
+      'comments.moderate',
+    );
 
-    if (!$isOwner && !$isStaff) {
+    if (!$isOwner && !$canModerateComments) {
       ResponseHelper::sendError('Not authorized to delete this comment', 403);
     }
 
@@ -483,8 +487,9 @@ try {
 
   // Handle status update
   if ($action === 'updateStatus') {
-    // Only staff can moderate comments
-    SessionManager::requireStaff();
+    if (!voncms_role_has_capability(DataBoundary::userText('role'), 'comments.moderate')) {
+      ResponseHelper::sendError('Comment moderation requires Admin or Moderator permission.', 403);
+    }
 
     $commentIdValue = $input['commentId'] ?? null;
     if (!is_string($commentIdValue) && !is_int($commentIdValue)) {

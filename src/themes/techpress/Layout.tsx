@@ -637,6 +637,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     category: selectedCategory,
     search: activeSearchQuery,
     limit: postsPerPage,
+    enabled: currentView === 'home' || currentView === 'category',
   });
 
   const displayedPosts = publicPosts.posts;

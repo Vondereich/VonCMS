@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { SiteSettings } from '../../../../../types';
+import { NewsSitemapConfig, SiteSettings } from '../../../../../types';
 import { BASE_PATH } from '../../../../../config/site.config';
 import { getBasePathPrefix } from '../../../../../utils/siteUtils';
 import {
@@ -131,6 +131,14 @@ Disallow: /`;
 
   const initialSEO = {
     sitemapEnabled: settings.seo?.sitemapEnabled ?? true,
+    newsSitemap: {
+      enabled: false,
+      publicationName: '',
+      language: '',
+      scope: 'all',
+      categories: [],
+      ...settings.seo?.newsSitemap,
+    } as NewsSitemapConfig,
     articleSchemaType: normalizeArticleSchemaType(settings.seo?.articleSchemaType),
     robotsTxt: normalizeRobotsRules(
       settings.seo?.robotsTxt && !isLegacyVonCmsRobotsPolicy(settings.seo.robotsTxt)
@@ -152,6 +160,14 @@ Disallow: /`;
     `${(publicBaseUrl || '').replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
 
   const [tempSEO, setTempSEO] = useState(initialSEO);
+  const newsCategories = Array.from(
+    new Set([...(settings.categories ?? []), ...tempSEO.newsSitemap.categories])
+  );
+  const updateNews = (patch: Partial<NewsSitemapConfig>) =>
+    setTempSEO((current) => ({
+      ...current,
+      newsSitemap: { ...current.newsSitemap, ...patch },
+    }));
   const [activeTab, setActiveTab] = useState<
     'general' | 'social' | 'advanced' | 'redirects' | 'indexnow'
   >('general');
@@ -228,6 +244,24 @@ Disallow: /`;
 
   const handleSave = async () => {
     if (isIndexNowReadOnly) return;
+    const news = tempSEO.newsSitemap;
+    if (news.enabled) {
+      if (news.scope === 'categories' && news.categories.length === 0) {
+        toast.error('Select at least one category for the News sitemap.');
+        return;
+      }
+      if (!(news.publicationName.trim() || settings.siteName.trim())) {
+        toast.error('Enter a publication name or set the site name in General Settings.');
+        return;
+      }
+      if (
+        news.language.trim().toLowerCase() === 'zh' ||
+        (news.language && !/^(?:[a-z]{2,3}|zh-cn|zh-tw)$/i.test(news.language.trim()))
+      ) {
+        toast.error('Use a two/three-letter language code, zh-cn or zh-tw.');
+        return;
+      }
+    }
     setIsSaving(true);
     try {
       const nextSeo = { ...(settings.seo || {}), ...tempSEO };
@@ -478,6 +512,128 @@ Disallow: /`;
                   </div>
                 )}
               </div>
+
+              <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4 dark:border-admin-border">
+                <legend className="px-1 text-sm font-bold text-slate-700 dark:text-slate-300">
+                  News Sitemap
+                </legend>
+                <label className="flex items-center gap-3 text-sm font-medium dark:text-slate-200">
+                  <input
+                    id="news-sitemap-enabled"
+                    type="checkbox"
+                    checked={tempSEO.newsSitemap.enabled}
+                    disabled={!tempSEO.sitemapEnabled}
+                    onChange={(e) => updateNews({ enabled: e.target.checked })}
+                    className="size-5 rounded-sm text-blue-600 focus:ring-blue-500"
+                  />
+                  Enable a separate News sitemap
+                </label>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Off by default. Includes published articles from the last two days only, with up
+                  to 1,000 per file. Older articles stay in the ordinary sitemap. Inclusion does not
+                  guarantee a place in Google News.
+                </p>
+                {!tempSEO.sitemapEnabled && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Enable XML Sitemap above to serve the News feed. Saved News options are
+                    retained.
+                  </p>
+                )}
+                <fieldset
+                  disabled={!tempSEO.sitemapEnabled || !tempSEO.newsSitemap.enabled}
+                  className="space-y-4 disabled:opacity-60"
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2 text-sm font-medium dark:text-slate-200">
+                      <span className="block">Publication name (optional override)</span>
+                      <input
+                        id="news-sitemap-publication"
+                        type="text"
+                        maxLength={200}
+                        value={tempSEO.newsSitemap.publicationName}
+                        onChange={(e) => updateNews({ publicationName: e.target.value })}
+                        placeholder={settings.siteName}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-admin-border dark:bg-admin-panel"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-medium dark:text-slate-200">
+                      <span className="block">Language (optional override)</span>
+                      <input
+                        id="news-sitemap-language"
+                        type="text"
+                        maxLength={5}
+                        value={tempSEO.newsSitemap.language}
+                        onChange={(e) => updateNews({ language: e.target.value })}
+                        placeholder={settings.site_language || 'en'}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-admin-border dark:bg-admin-panel"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Blank values inherit General Settings. Match the publication name shown on your
+                    articles in Google News. Language uses an ISO 639 code such as ms or en; Chinese
+                    requires zh-cn or zh-tw. Regional site codes are normalized automatically.
+                  </p>
+                  <label className="block space-y-2 text-sm font-medium dark:text-slate-200">
+                    <span className="block">Eligible categories</span>
+                    <select
+                      id="news-sitemap-scope"
+                      value={tempSEO.newsSitemap.scope}
+                      onChange={(e) =>
+                        updateNews({
+                          scope: e.target.value === 'categories' ? 'categories' : 'all',
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 scheme-light dark:border-admin-border dark:bg-admin-panel dark:scheme-dark"
+                    >
+                      <option value="all">All categories (news publications only)</option>
+                      <option value="categories">Selected news categories</option>
+                    </select>
+                  </label>
+                  {tempSEO.newsSitemap.scope === 'categories' && (
+                    <div className="grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2">
+                      {newsCategories.map((category) => (
+                        <label
+                          key={category}
+                          className="flex items-center gap-2 text-sm dark:text-slate-200"
+                        >
+                          <input
+                            name="newsSitemapCategories"
+                            value={category}
+                            type="checkbox"
+                            checked={tempSEO.newsSitemap.categories.includes(category)}
+                            onChange={(e) =>
+                              updateNews({
+                                categories: e.target.checked
+                                  ? [...tempSEO.newsSitemap.categories, category]
+                                  : tempSEO.newsSitemap.categories.filter(
+                                      (item) => item !== category
+                                    ),
+                              })
+                            }
+                          />
+                          {category}
+                        </label>
+                      ))}
+                      {tempSEO.newsSitemap.categories.length === 0 && (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Select at least one news category before saving.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </fieldset>
+                {tempSEO.sitemapEnabled && tempSEO.newsSitemap.enabled && (
+                  <a
+                    href={buildPublicAssetUrl('/sitemap-news.xml')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    View News Sitemap (save changes first) ↗
+                  </a>
+                )}
+              </fieldset>
 
               {/* Robots.txt */}
               <div className="space-y-2">

@@ -310,6 +310,133 @@ echo json_encode(['written'=>$written, 'accepted'=>$accepted,
       }
     }
   }
+  // Exercise protected reads with the real SessionManager, including a partial identity-store fault.
+  for (const name of [
+    'api/get_post.php',
+    'api/get_posts.php',
+    'api/role_capability_helper.php',
+    'api/publication_time_helper.php',
+    'api/public_cache_helper.php',
+    'api/post_query_helper.php',
+    'media_variants.php',
+    'content_metrics_helper.php',
+    'scheduler_helper.php',
+    'search_query_helper.php',
+    'seo_schema_helper.php',
+    'seo_route_helper.php',
+  ]) {
+    const destination = path.join(publicFixture, name);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(path.join(root, 'public', name), destination);
+  }
+  const postReadCode = `
+ini_set('session.save_path', ${phpCode(path.join(publicFixture, 'sessions'))});
+$case = json_decode($argv[1], true, 512, JSON_THROW_ON_ERROR);
+$_SERVER['PHP_SELF'] = $case['endpoint'];
+$_SERVER['SCRIPT_NAME'] = $case['base'] . 'api/' . $case['endpoint'];
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['HTTP_HOST'] = 'localhost';
+$_SERVER['HTTP_USER_AGENT'] = 'voncms-protected-post-fixture';
+$_GET = $case['query'];
+require ${phpCode(path.join(root, 'server/integration/sqlite-compat.php'))};
+class ProtectedPostFixturePDO extends VonCmsFixtureSqlitePDO {
+  public string $fault = '';
+  public function prepare(string $query, array $options = []): PDOStatement|false {
+    if ($this->fault === 'complete' || ($this->fault === 'identity' && $query === 'SELECT id, role, password FROM users WHERE id = ? LIMIT 1')) {
+      throw new PDOException('Controlled identity-store failure');
+    }
+    return parent::prepare($query, $options);
+  }
+  public function query(string $query, ?int $fetchMode = null, mixed ...$fetchArgs): PDOStatement|false {
+    if ($query === "SHOW COLUMNS FROM users LIKE 'display_name'") $query = "SELECT 'display_name' AS Field";
+    return $fetchMode === null ? parent::query($query) : parent::query($query, $fetchMode, ...$fetchArgs);
+  }
+}
+$pdo = new ProtectedPostFixturePDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$pdo->createFunction('CHAR_LENGTH', static fn($value) => mb_strlen((string) $value), 1);
+$pdo->exec('CREATE TABLE settings(setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+$pdo->exec('CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, avatar TEXT, role TEXT, password TEXT)');
+$pdo->exec("INSERT INTO users VALUES(7, 'fixture', 'Fixture', '', 'Member', 'fixture-hash'), (8, 'other', 'Other', '', 'Writer', 'other-hash')");
+$pdo->exec('CREATE TABLE posts(id INTEGER PRIMARY KEY, title TEXT, slug TEXT, content TEXT, excerpt TEXT, status TEXT, image_url TEXT, category TEXT, keywords TEXT, views INT, author_id INT, author TEXT, created_at TEXT, updated_at TEXT, scheduled_at TEXT, meta_description TEXT)');
+$insert = $pdo->prepare('INSERT INTO posts VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+foreach ([[1,'published',7,null],[2,'draft',7,null],[3,'draft',8,null],[4,'published',8,'2099-01-01 00:00:00'],[5,'archived',8,null],[6,null,7,null]] as [$id,$status,$owner,$scheduled]) {
+  $insert->execute([$id,'Post '.$id,'post-'.$id,'BODY_'.$id,'Excerpt',$status,'','News','',0,$owner,'fixture','2026-01-01','2026-01-01',$scheduled,'QA']);
+}
+require ${phpCode(path.join(publicFixture, 'security.php'))};
+if ($case['role'] !== 'Guest') {
+  $pdo->prepare('UPDATE users SET role=? WHERE id=7')->execute([$case['role']]);
+  SessionManager::establishAuthenticatedSession(['id'=>'7','username'=>'fixture','role'=>$case['role']], 'fixture-hash');
+  if (in_array($case['state'], ['revoked', 'identity'], true)) $pdo->exec("UPDATE users SET role='Member' WHERE id=7");
+  if ($case['state'] === 'password') $pdo->exec("UPDATE users SET password='changed-hash' WHERE id=7");
+  if ($case['state'] === 'expired') $_SESSION['auth_started_at'] = time() - 50000;
+  (new ReflectionProperty(SessionManager::class, 'authorizationState'))->setValue(null, 'unchecked');
+}
+$pdo->fault = $case['state'];
+touch(${phpCode(path.join(publicFixture, 'data/scheduler.lock'))}, time());
+register_shutdown_function(static function (): void {
+  $body = '';
+  while (ob_get_level() > 0) $body = ob_get_clean() . $body;
+  echo json_encode(['status'=>http_response_code() ?: 200, 'payload'=>json_decode($body, true)]);
+  if (session_status() === PHP_SESSION_ACTIVE) { $_SESSION = []; session_destroy(); }
+});
+require ${phpCode(path.join(publicFixture, 'api'))} . '/' . $case['endpoint'];
+`;
+  const postReadCases = [
+    ['get_post.php', 'Guest', '', { id: '1' }, 200, ['1']],
+    ['get_post.php', 'Guest', '', { id: '3', role: 'Admin' }, 404, []],
+    ['get_post.php', 'Member', '', { slug: 'post-3' }, 404, []],
+    ['get_post.php', 'Admin', '', { id: '3' }, 200, ['3']],
+    ['get_post.php', 'Root', '', { id: '3' }, 200, ['3']],
+    ['get_post.php', 'Moderator', '', { slug: 'post-3' }, 200, ['3']],
+    ['get_post.php', 'Writer', '', { id: '2' }, 200, ['2']],
+    ['get_post.php', 'Writer', '', { id: '3' }, 404, []],
+    ['get_post.php', 'Admin', 'revoked', { id: '3' }, 404, []],
+    ['get_post.php', 'Admin', 'password', { id: '3' }, 404, []],
+    ['get_post.php', 'Admin', 'expired', { id: '3' }, 404, []],
+    ['get_post.php', 'Admin', 'identity', { id: '3' }, 404, []],
+    ['get_post.php', 'Admin', 'identity', { slug: 'post-3' }, 404, []],
+    ['get_post.php', 'Writer', 'identity', { id: '2' }, 404, []],
+    ['get_post.php', 'Admin', 'identity', { id: '1' }, 200, ['1']],
+    ['get_post.php', 'Admin', 'complete', { id: '3' }, 500, []],
+    ['get_posts.php', 'Guest', '', {}, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Admin', '', {}, 200, ['1', '2', '3', '4', '5', '6'], 6],
+    ['get_posts.php', 'Root', '', {}, 200, ['1', '2', '3', '4', '5', '6'], 6],
+    ['get_posts.php', 'Moderator', '', {}, 200, ['1', '2', '3', '4', '5', '6'], 6],
+    ['get_posts.php', 'Writer', '', {}, 200, ['1', '2', '6'], 3],
+    ['get_posts.php', 'Admin', '', { public: 'true' }, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Admin', 'revoked', {}, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Admin', 'password', {}, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Admin', 'expired', {}, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Admin', 'identity', {}, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Writer', 'identity', {}, 200, ['1', '6'], 2],
+    ['get_posts.php', 'Admin', 'identity', { countOnly: 'true', scope: 'all' }, 200, [], 2],
+    ['get_posts.php', 'Admin', 'identity', { public: 'true' }, 200, ['1', '6'], 2],
+  ];
+  for (const base of ['/', '/newsroom/']) {
+    for (const [endpoint, role, state, query, status, ids, total] of postReadCases) {
+      const testCase = { endpoint, role, state, query, base };
+      const result = spawnSync(php, ['-r', postReadCode, JSON.stringify(testCase)], {
+        encoding: 'utf8',
+        cwd: fixture,
+        timeout: 15000,
+      });
+      const label = JSON.stringify(testCase);
+      assert.equal(result.status, 0, label + ': ' + (result.stderr || result.stdout));
+      const response = JSON.parse(result.stdout);
+      assert.equal(response.status, status, label + ': ' + result.stdout);
+      const payload = response.payload;
+      const actualIds = (payload.post ? [payload.post] : payload.posts || [])
+        .map((post) => String(post.id))
+        .sort((a, b) => Number(a) - Number(b));
+      assert.deepEqual(actualIds, ids, label);
+      if (total !== undefined) assert.equal(payload.meta.total, total, label);
+      if (payload.post) assert.equal(payload.post.content, 'BODY_' + payload.post.id, label);
+      check(true);
+    }
+  }
+  console.log(
+    `PASS protected Post reads: ${postReadCases.length * 2} real-endpoint role, failure, public and path scenarios.`
+  );
   console.log(
     'PASS core modules: ' +
       assertions +

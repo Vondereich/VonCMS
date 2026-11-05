@@ -7,6 +7,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/publication_time_helper.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -62,9 +63,9 @@ if (isset($_SESSION['user']) && SessionManager::isValid() && is_array($_SESSION[
       preg_match('/^[a-f0-9]{64}$/', $rememberValidator)
     ) {
       try {
-        $columnStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'display_name'");
-        $displayNameSelect =
-          $columnStmt && $columnStmt->rowCount() > 0 ? 'u.display_name' : 'NULL AS display_name';
+        $displayNameSelect = voncms_has_display_name_column($pdo)
+          ? 'u.display_name'
+          : 'NULL AS display_name';
         $rememberStmt = $pdo->prepare(
           "SELECT rt.id AS remember_token_id, rt.token_hash, u.id, u.username, $displayNameSelect, u.email, u.role, u.avatar, u.bio, u.created_at AS createdAt, u.password AS auth_password_hash
            FROM remember_tokens rt

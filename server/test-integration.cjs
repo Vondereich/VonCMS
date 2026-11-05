@@ -6792,7 +6792,7 @@ try {
           clearNativeAnalyticsIdentity: () => {},
           location: { pathname: '/zangetsu/article' },
           window: { location: { pathname: '/zangetsu/article' } },
-          document: { referrer: 'https://referrer.example/' },
+          document: { referrer: 'https://referrer.example/', querySelector: () => null },
           API: { trackMonolithic: '/zangetsu/api/track_monolithic.php' },
           vonFetch: (url, options) => {
             calls.push({ url, method: options.method, body: JSON.parse(options.body) });
@@ -6846,7 +6846,7 @@ try {
     (async()=>{
       for(const base of ['/','/zangetsu/']) {
         const jar=new Map(), writes=[];
-        const document={referrer:'https://referrer.invalid/'};
+        const document={referrer:'https://referrer.invalid/',querySelector:()=>null};
         Object.defineProperty(document,'cookie',{
           get:()=>Array.from(jar,([k,v])=>k+'='+v).join('; '),
           set:(value)=>{writes.push(value);const pair=value.split(';')[0],i=pair.indexOf('=');
@@ -6862,10 +6862,10 @@ try {
         helpers.writeAnalyticsConsent(false);
         assert(!jar.has(name));assert.equal(jar.get('von_analytics_id_other'),'other-site');
         assert(writes.some(value=>value.startsWith(name+'=')&&value.includes('path='+base)&&value.endsWith(';Secure')));
-        for(const scenario of ['echo','blocked','cancel','withdraw','no-retry']) {
+        for(const measurementMode of ['balanced','hybrid']) for(const scenario of ['echo','blocked','cancel','withdraw','no-retry']) {
           jar.delete(name);if(scenario!=='blocked')jar.set(name,'fixture');
           let cleanup,calls=0,accepted=true;
-          const ctx={props:{settings:{analytics:{cookieConsent:true,measurementMode:'balanced'}},currentView:'home'},
+          const ctx={props:{settings:{analytics:{cookieConsent:true,measurementMode}},currentView:'home'},
             analyticsPluginActive:true,isSystemPluginActive:()=>true,analyticsTrackingAllowed:()=>accepted,
             clearNativeAnalyticsIdentity:helpers.clearNativeAnalyticsIdentity,nativeAnalyticsCookieName:helpers.nativeAnalyticsCookieName,
             useEffect:callback=>{cleanup=callback();},location:{pathname:base},window:{location:{pathname:base}},document,
@@ -6875,7 +6875,7 @@ try {
           if(scenario==='cancel')cleanup();
           if(scenario==='withdraw')accepted=false;
           await new Promise(setImmediate);await new Promise(setImmediate);
-          assert.equal(calls,scenario==='echo'?2:1,base+scenario);
+          assert.equal(calls,scenario==='echo'?2:1,base+measurementMode+scenario);
           if(scenario==='withdraw')assert(!jar.has(name));
           if(cleanup)cleanup();
         }
@@ -6889,7 +6889,7 @@ try {
   if (probe.status !== 0 || probe.stdout.trim() !== 'ok')
     throw new Error(probe.stderr || 'Client analytics probe failed');
   pass(
-    'Balanced Analytics Client Runtime: root/subfolder cookie names, owner-only deletion, consent withdrawal, one retry with cookie echo, blocked cookies and canceled requests. VM transport, not a browser.'
+    'Balanced/Hybrid Analytics Client Runtime: root/subfolder cookie names, installation-only deletion, consent withdrawal, one retry with cookie echo, blocked cookies and canceled requests. VM transport, not a browser.'
   );
 } catch (error) {
   fail(`Balanced Analytics Client Runtime: ${error.message}`);
@@ -9558,9 +9558,33 @@ assertIncludes(
   'First Publication Compatibility And Consumer Contract: unrepaired installs fall back safely while public APIs, SSR, schema, RSS, and llms use the shared publication resolver.',
   'First Publication Compatibility And Consumer Contract: compatibility fallback or a public publication-time consumer is missing.'
 );
+const displayNameProbeSource = extractPhpFunctionSource(
+  publicationTimeHelperContent,
+  'function voncms_has_display_name_column('
+);
+assertIncludes(
+  'Display Name Metadata Cache Boundary',
+  displayNameProbeSource,
+  [
+    'voncms_read_display_name_cache($context)',
+    '$pdo->query("SHOW COLUMNS FROM users LIKE \'display_name\'")',
+    '$statement->closeCursor()',
+    'LOCK_EX | LOCK_NB',
+  ],
+  'Display Name Metadata Cache Boundary: optional presentation probing remains read-only, cached and nonblocking with cursor cleanup.',
+  'Display Name Metadata Cache Boundary: the approved cache/probe boundary is missing.'
+);
+assertExcludes(
+  'Display Name Schema Mutation Exclusion',
+  publicationTimeHelperContent,
+  ['ALTER TABLE', 'CREATE TABLE', 'DROP TABLE', 'TRUNCATE TABLE'],
+  'Display Name Schema Mutation Exclusion: presentation compatibility never creates, alters or drops database tables.',
+  'Display Name Schema Mutation Exclusion: a presentation helper contains permanent schema mutation.'
+);
 assertExcludes(
   'First Publication Runtime Metadata Probe Guard',
-  publicationTimeHelperContent,
+  // Exempt only the separate, approved display-name fallback, not publication resolution.
+  publicationTimeHelperContent.replace(displayNameProbeSource, ''),
   ['SHOW COLUMNS', 'information_schema', 'ALTER TABLE', 'CREATE TABLE'],
   'First Publication Runtime Metadata Probe Guard: ordinary reads use the repair-owned capability marker without schema SQL.',
   'First Publication Runtime Metadata Probe Guard: the compatibility helper can probe or mutate schema during ordinary traffic.'
@@ -11750,7 +11774,7 @@ assertIncludes(
   [
     'const candidatePosts =',
     'fallbackCandidateState.postId === currentPostId',
-    '? fallbackCandidateState.posts',
+    'fallbackCandidateState.posts ?? localCandidates',
     ': hasCompleteLocalCandidateSet',
   ],
   'Related Posts Candidate Source Stability: fetched fallback candidates remain the active source for the current post after later authenticated content hydration, preventing visible related-post reshuffles during profile or theme state changes.',
@@ -12666,12 +12690,29 @@ assertIncludes(
   adminDashboardPaletteContent,
   [
     'bg-blue-500',
-    "cursor={{ fill: 'var(--color-blue-100)' }}",
+    "cursor={{ fill: 'var(--analytics-tooltip-cursor)' }}",
     'fill="var(--color-blue-500)"',
     'stroke="#8b5cf6"',
   ],
-  'Admin Dashboard Chart Palette Contract: Visits bars, legend, and hover consume the active light palette while Unique Visitors retains a distinct series colour.',
+  'Admin Dashboard Chart Palette Contract: Visits bars and legend consume the active palette, hover uses the theme-aware cursor, and Unique Visitors retains a distinct series colour.',
   'Admin Dashboard Chart Palette Contract: the traffic chart no longer follows the intended palette or series-separation boundary.'
+);
+assertIncludes(
+  'Dashboard Analytics Overlay Contrast Contract',
+  adminDashboardPaletteContent + '\n' + read('src/index.css'),
+  [
+    '.dashboard-analytics-filters select',
+    'color-scheme: light;',
+    '.dark .dashboard-analytics-filters select',
+    'color-scheme: dark;',
+    '.dark .dashboard-analytics-chart',
+    '--analytics-tooltip-background: var(--color-admin-panel)',
+    '--analytics-tooltip-foreground: var(--color-slate-100)',
+    "labelStyle={{ color: 'var(--analytics-tooltip-foreground)' }}",
+    "itemStyle={{ color: 'var(--analytics-tooltip-foreground)' }}",
+  ],
+  'Dashboard Analytics Overlay Contrast Contract: native option schemes and tooltip label/value colours follow the Dashboard theme; rendered contrast is covered by the browser fixture.',
+  'Dashboard Analytics Overlay Contrast Contract: native options or tooltip text can lose the intended light/dark contrast boundary.'
 );
 assertExcludes(
   'Admin Dashboard Legacy Chart Accent Guard',
@@ -17409,7 +17450,7 @@ assertIncludes(
     'title: `VonCMS v${pkg.version}`',
     'View Activity History',
     'Activity History',
-    'className="h-52 w-full"',
+    'className="dashboard-analytics-chart h-52 w-full"',
     'className="line-clamp-2 text-sm font-semibold',
     'title={log.title}',
   ],
@@ -18612,6 +18653,18 @@ if (phpBinary) {
   }
 }
 if (phpBinary) {
+  const newsSitemapProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/news-sitemap.php')],
+    { encoding: 'utf8' }
+  );
+  if (newsSitemapProbe.status === 0 && newsSitemapProbe.stdout.startsWith('PASS ')) {
+    pass(newsSitemapProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail('News Sitemap: ' + (newsSitemapProbe.stderr || newsSitemapProbe.stdout).trim());
+  }
+}
+if (phpBinary) {
   const coreProbe = spawnSync(
     process.execPath,
     [resolveFromRoot('server/test-core-modules.cjs'), phpBinary],
@@ -18701,6 +18754,18 @@ if (phpBinary) {
       'Public plugin settings: ' +
         (publicPluginSettingsProbe.stderr || publicPluginSettingsProbe.stdout)
     );
+  }
+}
+if (phpBinary) {
+  const schemaReadCacheProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/schema-read-cache.php')],
+    { encoding: 'utf8', timeout: 30000 }
+  );
+  if (schemaReadCacheProbe.status === 0 && !schemaReadCacheProbe.stderr.trim()) {
+    pass(schemaReadCacheProbe.stdout.trim());
+  } else {
+    fail('Schema read cache: ' + (schemaReadCacheProbe.stderr || schemaReadCacheProbe.stdout));
   }
 }
 const topArticlesUiProbe = spawnSync(
@@ -19554,7 +19619,7 @@ define('VONCMS_CORE_LOADED', true);
 require_once __DIR__ . '/core/RateLimiter.php';
 function sendApiHeaders(string $methods): void {}
 $_SERVER['REQUEST_METHOD'] = getenv('VON_TRACK_METHOD') ?: 'POST';
-$_SERVER['HTTP_USER_AGENT'] = 'VonCMS consent runtime probe';
+$_SERVER['HTTP_USER_AGENT'] = getenv('VON_TRACK_UA') ?: 'VonCMS consent runtime probe';
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 parse_str(getenv('VON_TRACK_QUERY') ?: '', $_GET);
 function voncms_apply_site_timezone($pdo): ?string { return null; }
@@ -19627,7 +19692,12 @@ class VonTrackFakeStatement extends PDOStatement {
       ['setting_group' => 'analytics', 'setting_key' => 'config', 'setting_value' => $config === '' ? json_encode(['cookieConsent' => $required]) : $config],
     ];
   }
-  public function fetchColumn(int $column = 0): int { return 0; }
+  public function fetchColumn(int $column = 0): string|int|false {
+    if ($this->sql === 'SELECT DATABASE()') return 'voncms_consent_fixture';
+    if (str_contains($this->sql, 'GET_LOCK(') || str_contains($this->sql, 'RELEASE_LOCK(')) return 1;
+    return false; // A missing SELECT row is false, not a synthetic numeric row.
+  }
+  public function closeCursor(): bool { return true; }
   public function rowCount(): int {
     return str_starts_with($this->sql, 'UPDATE posts SET views') || str_starts_with($this->sql, 'UPDATE pages SET views') ? 1 : 0;
   }
@@ -19654,6 +19724,10 @@ $GLOBALS['voncms_publication_capability_cache'] = ['version' => 1, 'post_daily_v
 register_shutdown_function(function () use ($pdo): void {
   $expectVisit = getenv('VON_TRACK_EXPECT_VISIT') === '1';
   $expectView = getenv('VON_TRACK_EXPECT_VIEW') === '1';
+  if (getenv('VON_TRACK_EXPECT_EXCLUDED') === '1' && $pdo->queries !== []) {
+    fwrite(STDERR, 'Excluded crawler reached settings/measurement SQL');
+    exit(56);
+  }
   $writes = count(array_filter($pdo->queries, fn($sql) => str_contains($sql, 'INSERT INTO analytics')));
   $views = count(array_filter($pdo->queries, fn($sql) => str_starts_with($sql, 'UPDATE posts') || str_starts_with($sql, 'UPDATE pages')));
   $analyticsQueries = count(array_filter($pdo->queries, fn($sql) => str_contains($sql, 'FROM analytics') || str_contains($sql, 'INTO analytics')));
@@ -19694,6 +19768,31 @@ register_shutdown_function(function () use ($pdo): void {
   );
 
   const analyticsConsentScenarios = [
+    ...[
+      'Mozilla/5.0 (compatible; ExaSearchBot/1.0)',
+      'Mediapartners-Google',
+      'Mozilla/5.0 HeadlessChrome/149.0.0.0',
+      'Mozilla/5.0 Chrome/136.0.0.0 Chrome-Lighthouse',
+    ].flatMap((ua) =>
+      [false, true].map((page) => ({
+        name: `excluded-${ua}/${page ? 'page' : 'post'}`,
+        ua,
+        page,
+        active: true,
+        required: false,
+        cookie: '',
+        visit: false,
+        excluded: true,
+      }))
+    ),
+    {
+      name: 'ordinary-linux-browser',
+      ua: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/145.0.0.0 Safari/537.36',
+      active: true,
+      required: false,
+      cookie: '',
+      visit: true,
+    },
     { name: 'unset', active: true, required: true, cookie: '', visit: false },
     { name: 'declined', active: true, required: true, cookie: 'false', visit: false },
     {
@@ -19791,8 +19890,10 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
             VON_TRACK_COOKIE: scenario.cookie,
             VON_TRACK_SETTINGS_FAIL: scenario.settingsFail ? '1' : '0',
             VON_TRACK_CONFIG: scenario.config ?? '',
+            VON_TRACK_UA: scenario.ua ?? 'VonCMS consent runtime probe',
+            VON_TRACK_EXPECT_EXCLUDED: scenario.excluded ? '1' : '0',
             VON_TRACK_EXPECT_VISIT: scenario.visit ? '1' : '0',
-            VON_TRACK_EXPECT_VIEW: isMonolithic ? '1' : '0',
+            VON_TRACK_EXPECT_VIEW: isMonolithic && !scenario.excluded ? '1' : '0',
           },
         });
         let result = null;
@@ -19805,8 +19906,9 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
           probe.status !== 0 ||
           probe.stderr.trim() !== '' ||
           result?.success !== true ||
+          (scenario.excluded && (result?.excluded !== true || result?.retry !== false)) ||
           (isMonolithic
-            ? result?.visit !== scenario.visit || result?.view !== true
+            ? result?.visit !== scenario.visit || result?.view !== !scenario.excluded
             : scenario.visit
               ? result?.message !== 'Visit recorded'
               : result?.visit !== false)
@@ -19862,7 +19964,7 @@ if (getenv('VON_TRACK_FETCH_ONLY') === '1') {
 
   if (analyticsConsentServerPass) {
     pass(
-      'Native Analytics Consent Runtime: both endpoints enforce all cookie/config states; composed ID/slug retrieval + tracking records one view, retrieval alone records none, and content freshness stays unchanged.'
+      'Native Analytics Consent Runtime: both endpoints exclude known automation before measurement SQL, preserve ordinary Linux browsers and all cookie/config states; composed ID/slug retrieval + tracking records one view, retrieval alone records none, and content freshness stays unchanged.'
     );
   } else {
     fail(`Native Analytics Consent Runtime: ${analyticsConsentFailures.join(' | ')}`);
@@ -21873,7 +21975,7 @@ $categoryPdo->exec(
 );
 $categoryPdo->exec("INSERT INTO users (id, username, display_name, avatar) VALUES (1, 'editor', 'Editor', '')");
 $categoryPdo->exec(
-  'CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, slug TEXT, content TEXT, excerpt TEXT, author TEXT, author_id INTEGER, meta_description TEXT, keywords TEXT, image_url TEXT, category TEXT, status TEXT, scheduled_at TEXT, created_at TEXT, updated_at TEXT)'
+  'CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, slug TEXT, content TEXT, excerpt TEXT, author TEXT, author_id INTEGER, meta_description TEXT, keywords TEXT, image_url TEXT, category TEXT, status TEXT, scheduled_at TEXT, created_at TEXT, updated_at TEXT, views INTEGER DEFAULT 0)'
 );
 $categoryPdo->exec(
   "INSERT INTO posts (title, slug, content, excerpt, author, author_id, meta_description, keywords, image_url, category, status, scheduled_at, created_at, updated_at) VALUES
@@ -21901,6 +22003,7 @@ foreach (['Sukan', 'sukan', 'SUKAN'] as $categoryInput) {
     exit(13);
   }
 }
+$categoryPdo->exec("UPDATE posts SET views = 73 WHERE slug = 'one'");
 $categoryPage = voncms_fetch_public_listing_page(
   $categoryPdo,
   '2026-08-02 12:00:00',
@@ -21913,6 +22016,7 @@ $categoryPage = voncms_fetch_public_listing_page(
 );
 if (
   count($categoryPage['posts'] ?? []) !== 6 ||
+  (int) ($categoryPage['posts'][0]['views'] ?? -1) !== 73 ||
   ($categoryPage['hasNext'] ?? false) !== true ||
   ($categoryPage['offset'] ?? -1) !== 0 ||
   ($categoryPage['inRange'] ?? false) !== true
