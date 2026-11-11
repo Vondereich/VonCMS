@@ -277,6 +277,58 @@ if (!function_exists('voncms_project_public_plugin_settings')) {
   }
 }
 
+if (!function_exists('voncms_project_public_runtime_settings')) {
+  /**
+   * Public read projection only. Never persist this reduced snapshot.
+   * Theme IDs mirror the bundled React layout resolver, including its Default fallback.
+   * @param array<string, mixed> $settings
+   * @return array<string, mixed>
+   */
+  function voncms_project_public_runtime_settings(array $settings): array
+  {
+    $settings = voncms_project_public_plugin_settings($settings);
+    $themeKeys = [
+      'theme-default' => 'default',
+      'theme-prism' => 'prism',
+      'theme-techpress' => 'techpress',
+      'theme-portfolio' => 'portfolio',
+      'theme-digest' => 'digest',
+      'theme-corporate-pro' => 'corporatePro',
+    ];
+    $themeId = $settings['activeThemeId'] ?? 'theme-default';
+    if (!is_string($themeId) || !isset($themeKeys[$themeId])) {
+      $themeId = 'theme-default';
+    }
+    $settings['activeThemeId'] = $themeId;
+    $theme = is_array($settings['theme'] ?? null) ? $settings['theme'] : [];
+    // Shared appearance/CSS compatibility fields plus exactly the active theme namespace.
+    $publicTheme = array_intersect_key(
+      $theme,
+      array_fill_keys(['primaryColor', 'fontFamily', 'borderRadius', 'customCss'], true),
+    );
+    $themeKey = $themeKeys[$themeId];
+    if (array_key_exists($themeKey, $theme)) {
+      $publicTheme[$themeKey] = $theme[$themeKey];
+    }
+    $settings['theme'] = $publicTheme === [] ? new stdClass() : $publicTheme;
+
+    // OFF is explicit. Remove unused content, not flags/zeroes or active empty values.
+    if (is_array($settings['ads'] ?? null) && ($settings['ads']['adsEnabled'] ?? null) === false) {
+      $settings['ads'] = array_diff_key(
+        $settings['ads'],
+        array_fill_keys(['headerAd', 'inFeedAd', 'popupAd'], true),
+      );
+    }
+    if (
+      is_array($settings['newsletter'] ?? null) &&
+      ($settings['newsletter']['enabled'] ?? null) === false
+    ) {
+      $settings['newsletter'] = ['enabled' => false];
+    }
+    return $settings;
+  }
+}
+
 if (!function_exists('voncms_decode_public_setting_value')) {
   function voncms_decode_public_setting_value(mixed $value, string $type): mixed
   {
@@ -361,9 +413,10 @@ if (!function_exists('voncms_build_public_settings_projection')) {
           break;
 
         case 'ads':
-          if ($key === 'ads_config' && !empty($value)) {
-            $settings['ads'] = $value;
-          } elseif ($key === 'configuration' && empty($settings['ads'])) {
+          if (
+            $key === 'ads_config' ||
+            ($key === 'configuration' && !array_key_exists('ads', $settings))
+          ) {
             $settings['ads'] = $value;
           }
           break;
@@ -399,9 +452,10 @@ if (!function_exists('voncms_build_public_settings_projection')) {
           break;
 
         case 'newsletter':
-          if ($key === 'newsletter_config' && !empty($value)) {
-            $settings['newsletter'] = $value;
-          } elseif ($key === 'configuration' && empty($settings['newsletter'])) {
+          if (
+            $key === 'newsletter_config' ||
+            ($key === 'configuration' && !array_key_exists('newsletter', $settings))
+          ) {
             $settings['newsletter'] = $value;
           }
           break;
@@ -493,7 +547,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
     }
     $settings['_canManageSecrets'] = false;
 
-    return voncms_project_public_plugin_settings($settings);
+    return voncms_project_public_runtime_settings($settings);
   }
 }
 

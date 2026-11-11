@@ -228,7 +228,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         rel="noopener noreferrer"
         aria-label={`View live ${type}: ${decodeEntities(item.title)} (opens in a new tab)`}
         title="View live (opens in a new tab)"
-        className={`${desktop ? 'ml-2 w-11' : 'w-full min-w-0 gap-1.5 border border-slate-200 bg-slate-100 px-2 text-sm font-semibold dark:border-admin-border dark:bg-admin-hover'} inline-flex h-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-primary-400`}
+        className={`${desktop ? 'ml-2 w-11' : 'w-full min-w-0 gap-1.5 border border-slate-200 bg-slate-100 px-2 text-sm font-semibold dark:border-admin-border dark:bg-admin-hover'} inline-flex h-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-gray-400 dark:hover:bg-admin-hover dark:hover:text-primary-400`}
       >
         <ExternalLink size={18} aria-hidden="true" />
         {!desktop && <span>Live</span>}
@@ -499,7 +499,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 aria-label="Review selected items for deletion"
                 onClick={handleBulkDelete}
                 disabled={isProcessing}
-                className="flex min-h-11 items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition-colors animate-fade-in hover:bg-red-200 disabled:cursor-wait disabled:opacity-50 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                className="admin-action-delete flex min-h-11 items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-600 transition-colors animate-fade-in hover:bg-red-200 disabled:cursor-wait disabled:opacity-50 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
               >
                 {isProcessing ? (
                   <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
@@ -513,7 +513,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           {/* Active Filters Display */}
           {(selectedCategory || selectedStatus || searchQuery) && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-slate-500 dark:text-slate-400">Filters:</span>
+              <span className="text-slate-500 dark:text-gray-400">Filters:</span>
               {searchQuery && (
                 <button
                   onClick={clearSearch}
@@ -527,7 +527,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
               {selectedCategory && (
                 <button
                   onClick={() => setSelectedCategory(null)}
-                  className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                  className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-admin-hover-strong/30 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-admin-hover-strong/50 transition-colors"
                 >
                   <span>Cat: {selectedCategory}</span>
                   <span className="font-bold">×</span>
@@ -544,7 +544,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
               )}
               <button
                 onClick={clearFilters}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline text-xs"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline text-xs dark:text-gray-400"
               >
                 Clear All
               </button>
@@ -554,7 +554,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         <button
           type="button"
           onClick={() => onEdit(null, type === 'page')}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
         >
           <Plus size={18} />
           <span>Add New</span>
@@ -564,7 +564,10 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       {(type === 'post' || type === 'page') && (
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
           <div className="relative min-w-52 flex-1 max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
+            />
             <input
               id="contentmanager-318"
               name="contentmanager318"
@@ -584,7 +587,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
           </div>
           <button
             type="submit"
-            className="min-h-11 px-4 py-2 text-sm bg-slate-100 dark:bg-admin-hover text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            className="min-h-11 px-4 py-2 text-sm bg-slate-100 dark:bg-admin-hover text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-admin-hover-strong transition-colors"
           >
             Search
           </button>
@@ -592,7 +595,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
             <button
               type="button"
               onClick={clearSearch}
-              className="min-h-11 px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              className="min-h-11 px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-gray-400"
             >
               Clear
             </button>
@@ -612,8 +615,8 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 aria-pressed={isActive}
                 className={`min-h-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-admin-border dark:bg-admin-panel dark:text-slate-300'
+                    ? 'border-blue-600 bg-blue-600 text-white dark:border-gray-400 dark:bg-admin-hover'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-admin-border dark:bg-admin-panel dark:text-slate-300 dark:hover:border-admin-border dark:hover:text-white'
                 }`}
               >
                 {filter.label}
@@ -626,13 +629,13 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       {loading && pageItems.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-3 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">Loading...</span>
+          <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Loading...</span>
         </div>
       ) : (
         <>
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel lg:hidden">
             {pageItems.length === 0 ? (
-              <div className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+              <div className="px-4 py-12 text-center text-slate-500 dark:text-gray-400">
                 {emptyMessage}
               </div>
             ) : (
@@ -655,7 +658,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => toggleSelect(item.id)}
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200"
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200 dark:text-gray-400"
                             aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
                           >
                             {selectedItems.has(item.id) ? (
@@ -691,7 +694,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setSelectedCategory(itemPost.category)}
-                                className="min-h-8 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                className="min-h-8 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-admin-hover-strong/30 dark:text-blue-300"
                               >
                                 {itemPost.category}
                               </button>
@@ -702,20 +705,20 @@ const ContentManager: React.FC<ContentManagerProps> = ({
 
                       <dl className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-xs dark:bg-admin-canvas">
                         <div className="min-w-0">
-                          <dt className="text-slate-400">Author</dt>
+                          <dt className="text-slate-400 dark:text-gray-400">Author</dt>
                           <dd className="truncate font-medium text-slate-700 dark:text-slate-200">
                             {getAuthorName(item) || '-'}
                           </dd>
                         </div>
                         <div className="min-w-0">
-                          <dt className="text-slate-400">Created</dt>
+                          <dt className="text-slate-400 dark:text-gray-400">Created</dt>
                           <dd className="font-medium text-slate-700 dark:text-slate-200">
                             {formatCompactDate(item.createdAt || item.created_at)}
                           </dd>
                         </div>
                         {isPost && ['published', 'scheduled', 'archived'].includes(item.status) && (
                           <div className="col-span-2 min-w-0">
-                            <dt className="text-slate-400">Publish at</dt>
+                            <dt className="text-slate-400 dark:text-gray-400">Publish at</dt>
                             <dd className="font-medium text-slate-700 dark:text-slate-200">
                               {formatDateTime(getPublishDateTime(itemPost))}
                             </dd>
@@ -758,7 +761,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                               onClick={() => openDeletePreview([item])}
                               aria-label={`Delete ${type}: ${decodeEntities(item.title)}`}
                               title="Delete"
-                              className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                              className="admin-action-delete inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
                             >
                               <Trash2 size={18} aria-hidden="true" />
                               <span>Delete</span>
@@ -791,13 +794,13 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                 <col className={type === 'post' ? 'w-56' : 'w-80'} />
               </colgroup>
               <thead>
-                <tr className="bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border text-xs uppercase text-slate-500 font-medium">
+                <tr className="bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border text-xs uppercase text-slate-500 font-medium dark:text-gray-400">
                   <th className="px-4 py-4 w-12">
                     <button
                       type="button"
                       aria-label="Select all deletable items on this page"
                       onClick={toggleSelectAll}
-                      className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 dark:text-gray-400"
                     >
                       {selectableItems.length > 0 &&
                       selectedItems.size === selectableItems.length ? (
@@ -821,7 +824,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                   <tr>
                     <td
                       colSpan={type === 'post' ? 8 : 6}
-                      className="px-4 py-12 text-center text-slate-500 dark:text-slate-400"
+                      className="px-4 py-12 text-center text-slate-500 dark:text-gray-400"
                     >
                       {searchQuery
                         ? `No results found for "${searchQuery}"`
@@ -832,13 +835,13 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                   pageItems.map((item) => (
                     <tr
                       key={item.id}
-                      className={`hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors ${selectedItems.has(item.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''}`}
+                      className={`hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50 transition-colors ${selectedItems.has(item.id) ? 'bg-primary-50 dark:bg-primary-900/10' : ''}`}
                     >
                       <td className="px-4 py-4">
                         {canDeleteItem(item) && (
                           <button
                             onClick={() => toggleSelect(item.id)}
-                            className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            className="flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 dark:text-gray-400"
                             aria-label={`${selectedItems.has(item.id) ? 'Deselect' : 'Select'} ${item.title}`}
                           >
                             {selectedItems.has(item.id) ? (
@@ -853,12 +856,12 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         <p className="font-semibold text-slate-900 dark:text-white truncate max-w-full leading-snug">
                           {decodeEntities(item.title)}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-full mt-1">
+                        <p className="text-xs text-slate-500 dark:text-gray-400 truncate max-w-full mt-1">
                           {decodeEntities('excerpt' in item ? item.excerpt || '' : '')}
                         </p>
                       </td>
                       {type === 'post' && (
-                        <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-400">
+                        <td className="px-4 py-4 text-sm text-slate-600 dark:text-gray-400">
                           {'category' in item && item.category && (
                             <button
                               onClick={() => setSelectedCategory(item.category as string)}
@@ -871,7 +874,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           )}
                         </td>
                       )}
-                      <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-400">
+                      <td className="px-4 py-4 text-sm text-slate-600 dark:text-gray-400">
                         <span
                           className="block max-w-full truncate"
                           title={getAuthorName(item) || '-'}
@@ -906,11 +909,11 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      <td className="px-4 py-4 text-sm text-slate-500 dark:text-gray-400 whitespace-nowrap">
                         <div>{formatCreatedDateTime(item.createdAt || item.created_at)}</div>
                         {hasBeenEdited(item) && (
                           <div
-                            className="mt-1 block max-w-full truncate text-xs text-slate-400 dark:text-slate-500"
+                            className="mt-1 block max-w-full truncate text-xs text-slate-400 dark:text-gray-400"
                             title={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}
                             aria-label={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}
                           >
@@ -919,7 +922,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                         )}
                       </td>
                       {type === 'post' && (
-                        <td className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        <td className="px-4 py-4 text-sm text-slate-500 dark:text-gray-400 whitespace-nowrap">
                           {item.status === 'draft' || item.status === 'pending_review'
                             ? '-'
                             : (() => {
@@ -948,7 +951,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                               title={
                                 writerView && item.status !== 'draft' ? 'View in editor' : 'Edit'
                               }
-                              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400 dark:hover:bg-admin-hover"
+                              className="admin-action-edit inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400 dark:hover:bg-admin-hover"
                             >
                               {writerView && item.status !== 'draft' ? (
                                 <Eye size={18} aria-hidden="true" />
@@ -976,7 +979,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                                 onClick={() => openDeletePreview([item])}
                                 aria-label={`Delete ${type}: ${decodeEntities(item.title)}`}
                                 title="Delete"
-                                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-900/20"
+                                className="admin-action-delete inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-900/20"
                               >
                                 <Trash2 size={18} aria-hidden="true" />
                               </button>
@@ -1038,7 +1041,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
               className="min-w-0 rounded-xl border border-slate-200 p-4 dark:border-admin-border"
             >
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-mono text-slate-500 dark:text-slate-400">#{item.id}</span>
+                <span className="font-mono text-slate-500 dark:text-gray-400">#{item.id}</span>
                 <span className={`rounded-full px-2 py-0.5 ${getPostStatusClassName(item.status)}`}>
                   {getPostStatusLabel(item.status)}
                 </span>
@@ -1051,7 +1054,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                   {decodeEntities(item.excerpt)}
                 </p>
               )}
-              <p className="mt-2 wrap-anywhere text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-2 wrap-anywhere text-xs text-slate-500 dark:text-gray-400">
                 {getAuthorName(item) && `${getAuthorName(item)} · `}
                 {item.slug ? `Slug: ${item.slug}` : 'No slug'}
               </p>

@@ -437,6 +437,7 @@ export interface PromoBarConfig {
   linkUrl?: string;
   linkText?: string;
   backgroundColor?: string;
+  allowDismiss?: boolean;
   dismissHours?: number | string;
   startsAt?: string;
   endsAt?: string;

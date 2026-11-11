@@ -49,7 +49,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
       <h3 className="text-lg font-semibold text-slate-900 dark:text-white border-b border-slate-100 dark:border-admin-border pb-2">
         Permalink Settings
       </h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-slate-500 dark:text-gray-400">
         Choose how your content URLs look. This is important for SEO.
       </p>
 
@@ -57,7 +57,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
         {options.map((opt) => (
           <label
             key={opt.id}
-            className={`flex cursor-pointer items-start rounded-lg border p-3 transition-all sm:p-4 ${current === opt.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-admin-border hover:bg-slate-50 dark:hover:bg-admin-hover/50'}`}
+            className={`flex cursor-pointer items-start rounded-lg border p-3 transition-all sm:p-4 ${current === opt.id ? 'border-blue-500 bg-blue-50 dark:bg-admin-hover-strong/20 dark:border-gray-400' : 'border-slate-200 dark:border-admin-border hover:bg-slate-50 dark:hover:bg-admin-hover/50'}`}
           >
             <input
               type="radio"
@@ -65,7 +65,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
               value={opt.id}
               checked={current === opt.id}
               onChange={() => onChange('permalinkStructure', opt.id)}
-              className="w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300"
+              className="w-5 h-5 text-blue-600 focus:ring-blue-500 border-gray-300 dark:focus:ring-gray-400"
             />
             <div className="ml-3 min-w-0 grow sm:ml-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -78,7 +78,7 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
                   </span>
                 )}
               </div>
-              <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
+              <span className="block text-xs text-slate-500 dark:text-gray-400 mt-1">
                 {opt.description}
               </span>
               <code className="mt-1 block break-all whitespace-normal rounded-sm bg-slate-100 px-2 py-1 font-mono text-xs text-blue-600 dark:bg-admin-canvas dark:text-blue-400">

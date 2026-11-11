@@ -41,10 +41,10 @@ interface PrismProfileProps {
 const GlitchText: React.FC<{ text: string; className?: string }> = ({ text, className }) => (
   <span className={`relative inline-block group ${className} `}>
     <span className="relative z-10">{text}</span>
-    <span className="absolute top-0 left-0 -z-10 w-full h-full text-(--color-secondary) opacity-0 group-hover:opacity-70 group-hover:translate-x-[2px] transition-all duration-100 select-none">
+    <span className="absolute top-0 left-0 -z-10 w-full h-full text-(--color-secondary) opacity-0 group-hover:opacity-70 group-hover:translate-x-0.5 transition-all duration-100 select-none">
       {text}
     </span>
-    <span className="absolute top-0 left-0 -z-10 w-full h-full text-(--color-primary) opacity-0 group-hover:opacity-70 group-hover:translate-x-[-2px] transition-all duration-100 select-none">
+    <span className="absolute top-0 left-0 -z-10 w-full h-full text-(--color-primary) opacity-0 group-hover:opacity-70 group-hover:-translate-x-0.5 transition-all duration-100 select-none">
       {text}
     </span>
   </span>
@@ -211,7 +211,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
           <div className="bg-[#0a0a1f] border border-(--color-primary) rounded-2xl shadow-[0_0_50px_rgba(139,92,246,0.3)] w-full max-w-md overflow-hidden relative">
             {/* Decorative Lines */}
-            <div className="absolute top-0 left-0 w-full h-[2px] bg-linear-to-r from-transparent via-(--color-primary) to-transparent"></div>
+            <div className="absolute top-0 left-0 w-full h-0.5 bg-linear-to-r from-transparent via-(--color-primary) to-transparent"></div>
 
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -480,7 +480,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
               />
               PUBLISHED_CONTENT
               {activeTab === 'articles' && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-(--color-primary) shadow-[0_0_10px_rgba(139,92,246,0.5)]"></span>
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-(--color-primary) shadow-[0_0_10px_rgba(139,92,246,0.5)]"></span>
               )}
             </button>
             <button
@@ -493,7 +493,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
               />
               USER_DISCUSSION
               {activeTab === 'comments' && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-(--color-primary) shadow-[0_0_10px_rgba(139,92,246,0.5)]"></span>
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-(--color-primary) shadow-[0_0_10px_rgba(139,92,246,0.5)]"></span>
               )}
             </button>
           </div>

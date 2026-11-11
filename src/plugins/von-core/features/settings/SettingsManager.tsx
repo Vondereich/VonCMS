@@ -369,7 +369,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           id="settings-section"
           value={activeTab}
           onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}
-          className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-xs outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-white"
+          className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-xs outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-white dark:focus:border-gray-400 dark:focus:ring-gray-400/20"
         >
           <option value="general">General</option>
           <option value="google">Google</option>
@@ -391,8 +391,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('general')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'general'
-              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shadow-xs ring-1 ring-blue-200 dark:ring-blue-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              ? 'bg-blue-100 text-blue-600 dark:bg-gray-200 dark:text-gray-900 shadow-xs ring-1 ring-blue-200 dark:ring-gray-400'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <Settings size={18} className={activeTab === 'general' ? 'fill-current' : ''} /> General
@@ -401,8 +401,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           onClick={() => setActiveTab('google')}
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'google'
-              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 shadow-xs ring-1 ring-blue-200 dark:ring-blue-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              ? 'bg-blue-100 text-blue-600 dark:bg-gray-200 dark:text-gray-900 shadow-xs ring-1 ring-blue-200 dark:ring-gray-400'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <Globe size={18} /> Google
@@ -412,7 +412,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'profile'
               ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-xs ring-1 ring-emerald-200 dark:ring-emerald-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <User size={18} className={activeTab === 'profile' ? 'fill-current' : ''} /> Profile
@@ -422,7 +422,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'permalinks'
               ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 shadow-xs ring-1 ring-amber-200 dark:ring-amber-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <Link2 size={18} /> Permalinks
@@ -432,7 +432,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'categories'
               ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-xs ring-1 ring-emerald-200 dark:ring-emerald-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <FolderTree size={18} /> Categories
@@ -442,7 +442,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'menu'
               ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400 shadow-xs ring-1 ring-pink-200 dark:ring-pink-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <LinkIcon size={18} /> Menu
@@ -452,7 +452,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
             activeTab === 'ads'
               ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 shadow-xs ring-1 ring-rose-200 dark:ring-rose-800'
-              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
           }`}
         >
           <Megaphone size={18} className={activeTab === 'ads' ? 'fill-current' : ''} /> Ads
@@ -463,7 +463,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
               activeTab === 'api'
                 ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 shadow-xs ring-1 ring-violet-200 dark:ring-violet-800'
-                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
             }`}
           >
             <Zap size={18} className={activeTab === 'api' ? 'fill-current' : ''} /> API
@@ -476,8 +476,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={() => setActiveTab('media')}
               className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
                 activeTab === 'media'
-                  ? 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400 shadow-xs ring-1 ring-cyan-200 dark:ring-cyan-800'
-                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-cyan-100 text-cyan-600 dark:bg-gray-200 dark:text-gray-900 shadow-xs ring-1 ring-cyan-200 dark:ring-gray-400'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
               }`}
             >
               <Image size={18} /> Media
@@ -487,7 +487,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
                 activeTab === 'bridge'
                   ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 shadow-xs ring-1 ring-orange-200 dark:ring-orange-800'
-                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
               }`}
             >
               <ArrowLeftRight size={18} /> Bridge
@@ -497,7 +497,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               className={`px-4 py-2 text-sm font-bold rounded-full transition-all flex items-center gap-2 ${
                 activeTab === 'tools'
                   ? 'bg-slate-100 text-slate-600 dark:bg-admin-panel dark:text-slate-300 shadow-xs ring-1 ring-slate-200 dark:ring-white/10'
-                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-panel hover:text-slate-900 dark:hover:text-white dark:text-gray-400'
               }`}
             >
               <ShieldCheck size={18} /> Tools
@@ -563,7 +563,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               </h3>
               <div className="space-y-2 min-h-[200px] border border-slate-100 dark:border-white/10 rounded-xl p-2 bg-slate-50 dark:bg-admin-canvas/50">
                 {tempSettings.navigation.length === 0 && (
-                  <p className="text-slate-400 text-sm text-center py-8">No menu items yet.</p>
+                  <p className="text-slate-400 text-sm text-center py-8 dark:text-gray-400">
+                    No menu items yet.
+                  </p>
                 )}
                 {tempSettings.navigation.map((item, idx) => (
                   <div
@@ -581,21 +583,21 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   >
                     <div className="flex items-center gap-3">
                       <GripVertical size={16} />
-                      <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-admin-hover px-1.5 py-0.5 rounded-sm">
+                      <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-admin-hover px-1.5 py-0.5 rounded-sm dark:text-gray-400">
                         {idx + 1}
                       </span>
                       <div>
                         <p className="font-medium text-slate-800 dark:text-white text-sm">
                           {item.label}
                         </p>
-                        <p className="text-[10px] text-slate-400 truncate max-w-[150px]">
+                        <p className="text-[10px] text-slate-400 truncate max-w-[150px] dark:text-gray-400">
                           {item.url}
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={() => deleteMenuItem(item.id)}
-                      className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                      className="admin-action-delete text-slate-400 hover:text-red-500 transition-colors p-1 dark:text-gray-400"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -606,7 +608,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Manual Add */}
               {/* Manual Add */}
               <div className="mt-4 p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-slate-100 dark:border-white/10">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 dark:text-gray-400">
                   Add Custom Link
                 </h4>
                 <div className="flex flex-col items-stretch gap-3 xl:flex-row xl:items-center">
@@ -636,7 +638,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={addMenuItem}
-                    className="relative z-10 cursor-pointer bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+                    className="relative z-10 cursor-pointer bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md hover:shadow-lg whitespace-nowrap dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
                   >
                     Add Link
                   </button>
@@ -652,7 +654,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="h-[400px] overflow-y-auto space-y-4 pr-2">
                 {/* Pages List */}
                 <div>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10 dark:text-gray-400">
                     Pages
                   </h4>
                   <div className="space-y-1">
@@ -664,7 +666,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       return (
                         <label
                           key={page.id}
-                          className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-600"
+                          className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-gray-400"
                         >
                           <div className="flex items-center gap-3">
                             <input
@@ -696,7 +698,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                                 }
                               }}
                               aria-label={`Add page ${page.title} to menu`}
-                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500"
+                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500 dark:accent-gray-400"
                             />
                             <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
                               {decodeEntities(page.title)}
@@ -711,14 +713,16 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       );
                     })}
                     {(!pages || pages.length === 0) && (
-                      <p className="text-slate-400 text-xs italic">No pages found.</p>
+                      <p className="text-slate-400 text-xs italic dark:text-gray-400">
+                        No pages found.
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Posts List */}
                 <div className="pt-4 border-t border-slate-100 dark:border-admin-border">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10 dark:text-gray-400">
                     Latest Articles
                   </h4>
                   <div className="space-y-1">
@@ -730,7 +734,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       return (
                         <label
                           key={post.id}
-                          className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-600"
+                          className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-gray-400"
                         >
                           <div className="flex items-center gap-3">
                             <input
@@ -762,7 +766,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                                 }
                               }}
                               aria-label={`Add post ${post.title} to menu`}
-                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500"
+                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500 dark:accent-gray-400"
                             />
                             <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
                               {decodeEntities(post.title)}
@@ -777,7 +781,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       );
                     })}
                     {(!posts || posts.length === 0) && (
-                      <p className="text-slate-400 text-xs italic">No posts found.</p>
+                      <p className="text-slate-400 text-xs italic dark:text-gray-400">
+                        No posts found.
+                      </p>
                     )}
                   </div>
                 </div>
@@ -834,7 +840,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     readOnly
                     className="w-full p-2.5 border rounded-lg dark:bg-admin-canvas dark:text-white dark:border-admin-border"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="text-[10px] text-slate-400 mt-1 dark:text-gray-400">
                     AI generation currently uses Google Gemini.
                   </p>
                 </div>
@@ -865,7 +871,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     are masked in settings responses; this does not hide newly typed values from
                     your own browser.
                   </p>
-                  <p id="api-ai-key-help" className="text-[10px] text-slate-400 mt-1">
+                  <p
+                    id="api-ai-key-help"
+                    className="text-[10px] text-slate-400 mt-1 dark:text-gray-400"
+                  >
                     Enter your Google Gemini API Key from AI Studio. Saved keys are masked; clear
                     this field to remove the saved key, or replace it to start a new local expiry
                     period.
@@ -940,7 +949,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       onChange={(e) =>
                         handleChange('api', 'expireAiKeyAfter30Days', e.target.checked)
                       }
-                      className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
+                      className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500 dark:focus:ring-gray-400"
                     />
                     <span>Expire saved AI key after 30 days</span>
                   </label>
@@ -970,12 +979,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
                     Older models are no longer offered for new selections. An existing saved model
                     remains unchanged until you select another. Availability and pricing depend on
                     your Google account.
                   </p>
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
                     AI writing and editing opt out of optional Gemini request storage. Google's
                     applicable service and safety-retention terms still apply.
                   </p>
@@ -993,14 +1002,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             setTempSettings(draftBaselineRef.current);
           }}
           disabled={isSubmitting}
-          className="min-h-11 flex-1 rounded-lg border border-slate-200/50 px-4 py-2.5 font-medium text-slate-600 backdrop-blur-xs transition-all hover:bg-white/60 dark:border-admin-border/50 dark:text-slate-400 dark:hover:bg-admin-panel/60 sm:flex-none sm:px-5"
+          className="min-h-11 flex-1 rounded-lg border border-slate-200/50 px-4 py-2.5 font-medium text-slate-600 backdrop-blur-xs transition-all hover:bg-white/60 dark:border-admin-border/50 dark:text-gray-400 dark:hover:bg-admin-panel/60 sm:flex-none sm:px-5"
         >
           Cancel
         </button>
         <button
           onClick={save}
           disabled={isSubmitting}
-          className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-500/40 sm:flex-none sm:px-8 ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+          className={`flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-500/40 sm:flex-none sm:px-8 dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong dark:hover:shadow-none ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
         >
           <Save size={18} className={isSubmitting ? 'animate-spin' : ''} />
           {isRotatingKey ? 'Rotating...' : isSubmitting ? 'Saving...' : 'Save Changes'}

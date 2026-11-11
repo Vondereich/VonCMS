@@ -57,11 +57,13 @@ export const EditorImageBubble = ({
     style={{ top: bubblePosition.top, left: Math.max(10, bubblePosition.left) }}
   >
     <div className="flex items-center gap-2 mb-1">
-      <span className="text-xs font-bold text-slate-500 uppercase">Image Tools</span>
+      <span className="text-xs font-bold text-slate-500 uppercase dark:text-gray-400">
+        Image Tools
+      </span>
       <button
         type="button"
         onClick={onClose}
-        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
+        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10 dark:text-gray-400"
         aria-label="Close image tools"
         title="Close image tools"
       >
@@ -91,7 +93,7 @@ export const EditorImageBubble = ({
     </div>
 
     <div className="flex items-center gap-1 bg-slate-100 dark:bg-admin-canvas rounded-sm p-1">
-      <span className="text-[10px] text-slate-500 font-semibold px-1">SIZE</span>
+      <span className="text-[10px] text-slate-500 font-semibold px-1 dark:text-gray-400">SIZE</span>
       {(['25', '50', '75', '100'] as const).map((size) => (
         <button
           key={size}
@@ -99,7 +101,7 @@ export const EditorImageBubble = ({
           onClick={() => resizeImage(size)}
           className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
             selectedImageSize === size
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-600 text-white shadow-xs dark:bg-gray-200 dark:text-gray-900'
               : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-admin-panel'
           }`}
           title={`Resize to ${size}%`}
@@ -110,7 +112,9 @@ export const EditorImageBubble = ({
     </div>
 
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] text-slate-500 font-semibold">ALT TEXT (SEO)</span>
+      <span className="text-[10px] text-slate-500 font-semibold dark:text-gray-400">
+        ALT TEXT (SEO)
+      </span>
       <div className="flex gap-1">
         <input
           aria-label="ALT TEXT (SEO)"
@@ -124,7 +128,7 @@ export const EditorImageBubble = ({
         <button
           type="button"
           onClick={updateImageAlt}
-          className="bg-blue-600 text-white p-1.5 rounded-sm hover:bg-blue-700"
+          className="bg-blue-600 text-white p-1.5 rounded-sm hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
           title="Save Alt Text"
         >
           <CheckCircle size={14} />
@@ -133,7 +137,9 @@ export const EditorImageBubble = ({
     </div>
 
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] text-slate-500 font-semibold">CREDIT / ATTRIBUTION</span>
+      <span className="text-[10px] text-slate-500 font-semibold dark:text-gray-400">
+        CREDIT / ATTRIBUTION
+      </span>
       <div className="flex gap-1">
         <input
           id="editor-1532"
@@ -147,7 +153,7 @@ export const EditorImageBubble = ({
         <button
           type="button"
           onClick={updateImageCredit}
-          className="bg-cyan-600 text-white p-1.5 rounded-sm hover:bg-cyan-700"
+          className="bg-cyan-600 text-white p-1.5 rounded-sm hover:bg-cyan-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
           title="Save Credit"
         >
           <CheckCircle size={14} />
@@ -158,7 +164,7 @@ export const EditorImageBubble = ({
     <button
       type="button"
       onClick={setAsFeaturedIndex}
-      className="text-xs p-1.5 bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-100 flex items-center justify-center gap-1 font-medium mt-1"
+      className="text-xs p-1.5 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-200 hover:text-amber-950 focus-visible:bg-amber-200 focus-visible:text-amber-950 dark:hover:bg-amber-900/40 dark:hover:text-amber-200 dark:focus-visible:bg-amber-900/40 dark:focus-visible:text-amber-200 flex items-center justify-center gap-1 font-medium mt-1"
     >
       <Sparkles size={14} /> Set as Featured Image
     </button>
@@ -187,11 +193,13 @@ export const EditorVideoBubble = ({
     style={{ top: bubblePosition.top, left: Math.max(10, bubblePosition.left) }}
   >
     <div className="flex items-center gap-2 mb-1">
-      <span className="text-xs font-bold text-slate-500 uppercase">Video Tools</span>
+      <span className="text-xs font-bold text-slate-500 uppercase dark:text-gray-400">
+        Video Tools
+      </span>
       <button
         type="button"
         onClick={onClose}
-        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
+        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10 dark:text-gray-400"
         aria-label="Close video tools"
         title="Close video tools"
       >
@@ -221,7 +229,9 @@ export const EditorVideoBubble = ({
     </div>
 
     <div className="flex items-center gap-1 bg-slate-100 dark:bg-admin-canvas rounded-sm p-1">
-      <span className="text-[10px] text-slate-500 font-semibold px-1">ASPECT</span>
+      <span className="text-[10px] text-slate-500 font-semibold px-1 dark:text-gray-400">
+        ASPECT
+      </span>
       {(
         [
           ['auto', 'Auto'],
@@ -235,7 +245,7 @@ export const EditorVideoBubble = ({
           onClick={() => applyVideoAspectMode(mode)}
           className={`px-2 py-1 text-[11px] font-bold rounded transition-all ${
             selectedVideoAspect === mode
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'bg-blue-600 text-white shadow-xs dark:bg-gray-200 dark:text-gray-900'
               : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-admin-panel'
           }`}
           title={`Set video aspect to ${label}`}
@@ -265,11 +275,13 @@ export const EditorTableBubble = ({
     style={{ top: bubblePosition.top, left: bubblePosition.left }}
   >
     <div className="flex items-center gap-2">
-      <span className="text-xs font-bold uppercase text-slate-500">Table Tools</span>
+      <span className="text-xs font-bold uppercase text-slate-500 dark:text-gray-400">
+        Table Tools
+      </span>
       <button
         type="button"
         onClick={onClose}
-        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10"
+        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-white/10 dark:text-gray-400"
         aria-label="Close table tools"
         title="Close table tools"
       >

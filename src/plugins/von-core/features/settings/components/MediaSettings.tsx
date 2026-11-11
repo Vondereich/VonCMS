@@ -29,6 +29,9 @@ interface MediaCleanupEntry {
   modified: string;
 }
 
+const mediaWarningAction =
+  'flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-medium text-amber-950 transition-colors hover:bg-amber-200 focus-visible:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-amber-950/60 dark:text-amber-200 dark:hover:bg-amber-900/50 dark:focus-visible:bg-amber-900/50';
+
 const formatMediaToolSize = (bytes?: number) => {
   const safeBytes = Number(bytes || 0);
   if (safeBytes >= 1048576) {
@@ -319,12 +322,12 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
+        <div className="p-3 bg-blue-100 dark:bg-admin-hover-strong/30 text-blue-600 dark:text-blue-400 rounded-xl">
           <Image size={24} />
         </div>
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">Media Settings</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-500 dark:text-gray-400">
             Manage image optimization, sizes, and storage.
           </p>
         </div>
@@ -339,7 +342,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
             id="media-settings-section"
             value={activeTab}
             onChange={(event) => setActiveTab(event.target.value as typeof activeTab)}
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-200"
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-200 dark:focus:border-gray-400 dark:focus:ring-gray-400/20"
           >
             <option value="gallery">Gallery</option>
             <option value="optimization">Optimization</option>
@@ -354,42 +357,42 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
           <button
             type="button"
             onClick={() => setActiveTab('gallery')}
-            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'gallery' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'gallery' ? 'border-blue-500 text-blue-600 dark:text-gray-900 dark:border-gray-400 dark:bg-gray-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-gray-400'}`}
           >
             <Grid size={16} /> Gallery
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('optimization')}
-            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'optimization' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'optimization' ? 'border-blue-500 text-blue-600 dark:text-gray-900 dark:border-gray-400 dark:bg-gray-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-gray-400'}`}
           >
             <Zap size={16} /> Optimization
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('sizes')}
-            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'sizes' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'sizes' ? 'border-blue-500 text-blue-600 dark:text-gray-900 dark:border-gray-400 dark:bg-gray-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-gray-400'}`}
           >
             <Image size={16} /> Sizes
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('storage')}
-            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'storage' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'storage' ? 'border-blue-500 text-blue-600 dark:text-gray-900 dark:border-gray-400 dark:bg-gray-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-gray-400'}`}
           >
             <HardDrive size={16} /> Storage
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('performance')}
-            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'performance' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'performance' ? 'border-blue-500 text-blue-600 dark:text-gray-900 dark:border-gray-400 dark:bg-gray-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-gray-400'}`}
           >
             <Zap size={16} /> Performance
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('tools')}
-            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'tools' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+            className={`flex min-h-12 items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors lg:min-h-0 lg:justify-start lg:px-6 lg:py-4 ${activeTab === 'tools' ? 'border-blue-500 text-blue-600 dark:text-gray-900 dark:border-gray-400 dark:bg-gray-200' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 dark:text-gray-400'}`}
           >
             <Wrench size={16} /> Tools
           </button>
@@ -403,7 +406,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Enable Image Optimization
                   </span>
-                  <p className="text-xs text-slate-500">Automatically compress images on upload.</p>
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
+                    Automatically compress images on upload.
+                  </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -415,7 +420,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.optimization.enabled}
                     onChange={(e) => updateMedia('optimization', 'enabled', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-gray-400 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-gray-500"></div>
                 </label>
               </div>
 
@@ -428,7 +433,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     <button
                       key={level}
                       onClick={() => updateMedia('optimization', 'compressionLevel', level)}
-                      className={`py-2 px-4 rounded-lg border text-sm font-medium capitalize transition-all ${media.optimization.compressionLevel === level ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-slate-400'}`}
+                      className={`py-2 px-4 rounded-lg border text-sm font-medium capitalize transition-all ${media.optimization.compressionLevel === level ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-gray-400'}`}
                     >
                       {level}
                     </button>
@@ -441,7 +446,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Convert to WebP
                   </span>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
                     Serve images in next-gen format for better performance.
                   </p>
                 </div>
@@ -455,7 +460,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.optimization.convertToWebP}
                     onChange={(e) => updateMedia('optimization', 'convertToWebP', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-gray-400 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-gray-500"></div>
                 </label>
               </div>
             </div>
@@ -477,7 +482,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     onChange={(e) =>
                       updateMedia('optimization', 'maxWidth', parseInt(e.target.value))
                     }
-                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white dark:focus:ring-gray-400"
                   />
                 </div>
                 <div>
@@ -493,13 +498,13 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     onChange={(e) =>
                       updateMedia('optimization', 'maxHeight', parseInt(e.target.value))
                     }
-                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white dark:focus:ring-gray-400"
                   />
                 </div>
               </div>
 
               <div className="p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-gray-400">
                   These limits control how large uploaded images can be after processing.
                 </p>
               </div>
@@ -525,11 +530,11 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                         e.target.value as MediaConfig['storage']['location']
                       )
                     }
-                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white dark:focus:ring-gray-400"
                   >
                     <option value="local">Local Server</option>
                   </select>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
                     Files are stored locally. Use CDN URL below to serve via CDN.
                   </p>
                 </div>
@@ -549,7 +554,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                         e.target.value as MediaConfig['storage']['folderStructure']
                       )
                     }
-                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white dark:focus:ring-gray-400"
                   >
                     <option value="year_month">Year / Month (e.g. 2025/12/image.jpg)</option>
                     <option value="flat">Flat (All in one folder)</option>
@@ -566,10 +571,10 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     type="url"
                     value={media.storage.cdnUrl || ''}
                     onChange={(e) => updateMedia('storage', 'cdnUrl', e.target.value)}
-                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white"
+                    className="w-full p-2.5 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-admin-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:text-white dark:focus:ring-gray-400"
                     placeholder="https://cdn.example.com or https://cdn.example.com/uploads"
                   />
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
                     Files still upload to this site. Leave blank unless your CDN is already pointed
                     at the VonCMS uploads folder.
                   </p>
@@ -581,7 +586,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <Info size={14} className="text-blue-500" />
                   <span>CDN URL guide</span>
                 </div>
-                <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-3">
+                <ul className="text-[11px] text-slate-500 dark:text-gray-400 space-y-3">
                   <li className="flex gap-3 items-start">
                     <div>
                       <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">
@@ -626,7 +631,9 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Lazy Load Images
                   </span>
-                  <p className="text-xs text-slate-500">Defer loading of off-screen images.</p>
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
+                    Defer loading of off-screen images.
+                  </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -638,7 +645,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     checked={media.performance.lazyLoadImages}
                     onChange={(e) => updateMedia('performance', 'lazyLoadImages', e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-gray-400 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-gray-500"></div>
                 </label>
               </div>
               <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-admin-canvas/50 rounded-lg border border-slate-200 dark:border-admin-border">
@@ -646,7 +653,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                   <span className="font-medium text-slate-900 dark:text-white block">
                     Lazy Load Iframes
                   </span>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
                     Defer loading of embedded content (YouTube, Maps).
                   </p>
                 </div>
@@ -662,7 +669,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                       updateMedia('performance', 'lazyLoadIframes', e.target.checked)
                     }
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-gray-400 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-gray-500"></div>
                 </label>
               </div>
             </div>
@@ -690,7 +697,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                       {toolResult.message}
                     </p>
                     {toolResult.stats && (
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-1 space-y-1">
+                      <div className="text-sm text-slate-600 dark:text-gray-400 mt-1 space-y-1">
                         {(toolResult.stats.processed !== undefined ||
                           toolResult.stats.skipped !== undefined ||
                           toolResult.stats.skippedWebP !== undefined ||
@@ -784,7 +791,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                                   <div className="font-medium text-slate-800 dark:text-slate-100 break-all">
                                     {file.path}
                                   </div>
-                                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                  <div className="text-xs text-slate-500 dark:text-gray-400 mt-1">
                                     {file.sizeFormatted || formatMediaToolSize(file.size)} | Last
                                     modified: {file.modified}
                                   </div>
@@ -827,7 +834,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Sync Media Library
                 </h4>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-sm text-slate-500 mb-4 dark:text-gray-400">
                   Scan `uploads/` for files added by FTP or file manager and index any missing media
                   records into the dashboard library. Generated responsive variants and legacy
                   thumbnail files are ignored automatically.
@@ -855,7 +862,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     isManagingVariants ||
                     isRebuildingVariants
                   }
-                  className={`mt-3 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 flex items-center gap-2 transition-all ${isCleaningVariantRows || isSyncingMedia || isScanning || isManagingVariants || isRebuildingVariants ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={`mt-3 ${mediaWarningAction}`}
                 >
                   <Trash2 size={16} className={isCleaningVariantRows ? 'animate-pulse' : ''} />
                   {isCleaningVariantRows ? 'Cleaning Variant Rows...' : 'Clean Old Variant Rows'}
@@ -865,14 +872,14 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Rebuild Responsive Variants
                 </h4>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-sm text-slate-500 mb-4 dark:text-gray-400">
                   Generate or refresh responsive width variants for featured images referenced by
                   posts.
                 </p>
                 <button
                   onClick={handleRebuildResponsiveVariants}
                   disabled={isRebuildingVariants || isManagingVariants}
-                  className={`px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2 transition-all ${isRebuildingVariants || isManagingVariants ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2 transition-all dark:bg-admin-hover dark:hover:bg-admin-hover-strong ${isRebuildingVariants || isManagingVariants ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <RefreshCw size={16} className={isRebuildingVariants ? 'animate-spin' : ''} />
                   {isRebuildingVariants ? 'Processing...' : 'Start Rebuild'}
@@ -882,7 +889,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Responsive Variant Rollback
                 </h4>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-sm text-slate-500 mb-4 dark:text-gray-400">
                   Review generated responsive variants carefully before deleting anything. Original
                   uploads stay untouched, but deleting generated variants can remove active srcset
                   candidates until a rebuild restores them. WebP-heavy imports may not regenerate
@@ -891,7 +898,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <button
                   onClick={handlePreviewResponsiveVariants}
                   disabled={isManagingVariants || isRebuildingVariants}
-                  className={`px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 flex items-center gap-2 transition-all ${isManagingVariants || isRebuildingVariants ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={mediaWarningAction}
                 >
                   <Trash2 size={16} className={isManagingVariants ? 'animate-pulse' : ''} />
                   {isManagingVariants ? 'Scanning...' : 'Preview Generated Variants Only'}
@@ -901,7 +908,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2">
                   Review Untracked Files
                 </h4>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-sm text-slate-500 mb-4 dark:text-gray-400">
                   Scan storage for files that are neither indexed in the Media Library nor
                   referenced by a post or page. Indexed library items stay protected, and scanning
                   does not delete anything.
@@ -909,7 +916,7 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <button
                   onClick={() => handleCleanupUnused(false)}
                   disabled={isScanning || isManagingVariants || isRebuildingVariants}
-                  className={`px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 flex items-center gap-2 transition-all ${isScanning || isManagingVariants || isRebuildingVariants ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={mediaWarningAction}
                 >
                   <Trash2 size={16} className={isScanning ? 'animate-pulse' : ''} />
                   {isScanning ? 'Scanning...' : 'Scan Untracked Files'}
@@ -926,18 +933,18 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => onChange('media', { ...media, defaultView: 'grid' })}
-                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView !== 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-slate-400'}`}
+                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView !== 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-gray-400'}`}
                   >
                     <Grid size={18} /> Grid View
                   </button>
                   <button
                     onClick={() => onChange('media', { ...media, defaultView: 'list' })}
-                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView === 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-slate-400'}`}
+                    className={`flex items-center justify-center gap-2 p-4 rounded-lg border text-sm font-medium transition-all ${media.defaultView === 'list' ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-gray-200 dark:text-gray-900 dark:border-gray-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-admin-panel dark:border-admin-border dark:text-gray-400'}`}
                   >
                     <ListIcon size={18} /> List View
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
                   Choose how the Gallery (Media Manager) displays files by default.
                 </p>
               </div>

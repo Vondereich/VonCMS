@@ -109,7 +109,7 @@ const CommentManager: React.FC<CommentManagerProps> = ({
               paginatedComments.map((comment) => (
                 <tr
                   key={comment.id}
-                  className={`hover:bg-slate-50 dark:hover:bg-admin-hover/50 ${comment.isReply ? 'bg-slate-50/50 dark:bg-admin-canvas/30' : ''}`}
+                  className={`hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50 ${comment.isReply ? 'bg-slate-50/50 dark:bg-admin-canvas/30' : ''}`}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">

@@ -985,7 +985,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
             aria-pressed={mobilePanel === panel.id}
             className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${
               mobilePanel === panel.id
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-sm dark:bg-gray-200 dark:text-gray-900'
                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-admin-hover'
             }`}
           >
@@ -1022,7 +1022,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 type="text"
                 maxLength={TITLE_MAX_LENGTH}
                 placeholder="Enter title here..."
-                className="w-full rounded-lg border-none bg-transparent px-2 py-1 -mx-2 -my-1 text-2xl font-bold text-slate-900 placeholder-slate-300 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white dark:placeholder-slate-600 sm:text-3xl"
+                className="w-full rounded-lg border-none bg-transparent px-2 py-1 -mx-2 -my-1 text-2xl font-bold text-slate-900 placeholder-slate-300 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white dark:placeholder-slate-600 sm:text-3xl dark:focus:border-gray-400 dark:focus:ring-gray-400/20"
                 value={item.title || ''}
                 onChange={handleTitleChange}
               />
@@ -1030,7 +1030,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 className={`mt-2 text-xs ${
                   titleLength >= TITLE_MAX_LENGTH
                     ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-slate-500 dark:text-slate-400'
+                    : 'text-slate-500 dark:text-gray-400'
                 }`}
               >
                 {titleLength}/{TITLE_MAX_LENGTH} characters
@@ -1075,7 +1075,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
             </fieldset>
           </div>
           <div
-            className={`${mobilePanel === 'publish' ? 'space-y-6' : 'hidden'} xl:block xl:space-y-6`}
+            className={`${mobilePanel === 'publish' ? 'flex' : 'hidden'} flex-col gap-6 xl:flex`}
           >
             <fieldset disabled={isWriterLocked || isSaving} className="contents">
               <div className="bg-white dark:bg-admin-panel p-6 rounded-xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
@@ -1085,7 +1085,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                       Publish readiness
                     </span>
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <span className="text-xs font-bold text-slate-500 dark:text-gray-400">
                       {completedPublishingChecks}/{publishingChecks.length}
                     </span>
                   </div>
@@ -1107,7 +1107,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 <div>
                   <label
                     htmlFor="post-status"
-                    className="block text-xs font-medium text-slate-500 mb-1.5"
+                    className="block text-xs font-medium text-slate-500 mb-1.5 dark:text-gray-400"
                   >
                     Status
                   </label>
@@ -1119,7 +1119,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     <select
                       id="post-status"
                       name="status"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
                       value={item.status || 'draft'}
                       onChange={(e) => {
                         const newStatus = e.target.value as Post['status'];
@@ -1161,7 +1161,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   <div className="space-y-2">
                     <label
                       htmlFor="post-publish-date"
-                      className="block text-sm font-medium text-slate-500"
+                      className="block text-sm font-medium text-slate-500 dark:text-gray-400"
                     >
                       Publish Date & Time
                     </label>
@@ -1169,7 +1169,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       id="post-publish-date"
                       name="scheduledAt"
                       type="datetime-local"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
                       value={normalizeScheduledInputValue((item as Post).scheduledAt)}
                       onChange={(e) =>
                         setItem((prev) => (prev ? { ...prev, scheduledAt: e.target.value } : null))
@@ -1214,12 +1214,17 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         </button>
                       </div>
                     )}
-                    <p className="text-xs text-slate-400">Post will auto-publish at this time</p>
+                    <p className="text-xs text-slate-400 dark:text-gray-400">
+                      Post will auto-publish at this time
+                    </p>
                   </div>
                 )}
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <label htmlFor="post-slug" className="block text-sm font-medium text-slate-500">
+                    <label
+                      htmlFor="post-slug"
+                      className="block text-sm font-medium text-slate-500 dark:text-gray-400"
+                    >
                       Slug
                     </label>
                     <button
@@ -1247,7 +1252,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     id="post-slug"
                     name="slug"
                     type="text"
-                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
                     placeholder="url-friendly-slug"
                     value={item.slug || ''}
                     onChange={(e) =>
@@ -1259,7 +1264,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   <div>
                     <label
                       htmlFor="post-category-select"
-                      className="block text-sm font-medium text-slate-500 mb-1"
+                      className="block text-sm font-medium text-slate-500 mb-1 dark:text-gray-400"
                     >
                       Category
                     </label>
@@ -1293,7 +1298,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         aria-label="Custom category"
                         aria-describedby={categoryDescription}
                         type="text"
-                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
                         value={(item as Post).category || ''}
                         placeholder="e.g. News or Technology"
                         onChange={(e) =>
@@ -1301,7 +1306,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         }
                       />
                     </div>
-                    <p id="post-category-help" className="mt-1 text-xs text-slate-400">
+                    <p
+                      id="post-category-help"
+                      className="mt-1 text-xs text-slate-400 dark:text-gray-400"
+                    >
                       Pick an existing category or type a new one. Empty values still save as{' '}
                       Uncategorized. Avoid names matching VonCMS folders when using Category &amp;
                       Name permalinks.
@@ -1328,7 +1336,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   <div className="flex justify-between items-center mb-1">
                     <label
                       htmlFor="post-excerpt"
-                      className="block text-sm font-medium text-slate-500"
+                      className="block text-sm font-medium text-slate-500 dark:text-gray-400"
                     >
                       Excerpt
                     </label>
@@ -1350,7 +1358,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                           notify.info('Add content first');
                         }
                       }}
-                      className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
+                      className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-admin-hover-strong/30 px-2 py-1 rounded-full transition-colors dark:hover:text-white"
                     >
                       <Sparkles size={12} /> Auto Fill
                     </button>
@@ -1358,7 +1366,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   <textarea
                     id="post-excerpt"
                     name="excerpt"
-                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
+                    className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
                     value={item.excerpt || ''}
                     onChange={(e) =>
                       setItem((prev) => (prev ? { ...prev, excerpt: e.target.value } : null))
@@ -1369,7 +1377,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                   />
                   <p
                     id="post-excerpt-help"
-                    className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-400"
+                    className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-400 dark:text-gray-400"
                   >
                     <span>
                       {excerptLength}/{EXCERPT_MAX_LENGTH} characters
@@ -1384,7 +1392,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                     <div className="flex justify-between items-center mb-1">
                       <label
                         htmlFor="post-image"
-                        className="block text-sm font-medium text-slate-500"
+                        className="block text-sm font-medium text-slate-500 dark:text-gray-400"
                       >
                         Featured Image
                       </label>
@@ -1403,7 +1411,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => featuredImageInputRef.current?.click()}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
                       >
                         <Upload size={16} />
                         Upload Image
@@ -1423,7 +1431,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         aria-label="Upload featured image"
                         type="file"
                         accept="image/*"
-                        className="hidden"
+                        className="hidden dark:accent-gray-400"
                         onChange={handleFeaturedImageUpload}
                       />
                     </div>
@@ -1432,7 +1440,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       name="image"
                       aria-label="Featured image URL"
                       type="text"
-                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+                      className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
                       placeholder="Paste image URL if needed..."
                       value={(item as Post).image || ''}
                       onChange={(e) =>

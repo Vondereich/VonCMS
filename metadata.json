@@ -1,7 +1,7 @@
 {
   "name": "VonCMS",
   "description": "Content Management System with admin dashboard, user management, and discussion system.",
-  "version": "1.28.1",
+  "version": "1.28.2",
   "minPhp": "8.2.0",
   "recommendedPhp": "8.3.0"
 }

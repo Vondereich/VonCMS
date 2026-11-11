@@ -354,7 +354,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
             <ShieldCheck className="text-green-500" /> Security Dashboard
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
+          <p className="text-slate-500 dark:text-gray-400 text-sm">
             Recorded security checks. Updates every 30 seconds while this tab is visible.
           </p>
         </div>
@@ -429,7 +429,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                         }
                       }
                     }}
-                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
+                    className="admin-action-delete flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <Trash2 size={14} /> Reset All Data
                   </button>
@@ -453,7 +453,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
           >
             <Download size={14} /> Export CSV
           </button>
-          <span className="flex min-h-11 items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-mono text-xs text-slate-500 dark:bg-admin-panel">
+          <span className="flex min-h-11 items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 font-mono text-xs text-slate-500 dark:bg-admin-panel dark:text-gray-400">
             <span
               className={`w-2 h-2 rounded-full ${refreshing ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}
             ></span>
@@ -543,7 +543,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
+              <div className="flex h-full items-center justify-center text-center text-sm text-slate-400 dark:text-gray-400">
                 No security events recorded in the last 7 days.
               </div>
             )}
@@ -578,7 +578,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-slate-400 text-center text-sm">No data available</div>
+              <div className="text-slate-400 text-center text-sm dark:text-gray-400">
+                No data available
+              </div>
             )}
           </div>
         </div>
@@ -588,7 +590,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-white/10 dark:bg-admin-canvas sm:p-5">
         <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
           <h3 className="font-bold text-lg text-slate-800 dark:text-white">Top Source IPs</h3>
-          <span className="text-xs text-slate-400">By recorded security events</span>
+          <span className="text-xs text-slate-400 dark:text-gray-400">
+            By recorded security events
+          </span>
         </div>
         {sourceData.length > 0 ? (
           <div className="divide-y divide-slate-100 dark:divide-white/10">
@@ -597,7 +601,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 key={`${source.address}-${source.rank}`}
                 className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 py-3 sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:gap-3"
               >
-                <span className="text-sm font-semibold text-slate-400 tabular-nums">
+                <span className="text-sm font-semibold text-slate-400 tabular-nums dark:text-gray-400">
                   {source.rank}
                 </span>
                 <div className="min-w-0">
@@ -609,7 +613,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                       {source.address}
                     </span>
                     {source.isLocalhost && (
-                      <span className="shrink-0 text-xs text-slate-400">Localhost</span>
+                      <span className="shrink-0 text-xs text-slate-400 dark:text-gray-400">
+                        Localhost
+                      </span>
                     )}
                   </div>
                   <div
@@ -628,7 +634,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                   <span className="block text-sm font-bold tabular-nums text-slate-800 dark:text-white">
                     {source.attempts}
                   </span>
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-slate-400 dark:text-gray-400">
                     {source.attempts === 1 ? 'event' : 'events'}
                   </span>
                 </div>
@@ -636,7 +642,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             ))}
           </div>
         ) : (
-          <div className="py-8 text-center text-sm text-slate-400">No source data available</div>
+          <div className="py-8 text-center text-sm text-slate-400 dark:text-gray-400">
+            No source data available
+          </div>
         )}
       </div>
 
@@ -660,9 +668,12 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 placeholder="Search IP or endpoint..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-panel"
+                className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-panel dark:focus:ring-gray-400"
               />
-              <Search className="absolute left-2.5 top-1.5 text-slate-400" size={14} />
+              <Search
+                className="absolute left-2.5 top-1.5 text-slate-400 dark:text-gray-400"
+                size={14}
+              />
             </div>
 
             <select
@@ -704,14 +715,14 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
 
             <button
               type="submit"
-              className="min-h-11 rounded-lg bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+              className="min-h-11 rounded-lg bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
             >
               Search
             </button>
             <button
               type="button"
               onClick={clearFilters}
-              className="flex size-11 items-center justify-center rounded-lg px-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5"
+              className="flex size-11 items-center justify-center rounded-lg px-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:text-gray-400"
               aria-label="Clear security filters"
             >
               <X size={16} />
@@ -721,9 +732,11 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
 
         <div className="divide-y divide-slate-100 dark:divide-admin-border md:hidden">
           {loading && logs.length === 0 ? (
-            <div className="px-4 py-10 text-center text-slate-400">Loading security data...</div>
+            <div className="px-4 py-10 text-center text-slate-400 dark:text-gray-400">
+              Loading security data...
+            </div>
           ) : logs.length === 0 ? (
-            <div className="px-4 py-10 text-center text-slate-400">
+            <div className="px-4 py-10 text-center text-slate-400 dark:text-gray-400">
               No security events found matching criteria.
             </div>
           ) : (
@@ -743,15 +756,15 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 </div>
                 <EventExplanation eventType={log.event_type} />
                 <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-                  <dt className="text-slate-400">Time</dt>
+                  <dt className="text-slate-400 dark:text-gray-400">Time</dt>
                   <dd className="text-right font-mono text-xs text-slate-600 dark:text-slate-300">
                     {new Date(log.created_at).toLocaleString()}
                   </dd>
-                  <dt className="text-slate-400">IP</dt>
+                  <dt className="text-slate-400 dark:text-gray-400">IP</dt>
                   <dd className="break-all text-right font-mono text-xs text-slate-600 dark:text-slate-300">
                     {log.ip_address}
                   </dd>
-                  <dt className="text-slate-400">Endpoint</dt>
+                  <dt className="text-slate-400 dark:text-gray-400">Endpoint</dt>
                   <dd className="break-all text-right text-slate-600 dark:text-slate-300">
                     {log.endpoint}
                   </dd>
@@ -772,7 +785,7 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
 
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-220 w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-admin-panel/50 text-slate-500 uppercase font-bold text-xs">
+            <thead className="bg-slate-50 dark:bg-admin-panel/50 text-slate-500 uppercase font-bold text-xs dark:text-gray-400">
               <tr>
                 <th className="px-5 py-3">Time</th>
                 <th className="px-5 py-3">Event and Explanation</th>
@@ -785,13 +798,19 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
             <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
               {loading && logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                  <td
+                    colSpan={6}
+                    className="px-5 py-8 text-center text-slate-400 dark:text-gray-400"
+                  >
                     Loading security data...
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                  <td
+                    colSpan={6}
+                    className="px-5 py-8 text-center text-slate-400 dark:text-gray-400"
+                  >
                     No security events found matching criteria.
                   </td>
                 </tr>
@@ -799,9 +818,9 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                 logs.map((log) => (
                   <tr
                     key={log.id}
-                    className="hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors"
+                    className="hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50 transition-colors"
                   >
-                    <td className="px-5 py-3 text-slate-500 font-mono text-xs">
+                    <td className="px-5 py-3 text-slate-500 font-mono text-xs dark:text-gray-400">
                       {new Date(log.created_at).toLocaleString()}
                     </td>
                     <td className="px-5 py-3">
@@ -817,10 +836,10 @@ const SecurityDashboard: React.FC<SecurityDashboardProps> = ({ isPrimaryAdmin })
                       </span>
                       <EventExplanation eventType={log.event_type} />
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                    <td className="px-5 py-3 font-mono text-xs text-slate-600 dark:text-gray-400">
                       {log.ip_address}
                     </td>
-                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400 truncate max-w-xs">
+                    <td className="px-5 py-3 text-slate-600 dark:text-gray-400 truncate max-w-xs">
                       {log.endpoint}
                     </td>
                     <td className="px-5 py-3">
@@ -864,7 +883,7 @@ const EventExplanation: React.FC<{ eventType: string }> = ({ eventType }) => {
   const copy = EVENT_COPY[eventType];
   if (!copy) return null;
   return (
-    <div className="mt-1 max-w-md text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+    <div className="mt-1 max-w-md text-xs leading-relaxed text-slate-500 dark:text-gray-400">
       {copy.pattern && (
         <span className="mb-1 block font-semibold text-orange-700 dark:text-orange-300">
           {copy.pattern} - pattern only
@@ -888,7 +907,7 @@ const StatCard: React.FC<{
       <div className={`p-2.5 rounded-lg ${color} ${animate ? 'animate-pulse' : ''}`}>{icon}</div>
     </div>
     <div className="mt-2">
-      <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+      <p className="text-slate-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">
         {title}
       </p>
       <h3

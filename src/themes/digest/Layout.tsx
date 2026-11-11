@@ -1119,11 +1119,11 @@ const DigestProfile: React.FC<{
       </div>
 
       {/* Tab Content */}
-      <div className="min-h-[360px]">
+      <div className="min-h-90">
         {activeTab === 'articles' ? (
           <>
             {articlesLoading && articlePosts.length === 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[360px]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-90">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={`digest-article-skeleton-${index}`}
@@ -1152,7 +1152,7 @@ const DigestProfile: React.FC<{
                 ))}
               </div>
             ) : articlePosts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[360px]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-90">
                 {articlePosts.map((post) => (
                   <DigestCard
                     key={post.id}
@@ -1166,7 +1166,7 @@ const DigestProfile: React.FC<{
                 ))}
               </div>
             ) : (
-              <p className="text-center py-12 min-h-[360px]" style={{ color: colors.textMuted }}>
+              <p className="text-center py-12 min-h-90" style={{ color: colors.textMuted }}>
                 No articles yet.
               </p>
             )}
@@ -1174,7 +1174,7 @@ const DigestProfile: React.FC<{
         ) : (
           <>
             {commentsLoading && commentItems.length === 0 ? (
-              <div className="space-y-4 min-h-[360px]">
+              <div className="space-y-4 min-h-90">
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={`digest-comment-skeleton-${index}`}
@@ -1197,7 +1197,7 @@ const DigestProfile: React.FC<{
                 ))}
               </div>
             ) : commentItems.length > 0 ? (
-              <div className="space-y-4 min-h-[360px]">
+              <div className="space-y-4 min-h-90">
                 {commentItems.map((comment) => (
                   <div
                     key={comment.id}
@@ -1224,7 +1224,7 @@ const DigestProfile: React.FC<{
                 ))}
               </div>
             ) : (
-              <p className="text-center py-12 min-h-[360px]" style={{ color: colors.textMuted }}>
+              <p className="text-center py-12 min-h-90" style={{ color: colors.textMuted }}>
                 No discussion activity yet.
               </p>
             )}
@@ -1422,7 +1422,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
               <VonLogo variant="default" className="w-10! h-10! mr-0!" />
             ) : null}
             {headerIdentity.showTitle && (
-              <div className="min-w-0 max-w-[128px] sm:max-w-[200px] lg:max-w-[260px]">
+              <div className="min-w-0 max-w-32 sm:max-w-50 lg:max-w-65">
                 <span
                   className="text-xl font-black tracking-tight block truncate"
                   style={{ color: colors.text }}
@@ -1879,7 +1879,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
             {/* Sidebar */}
             {hasSinglePostSidebar && (
-              <StickySidebar className="lg:w-[380px] shrink-0 space-y-6">
+              <StickySidebar className="lg:w-95 shrink-0 space-y-6">
                 {/* Newsletter Widget (Sidebar) */}
                 {settings.newsletter?.enabled &&
                   (settings.newsletter?.position === 'sidebar' ||

@@ -416,10 +416,10 @@ const UserProfile: React.FC<ProfileProps> = ({
       </div>
 
       {/* Content Grid */}
-      <div className="px-4 lg:px-0 min-h-[360px]">
+      <div className="px-4 lg:px-0 min-h-90">
         {activeTab === 'articles' ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in min-h-[360px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in min-h-90">
               {articlesLoading && articlePosts.length === 0 ? (
                 Array.from({ length: 4 }).map((_, index) => (
                   <div
@@ -491,7 +491,7 @@ const UserProfile: React.FC<ProfileProps> = ({
           </>
         ) : (
           <>
-            <div className="space-y-4 animate-fade-in min-h-[360px]">
+            <div className="space-y-4 animate-fade-in min-h-90">
               {commentsLoading && commentItems.length === 0 ? (
                 Array.from({ length: 3 }).map((_, index) => (
                   <div

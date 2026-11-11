@@ -384,6 +384,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         linkUrl: currentConfig.linkUrl || '#',
         linkText: currentConfig.linkText || 'Click Here',
         backgroundColor: currentConfig.backgroundColor || '#db2777',
+        allowDismiss: currentConfig.allowDismiss !== false,
         dismissHours: currentConfig.dismissHours || 24,
         startsAt: currentConfig.startsAt || '',
         endsAt: currentConfig.endsAt || '',
@@ -574,7 +575,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                 <button
                   type="button"
                   onClick={() => setConfiguringPluginId(null)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200 dark:text-gray-400"
                   aria-label="Close extension settings"
                 >
                   <X size={24} />
@@ -583,6 +584,34 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
               <div className="max-h-[calc(100dvh-12rem)] space-y-4 overflow-y-auto p-4 sm:max-h-[60dvh] sm:p-6">
                 {Object.keys(tempConfig).length > 0 ? (
                   Object.entries(tempConfig).map(([key, value]) => {
+                    if (configuringPluginId === 'vp_promo_bar') {
+                      if (key === 'allowDismiss') {
+                        return (
+                          <label
+                            key={key}
+                            className="flex min-h-11 items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-300"
+                          >
+                            <input
+                              name="promoBarAllowDismiss"
+                              type="checkbox"
+                              checked={value === true}
+                              onChange={(e) =>
+                                setTempConfig({ ...tempConfig, allowDismiss: e.target.checked })
+                              }
+                              className="size-4 accent-primary-600"
+                            />
+                            Allow visitors to dismiss
+                          </label>
+                        );
+                      }
+                      if (
+                        key === 'dismissHours' &&
+                        'allowDismiss' in tempConfig &&
+                        tempConfig.allowDismiss === false
+                      ) {
+                        return null;
+                      }
+                    }
                     const isColorField = key.toLowerCase().includes('color');
                     const fieldValue = String(value ?? '');
                     const pickerValue = /^#[0-9a-f]{6}$/i.test(fieldValue) ? fieldValue : '#db2777';
@@ -614,7 +643,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                               onChange={(e) =>
                                 setTempConfig({ ...tempConfig, [key]: e.target.value })
                               }
-                              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 font-mono uppercase text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
+                              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 font-mono uppercase text-slate-800 outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white dark:focus:ring-gray-400"
                             />
                             <div
                               className="h-11 w-20 shrink-0 rounded-lg border border-slate-200 shadow-inner dark:border-admin-border"
@@ -632,14 +661,14 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                             onChange={(e) =>
                               setTempConfig({ ...tempConfig, [key]: e.target.value })
                             }
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
                           />
                         )}
                       </div>
                     );
                   })
                 ) : (
-                  <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  <div className="text-center py-8 text-slate-500 dark:text-gray-400">
                     <Settings size={48} className="mx-auto mb-4 opacity-20" />
                     <p>No configuration options available for this plugin.</p>
                   </div>
@@ -648,13 +677,13 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
               <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row sm:p-6">
                 <button
                   onClick={() => setConfiguringPluginId(null)}
-                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
+                  className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveSettings}
-                  className="min-h-11 w-full px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto"
+                  className="min-h-11 w-full px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto dark:bg-admin-hover dark:hover:bg-admin-hover-strong dark:shadow-none"
                 >
                   Save Changes
                 </button>
@@ -667,14 +696,17 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-800 dark:text-white">Extensions Manager</h2>
-          <p className="text-slate-500 dark:text-slate-400">
+          <p className="text-slate-500 dark:text-gray-400">
             Manage your site's look and functionality.
           </p>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
+            size={20}
+          />
           <input
             id="extensionsmanager-480"
             name="extensionsmanager480"
@@ -683,7 +715,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
             placeholder={`Search ${activeTab}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-panel text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden w-full md:w-64"
+            className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-panel text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden w-full md:w-64 dark:focus:ring-gray-400"
           />
         </div>
       </div>
@@ -692,19 +724,19 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       <div className="flex p-1 bg-slate-200 dark:bg-admin-panel rounded-xl w-fit">
         <button
           onClick={() => setActiveTab('themes')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'themes' ? 'bg-white dark:bg-admin-hover text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'themes' ? 'bg-white dark:bg-gray-200 text-blue-600 dark:text-gray-900 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-slate-300'}`}
         >
           <Palette size={18} /> Themes
         </button>
         <button
           onClick={() => setActiveTab('plugins')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'plugins' ? 'bg-white dark:bg-admin-hover text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'plugins' ? 'bg-white dark:bg-gray-200 text-blue-600 dark:text-gray-900 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-slate-300'}`}
         >
           <Package size={18} /> Plugins
         </button>
       </div>
 
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-slate-500 dark:text-gray-400">
         Uninstall keeps saved settings for reinstallation; it does not reset them. Bundled files
         remain part of VonCMS.
       </p>
@@ -714,7 +746,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
         {paginatedItems.map((item) => (
           <div
             key={item.id}
-            className="group bg-white dark:bg-admin-panel rounded-xl border border-slate-200 dark:border-admin-border overflow-hidden hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 flex flex-col h-full"
+            className="group bg-white dark:bg-admin-panel rounded-xl border border-slate-200 dark:border-admin-border overflow-hidden hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 flex flex-col h-full dark:hover:border-gray-400/30"
           >
             {/* Card Image (Themes only) or Icon Header (Plugins) */}
             {item.type === 'theme'
@@ -794,19 +826,19 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
             {/* Content */}
             <div className="p-6 flex-1 flex flex-col">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors dark:group-hover:text-white">
                   {item.name}
                 </h3>
-                <span className="text-xs text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-sm">
+                <span className="text-xs text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-sm dark:text-gray-400">
                   v{item.version}
                 </span>
               </div>
 
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 flex-1 leading-relaxed">
+              <p className="text-slate-500 dark:text-gray-400 text-sm mb-4 flex-1 leading-relaxed">
                 {item.description}
               </p>
 
-              <div className="text-xs text-slate-400 mb-6 flex items-center gap-1">
+              <div className="text-xs text-slate-400 mb-6 flex items-center gap-1 dark:text-gray-400">
                 <span>By</span>{' '}
                 <span className="font-medium text-slate-600 dark:text-slate-300">
                   {item.author}
@@ -834,7 +866,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                       className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors ${
                         item.status === 'active'
                           ? 'bg-green-50 text-green-600 cursor-default dark:bg-green-900/20 dark:text-green-400'
-                          : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400'
+                          : 'bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-admin-hover-strong dark:hover:text-white'
                       }`}
                     >
                       {item.status === 'active' ? (
@@ -854,7 +886,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                         mutatingExtensionId !== null ||
                         (item.type === 'theme' && item.id === THEME_DEFAULT.id)
                       }
-                      className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      className="admin-action-delete p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400"
                       title={
                         item.type === 'theme' && item.id === THEME_DEFAULT.id
                           ? 'Default theme is required as a fallback'
@@ -868,7 +900,7 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                     <button
                       onClick={() => handleOpenSettings(item.id)}
                       disabled={mutatingExtensionId !== null}
-                      className="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors disabled:cursor-wait disabled:opacity-50"
+                      className="admin-action-edit p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-admin-hover-strong/20 rounded-lg transition-colors disabled:cursor-wait disabled:opacity-50 dark:hover:text-white dark:text-gray-400"
                       title="Settings"
                     >
                       <Settings size={18} />

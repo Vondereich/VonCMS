@@ -188,7 +188,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
               >
                 Update to v{latestVersion}
               </h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
                 Current version: v{currentVersion}
               </p>
             </div>
@@ -197,7 +197,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex size-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-white"
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-gray-400 dark:hover:bg-admin-hover dark:hover:text-white"
               aria-label="Close system update"
             >
               <X size={20} />
@@ -240,12 +240,12 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                   <p className="font-semibold text-slate-800 dark:text-slate-100">
                     Your site data stays protected
                   </p>
-                  <p className="mt-1 leading-6 text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 leading-6 text-slate-500 dark:text-gray-400">
                     The updater preserves <strong>von_config.php</strong>,{' '}
                     <strong>.htaccess</strong>, <strong>data</strong>, <strong>uploads</strong>, and{' '}
                     <strong>backups</strong> while replacing managed release files.
                   </p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-gray-400">
                     If the release notes mention .htaccess changes, run System Tools &gt; Repair
                     .htaccess once after updating.
                   </p>
@@ -274,13 +274,13 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 <p className="font-semibold text-slate-900 dark:text-white">
                   {step === 'checking' ? 'Checking update requirements' : 'Installing update'}
                 </p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
                   {step === 'checking'
                     ? 'Confirming permissions and preparing a secure update session.'
                     : 'The package is being downloaded, verified, backed up, and installed.'}
                 </p>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-gray-400">
                 Keep this window open until the operation finishes.
               </p>
             </div>
@@ -315,7 +315,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
           {activity.length > 0 && step !== 'idle' && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
                 Update activity
               </h3>
               <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">

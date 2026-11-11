@@ -1856,11 +1856,10 @@ try {
       throw new RuntimeException('Unable to read the import item.');
     }
 
-    $namespaces = $sxe->getNamespaces(true);
-
     // Safety: Check if namespaces exist
     $wp = voncms_wp_fields($sxe);
-    $content = isset($namespaces['content']) ? $sxe->children($namespaces['content']) : null;
+    // XML namespace identity is its URI; exporters may choose any prefix (or a default).
+    $content = $sxe->children('http://purl.org/rss/1.0/modules/content/');
 
     $postType = '';
     $postStatus = 'publish';

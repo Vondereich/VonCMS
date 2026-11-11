@@ -44,7 +44,7 @@ export const EditorMediaLibraryModal = ({
         <button
           type="button"
           onClick={onClose}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300 dark:text-gray-400"
           title="Close"
           aria-label="Close media library"
         >
@@ -57,7 +57,10 @@ export const EditorMediaLibraryModal = ({
         className="flex flex-col gap-2 border-b border-slate-100 bg-white p-3 dark:border-admin-border dark:bg-admin-panel sm:flex-row"
       >
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
+          />
           <input
             id="editor-media-search"
             name="editorMediaSearch"
@@ -68,13 +71,13 @@ export const EditorMediaLibraryModal = ({
             aria-label="Search media library"
             onChange={(event) => onSearchInputChange(event.target.value)}
             placeholder="Search filename, alt text or caption..."
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-10 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-10 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white dark:focus:ring-gray-400"
           />
           {mediaSearchInput !== '' && (
             <button
               type="button"
               onClick={() => onSearchInputChange('')}
-              className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-admin-border dark:hover:text-white"
+              className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-admin-border dark:hover:text-white dark:text-gray-400"
               title="Clear search"
               aria-label="Clear media library search"
             >
@@ -84,7 +87,7 @@ export const EditorMediaLibraryModal = ({
         </div>
         <button
           type="submit"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
         >
           Search
         </button>
@@ -92,12 +95,12 @@ export const EditorMediaLibraryModal = ({
 
       <div className="grow overflow-y-auto p-4 bg-slate-100 dark:bg-admin-canvas custom-scrollbar">
         {loadingMedia ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+          <div className="flex flex-col items-center justify-center h-64 text-slate-500 dark:text-gray-400">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2 dark:border-gray-400"></div>
             Loading library...
           </div>
         ) : mediaFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+          <div className="flex flex-col items-center justify-center h-64 text-slate-500 dark:text-gray-400">
             <Images size={48} className="opacity-20 mb-2" />
             <p>No images found in library</p>
           </div>
@@ -109,7 +112,7 @@ export const EditorMediaLibraryModal = ({
                 key={file.id || file.url || idx}
                 onClick={() => onSelect(file)}
                 aria-label={`Insert ${file.altText || file.name || 'image'}`}
-                className="group cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-xs transition-all hover:ring-2 hover:ring-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-admin-border dark:bg-admin-panel"
+                className="group cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-xs transition-all hover:ring-2 hover:ring-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-admin-border dark:bg-admin-panel dark:hover:ring-gray-400 dark:focus-visible:ring-gray-400"
               >
                 <div className="aspect-square relative bg-slate-100 dark:bg-admin-canvas">
                   <img
@@ -119,7 +122,7 @@ export const EditorMediaLibraryModal = ({
                     loading="lazy"
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-colors group-hover:bg-black/20 group-hover:opacity-100 group-focus-visible:bg-black/20 group-focus-visible:opacity-100">
-                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg">
+                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg dark:bg-admin-hover">
                       Select
                     </span>
                   </div>

@@ -1,6 +1,6 @@
 # VonCMS API Guide
 
-Version: `1.28.1`
+Version: `1.28.2`
 
 Runtime minimum: PHP 8.2.0; PHP 8.3+ is recommended. Use a supported, patched PHP build; the CMS version guard does not install PHP security updates.
 Primary API location: `/api/*.php`
@@ -8,7 +8,9 @@ System endpoints: `/api/system/*.php`
 
 This guide is a practical map of the current API surface. It focuses on the endpoint structure that exists in the project today instead of trying to document every response field in exhaustive detail.
 
-Guest settings and initial HTML use the same public projection. Inactive system-plugin configuration and disabled custom HTML plugins are omitted; authorized admin settings retain their saved configuration. Meaningful OFF flags and empty lists are preserved.
+Guest settings and initial HTML use the same public projection. Only the active bundled theme namespace and shared `primaryColor`, `fontFamily`, `borderRadius` and `customCss` fields are included; an unknown theme ID follows the bundled Default fallback. Explicit `ads.adsEnabled: false` omits `headerAd`, `inFeedAd` and `popupAd`, while preserving flags and intervals. Explicit Newsletter OFF projects `{ "enabled": false }`. Enabled empty values are not filtered. Inactive system-plugin configuration and disabled custom HTML plugins remain omitted. Authorized Admin reads retain the saved configuration; Member, Writer and Moderator reads use the reduced public projection, with existing staff capability hints unchanged.
+
+Treat a public response as a complete reduced snapshot, never as a settings-write payload. Admin editing requires the full response described below. Canonical Ads/Newsletter rows take precedence over legacy aliases even when empty. No new endpoint, storage schema or authorization rule is introduced; the existing cache is cleared after a successful Settings save.
 
 Complete Admin settings responses carry the runtime-only `_settingsScope: "admin"` readiness hint, including secret-masked responses for appointed Admins. It is not an authorization grant or persisted setting. The frontend waits for this response before showing Admin settings screens and rejects public-only/stale drafts; session, role and CSRF checks remain enforced by the server.
 
@@ -146,6 +148,8 @@ Comment status changes and deletion of another user's comment require the server
 - `update_profile.php`
 - `get_public_profile.php`
 
+User deletion locks and authorizes the current target account within the cleanup transaction. Primary Admin and self-deletion protection use its stored ID, including when a numeric alias is submitted. Appointed Admins cannot delete protected Admin/Root accounts. Failed cleanup rolls back; successful deletion retains content bodies and clears the removed account's author associations.
+
 ### Settings and system data
 
 - `get_settings.php`
@@ -166,6 +170,8 @@ Database repair is resumable rather than transactionally rolled back. MySQL can 
 #### WordPress Bridge endpoints
 
 `POST /api/tools/wp_scan.php` accepts multipart `xml_file` (1 byte to 64 MiB). `POST /api/tools/wp_import.php` accepts JSON `temp_file`, `batch_index` and `limit` (1-50; the UI uses 10). Both require a valid Primary Admin session and CSRF. DOM, XMLReader and SimpleXML are required; cURL is required for remote image localization. The complete XML is validated before the first content write. WXR 1.0-1.2 namespace URIs and supported flat Post XML are recognized; unrelated/empty exports and malformed XML are refused.
+
+Article bodies use the RSS content namespace URI, independent of its XML prefix. A matching local field name under an unrelated namespace is not treated as the body. Flat `<content>` and `<description>` remain supported fallbacks.
 
 The server's protected checkpoint owns the cursor, not a caller-provided offset. Responses include `phase` (`import` or `links`), `has_more`, `paused`, authoritative processed/imported/skipped totals, `errors`, `warnings` and a warning count. Continue while `has_more` is true, even if the final link-resolution request imports no new records. Stop on `paused` and retain the checkpoint; retry resumes the failed item rather than skipping it. Successful finalization removes the XML and JSON state. A later scan prunes temporary import files older than 24 hours. Checkpoints are capped at 16 MiB and concurrent requests for the same import are refused. Browser checkpoints are scoped to the installation base path.
 

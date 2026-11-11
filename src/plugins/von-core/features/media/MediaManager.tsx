@@ -41,6 +41,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRequestIdRef = useRef(0);
 
@@ -143,15 +144,17 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
     void fetchMedia(1, searchQuery);
   }, [fetchMedia, searchQuery]);
 
-  const handleUpload = async (files: FileList) => {
-    if (!files.length) return;
+  const handleUpload = async (files: File[]) => {
+    if (isUploading || !files.length) return;
 
     setIsUploading(true);
-    setError(null);
+    setUploadError(null);
 
     const folderStructure = settings?.media?.storage?.folderStructure || 'year_month';
+    let failedUploads = 0;
+    let firstFailure = '';
 
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       try {
         const formData = new FormData();
         formData.append('file', file);
@@ -163,26 +166,31 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         });
 
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
-        if (data.success) {
+        if (res.ok && data?.success === true) {
           toast.success(`Uploaded: ${data.filename}`);
         } else {
-          throw new Error(data.error || 'Upload failed');
+          throw new Error(data?.error || data?.message || 'Upload failed');
         }
       } catch (err) {
-        setError(getErrorMessage(err, 'Upload failed'));
+        failedUploads++;
+        firstFailure ||= getErrorMessage(err, 'Upload failed');
         console.error('Upload error:', err);
       }
     }
 
+    if (failedUploads > 0) {
+      setUploadError(
+        `Upload failed for ${failedUploads} of ${files.length} files: ${firstFailure}`
+      );
+    }
     setIsUploading(false);
     await fetchMedia(1, searchQuery);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleUpload(e.target.files);
-    }
+    const files = Array.from(e.currentTarget.files ?? []);
+    e.currentTarget.value = '';
+    void handleUpload(files);
   };
 
   // Batch delete handler
@@ -258,9 +266,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files) {
-      handleUpload(e.dataTransfer.files);
-    }
+    void handleUpload(Array.from(e.dataTransfer.files));
   };
 
   const handleUpdateMeta = async () => {
@@ -375,7 +381,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                           (lightboxIndex - 1 + filteredMedia.length) % filteredMedia.length
                         );
                       }}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-admin-panel rounded-full transition-all z-50 hidden md:block"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-admin-panel rounded-full transition-all z-50 hidden md:block dark:hover:text-white dark:text-gray-400"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -396,7 +402,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         e.stopPropagation();
                         setLightboxIndex((lightboxIndex + 1) % filteredMedia.length);
                       }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-admin-panel rounded-full transition-all z-50 hidden md:block"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 p-4 hover:bg-white/10 dark:hover:bg-admin-panel rounded-full transition-all z-50 hidden md:block dark:hover:text-white dark:text-gray-400"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -476,7 +482,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               </div>
 
               {/* EDITOR COLUMN (30%) */}
-              <div className="flex h-auto w-full shrink-0 flex-col overflow-hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-admin-canvas md:h-full md:w-[350px] md:border-l md:border-t-0 lg:w-[400px]">
+              <div className="flex h-auto w-full shrink-0 flex-col overflow-hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-admin-canvas md:h-full md:w-87.5 md:border-l md:border-t-0 lg:w-100">
                 <div className="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50 dark:bg-white/5">
                   <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <FileText className="text-blue-500" size={20} />
@@ -487,13 +493,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   {/* Filename Info */}
                   <div className="pb-4 border-b border-slate-100 dark:border-white/5">
-                    <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 font-bold mb-1 block">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-gray-400 font-bold mb-1 block">
                       Main File Information
                     </span>
                     <p className="text-sm text-slate-800 dark:text-white font-medium break-all">
                       {filteredMedia[lightboxIndex].name}
                     </p>
-                    <div className="mt-2 flex gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="mt-2 flex gap-3 text-[11px] text-slate-500 dark:text-gray-400">
                       <span>{filteredMedia[lightboxIndex].extension?.toUpperCase()}</span>
                       <span>{filteredMedia[lightboxIndex].size || '0 B'}</span>
                     </div>
@@ -501,7 +507,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
 
                   {/* Alt Text */}
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 dark:text-gray-400 flex items-center justify-between">
                       ALT TEXT
                       <span className="text-[10px] text-blue-500 font-bold">SEO FOCUS</span>
                     </span>
@@ -512,14 +518,14 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       type="text"
                       value={editMeta.alt}
                       onChange={(e) => setEditMeta({ ...editMeta, alt: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all placeholder:text-slate-400"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all placeholder:text-slate-400 dark:focus:ring-gray-400"
                       placeholder="Alternative text..."
                     />
                   </div>
 
                   {/* Caption */}
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <span className="text-xs font-bold text-slate-500 dark:text-gray-400">
                       CAPTION
                     </span>
                     <textarea
@@ -529,14 +535,14 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       rows={3}
                       value={editMeta.caption}
                       onChange={(e) => setEditMeta({ ...editMeta, caption: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all resize-none placeholder:text-slate-400"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all resize-none placeholder:text-slate-400 dark:focus:ring-gray-400"
                       placeholder="Brief description underneath..."
                     />
                   </div>
 
                   {/* Description */}
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <span className="text-xs font-bold text-slate-500 dark:text-gray-400">
                       DESCRIPTION
                     </span>
                     <textarea
@@ -546,7 +552,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       rows={4}
                       value={editMeta.desc}
                       onChange={(e) => setEditMeta({ ...editMeta, desc: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all resize-none placeholder:text-slate-400"
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden transition-all resize-none placeholder:text-slate-400 dark:focus:ring-gray-400"
                       placeholder="Long notes or details..."
                     />
                   </div>
@@ -560,7 +566,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
                       saveSuccess
                         ? 'bg-green-600 text-white shadow-lg shadow-green-600/20 scale-[0.98]'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 dark:bg-admin-hover dark:hover:bg-admin-hover-strong dark:shadow-none'
                     }`}
                   >
                     {metaLoading ? (
@@ -572,7 +578,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     )}
                     {saveSuccess ? 'Changes Saved!' : 'Save Details'}
                   </button>
-                  <p className="text-[10px] text-slate-400 text-center mt-3 lowercase">
+                  <p className="text-[10px] text-slate-400 text-center mt-3 lowercase dark:text-gray-400">
                     Syncs to Gallery and Search Engines
                   </p>
                 </div>
@@ -585,7 +591,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Media Gallery</h2>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-500 text-sm dark:text-gray-400">
             Manage your site's images and files. Select files normally or use Edit details to open
             an image. {pagination.totalItems} files
           </p>
@@ -593,7 +599,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => fetchMedia(pagination.currentPage, searchQuery)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-admin-hover-strong transition"
             disabled={isLoading}
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} /> Refresh
@@ -606,12 +612,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             onChange={handleFileSelect}
             accept="image/*"
             multiple
+            disabled={isUploading}
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
           >
             <Upload size={18} /> {isUploading ? 'Uploading...' : 'Upload Media'}
           </button>
@@ -619,13 +626,22 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       </div>
 
       {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-4 rounded-lg flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)}>
-            <X size={18} />
-          </button>
-        </div>
+      {[
+        { label: 'media list error', message: error, dismiss: () => setError(null) },
+        { label: 'upload error', message: uploadError, dismiss: () => setUploadError(null) },
+      ].map(({ label, message, dismiss }) =>
+        message ? (
+          <div
+            key={label}
+            role="alert"
+            className="flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+          >
+            <span className="min-w-0 wrap-break-word">{message}</span>
+            <button type="button" aria-label={`Dismiss ${label}`} onClick={dismiss}>
+              <X size={18} />
+            </button>
+          </div>
+        ) : null
       )}
 
       {/* Toolbar */}
@@ -664,7 +680,10 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
           )}
 
           <form onSubmit={handleSearch} className="relative flex min-w-0 flex-1 sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
+              size={18}
+            />
             <input
               id="search-files"
               name="searchFiles"
@@ -675,13 +694,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
               maxLength={120}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-28 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
+              className="w-full border border-slate-200 bg-slate-50 py-2 pl-10 pr-28 text-sm outline-hidden focus:ring-2 focus:ring-blue-500 dark:border-admin-border dark:bg-admin-canvas dark:text-white dark:focus:ring-gray-400"
             />
             {searchInput !== '' && (
               <button
                 type="button"
                 onClick={() => setSearchInput('')}
-                className="absolute right-[4.75rem] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-admin-border dark:hover:text-white"
+                className="absolute right-19 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-sm p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-admin-border dark:hover:text-white dark:text-gray-400"
                 title="Clear search"
                 aria-label="Clear media search"
               >
@@ -690,7 +709,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             )}
             <button
               type="submit"
-              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
             >
               Search
             </button>
@@ -699,13 +718,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         <div className="flex items-center gap-2 self-end rounded-lg bg-slate-100 p-1 dark:bg-admin-hover lg:self-auto">
           <button
             onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-sm ${viewMode === 'grid' ? 'bg-white dark:bg-slate-600 shadow-xs text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`p-2 rounded-sm ${viewMode === 'grid' ? 'bg-white dark:bg-gray-200 shadow-xs text-blue-600 dark:text-gray-900' : 'text-slate-500 hover:text-slate-700 dark:text-gray-400'}`}
           >
             <Grid size={18} />
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`p-2 rounded-sm ${viewMode === 'list' ? 'bg-white dark:bg-slate-600 shadow-xs text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`p-2 rounded-sm ${viewMode === 'list' ? 'bg-white dark:bg-gray-200 shadow-xs text-blue-600 dark:text-gray-900' : 'text-slate-500 hover:text-slate-700 dark:text-gray-400'}`}
           >
             <ListIcon size={18} />
           </button>
@@ -719,18 +738,18 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
         onDrop={handleDrop}
       >
         {/* File Grid */}
-        <div className="lg:col-span-3">
+        <div className="space-y-6 lg:col-span-3">
           {isLoading ? (
             <div className="flex items-center justify-center h-64 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border">
-              <RefreshCw size={32} className="text-slate-400 animate-spin" />
+              <RefreshCw size={32} className="text-slate-400 animate-spin dark:text-gray-400" />
             </div>
           ) : filteredMedia.length === 0 ? (
             <div
-              className="flex flex-col items-center justify-center h-64 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border cursor-pointer hover:border-blue-400 transition-colors"
+              className="flex flex-col items-center justify-center h-64 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border cursor-pointer hover:border-blue-400 transition-colors dark:hover:border-gray-400"
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload size={48} className="text-slate-300 mb-4" />
-              <p className="text-slate-500 text-sm">
+              <p className="text-slate-500 text-sm dark:text-gray-400">
                 No files found. Click or drag files to upload.
               </p>
             </div>
@@ -748,12 +767,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     }
                   }}
                   onDoubleClick={() => handleDoubleClick(item)}
-                  className={`group relative aspect-square bg-slate-100 dark:bg-admin-canvas rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'}`}
+                  className={`group relative aspect-square bg-slate-100 dark:bg-admin-canvas rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30 dark:border-gray-400 dark:ring-gray-400/30' : 'border-transparent hover:border-slate-300 dark:hover:border-gray-400'}`}
                 >
                   {/* Checkbox */}
                   <button
                     onClick={(e) => toggleSelection(item.id, e)}
-                    className={`absolute top-2 left-2 z-10 p-1 rounded-sm ${selectedItems.has(item.id) ? 'bg-blue-500 text-white' : 'bg-black/40 text-white opacity-0 group-hover:opacity-100'} transition-all`}
+                    className={`absolute top-2 left-2 z-10 p-1 rounded-sm ${selectedItems.has(item.id) ? 'bg-blue-500 text-white dark:bg-admin-hover' : 'bg-black/40 text-white opacity-0 group-hover:opacity-100'} transition-all`}
                   >
                     {selectedItems.has(item.id) ? <CheckSquare size={18} /> : <Square size={18} />}
                   </button>
@@ -780,7 +799,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-gray-400">
                       <Folder size={48} className="mb-2 text-yellow-500" />
                       <span className="text-xs font-medium px-2 text-center">{item.name}</span>
                     </div>
@@ -795,13 +814,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel">
-              <table className="w-full min-w-[680px] text-sm text-left">
-                <thead className="bg-slate-50 dark:bg-admin-canvas border-b border-slate-200 dark:border-admin-border font-medium text-slate-500">
+              <table className="w-full min-w-170 text-sm text-left">
+                <thead className="bg-slate-50 dark:bg-admin-canvas border-b border-slate-200 dark:border-admin-border font-medium text-slate-500 dark:text-gray-400">
                   <tr>
                     <th className="p-4 w-12">
                       <button
                         onClick={toggleSelectAll}
-                        className="text-slate-400 hover:text-blue-500"
+                        className="text-slate-400 hover:text-blue-500 dark:hover:text-white dark:text-gray-400"
                       >
                         {selectedItems.size === filteredMedia.length && filteredMedia.length > 0 ? (
                           <CheckSquare size={18} className="text-blue-500" />
@@ -824,12 +843,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         toggleSelection(item.id);
                       }}
                       onDoubleClick={() => handleDoubleClick(item)}
-                      className={`border-b last:border-0 border-slate-100 dark:border-white/10 cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-hover/50 ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                      className={`border-b last:border-0 border-slate-100 dark:border-white/10 cursor-pointer hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50 ${selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-admin-hover-strong/20' : ''}`}
                     >
                       <td className="p-4">
                         <button
                           onClick={(e) => toggleSelection(item.id, e)}
-                          className="text-slate-400 hover:text-blue-500"
+                          className="text-slate-400 hover:text-blue-500 dark:hover:text-white dark:text-gray-400"
                         >
                           {selectedItems.has(item.id) ? (
                             <CheckSquare size={18} className="text-blue-500" />
@@ -844,10 +863,10 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         ) : (
                           <Folder size={16} className="text-yellow-500" />
                         )}
-                        <span className="truncate max-w-[200px]">{item.name}</span>
+                        <span className="truncate max-w-50">{item.name}</span>
                       </td>
-                      <td className="p-4 text-slate-500">{item.size}</td>
-                      <td className="p-4 text-slate-500">{item.uploadedAt}</td>
+                      <td className="p-4 text-slate-500 dark:text-gray-400">{item.size}</td>
+                      <td className="p-4 text-slate-500 dark:text-gray-400">{item.uploadedAt}</td>
                       <td className="p-4 text-right">
                         {item.type === 'image' && (
                           <button
@@ -856,7 +875,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                               event.stopPropagation();
                               handleDoubleClick(item);
                             }}
-                            className="mr-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                            className="admin-action-edit mr-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 dark:text-gray-200 dark:hover:bg-admin-hover-strong/20"
                           >
                             Edit details
                           </button>
@@ -867,7 +886,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                               e.stopPropagation();
                               handleDelete([item.id]);
                             }}
-                            className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-sm transition mr-2"
+                            className="admin-action-delete p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-sm transition mr-2 dark:text-gray-400"
                             title="Delete Selected"
                           >
                             <Trash2 size={16} />
@@ -911,12 +930,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                           className="max-w-full max-h-full object-contain"
                         />
                       ) : (
-                        <FileText size={48} className="text-slate-400" />
+                        <FileText size={48} className="text-slate-400 dark:text-gray-400" />
                       )}
                     </div>
 
                     <div>
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1 dark:text-gray-400">
                         Alt Text
                       </span>
                       <input
@@ -930,13 +949,13 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                         value={editMeta.alt}
                         onChange={(e) => setEditMeta((prev) => ({ ...prev, alt: e.target.value }))}
                       />
-                      <p className="text-[10px] text-slate-400 mt-1">
+                      <p className="text-[10px] text-slate-400 mt-1 dark:text-gray-400">
                         Crucial for SEO and Screen Readers
                       </p>
                     </div>
 
                     <div>
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1 dark:text-gray-400">
                         Caption
                       </span>
                       <textarea
@@ -955,7 +974,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     </div>
 
                     <div>
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1 dark:text-gray-400">
                         Description
                       </span>
                       <textarea
@@ -974,14 +993,14 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     <button
                       onClick={handleUpdateMeta}
                       disabled={metaLoading}
-                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm font-medium transition-colors disabled:opacity-50"
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-sm font-medium transition-colors disabled:opacity-50 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
                     >
                       {metaLoading ? 'Saving...' : 'Save Meta Info'}
                     </button>
 
                     <hr className="border-slate-200 dark:border-admin-border my-4" />
 
-                    <div className="space-y-3 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="space-y-3 text-xs text-slate-500 dark:text-gray-400">
                       <div>
                         <span className="font-semibold block text-slate-700 dark:text-slate-300">
                           Filename
@@ -1038,7 +1057,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                       <div className="mt-8 pt-4 border-t border-slate-100 dark:border-admin-border">
                         <button
                           onClick={() => handleDelete([item.id])} // Fixed: Pass array
-                          className="w-full py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 font-medium flex items-center justify-center gap-2 transition"
+                          className="admin-action-delete w-full py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 font-medium flex items-center justify-center gap-2 transition"
                         >
                           <Trash2 size={16} /> Delete File
                         </button>
@@ -1054,12 +1073,12 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
                     {selectedItems.size}
                   </span>
                 </div>
-                <p className="text-slate-500 dark:text-slate-400">Items selected</p>
+                <p className="text-slate-500 dark:text-gray-400">Items selected</p>
                 {canManageMediaDestructiveActions && (
                   <div className="mt-6 flex justify-center">
                     <button
                       onClick={() => handleDelete(Array.from(selectedItems))} // Fixed: Use handleDelete with array
-                      className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded-lg transition-colors"
+                      className="admin-action-delete flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded-lg transition-colors"
                     >
                       <Trash2 size={16} /> Delete Selection
                     </button>
@@ -1069,7 +1088,7 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
             )}
           </div>
         ) : (
-          <div className="lg:col-span-1 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border p-8 text-center text-slate-400 sticky top-6">
+          <div className="lg:col-span-1 bg-slate-50 dark:bg-admin-canvas/50 rounded-xl border border-dashed border-slate-300 dark:border-admin-border p-8 text-center text-slate-400 sticky top-6 dark:text-gray-400">
             <Image size={48} className="mx-auto mb-3 opacity-50" />
             <p className="text-sm">Select a file to view details</p>
           </div>

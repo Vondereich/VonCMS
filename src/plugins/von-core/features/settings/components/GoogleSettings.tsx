@@ -64,7 +64,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
             Google Services Integration
           </h2>
-          <p className="text-slate-500 dark:text-slate-400">
+          <p className="text-slate-500 dark:text-gray-400">
             Manage your Search Console, Analytics, and AdSense configuration in one place.
           </p>
         </div>
@@ -84,14 +84,16 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
 
       {/* 1. Google Search Console & SEO */}
       <section className="bg-white dark:bg-admin-panel rounded-xl shadow-xs border border-slate-200 dark:border-admin-border overflow-hidden">
-        <div className="p-6 border-b border-slate-100 dark:border-admin-border flex justify-between items-center bg-blue-50/50 dark:bg-blue-900/10">
+        <div className="p-6 border-b border-slate-100 dark:border-admin-border flex justify-between items-center bg-blue-50/50 dark:bg-admin-hover-strong/10">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+            <div className="p-2 bg-blue-100 dark:bg-admin-hover-strong/30 rounded-lg text-blue-600 dark:text-blue-400">
               <Search size={20} />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white">Search Console (SEO)</h3>
-              <p className="text-xs text-slate-500">Verify your site ownership with Google.</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">
+                Verify your site ownership with Google.
+              </p>
             </div>
           </div>
           {googleVerification.trim() ? (
@@ -99,7 +101,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <CheckCircle size={12} /> CONFIGURED
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full">
+            <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full dark:text-gray-400">
               NOT CONFIGURED
             </span>
           )}
@@ -118,11 +120,14 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 value={googleVerification}
                 onChange={(e) => updateSeo('googleSearchConsole', e.target.value)}
                 placeholder="e.g. google-site-verification=..."
-                className="w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-canvas dark:text-white font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
+                className="w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-canvas dark:text-white font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
               />
-              <Search className="absolute left-3 top-3.5 text-slate-400" size={16} />
+              <Search
+                className="absolute left-3 top-3.5 text-slate-400 dark:text-gray-400"
+                size={16}
+              />
             </div>
-            <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+            <p className="text-xs text-slate-500 mt-2 flex items-center gap-1 dark:text-gray-400">
               <HelpCircle size={12} />
               <span>
                 Paste the full meta tag or just the verification code from{' '}
@@ -137,7 +142,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 .
               </span>
             </p>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
               A configured code does not confirm ownership verification. Complete verification in
               Google Search Console.
             </p>
@@ -158,25 +163,27 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white">Google Analytics 4</h3>
-              <p className="text-xs text-slate-500">Track visitor traffic and behavior.</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">
+                Track visitor traffic and behavior.
+              </p>
             </div>
           </div>
           {analyticsId.trim() ? (
             <span
-              className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${settings.analytics?.enableTracking === false ? 'text-slate-500 bg-slate-100 dark:bg-admin-hover dark:text-slate-400' : 'text-green-600 bg-green-100 dark:bg-green-900/20'}`}
+              className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${settings.analytics?.enableTracking === false ? 'text-slate-500 bg-slate-100 dark:bg-admin-hover dark:text-gray-400' : 'text-green-600 bg-green-100 dark:bg-green-900/20'}`}
             >
               <CheckCircle size={12} />
               {settings.analytics?.enableTracking === false ? 'TRACKING DISABLED' : 'CONFIGURED'}
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full">
+            <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full dark:text-gray-400">
               NOT CONFIGURED
             </span>
           )}
         </div>
         <div className="p-6 space-y-4">
           {!canManageAnalytics && (
-            <p role="status" className="text-sm text-slate-600 dark:text-slate-400">
+            <p role="status" className="text-sm text-slate-600 dark:text-gray-400">
               Read-only. Only the Primary Admin can change analytics settings.
             </p>
           )}
@@ -196,11 +203,14 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 placeholder="e.g. G-12345678"
                 className="w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-canvas dark:text-white font-mono text-sm focus:ring-2 focus:ring-orange-500 outline-hidden"
               />
-              <BarChart3 className="absolute left-3 top-3.5 text-slate-400" size={16} />
+              <BarChart3
+                className="absolute left-3 top-3.5 text-slate-400 dark:text-gray-400"
+                size={16}
+              />
             </div>
           </div>
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-gray-400">
             Status reflects this site's configuration, not confirmed Google data delivery. Tracking
             also follows the site's analytics consent settings.
           </p>
@@ -216,12 +226,12 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 disabled={!canManageAnalytics}
                 checked={settings.analytics?.enableTracking ?? true}
                 onChange={(e) => updateAnalytics('enableTracking', e.target.checked)}
-                className="w-4 h-4 text-orange-600 rounded-sm focus:ring-orange-500"
+                className="w-4 h-4 text-orange-600 rounded-sm focus:ring-orange-500 dark:accent-gray-400"
               />
               <span className="text-sm text-slate-700 dark:text-slate-300">Enable Tracking</span>
             </label>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-gray-400">
             GA4 manages IP handling through Google's service and privacy controls. The legacy IP
             masking option is no longer shown here; it was not a GDPR compliance switch. Review{' '}
             <a
@@ -246,7 +256,9 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white">Google AdSense</h3>
-              <p className="text-xs text-slate-500">Monetize your content with ads.</p>
+              <p className="text-xs text-slate-500 dark:text-gray-400">
+                Monetize your content with ads.
+              </p>
             </div>
           </div>
           {adsenseId.trim() ? (
@@ -254,7 +266,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
               <CheckCircle size={12} /> CONFIGURED
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full">
+            <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full dark:text-gray-400">
               NOT CONFIGURED
             </span>
           )}
@@ -264,7 +276,7 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
             <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               Overview Settings
             </span>
-            <div className="bg-slate-50 dark:bg-admin-canvas/50 p-4 rounded-lg text-sm text-slate-600 dark:text-slate-400 mb-4 border border-slate-100 dark:border-white/10">
+            <div className="bg-slate-50 dark:bg-admin-canvas/50 p-4 rounded-lg text-sm text-slate-600 dark:text-gray-400 mb-4 border border-slate-100 dark:border-white/10">
               <p>
                 To configure Header, In-feed, and Popup placements, please visit the{' '}
                 <strong>Ads</strong> tab.
@@ -285,9 +297,12 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
                 placeholder="e.g. pub-1234567890123456"
                 className="w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-canvas dark:text-white font-mono text-sm focus:ring-2 focus:ring-green-500 outline-hidden"
               />
-              <DollarSign className="absolute left-3 top-3.5 text-slate-400" size={16} />
+              <DollarSign
+                className="absolute left-3 top-3.5 text-slate-400 dark:text-gray-400"
+                size={16}
+              />
             </div>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
               The verification tag is added to the <code>&lt;head&gt;</code>. The AdSense loader
               runs only when Master Ad Switch is enabled. A saved ID does not confirm Google
               approval or ad delivery.

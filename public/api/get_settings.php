@@ -172,24 +172,20 @@ try {
         }
         break;
       case 'ads':
-        // Modern 'ads_config': Accept ONLY if verified non-empty/valid
-        if ($key === 'ads_config' && !empty($value)) {
+        // Canonical rows remain authoritative even when intentionally empty.
+        if (
+          $key === 'ads_config' ||
+          ($key === 'configuration' && !array_key_exists('ads', $settings))
+        ) {
           $settings['ads'] = $value;
-        }
-        // Legacy 'configuration': Accept only if we don't have a valid value yet
-        elseif ($key === 'configuration') {
-          if (!isset($settings['ads']) || empty($settings['ads'])) {
-            $settings['ads'] = $value;
-          }
         }
         break;
       case 'newsletter':
-        if ($key === 'newsletter_config' && !empty($value)) {
+        if (
+          $key === 'newsletter_config' ||
+          ($key === 'configuration' && !array_key_exists('newsletter', $settings))
+        ) {
           $settings['newsletter'] = $value;
-        } elseif ($key === 'configuration') {
-          if (!isset($settings['newsletter']) || empty($settings['newsletter'])) {
-            $settings['newsletter'] = $value;
-          }
         }
         break;
       case 'theme':

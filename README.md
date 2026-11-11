@@ -11,7 +11,14 @@ VonCMS is a lightweight, self-hosted CMS built with PHP and React for publishers
 **The BluePrint** is the v1.28.x series, following v1.27.x "OverDrive", whose maintenance line closed at v1.27.12. The BluePrint line focuses on clearer editorial workflows, safer content recovery, leaner public settings, and better staff tools while retaining VonCMS's PHP/MySQL hosting model.
 
 > [!IMPORTANT]
-> **Current version: v1.28.1 "The BluePrint" - 6 November 2026.** This maintenance release builds on v1.28.0 with opt-in Hybrid analytics, safer Post/Page deletion previews, an optional News Sitemap, and targeted reliability and authorization fixes. Installer, bundled theme and built-in plugin labels remain 1.28. Exact changes are listed in the [Changelog](CHANGELOG.md); published downloads are listed on [Releases](https://github.com/Vondereich/VonCMS/releases).
+> **v1.28.2 "The BluePrint" - Release preparation.** The latest published release is v1.28.1, dated 6 November 2026. Installer, bundled theme and built-in plugin labels remain 1.28. See the [Changelog](CHANGELOG.md) for the full change list and [Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
+
+### v1.28.2 Highlights
+
+- **Lean Public Settings:** visitors receive the active theme's configuration. Inactive settings remain saved for authorized Admin editing and reactivation.
+- **Dashboard and editor:** the compact overview keeps the local clock and runtime versions visible. Hybrid and Balanced collection start on the Balanced report without changing how visits are recorded. The AI Assistant starts collapsed and retains its working state when folded.
+- **Admin action feedback:** rejected Gallery uploads and Contact deletions show errors. Newsletter returns to an available page without losing the current filters.
+- **Promo Bar controls:** leave the URL blank to show the announcement without a CTA, or disable visitor dismissal to hide the close button. The campaign schedule still applies.
 
 ### v1.28.1 Highlights
 
@@ -45,15 +52,15 @@ Existing installations require Primary Admin **Database > Schema Repair** to ena
 
 ### 1.28.x Roadmap
 
-| Version        | Focus                                                                                                       | Status            |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ----------------- |
-| **1.28.0**     | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Released baseline |
-| **1.28.1**     | Hybrid analytics, deletion previews, optional News Sitemap, and targeted reliability/access corrections     | 6 November 2026   |
-| **1.28.2**     | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | Planned           |
-| **1.28.3**     | Personal AI keys in eligible staff account profiles, with explicit credential selection                     | Planned           |
-| **1.28.4**     | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned           |
-| **1.28.5**     | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned           |
-| **Unassigned** | Post/Page Trash and Restore: retained for rescheduling, not bundled into 1.28.1                             | Planned           |
+| Version        | Focus                                                                                                       | Status              |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------- |
+| **1.28.0**     | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Released baseline   |
+| **1.28.1**     | Hybrid analytics, deletion previews, optional News Sitemap, and targeted reliability/access corrections     | 6 November 2026     |
+| **1.28.2**     | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | Release preparation |
+| **1.28.3**     | Personal AI keys in eligible staff account profiles, with explicit credential selection                     | Planned             |
+| **1.28.4**     | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned             |
+| **1.28.5**     | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned             |
+| **Unassigned** | Post/Page Trash and Restore: retained for rescheduling, not bundled into 1.28.1                             | Planned             |
 
 Each milestone is delivered and verified separately. Scope and order may change; this roadmap is not a release-date commitment. The 1.28.6 and later slots are reserved for maintenance, compatibility, security, and confirmed regression fixes. Interface translation does not automatically translate articles or create multilingual URLs.
 

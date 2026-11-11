@@ -9,7 +9,6 @@ import {
   EyeOff,
   Mail,
   ArrowLeft,
-  KeyRound,
   ArrowRightToLine,
   UserRoundPlus,
   House,
@@ -18,6 +17,7 @@ import { User as UserType, SiteSettings } from '../../../../types';
 import { vonFetch } from '../../../../utils/api';
 import { setCsrfToken } from '../../../../utils/security';
 import { BASE_PATH, API } from '../../../../config/site.config';
+import { VonLogo } from '../../../../components/VonLogo';
 
 interface LoginProps {
   onLogin: (user: UserType) => void;
@@ -347,25 +347,25 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   // Solid auth surface classes
   const outerClass = isModal
     ? 'flex items-center justify-center font-sans bg-transparent'
-    : 'min-h-screen flex items-center justify-center bg-slate-100 px-4 py-10 font-sans dark:bg-admin-inset';
+    : 'min-h-screen flex items-center justify-center bg-[#e7e9eb] px-4 py-10 font-sans dark:bg-admin-inset';
 
   const cardClass = `w-full ${view === 'register' ? 'max-w-160' : 'max-w-lg'} rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-admin-border dark:bg-admin-panel ${
     isModal ? 'max-h-[calc(100dvh-8rem)] overflow-y-auto' : 'overflow-hidden'
   }`;
   const labelClass =
-    'mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-400';
+    'mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-gray-400';
   const inputClass =
-    'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+    'block w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-gray-500 dark:focus:border-gray-300 dark:focus:ring-gray-300/10';
   const iconInputClass =
-    'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-slate-500 dark:focus:border-slate-300 dark:focus:ring-slate-300/10';
+    'block w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-4 text-slate-900 outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#202124] focus:ring-4 focus:ring-slate-500/10 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white dark:placeholder:text-gray-500 dark:focus:border-gray-300 dark:focus:ring-gray-300/10';
   const registrationLabelClass =
-    'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300';
+    'mb-1.5 block text-xs font-semibold text-slate-700 dark:text-gray-300';
   const registrationInputClass = `${inputClass.replace('py-3.5', 'py-3')} text-base sm:text-sm`;
   const primaryButtonClass =
     'flex w-full items-center justify-center gap-2 rounded-xl bg-black font-bold text-white transition-colors hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 dark:ring-1 dark:ring-neutral-700';
   const headerIcon =
     view === 'login' ? (
-      <KeyRound size={28} />
+      <VonLogo variant="simple" className="h-10 w-10 text-black dark:text-white" />
     ) : view === 'register' ? (
       <UserRoundPlus size={28} />
     ) : view === 'register-success' ? (
@@ -391,7 +391,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
             className={
               view === 'register'
                 ? 'mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-900 dark:bg-neutral-900 dark:text-white'
-                : 'mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 text-slate-100 shadow-lg shadow-slate-950/20'
+                : view === 'login'
+                  ? 'mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900'
+                  : 'mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 text-slate-100 shadow-lg shadow-slate-950/20 dark:text-gray-100 dark:shadow-none'
             }
           >
             {headerIcon}
@@ -410,7 +412,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                     : 'New Password'}
           </h2>
           <p
-            className={`text-sm ${view === 'register' ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300'}`}
+            className={`text-sm ${view === 'register' ? 'text-slate-500 dark:text-gray-400' : 'text-slate-300 dark:text-gray-300'}`}
           >
             {view === 'login'
               ? 'Sign in to continue'
@@ -467,7 +469,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               <div>
                 <span className={labelClass}>Username or Email</span>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-gray-400">
                     <UserRound size={18} />
                   </div>
                   <input
@@ -497,13 +499,13 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                       clearForm();
                       setView('forgot');
                     }}
-                    className="text-xs font-semibold text-slate-700 transition-colors hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
+                    className="text-xs font-semibold text-slate-700 transition-colors hover:text-[#202124] dark:text-gray-300 dark:hover:text-white"
                   >
                     Forgot?
                   </button>
                 </div>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 dark:text-gray-400">
                     <LockKeyhole size={18} />
                   </div>
                   <input
@@ -524,7 +526,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600 dark:text-gray-400 dark:hover:text-gray-200"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -538,11 +540,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer rounded-sm border-slate-300 text-[#202124] focus:ring-slate-500"
+                  className="h-4 w-4 cursor-pointer rounded-sm border-slate-300 text-[#202124] focus:ring-slate-500 dark:accent-gray-400 dark:focus:ring-gray-400"
                 />
                 <label
                   htmlFor="remember-me"
-                  className="ml-2 block cursor-pointer select-none text-sm text-slate-700 dark:text-slate-300"
+                  className="ml-2 block cursor-pointer select-none text-sm text-slate-700 dark:text-gray-300"
                 >
                   Remember me
                 </label>
@@ -571,13 +573,13 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                     type="button"
                     disabled={loading}
                     onClick={(event) => void handleLoginSubmit(event, true)}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-admin-border-strong dark:text-slate-200 dark:hover:bg-admin-hover"
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-admin-border-strong dark:text-gray-200 dark:hover:bg-admin-hover"
                   >
                     {resendingVerification
                       ? 'Sending verification email...'
                       : 'Resend verification email'}
                   </button>
-                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-center text-xs text-slate-500 dark:text-gray-400">
                     To resend, use the username or email and password above. This does not sign you
                     in.
                   </p>
@@ -586,14 +588,16 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
 
               {registrationEnabled && (
                 <div className="pt-2 text-center">
-                  <span className="text-sm text-slate-500">Don't have an account? </span>
+                  <span className="text-sm text-slate-500 dark:text-gray-400">
+                    Don't have an account?{' '}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       clearForm();
                       setView('register');
                     }}
-                    className="text-sm font-bold text-slate-700 hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
+                    className="text-sm font-bold text-slate-700 hover:text-[#202124] dark:text-gray-300 dark:hover:text-white"
                   >
                     Create Account
                   </button>
@@ -691,14 +695,16 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 </button>
 
                 <div className="pt-2 text-center">
-                  <span className="text-sm text-slate-500">Already have an account? </span>
+                  <span className="text-sm text-slate-500 dark:text-gray-400">
+                    Already have an account?{' '}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       clearForm();
                       setView('login');
                     }}
-                    className="text-sm font-bold text-slate-700 hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
+                    className="text-sm font-bold text-slate-700 hover:text-[#202124] dark:text-gray-300 dark:hover:text-white"
                   >
                     Sign In
                   </button>
@@ -706,20 +712,20 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
               </form>
             ) : (
               <div className="space-y-4 py-8 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500 dark:border-admin-border dark:bg-admin-canvas dark:text-slate-300">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500 dark:border-admin-border dark:bg-admin-canvas dark:text-gray-300">
                   <UserRoundPlus size={32} />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                   Registration Disabled
                 </h3>
-                <p className="mx-auto max-w-xs text-sm text-slate-500 dark:text-slate-400">
+                <p className="mx-auto max-w-xs text-sm text-slate-500 dark:text-gray-400">
                   New member registrations are currently closed by the administrator. Please contact
                   the site owner if you need access.
                 </p>
                 <button
                   type="button"
                   onClick={() => setView('login')}
-                  className="inline-flex items-center gap-2 font-bold text-slate-700 hover:text-[#202124] hover:underline dark:text-slate-300 dark:hover:text-white"
+                  className="inline-flex items-center gap-2 font-bold text-slate-700 hover:text-[#202124] hover:underline dark:text-gray-300 dark:hover:text-white"
                 >
                   <ArrowLeft size={16} /> Back to Sign In
                 </button>
@@ -736,11 +742,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                   {registrationResult.emailSent ? 'Check Your Email' : 'Account Created'}
                 </h3>
-                <p className="mx-auto max-w-sm text-sm leading-6 text-slate-600 dark:text-slate-300">
+                <p className="mx-auto max-w-sm text-sm leading-6 text-slate-600 dark:text-gray-300">
                   {registrationResult.message}
                 </p>
                 {registrationResult.emailSent && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
                     Check your inbox and spam folder before signing in.
                   </p>
                 )}
@@ -762,10 +768,10 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
           {view === 'forgot' && (
             <form onSubmit={handleResetSubmit} className="space-y-6">
               <div className="space-y-2 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[#202124] dark:border-admin-border dark:bg-admin-canvas dark:text-slate-100">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[#202124] dark:border-admin-border dark:bg-admin-canvas dark:text-gray-100">
                   <Mail size={28} />
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600 dark:text-gray-400">
                   Enter your email to receive recovery instructions.
                 </p>
               </div>
@@ -793,7 +799,7 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                   clearForm();
                   setView('login');
                 }}
-                className="flex w-full items-center justify-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300"
+                className="flex w-full items-center justify-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <ArrowLeft size={16} /> Back to Login
               </button>
@@ -807,7 +813,9 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
                 <h3 className="text-lg font-bold text-slate-700 dark:text-white">
                   Set New Password
                 </h3>
-                <p className="text-sm text-slate-500">Create a strong password for your account.</p>
+                <p className="text-sm text-slate-500 dark:text-gray-400">
+                  Create a strong password for your account.
+                </p>
               </div>
 
               <div>
@@ -854,14 +862,14 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
         <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-4 text-center dark:border-admin-border dark:bg-admin-inset">
           <a
             href={BASE_PATH}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors hover:text-[#202124] dark:text-slate-300 dark:hover:text-white"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors hover:text-[#202124] dark:text-gray-300 dark:hover:text-white"
           >
             <House size={16} />
             Back to Site
           </a>
-          <p className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-gray-400">
             Protected by{' '}
-            <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+            <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-gray-300">
               <ShieldCheck size={12} />
               VonGuard
             </span>

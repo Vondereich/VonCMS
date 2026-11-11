@@ -120,11 +120,19 @@ if ($action === 'request') {
 
     // Generate reset token only after a trusted delivery origin is available.
     $token = bin2hex(random_bytes(32));
-    // Store token
+    // Bind publication to the stored email state that authorized the lookup.
+    // Binary comparison avoids reviving a token after a collation-equivalent email edit.
     $stmt = $pdo->prepare(
-      'UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?',
+      'UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ? AND CAST(email AS BINARY) = CAST(? AS BINARY)',
     );
-    $stmt->execute([voncms_account_token_digest($token), $user['id']]);
+    $stmt->execute([voncms_account_token_digest($token), $user['id'], $user['email']]);
+    if ($stmt->rowCount() !== 1) {
+      echo json_encode([
+        'success' => true,
+        'message' => 'If this email exists, a reset link has been sent.',
+      ]);
+      exit();
+    }
 
     $resetUrl = voncms_build_account_action_url($trustedBaseUrl, '/login', [
       'reset_token' => $token,
@@ -168,7 +176,7 @@ if ($action === 'request') {
         1,
       ) ?? $htmlBody;
 
-    $mailResult = vonSendMail($email, $subject, $htmlBody);
+    $mailResult = vonSendMail((string) $user['email'], $subject, $htmlBody);
     if (empty($mailResult['success'])) {
       error_log(
         'Password reset email delivery failed via ' .

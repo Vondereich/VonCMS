@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 import { ContactForm } from '../../types';
 import { API } from '../../config/site.config';
 import { getAuthHeader } from '../../config/auth.config';
-import { vonFetch } from '../../utils/api';
+import { getErrorMessage, vonFetch } from '../../utils/api';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 const LEGACY_VONCMS_EMAIL_DOMAIN = ['von', 'cms'].join('') + '.com';
@@ -128,13 +128,16 @@ const ContactManager = () => {
       });
 
       const data = await res.json();
-      if (data.success) {
-        toast.success('Contact form deleted');
-        fetchForms();
-        if (currentForm?.id === id) {
-          setView('list');
-          setCurrentForm(null);
-        }
+      if (!res.ok || data?.success !== true) {
+        const error = typeof data?.error === 'string' ? data.error : '';
+        toast.error(getErrorMessage(data, error || 'Failed to delete form'));
+        return;
+      }
+      toast.success('Contact form deleted');
+      fetchForms();
+      if (currentForm?.id === id) {
+        setView('list');
+        setCurrentForm(null);
       }
     } catch {
       toast.error('Failed to delete form');
@@ -263,7 +266,7 @@ const ContactManager = () => {
                     <button
                       type="button"
                       onClick={() => handleDelete(form.id)}
-                      className="min-h-11 rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      className="admin-action-delete min-h-11 rounded-lg px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       Delete
                     </button>
@@ -293,7 +296,7 @@ const ContactManager = () => {
                   forms.map((form) => (
                     <tr
                       key={form.id}
-                      className="hover:bg-gray-50 dark:hover:bg-admin-hover/50 transition-colors"
+                      className="hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50 transition-colors"
                     >
                       <td
                         className="p-4 font-medium text-slate-800 hover:text-[#202124] dark:text-slate-100 dark:hover:text-white cursor-pointer"
@@ -326,13 +329,13 @@ const ContactManager = () => {
                               setCurrentForm(form);
                               setView('edit');
                             }}
-                            className="p-2 text-gray-500 hover:text-[#202124] hover:bg-slate-100 dark:hover:bg-admin-hover dark:hover:text-white rounded-lg transition-colors"
+                            className="admin-action-edit p-2 text-gray-500 hover:text-[#202124] hover:bg-slate-100 dark:hover:bg-admin-hover dark:hover:text-white rounded-lg transition-colors"
                           >
                             <Settings size={18} />
                           </button>
                           <button
                             onClick={() => handleDelete(form.id)}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            className="admin-action-delete p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                           >
                             <Trash size={18} />
                           </button>

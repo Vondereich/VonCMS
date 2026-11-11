@@ -63,6 +63,7 @@ const PromoBarComponent: React.FC<{
   linkUrl: string;
   linkText: string;
   backgroundColor: string;
+  allowDismiss: boolean;
   dismissHours: number;
   startsAt?: string;
   endsAt?: string;
@@ -72,17 +73,20 @@ const PromoBarComponent: React.FC<{
   linkUrl,
   linkText,
   backgroundColor,
+  allowDismiss,
   dismissHours,
   startsAt,
   endsAt,
   targetBlank,
 }) => {
-  const [dismissed, setDismissedState] = useState(() => isDismissed(dismissHours));
+  const [dismissed, setDismissedState] = useState(() => allowDismiss && isDismissed(dismissHours));
   const textColor = getReadableTextColor(backgroundColor);
 
   // Don't render if dismissed
   if (dismissed) return null;
   if (!isWithinCampaignWindow(startsAt, endsAt)) return null;
+
+  const destination = normalizeSiteUrl(linkUrl);
 
   const handleDismiss = () => {
     setDismissed();
@@ -97,24 +101,27 @@ const PromoBarComponent: React.FC<{
       <div className="container mx-auto flex justify-center items-center gap-2">
         <Megaphone size={16} className="animate-pulse" />
         <span>{text}</span>
-        <a
-          href={normalizeSiteUrl(linkUrl)}
-          target={targetBlank ? '_blank' : undefined}
-          rel={targetBlank ? 'noopener noreferrer' : undefined}
-          className="underline hover:opacity-80 ml-2"
-          style={{ color: textColor }}
-        >
-          {linkText}
-        </a>
+        {destination !== '#' && (
+          <a
+            href={destination}
+            target={targetBlank ? '_blank' : undefined}
+            rel={targetBlank ? 'noopener noreferrer' : undefined}
+            className="underline hover:opacity-80 ml-2"
+            style={{ color: textColor }}
+          >
+            {linkText}
+          </a>
+        )}
       </div>
-      {/* Dismiss Button */}
-      <button
-        onClick={handleDismiss}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-sm transition-colors"
-        aria-label="Dismiss announcement"
-      >
-        <X size={16} />
-      </button>
+      {allowDismiss && (
+        <button
+          onClick={handleDismiss}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded-sm transition-colors"
+          aria-label="Dismiss announcement"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 };
@@ -134,6 +141,7 @@ export const PromoBarPlugin: PluginDefinition<import('../../../../../../types').
     const linkUrl = props?.linkUrl || '#';
     const linkText = props?.linkText || 'Click Here';
     const backgroundColor = props?.backgroundColor || DEFAULT_BACKGROUND_COLOR;
+    const allowDismiss = props?.allowDismiss !== false;
     const dismissHours = Number(props?.dismissHours || 24);
     const startsAt = props?.startsAt || '';
     const endsAt = props?.endsAt || '';
@@ -141,10 +149,12 @@ export const PromoBarPlugin: PluginDefinition<import('../../../../../../types').
 
     return (
       <PromoBarComponent
+        key={allowDismiss ? 'dismissible' : 'persistent'}
         text={text}
         linkUrl={linkUrl}
         linkText={linkText}
         backgroundColor={backgroundColor}
+        allowDismiss={allowDismiss}
         dismissHours={dismissHours}
         startsAt={startsAt}
         endsAt={endsAt}

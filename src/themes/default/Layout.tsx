@@ -138,7 +138,7 @@ const TrendingTicker: React.FC<{
         borderColor: 'rgba(128,128,128,0.1)',
       }}
     >
-      <div className="max-w-[1440px] mx-auto px-6 lg:px-12 flex items-center gap-4">
+      <div className="max-w-360 mx-auto px-6 lg:px-12 flex items-center gap-4">
         <span
           className="font-black text-[10px] uppercase tracking-widest px-2.5 py-1.5 rounded-sm shrink-0 animate-pulse shadow-xs"
           style={{ background: accentColor, color: contrastText }}
@@ -367,7 +367,7 @@ const DefaultLayout: React.FC<
             `}</style>
 
       <div
-        className="w-full max-w-[1440px] min-h-screen flex flex-col relative bg-(--bg-card) border-x border-(--border-color)"
+        className="w-full max-w-360 min-h-screen flex flex-col relative bg-(--bg-card) border-x border-(--border-color)"
         style={{ boxShadow: 'var(--card-shadow)' }}
       >
         {/* Navbar */}
@@ -391,7 +391,7 @@ const DefaultLayout: React.FC<
                   <VonLogo variant="default" />
                 ) : null}
                 {headerIdentity.showTitle && (
-                  <div className="max-w-[200px] lg:max-w-[260px]">
+                  <div className="max-w-50 lg:max-w-65">
                     <span
                       className="font-extrabold text-2xl tracking-tight block leading-none truncate"
                       style={{ color: 'var(--text-nav)' }}
@@ -1546,7 +1546,7 @@ const SinglePostView: React.FC<{
               <img
                 {...getResponsiveImageAttributes(post, 'articleHero')}
                 alt={decodeEntities(post.title)}
-                className="w-full h-auto max-h-[600px] object-cover"
+                className="w-full h-auto max-h-150 object-cover"
               />
             </div>
           );
@@ -1625,7 +1625,7 @@ const SinglePostView: React.FC<{
       </article>
 
       {hasSinglePostSidebar && (
-        <StickySidebar className="lg:w-[400px] shrink-0 space-y-8">
+        <StickySidebar className="lg:w-100 shrink-0 space-y-8">
           {/* Newsletter Widget (Sidebar) */}
           {settings.newsletter?.enabled &&
             (settings.newsletter?.position === 'sidebar' ||

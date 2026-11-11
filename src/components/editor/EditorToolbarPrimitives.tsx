@@ -15,8 +15,8 @@ export const ToolButton = ({ icon, onClick, title, active = false }: ToolButtonP
     onClick={onClick}
     className={`flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border shadow-xs transition-colors duration-150 hover:shadow-sm xl:h-8 xl:w-8 ${
       active
-        ? 'border-blue-500 bg-blue-600 text-white shadow-blue-500/20 dark:border-blue-400 dark:bg-blue-500 dark:text-white'
-        : 'border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-admin-border dark:bg-admin-panel/90 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-admin-hover dark:hover:text-white'
+        ? 'border-blue-500 bg-blue-600 text-white shadow-blue-500/20 dark:border-gray-400 dark:bg-gray-200 dark:text-gray-900 dark:shadow-none'
+        : 'border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-admin-border dark:bg-admin-panel/90 dark:text-gray-400 dark:hover:border-gray-400 dark:hover:bg-admin-hover dark:hover:text-white'
     }`}
     title={title}
   >

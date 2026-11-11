@@ -1,6 +1,6 @@
-# VonCMS User Manual v1.28.1
+# VonCMS User Manual v1.28.2
 
-This manual covers v1.28.1 "The BluePrint", including opt-in Hybrid analytics, Post/Page deletion previews, and the optional News Sitemap. Existing v1.28.0 features remain available; follow the [Changelog](../CHANGELOG.md) for exact changes and compatibility boundaries.
+This manual covers the v1.28.2 "The BluePrint" development line. Features inherited from v1.28.1 include opt-in Hybrid analytics, Post/Page deletion previews, and the optional News Sitemap. Existing v1.28.0 features remain available; follow the [Changelog](../CHANGELOG.md) for exact changes, release status and compatibility boundaries.
 
 This release supports PHP 8.2 or newer; PHP 8.3+ is recommended. Use a supported, patched PHP build; see [Installation](INSTALL.md) and [Security](SECURITY.md).
 
@@ -319,6 +319,8 @@ When switching themes:
 3. check homepage, single post, and mobile layout
 
 If you use custom theme settings, review them after each theme change instead of assuming every theme shares the same visual structure.
+
+Inactive theme customizations remain saved for the next activation. Visitors receive only the active bundled theme's configuration plus shared appearance fields; Admin editing still loads the complete saved configuration. This trimming does not reset themes or move any data.
 
 ### Navigation
 

@@ -240,6 +240,119 @@ html[data-admin-palette='harbour-amber'] .admin-modal-layer:not(.dark) {
   height: 100dvh;
 }
 
+/* Light admin surfaces only: public pages, navigation and charcoal mode keep their colors. */
+.admin-shell:not(.dark) {
+  background-color: #eceef0;
+}
+
+:is(
+  .admin-shell:not(.dark) > main,
+  body:has(.admin-shell:not(.dark)) .admin-modal-layer:not(.dark)
+) {
+  --admin-light-panel: #fdfdfd;
+  --admin-table-row-hover: #e2e6e9;
+  --admin-light-inset: #e9ecef;
+  --admin-light-border: #cbd0d5;
+  --color-slate-50: var(--admin-light-inset);
+  --color-slate-100: #e2e6e9;
+  --color-slate-200: var(--admin-light-border);
+  --color-slate-300: #aeb6bf;
+  --color-slate-500: #535d68;
+  --color-gray-50: var(--admin-light-inset);
+  --color-gray-100: var(--color-slate-100);
+  --color-gray-200: var(--admin-light-border);
+  --color-gray-300: var(--color-slate-300);
+  --color-gray-500: var(--color-slate-500);
+  --color-neutral-50: var(--admin-light-inset);
+  --color-neutral-100: var(--color-slate-100);
+  --color-neutral-200: var(--admin-light-border);
+  --color-neutral-300: var(--color-slate-300);
+  --color-zinc-50: var(--admin-light-inset);
+  --color-zinc-100: var(--color-slate-100);
+  --color-zinc-200: var(--admin-light-border);
+  --color-zinc-300: var(--color-slate-300);
+}
+
+@layer utilities {
+  :where(
+      .admin-shell:not(.dark) > main,
+      body:has(.admin-shell:not(.dark)) .admin-modal-layer:not(.dark)
+    )
+    :is(
+      [class~='bg-white'],
+      [class~='bg-white/90'],
+      [class~='bg-white/80'],
+      [class~='bg-white/70']
+    ) {
+    background-color: var(--admin-light-panel);
+  }
+
+  @media (hover: hover) {
+    :where(
+        .admin-shell:not(.dark) > main,
+        body:has(.admin-shell:not(.dark)) .admin-modal-layer:not(.dark)
+      )
+      :is(
+        [class~='hover:bg-white'],
+        [class~='hover:bg-white/70'],
+        [class~='hover:bg-white/60'],
+        [class~='hover:bg-white/50']
+      ):hover {
+      background-color: var(--admin-light-panel);
+    }
+  }
+}
+
+:is(.admin-shell:not(.dark) > main, body:has(.admin-shell:not(.dark)) .admin-modal-layer:not(.dark))
+  .dashboard-analytics-chart {
+  --analytics-tooltip-background: var(--admin-light-panel);
+}
+
+/* Only secondary Edit actions share this neutral treatment, not primary/status controls. */
+:is(.admin-shell > main, body:has(.admin-shell) .admin-modal-layer) {
+  --admin-edit-foreground: #374151;
+  --admin-edit-hover: #30343b;
+  --admin-edit-outline: #6b7280;
+}
+
+:is(.admin-shell.dark > main, body:has(.admin-shell.dark) .admin-modal-layer.dark) {
+  --admin-edit-foreground: #e5e7eb;
+  --admin-edit-hover: var(--color-admin-hover-strong);
+  --admin-edit-outline: #9ca3af;
+}
+
+:is(.admin-shell > main, body:has(.admin-shell) .admin-modal-layer)
+  .admin-action-edit:not(:disabled):not([aria-disabled='true']):not(.cursor-not-allowed) {
+  color: var(--admin-edit-foreground);
+}
+
+:is(.admin-shell > main, body:has(.admin-shell) .admin-modal-layer)
+  .admin-action-edit:not(:disabled):not([aria-disabled='true']):not(.cursor-not-allowed):is(
+    :hover,
+    :focus-visible
+  ) {
+  color: #fff;
+  background-color: var(--admin-edit-hover);
+  border-color: var(--admin-edit-hover);
+  box-shadow: inset 0 0 0 1px var(--admin-edit-outline);
+}
+
+:is(.admin-shell > main, body:has(.admin-shell) .admin-modal-layer)
+  .admin-action-edit:not(:disabled):not([aria-disabled='true']):not(
+    .cursor-not-allowed
+  ):focus-visible {
+  outline: 2px solid var(--admin-edit-outline);
+  outline-offset: 2px;
+}
+
+/* Destructive actions retain their separate light-admin treatment. */
+:is(.admin-shell:not(.dark) > main, body:has(.admin-shell:not(.dark)) .admin-modal-layer:not(.dark))
+  .admin-action-delete:not(:disabled):not([aria-disabled='true']):is(:hover, :focus-visible) {
+  color: #fff;
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
 /* Native report pickers and chart overlays follow the Dashboard's actual theme. */
 .dashboard-analytics-filters select {
   color-scheme: light;

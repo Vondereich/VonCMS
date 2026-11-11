@@ -154,7 +154,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
             <h4 className="font-bold text-sm text-slate-800 dark:text-white">Hero Section Text</h4>
 
             <div className="space-y-2">
-              <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                 Welcome Badge Text
               </span>
               <input
@@ -170,7 +170,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
             </div>
 
             <div className="space-y-2">
-              <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                 Button Text
               </span>
               <input
@@ -191,7 +191,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
             <h4 className="font-bold text-sm text-slate-800 dark:text-white">Projects Section</h4>
 
             <div className="space-y-2">
-              <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                 Section Title
               </span>
               <input
@@ -206,7 +206,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
             </div>
 
             <div className="space-y-2">
-              <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                 Section Subtitle
               </span>
               <textarea
@@ -221,7 +221,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
             </div>
 
             <div className="space-y-2">
-              <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                 Grid Columns
               </span>
               <div className="flex gap-3">
@@ -232,7 +232,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                     className={`flex-1 py-3 rounded-lg border-2 font-bold transition-all ${
                       tempConfig.projectColumns === cols
                         ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-600'
-                        : 'border-slate-200 dark:border-admin-border text-slate-600 dark:text-slate-400 hover:border-purple-300'
+                        : 'border-slate-200 dark:border-admin-border text-slate-600 dark:text-gray-400 hover:border-purple-300'
                     }`}
                   >
                     {cols} Cols
@@ -246,12 +246,14 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
           <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-admin-border">
             <h4 className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
               🔗 Social Links
-              <span className="text-xs font-normal text-slate-400">(leave empty to hide)</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-gray-400">
+                (leave empty to hide)
+              </span>
             </h4>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                   GitHub
                 </span>
                 <input
@@ -267,7 +269,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
               </div>
 
               <div className="space-y-1">
-                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                   LinkedIn
                 </span>
                 <input
@@ -283,7 +285,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
               </div>
 
               <div className="space-y-1">
-                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                   Twitter / X
                 </span>
                 <input
@@ -299,7 +301,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
               </div>
 
               <div className="space-y-1">
-                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                   Dribbble
                 </span>
                 <input
@@ -315,7 +317,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
               </div>
 
               <div className="space-y-1">
-                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                   Instagram
                 </span>
                 <input
@@ -331,7 +333,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
               </div>
 
               <div className="space-y-1">
-                <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="block text-xs font-medium text-slate-500 dark:text-gray-400">
                   Personal Website
                 </span>
                 <input
@@ -361,7 +363,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
                   className={`p-3 rounded-lg border-2 transition-all text-center capitalize ${
                     tempConfig.animationStyle === style
                       ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-600'
-                      : 'border-slate-200 dark:border-admin-border hover:border-purple-300 text-slate-600 dark:text-slate-400'
+                      : 'border-slate-200 dark:border-admin-border hover:border-purple-300 text-slate-600 dark:text-gray-400'
                   }`}
                 >
                   {style === 'fade' ? '✨' : style === 'slide' ? '📤' : '⏸️'} {style}
@@ -375,7 +377,7 @@ export const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-5 py-2 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

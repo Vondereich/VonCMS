@@ -45,6 +45,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'unsubscribed'>('all');
   const [page, setPage] = useState(1);
+  const [subscriberRevision, setSubscriberRevision] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -65,10 +66,16 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       const res = await vonFetch(`${BASE_PATH}api/newsletter_list.php?${params.toString()}`);
       const data = await res.json();
       if (requestId !== subscribersRequestId.current) return;
-      if (data.success) {
+      if (res.ok && data?.success === true) {
+        const lastPage = Math.max(1, Number(data.pagination?.pages) || 1);
+        if (page > lastPage) {
+          // Let the page effect read the valid page with the current filters.
+          setPage(lastPage);
+          return;
+        }
         setSubscribers(data.subscribers || []);
         setStats(data.stats || { total: 0, active: 0, unsubscribed: 0 });
-        setTotalPages(data.pagination?.pages || 1);
+        setTotalPages(lastPage);
         setTotalItems(Math.max(0, Number(data.pagination?.total) || 0));
       }
     } catch (error) {
@@ -89,7 +96,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
     return () => {
       subscribersRequestId.current += 1;
     };
-  }, [activeTab, page, statusFilter]);
+  }, [activeTab, page, statusFilter, subscriberRevision]);
 
   // Reset page when filter or search changes
   useEffect(() => {
@@ -131,11 +138,12 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
         body: JSON.stringify({ id }),
       });
       const data = await res.json();
-      if (data.success) {
-        loadSubscribers();
+      if (res.ok && data?.success === true) {
+        // Refresh the visible query, not the page/filter captured before Delete settled.
+        setSubscriberRevision((revision) => revision + 1);
         toast.success('Subscriber deleted successfully');
       } else {
-        toast.error(data.message || 'Failed to delete subscriber');
+        toast.error(getErrorMessage(data, 'Failed to delete subscriber'));
       }
     } catch {
       toast.error('Failed to delete subscriber');
@@ -183,14 +191,14 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
             <Mail className="text-blue-600 dark:text-blue-400" size={32} />
             Newsletter
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-slate-500 dark:text-gray-400 mt-1">
             Manage newsletter subscriptions and settings
           </p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
-          <div className="rounded-xl bg-blue-600 px-4 py-3 text-white sm:min-w-28">
+          <div className="rounded-xl bg-blue-600 px-4 py-3 text-white sm:min-w-28 dark:bg-admin-hover">
             <div className="text-2xl font-bold">{stats.active}</div>
             <div className="text-xs">Active</div>
           </div>
@@ -205,13 +213,13 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
       <div className="settings-tab-strip mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 dark:border-admin-border sm:gap-4">
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'settings' ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
+          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'settings' ? 'border-blue-600 text-blue-600 dark:border-gray-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-slate-300'}`}
         >
           <Settings size={18} /> Settings
         </button>
         <button
           onClick={() => setActiveTab('subscribers')}
-          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'subscribers' ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}
+          className={`flex min-h-11 items-center gap-2 border-b-2 px-4 pb-3 font-medium transition-colors ${activeTab === 'subscribers' ? 'border-blue-600 text-blue-600 dark:border-gray-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-slate-300'}`}
         >
           <Users size={18} /> Subscribers
         </button>
@@ -224,7 +232,9 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <span className="font-medium text-slate-800 dark:text-white">Enable Newsletter</span>
-              <p className="text-sm text-slate-500">Show subscription widget on public pages</p>
+              <p className="text-sm text-slate-500 dark:text-gray-400">
+                Show subscription widget on public pages
+              </p>
             </div>
             <button
               onClick={() =>
@@ -233,7 +243,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   enabled: !newsletterSettings.enabled,
                 })
               }
-              className={`p-2 rounded-full transition-colors ${newsletterSettings.enabled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 dark:bg-admin-hover text-slate-500'}`}
+              className={`p-2 rounded-full transition-colors ${newsletterSettings.enabled ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong' : 'bg-slate-200 dark:bg-admin-hover text-slate-500 dark:text-gray-400'}`}
             >
               {newsletterSettings.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
             </button>
@@ -255,7 +265,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
               onChange={(e) =>
                 setNewsletterSettings({ ...newsletterSettings, title: e.target.value })
               }
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-gray-400"
             />
           </div>
 
@@ -273,7 +283,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 setNewsletterSettings({ ...newsletterSettings, description: e.target.value })
               }
               rows={2}
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-gray-400"
             />
           </div>
 
@@ -292,7 +302,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 onChange={(e) =>
                   setNewsletterSettings({ ...newsletterSettings, buttonText: e.target.value })
                 }
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-gray-400"
               />
             </div>
             <div>
@@ -308,7 +318,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                 onChange={(e) =>
                   setNewsletterSettings({ ...newsletterSettings, successMessage: e.target.value })
                 }
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-gray-400"
               />
             </div>
           </div>
@@ -329,7 +339,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                   position: e.target.value as 'footer' | 'sidebar' | 'both',
                 })
               }
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-gray-400"
             >
               <option value="footer">Footer Only</option>
               <option value="sidebar">Sidebar Only</option>
@@ -342,7 +352,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
             >
               {saving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
               Save Settings
@@ -360,7 +370,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
               <div className="relative min-w-0 flex-1 lg:w-64">
                 <Search
                   size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
                 />
                 <input
                   id="search-email"
@@ -399,7 +409,7 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
               </button>
               <button
                 onClick={handleExport}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
               >
                 <Download size={16} /> Export CSV
               </button>
@@ -409,9 +419,13 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
           {/* Mobile subscriber cards */}
           <div className="divide-y divide-slate-100 dark:divide-admin-border md:hidden">
             {loading ? (
-              <div className="px-4 py-12 text-center text-slate-500">Loading...</div>
+              <div className="px-4 py-12 text-center text-slate-500 dark:text-gray-400">
+                Loading...
+              </div>
             ) : subscribers.length === 0 ? (
-              <div className="px-4 py-12 text-center text-slate-500">No subscribers yet</div>
+              <div className="px-4 py-12 text-center text-slate-500 dark:text-gray-400">
+                No subscribers yet
+              </div>
             ) : (
               subscribers.map((sub) => (
                 <article key={sub.id} className="space-y-3 p-4">
@@ -420,19 +434,19 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
                       <p className="break-all font-medium text-slate-800 dark:text-white">
                         {sub.email}
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
                         {new Date(sub.subscribed_at).toLocaleDateString()} - {sub.source}
                       </p>
                     </div>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-slate-400'}`}
+                      className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-gray-400'}`}
                     >
                       {sub.status}
                     </span>
                   </div>
                   <button
                     onClick={() => handleDelete(sub.id)}
-                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+                    className="admin-action-delete flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
                   >
                     <Trash2 size={16} /> Delete
                   </button>
@@ -446,19 +460,19 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
             <table className="w-full min-w-180">
               <thead className="bg-slate-50 dark:bg-admin-canvas">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase dark:text-gray-400">
                     Email
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase dark:text-gray-400">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase dark:text-gray-400">
                     Subscribed
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase dark:text-gray-400">
                     Source
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase dark:text-gray-400">
                     Actions
                   </th>
                 </tr>
@@ -466,37 +480,48 @@ const NewsletterManager: React.FC<NewsletterManagerProps> = ({ settings, onUpdat
               <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <td
+                      colSpan={5}
+                      className="px-6 py-12 text-center text-slate-500 dark:text-gray-400"
+                    >
                       Loading...
                     </td>
                   </tr>
                 ) : subscribers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <td
+                      colSpan={5}
+                      className="px-6 py-12 text-center text-slate-500 dark:text-gray-400"
+                    >
                       No subscribers yet
                     </td>
                   </tr>
                 ) : (
                   subscribers.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-admin-hover/50">
+                    <tr
+                      key={sub.id}
+                      className="hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50"
+                    >
                       <td className="px-6 py-4 text-slate-800 dark:text-white font-medium">
                         {sub.email}
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-slate-400'}`}
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-200 text-slate-600 dark:bg-admin-hover dark:text-gray-400'}`}
                         >
                           {sub.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500 text-sm">
+                      <td className="px-6 py-4 text-slate-500 text-sm dark:text-gray-400">
                         {new Date(sub.subscribed_at).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 text-slate-500 text-sm capitalize">{sub.source}</td>
+                      <td className="px-6 py-4 text-slate-500 text-sm capitalize dark:text-gray-400">
+                        {sub.source}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => handleDelete(sub.id)}
-                          className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          className="admin-action-delete p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
                           <Trash2 size={16} />
                         </button>

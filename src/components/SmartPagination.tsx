@@ -61,9 +61,9 @@ const SmartPagination: React.FC<SmartPaginationProps> = ({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-slate-200 dark:border-admin-border">
       {itemsPerPage !== undefined && totalItems !== undefined && (
-        <div className="text-sm text-slate-500 dark:text-slate-400 order-2 sm:order-1">
+        <div className="text-sm text-slate-500 dark:text-gray-400 order-2 sm:order-1">
           Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
           <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of{' '}
           <span className="font-medium">{totalItems}</span> results
@@ -75,7 +75,7 @@ const SmartPagination: React.FC<SmartPaginationProps> = ({
         <button
           onClick={() => safePage(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          className="p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-hover text-slate-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-admin-hover-strong transition-colors"
           title="Previous Page"
         >
           <ChevronLeft size={16} />
@@ -85,7 +85,7 @@ const SmartPagination: React.FC<SmartPaginationProps> = ({
           {getPageNumbers().map((page, index) => (
             <React.Fragment key={index}>
               {page === '...' ? (
-                <span className="w-8 h-8 flex items-center justify-center text-slate-400">
+                <span className="w-8 h-8 flex items-center justify-center text-slate-400 dark:text-gray-400">
                   <MoreHorizontal size={14} />
                 </span>
               ) : (
@@ -93,8 +93,8 @@ const SmartPagination: React.FC<SmartPaginationProps> = ({
                   onClick={() => safePage(page as number)}
                   className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                     currentPage === page
-                      ? 'bg-primary-600 text-white shadow-xs shadow-primary-500/30'
-                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                      ? 'bg-primary-600 text-white shadow-xs shadow-primary-500/30 dark:bg-gray-200 dark:text-gray-900 dark:shadow-none'
+                      : 'bg-white dark:bg-admin-hover text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-admin-border hover:bg-slate-50 dark:hover:bg-admin-hover-strong'
                   }`}
                 >
                   {page}
@@ -107,7 +107,7 @@ const SmartPagination: React.FC<SmartPaginationProps> = ({
         <button
           onClick={() => safePage(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          className="p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-hover text-slate-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-admin-hover-strong transition-colors"
           title="Next Page"
         >
           <ChevronRight size={16} />

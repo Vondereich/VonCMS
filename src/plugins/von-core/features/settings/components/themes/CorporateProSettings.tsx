@@ -96,7 +96,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">
               <Palette size={24} className="text-blue-600" /> Corporate Pro Customizer
             </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
               Arrange your homepage and edit each section in one place.
             </p>
           </div>
@@ -105,7 +105,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
             onClick={handleClose}
             disabled={isSaving}
             aria-label="Close Corporate Pro settings"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-admin-hover"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-admin-hover"
           >
             <X size={20} />
           </button>
@@ -122,7 +122,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
                 onClick={() => setActiveTab(id)}
                 aria-current={activeTab === id ? 'true' : undefined}
                 aria-controls={panelTitleId}
-                className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${activeTab === id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-admin-hover'}`}
+                className={`flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${activeTab === id ? 'bg-blue-600 text-white dark:bg-gray-200 dark:text-gray-900' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-admin-hover'}`}
               >
                 <Icon size={16} />
                 {label}
@@ -156,7 +156,7 @@ export const CorporateProSettings: React.FC<CorporateProSettingsProps> = ({
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
           >
             <Save size={18} />
             {isSaving ? 'Saving...' : 'Save Changes'}

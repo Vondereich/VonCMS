@@ -425,7 +425,7 @@ const CorporateProfile: React.FC<{
         <h3 className="text-xl font-bold mb-8 pb-4 border-b border-slate-200 dark:border-neutral-800 text-slate-900 dark:text-white">
           Published Articles
         </h3>
-        <div className="grid md:grid-cols-2 gap-6 min-h-[320px]">
+        <div className="grid md:grid-cols-2 gap-6 min-h-80">
           {articlesLoading && articlePosts.length === 0 ? (
             Array.from({ length: 4 }).map((_, index) => (
               <div key={`corporate-profile-skeleton-${index}`} className="animate-pulse flex gap-4">
@@ -958,7 +958,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
               <ul className="space-y-4">
                 <li className="flex items-start gap-3 text-slate-600 dark:text-neutral-400">
                   <Mail size={18} className="shrink-0 text-(--corporate-link)" />
-                  <span className="min-w-0 break-words">
+                  <span className="min-w-0 wrap-break-word">
                     {settings.theme?.corporatePro?.contactEmail || 'info@corporatepro.com'}
                   </span>
                 </li>
