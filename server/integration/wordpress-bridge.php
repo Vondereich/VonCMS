@@ -241,6 +241,61 @@ $pdo->exec(
 define('VONCMS_WP_IMPORT_CONTEXT', true);
 require $root . '/public/api/tools/wp_wxr_reader_helper.php';
 
+// A namespace prefix is an alias, not the identity of the exported article body.
+foreach (['content', 'body', 'articleBody'] as $bodyPrefix) {
+  $items =
+    bridgeItem('body-prefix-post-' . strtolower($bodyPrefix)) .
+    bridgeItem('body-prefix-page-' . strtolower($bodyPrefix), 'page');
+  $xml = str_replace(
+    ['xmlns:content=', '<content:encoded>', '</content:encoded>'],
+    [
+      'xmlns:' . $bodyPrefix . '=',
+      '<' . $bodyPrefix . ':encoded>',
+      '</' . $bodyPrefix . ':encoded>',
+    ],
+    bridgeXml($items),
+  );
+  if ($bodyPrefix !== 'content') {
+    $xml = str_replace('<channel>', '<channel xmlns:content="urn:not-the-body">', $xml);
+    $xml = str_replace(
+      '<item>',
+      '<item><content:encoded>Wrong namespace decoy</content:encoded>',
+      $xml,
+    );
+  }
+  $file = 'wp_import_' . bin2hex(random_bytes(16)) . '.xml';
+  file_put_contents($fixture . '/uploads/temp/' . $file, $xml);
+  $inspection = voncms_wp_inspect_document($fixture . '/uploads/temp/' . $file);
+  bridgeCheck(
+    $inspection['stats']['posts'] === 1 && $inspection['stats']['pages'] === 1,
+    'Aliased-body WXR must pass the same scan',
+  );
+  $response = bridgeRequest($file);
+  bridgeCheck(
+    ($response['success'] ?? false) && !($response['paused'] ?? false),
+    'Aliased-body import failed',
+  );
+  foreach (['posts' => 'post', 'pages' => 'page'] as $table => $type) {
+    $read = $pdo->prepare("SELECT content FROM $table WHERE slug=?");
+    $read->execute(['body-prefix-' . $type . '-' . strtolower($bodyPrefix)]);
+    $body = $read->fetchColumn();
+    $read->closeCursor();
+    $read = null;
+    bridgeCheck(
+      is_string($body) &&
+        str_contains($body, 'café') &&
+        str_contains($body, 'Foreign') &&
+        !str_contains($body, 'Wrong namespace decoy'),
+      'Article body lost or replaced because its prefix is ' . $bodyPrefix,
+    );
+  }
+  $response = bridgeRequest($file);
+  bridgeCheck(
+    ($response['success'] ?? false) && !$response['has_more'],
+    'Aliased-body finalization failed',
+  );
+}
+
 foreach (['https', 'http'] as $scheme) {
   foreach (['wp', 'alias'] as $prefix) {
     foreach (['', '/blog'] as $base) {

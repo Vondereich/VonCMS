@@ -31,7 +31,6 @@ const DEFAULT_SETTINGS: SiteSettings = {
     fontFamily: 'Inter, sans-serif',
     borderRadius: '0.5rem',
     customCss: '',
-    ...(_s?.theme || {}),
   },
   api: { mapsApiKey: '' },
   media: {
@@ -161,37 +160,49 @@ export function useSettings() {
             }
 
             if (data) {
-              setSettings((prev) => ({
-                ...prev,
-                ...data,
-                _settingsScope: data._settingsScope === 'admin' ? 'admin' : 'public',
-                ads: { ...prev.ads, ...(data.ads || {}) },
-                theme: { ...prev.theme, ...(data.theme || {}) },
-                api: { ...prev.api, ...(data.api || {}) },
-                media: {
-                  ...prev.media,
-                  ...(data.media || {}),
-                  optimization: {
-                    ...prev.media.optimization,
-                    ...(data.media?.optimization || {}),
+              setSettings((prev) => {
+                // A public read is a complete reduced snapshot, not an admin/group patch.
+                // Do not retain omitted theme namespaces, disabled content or private fields.
+                // Explicitly returned Admin groups also replace old values, including []/{}.
+                const baseline = data._settingsScope === 'admin' ? prev : DEFAULT_SETTINGS;
+                return {
+                  ...baseline,
+                  ...data,
+                  _settingsScope: data._settingsScope === 'admin' ? 'admin' : 'public',
+                  ads: {
+                    ...(Object.hasOwn(data, 'ads') ? DEFAULT_SETTINGS.ads : baseline.ads),
+                    ...(data.ads || {}),
                   },
-                  storage: {
-                    ...prev.media.storage,
-                    ...(data.media?.storage || {}),
+                  theme: {
+                    ...(Object.hasOwn(data, 'theme') ? DEFAULT_SETTINGS.theme : baseline.theme),
+                    ...(data.theme || {}),
                   },
-                  performance: {
-                    ...prev.media.performance,
-                    ...(data.media?.performance || {}),
+                  api: { ...baseline.api, ...(data.api || {}) },
+                  media: {
+                    ...baseline.media,
+                    ...(data.media || {}),
+                    optimization: {
+                      ...baseline.media.optimization,
+                      ...(data.media?.optimization || {}),
+                    },
+                    storage: {
+                      ...baseline.media.storage,
+                      ...(data.media?.storage || {}),
+                    },
+                    performance: {
+                      ...baseline.media.performance,
+                      ...(data.media?.performance || {}),
+                    },
                   },
-                },
-                seo: {
-                  ...(prev.seo || {}),
-                  ...(data.seo || {}),
-                  articleSchemaType: normalizeArticleSchemaType(
-                    data.seo?.articleSchemaType || prev.seo?.articleSchemaType
-                  ),
-                },
-              }));
+                  seo: {
+                    ...(baseline.seo || {}),
+                    ...(data.seo || {}),
+                    articleSchemaType: normalizeArticleSchemaType(
+                      data.seo?.articleSchemaType ?? baseline.seo?.articleSchemaType
+                    ),
+                  },
+                };
+              });
               loaded = !requireAdminScope || data._settingsScope === 'admin';
               return loaded;
             }

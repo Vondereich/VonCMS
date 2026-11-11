@@ -60,7 +60,7 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center text-slate-500 transition-colors hover:text-white"
+            className="flex h-11 w-11 items-center justify-center text-slate-500 transition-colors hover:text-white dark:text-gray-400"
             aria-label="Close Prism theme settings"
           >
             <Trash2 size={20} className="rotate-45" />
@@ -78,10 +78,10 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
                 type="checkbox"
                 checked={tempConfig.neonEffects}
                 onChange={(e) => setTempConfig({ ...tempConfig, neonEffects: e.target.checked })}
-                className="accent-cyan-500 w-5 h-5 cursor-pointer"
+                className="accent-cyan-500 w-5 h-5 cursor-pointer dark:accent-gray-500"
               />
             </label>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-300 dark:text-gray-400">
               Enable/Disable global glowing effects and animations.
             </p>
           </div>
@@ -99,7 +99,7 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
                   className={`p-4 border text-center transition-all relative overflow-hidden group ${
                     tempConfig.colorScheme === scheme.id
                       ? 'border-white bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.2)]'
-                      : 'border-white/10 hover:border-white/50 text-slate-500'
+                      : 'border-white/10 hover:border-white/50 text-slate-500 dark:text-gray-400'
                   }`}
                 >
                   <div
@@ -127,7 +127,7 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
                   className={`flex-1 py-1 text-xs font-bold transition-all ${
                     tempConfig.fontSize === size
                       ? 'bg-white text-black'
-                      : 'text-slate-500 hover:text-white'
+                      : 'text-slate-500 hover:text-white dark:text-gray-400'
                   }`}
                 >
                   {size.toUpperCase()}
@@ -140,13 +140,13 @@ export const PrismSettings: React.FC<PrismSettingsProps> = ({ settings, onUpdate
         <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-white/10 bg-black/80 p-4 sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-6 py-2 border border-white/20 text-slate-400 hover:text-white hover:border-white transition-all font-mono text-xs tracking-wider sm:w-auto"
+            className="min-h-11 w-full px-6 py-2 border border-white/20 text-slate-400 hover:text-white hover:border-white transition-all font-mono text-xs tracking-wider sm:w-auto dark:text-gray-400"
           >
             ABORT
           </button>
           <button
             onClick={handleSave}
-            className="group flex min-h-11 w-full items-center justify-center gap-2 bg-cyan-600 px-8 py-2 font-mono text-xs font-bold tracking-wider text-black shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all hover:bg-cyan-400 sm:w-auto"
+            className="group flex min-h-11 w-full items-center justify-center gap-2 bg-cyan-600 px-8 py-2 font-mono text-xs font-bold tracking-wider text-black shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-all hover:bg-cyan-400 sm:w-auto dark:bg-admin-hover dark:text-white dark:hover:bg-admin-hover-strong"
           >
             <Save size={14} className="group-hover:animate-bounce" /> EXECUTE_SAVE
           </button>

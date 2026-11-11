@@ -53,7 +53,7 @@ export const EditorInsertModal = ({
         <button
           type="button"
           onClick={onClose}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300 dark:text-gray-400"
           aria-label="Close insert dialog"
           title="Close insert dialog"
         >
@@ -79,7 +79,7 @@ export const EditorInsertModal = ({
                   required
                   value={modalInput}
                   onChange={(e) => onInputChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
                 />
               </div>
               <div>
@@ -96,11 +96,11 @@ export const EditorInsertModal = ({
                   required
                   value={modalInput2}
                   onChange={(e) => onSecondInputChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
                 />
               </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-gray-400">
               Use {TABLE_MIN_DIMENSION} to {TABLE_MAX_DIMENSION} rows and columns.
             </p>
           </div>
@@ -119,7 +119,7 @@ export const EditorInsertModal = ({
               maxLength={100000}
               value={modalInput}
               onChange={(e) => onInputChange(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-sm dark:focus:ring-gray-400"
               placeholder="Paste your code here..."
             />
           </div>
@@ -149,7 +149,7 @@ export const EditorInsertModal = ({
               value={modalInput}
               onChange={(e) => onInputChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onConfirm()}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-admin-border-strong rounded-lg bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
               placeholder={
                 activeModal === 'video' ? 'https://youtube.com/...' : 'https://example.com'
               }
@@ -175,13 +175,13 @@ export const EditorInsertModal = ({
                   <option value="nofollow">Nofollow</option>
                   <option value="ugc">UGC - user-generated content</option>
                 </select>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
                   Applies to this link only. It does not change article indexing.
                 </p>
               </div>
             )}
             {activeModal === 'video' && (
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
                 Supports YouTube, TikTok, Instagram, Facebook or supported iframe embeds.
               </p>
             )}
@@ -199,7 +199,7 @@ export const EditorInsertModal = ({
         <button
           type="button"
           onClick={onClose}
-          className="min-h-11 w-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-admin-hover rounded-lg transition-colors sm:w-auto"
+          className="min-h-11 w-full px-4 py-2 text-sm font-medium text-slate-600 dark:text-gray-400 hover:bg-slate-200/50 dark:hover:bg-admin-hover rounded-lg transition-colors sm:w-auto"
         >
           Cancel
         </button>
@@ -216,7 +216,7 @@ export const EditorInsertModal = ({
           type="button"
           onClick={onConfirm}
           disabled={!modalCanSubmit}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
         >
           <CheckCircle size={16} />
           {activeModal === 'link'

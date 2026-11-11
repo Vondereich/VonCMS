@@ -241,7 +241,7 @@ const ReleaseNotes: React.FC<ReleaseNotesProps> = ({ markdown, truncated, releas
     <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
       {content}
       {truncated && (
-        <p className="border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-admin-border dark:text-slate-400">
+        <p className="border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-admin-border dark:text-gray-400">
           These release notes were shortened for safe display.
           {safeReleaseUrl && (
             <>

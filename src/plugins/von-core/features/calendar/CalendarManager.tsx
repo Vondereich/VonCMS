@@ -48,7 +48,7 @@ const primary = `${controlBase} border-blue-600 bg-blue-600 font-semibold text-w
 const selectedControl = `${controlBase} border-blue-500 bg-blue-50 font-semibold text-blue-700 dark:border-blue-500 dark:bg-blue-900/20 dark:text-blue-300`;
 const danger = `${controlBase} border-red-600 bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:text-white`;
 const panel =
-  'rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-admin-border dark:bg-admin-panel';
+  'rounded-2xl border border-zinc-200 bg-white dark:border-admin-border dark:bg-admin-panel';
 const stamp = (item: CalendarItem, now?: string) =>
   `${item.kind === 'event' ? 'Event' : item.kind === 'post' ? 'Post' : 'Page'}${item.kind === 'event' && now && item.ends_at <= now ? ' / Past' : item.status === 'scheduled' ? ' / Scheduled' : item.kind !== 'event' ? ' / Published' : ''}`;
 
@@ -350,7 +350,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
       key={calendarKey(item)}
       type="button"
       onClick={() => chooseItem(item)}
-      className="w-full rounded-xl border border-zinc-300 p-3 text-start hover:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-admin-border"
+      className="w-full rounded-xl border border-zinc-300 p-3 text-start hover:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-admin-border dark:hover:border-gray-400 dark:focus-visible:ring-gray-400"
       aria-label={`Details: ${itemTitle(item)}`}
     >
       <span
@@ -359,7 +359,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
         {stamp(item, data?.now)}
       </span>
       <span className="mt-1 block wrap-break-word text-sm font-semibold">{itemTitle(item)}</span>
-      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+      <span className="mt-1 block text-xs text-slate-500 dark:text-gray-400">
         {item.author_name} /{' '}
         {Number(item.all_day)
           ? 'All day'
@@ -477,7 +477,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
               />
             </label>
           </fieldset>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-gray-400">
             {zone}. Internal event only; it does not schedule or publish an article.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -515,13 +515,13 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
           <h3 className="text-lg font-semibold wrap-break-word">{itemTitle(active)}</h3>
           <dl className="space-y-2 text-sm">
             <div>
-              <dt className="text-slate-500 dark:text-slate-400">
+              <dt className="text-slate-500 dark:text-gray-400">
                 {active.kind === 'event' ? 'Created by' : 'Author'}
               </dt>
               <dd>{active.author_name}</dd>
             </div>
             <div>
-              <dt className="text-slate-500 dark:text-slate-400">
+              <dt className="text-slate-500 dark:text-gray-400">
                 {active.status === 'scheduled'
                   ? 'Scheduled for'
                   : active.kind === 'event'
@@ -535,7 +535,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
             </div>
             {active.kind === 'event' && (
               <div>
-                <dt className="text-slate-500 dark:text-slate-400">
+                <dt className="text-slate-500 dark:text-gray-400">
                   {Number(active.all_day) === 1 ? 'Last day (included)' : 'Ends'}
                 </dt>
                 <dd>
@@ -559,7 +559,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className={`${control} inline-flex items-center gap-2`}
+                className={`admin-action-edit ${control} inline-flex items-center gap-2`}
                 disabled={busy}
                 onClick={() => startEvent(active)}
               >
@@ -568,7 +568,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
               </button>
               <button
                 type="button"
-                className={`${controlBase} inline-flex items-center gap-2 border-zinc-300 bg-zinc-50 text-red-700 dark:border-admin-border dark:bg-admin-canvas dark:text-red-300`}
+                className={`admin-action-delete ${controlBase} inline-flex items-center gap-2 border-zinc-300 bg-zinc-50 text-red-700 dark:border-admin-border dark:bg-admin-canvas dark:text-red-300`}
                 disabled={busy}
                 onClick={() => setConfirmDelete(true)}
               >
@@ -579,7 +579,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
           ) : (
             Number(active.can_edit) === 1 && (
               <Link
-                className={`${control} inline-flex items-center gap-2`}
+                className={`admin-action-edit ${control} inline-flex items-center gap-2`}
                 to={`/admin/editor?type=${active.kind}&id=${encodeURIComponent(String(active.id))}`}
               >
                 <Pencil size={15} />
@@ -600,16 +600,16 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
             New event
           </button>
           {day < today && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-gray-400">
               Past dates are view-only. Use New event above to plan from today.
             </p>
           )}
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-gray-400">
             {dayItems.length} loaded entries
           </p>
           {dayItems.map(itemButton)}
           {!loading && !readError && data && dayItems.length === 0 && (
-            <p className="py-6 text-sm text-slate-500 dark:text-slate-400">
+            <p className="py-6 text-sm text-slate-500 dark:text-gray-400">
               {data?.meta.hasMore
                 ? 'No entries loaded for this day yet. Load more records below the calendar.'
                 : 'No entries for this day.'}
@@ -631,7 +631,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
             <CalendarDays className="text-blue-500" />
             Editorial Calendar
           </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
             Internal events and publication overview. <span>{zone}</span>
           </p>
         </div>
@@ -806,7 +806,10 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)]">
         <div className={`${panel} min-w-0 overflow-hidden`} aria-busy={loading}>
           {loading && (
-            <p role="status" className="flex items-center gap-2 p-4 text-sm text-slate-500">
+            <p
+              role="status"
+              className="flex items-center gap-2 p-4 text-sm text-slate-500 dark:text-gray-400"
+            >
               <Clock3 size={16} />
               Loading calendar...
             </p>
@@ -817,7 +820,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label) => (
                   <span
                     key={label}
-                    className="py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400"
+                    className="py-3 text-center text-xs font-semibold text-slate-500 dark:text-gray-400"
                   >
                     {label}
                   </span>
@@ -836,10 +839,10 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
                       aria-current={date === today ? 'date' : undefined}
                       disabled={busy}
                       onClick={() => chooseDay(date)}
-                      className={`flex min-h-24 min-w-0 flex-col items-stretch justify-start border-b border-e border-zinc-200 px-1 py-2 text-start outline-hidden hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 sm:min-h-32 sm:px-2 dark:border-admin-border dark:hover:bg-admin-hover ${date === day ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${date.startsWith(month) ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}
+                      className={`flex min-h-24 min-w-0 flex-col items-stretch justify-start border-b border-e border-zinc-200 px-1 py-2 text-start outline-hidden hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 sm:min-h-32 sm:px-2 dark:border-admin-border dark:hover:bg-admin-hover dark:focus-visible:ring-gray-400 ${date === day ? 'bg-blue-50 dark:bg-admin-hover-strong/20' : ''} ${date.startsWith(month) ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-gray-400'}`}
                     >
                       <span
-                        className={`inline-flex size-7 items-center justify-center rounded-full text-sm ${date === today ? 'bg-blue-600 font-bold text-white' : ''}`}
+                        className={`inline-flex size-7 items-center justify-center rounded-full text-sm ${date === today ? 'bg-blue-600 font-bold text-white dark:bg-admin-hover' : ''}`}
                       >
                         {Number(date.slice(8))}
                       </span>
@@ -853,7 +856,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
                           </span>
                         ))}
                         {entries.length > 2 && (
-                          <span className="block text-[10px] text-slate-500">
+                          <span className="block text-[10px] text-slate-500 dark:text-gray-400">
                             +{entries.length - 2} more
                           </span>
                         )}
@@ -867,13 +870,13 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
             <div className="space-y-3 p-4">
               {items.map(itemButton)}
               {!loading && !readError && items.length === 0 && (
-                <p className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                <p className="py-10 text-center text-sm text-slate-500 dark:text-gray-400">
                   No matching entries in this date range.
                 </p>
               )}
             </div>
           )}
-          <footer className="flex flex-wrap items-center justify-between gap-3 p-4 text-xs text-slate-500 dark:text-slate-400">
+          <footer className="flex flex-wrap items-center justify-between gap-3 p-4 text-xs text-slate-500 dark:text-gray-400">
             <span>
               {range.from} to {shiftDay(range.to, -1)} / {items.length} loaded
               {data?.meta.hasMore ? ' / more available' : ''}
@@ -918,7 +921,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
         closeOnEscape={!busy}
         closeOnBackdrop={!busy}
         ariaLabel="Calendar details"
-        className="fixed inset-y-0 end-0 w-full max-w-md overflow-y-auto bg-zinc-100 shadow-xl dark:bg-admin-panel"
+        className="fixed inset-y-0 inset-e-0 w-full max-w-md overflow-y-auto bg-white shadow-xl dark:bg-admin-panel"
       >
         {contextPanel}
       </AdminModal>
@@ -930,7 +933,7 @@ export default function CalendarManager({ settings }: { settings: SiteSettings }
         closeOnBackdrop={!busy}
         closeOnEscape={!busy}
         ariaLabel="Delete calendar event"
-        className="w-full max-w-md rounded-2xl bg-zinc-100 p-6 text-slate-800 shadow-xl dark:bg-admin-panel dark:text-slate-100"
+        className="w-full max-w-md rounded-2xl bg-white p-6 text-slate-800 shadow-xl dark:bg-admin-panel dark:text-slate-100"
       >
         <h2 className="text-lg font-semibold">Delete this event?</h2>
         <p className="my-4 text-sm">

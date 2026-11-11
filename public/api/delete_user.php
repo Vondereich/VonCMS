@@ -52,27 +52,37 @@ if ((string) $id === $currentUserId) {
 
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
 try {
-  $targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ?');
+  // Keep target authority and all dependent writes bound to the same locked row.
+  $pdo->beginTransaction();
+  $targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = ? FOR UPDATE');
   $targetStmt->execute([$id]);
   $targetUser = DataBoundary::row($targetStmt->fetch(PDO::FETCH_ASSOC));
 
   if (!$targetUser) {
+    $pdo->rollBack();
     ResponseHelper::sendError('User not found', 404);
   }
 
+  // MySQL can resolve numeric aliases such as "002" to ID 2. Authorize the stored identity.
+  $id = (string) $targetUser['id'];
+  if ($id === '1' || $id === $currentUserId) {
+    $pdo->rollBack();
+    ResponseHelper::sendError(
+      $id === '1' ? 'The Super Admin account cannot be deleted' : 'Cannot delete your own account',
+      403,
+    );
+  }
   $targetRole = strtolower((string) ($targetUser['role'] ?? ''));
   if (
     !$isPrimaryAdminActor &&
     voncms_user_target_requires_primary_admin($targetUser['id'], $targetRole)
   ) {
+    $pdo->rollBack();
     ResponseHelper::sendError(
       'System owner permission is required to delete this protected account',
       403,
     );
   }
-
-  // Start Transaction (Critical for Multi-Table Cleanup)
-  $pdo->beginTransaction();
 
   try {
     $likedCommentStmt = $pdo->prepare(
@@ -114,7 +124,7 @@ try {
   voncms_public_cache_clear();
 
   echo json_encode(['success' => true, 'message' => 'User deleted']);
-} catch (Exception $e) {
+} catch (Throwable $e) {
   if ($pdo->inTransaction()) {
     $pdo->rollBack();
   }

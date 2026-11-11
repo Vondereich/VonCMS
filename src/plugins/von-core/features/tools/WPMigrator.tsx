@@ -362,17 +362,19 @@ export const WPMigrator: React.FC = () => {
   return (
     <div className="animate-fade-in mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+        <div className="p-3 bg-blue-100 dark:bg-admin-hover-strong/30 rounded-lg text-blue-600 dark:text-blue-400">
           <Upload size={24} />
         </div>
         <div>
           <h2 className="text-xl font-bold dark:text-white">WordPress Bridge</h2>
-          <p className="text-slate-500 text-sm">One-click content migrator from WP Export (XML)</p>
+          <p className="text-slate-500 text-sm dark:text-gray-400">
+            One-click content migrator from WP Export (XML)
+          </p>
         </div>
       </div>
 
       {step === 'upload' && resumeCheckpoint && (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-gray-400 dark:bg-admin-hover-strong/20">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-bold text-blue-900 dark:text-blue-100">Resume Previous Import</h3>
@@ -385,14 +387,14 @@ export const WPMigrator: React.FC = () => {
               <button
                 type="button"
                 onClick={restoreCheckpoint}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
               >
                 Resume
               </button>
               <button
                 type="button"
                 onClick={clearCheckpoint}
-                className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-white dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-950/40"
+                className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-white dark:border-gray-400 dark:text-blue-200 dark:hover:bg-admin-hover-strong/40"
               >
                 Discard
               </button>
@@ -404,7 +406,7 @@ export const WPMigrator: React.FC = () => {
       {step === 'upload' && (
         <div className="space-y-6">
           <div
-            className="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-5 text-center transition-colors hover:border-blue-500 dark:border-admin-border-strong sm:p-8"
+            className="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-5 text-center transition-colors hover:border-blue-500 dark:border-admin-border-strong sm:p-8 dark:hover:border-gray-400"
             onClick={() => fileInputRef.current?.click()}
           >
             <input
@@ -416,13 +418,15 @@ export const WPMigrator: React.FC = () => {
               accept=".xml"
               className="hidden"
             />
-            <Upload className="mx-auto text-slate-400 mb-4" size={48} />
+            <Upload className="mx-auto text-slate-400 mb-4 dark:text-gray-400" size={48} />
             {file || fileName ? (
               <div className="text-blue-600 font-medium">{file?.name || fileName}</div>
             ) : (
               <>
                 <p className="font-medium dark:text-white text-lg">Click to Upload XML</p>
-                <p className="text-slate-400 text-sm mt-1">Supports WordPress eXtended RSS (WXR)</p>
+                <p className="text-slate-400 text-sm mt-1 dark:text-gray-400">
+                  Supports WordPress eXtended RSS (WXR)
+                </p>
               </>
             )}
           </div>
@@ -450,7 +454,7 @@ export const WPMigrator: React.FC = () => {
           <button
             onClick={handleScan}
             disabled={!file || !safetyChecked}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
           >
             Start Scan
           </button>
@@ -471,11 +475,11 @@ export const WPMigrator: React.FC = () => {
               <div>
                 <strong>Detected Source:</strong> {sourceBlogUrl || sourceSiteUrl}
               </div>
-              <div className="mt-1 text-slate-500 dark:text-slate-400">
+              <div className="mt-1 text-slate-500 dark:text-gray-400">
                 Smart import will clean Gutenberg blocks, convert supported embeds, remap internal
                 links, and localize supported WordPress images into this site's uploads.
               </div>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
                 Password-protected items become Drafts. Authors, comments, custom post types,
                 schedules and dynamic WordPress blocks are not migrated in full. Keep the source
                 export and media until verification is complete. Resume files expire after 24 hours.
@@ -486,15 +490,21 @@ export const WPMigrator: React.FC = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
             <div className="bg-slate-50 dark:bg-admin-canvas p-4 rounded-lg text-center border border-slate-200 dark:border-admin-border">
               <div className="text-2xl font-bold dark:text-white">{stats.posts}</div>
-              <div className="text-xs text-slate-500 uppercase tracking-wider">Posts</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wider dark:text-gray-400">
+                Posts
+              </div>
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas p-4 rounded-lg text-center border border-slate-200 dark:border-admin-border">
               <div className="text-2xl font-bold dark:text-white">{stats.pages}</div>
-              <div className="text-xs text-slate-500 uppercase tracking-wider">Pages</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wider dark:text-gray-400">
+                Pages
+              </div>
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas p-4 rounded-lg text-center border border-slate-200 dark:border-admin-border">
               <div className="text-2xl font-bold dark:text-white">{stats.media}</div>
-              <div className="text-xs text-slate-500 uppercase tracking-wider">Media Files</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wider dark:text-gray-400">
+                Media Files
+              </div>
             </div>
           </div>
 
@@ -520,11 +530,11 @@ export const WPMigrator: React.FC = () => {
                 </div>
                 <div className="h-4 bg-slate-200 dark:bg-admin-hover rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-600 transition-all duration-300"
+                    className="h-full bg-blue-600 transition-all duration-300 dark:bg-admin-hover"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-3 sm:gap-3">
+                <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-3 sm:gap-3 dark:text-gray-400">
                   <span>Processed: {processedCount}</span>
                   <span className="sm:text-center">Imported: {importedCount}</span>
                   <span className="sm:text-right">Skipped: {skippedCount}</span>

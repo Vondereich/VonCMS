@@ -27,6 +27,7 @@ import {
   Download,
   FileStack,
   Settings2,
+  Globe,
 } from 'lucide-react';
 import { UpdateModal } from '../settings/UpdateModal';
 import { fetchLatestOtaRelease, isNewerVersion } from '../settings/otaRelease';
@@ -82,38 +83,48 @@ const parseTrafficCount = (value: unknown) => {
   return Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0;
 };
 
+const dashboardCountFormatter = new Intl.NumberFormat('en-US');
+const dashboardCompactCountFormatter = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 2,
+});
+
 const StatCard: React.FC<{
   title: string;
   value: string;
   icon: React.ReactNode;
-  trend?: string;
-  color?: string;
-}> = ({
-  title,
-  value,
-  icon,
-  trend,
-  color = 'bg-primary-50 text-primary-600 dark:bg-primary-900/20',
-}) => (
-  <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition-shadow hover:shadow-md dark:border-admin-border dark:bg-admin-panel sm:p-5">
-    <div className={`shrink-0 rounded-lg p-2.5 ${color}`}>{icon}</div>
-    <div className="min-w-0 grow">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        {title}
-      </h3>
-      <p className="mt-1 truncate text-2xl font-extrabold text-slate-800 dark:text-white">
-        {value}
+  iconColor?: string;
+  isCount?: boolean;
+}> = ({ title, value, icon, iconColor = 'text-blue-600 dark:text-blue-400', isCount = true }) => {
+  const numericValue = isCount ? Number(value) : Number.NaN;
+  const fullValue = Number.isFinite(numericValue)
+    ? dashboardCountFormatter.format(numericValue)
+    : value;
+  const displayedValue =
+    numericValue >= 1_000_000 ? dashboardCompactCountFormatter.format(numericValue) : fullValue;
+
+  return (
+    <div
+      role="group"
+      aria-label={`${title} statistic`}
+      className="flex min-w-0 flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs md:gap-2 md:p-3 dark:border-admin-border dark:bg-admin-panel"
+    >
+      <div className="flex min-w-0 items-start justify-between gap-2 text-slate-500 dark:text-neutral-400">
+        <h3 className="min-w-0 wrap-break-word text-xs font-medium text-slate-500 dark:text-neutral-400">
+          {title}
+        </h3>
+        <span className={`hidden shrink-0 sm:block ${iconColor}`}>{icon}</span>
+      </div>
+      <p
+        title={fullValue}
+        className="min-w-0 wrap-break-word text-2xl font-bold tabular-nums tracking-tight text-slate-800 dark:text-white"
+      >
+        <span aria-hidden="true">{displayedValue}</span>
+        <span className="sr-only">{fullValue}</span>
       </p>
     </div>
-    <div className="shrink-0">
-      {trend && (
-        <span className="text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-2.5 py-1 rounded-full border border-green-100 dark:border-green-800">
-          {trend}
-        </span>
-      )}
-    </div>
-  </div>
-);
+  );
+};
 
 const formatActivityTime = (value?: string) => {
   if (!value) return 'Recently';
@@ -156,6 +167,21 @@ const DashboardClock: React.FC<{ timeZone: string; canChangeTimeZone: boolean }>
       [effectiveTimeZone]
     );
     const formattedClockTime = clockFormatter.format(clockNow);
+    const clockParts = clockFormatter.formatToParts(clockNow);
+    const hour = Number(clockParts.find((part) => part.type === 'hour')?.value || '0');
+    const minute = Number(clockParts.find((part) => part.type === 'minute')?.value || '0');
+    const second = Number(clockParts.find((part) => part.type === 'second')?.value || '0');
+    const dateFormatter = useMemo(
+      () =>
+        new Intl.DateTimeFormat('en-GB', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          timeZone: effectiveTimeZone,
+        }),
+      [effectiveTimeZone]
+    );
 
     useEffect(() => {
       let alignmentTimeout: number | undefined;
@@ -189,7 +215,55 @@ const DashboardClock: React.FC<{ timeZone: string; canChangeTimeZone: boolean }>
     }, []);
 
     return (
-      <div className="w-full pl-[52px] text-left sm:w-auto sm:pl-0 sm:text-right">
+      <section
+        aria-label="Dashboard clock"
+        className="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-xs md:order-last md:gap-1.5 md:p-3 dark:border-admin-border dark:bg-admin-panel"
+      >
+        <div className="flex w-full items-center justify-between gap-2 text-xs font-medium text-slate-500 dark:text-neutral-400">
+          <span>LOCAL TIME</span>
+          <Globe size={16} aria-hidden="true" />
+        </div>
+        <div
+          aria-hidden="true"
+          className="relative aspect-square w-36 shrink-0 rounded-full border border-slate-200 bg-slate-50 md:w-28 dark:border-admin-border dark:bg-admin-inset"
+        >
+          {Array.from({ length: 60 }, (_, tick) => (
+            <span
+              key={tick}
+              className="absolute inset-2.5"
+              style={{ transform: `rotate(${tick * 6}deg)` }}
+            >
+              <span
+                className={`absolute left-1/2 top-0 -translate-x-1/2 ${tick % 5 === 0 ? 'h-2 w-0.5 bg-slate-500 dark:bg-neutral-400' : 'h-1 w-px bg-slate-300 dark:bg-neutral-600'}`}
+              />
+            </span>
+          ))}
+          <span className="absolute left-1/2 top-6 -translate-x-1/2 text-xs font-medium text-slate-500 md:top-4 dark:text-neutral-400">
+            12
+          </span>
+          <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 md:right-4 dark:text-neutral-400">
+            3
+          </span>
+          <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs font-medium text-slate-500 md:bottom-4 dark:text-neutral-400">
+            6
+          </span>
+          <span className="absolute left-6 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 md:left-4 dark:text-neutral-400">
+            9
+          </span>
+          <span
+            data-clock-hand="hour"
+            className="absolute bottom-1/2 left-1/2 h-[24%] w-1.5 origin-bottom rounded-full bg-blue-600 dark:bg-blue-400"
+            style={{
+              transform: `translateX(-50%) rotate(${(hour % 12) * 30 + minute * 0.5 + second / 120}deg)`,
+            }}
+          />
+          <span
+            data-clock-hand="minute"
+            className="absolute bottom-1/2 left-1/2 h-[35%] w-0.75 origin-bottom rounded-full bg-blue-600 dark:bg-blue-400"
+            style={{ transform: `translateX(-50%) rotate(${minute * 6 + second * 0.1}deg)` }}
+          />
+          <span className="absolute left-1/2 top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600 dark:bg-blue-400" />
+        </div>
         <time
           dateTime={clockNow.toISOString()}
           className="block font-mono text-lg font-bold tabular-nums text-slate-800 dark:text-white"
@@ -197,19 +271,22 @@ const DashboardClock: React.FC<{ timeZone: string; canChangeTimeZone: boolean }>
         >
           {formattedClockTime}
         </time>
-        <div className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500 dark:text-slate-400 sm:justify-end">
-          <span>{effectiveTimeZone}</span>
+        <p className="text-center text-xs text-slate-500 dark:text-neutral-400">
+          {dateFormatter.format(clockNow)}
+        </p>
+        <div className="mt-auto flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-slate-200 pt-2 text-[11px] text-slate-500 dark:border-admin-border dark:text-neutral-400">
+          <span className="min-w-0 wrap-break-word">{effectiveTimeZone}</span>
           {canChangeTimeZone && (
             <button
               type="button"
               onClick={() => navigate('/admin/settings')}
-              className="font-semibold text-primary-600 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400"
+              className="min-h-8 font-semibold text-primary-600 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500 dark:text-primary-400 dark:focus-visible:outline-neutral-400"
             >
               Change timezone
             </button>
           )}
         </div>
-      </div>
+      </section>
     );
   }
 );
@@ -242,13 +319,13 @@ const VpDashboard: React.FC<DashboardProps> = ({
   const [days, setDays] = useState(7);
   const [analyticsTab, setAnalyticsTab] = useState<'traffic' | 'articles'>('traffic');
   const [reportMode, setReportMode] = useState<AnalyticsReportMode>(
-    analyticsMode === 'balanced' ? 'balanced' : 'strict'
+    analyticsMode === 'strict' ? 'strict' : 'balanced'
   );
   const [analyticsUnavailable, setAnalyticsUnavailable] = useState(false);
   const [analyticsNeedsRepair, setAnalyticsNeedsRepair] = useState(false);
   const [trafficLoading, setTrafficLoading] = useState(true);
   useEffect(() => {
-    if (analyticsMode !== 'hybrid') setReportMode(analyticsMode);
+    setReportMode(analyticsMode === 'strict' ? 'strict' : 'balanced');
   }, [analyticsMode]);
   const [chartData, setChartData] = useState<TrafficChartPoint[]>([]);
   const [trafficSummary, setTrafficSummary] = useState<TrafficSummary>({
@@ -635,27 +712,11 @@ const VpDashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center gap-x-1.5">
-                <span className="font-semibold text-slate-700 dark:text-slate-200">VonCMS</span>
-                <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">
-                  v{pkg.version}
-                </span>
-                {serverInfo?.phpVersion && (
-                  <>
-                    <span aria-hidden="true">&bull;</span>
-                    <span>PHP {serverInfo.phpVersion}</span>
-                  </>
-                )}
-              </span>
-              <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-slate-600 dark:text-slate-300">
-                <span className="size-2 rounded-full bg-green-500" aria-hidden="true" />
-                System ready
-              </span>
-            </div>
+            <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
+              Your content, audience and system at a glance.
+            </p>
           </div>
         </div>
-        <DashboardClock timeZone={timeZone} canChangeTimeZone={canChangeTimeZone} />
       </div>
 
       {serverInfo?.phpVersion && /^8\.2(?:\.|$)/.test(serverInfo.phpVersion) && (
@@ -735,38 +796,84 @@ const VpDashboard: React.FC<DashboardProps> = ({
         />
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <StatCard
-          title="Articles"
-          value={contentTotalsLoading.articles ? '...' : contentTotals.articles.toString()}
-          icon={<FileText size={24} />}
-          color="bg-sky-50 text-sky-600 dark:bg-sky-900/20"
-        />
-        <StatCard
-          title="Pages"
-          value={contentTotalsLoading.pages ? '...' : contentTotals.pages.toString()}
-          icon={<FileStack size={24} />}
-          color="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20"
-        />
-        <StatCard
-          title="Comments"
-          value={totalCommentsLoading ? '...' : totalComments.toString()}
-          icon={<MessageSquare size={24} />}
-          color="bg-purple-50 text-purple-600 dark:bg-purple-900/20"
-        />
-        <StatCard
-          title="Active Users"
-          value={activeUsersLoading ? '...' : activeUsers.toString()}
-          icon={<Users size={24} />}
-          color="bg-blue-50 text-blue-600 dark:bg-blue-900/20"
-        />
-        <StatCard
-          title="Media Usage"
-          value={storageData.used}
-          icon={<HardDrive size={24} />}
-          color="bg-amber-50 text-amber-600 dark:bg-amber-900/20"
-        />
-      </div>
+      <section
+        aria-label="Dashboard overview"
+        className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_240px]"
+      >
+        <DashboardClock timeZone={timeZone} canChangeTimeZone={canChangeTimeZone} />
+        <div className="grid min-w-0 grid-cols-2 gap-3 md:gap-2">
+          <StatCard
+            title="Articles"
+            value={contentTotalsLoading.articles ? '...' : contentTotals.articles.toString()}
+            icon={<FileText size={18} />}
+            iconColor="text-sky-600"
+          />
+          <StatCard
+            title="Pages"
+            value={contentTotalsLoading.pages ? '...' : contentTotals.pages.toString()}
+            icon={<FileStack size={18} />}
+            iconColor="text-emerald-600"
+          />
+          <StatCard
+            title="Comments"
+            value={totalCommentsLoading ? '...' : totalComments.toString()}
+            icon={<MessageSquare size={18} />}
+            iconColor="text-purple-600"
+          />
+          <StatCard
+            title="Active Users"
+            value={activeUsersLoading ? '...' : activeUsers.toString()}
+            icon={<Users size={18} />}
+            iconColor="text-blue-600"
+          />
+          <StatCard
+            title="Media Usage"
+            value={storageData.used}
+            icon={<HardDrive size={18} />}
+            iconColor="text-amber-600"
+            isCount={false}
+          />
+          <section
+            aria-label="System information"
+            className="flex min-w-0 flex-col justify-between gap-1.5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs md:p-3 dark:border-admin-border dark:bg-admin-panel"
+          >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <h3 className="min-w-0 wrap-break-word text-xs font-medium text-slate-500 dark:text-neutral-400">
+                System
+              </h3>
+              <Server
+                size={18}
+                className="hidden shrink-0 text-blue-600 dark:text-blue-400 sm:block"
+                aria-hidden="true"
+              />
+            </div>
+            <dl className="dashboard-system-details grid min-w-0 grid-cols-1 items-baseline gap-x-3 gap-y-1 text-base leading-6 md:grid-cols-[minmax(0,max-content)_max-content] md:justify-start">
+              <dt className="min-w-0 text-sm text-slate-500 md:flex md:items-baseline md:justify-between md:gap-2 dark:text-neutral-400">
+                <span className="min-w-0">VonCMS Version</span>
+                <span aria-hidden="true" className="ml-1 md:ml-0">
+                  :
+                </span>
+              </dt>
+              <dd className="min-w-0 font-mono font-semibold text-slate-800 dark:text-neutral-100">
+                {pkg.version}
+              </dd>
+              {serverInfo?.phpVersion && (
+                <>
+                  <dt className="min-w-0 text-sm text-slate-500 md:flex md:items-baseline md:justify-between md:gap-2 dark:text-neutral-400">
+                    <span className="min-w-0">PHP Version</span>
+                    <span aria-hidden="true" className="ml-1 md:ml-0">
+                      :
+                    </span>
+                  </dt>
+                  <dd className="min-w-0 font-mono font-semibold text-slate-800 dark:text-neutral-100">
+                    {serverInfo.phpVersion}
+                  </dd>
+                </>
+              )}
+            </dl>
+          </section>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
@@ -807,8 +914,8 @@ const VpDashboard: React.FC<DashboardProps> = ({
                     onChange={(event) => setReportMode(event.target.value as AnalyticsReportMode)}
                     className="h-11 w-full min-w-0 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 outline-none transition-colors hover:bg-slate-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-slate-200 dark:hover:bg-white/5"
                   >
-                    <option value="strict">Strict</option>
                     <option value="balanced">Balanced</option>
+                    <option value="strict">Strict</option>
                   </select>
                 </label>
               )}
@@ -1053,7 +1160,7 @@ const VpDashboard: React.FC<DashboardProps> = ({
         <div className="self-start bg-white dark:bg-admin-panel backdrop-blur-xs p-5 rounded-xl shadow-xs border border-slate-200 dark:border-admin-border flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Recent Activity</h3>
           <div className="space-y-0">
-            {recentActivity.slice(0, 4).map((log, i) => (
+            {recentActivity.slice(0, 5).map((log, i) => (
               <div
                 key={i}
                 className="flex gap-3 items-start border-b border-slate-100 dark:border-white/10 py-4 last:border-0 hover:bg-slate-50 dark:hover:bg-admin-hover/50 transition-colors px-2 rounded-lg -mx-2"

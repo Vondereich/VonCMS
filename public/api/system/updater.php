@@ -1438,13 +1438,7 @@ if (!defined('IN_API')) {
       // Only accept POST for destructive actions
       if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         ob_end_clean();
-        die(
-          json_encode([
-            'error' => 'POST required',
-            'received_method' => $_SERVER['REQUEST_METHOD'],
-            'request_uri' => $_SERVER['REQUEST_URI'],
-          ])
-        );
+        ResponseHelper::sendError('POST required', 405);
       }
 
       // Read input ONCE and store it

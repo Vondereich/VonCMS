@@ -60,14 +60,14 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
             <h3 className="text-lg font-bold text-slate-800 dark:text-white sm:text-2xl">
               AI Summary Settings
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
               Auto-extract key points from articles
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200 dark:text-gray-400"
             aria-label="Close AI Summary settings"
           >
             <X size={24} />
@@ -92,13 +92,13 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
                   extractMethod: e.target.value as AISummaryConfig['extractMethod'],
                 })
               }
-              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
             >
               <option value="hybrid">Smart (Hybrid) - Recommended</option>
               <option value="headings">Headings Only (H2-H4)</option>
               <option value="sentences">Ranked Sentences</option>
             </select>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-gray-400">
               {config.extractMethod === 'hybrid'
                 ? 'Hybrid blends descriptive headings with ranked article sentences.'
                 : config.extractMethod === 'headings'
@@ -119,8 +119,8 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
                   onClick={() => setConfig({ ...config, position: pos.value })}
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.position === pos.value
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 dark:bg-gray-200 dark:text-gray-900 dark:shadow-none'
+                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover-strong'
                   }`}
                 >
                   {pos.label}
@@ -141,8 +141,8 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
                   onClick={() => setConfig({ ...config, maxBullets: num })}
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.maxBullets === num
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 dark:bg-gray-200 dark:text-gray-900 dark:shadow-none'
+                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover-strong'
                   }`}
                 >
                   {num} points
@@ -155,14 +155,16 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-admin-canvas rounded-lg">
             <div>
               <p className="font-medium text-slate-700 dark:text-slate-300">Show Label</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm text-slate-500 dark:text-gray-400">
                 Display section title above summary
               </p>
             </div>
             <button
               onClick={() => setConfig({ ...config, showLabel: !config.showLabel })}
               className={`relative w-14 h-8 rounded-full transition-colors ${
-                config.showLabel ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                config.showLabel
+                  ? 'bg-blue-600 dark:bg-gray-400'
+                  : 'bg-slate-300 dark:bg-admin-hover-strong'
               }`}
             >
               <span
@@ -187,7 +189,7 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
                 value={config.labelText}
                 onChange={(e) => setConfig({ ...config, labelText: e.target.value })}
                 placeholder="AI Summary"
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden dark:focus:ring-gray-400"
               />
             </div>
           )}
@@ -197,13 +199,13 @@ export const AISummarySettings: React.FC<AISummarySettingsProps> = ({
         <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="min-h-11 w-full px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto"
+            className="min-h-11 w-full px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 sm:w-auto dark:bg-admin-hover dark:hover:bg-admin-hover-strong dark:shadow-none"
           >
             Save Changes
           </button>

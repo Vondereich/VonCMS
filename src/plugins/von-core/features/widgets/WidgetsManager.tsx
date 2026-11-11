@@ -221,14 +221,14 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 flex items-center justify-center">
+          <div className="h-11 w-11 rounded-2xl bg-blue-50 dark:bg-admin-hover-strong/30 text-blue-600 dark:text-blue-300 flex items-center justify-center">
             <PanelsTopLeft size={22} />
           </div>
           <div className="min-w-0">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white sm:text-3xl">
               Widgets
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-slate-500 dark:text-gray-400">
               Manage shared sidebar blocks used by sidebar-capable themes: Default, Digest, and
               TechPress. Themes without a sidebar ignore these blocks.
             </p>
@@ -236,14 +236,14 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1064px] grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)] gap-6 items-start">
+      <div className="mx-auto grid max-w-266 grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)] gap-6 items-start">
         <section className="animate-fade-in space-y-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-admin-border dark:bg-admin-panel sm:p-6">
           <div className="space-y-4 border-b border-slate-100 dark:border-admin-border pb-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                 Sidebar widget area
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
                 Order, titles, visibility, and custom content are stored in the shared{' '}
                 <code className="px-1.5 py-0.5 rounded-sm bg-slate-100 dark:bg-admin-inset text-xs">
                   sidebarLayout
@@ -281,7 +281,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                     ? 'Remove the existing widget before adding this type again'
                     : 'Add widget'
                 }
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors whitespace-nowrap dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
               >
                 <Plus size={16} /> {selectedWidgetAlreadyAdded ? 'Already Added' : 'Add Widget'}
               </button>
@@ -290,7 +290,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
 
           <div className="space-y-3">
             {widgets.length === 0 ? (
-              <div className="text-center py-8 border border-dashed border-slate-300 dark:border-admin-border-strong rounded-lg text-slate-500 dark:text-slate-400">
+              <div className="text-center py-8 border border-dashed border-slate-300 dark:border-admin-border-strong rounded-lg text-slate-500 dark:text-gray-400">
                 No sidebar blocks configured. Add a latest-posts, categories, profile, or custom
                 block.
               </div>
@@ -312,7 +312,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                     <div className="flex items-center gap-2 p-2.5">
                       <span
                         title="Drag handle"
-                        className="cursor-move text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        className="cursor-move text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 dark:text-gray-400"
                       >
                         <GripVertical size={16} />
                       </span>
@@ -320,7 +320,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                         type="button"
                         onClick={() => setExpandedWidgetId(isExpanded ? null : widget.id)}
                         aria-expanded={isExpanded}
-                        className="p-1.5 rounded-md text-slate-500 hover:bg-white dark:hover:bg-admin-panel"
+                        className="p-1.5 rounded-md text-slate-500 hover:bg-white dark:hover:bg-admin-panel dark:text-gray-400"
                         title={isExpanded ? 'Collapse widget' : 'Edit widget'}
                       >
                         <ChevronRight
@@ -344,7 +344,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
                             {widget.title}
                           </h4>
-                          <span className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-gray-400">
                             ({widget.type})
                           </span>
                           <span
@@ -357,7 +357,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                             {widget.isVisible === false ? 'Hidden' : 'Visible'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <p className="text-xs text-slate-500 dark:text-gray-400 truncate">
                           {option?.description}
                         </p>
                       </div>
@@ -367,7 +367,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           type="button"
                           onClick={() => moveWidget(index, -1)}
                           disabled={index === 0}
-                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-admin-panel"
+                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-admin-panel dark:text-gray-400"
                           title="Move up"
                         >
                           <ArrowUp size={16} />
@@ -376,7 +376,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           type="button"
                           onClick={() => moveWidget(index, 1)}
                           disabled={index === widgets.length - 1}
-                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-admin-panel"
+                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-slate-500 disabled:opacity-30 hover:bg-white dark:hover:bg-admin-panel dark:text-gray-400"
                           title="Move down"
                         >
                           <ArrowDown size={16} />
@@ -396,7 +396,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                         <button
                           type="button"
                           onClick={() => removeWidget(widget.id)}
-                          className="p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          className="admin-action-delete p-1.5 rounded-md border border-slate-200 dark:border-admin-border text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                           title="Remove"
                         >
                           <Trash2 size={16} />
@@ -409,7 +409,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                         <div className="space-y-2">
                           <label
                             htmlFor={`widgets-title-${widget.id}`}
-                            className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                            className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400"
                           >
                             Title
                           </label>
@@ -429,7 +429,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           <div className="space-y-2">
                             <label
                               htmlFor={`widgets-count-${widget.id}`}
-                              className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                              className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400"
                             >
                               {widget.type === 'categories'
                                 ? 'Visible before Show more'
@@ -483,7 +483,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                               className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-inset text-sm font-mono text-slate-700 dark:text-slate-200"
                               placeholder="Paste sanitized HTML, ad snippets, iframe embeds, badges, counters, or plain text."
                             />
-                            <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-100 space-y-1">
+                            <div className="rounded-lg border border-blue-100 dark:border-gray-400/40 bg-blue-50/70 dark:bg-admin-hover-strong/20 p-3 text-xs text-blue-900 dark:text-blue-100 space-y-1">
                               <p className="font-bold">Custom widget guide</p>
                               <p>
                                 Good for ad snippets, iframe embeds, external badges/counters, or
@@ -501,7 +501,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                           </div>
                         )}
                         {widget.type === 'profile' && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                          <p className="text-xs text-slate-500 dark:text-gray-400">
                             Profile widget uses the existing General Settings profile data.
                           </p>
                         )}
@@ -521,7 +521,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                 <Mail size={18} className="text-cyan-500" />
                 Newsletter sidebar placement
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
                 This controls the existing newsletter widget position. Subscriber management stays
                 under Newsletter.
               </p>
@@ -535,7 +535,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                   <span className="block text-sm font-bold text-slate-800 dark:text-white">
                     Enable Newsletter
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-gray-400">
                     Required before footer or sidebar forms render.
                   </span>
                 </div>
@@ -550,7 +550,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
                       enabled: event.target.checked,
                     }))
                   }
-                  className="h-5 w-5 rounded-sm text-cyan-500 focus:ring-cyan-500"
+                  className="h-5 w-5 rounded-sm text-cyan-500 focus:ring-cyan-500 dark:focus:ring-gray-400"
                 />
               </label>
 
@@ -633,7 +633,7 @@ const WidgetsManager: React.FC<WidgetsManagerProps> = ({ settings, onUpdateSetti
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold transition-colors"
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold transition-colors dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
             >
               <Save size={18} /> {isSaving ? 'Saving...' : 'Save Widgets'}
             </button>

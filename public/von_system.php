@@ -13,7 +13,10 @@ $action = is_scalar($actionValue) ? (string) $actionValue : '';
 function getJsonInput(): array
 {
   $input = json_decode(CSRFProtection::getRequestBody(), true);
-  return is_array($input) ? $input : [];
+  if (!is_array($input)) {
+    ResponseHelper::sendError('Invalid update request payload.', 400);
+  }
+  return $input;
 }
 
 switch ($action) {
@@ -49,7 +52,7 @@ switch ($action) {
 
     // Only accept POST
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-      exit(json_encode(['error' => 'POST required', 'method' => $_SERVER['REQUEST_METHOD']]));
+      ResponseHelper::sendError('POST required', 405);
     }
 
     $input = getJsonInput();
@@ -73,7 +76,7 @@ switch ($action) {
     $expectedHash = isset($input['expected_hash']) ? trim((string) $input['expected_hash']) : null;
 
     if (!$url) {
-      exit(json_encode(['error' => 'No download URL provided']));
+      ResponseHelper::sendError('No download URL provided', 400);
     }
 
     try {
@@ -85,6 +88,5 @@ switch ($action) {
     break;
 
   default:
-    echo json_encode(['success' => false, 'message' => 'Invalid action']);
-    break;
+    ResponseHelper::sendError('Invalid action', 400);
 }

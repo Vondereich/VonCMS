@@ -30,7 +30,10 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
     </h3>
     <div>
       <div className="flex justify-between items-center mb-1">
-        <label htmlFor="post-meta-desc" className="block text-sm font-medium text-slate-500">
+        <label
+          htmlFor="post-meta-desc"
+          className="block text-sm font-medium text-slate-500 dark:text-gray-400"
+        >
           Meta Description
         </label>
         <button
@@ -48,7 +51,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
               );
             }
           }}
-          className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full transition-colors"
+          className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-admin-hover-strong/30 px-2 py-1 rounded-full transition-colors dark:hover:text-white"
         >
           <Sparkles size={12} /> Auto Fill
         </button>
@@ -56,7 +59,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
       <textarea
         id="post-meta-desc"
         name="metaDescription"
-        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm"
+        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
         placeholder="Brief summary for search engines (max 160 chars)..."
         value={item.metaDescription || ''}
         onChange={(event) =>
@@ -66,13 +69,16 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         }
         maxLength={160}
       />
-      <p className="text-xs text-slate-400 mt-1">
+      <p className="text-xs text-slate-400 mt-1 dark:text-gray-400">
         {(item.metaDescription || '').length}/160 characters
       </p>
     </div>
     <div>
       <div className="flex justify-between items-center mb-1">
-        <label htmlFor="post-keywords" className="block text-sm font-medium text-slate-500">
+        <label
+          htmlFor="post-keywords"
+          className="block text-sm font-medium text-slate-500 dark:text-gray-400"
+        >
           Keywords
         </label>
         <button
@@ -93,7 +99,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         name="keywords"
         type="text"
         placeholder="comma, separated, keywords"
-        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm"
+        className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
         value={item.keywords || ''}
         onChange={(event) =>
           setItem((previous) => (previous ? { ...previous, keywords: event.target.value } : null))
@@ -103,7 +109,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
       />
       <p
         id="post-keywords-help"
-        className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-400"
+        className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-400 dark:text-gray-400"
       >
         <span>
           {(item.keywords || '').length}/{SEO_KEYWORDS_MAX_LENGTH} characters
@@ -118,7 +124,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
           <Activity size={16} className="text-blue-500 animate-pulse" />
           <h3 className="font-bold text-slate-800 dark:text-white text-sm">SEO Health</h3>
         </div>
-        <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
+        <div className="p-5 text-sm text-slate-500 dark:text-gray-400">
           Loading complete post details...
         </div>
       </div>
@@ -147,7 +153,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
 
         <div className="p-5 space-y-4">
           <div>
-            <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+            <div className="flex justify-between text-xs font-medium text-slate-500 dark:text-gray-400 mb-1.5">
               <span>Optimization</span>
               <span>{result.score}%</span>
             </div>
@@ -180,7 +186,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
                 <p
                   className={`text-xs leading-snug ${
                     check.status === 'good'
-                      ? 'text-slate-600 dark:text-slate-400'
+                      ? 'text-slate-600 dark:text-gray-400'
                       : check.status === 'warning'
                         ? 'text-amber-700 dark:text-amber-400'
                         : 'text-red-600 dark:text-red-400'

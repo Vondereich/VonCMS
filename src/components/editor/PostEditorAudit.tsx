@@ -32,17 +32,17 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
   const recentLogs = logs.slice(0, 3);
 
   return (
-    <div className="bg-slate-50/50 dark:bg-admin-panel/50 p-5 rounded-xl border border-slate-200 dark:border-admin-border space-y-4">
+    <div className="bg-white dark:bg-admin-panel p-5 rounded-xl border border-slate-200 dark:border-admin-border space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <History size={16} className="text-slate-400" />
+          <History size={16} className="text-slate-400 dark:text-gray-400" />
           Edit Log
         </h3>
         {!!itemId && logs.length > 0 && (
           <button
             type="button"
             onClick={onOpenHistory}
-            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+            className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:hover:text-white"
           >
             View Recent History
           </button>
@@ -50,18 +50,18 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
       </div>
 
       {!itemId ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-500 dark:text-gray-400">
           Edit history will start after the first successful save.
         </p>
       ) : isLoading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Loading edit history...</p>
+        <p className="text-sm text-slate-500 dark:text-gray-400">Loading edit history...</p>
       ) : latestLog ? (
         <div className="space-y-3">
           <div className="rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas/60 p-4 space-y-2">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
               {latestLog.summary || 'Content updated'}
             </p>
-            <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="space-y-1 text-xs text-slate-500 dark:text-gray-400">
               <p className="flex items-center gap-2">
                 <User size={14} />
                 <span>{formatAuditActor(latestLog)}</span>
@@ -83,7 +83,7 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
                     {log.summary || 'Content updated'}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
                     {formatAuditActor(log)} - {formatAuditTimestamp(log.createdAt)}
                   </p>
                 </div>
@@ -92,7 +92,7 @@ export const PostEditorAuditSummary: React.FC<PostEditorAuditSummaryProps> = ({
           )}
         </div>
       ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-500 dark:text-gray-400">
           No edit history found yet for this item.
         </p>
       )}
@@ -128,14 +128,14 @@ export const PostEditorAuditHistoryModal: React.FC<PostEditorAuditHistoryModalPr
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
               Recent Edit History
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-slate-500 dark:text-gray-400">
               Latest 50 create, update, and delete entries for this {isPage ? 'page' : 'post'}.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-admin-hover dark:text-gray-400"
             aria-label="Close edit history"
           >
             <X size={18} />
@@ -144,11 +144,11 @@ export const PostEditorAuditHistoryModal: React.FC<PostEditorAuditHistoryModalPr
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {isLoading ? (
-            <div className="py-16 text-center text-slate-500 dark:text-slate-400">
+            <div className="py-16 text-center text-slate-500 dark:text-gray-400">
               Loading edit history...
             </div>
           ) : logs.length === 0 ? (
-            <div className="py-16 text-center text-slate-500 dark:text-slate-400">
+            <div className="py-16 text-center text-slate-500 dark:text-gray-400">
               No edit history found for this item.
             </div>
           ) : (
@@ -161,7 +161,7 @@ export const PostEditorAuditHistoryModal: React.FC<PostEditorAuditHistoryModalPr
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">
                     {log.summary || 'Content updated'}
                   </p>
-                  <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-gray-400">
                     <p className="flex items-center gap-2">
                       <User size={14} />
                       <span>{formatAuditActor(log)}</span>

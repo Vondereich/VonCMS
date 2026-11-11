@@ -12,6 +12,18 @@ function check(bool $condition, string $label): void
   }
 }
 
+if (($argv[1] ?? '') === '--project-json') {
+  $cases = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+  if (!is_array($cases)) {
+    throw new InvalidArgumentException('Projection cases must be an array.');
+  }
+  echo json_encode(
+    array_map('voncms_project_public_runtime_settings', $cases),
+    JSON_THROW_ON_ERROR,
+  );
+  exit();
+}
+
 $stored = [
   'discussionEnabled' => false,
   'registrationEnabled' => false,
@@ -161,4 +173,221 @@ check(
   count($projection['customPlugins']) === 1 && $projection['customPlugins'][0]['id'] === 'on',
   'Full projection omits disabled custom markup',
 );
-echo "PASS Public plugin settings: selective projection, legacy status, reactivation, database preservation and discussion/empty-value controls.\n";
+$themeKeys = [
+  'theme-default' => 'default',
+  'theme-prism' => 'prism',
+  'theme-techpress' => 'techpress',
+  'theme-portfolio' => 'portfolio',
+  'theme-digest' => 'digest',
+  'theme-corporate-pro' => 'corporatePro',
+];
+$savedTheme = [
+  'primaryColor' => '#123456',
+  'fontFamily' => '',
+  'borderRadius' => '0',
+  'customCss' => '',
+  'unownedNamespace' => ['text' => 'UNOWNED_THEME_PAYLOAD'],
+];
+foreach ($themeKeys as $themeKey) {
+  $savedTheme[$themeKey] = [
+    'title' => 'SAVED_THEME_' . $themeKey,
+    'showHero' => false,
+    'count' => 0,
+    'footerLinks' => [],
+    'footerCopyright' => '',
+  ];
+}
+$insert->execute(['theme', 'customization', json_encode($savedTheme), 'json']);
+$insert->execute(['theme', 'active_theme_id', 'theme-default', 'string']);
+$insert->execute([
+  'ads',
+  'ads_config',
+  json_encode([
+    'adsEnabled' => false,
+    'headerAd' => 'UNUSED_AD',
+    'inFeedAd' => 'UNUSED_FEED',
+    'popupAd' => 'UNUSED_POPUP',
+    'popupEnabled' => false,
+    'inFeedFrequency' => 0,
+  ]),
+  'json',
+]);
+$insert->execute([
+  'newsletter',
+  'newsletter_config',
+  '{"enabled":false,"title":"UNUSED_NEWSLETTER"}',
+  'json',
+]);
+$switch = $pdo->prepare(
+  "UPDATE settings SET setting_value=? WHERE setting_group='theme' AND setting_key='active_theme_id'",
+);
+$indexSource = file_get_contents(dirname(__DIR__, 2) . '/public/index.php');
+$seedMatch = [];
+check(
+  is_string($indexSource) &&
+    preg_match('/window\.__INITIAL_SETTINGS__ = <\?php (.*?)\?>;/s', $indexSource, $seedMatch) ===
+      1,
+  'Actual first-render settings injection must be available',
+);
+$renderSeed = static function (array $context) use ($seedMatch): array {
+  extract($context, EXTR_SKIP);
+  $articleSchemaType = 'NewsArticle';
+  ob_start();
+  try {
+    // Execute the real JSON injection expression, not a duplicate PHP/JS serializer.
+    eval($seedMatch[1]);
+    return json_decode(ob_get_contents(), true, 512, JSON_THROW_ON_ERROR);
+  } finally {
+    ob_end_clean();
+  }
+};
+foreach (['', '/newsroom'] as $basePath) {
+  $pdo
+    ->prepare(
+      "UPDATE settings SET setting_value=? WHERE setting_group='general' AND setting_key='domain_url'",
+    )
+    ->execute(['https://example.test' . $basePath]);
+  foreach ($themeKeys as $themeId => $themeKey) {
+    $switch->execute([$themeId]);
+    $databaseBefore = $pdo->query('SELECT * FROM settings')->fetchAll(PDO::FETCH_ASSOC);
+    $projected = voncms_build_public_settings_projection($pdo);
+    check($projected['activeThemeId'] === $themeId, 'Active theme ID stays aligned');
+    check(
+      $projected['theme'][$themeKey] === $savedTheme[$themeKey],
+      'Active false/zero/empty values survive',
+    );
+    foreach ($themeKeys as $otherKey) {
+      check(
+        isset($projected['theme'][$otherKey]) === ($otherKey === $themeKey),
+        'Only the selected theme namespace is public',
+      );
+    }
+    check(!isset($projected['theme']['unownedNamespace']), 'Unconsumed namespaces are omitted');
+    check(
+      $projected['theme']['fontFamily'] === '' && $projected['theme']['borderRadius'] === '0',
+      'Shared empty/zero appearance is not filtered',
+    );
+    check(
+      $projected['ads'] === [
+        'adsEnabled' => false,
+        'popupEnabled' => false,
+        'inFeedFrequency' => 0,
+      ],
+      'Disabled ad code is omitted without losing OFF/zero controls',
+    );
+    check($projected['newsletter'] === ['enabled' => false], 'Newsletter OFF remains explicit');
+    check(
+      $pdo->query('SELECT * FROM settings')->fetchAll(PDO::FETCH_ASSOC) === $databaseBefore,
+      'Projection never deletes saved inactive configuration',
+    );
+    $context = voncms_load_public_runtime_context(
+      $pdo,
+      $basePath,
+      '/',
+      1,
+      'https://example.test' . $basePath,
+      'Fixture',
+      'Description',
+    );
+    check(
+      $context['themeCustomization'] === $projected['theme'],
+      'PHP first render and API share one active theme projection',
+    );
+    check(
+      $context['publicSettingsSnapshot']['ads'] === $projected['ads'],
+      'SSR/API agree on disabled ads',
+    );
+    check($context['discussionEnabledValue'] === false, 'SSR never reactivates Discussion');
+    check(
+      $context['domainUrl'] === 'https://example.test' . $basePath,
+      'Root/subfolder origin remains exact',
+    );
+    $seed = $renderSeed($context);
+    check(
+      $seed['theme'] === $projected['theme'],
+      'Real PHP HTML seed must match the guest theme projection',
+    );
+    check(
+      $seed['ads'] === $projected['ads'] && $seed['newsletter'] === ['enabled' => false],
+      'Real PHP HTML seed must retain OFF states',
+    );
+    check(
+      $seed['navigation'] === [] &&
+        $seed['sidebarLayout'] === [] &&
+        $seed['discussionEnabled'] === false,
+      'Real HTML seed must not reactivate empty/OFF controls',
+    );
+  }
+}
+foreach (['', 'theme-unknown'] as $fallbackId) {
+  $switch->execute([$fallbackId]);
+  $fallback = voncms_build_public_settings_projection($pdo);
+  check(
+    $fallback['activeThemeId'] === 'theme-default' &&
+      $fallback['theme']['default'] === $savedTheme['default'],
+    'Unknown/missing theme follows the bundled Default fallback',
+  );
+}
+// Canonical empty rows must not revive legacy enabled configuration aliases.
+$insert->execute(['ads', 'configuration', '{"adsEnabled":true,"headerAd":"LEGACY_AD"}', 'json']);
+$insert->execute([
+  'newsletter',
+  'configuration',
+  '{"enabled":true,"title":"LEGACY_NEWSLETTER"}',
+  'json',
+]);
+foreach (['ads', 'newsletter'] as $group) {
+  $key = $group === 'ads' ? 'ads_config' : 'newsletter_config';
+  $pdo
+    ->prepare('UPDATE settings SET setting_value=? WHERE setting_group=? AND setting_key=?')
+    ->execute(['[]', $group, $key]);
+}
+$emptyCanonical = voncms_build_public_settings_projection($pdo);
+check(
+  $emptyCanonical['ads'] === [] && $emptyCanonical['newsletter'] === [],
+  'Canonical empty configuration beats legacy enabled content',
+);
+$enabled = $before + ['activeThemeId' => 'theme-digest', 'theme' => $savedTheme];
+$enabled['ads'] = [
+  'adsEnabled' => true,
+  'headerAd' => '',
+  'inFeedAd' => '',
+  'popupAd' => '',
+  'popupEnabled' => false,
+  'inFeedFrequency' => 0,
+];
+$enabled['newsletter'] = ['enabled' => true, 'title' => '', 'items' => []];
+$enabledBefore = $enabled;
+$enabledPublic = voncms_project_public_runtime_settings($enabled);
+check(
+  $enabledPublic['ads'] === $enabled['ads'] &&
+    $enabledPublic['newsletter'] === $enabled['newsletter'],
+  'Enabled empty content/zero values remain exact',
+);
+check($enabled === $enabledBefore, 'Direct projection also preserves stored values');
+$off = $enabled;
+$off['ads']['adsEnabled'] = false;
+$off['ads']['headerAd'] = 'SAVED_AD';
+$off['newsletter'] = ['enabled' => false, 'title' => 'SAVED_NEWSLETTER'];
+$offPublic = voncms_project_public_runtime_settings($off);
+check(
+  !array_key_exists('headerAd', $offPublic['ads']) &&
+    !array_key_exists('title', $offPublic['newsletter']),
+  'OFF omits dormant content',
+);
+$off['ads']['adsEnabled'] = true;
+$off['newsletter']['enabled'] = true;
+$onPublic = voncms_project_public_runtime_settings($off);
+check(
+  $onPublic['ads']['headerAd'] === 'SAVED_AD' &&
+    $onPublic['newsletter']['title'] === 'SAVED_NEWSLETTER',
+  'Re-enabling restores retained content',
+);
+$legacyThemeBytes = strlen(json_encode($savedTheme, JSON_THROW_ON_ERROR));
+$activeThemeBytes = strlen(json_encode($enabledPublic['theme'], JSON_THROW_ON_ERROR));
+check($activeThemeBytes < $legacyThemeBytes, 'Active-only fixture payload is actually smaller');
+echo 'PASS Public settings: six themes/root/subfolder SSR/API parity, retained storage, reactivation, legacy alias precedence, explicit OFF/empty/zero values; fixture theme JSON ' .
+  $legacyThemeBytes .
+  ' -> ' .
+  $activeThemeBytes .
+  " bytes (not a page-speed benchmark).\n";

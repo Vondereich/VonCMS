@@ -72,6 +72,12 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
   public function prepare(string $query, array $options = []): PDOStatement|false
   {
     if (
+      !empty($GLOBALS['actionFailRecoveryPublication']) &&
+      str_starts_with($query, 'UPDATE users SET reset_token =')
+    ) {
+      throw new PDOException('Controlled recovery publication failure');
+    }
+    if (
       str_contains($query, 'INSERT INTO contact_forms') &&
       str_contains($query, 'ON DUPLICATE KEY UPDATE')
     ) {
@@ -81,18 +87,22 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
     return parent::prepare(
       str_replace(
         [
+          'UPDATE comments c',
           ' FOR UPDATE',
           'DATE_ADD(NOW(), INTERVAL 1 HOUR)',
           'DATE_ADD(NOW(), INTERVAL 24 HOUR)',
           '? >= UNIX_TIMESTAMP()',
           'ON DUPLICATE KEY UPDATE visitor_hash=visitor_hash',
+          'CAST(email AS BINARY) = CAST(? AS BINARY)',
         ],
         [
+          'UPDATE comments AS c',
           '',
           "datetime('now', '+1 hour')",
           "datetime('now', '+24 hours')",
           'CAST(? AS INTEGER) >= UNIX_TIMESTAMP()',
           'ON CONFLICT(visitor_hash) DO NOTHING',
+          'CAST(email AS BLOB) = CAST(? AS BLOB)',
         ],
         $query,
       ),
@@ -488,6 +498,10 @@ if (($argv[1] ?? '') === '--worker') {
   $directory = $argv[2];
   $options = json_decode($argv[3], true, 512, JSON_THROW_ON_ERROR);
   $index = $options['index'];
+  if (!empty($options['stderrLogs'])) {
+    // Per-worker log routing only; a deliberate API validation log is not a PHP warning.
+    ini_set('error_log', '');
+  }
   if (isset($options['phpTimezone'])) {
     date_default_timezone_set((string) $options['phpTimezone']);
   }
@@ -552,9 +566,16 @@ if (($argv[1] ?? '') === '--worker') {
         ResponseHelper::sendError('Forbidden', 403);
       }
     }
+    public static function requirePrimaryAdmin(): void
+    {
+      if (!self::isPrimaryAdmin()) {
+        ResponseHelper::sendError('Forbidden', 403);
+      }
+    }
     public static function isPrimaryAdmin(): bool
     {
-      return ($_SESSION['user']['id'] ?? '') === '1';
+      return ($_SESSION['user']['id'] ?? '') === '1' ||
+        strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'root';
     }
     public static function isAdmin(): bool
     {
@@ -595,7 +616,16 @@ if (($argv[1] ?? '') === '--worker') {
   eval(actionDeclaration($root . '/public/security.php', 'class CSRFProtection'));
   eval(actionDeclaration($root . '/public/security.php', 'class SecurityHelper'));
   eval(actionDeclaration($root . '/public/von_config.sample.php', 'function sanitize_input('));
-  $pdo = actionDatabase($directory);
+  $databaseDirectory = $options['databaseDirectory'] ?? $directory;
+  if (
+    !is_string($databaseDirectory) ||
+    realpath(dirname($databaseDirectory)) !== realpath(dirname($directory))
+  ) {
+    throw new RuntimeException('Shared fixture database must remain in the same owned run.');
+  }
+  $pdo = isset($options['mysqlDatabase'])
+    ? actionMysqlAuthConnection($options['mysqlDatabase'])
+    : actionDatabase($databaseDirectory);
   $case = $options['case'] ?? 'normal';
   $endpoint = $options['endpoint'];
   if ($endpoint === 'submit_contact.php') {
@@ -708,6 +738,23 @@ if (($argv[1] ?? '') === '--worker') {
     ];
     // A 400 must be produced before the endpoint's database guard. No database is available.
     unset($pdo);
+  } elseif ($endpoint === '../von_system.php' || $endpoint === 'system/updater.php') {
+    // Exercise the actual legacy dispatch/direct handler, never the OTA transport.
+    class SystemUpdater
+    {
+      public function checkPermissions(): array
+      {
+        return ['fixture' => true];
+      }
+      public function startUpdate(string $version, string $url, ?string $hash): array
+      {
+        return ['success' => true, 'fixture' => true, 'version' => $version];
+      }
+    }
+    $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
+    $_SERVER['REQUEST_METHOD'] = $options['method'] ?? 'POST';
+    $_GET = ['action' => $options['action'] ?? 'system_update_start'];
+    $input = ['download_url' => 'https://example.invalid/fixture.zip', 'version' => '1.28.2'];
   } elseif (in_array($endpoint, ['contact/save_form.php', 'contact/get_forms.php'], true)) {
     $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
     $input = $options['input'] ?? [];
@@ -780,7 +827,9 @@ if (($argv[1] ?? '') === '--worker') {
     function vonSendMail($to, ...$arguments): array
     {
       global $pdo;
-      $pdo->prepare('INSERT INTO mail_calls(recipient) VALUES (?)')->execute([$to]);
+      $pdo
+        ->prepare('INSERT INTO mail_calls(recipient,payload) VALUES (?,?)')
+        ->execute([$to, json_encode($arguments, JSON_THROW_ON_ERROR)]);
       return ['success' => true];
     }
     $input = ['action' => 'request', 'email' => $options['email'] ?? 'qa@example.invalid'];
@@ -881,12 +930,68 @@ if (($argv[1] ?? '') === '--worker') {
   }
   $GLOBALS['actionNoopUpdate'] = !empty($options['noopUpdate']);
   $GLOBALS['actionFailCommit'] = !empty($options['failCommit']);
+  $GLOBALS['actionFailRecoveryPublication'] = !empty($options['failRecoveryPublication']);
   $_SERVER['HTTP_X_CSRF_TOKEN'] = $case === 'csrf' ? 'forged' : CSRFProtection::getToken();
   $cachedInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
   $cachedInput->setValue(null, $options['rawBody'] ?? json_encode($input, JSON_THROW_ON_ERROR));
   $source = file_get_contents($root . '/public/api/' . $endpoint);
   $source = preg_replace('/^<\?php\s*/', '', $source, 1);
   $source = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $source);
+  if ($endpoint === 'system/updater.php') {
+    $source = substr($source, strpos($source, '// REQUEST HANDLER - Wrapped'));
+  }
+  if ($endpoint === 'delete_user.php') {
+    if (!empty($options['withoutCanonicalId'])) {
+      $start = strpos($source, '  // MySQL can resolve numeric aliases');
+      $end = strpos($source, '  $targetRole = strtolower');
+      if ($start === false || $end === false || $end <= $start) {
+        throw new RuntimeException('Missing canonical identity mutation point.');
+      }
+      $source = substr_replace($source, '', $start, $end - $start);
+    }
+    if (!empty($options['withoutTargetLock'])) {
+      // Negative control: retain the transaction but remove its authorizing row lock.
+      $source = str_replace(
+        'SELECT id, role FROM users WHERE id = ? FOR UPDATE',
+        'SELECT id, role FROM users WHERE id = ?',
+        $source,
+      );
+    }
+    if (!empty($options['targetBarrier'])) {
+      $barrier =
+        'touch(' .
+        var_export($directory . '/ready-' . $index, true) .
+        ');' .
+        'actionMysqlAuthWait(' .
+        var_export($directory . '/release', true) .
+        ');';
+      $needle = !empty($options['beforeTargetRead'])
+        ? '  $targetStmt->execute([$id]);'
+        : "  \$targetRole = strtolower";
+      if (!str_contains($source, $needle)) {
+        throw new RuntimeException('Missing target-authorization fixture point.');
+      }
+      $source = str_replace($needle, $barrier . $needle, $source);
+    }
+  }
+  if ($endpoint === 'reset_password.php' && !empty($options['withoutRecoveryEmailBinding'])) {
+    // In-memory counterexample only: restore the former ID-only publication.
+    $source = str_replace(
+      ' AND CAST(email AS BINARY) = CAST(? AS BINARY)',
+      '',
+      $source,
+      $removedCondition,
+    );
+    $source = str_replace(
+      "[voncms_account_token_digest(\$token), \$user['id'], \$user['email']]",
+      "[voncms_account_token_digest(\$token), \$user['id']]",
+      $source,
+      $removedBinding,
+    );
+    if ($removedCondition !== 1 || $removedBinding !== 1) {
+      throw new RuntimeException('Missing recovery binding mutation point.');
+    }
+  }
   if ($endpoint === 'get_settings.php') {
     $source = str_replace(
       "__DIR__ . '/../von_config.php'",
@@ -967,7 +1072,9 @@ if (($argv[1] ?? '') === '--worker') {
     // Scheduler hook AFTER real admission but BEFORE input-dependent work and side effects.
     $needle =
       $endpoint === 'reset_password.php'
-        ? '    // Unknown addresses allocate no state.'
+        ? (!empty($options['recoveryAfterPublication'])
+          ? '    $resetUrl = voncms_build_account_action_url'
+          : '    // Unknown addresses allocate no state.')
         : '$input = json_decode($requestBody, true);';
     if (!str_contains($source, $needle)) {
       throw new RuntimeException('Missing admission probe point');
@@ -1046,7 +1153,7 @@ function actionFixture(string $label): string
   return $directory;
 }
 
-function actionRun(string $directory, array $requests): array
+function actionRun(string $directory, array $requests, ?callable $whileReady = null): array
 {
   $workers = [];
   try {
@@ -1079,6 +1186,9 @@ function actionRun(string $directory, array $requests): array
     } while (!$settled && microtime(true) < $deadline);
     if (!$settled) {
       throw new RuntimeException('PHP worker startup/admission timeout');
+    }
+    if ($whileReady !== null) {
+      $whileReady();
     }
     touch($directory . '/release');
     $results = [];
@@ -1119,6 +1229,607 @@ function actionRun(string $directory, array $requests): array
   }
 }
 
+/** Legacy response contracts and canonical target identity, with isolated endpoint bodies. */
+function actionLegacyRuntimeChecks(): void
+{
+  $noPhpWarnings = static fn(array $result): bool => preg_match(
+    '/\b(?:Warning|Notice|Deprecated|Fatal error):/i',
+    $result['diagnostics'],
+  ) !== 1;
+  foreach (['../von_system.php', 'system/updater.php'] as $endpoint) {
+    foreach (
+      [
+        ['GET', null, null, 405],
+        ['POST', '{', null, 400],
+        ['POST', 'null', null, 400],
+        ['POST', null, ['download_url' => ''], 400],
+        ['POST', null, ['download_url' => []], 400],
+        ['POST', null, null, 200],
+      ]
+      as [$method, $raw, $input, $expected]
+    ) {
+      $directory = actionFixture('legacy-update-' . bin2hex(random_bytes(4)));
+      $request = [
+        'endpoint' => $endpoint,
+        'method' => $method,
+        'action' => $endpoint === '../von_system.php' ? 'system_update_start' : 'start',
+      ];
+      if ($raw !== null) {
+        $request['rawBody'] = $raw;
+      }
+      if ($input !== null) {
+        $request['input'] = $input;
+      }
+      $result = actionRun($directory, [$request])[0];
+      actionCheck($result['status'] === $expected, 'Legacy update response: ' . $result['output']);
+      actionCheck(
+        $expected !== 200 || !empty($result['body']['fixture']),
+        'Valid updater input still reaches the transport boundary',
+      );
+    }
+  }
+  foreach ([[], ['nested' => '2026-01-01']] as $timestamp) {
+    foreach (['save_post.php', 'save_page.php'] as $endpoint) {
+      $directory = actionFixture('legacy-timestamp-' . bin2hex(random_bytes(4)));
+      $result = actionRun($directory, [
+        [
+          'endpoint' => $endpoint,
+          'case' => 'uploaded-image',
+          'stderrLogs' => true,
+          'input' => ['baseUpdatedAt' => $timestamp],
+        ],
+      ])[0];
+      actionCheck(
+        $result['status'] === 400 && $noPhpWarnings($result),
+        'Compound edit timestamps must be rejected without PHP warnings: ' . $endpoint,
+      );
+    }
+  }
+  foreach ([null, '', '2026-01-01 12:30:00'] as $timestamp) {
+    $directory = actionFixture('legacy-timestamp-control-' . bin2hex(random_bytes(4)));
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'save_post.php',
+        'case' => 'uploaded-image',
+        'stderrLogs' => true,
+        'input' => ['baseUpdatedAt' => $timestamp],
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === 503 && $noPhpWarnings($result),
+      'Ordinary timestamps must reach the intentional unavailable database guard',
+    );
+  }
+  foreach (
+    [
+      ['action' => 'unknown', 'expected' => 400],
+      ['case' => 'csrf', 'expected' => 403],
+      ['actor' => ['id' => '3', 'role' => 'Admin'], 'expected' => 403],
+    ]
+    as $case
+  ) {
+    $directory = actionFixture('legacy-updater-denied-' . bin2hex(random_bytes(4)));
+    $result = actionRun($directory, [['endpoint' => '../von_system.php'] + $case])[0];
+    actionCheck(
+      $result['status'] === $case['expected'],
+      'Legacy updater must preserve action, CSRF and owner boundaries',
+    );
+  }
+  foreach (
+    [
+      ['id' => '2', 'role' => 'Admin'],
+      ['id' => '2', 'role' => 'Root'],
+      ['id' => '1', 'role' => 'Root'],
+    ]
+    as $actor
+  ) {
+    foreach ([1, '01', '1e0', 2, '02', '2e0', 999] as $id) {
+      $directory = actionFixture('legacy-delete-' . bin2hex(random_bytes(4)));
+      $db = actionDatabase($directory);
+      $db->exec('CREATE TABLE posts(id INT,author_id INT)');
+      $db->exec('INSERT INTO posts VALUES(42,2)');
+      $db->exec('ALTER TABLE comments ADD COLUMN likes INT DEFAULT 0');
+      $db->exec('CREATE TABLE comment_likes(user_id INT,comment_id INT)');
+      $db->exec('INSERT INTO comment_likes VALUES(2,12)');
+      if ($actor['id'] === '2') {
+        $db->prepare('UPDATE users SET role=? WHERE id=2')->execute([$actor['role']]);
+      }
+      $result = actionRun($directory, [
+        ['endpoint' => 'delete_user.php', 'actor' => $actor, 'input' => ['id' => $id]],
+      ])[0];
+      $expected =
+        (int) $id === 1 || ((int) $id === 2 && $actor['id'] === '2')
+          ? 403
+          : ((int) $id === 999
+            ? 404
+            : 200);
+      actionCheck(
+        $result['status'] === $expected,
+        'Canonical self/owner target protection: ' . $result['output'],
+      );
+      actionCheck(
+        (int) $db->query('SELECT COUNT(*) FROM users WHERE id=2')->fetchColumn() ===
+          ($expected === 200 ? 0 : 1),
+        'Denied deletion must preserve the account',
+      );
+      $db = null;
+    }
+  }
+  $directory = actionFixture('legacy-root-self-negative-control');
+  $db = actionDatabase($directory);
+  $db->exec("UPDATE users SET role='Root' WHERE id=2");
+  $db->exec('CREATE TABLE posts(id INT,author_id INT)');
+  $db->exec('CREATE TABLE comment_likes(user_id INT,comment_id INT)');
+  $result = actionRun($directory, [
+    [
+      'endpoint' => 'delete_user.php',
+      'actor' => ['id' => '2', 'role' => 'Root'],
+      'input' => ['id' => '02'],
+      'withoutCanonicalId' => true,
+    ],
+  ])[0];
+  actionCheck(
+    $result['status'] === 200 &&
+      (int) $db->query('SELECT COUNT(*) FROM users WHERE id=2')->fetchColumn() === 0,
+    'Self-ID regression must detect the supported legacy Root alias counterexample',
+  );
+  $db = null;
+}
+
+/** Real recovery/email-edit orderings; only SQL dialect and SMTP transport are fixtures. */
+function actionRecoveryPublicationChecks(bool $mysql = false, bool $withoutBinding = false): void
+{
+  $directory = actionFixture('recovery-publication-' . bin2hex(random_bytes(4)));
+  $sqlite = actionDatabase($directory);
+  $seed = $sqlite->query('SELECT * FROM users WHERE id=2')->fetch(PDO::FETCH_ASSOC);
+  $db = $sqlite;
+  $admin = null;
+  $database = 'voncms_auth_' . bin2hex(random_bytes(8));
+  $created = false;
+  try {
+    if ($mysql) {
+      $admin = actionMysqlAuthConnection();
+      $admin->exec(
+        'CREATE DATABASE `' . $database . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+      );
+      $created = true;
+      $db = actionMysqlAuthConnection($database);
+      $db->exec(
+        'CREATE TABLE users(id INT PRIMARY KEY,username VARCHAR(64) UNIQUE,email VARCHAR(254) UNIQUE,password TEXT,display_name TEXT,bio TEXT,avatar TEXT,role VARCHAR(32),email_verified INT,reset_token TEXT,reset_token_expires DATETIME,verification_token TEXT,verification_token_expires DATETIME,created_at DATETIME) ENGINE=InnoDB',
+      );
+      $columns = array_keys($seed);
+      $db
+        ->prepare(
+          'INSERT INTO users (' .
+            implode(',', $columns) .
+            ') VALUES (' .
+            implode(',', array_fill(0, count($columns), '?')) .
+            ')',
+        )
+        ->execute(array_values($seed));
+      $db->exec(
+        'CREATE TABLE settings(setting_group VARCHAR(64),setting_key VARCHAR(64),setting_value TEXT) ENGINE=InnoDB',
+      );
+      $db->exec("INSERT INTO settings VALUES('general','domain_url','https://qa.invalid/blog')");
+      $db->exec('CREATE TABLE remember_tokens(user_id INT) ENGINE=InnoDB');
+      $db->exec(
+        'CREATE TABLE mail_calls(id INT AUTO_INCREMENT PRIMARY KEY,recipient TEXT,payload TEXT) ENGINE=InnoDB',
+      );
+    }
+    $invoke = static function (array $request, ?callable $whileReady = null) use (
+      $directory,
+      $mysql,
+      $database,
+    ): array {
+      $transport = actionFixture('recovery-transport-' . bin2hex(random_bytes(6)));
+      $request += $mysql ? ['mysqlDatabase' => $database] : ['databaseDirectory' => $directory];
+      return actionRun($transport, [$request], $whileReady)[0];
+    };
+    $change = static function (string $email, string $name = 'QA') use ($invoke): void {
+      $result = $invoke([
+        'endpoint' => 'save_user.php',
+        'actor' => ['id' => '1', 'role' => 'Root'],
+        'input' => [
+          'id' => '2',
+          'username' => 'qa_member',
+          'email' => $email,
+          'role' => 'Member',
+          'display_name' => $name,
+          'bio' => '',
+          'avatar' => '',
+          'password' => '',
+        ],
+      ]);
+      actionCheck(
+        $result['status'] === 200 && !empty($result['body']['success']),
+        'Recovery fixture requires a successful real Save User email/profile edit',
+      );
+    };
+    $tokenFromMail = static function (array $mail): string {
+      $payload = json_decode($mail['payload'], true, 512, JSON_THROW_ON_ERROR);
+      $matched = preg_match('/reset_token=([a-f0-9]{64})/', $payload[1] ?? '', $matches);
+      actionCheck($matched === 1, 'Recovery mail must contain its usable bearer link');
+      return $matches[1];
+    };
+    $generic = [
+      'success' => true,
+      'message' => 'If this email exists, a reset link has been sent.',
+    ];
+    $cases = [
+      'ordinary',
+      'unknown',
+      'before-lookup',
+      'after-lookup',
+      'after-publication',
+      'newer-request',
+      'deleted',
+      'display-only',
+      'case-change',
+      'publication-failure',
+    ];
+    if ($mysql) {
+      $cases[] = 'request-case-alias';
+      $cases[] = 'legacy-collation-equivalent';
+    }
+    foreach ($cases as $case) {
+      $db->exec('DELETE FROM mail_calls');
+      $db->exec('DELETE FROM remember_tokens');
+      $db->exec('INSERT INTO remember_tokens VALUES(2)');
+      if (!$db->query('SELECT id FROM users WHERE id=2')->fetchColumn()) {
+        $db
+          ->prepare(
+            'INSERT INTO users(id,username,email,password,display_name,bio,avatar,role,email_verified) VALUES(2,?,?,?,?,?,?,?,1)',
+          )
+          ->execute(['qa_member', 'qa@example.invalid', $seed['password'], 'QA', '', '', 'Member']);
+      }
+      $oldEmail =
+        $case === 'legacy-collation-equivalent'
+          ? 'qa@resume.example.invalid'
+          : 'qa@example.invalid';
+      $db
+        ->prepare(
+          'UPDATE users SET email=?,password=?,display_name=?,reset_token=NULL,reset_token_expires=NULL,email_verified=1 WHERE id=2',
+        )
+        ->execute([$oldEmail, $seed['password'], 'QA']);
+      $request = [
+        'endpoint' => 'reset_password.php',
+        'email' => $oldEmail,
+        'withoutRecoveryEmailBinding' => $withoutBinding,
+      ];
+      if ($case === 'unknown') {
+        $request['email'] = 'unknown@example.invalid';
+      } elseif ($case === 'before-lookup') {
+        $change('changed@example.invalid');
+      } elseif ($case === 'request-case-alias') {
+        $request['email'] = strtoupper($oldEmail);
+      }
+      $whileReady = null;
+      $newerDigest = null;
+      if (
+        in_array(
+          $case,
+          [
+            'after-lookup',
+            'after-publication',
+            'newer-request',
+            'deleted',
+            'display-only',
+            'case-change',
+            'legacy-collation-equivalent',
+          ],
+          true,
+        )
+      ) {
+        $request['barrier'] = true;
+        $request['recoveryAfterPublication'] = $case === 'after-publication';
+        $whileReady = static function () use (
+          $case,
+          $db,
+          $change,
+          $invoke,
+          $generic,
+          $oldEmail,
+          &$newerDigest,
+        ): void {
+          if ($case === 'deleted') {
+            $db->exec('DELETE FROM users WHERE id=2');
+          } elseif ($case === 'display-only') {
+            $change($oldEmail, 'Updated QA');
+          } elseif ($case === 'legacy-collation-equivalent') {
+            // Constructed legacy representation, not an email accepted by Save User.
+            $db
+              ->prepare(
+                'UPDATE users SET email=?,reset_token=NULL,reset_token_expires=NULL WHERE id=2',
+              )
+              ->execute(['qa@résumé.example.invalid']);
+            $equal = $db->prepare('SELECT id FROM users WHERE email=?');
+            $equal->execute([$oldEmail]);
+            actionCheck(
+              (int) $equal->fetchColumn() === 2,
+              'Legacy fixture must be equal under the real MySQL email collation',
+            );
+          } else {
+            $change($case === 'case-change' ? strtoupper($oldEmail) : 'changed@example.invalid');
+            actionCheck(
+              $db->query('SELECT reset_token FROM users WHERE id=2')->fetchColumn() === null,
+              'Email edit must clear any earlier publication before the stale request resumes',
+            );
+            if ($case === 'newer-request') {
+              $newer = $invoke([
+                'endpoint' => 'reset_password.php',
+                'email' => 'changed@example.invalid',
+              ]);
+              actionCheck(
+                $newer['status'] === 200 && $newer['body'] === $generic,
+                'New email recovery must succeed while the old request is held',
+              );
+              $newerDigest = $db->query('SELECT reset_token FROM users WHERE id=2')->fetchColumn();
+              actionCheck(
+                is_string($newerDigest) && $newerDigest !== '',
+                'New email recovery must persist its credential',
+              );
+            }
+          }
+        };
+      }
+      if ($case === 'publication-failure') {
+        if ($mysql) {
+          $db->exec(
+            "CREATE TRIGGER refuse_recovery BEFORE UPDATE ON users FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Controlled recovery publication failure'",
+          );
+        } else {
+          $request['failRecoveryPublication'] = true;
+        }
+      }
+      try {
+        $result = $invoke($request, $whileReady);
+      } finally {
+        if ($mysql && $case === 'publication-failure') {
+          $db->exec('DROP TRIGGER refuse_recovery');
+        }
+      }
+      actionCheck(
+        $case === 'publication-failure'
+          ? $result['status'] === 500
+          : $result['status'] === 200 && $result['body'] === $generic,
+        'Recovery response contract changed: ' . $case,
+      );
+      $mails = $db
+        ->query('SELECT recipient,payload FROM mail_calls ORDER BY id')
+        ->fetchAll(PDO::FETCH_ASSOC);
+      $ordinary = in_array($case, ['ordinary', 'display-only', 'request-case-alias'], true);
+      $expectedMails =
+        $ordinary || in_array($case, ['after-publication', 'newer-request'], true) ? 1 : 0;
+      actionCheck(
+        count($mails) === $expectedMails,
+        'Recovery must not mail a request whose email state became stale: ' . $case,
+      );
+      $digest = $db->query('SELECT reset_token FROM users WHERE id=2')->fetchColumn();
+      if ($ordinary || $case === 'newer-request') {
+        actionCheck(
+          $mails[0]['recipient'] ===
+            ($case === 'newer-request' ? 'changed@example.invalid' : $oldEmail),
+          'Mail recipient must be the stored address that authorized publication',
+        );
+        actionCheck(
+          $case !== 'newer-request' || $digest === $newerDigest,
+          'Old request must not overwrite the newer address recovery credential',
+        );
+      } else {
+        actionCheck(
+          $digest === null || $digest === false,
+          'Rejected or superseded recovery left a usable credential: ' . $case,
+        );
+      }
+      if ($ordinary || in_array($case, ['newer-request', 'after-publication'], true)) {
+        $token = $tokenFromMail($mails[0]);
+        $reset = $invoke([
+          'endpoint' => 'reset_password.php',
+          'input' => ['action' => 'reset', 'token' => $token, 'password' => 'Audit_New9!Password'],
+        ]);
+        $accepted = $ordinary || $case === 'newer-request';
+        actionCheck(
+          $reset['status'] === ($accepted ? 200 : 400),
+          'Actual bearer consumption disagrees with the email lifecycle: ' . $case,
+        );
+        $password = $db->query('SELECT password FROM users WHERE id=2')->fetchColumn();
+        actionCheck(
+          password_verify($accepted ? 'Audit_New9!Password' : 'Old1!Password', $password),
+          'Recovery changed the wrong credential state: ' . $case,
+        );
+        if ($accepted) {
+          actionCheck(
+            (int) $db
+              ->query('SELECT COUNT(*) FROM remember_tokens WHERE user_id=2')
+              ->fetchColumn() === 0,
+            'Successful recovery must retain remember-me revocation',
+          );
+          $again = $invoke([
+            'endpoint' => 'reset_password.php',
+            'input' => [
+              'action' => 'reset',
+              'token' => $token,
+              'password' => 'Audit_New9!Password',
+            ],
+          ]);
+          actionCheck($again['status'] === 400, 'Recovery bearer must remain single-use');
+        }
+      }
+      if ($case === 'case-change') {
+        $retry = $invoke(['endpoint' => 'reset_password.php', 'email' => strtoupper($oldEmail)]);
+        actionCheck(
+          $retry['status'] === 200 &&
+            $retry['body'] === $generic &&
+            (int) $db->query('SELECT COUNT(*) FROM mail_calls')->fetchColumn() === 1,
+          'A fresh request after a case-only edit must still issue normally',
+        );
+      }
+    }
+  } finally {
+    if ($db->inTransaction()) {
+      $db->rollBack();
+    }
+    $db = null;
+    $sqlite = null;
+    if (
+      $created &&
+      $admin instanceof PDO &&
+      preg_match('/^voncms_auth_[a-f0-9]{16}$/D', $database)
+    ) {
+      $admin->exec('DROP DATABASE `' . $database . '`');
+    }
+  }
+}
+
+/** Real InnoDB target authorization, with normal writes on a separate connection. */
+function actionMysqlDeleteChecks(): void
+{
+  $admin = actionMysqlAuthConnection();
+  $database = 'voncms_auth_' . bin2hex(random_bytes(8));
+  $created = false;
+  $db = null;
+  try {
+    $admin->exec('CREATE DATABASE `' . $database . '`');
+    $created = true;
+    $db = actionMysqlAuthConnection($database);
+    $db->exec('SET SESSION innodb_lock_wait_timeout=1');
+    $db->exec('CREATE TABLE users(id INT PRIMARY KEY,role VARCHAR(32)) ENGINE=InnoDB');
+    $db->exec('CREATE TABLE posts(id INT PRIMARY KEY,author_id INT) ENGINE=InnoDB');
+    $db->exec('CREATE TABLE comments(id INT PRIMARY KEY,user_id INT,likes INT) ENGINE=InnoDB');
+    $db->exec('CREATE TABLE comment_likes(user_id INT,comment_id INT) ENGINE=InnoDB');
+    foreach ([false, true] as $withoutTargetLock) {
+      $db->exec('DELETE FROM users');
+      $db->exec("INSERT INTO users VALUES(2,'Member')");
+      $db->exec('DELETE FROM posts');
+      $db->exec('INSERT INTO posts VALUES(42,2)');
+      $directory = actionFixture('delete-mysql-' . (int) $withoutTargetLock);
+      $promoted = false;
+      $result = actionRun(
+        $directory,
+        [
+          [
+            'endpoint' => 'delete_user.php',
+            'actor' => ['id' => '3', 'role' => 'Admin'],
+            'input' => ['id' => '02'],
+            'mysqlDatabase' => $database,
+            'targetBarrier' => true,
+            'withoutTargetLock' => $withoutTargetLock,
+          ],
+        ],
+        static function () use ($db, &$promoted): void {
+          try {
+            $db->exec("UPDATE users SET role='Admin' WHERE id=2");
+            $promoted = true;
+          } catch (PDOException $error) {
+            if ((int) ($error->errorInfo[1] ?? 0) !== 1205) {
+              throw $error;
+            }
+          }
+        },
+      )[0];
+      actionCheck(
+        $promoted === $withoutTargetLock,
+        'Promotion must contend with the locked authorizing target read',
+      );
+      actionCheck(
+        $result['status'] === 200 && !empty($result['body']['success']),
+        'Ordinary delegated deletion failed: ' . $result['output'],
+      );
+      actionCheck(
+        (int) $db->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0 &&
+          $db->query('SELECT author_id FROM posts WHERE id=42')->fetchColumn() === null,
+        'Successful deletion must retain content and clear only its author',
+      );
+    }
+    // Owner starts promotion first; the deletion must read the committed new role.
+    $db->exec("INSERT INTO users VALUES(2,'Member')");
+    $db->exec('UPDATE posts SET author_id=2');
+    $db->beginTransaction();
+    $db->exec("UPDATE users SET role='Admin' WHERE id=2");
+    $directory = actionFixture('delete-mysql-promotion-first');
+    $result = actionRun(
+      $directory,
+      [
+        [
+          'endpoint' => 'delete_user.php',
+          'actor' => ['id' => '3', 'role' => 'Admin'],
+          'input' => ['id' => 2],
+          'mysqlDatabase' => $database,
+          'targetBarrier' => true,
+          'beforeTargetRead' => true,
+        ],
+      ],
+      static function () use ($db, $directory): void {
+        touch($directory . '/release');
+        usleep(200000);
+        actionCheck(!is_file($directory . '/done-0'), 'Deletion bypassed an uncommitted promotion');
+        $db->commit();
+      },
+    )[0];
+    actionCheck(
+      $result['status'] === 403 &&
+        $db->query('SELECT role FROM users WHERE id=2')->fetchColumn() === 'Admin',
+      'Delegated deletion must reject the newly protected account',
+    );
+    actionCheck(
+      (int) $db->query('SELECT author_id FROM posts WHERE id=42')->fetchColumn() === 2,
+      'Denied deletion changed content associations',
+    );
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'delete_user.php',
+        'mysqlDatabase' => $database,
+        'actor' => ['id' => '1', 'role' => 'Root'],
+        'input' => ['id' => 2],
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === 200 && !empty($result['body']['success']),
+      'Primary Admin must retain permission to delete another Admin',
+    );
+    $db->exec("INSERT INTO users VALUES(2,'Member')");
+    $db->exec('UPDATE posts SET author_id=2');
+    $db->exec('INSERT INTO comments VALUES(10,2,1)');
+    $db->exec('INSERT INTO comment_likes VALUES(2,10)');
+    $db->exec(
+      "CREATE TRIGGER refuse_delete BEFORE DELETE ON users FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Controlled deletion failure'",
+    );
+    $directory = actionFixture('delete-mysql-rollback');
+    $request = [
+      'endpoint' => 'delete_user.php',
+      'mysqlDatabase' => $database,
+      'actor' => ['id' => '3', 'role' => 'Admin'],
+      'input' => ['id' => 2],
+    ];
+    $result = actionRun($directory, [$request])[0];
+    actionCheck(
+      $result['status'] === 500 &&
+        (int) $db->query('SELECT author_id FROM posts WHERE id=42')->fetchColumn() === 2 &&
+        (int) $db->query('SELECT user_id FROM comments WHERE id=10')->fetchColumn() === 2 &&
+        (int) $db->query('SELECT likes FROM comments WHERE id=10')->fetchColumn() === 1 &&
+        (int) $db->query('SELECT COUNT(*) FROM comment_likes')->fetchColumn() === 1,
+      'Deletion failure must roll back account dependencies and like recount',
+    );
+    $db->exec('DROP TRIGGER refuse_delete');
+    $result = actionRun($directory, [$request])[0];
+    actionCheck(
+      $result['status'] === 200 &&
+        (int) $db->query('SELECT COUNT(*) FROM comment_likes')->fetchColumn() === 0 &&
+        $db->query('SELECT user_id FROM comments WHERE id=10')->fetchColumn() === null &&
+        (int) $db->query('SELECT likes FROM comments WHERE id=10')->fetchColumn() === 0,
+      'A retry must release the failed lock, retain comments and complete like cleanup',
+    );
+  } finally {
+    if ($db instanceof PDO && $db->inTransaction()) {
+      $db->rollBack();
+    }
+    $db = null;
+    if ($created && preg_match('/^voncms_auth_[a-f0-9]{16}$/D', $database)) {
+      $admin->exec('DROP DATABASE `' . $database . '`');
+    }
+  }
+}
+
 /** Read the real Settings controller/projection with isolated SQL and fixture authority. */
 function actionSettingsChecks(): void
 {
@@ -1145,6 +1856,26 @@ function actionSettingsChecks(): void
         'json',
       ],
       ['general', 'admin_palette', 'harbour-amber', 'string'],
+      ['general', 'discussion_enabled', 'false', 'boolean'],
+      ['theme', 'active_theme_id', 'theme-digest', 'string'],
+      [
+        'theme',
+        'customization',
+        '{"primaryColor":"#123456","default":{"footerCopyright":"SAVED_INACTIVE_THEME"},"digest":{"showHero":false,"footerLinks":[]}}',
+        'json',
+      ],
+      [
+        'ads',
+        'ads_config',
+        '{"adsEnabled":false,"headerAd":"SAVED_DISABLED_AD","inFeedFrequency":0}',
+        'json',
+      ],
+      [
+        'newsletter',
+        'newsletter_config',
+        '{"enabled":false,"title":"SAVED_DISABLED_NEWSLETTER"}',
+        'json',
+      ],
       ['content', 'categories', '["Saved category"]', 'json'],
       ['media', 'default_view', 'grid', 'string'],
       [
@@ -1181,6 +1912,25 @@ function actionSettingsChecks(): void
       'Settings failed for ' . $role . ': ' . $response['diagnostics'],
     );
     actionCheck($settings['siteName'] === 'Tom & Jerry', 'Settings changed plain text.');
+    actionCheck($settings['discussionEnabled'] === false, 'Settings revived Discussion.');
+    actionCheck(
+      $settings['theme']['digest']['showHero'] === false &&
+        $settings['theme']['digest']['footerLinks'] === [],
+      'Active theme empty/OFF data changed.',
+    );
+    actionCheck(
+      isset($settings['theme']['default']) === $admin,
+      'Only admin reads retain inactive themes.',
+    );
+    actionCheck(
+      isset($settings['ads']['headerAd']) === $admin,
+      'Only admin reads retain disabled ad code.',
+    );
+    actionCheck(
+      isset($settings['newsletter']['title']) === $admin,
+      'Only admin reads retain disabled newsletter copy.',
+    );
+    actionCheck($settings['ads']['inFeedFrequency'] === 0, 'Settings lost a meaningful zero.');
     actionCheck(
       ($settings['_canManageSecrets'] ?? false) === ($role === 'Root'),
       'Settings owner hint changed.',
@@ -1224,6 +1974,29 @@ function actionSettingsChecks(): void
         'Settings admin reconstruction changed.',
       );
     }
+  }
+
+  // An intentional empty canonical row must beat old enabled aliases for every reader.
+  $insert->execute(['ads', 'configuration', '{"adsEnabled":true,"headerAd":"LEGACY_AD"}', 'json']);
+  $insert->execute([
+    'newsletter',
+    'configuration',
+    '{"enabled":true,"title":"LEGACY_NEWSLETTER"}',
+    'json',
+  ]);
+  $pdo->exec(
+    "UPDATE settings SET setting_value='[]' WHERE setting_key IN ('ads_config','newsletter_config')",
+  );
+  foreach ([null, ['id' => '5', 'role' => 'Admin'], ['id' => '1', 'role' => 'Root']] as $actor) {
+    $response = actionRun($directory, [['endpoint' => 'get_settings.php', 'actor' => $actor]])[0];
+    actionCheck(
+      $response['status'] === 200 && $response['diagnostics'] === '',
+      'Empty settings read failed.',
+    );
+    actionCheck(
+      $response['body']['ads'] === [] && $response['body']['newsletter'] === [],
+      'Canonical empty configuration revived a legacy alias for ' . ($actor['role'] ?? 'Guest'),
+    );
   }
 }
 
@@ -1642,6 +2415,31 @@ function actionRoleBoundaryChecks(): void
 }
 
 try {
+  if (
+    in_array(
+      $argv[1] ?? '',
+      ['--recovery-publication', '--mysql-recovery-publication', '--recovery-publication-negative'],
+      true,
+    )
+  ) {
+    actionRecoveryPublicationChecks(
+      ($argv[1] ?? '') === '--mysql-recovery-publication',
+      ($argv[1] ?? '') === '--recovery-publication-negative',
+    );
+    echo "PASS Recovery publication: $checks checks; actual request/reset and Save User controllers, isolated database and fake SMTP.\n";
+    return;
+  }
+  if (($argv[1] ?? '') === '--mysql-user-delete') {
+    actionMysqlDeleteChecks();
+    echo "PASS MySQL Delete User: $checks checks; real InnoDB locks, promotion/deletion orderings and unguarded counterexample; owned database removed.\n";
+    return;
+  }
+  actionRecoveryPublicationChecks();
+  actionLegacyRuntimeChecks();
+  if (($argv[1] ?? '') === '--legacy-runtime') {
+    echo "PASS Legacy runtime: $checks checks; isolated controllers/SQLite, fixture authority and stubbed OTA transport.\n";
+    return;
+  }
   actionRoleBoundaryChecks();
   if (($argv[1] ?? '') === '--role-boundaries') {
     echo 'PASS Role Boundaries: ' .
@@ -3309,7 +4107,7 @@ try {
   mkdir($storageDirectory . '/data');
   mkdir($storageDirectory . '/api/tools');
   $GLOBALS['qa_import_storage_root'] = $storageDirectory;
-  function absolutize_import_media_url($url, $bases)
+  function absolutize_import_media_url(string $url, $bases)
   {
     return $url;
   }

@@ -219,7 +219,7 @@ export const GlobalLightbox: React.FC = () => {
 
         {/* Counter */}
         {gallery.length > 1 && (
-          <div className="absolute bottom-[-40px] left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium bg-black/50 px-3 py-1 rounded-full">
+          <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium bg-black/50 px-3 py-1 rounded-full">
             {currentIndex + 1} / {gallery.length}
           </div>
         )}

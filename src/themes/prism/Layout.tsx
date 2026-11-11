@@ -326,8 +326,8 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
       ></div>
 
       {/* Glowing Orbs */}
-      <div className="fixed top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-(--color-primary) opacity-10 blur-[100px] pointer-events-none"></div>
-      <div className="fixed bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-(--color-secondary) opacity-10 blur-[120px] pointer-events-none"></div>
+      <div className="fixed top-[-20%] left-[-10%] w-125 h-125 rounded-full bg-(--color-primary) opacity-10 blur-[100px] pointer-events-none"></div>
+      <div className="fixed bottom-[-20%] right-[-10%] w-150 h-150 rounded-full bg-(--color-secondary) opacity-10 blur-[120px] pointer-events-none"></div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
         {/* PRISM HEADER: Glassmorphism, Neon Borders */}
@@ -353,7 +353,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                 />
               ) : null}
               {headerIdentity.showTitle && (
-                <div className="max-w-[200px] lg:max-w-[280px]">
+                <div className="max-w-50 lg:max-w-70">
                   <span
                     className="text-2xl font-bold tracking-tighter text-white block truncate"
                     title={settings.siteName}
@@ -947,7 +947,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                       (imageFilename && selectedPost.content?.includes(imageFilename));
                     if (contentHasImage) return null;
                     return (
-                      <div className="w-full h-[400px] rounded-2xl overflow-hidden mb-12 border border-white/10 relative group">
+                      <div className="w-full h-100 rounded-2xl overflow-hidden mb-12 border border-white/10 relative group">
                         <div className="absolute inset-0 bg-linear-to-t from-[#0a0a1f] via-transparent to-transparent opacity-50"></div>
                         <img
                           {...getResponsiveImageAttributes(selectedPost, 'articleHero')}

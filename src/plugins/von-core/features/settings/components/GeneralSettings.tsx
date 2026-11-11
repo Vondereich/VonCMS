@@ -122,7 +122,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-lg font-medium"
             placeholder="E.g. My Awesome Blog"
           />
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
             This name will appear in the header and browser tab.
           </p>
         </div>
@@ -155,7 +155,9 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-lg"
             placeholder="E.g. Think. Create. Share."
           />
-          <p className="text-xs text-slate-500 mt-1">Short tagline shown on the homepage.</p>
+          <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
+            Short tagline shown on the homepage.
+          </p>
         </div>
         <div className="md:col-span-2">
           <span className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
@@ -174,7 +176,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-lg font-mono placeholder:font-sans"
             placeholder="e.g. ms, en, ar, hi"
           />
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
             Enter the 2-letter ISO 639-1 language code (e.g. <strong>ms</strong>,{' '}
             <strong>en</strong>) or multiple separated by comma (e.g. <strong>ms, en</strong>). This
             helps AI crawler agents automatically index your content in the correct language.
@@ -207,12 +209,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="w-20 h-20 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
+              <div className="w-20 h-20 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400 dark:text-gray-400">
                 <ImageIcon size={24} />
               </div>
             )}
             <div className="flex-1">
-              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors dark:bg-admin-hover dark:hover:bg-admin-hover-strong">
                 {uploading === 'logo' ? (
                   <Loader2 className="animate-spin" size={18} />
                 ) : (
@@ -229,7 +231,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   disabled={uploading === 'logo'}
                 />
               </label>
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
                 Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB.
                 <br />
                 <span className="text-[10px] opacity-80">
@@ -249,13 +251,13 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   id="headerIdentityMode"
                   value={headerIdentityMode}
                   onChange={handleHeaderIdentityModeChange}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border-strong dark:bg-admin-panel dark:text-slate-200"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-admin-border-strong dark:bg-admin-panel dark:text-slate-200 dark:focus:border-gray-400 dark:focus:ring-gray-400/20"
                 >
                   <option value="logo_and_text">Logo + Text</option>
                   <option value="logo_only">Logo Only</option>
                   <option value="text_only">Text Only</option>
                 </select>
-                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400 dark:text-gray-400">
                   Text Only hides the uploaded logo without deleting it. Logo Only falls back to the
                   website name until a logo is uploaded.
                 </p>
@@ -269,7 +271,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   checked={settings.invertLogoInDarkMode || false}
                   onChange={(e) => onChange('invertLogoInDarkMode', e.target.checked)}
                   disabled={!settings.logoUrl}
-                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
+                  className="mt-0.5 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded-sm focus:ring-blue-500 dark:focus:ring-gray-400 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer disabled:cursor-not-allowed"
                 />
                 <div>
                   <label
@@ -278,7 +280,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   >
                     Invert logo in dark mode
                   </label>
-                  <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                  <p className="text-[10px] text-slate-400 leading-tight mt-0.5 dark:text-gray-400">
                     Best for black or monochrome PNG logos. Leave off for full-color logos.
                   </p>
                 </div>
@@ -307,12 +309,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
+              <div className="w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400 dark:text-gray-400">
                 <ImageIcon size={16} />
               </div>
             )}
             <div className="flex-1">
-              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors">
+              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-admin-hover-strong text-slate-800 dark:text-white rounded-lg transition-colors">
                 {uploading === 'favicon' ? (
                   <Loader2 className="animate-spin" size={18} />
                 ) : (
@@ -329,7 +331,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   disabled={uploading === 'favicon'}
                 />
               </label>
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
                 Recommended: 48x48 or larger PNG (min 48px for Google Search). ICO also supported.
               </p>
             </div>
@@ -343,7 +345,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* LARGE IMAGE (Facebook / LinkedIn) */}
             <div>
-              <p className="text-xs font-semibold text-slate-500 mb-2">
+              <p className="text-xs font-semibold text-slate-500 mb-2 dark:text-gray-400">
                 Large (Facebook / LinkedIn)
               </p>
               <div className="flex items-center gap-4">
@@ -362,12 +364,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="w-24 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
+                  <div className="w-24 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400 dark:text-gray-400">
                     <ImageIcon size={20} />
                   </div>
                 )}
                 <div className="flex-1">
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-admin-hover-strong text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
                     {uploading === 'ogImage' ? (
                       <Loader2 className="animate-spin" size={14} />
                     ) : (
@@ -384,7 +386,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                       disabled={uploading === 'ogImage'}
                     />
                   </label>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[10px] text-slate-500 mt-1 dark:text-gray-400">
                     Rec: <strong>1200x630</strong> (JPG/PNG).
                   </p>
                 </div>
@@ -393,7 +395,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
 
             {/* SQUARE IMAGE (WhatsApp / Twitter) */}
             <div>
-              <p className="text-xs font-semibold text-slate-500 mb-2">
+              <p className="text-xs font-semibold text-slate-500 mb-2 dark:text-gray-400">
                 Square (WhatsApp / Twitter)
               </p>
               <div className="flex items-center gap-4">
@@ -412,12 +414,12 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400">
+                  <div className="w-12 h-12 bg-slate-100 dark:bg-admin-canvas rounded-lg border border-dashed border-slate-300 dark:border-admin-border-strong flex items-center justify-center text-slate-400 dark:text-gray-400">
                     <ImageIcon size={16} />
                   </div>
                 )}
                 <div className="flex-1">
-                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-slate-200 dark:bg-admin-hover hover:bg-slate-300 dark:hover:bg-admin-hover-strong text-slate-800 dark:text-white rounded-lg transition-colors text-xs font-medium">
                     {uploading === 'ogImageSquare' ? (
                       <Loader2 className="animate-spin" size={14} />
                     ) : (
@@ -434,7 +436,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                       disabled={uploading === 'ogImageSquare'}
                     />
                   </label>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[10px] text-slate-500 mt-1 dark:text-gray-400">
                     Rec: <strong>500x500</strong> (&lt;300KB).
                   </p>
                 </div>
@@ -458,7 +460,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
             placeholder="https://example.com"
           />
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
             {canManageSecrets
               ? 'The full URL of your site (e.g. https://mysite.com).'
               : 'Only the primary administrator can change the site domain used in account emails.'}
@@ -525,7 +527,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
               </option>
             ))}
           </select>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
             Controls human-readable dates across every public theme. Machine-readable dates, feeds,
             and permalinks keep their required formats.
           </p>
@@ -551,7 +553,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <span className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">
                   SMTP Host
                 </span>
                 <input
@@ -566,7 +568,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 />
               </div>
               <div>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <span className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">
                   SMTP Port
                 </span>
                 <input
@@ -581,7 +583,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 />
               </div>
               <div>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <span className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">
                   SMTP Username / Email
                 </span>
                 <input
@@ -596,7 +598,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 />
               </div>
               <div>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <span className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">
                   SMTP Password
                 </span>
                 <input
@@ -611,7 +613,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 />
               </div>
               <div>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <span className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">
                   Encryption
                 </span>
                 <select
@@ -635,7 +637,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                 )}
               </div>
               <div>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                <span className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">
                   From Name
                 </span>
                 <input
@@ -652,7 +654,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             </div>
           )}
           {canManageSecrets && (
-            <p className="text-xs text-slate-500 mt-3">
+            <p className="text-xs text-slate-500 mt-3 dark:text-gray-400">
               Configure SMTP for email verification and notifications. For Gmail, use App Password
               instead of regular password.
             </p>
@@ -683,7 +685,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="checkbox"
             checked={settings.maintenanceMode}
             onChange={(e) => onChange('maintenanceMode', e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-slate-300 rounded-sm focus:ring-primary-500"
+            className="w-4 h-4 text-primary-600 border-slate-300 rounded-sm focus:ring-primary-500 dark:accent-gray-400"
           />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Maintenance Mode
@@ -697,7 +699,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="checkbox"
             checked={settings.discussionEnabled ?? true}
             onChange={(e) => onChange('discussionEnabled', e.target.checked)}
-            className="w-5 h-5 rounded-sm border-slate-300 text-primary-600 focus:ring-primary-500"
+            className="w-5 h-5 rounded-sm border-slate-300 text-primary-600 focus:ring-primary-500 dark:accent-gray-400"
           />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Allow Public Discussion on Posts
@@ -711,7 +713,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             type="checkbox"
             checked={settings.registrationEnabled ?? true}
             onChange={(e) => onChange('registrationEnabled', e.target.checked)}
-            className="w-5 h-5 rounded-sm border-slate-300 text-primary-600 focus:ring-primary-500"
+            className="w-5 h-5 rounded-sm border-slate-300 text-primary-600 focus:ring-primary-500 dark:accent-gray-400"
           />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Membership: Anyone can register
@@ -735,7 +737,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             className="w-full p-3 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white font-mono text-sm"
             placeholder="viagra, casino, buy now, ..."
           />
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 dark:text-gray-400">
             Comma-separated keywords. Comments containing these will be held for review.
           </p>
         </div>
@@ -758,7 +760,9 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             <option value="top">Top of post</option>
             <option value="bottom">Bottom of post</option>
           </select>
-          <p className="text-xs text-slate-400 mt-1">Choose where share buttons appear on posts.</p>
+          <p className="text-xs text-slate-400 mt-1 dark:text-gray-400">
+            Choose where share buttons appear on posts.
+          </p>
         </div>
       </div>
     </div>

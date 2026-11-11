@@ -55,7 +55,7 @@ export const EditorSurfaceStyles = () => (
           line-height: 1.65;
         }
         .editor-content .${EDITOR_SURFACE_CLASS} code {
-          background: #f1f5f9;
+          background: var(--admin-light-inset, #f1f5f9);
           color: #b45309;
           border-radius: 0.375rem;
           padding: 0.15rem 0.35rem;
@@ -91,12 +91,12 @@ export const EditorSurfaceStyles = () => (
         }
         .editor-content .${EDITOR_SURFACE_CLASS} th,
         .editor-content .${EDITOR_SURFACE_CLASS} td {
-          border: 1px solid #cbd5e1;
+          border: 1px solid var(--admin-light-border, #cbd5e1);
           padding: 0.75rem;
           vertical-align: top;
         }
         .editor-content .${EDITOR_SURFACE_CLASS} th {
-          background: #f8fafc;
+          background: var(--admin-light-inset, #f8fafc);
           font-weight: 700;
         }
         .editor-content .${EDITOR_SURFACE_CLASS} > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {

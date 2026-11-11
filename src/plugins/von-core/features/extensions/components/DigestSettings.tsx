@@ -47,14 +47,14 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
               <Palette size={24} className="text-cyan-500" />
               Digest Theme Settings
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
               Modern magazine configuration
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-white"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-gray-400 dark:hover:bg-admin-hover dark:hover:text-white"
             aria-label="Close Digest theme settings"
           >
             <X size={20} />
@@ -75,7 +75,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Accent Color
                 </span>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Badges & buttons</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">Badges & buttons</p>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -89,7 +89,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
                   }
                   className="h-8 w-12 rounded-sm cursor-pointer border-0 p-0"
                 />
-                <span className="text-xs font-mono text-slate-500 uppercase">
+                <span className="text-xs font-mono text-slate-500 uppercase dark:text-gray-400">
                   {tempSettings.accentColor}
                 </span>
               </div>
@@ -111,7 +111,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
                   <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                     {label}
                   </span>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{desc}</p>
+                  <p className="text-xs text-slate-500 dark:text-gray-400">{desc}</p>
                 </div>
                 <button
                   onClick={() =>
@@ -119,8 +119,8 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
                   }
                   className={`relative w-11 h-6 rounded-full transition-colors ${
                     tempSettings[key as keyof typeof tempSettings]
-                      ? 'bg-cyan-500'
-                      : 'bg-slate-300 dark:bg-slate-600'
+                      ? 'bg-cyan-500 dark:bg-gray-400'
+                      : 'bg-slate-300 dark:bg-admin-hover-strong'
                   }`}
                 >
                   <span
@@ -138,7 +138,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Grid Columns
                 </span>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Posts per row</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">Posts per row</p>
               </div>
               <select
                 id="digestsettings-168"
@@ -161,7 +161,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
           </div>
 
           {tempSettings.showSidebar && (
-            <div className="p-4 rounded-xl bg-cyan-50 dark:bg-cyan-900/10 border border-cyan-100 dark:border-cyan-900/30">
+            <div className="p-4 rounded-xl bg-cyan-50 dark:bg-admin-hover-strong/10 border border-cyan-100 dark:border-gray-400/30">
               <h3 className="text-sm font-semibold text-cyan-900 dark:text-cyan-100 uppercase tracking-wider">
                 Global Sidebar Blocks
               </h3>
@@ -183,7 +183,7 @@ export const DigestSettings: React.FC<DigestSettingsProps> = ({ settings, onUpda
           </button>
           <button
             onClick={handleSave}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-5 py-2.5 font-medium text-white shadow-lg shadow-cyan-500/30 transition-all hover:bg-cyan-600 sm:w-auto"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-5 py-2.5 font-medium text-white shadow-lg shadow-cyan-500/30 transition-all hover:bg-cyan-600 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
           >
             <Save size={18} />
             Save Changes

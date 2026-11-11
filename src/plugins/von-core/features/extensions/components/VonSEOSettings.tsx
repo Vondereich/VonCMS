@@ -298,14 +298,14 @@ Disallow: /`;
               <Search className="text-blue-600" size={28} />
               VonSEO Settings
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
               Advanced SEO & Social Media Optimization
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300 dark:text-gray-400"
             aria-label="Close VonSEO settings"
           >
             <X size={24} />
@@ -316,35 +316,35 @@ Disallow: /`;
         <div className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-admin-inset">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'general' ? 'bg-white dark:bg-admin-canvas text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'general' ? 'bg-white dark:bg-gray-200 text-blue-600 border-b-2 border-blue-600 dark:text-gray-900 dark:border-gray-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 dark:text-gray-400'}`}
           >
             <Globe size={18} />
             General SEO
           </button>
           <button
             onClick={() => setActiveTab('social')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'social' ? 'bg-white dark:bg-admin-canvas text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'social' ? 'bg-white dark:bg-gray-200 text-blue-600 border-b-2 border-blue-600 dark:text-gray-900 dark:border-gray-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 dark:text-gray-400'}`}
           >
             <FileText size={18} />
             Social Media
           </button>
           <button
             onClick={() => setActiveTab('advanced')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'advanced' ? 'bg-white dark:bg-admin-canvas text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'advanced' ? 'bg-white dark:bg-gray-200 text-blue-600 border-b-2 border-blue-600 dark:text-gray-900 dark:border-gray-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 dark:text-gray-400'}`}
           >
             <SettingsIcon size={18} />
             Advanced
           </button>
           <button
             onClick={() => setActiveTab('redirects')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'redirects' ? 'bg-white dark:bg-admin-canvas text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'redirects' ? 'bg-white dark:bg-gray-200 text-emerald-600 border-b-2 border-emerald-600 dark:text-gray-900 dark:border-gray-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 dark:text-gray-400'}`}
           >
             <ArrowRight size={18} />
             Redirects
           </button>
           <button
             onClick={() => setActiveTab('indexnow')}
-            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'indexnow' ? 'bg-white dark:bg-admin-canvas text-violet-600 border-b-2 border-violet-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`flex min-w-36 shrink-0 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all sm:min-w-0 sm:flex-1 ${activeTab === 'indexnow' ? 'bg-white dark:bg-gray-200 text-violet-600 border-b-2 border-violet-600 dark:text-gray-900 dark:border-gray-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 dark:text-gray-400'}`}
           >
             <Zap size={18} />
             IndexNow
@@ -370,7 +370,7 @@ Disallow: /`;
                   className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg bg-slate-50 dark:bg-admin-canvas/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set this in Settings > General"
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   Edit this in Settings &gt; General so browser, search, and social titles stay in
                   one place.
                 </p>
@@ -391,7 +391,7 @@ Disallow: /`;
                   className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg bg-slate-50 dark:bg-admin-canvas/40 dark:text-slate-200 resize-none cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set this in Settings > General"
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   {(settings.siteDescription || '').length}/160 characters. Edit this in Settings
                   &gt; General so search and social defaults stay in one place.
                 </p>
@@ -401,7 +401,7 @@ Disallow: /`;
 
           {activeTab === 'social' && (
             <div className="space-y-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="bg-blue-50 dark:bg-admin-hover-strong/20 border border-blue-200 dark:border-gray-400 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
                   <div>
@@ -419,7 +419,7 @@ Disallow: /`;
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 border border-slate-200 dark:border-admin-border rounded-lg">
                   <h4 className="font-bold text-slate-900 dark:text-white mb-2">Open Graph</h4>
-                  <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                  <ul className="text-sm text-slate-600 dark:text-gray-400 space-y-1">
                     <li>✓ og:title</li>
                     <li>✓ og:description</li>
                     <li>✓ og:image</li>
@@ -429,7 +429,7 @@ Disallow: /`;
                 </div>
                 <div className="p-4 border border-slate-200 dark:border-admin-border rounded-lg">
                   <h4 className="font-bold text-slate-900 dark:text-white mb-2">Twitter Cards</h4>
-                  <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                  <ul className="text-sm text-slate-600 dark:text-gray-400 space-y-1">
                     <li>✓ twitter:card</li>
                     <li>✓ twitter:title</li>
                     <li>✓ twitter:description</li>
@@ -457,7 +457,7 @@ Disallow: /`;
                   className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg bg-slate-50 dark:bg-admin-canvas/40 dark:text-slate-200 cursor-not-allowed outline-hidden transition-all"
                   placeholder="Set the Domain URL in Settings > General"
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   Canonical URLs use the Domain URL from General Settings so SSR, React, sitemap,
                   RSS, llms.txt, and IndexNow stay aligned.
                 </p>
@@ -472,13 +472,13 @@ Disallow: /`;
                     type="checkbox"
                     checked={tempSEO.sitemapEnabled}
                     onChange={(e) => setTempSEO({ ...tempSEO, sitemapEnabled: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500"
+                    className="w-5 h-5 text-blue-600 rounded-sm focus:ring-blue-500 dark:focus:ring-gray-400"
                   />
                   <div>
                     <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
                       Enable XML Sitemap
                     </span>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-gray-400">
                       Automatically generate sitemap.xml for search engines
                     </p>
                   </div>
@@ -489,7 +489,7 @@ Disallow: /`;
                       href={buildPublicAssetUrl('/sitemap.xml')}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 font-medium"
+                      className="text-xs text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 font-medium dark:hover:text-white"
                     >
                       View Sitemap ↗
                     </a>
@@ -524,11 +524,11 @@ Disallow: /`;
                     checked={tempSEO.newsSitemap.enabled}
                     disabled={!tempSEO.sitemapEnabled}
                     onChange={(e) => updateNews({ enabled: e.target.checked })}
-                    className="size-5 rounded-sm text-blue-600 focus:ring-blue-500"
+                    className="size-5 rounded-sm text-blue-600 focus:ring-blue-500 dark:focus:ring-gray-400"
                   />
                   Enable a separate News sitemap
                 </label>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   Off by default. Includes published articles from the last two days only, with up
                   to 1,000 per file. Older articles stay in the ordinary sitemap. Inclusion does not
                   guarantee a place in Google News.
@@ -569,7 +569,7 @@ Disallow: /`;
                       />
                     </label>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
                     Blank values inherit General Settings. Match the publication name shown on your
                     articles in Google News. Language uses an ISO 639 code such as ms or en; Chinese
                     requires zh-cn or zh-tw. Regional site codes are normalized automatically.
@@ -652,11 +652,11 @@ Disallow: /`;
                       robotsTxt: normalizeRobotsRules(e.target.value, false),
                     })
                   }
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-hidden transition-all"
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-admin-border rounded-lg dark:bg-admin-panel dark:text-white font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-hidden transition-all dark:focus:ring-gray-400"
                   placeholder="User-agent: *&#10;Disallow:"
                 />
                 <div className="flex justify-between items-center">
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
                     Control how search engines crawl your site
                   </p>
                   {tempSEO.robotsTxt !== defaultRobots && (
@@ -666,7 +666,7 @@ Disallow: /`;
                         setTempSEO({ ...tempSEO, robotsTxt: defaultRobots });
                         toast.success('Robots.txt reset to recommended rules!');
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-sm transition-colors"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 bg-blue-50 dark:bg-admin-hover-strong/30 px-2 py-1 rounded-sm transition-colors dark:hover:text-white"
                     >
                       <RefreshCcw size={12} />
                       Reset to Recommended
@@ -779,7 +779,7 @@ Disallow: /`;
           {activeTab === 'indexnow' && (
             <div className="space-y-6">
               {!canManageIndexNow && (
-                <p role="status" className="text-sm text-slate-600 dark:text-slate-400">
+                <p role="status" className="text-sm text-slate-600 dark:text-gray-400">
                   Read-only. Only the Primary Admin can manage IndexNow keys and submissions.
                 </p>
               )}
@@ -795,7 +795,9 @@ Disallow: /`;
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-900 dark:text-white">Instant Indexing</h4>
-                      <p className="text-sm text-slate-500">Bing, Yandex & 1000+ search engines</p>
+                      <p className="text-sm text-slate-500 dark:text-gray-400">
+                        Bing, Yandex & 1000+ search engines
+                      </p>
                     </div>
                   </div>
                   <label
@@ -814,7 +816,7 @@ Disallow: /`;
                       }}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-[2px] after:inset-s-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:bg-violet-600 after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                   </label>
                 </div>
 
@@ -822,12 +824,12 @@ Disallow: /`;
                   <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-white dark:bg-admin-panel rounded-lg border border-slate-200 dark:border-admin-border">
-                        <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
+                        <span className="text-xs font-bold text-slate-500 uppercase block mb-1 dark:text-gray-400">
                           API Key Status
                         </span>
                         <div className="flex items-center gap-2">
                           {!canManageIndexNow ? (
-                            <span className="text-sm text-slate-400 italic">
+                            <span className="text-sm text-slate-400 italic dark:text-gray-400">
                               Primary Admin only
                             </span>
                           ) : indexNowStatus?.key_configured ? (
@@ -835,17 +837,19 @@ Disallow: /`;
                               {indexNowStatus.key_preview}
                             </span>
                           ) : (
-                            <span className="text-sm text-slate-400 italic">Not configured</span>
+                            <span className="text-sm text-slate-400 italic dark:text-gray-400">
+                              Not configured
+                            </span>
                           )}
                         </div>
                       </div>
                       <div className="p-4 bg-white dark:bg-admin-panel rounded-lg border border-slate-200 dark:border-admin-border">
-                        <span className="text-xs font-bold text-slate-500 uppercase block mb-1">
+                        <span className="text-xs font-bold text-slate-500 uppercase block mb-1 dark:text-gray-400">
                           Verification File
                         </span>
                         <div className="flex items-center gap-2">
                           {!canManageIndexNow ? (
-                            <span className="text-sm text-slate-400 italic">
+                            <span className="text-sm text-slate-400 italic dark:text-gray-400">
                               Primary Admin only
                             </span>
                           ) : indexNowStatus?.key_file_exists ? (
@@ -874,7 +878,7 @@ Disallow: /`;
                         <button
                           onClick={handleManualPing}
                           disabled={!canManageIndexNow || pingLoading}
-                          className="flex-1 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
                         >
                           <Send size={18} />
                           {pingLoading ? 'Pinging...' : 'Instant Ping Home'}
@@ -882,7 +886,7 @@ Disallow: /`;
                       )}
                     </div>
 
-                    <div className="bg-slate-100 dark:bg-admin-panel rounded-lg p-4 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="bg-slate-100 dark:bg-admin-panel rounded-lg p-4 text-xs text-slate-500 dark:text-gray-400">
                       <strong>How it works:</strong> When you publish or update a post, VonCMS sends
                       a "ping" to IndexNow. Engines like Bing will prioritize crawling your site
                       instantly.
@@ -898,14 +902,14 @@ Disallow: /`;
         <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-admin-canvas sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving || isIndexNowReadOnly}
-            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto ${isSaving ? 'opacity-70 cursor-wait' : isIndexNowReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-8 py-2.5 font-medium text-white shadow-lg shadow-blue-600/30 transition-colors hover:bg-blue-700 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong ${isSaving ? 'opacity-70 cursor-wait' : isIndexNowReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isSaving ? (
               'Saving...'

@@ -56,6 +56,9 @@ if ($workflowActionWasExplicit && !voncms_is_post_workflow_action($requestedWork
 $expectedStatus = is_scalar($input['expectedStatus'] ?? null)
   ? strtolower(trim((string) $input['expectedStatus']))
   : '';
+if (isset($input['baseUpdatedAt']) && !is_scalar($input['baseUpdatedAt'])) {
+  ResponseHelper::sendError('Invalid post payload', 400);
+}
 $clientUpdatedAt = trim((string) ($input['baseUpdatedAt'] ?? ''));
 
 if (

@@ -1,8 +1,10 @@
 # VonCMS Features
 
-> VonCMS v1.28.1 feature baseline for The BluePrint line. It extends v1.28.0 with opt-in Hybrid analytics, Post/Page deletion previews, an optional News Sitemap, and targeted reliability and authorization corrections recorded in the [Changelog](../CHANGELOG.md). Existing collection modes and history remain unchanged until the Primary Admin selects Hybrid. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. Published downloads are listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
+> VonCMS v1.28.2 feature baseline for The BluePrint line. This version adds Lean Public Settings and inherits v1.28.1's opt-in Hybrid analytics, Post/Page deletion previews, optional News Sitemap, and targeted reliability and authorization corrections recorded in the [Changelog](../CHANGELOG.md). Existing collection modes and history remain unchanged until the Primary Admin selects Hybrid. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. Published downloads are listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
 
-## Introduction to VonCMS v1.28.1 "The BluePrint"
+Lean Public Settings sends visitors only the active bundled theme's namespace and shared appearance fields. Explicitly disabled Ads and Newsletter omit unused presentation content without losing their OFF controls. Inactive configuration stays saved and available in authorized Admin reads; reactivation does not require entering it again. Public reads never write this reduced snapshot back to storage. This is a payload optimization, not full-page caching or a change to permissions.
+
+## Introduction to VonCMS v1.28.2 "The BluePrint"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -134,7 +136,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Package version | `v1.28.1 "The BluePrint"`                 |
+| Package version | `v1.28.2 "The BluePrint"`                 |
 | Minimum PHP     | `8.2+`, with `8.3+` recommended           |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |
@@ -233,7 +235,7 @@ You shouldn't need an SEO degree to make your site visible. VonCMS handles the t
 - **Newsletter subscriber manager** - view, export, manage your list. No Mailchimp tax.
 - **Contact form submission** - built-in forms with validation, spam protection, email delivery.
 - **Ad slots** - header, in-feed, popup placements. Built for AdSense and custom ad networks.
-- **Promo bar** - announcement bar at the top of your site.
+- **Promo bar** - announcement bar at the top of your site. Leave the destination blank or set it to `#` for a message without a CTA. Uncheck **Allow visitors to dismiss** to hide the close button; the campaign schedule still applies.
 - **Floating gift widget** - seasonal promotions, floating action button.
 
 **Why this matters:** Every engagement feature ships with the system. You're not installing "comments plugin v3.2.1" and hoping it doesn't conflict with your theme.

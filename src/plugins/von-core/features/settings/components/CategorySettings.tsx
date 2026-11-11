@@ -121,7 +121,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
         </div>
         <div>
           <h3 className="text-lg font-bold dark:text-white">Categories</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
             Manage reusable categories and clean up typo labels across existing posts.
           </p>
         </div>
@@ -132,7 +132,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
           <div className="px-4 py-3 bg-slate-50 dark:bg-admin-canvas/50 border-b border-slate-200 dark:border-admin-border">
             <h4 className="font-semibold text-slate-800 dark:text-white">Existing Categories</h4>
           </div>
-          <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-100 dark:divide-admin-border">
+          <div className="max-h-105 overflow-y-auto divide-y divide-slate-100 dark:divide-admin-border">
             {categories.map((category) => (
               <button
                 type="button"
@@ -155,7 +155,9 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
               </button>
             ))}
             {categories.length === 0 && (
-              <p className="px-4 py-8 text-sm text-slate-400 italic">No categories found.</p>
+              <p className="px-4 py-8 text-sm text-slate-400 italic dark:text-gray-400">
+                No categories found.
+              </p>
             )}
           </div>
         </div>
@@ -188,7 +190,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
             <h4 className="font-semibold text-slate-800 dark:text-white">
               Rename Selected Category
             </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-gray-400">
               This updates all matching posts, not just the saved category list.
             </p>
             <input
@@ -210,7 +212,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
                 })
               }
               disabled={loadingAction !== '' || renameDisabled}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
             >
               <Pencil size={16} />
               Rename Across Posts

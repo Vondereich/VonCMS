@@ -2687,7 +2687,7 @@ assertIncludes(
   editorContent + '\n' + editorToolbarPrimitivesContent,
   [
     'overflow-visible rounded-xl',
-    'editor-toolbar sticky top-[3.875rem] z-20 flex flex-wrap',
+    'editor-toolbar sticky top-15.5 z-20 flex flex-wrap',
     'gap-0 overflow-visible',
     'px-0.5 py-2',
     'h-11 w-auto min-w-max',
@@ -2753,8 +2753,37 @@ const compactToolCloseMarkup = sliceBetween(
   '<span className="hidden xl:inline">HTML source and code block tools.</span>',
   '</button>'
 );
-const imageToolCloseMarkup = sliceBetween(editorContent, '>Image Tools</span>', '</button>');
-const videoToolCloseMarkup = sliceBetween(editorContent, '>Video Tools</span>', '</button>');
+const editorBubbleAst = ts.createSourceFile(
+  'EditorBubbleMenus.tsx',
+  read('src/components/editor/EditorBubbleMenus.tsx'),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX
+);
+const toolCloseMarkup = (label) => {
+  let markup = '';
+  const visit = (node) => {
+    if (
+      ts.isJsxElement(node) &&
+      node.openingElement.tagName.getText(editorBubbleAst) === 'button' &&
+      node.openingElement.attributes.properties.some(
+        (attribute) =>
+          ts.isJsxAttribute(attribute) &&
+          attribute.name.getText(editorBubbleAst) === 'aria-label' &&
+          attribute.initializer &&
+          ts.isStringLiteral(attribute.initializer) &&
+          attribute.initializer.text === label
+      )
+    ) {
+      markup = node.getText(editorBubbleAst);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(editorBubbleAst);
+  return markup;
+};
+const imageToolCloseMarkup = toolCloseMarkup('Close image tools');
+const videoToolCloseMarkup = toolCloseMarkup('Close video tools');
 assertIncludes(
   'HourGlass Editor Tool Dismissal Labels',
   compactToolCloseMarkup,
@@ -2874,7 +2903,7 @@ assertIncludes(
     'selectedTable.rows.length',
     'getEditorTableColumnCount(selectedTable)',
     '!canGrowEditorTableDimension(currentDimension)',
-    '>Table Tools</span>',
+    'Table Tools',
     'Delete table',
   ],
   'HourGlass Table Lifecycle Contract: table dimensions are bounded and a selected table exposes row, column, and whole-table controls.',
@@ -3040,7 +3069,7 @@ assertIncludes(
   [
     'const nextElevated = sentinel.getBoundingClientRect().top < 1;',
     'className="sticky top-0 z-30',
-    'className={`editor-toolbar sticky top-[3.875rem] z-20',
+    'className={`editor-toolbar sticky top-15.5 z-20',
     'xl:top-0 xl:flex-wrap xl:px-2',
   ],
   'HourGlass Editor Sticky Toolbar Offset: phone and tablet formatting stays one exact section-rail height below Write/Publish/AI, while the dynamically wrapping desktop toolbar anchors to the editor top edge.',
@@ -4550,7 +4579,7 @@ if (
   ['login-483', 'login-500', 'login-514', 'login-525'].every((id) =>
     registrationView.includes(`htmlFor="${id}"`)
   ) &&
-  appShellContent.includes('has-[[data-auth-view=register]]:max-w-160')
+  appShellContent.includes('has-data-[auth-view=register]:max-w-160')
 ) {
   pass(
     'Registration Password Space Contract: registration alone uses a wider desktop card and paired labelled fields; phone fields stack and the public popup follows the same width contract.'
@@ -4744,13 +4773,13 @@ if (
 const genericRecoveryResponseCount = (
   passwordResetRequestBranch.match(/If this email exists, a reset link has been sent\./g) || []
 ).length;
-if (genericRecoveryResponseCount === 4) {
+if (genericRecoveryResponseCount === 5) {
   pass(
     'Password Recovery Enumeration Response Parity: known and unknown addresses retain the same public success message.'
   );
 } else {
   fail(
-    'Password Recovery Enumeration Response Parity: expected identical responses for unknown users, denied quotas, missing configuration, and delivery attempts.'
+    'Password Recovery Enumeration Response Parity: expected identical responses for unknown users, denied quotas, missing configuration, stale email publication, and delivery attempts.'
   );
 }
 assertIncludes(
@@ -5481,7 +5510,7 @@ assertIncludes(
     'draggable',
     'Default, Digest, and',
     'TechPress. Themes without a sidebar ignore these blocks.',
-    'mx-auto grid max-w-[1064px] grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)]',
+    'mx-auto grid max-w-266 grid-cols-1 xl:grid-cols-[minmax(0,520px)_minmax(0,520px)]',
     'items-start',
     'Add Widget',
     'Profile Card',
@@ -10031,7 +10060,8 @@ assertIncludes(
     '$expectResponse($rcptResp, [250, 251],',
     '$expectResponse($dataResp, [354],',
     '$expectResponse($dataResponse, [250],',
-    '$mailResult = vonSendMail($email, $subject, $htmlBody);',
+    'AND CAST(email AS BINARY) = CAST(? AS BINARY)',
+    "$mailResult = vonSendMail((string) $user['email'], $subject, $htmlBody);",
     'Password reset email delivery failed via ',
     'If this email exists, a reset link has been sent.',
   ],
@@ -10098,7 +10128,7 @@ assertIncludes(
     'const hasBeenEdited = (item: Post | Page) => {',
     'return updatedTime > createdTime;',
     '{hasBeenEdited(item) && (',
-    'className="mt-1 block max-w-full truncate text-xs text-slate-400 dark:text-slate-500"',
+    'className="mt-1 block max-w-full truncate text-xs ',
     'title={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}',
     'aria-label={`Last edited ${formatDateTime(item.updatedAt || item.updated_at)}`}',
     'Edited {formatCompactDate(item.updatedAt || item.updated_at)}',
@@ -10177,8 +10207,9 @@ assertIncludes(
     '<th className="px-4 py-4">Author</th>',
     '<td className="px-4 py-4 pr-8 min-w-0">',
     'className="font-semibold text-slate-900 dark:text-white truncate max-w-full leading-snug"',
-    'className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-full mt-1"',
-    'className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap"',
+    'truncate max-w-full mt-1',
+    'className="px-4 py-4 text-sm ',
+    'whitespace-nowrap',
     'ml-3 border-l border-slate-200 pl-3',
     "{getAuthorName(item) || '-'}",
   ],
@@ -12727,7 +12758,7 @@ const adminContentManagerPaletteContent = read(
 assertIncludes(
   'Admin Post Manager Status Tab Palette Contract',
   adminContentManagerPaletteContent,
-  ["? 'border-blue-600 bg-blue-600 text-white'", 'hover:border-blue-300 hover:text-blue-600'],
+  ["? 'border-blue-600 bg-blue-600 text-white", 'hover:border-blue-300 hover:text-blue-600'],
   'Admin Post Manager Status Tab Palette Contract: every status filter uses the active admin light-palette scale.',
   'Admin Post Manager Status Tab Palette Contract: active or hover status-tab colours bypass the active admin palette.'
 );
@@ -13970,7 +14001,7 @@ const profileActivityLoadingContracts = [
     requires: [
       'articlesLoading && articlePosts.length === 0',
       'commentsLoading && commentItems.length === 0',
-      'min-h-[360px]',
+      'min-h-90',
       'animate-pulse',
     ],
   },
@@ -13979,20 +14010,20 @@ const profileActivityLoadingContracts = [
     requires: [
       'articlesLoading && articlePosts.length === 0',
       'commentsLoading && commentItems.length === 0',
-      'min-h-[360px]',
+      'min-h-90',
       'animate-pulse',
     ],
   },
   {
     file: 'src/themes/corporate-pro/Layout.tsx',
-    requires: ['articlesLoading && articlePosts.length === 0', 'min-h-[320px]', 'animate-pulse'],
+    requires: ['articlesLoading && articlePosts.length === 0', 'min-h-80', 'animate-pulse'],
   },
   {
     file: 'src/plugins/von-core/features/users/UserProfile.tsx',
     requires: [
       'articlesLoading && articlePosts.length === 0',
       'commentsLoading && commentItems.length === 0',
-      'min-h-[360px]',
+      'min-h-90',
       'animate-pulse',
     ],
   },
@@ -16559,11 +16590,18 @@ assertIncludes(
     "onClick={() => navigate('/admin/settings')}",
     'canChangeTimeZone &&',
     'className="min-w-0"',
-    'gap-x-2 gap-y-1 text-sm',
-    'w-full pl-[52px] text-left sm:w-auto sm:pl-0 sm:text-right',
+    'aria-label="System information"',
+    'PHP Version',
+    '{serverInfo.phpVersion}',
+    'aria-label="Dashboard overview"',
+    'aria-label="Dashboard clock"',
+    'data-clock-hand="hour"',
+    'data-clock-hand="minute"',
+    'clockFormatter.formatToParts(clockNow)',
+    'recentActivity.slice(0, 5)',
   ],
-  'Dashboard Timezone Clock: the memoized leaf uses the saved zone, fails soft, pauses off-screen, cleans up its timer, separates readiness metadata, and keeps Settings access role-aware.',
-  'Dashboard Timezone Clock: leaf ownership, timezone formatting, timer cleanup, readiness placement, or the role-aware Settings shortcut is incomplete.'
+  'Dashboard Timezone Clock: the memoized leaf uses the saved zone, fails soft, pauses off-screen, cleans up its timer, separates version metadata, and keeps Settings access role-aware.',
+  'Dashboard Timezone Clock: leaf ownership, timezone formatting, timer cleanup, version placement, or the role-aware Settings shortcut is incomplete.'
 );
 
 assertIncludes(
@@ -17001,9 +17039,7 @@ const headerIdentityPersistenceMarkers = [
 ];
 const digestIdentityContent = read('src/themes/digest/Layout.tsx');
 const digestMobileIdentityMatches =
-  digestIdentityContent.includes(
-    'className="min-w-0 max-w-[128px] sm:max-w-[200px] lg:max-w-[260px]"'
-  ) &&
+  digestIdentityContent.includes('className="min-w-0 max-w-32 sm:max-w-50 lg:max-w-65"') &&
   !digestIdentityContent.includes(
     "!settings.logoUrl && settings.useLogoAsTitle ? 'block' : 'hidden sm:block'"
   );
@@ -17268,7 +17304,7 @@ assertIncludes(
     'grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16',
     'className="min-w-0"',
     'className="shrink-0 text-(--corporate-link)"',
-    'className="min-w-0 break-words"',
+    'className="min-w-0 wrap-break-word"',
   ],
   'Corporate Footer Tablet Containment: tablet widths use two columns while long contact email values wrap inside the footer.',
   'Corporate Footer Tablet Containment: the four-column footer or contact email can overflow tablet width.'
@@ -17425,9 +17461,12 @@ assertIncludes(
   read('src/components/VonLogo.tsx') + '\n' + adminLayoutContent,
   [
     "variant === 'simple'",
-    'd="M29.4 9.1A14.5 14.5 0 1 0 31.2 29.7"',
-    'd="M11.1 16.2 19.5 31.5 29.2 11.2"',
-    'd="m24.9 11.3 6.9-4.1.9 7.9-3.5-3.9-4.3.1Z"',
+    "'0 0 256 256'",
+    'd="M189.07 43.172',
+    'd="M198.745 73.615',
+    'd="M226.465 95.415',
+    'd="M240.791 114.036',
+    '<g fill="currentColor">',
     '<linearGradient id="logoGrad"',
     '<VonLogo variant="simple" className="w-8 h-8" />',
     '<VonLogo variant="simple" className="w-7 h-7 text-white" />',
@@ -17441,9 +17480,13 @@ assertIncludes(
   dashboardContent,
   [
     '>Dashboard</h1>',
-    '>VonCMS</span>',
-    'v{pkg.version}',
-    'System ready',
+    'Your content, audience and system at a glance.',
+    'aria-label="System information"',
+    'VonCMS Version',
+    'PHP Version',
+    '{serverInfo.phpVersion}',
+    '{pkg.version}',
+    'dashboard-system-details grid min-w-0 grid-cols-1 items-baseline gap-x-3 gap-y-1 text-base leading-6',
     'const formatActivityTime = (value?: string) =>',
     'title: post.title',
     "description: 'Article activity'",
@@ -17979,8 +18022,8 @@ assertIncludes(
   [
     'max-h-72',
     'sm:max-h-96',
-    'min-h-[380px]',
-    'sm:min-h-[320px]',
+    'min-h-95',
+    'sm:min-h-80',
     'group relative min-h-0 flex-1',
     'flex shrink-0 flex-col gap-4 border-t',
   ],

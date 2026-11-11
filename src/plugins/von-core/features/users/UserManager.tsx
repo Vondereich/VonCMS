@@ -379,8 +379,8 @@ const UserManager: React.FC<UserManagerProps> = ({
         onClick={() => openEditModal(user)}
         className={`flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm ${
           getEditRestrictionMessage(user)
-            ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-admin-hover dark:text-slate-500'
-            : 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+            ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-admin-hover dark:text-gray-400'
+            : 'admin-action-edit text-blue-600 hover:bg-blue-50 dark:hover:bg-admin-hover-strong/30 dark:text-gray-200'
         }`}
         title={getEditRestrictionMessage(user) || 'Edit User'}
       >
@@ -391,7 +391,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         <button
           type="button"
           onClick={() => toast.error(getDeleteRestrictionMessage(user))}
-          className="flex min-h-11 cursor-not-allowed items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400 dark:border-admin-border-strong dark:bg-admin-hover dark:text-slate-500"
+          className="flex min-h-11 cursor-not-allowed items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400 dark:border-admin-border-strong dark:bg-admin-hover dark:text-gray-400"
           title={getDeleteRestrictionMessage(user)}
         >
           {currentUserId === String(user.id) ? <UserIcon size={12} /> : <Shield size={12} />}
@@ -401,7 +401,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         <button
           type="button"
           onClick={() => setDeleteConfirmUser(user)}
-          className="flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+          className="admin-action-delete flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
           title="Delete User"
         >
           <Trash2 size={14} />
@@ -416,12 +416,12 @@ const UserManager: React.FC<UserManagerProps> = ({
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex flex-col gap-2">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">User Management</h2>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-500 text-sm dark:text-gray-400">
             Add moderators or writers to help manage the site ({meta.total} total).
           </p>
           {searchQuery && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500 dark:text-slate-400">Filters:</span>
+              <span className="text-slate-500 dark:text-gray-400">Filters:</span>
               <button
                 onClick={clearSearch}
                 className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
@@ -436,7 +436,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         <button
           type="button"
           onClick={() => setIsFormOpen(true)}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
         >
           <Plus size={18} />
           <span>Add User</span>
@@ -445,7 +445,10 @@ const UserManager: React.FC<UserManagerProps> = ({
 
       <form onSubmit={handleSearch} className="flex gap-2">
         <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
+          />
           <input
             aria-label="Add User"
             id="usermanager-310"
@@ -459,7 +462,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         </div>
         <button
           type="submit"
-          className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-slate-600"
+          className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-admin-hover-strong"
         >
           Search
         </button>
@@ -467,7 +470,7 @@ const UserManager: React.FC<UserManagerProps> = ({
           <button
             type="button"
             onClick={clearSearch}
-            className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-gray-400"
           >
             Clear
           </button>
@@ -561,7 +564,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 disabled:opacity-50 flex items-center gap-2 dark:bg-admin-hover dark:hover:bg-admin-hover-strong dark:shadow-none"
               >
                 {isSubmitting && (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -584,12 +587,12 @@ const UserManager: React.FC<UserManagerProps> = ({
           <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-admin-panel sm:max-h-[90dvh]">
             <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-admin-border dark:bg-admin-inset sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300 sm:flex">
+                <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-admin-hover-strong/40 dark:text-blue-300 sm:flex">
                   <UserIcon size={22} />
                 </span>
                 <div className="min-w-0">
                   <h3 className="text-lg font-bold text-slate-800 dark:text-white">Edit User</h3>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
                     Profile details and account access
                   </p>
                 </div>
@@ -597,7 +600,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               <button
                 type="button"
                 onClick={() => setEditingUser(null)}
-                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300 dark:text-gray-400"
                 aria-label="Close user editor"
               >
                 <X size={20} />
@@ -628,13 +631,13 @@ const UserManager: React.FC<UserManagerProps> = ({
                     <p className="truncate font-semibold text-slate-800 dark:text-white">
                       {editForm.display_name || editForm.username}
                     </p>
-                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-gray-400">
                       @{editForm.username}
                     </p>
                   </div>
                 </div>
                 <section aria-label="User profile details">
-                  <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">
                     <UserIcon size={15} className="text-blue-600 dark:text-blue-300" /> Profile
                   </h4>
                   <div className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-6">
@@ -714,7 +717,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   aria-label="User account access"
                   className="border-t border-slate-200 pt-5 dark:border-admin-border"
                 >
-                  <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <h4 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">
                     <Shield size={15} className="text-blue-600 dark:text-blue-300" /> Account access
                   </h4>
                   <div className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-6">
@@ -777,7 +780,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                           else setEditPasswordError(null);
                         }}
                       />
-                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
                         Leave blank to keep the current password.
                       </p>
                       {editPasswordError && (
@@ -788,7 +791,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                 </section>
               </div>
               <div className="admin-safe-bottom flex shrink-0 items-center justify-between gap-4 border-t border-slate-200 bg-slate-50 px-4 py-4 dark:border-admin-border dark:bg-admin-inset sm:px-6">
-                <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
+                <p className="hidden text-xs text-slate-500 dark:text-gray-400 sm:block">
                   Review changes before saving.
                 </p>
                 <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
@@ -802,7 +805,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                   <button
                     type="submit"
                     disabled={updatingUserId !== null}
-                    className="min-h-11 flex-1 whitespace-nowrap rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50 sm:flex-none"
+                    className="min-h-11 flex-1 whitespace-nowrap rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-50 sm:flex-none dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
                   >
                     {updatingUserId === String(editingUser.id) ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -826,7 +829,7 @@ const UserManager: React.FC<UserManagerProps> = ({
               <AlertTriangle className="text-red-500" size={32} />
             </div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete User?</h3>
-            <p className="text-slate-500 dark:text-slate-400 mb-6">
+            <p className="text-slate-500 dark:text-gray-400 mb-6">
               Are you sure you want to delete{' '}
               <strong className="text-slate-800 dark:text-white">
                 {deleteConfirmUser.username}
@@ -856,7 +859,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 size={20} className="animate-spin text-primary-600" />
-            <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">Loading...</span>
+            <span className="ml-3 text-sm text-slate-500 dark:text-gray-400">Loading...</span>
           </div>
         ) : pageUsers.length > 0 ? (
           <>
@@ -901,9 +904,13 @@ const UserManager: React.FC<UserManagerProps> = ({
                         </span>
                       </div>
                       {user.display_name && (
-                        <p className="truncate text-xs text-slate-400">@{user.username}</p>
+                        <p className="truncate text-xs text-slate-400 dark:text-gray-400">
+                          @{user.username}
+                        </p>
                       )}
-                      <p className="break-all text-xs text-slate-500">{user.email}</p>
+                      <p className="break-all text-xs text-slate-500 dark:text-gray-400">
+                        {user.email}
+                      </p>
                       {user.has_pending_verification && (
                         <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
                           Email pending
@@ -917,7 +924,7 @@ const UserManager: React.FC<UserManagerProps> = ({
             </div>
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[720px] text-left">
-                <thead className="bg-slate-50 dark:bg-admin-canvas/50 text-xs uppercase text-slate-500 font-medium">
+                <thead className="bg-slate-50 dark:bg-admin-canvas/50 text-xs uppercase text-slate-500 font-medium dark:text-gray-400">
                   <tr>
                     <th className="px-6 py-4">Profile</th>
                     <th className="px-6 py-4">User</th>
@@ -927,7 +934,10 @@ const UserManager: React.FC<UserManagerProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-admin-border">
                   {pageUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-admin-hover/50">
+                    <tr
+                      key={user.id}
+                      className="hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50"
+                    >
                       <td className="px-6 py-4 w-16">
                         <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-admin-hover overflow-hidden border border-slate-300 dark:border-admin-border-strong">
                           <SafeImage
@@ -950,9 +960,13 @@ const UserManager: React.FC<UserManagerProps> = ({
                           {user.display_name || user.username}
                         </div>
                         {user.display_name && (
-                          <div className="text-xs text-slate-400">@{user.username}</div>
+                          <div className="text-xs text-slate-400 dark:text-gray-400">
+                            @{user.username}
+                          </div>
                         )}
-                        <div className="text-xs text-slate-500">{user.email}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">
+                          {user.email}
+                        </div>
                         {user.has_pending_verification && (
                           <div className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
                             Email pending
@@ -987,12 +1001,12 @@ const UserManager: React.FC<UserManagerProps> = ({
         ) : (
           <div className="p-12 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-admin-hover">
-              <UserIcon size={32} className="text-slate-400" />
+              <UserIcon size={32} className="text-slate-400 dark:text-gray-400" />
             </div>
             <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
               No users found
             </h3>
-            <p className="text-slate-500">
+            <p className="text-slate-500 dark:text-gray-400">
               {searchQuery ? 'No users matched this search.' : 'No users are available to display.'}
             </p>
           </div>

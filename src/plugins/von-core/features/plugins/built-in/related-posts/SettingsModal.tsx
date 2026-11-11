@@ -63,14 +63,14 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
             <h3 className="text-lg font-bold text-slate-800 dark:text-white sm:text-2xl">
               Related Posts Settings
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
               Show related content to keep readers engaged
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-200 dark:text-gray-400"
             aria-label="Close Related Posts settings"
           >
             <X size={24} />
@@ -92,7 +92,7 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.count === num
                       ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover-strong'
                   }`}
                 >
                   {num}
@@ -114,7 +114,7 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
                   className={`px-4 py-3 rounded-lg font-medium transition-all ${
                     config.layout === layout.value
                       ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      : 'bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover-strong'
                   }`}
                 >
                   {layout.label}
@@ -154,13 +154,11 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
 
             {/* Show Image */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600 dark:text-slate-400">
-                Show Featured Image
-              </span>
+              <span className="text-sm text-slate-600 dark:text-gray-400">Show Featured Image</span>
               <button
                 onClick={() => setConfig({ ...config, showImage: !config.showImage })}
                 className={`relative w-12 h-6 rounded-full transition-colors ${
-                  config.showImage ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-600'
+                  config.showImage ? 'bg-purple-600' : 'bg-slate-300 dark:bg-admin-hover-strong'
                 }`}
               >
                 <span
@@ -173,11 +171,11 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
 
             {/* Show Excerpt */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600 dark:text-slate-400">Show Excerpt</span>
+              <span className="text-sm text-slate-600 dark:text-gray-400">Show Excerpt</span>
               <button
                 onClick={() => setConfig({ ...config, showExcerpt: !config.showExcerpt })}
                 className={`relative w-12 h-6 rounded-full transition-colors ${
-                  config.showExcerpt ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-600'
+                  config.showExcerpt ? 'bg-purple-600' : 'bg-slate-300 dark:bg-admin-hover-strong'
                 }`}
               >
                 <span
@@ -190,11 +188,11 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
 
             {/* Show Date */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600 dark:text-slate-400">Show Date</span>
+              <span className="text-sm text-slate-600 dark:text-gray-400">Show Date</span>
               <button
                 onClick={() => setConfig({ ...config, showDate: !config.showDate })}
                 className={`relative w-12 h-6 rounded-full transition-colors ${
-                  config.showDate ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-600'
+                  config.showDate ? 'bg-purple-600' : 'bg-slate-300 dark:bg-admin-hover-strong'
                 }`}
               >
                 <span
@@ -228,7 +226,7 @@ export const RelatedPostsSettings: React.FC<RelatedPostsSettingsProps> = ({
         <div className="admin-safe-bottom flex flex-col-reverse justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4 dark:border-admin-border dark:bg-admin-canvas/50 sm:flex-row sm:p-6">
           <button
             onClick={onClose}
-            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
+            className="min-h-11 w-full px-6 py-2.5 text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-admin-panel rounded-lg font-medium transition-colors sm:w-auto"
           >
             Cancel
           </button>

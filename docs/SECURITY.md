@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.28.1
+# VonCMS Security Policy v1.28.2
 
 ## PHP Runtime Baseline
 

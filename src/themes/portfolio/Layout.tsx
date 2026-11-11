@@ -999,7 +999,7 @@ const PortfolioNav = ({
           )}
           {headerIdentity.showTitle && (
             <span
-              className="text-xl font-bold max-w-[200px] truncate"
+              className="text-xl font-bold max-w-50 truncate"
               style={{
                 color: !isScrolled && transparentTextColor ? transparentTextColor : colors.text,
               }}
@@ -1101,7 +1101,7 @@ const PortfolioNav = ({
                 <SafeImage
                   src={user.avatar}
                   alt={user.username}
-                  className="w-[28px] h-[28px] rounded-full object-cover"
+                  className="w-7 h-7 rounded-full object-cover"
                   fallback={<Gravatar email={user.email} size={28} className="rounded-full" />}
                 />
                 <span
@@ -1346,7 +1346,7 @@ const SingleProject = ({
               <img
                 {...getResponsiveImageAttributes(project, 'wideArticleHero')}
                 alt={decodeEntities(project.title)}
-                className="w-full h-auto max-h-[600px] object-cover cursor-zoom-in"
+                className="w-full h-auto max-h-150 object-cover cursor-zoom-in"
                 onClick={() => setLightboxOpen(true)}
               />
             </div>

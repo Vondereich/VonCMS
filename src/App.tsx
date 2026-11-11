@@ -1249,7 +1249,7 @@ const App: React.FC = () => {
           {/* Auth Modal */}
           {showAuthModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in">
-              <div className="relative w-full max-w-lg has-[[data-auth-view=register]]:max-w-160">
+              <div className="relative w-full max-w-lg has-data-[auth-view=register]:max-w-160">
                 <button
                   onClick={() => setShowAuthModal(false)}
                   className="absolute -top-12 right-0 text-white transition-colors hover:text-slate-300"

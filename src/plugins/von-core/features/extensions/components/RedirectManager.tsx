@@ -215,14 +215,14 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
               <ArrowRight className="text-emerald-600" size={28} />
               Redirect Manager
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
               Manage 301 redirects to prevent broken links
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-admin-hover dark:hover:text-slate-300 dark:text-gray-400"
             aria-label="Close Redirect Manager"
           >
             <X size={24} />
@@ -231,8 +231,8 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
 
         {/* Toolbar */}
         <div className="p-4 border-b border-slate-200 dark:border-admin-border flex flex-wrap gap-3 items-center justify-between">
-          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-            <Search size={18} className="text-slate-400" />
+          <div className="flex items-center gap-2 flex-1 min-w-50">
+            <Search size={18} className="text-slate-400 dark:text-gray-400" />
             <input
               aria-label="Search redirects..."
               id="search-redirects"
@@ -250,7 +250,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
           <div className="flex flex-wrap gap-2">
             <button
               onClick={fetchRedirects}
-              className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-admin-panel rounded-lg"
+              className="p-2 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-admin-panel rounded-lg"
             >
               <RefreshCw size={18} />
             </button>
@@ -322,12 +322,12 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
           )}
 
           {loading ? (
-            <div className="text-center py-12 text-slate-500">Loading...</div>
+            <div className="text-center py-12 text-slate-500 dark:text-gray-400">Loading...</div>
           ) : redirects.length === 0 ? (
             <div className="text-center py-12">
               <ArrowRight size={48} className="mx-auto text-slate-300 mb-4" />
-              <p className="text-slate-500">No redirects found</p>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-slate-500 dark:text-gray-400">No redirects found</p>
+              <p className="text-sm text-slate-400 mt-1 dark:text-gray-400">
                 Create your first redirect to prevent 404 errors
               </p>
             </div>
@@ -335,7 +335,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
             <div className="space-y-4">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-admin-border">
+                  <tr className="text-left text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-admin-border">
                     <th className="pb-3 font-medium">From</th>
                     <th className="pb-3 font-medium">To</th>
                     <th className="pb-3 font-medium text-center">Type</th>
@@ -347,7 +347,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
                   {redirects.map((r) => (
                     <tr
                       key={r.id}
-                      className="border-b border-slate-100 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-admin-hover/50"
+                      className="border-b border-slate-100 dark:border-white/10 hover:bg-(--admin-table-row-hover) dark:hover:bg-admin-hover/50"
                     >
                       <td className="py-3 font-mono text-xs text-red-600 dark:text-red-400">
                         {r.source_url}
@@ -357,12 +357,12 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
                         {r.target_url}
                       </td>
                       <td className="py-3 text-center">
-                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-sm text-xs font-medium">
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-admin-hover-strong/30 text-blue-700 dark:text-blue-300 rounded-sm text-xs font-medium">
                           {r.redirect_type}
                         </span>
                       </td>
                       <td className="py-3 text-center">
-                        <span className="flex items-center justify-center gap-1 text-slate-500">
+                        <span className="flex items-center justify-center gap-1 text-slate-500 dark:text-gray-400">
                           <BarChart3 size={12} />
                           {r.hit_count}
                         </span>
@@ -371,13 +371,13 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
                         <div className="flex justify-end gap-1">
                           <button
                             onClick={() => handleEdit(r)}
-                            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
+                            className="admin-action-edit p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-admin-hover-strong/20 rounded-lg dark:hover:text-white dark:text-gray-400"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(r.id)}
-                            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                            className="admin-action-delete p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg dark:text-gray-400"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -399,7 +399,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-admin-canvas text-xs text-slate-500 flex justify-between">
+        <div className="p-4 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-admin-canvas text-xs text-slate-500 flex justify-between dark:text-gray-400">
           <span>{totalItems} redirect(s)</span>
           <span>Visible hits: {redirects.reduce((sum, r) => sum + r.hit_count, 0)}</span>
         </div>
@@ -473,7 +473,7 @@ export const RedirectManager: React.FC<RedirectManagerProps> = ({ onClose }) => 
           <div className="mt-6 flex flex-col-reverse justify-end gap-3 sm:flex-row">
             <button
               onClick={() => setShowModal(false)}
-              className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-admin-hover rounded-lg sm:w-auto"
+              className="min-h-11 w-full px-4 py-2 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-admin-hover rounded-lg sm:w-auto"
             >
               Cancel
             </button>

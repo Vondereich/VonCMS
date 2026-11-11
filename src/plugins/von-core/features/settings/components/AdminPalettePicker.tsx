@@ -21,7 +21,7 @@ export const AdminPalettePicker: React.FC<AdminPalettePickerProps> = ({ value, o
       <legend className="px-1 text-sm font-bold text-slate-800 dark:text-slate-200">
         Administration Color Palette
       </legend>
-      <p className="mb-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
+      <p className="mb-4 text-xs leading-5 text-slate-500 dark:text-gray-400">
         Choose a preset for the admin interface in light mode. Dark mode keeps the Charcoal palette.
       </p>
 
@@ -42,7 +42,7 @@ export const AdminPalettePicker: React.FC<AdminPalettePickerProps> = ({ value, o
               <span
                 className={`block rounded-lg border bg-white p-3 text-left transition peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-blue-600 dark:bg-admin-panel ${
                   selected
-                    ? 'border-blue-600 ring-2 ring-blue-600/15 dark:border-blue-500'
+                    ? 'border-blue-600 ring-2 ring-blue-600/15 dark:border-gray-400 dark:ring-gray-400/15'
                     : 'border-slate-200 hover:border-slate-400 dark:border-admin-border-strong dark:hover:border-slate-500'
                 }`}
               >
@@ -62,14 +62,14 @@ export const AdminPalettePicker: React.FC<AdminPalettePickerProps> = ({ value, o
                   </span>
                   {selected && (
                     <span
-                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white"
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-admin-hover"
                       aria-hidden="true"
                     >
                       <Check size={13} strokeWidth={3} />
                     </span>
                   )}
                 </span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-gray-400">
                   {palette.description}
                 </span>
               </span>

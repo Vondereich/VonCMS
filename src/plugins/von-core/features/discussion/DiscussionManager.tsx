@@ -362,7 +362,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
                 </button>
                 <button
                   onClick={() => onStatusChange(comment.id, 'spam')}
-                  className="rounded-lg p-2 text-orange-500 transition-colors hover:bg-orange-50"
+                  className="rounded-lg p-2 text-amber-700 transition-colors hover:bg-amber-200 hover:text-amber-950 focus-visible:bg-amber-200 focus-visible:text-amber-950 dark:text-amber-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-200 dark:focus-visible:bg-amber-900/40 dark:focus-visible:text-amber-200"
                   title="Mark as Spam"
                 >
                   <AlertTriangle size={18} />
@@ -371,7 +371,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
             ) : commentStatus === 'approved' ? (
               <button
                 onClick={() => onStatusChange(comment.id, 'spam')}
-                className="rounded-lg p-2 text-orange-500 transition-colors hover:bg-orange-50"
+                className="rounded-lg p-2 text-amber-700 transition-colors hover:bg-amber-200 hover:text-amber-950 focus-visible:bg-amber-200 focus-visible:text-amber-950 dark:text-amber-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-200 dark:focus-visible:bg-amber-900/40 dark:focus-visible:text-amber-200"
                 title="Mark as Spam"
               >
                 <AlertTriangle size={18} />
@@ -388,7 +388,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
             <button
               onClick={() => onDeleteClick(comment)}
               disabled={isDeleting === comment.id}
-              className={`rounded-lg p-2 transition-colors ${isDeleting === comment.id ? 'cursor-wait opacity-50' : 'text-red-500 hover:bg-red-50'}`}
+              className={`admin-action-delete rounded-lg p-2 transition-colors ${isDeleting === comment.id ? 'cursor-wait opacity-50' : 'text-red-500 hover:bg-red-50'}`}
               title="Delete"
             >
               {isDeleting === comment.id ? (

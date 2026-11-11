@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { spawnSync } = require('node:child_process');
+const { findPhpBinary } = require('./lint-php.cjs');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
@@ -192,6 +194,79 @@ const base = {
 const Portfolio = load('src/themes/portfolio/Layout.tsx').default;
 const Digest = load('src/themes/digest/Layout.tsx').default;
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
+
+function checkPromoBarOptionalCta() {
+  for (const basePath of ['/', '/qa-site/']) {
+    const siteUtils = load(
+      'src/utils/siteUtils.ts',
+      React,
+      { '../config/site.config': { BASE_PATH: basePath } },
+      { URL }
+    );
+    let dismissedAt = null;
+    let storageReads = 0;
+    const { PromoBarPlugin } = load(
+      'src/plugins/von-core/features/plugins/built-in/promo-bar/index.tsx',
+      React,
+      { '../../../../../../utils/siteUtils': siteUtils },
+      {
+        localStorage: {
+          getItem: () => {
+            storageReads++;
+            return dismissedAt;
+          },
+          removeItem: () => {
+            dismissedAt = null;
+          },
+        },
+      }
+    );
+    for (const [linkUrl, expected] of [
+      [undefined, null],
+      ['', null],
+      ['   ', null],
+      [' # ', null],
+      ['//example.test', null],
+      ['/about', `${basePath}about`],
+      ['https://example.test/promo', 'https://example.test/promo'],
+      ['#details', '#details'],
+    ]) {
+      const markup = renderToStaticMarkup(
+        PromoBarPlugin.render('header_top', { text: 'QA announcement', linkUrl })
+      );
+      assert.match(markup, /QA announcement/);
+      assert.match(markup, /aria-label="Dismiss announcement"/);
+      if (expected === null) {
+        assert.doesNotMatch(markup, /<a\b|Click Here/, `Unexpected CTA for ${String(linkUrl)}`);
+      } else {
+        assert.equal(markup.match(/<a href="([^"]*)"/)?.[1], expected);
+        assert.match(markup, /target="_blank" rel="noopener noreferrer"/);
+      }
+    }
+
+    const banner = (config) =>
+      renderToStaticMarkup(
+        PromoBarPlugin.render('header_top', {
+          text: 'QA announcement',
+          linkUrl: '#details',
+          ...config,
+        })
+      );
+    dismissedAt = String(Date.now());
+    assert.equal(banner({}), '', 'legacy settings still honor a recent dismissal');
+    const readsBeforeDisabled = storageReads;
+    const persistent = banner({ allowDismiss: false });
+    assert.match(persistent, /QA announcement/);
+    assert.match(persistent, /href="#details"/);
+    assert.doesNotMatch(persistent, /Dismiss announcement/);
+    assert.equal(storageReads, readsBeforeDisabled);
+    assert.equal(banner({ allowDismiss: false, endsAt: '2000-01-01T00:00:00Z' }), '');
+    assert.equal(banner({ allowDismiss: true }), '', 're-enabled dismissal respects its timer');
+    dismissedAt = String(Date.now() - 3 * 60 * 60 * 1000);
+    assert.match(banner({ allowDismiss: true, dismissHours: 2 }), /Dismiss announcement/);
+  }
+  console.log('PASS Promo Bar: optional CTA, dismissal toggle, expiry and campaign window.');
+}
 
 function checkStickySidebar() {
   const file = 'src/themes/shared/components/StickySidebar.tsx';
@@ -970,7 +1045,11 @@ async function checkNewsletterPagination() {
       '../../../../utils/api': {
         vonFetch: (url) =>
           new Promise((resolve, reject) => {
-            requests.push({ url, resolve: (data) => resolve({ json: async () => data }), reject });
+            requests.push({
+              url,
+              resolve: (data) => resolve({ ok: true, json: async () => data }),
+              reject,
+            });
           }),
       },
       'react-hot-toast': { toast: { error: (message) => errors.push(message), success: noop } },
@@ -1123,6 +1202,124 @@ async function checkNewsletterPagination() {
   );
 }
 
+function checkLeanPublicThemeRendering() {
+  const php = findPhpBinary();
+  assert.ok(php, 'Public projection parity needs PHP, not a reimplemented JS filter');
+  const themeData = {
+    ...settings.theme,
+    default: { navColor: '#171717', showTrending: false, footerLinks: [] },
+    prism: { colorScheme: 'green', neonEffects: false, fontSize: 'md' },
+    techpress: { enableBreaking: false, footerLinks: [] },
+    portfolio: { heroWelcomeText: 'Retained portfolio welcome', animationStyle: 'none' },
+    digest: { showHero: false, showTrending: false, accentColor: '#135790', footerLinks: [] },
+    corporatePro: { heroTitle: 'Retained corporate headline', footerAbout: '' },
+    unknown: { value: 'UNUSED_THEME_PAYLOAD' },
+  };
+  const cases = [];
+  for (const basePath of ['', '/newsroom']) {
+    for (const [id, key] of Object.entries(appearance.THEME_SETTINGS_KEYS)) {
+      cases.push({
+        id,
+        key,
+        basePath,
+        settings: {
+          ...settings,
+          activeThemeId: id,
+          siteUrl: 'https://example.test' + basePath,
+          domainUrl: 'https://example.test' + basePath,
+          theme: themeData,
+          discussionEnabled: false,
+          sidebarLayout: [],
+          navigation: [],
+          footerLinks: [],
+          ads: {
+            adsEnabled: false,
+            popupEnabled: false,
+            headerAd: 'DORMANT_AD',
+            popupAd: 'DORMANT_POPUP',
+            inFeedFrequency: 0,
+          },
+          newsletter: { enabled: false, title: 'DORMANT_NEWSLETTER' },
+        },
+      });
+    }
+  }
+  const probe = spawnSync(
+    php,
+    [path.join(root, 'server/integration/public-plugin-settings.php'), '--project-json'],
+    {
+      encoding: 'utf8',
+      input: JSON.stringify(cases.map((item) => item.settings)),
+    }
+  );
+  assert.equal(probe.status, 0, probe.stderr || probe.stdout);
+  const projected = JSON.parse(probe.stdout);
+  const folders = {
+    default: 'default',
+    prism: 'prism',
+    techpress: 'techpress',
+    portfolio: 'portfolio',
+    digest: 'digest',
+    corporatePro: 'corporate-pro',
+  };
+  let renders = 0;
+  cases.forEach((item, index) => {
+    const publicSettings = projected[index];
+    const Component = load(`src/themes/${folders[item.key]}/Layout.tsx`).default;
+    for (const view of ['home', 'single-post', 'page']) {
+      const props = {
+        ...base,
+        currentView: view,
+        selectedPost: view === 'single-post' ? posts[0] : null,
+        selectedPage: view === 'page' ? { ...posts[0], id: '81' } : null,
+      };
+      const expected = render(Component, {
+        ...props,
+        settings: appearance.resolvePublicThemeSettings(item.settings, item.id),
+      });
+      const actual = render(Component, {
+        ...props,
+        settings: appearance.resolvePublicThemeSettings(publicSettings, item.id),
+      });
+      assert.equal(
+        actual,
+        expected,
+        `${item.basePath}/${item.id}/${view}: trimmed settings changed rendered content`
+      );
+      assert.ok(!actual.includes('DORMANT_'));
+      renders++;
+    }
+    let hydrated;
+    const hook = load(
+      'src/hooks/useSettings.ts',
+      {
+        ...React,
+        useState: (initial) => {
+          hydrated ??= initial;
+          return [initial, noop];
+        },
+        useRef: (initial) => ({ current: initial }),
+        useCallback: (callback) => callback,
+        useEffect: noop,
+      },
+      {},
+      { window: { __INITIAL_SETTINGS__: publicSettings } }
+    );
+    hook.useSettings();
+    assert.equal(hydrated.discussionEnabled, false);
+    assert.equal(hydrated.ads.adsEnabled, false);
+    assert.equal(hydrated.ads.inFeedFrequency, 0);
+    assert.equal(hydrated.newsletter.enabled, false);
+    assert.deepEqual(
+      Object.keys(hydrated.theme).filter((key) => Object.hasOwn(folders, key)),
+      [item.key]
+    );
+  });
+  console.log(
+    `PASS Lean Public Settings: ${renders} actual six-theme home/article/Page render comparisons and 12 PHP-to-React hydration cases at root/subfolder; controlled React/renderers, not an installed browser.`
+  );
+}
+
 function checkPublicPluginHydration() {
   const projected = {
     discussionEnabled: false,
@@ -1206,6 +1403,10 @@ async function checkAdminSettingsReadiness() {
   };
   const publicState = {
     discussionEnabled: false,
+    activeThemeId: 'theme-digest',
+    theme: { primaryColor: '#123456', digest: { showHero: false, footerLinks: [] } },
+    ads: { adsEnabled: false, inFeedFrequency: 0 },
+    newsletter: { enabled: false },
     activePlugins: ['vp_related_posts'],
     pluginConfig: {
       pluginStatus: { vp_related_posts: 'active' },
@@ -1217,6 +1418,9 @@ async function checkAdminSettingsReadiness() {
   const fullState = {
     ...publicState,
     _settingsScope: 'admin',
+    theme: { ...publicState.theme, default: { footerCopyright: 'SAVED_INACTIVE_THEME' } },
+    ads: { ...publicState.ads, headerAd: 'SAVED_DISABLED_AD' },
+    newsletter: { enabled: false, title: 'SAVED_DISABLED_NEWSLETTER' },
     pluginConfig: {
       ...publicState.pluginConfig,
       pluginStatus: {
@@ -1476,6 +1680,64 @@ async function checkAdminSettingsReadiness() {
     guestRotationState,
     'Delayed rotation cannot modify a later guest settings snapshot'
   );
+  assert.equal(
+    current.settings.theme.default,
+    undefined,
+    'Public read drops inactive admin theme state'
+  );
+  assert.equal(current.settings.theme.digest.showHero, false);
+  assert.equal(current.settings.ads.adsEnabled, false);
+  assert.equal(current.settings.ads.inFeedFrequency, 0);
+  assert.equal(current.settings.ads.headerAd, '', 'Public read cannot retain disabled ad code');
+  assert.equal(
+    current.settings.newsletter.title,
+    undefined,
+    'Disabled newsletter copy is not retained'
+  );
+  assert.ok(!JSON.stringify(current.settings).includes('SAVED_INACTIVE_THEME'));
+  const publicWriteCount = writes.length;
+  assert.equal(
+    await current.handleUpdateSettings({ ...current.settings, siteName: 'Unsafe public draft' }),
+    false
+  );
+  assert.equal(
+    writes.length,
+    publicWriteCount,
+    'A reduced public snapshot cannot be saved as admin data'
+  );
+  const switchedPublic = {
+    ...publicState,
+    activeThemeId: 'theme-default',
+    theme: { primaryColor: '#123456', default: { enableMarquee: false, footerLinks: [] } },
+  };
+  const switchRead = current.loadSettings(true, false);
+  reads.at(-1).resolve(response(switchedPublic));
+  await switchRead;
+  draw();
+  assert.equal(
+    current.settings.theme.digest,
+    undefined,
+    'Public theme switches replace, not merge, namespaces'
+  );
+  assert.equal(current.settings.theme.default.enableMarquee, false);
+  const fullAgain = current.loadSettings(true, true);
+  reads.at(-1).resolve(response(fullState));
+  await fullAgain;
+  draw();
+  assert.equal(current.settings.theme.default.footerCopyright, 'SAVED_INACTIVE_THEME');
+  assert.equal(current.settings.ads.headerAd, 'SAVED_DISABLED_AD');
+  assert.equal(
+    await current.handleUpdateSettings({
+      ...current.settings,
+      siteTagline: 'After public navigation',
+    }),
+    true
+  );
+  assert.equal(
+    writes.at(-1).theme,
+    undefined,
+    'An unrelated admin save cannot replay a trimmed theme group'
+  );
 
   const Loader = () => null,
     Navigate = () => null;
@@ -1503,7 +1765,7 @@ async function checkAdminSettingsReadiness() {
     );
   }
   console.log(
-    'PASS Admin Settings Readiness: pending/failed/retried full reads block partial and stale drafts; saved inactive config, identity-only edits, comments OFF and staff route permissions remain intact.'
+    'PASS Admin Settings Readiness: pending/failed/retried full reads block partial and stale drafts; public theme switches replace old namespaces/disabled content, full reads restore saved inactive config, identity-only saves do not replay trimmed groups, and comments OFF/staff route permissions remain intact.'
   );
 }
 
@@ -4587,6 +4849,7 @@ async function checkDiscoveryRouteFetch() {
   );
 }
 
+checkPromoBarOptionalCta();
 checkRelatedMemoOwnership();
 checkPortfolioNavigationResolver();
 checkGoogleTrackingRuntime();
@@ -4594,6 +4857,7 @@ checkContentManagerActions();
 checkContentManagerExcerpts();
 checkCategoryFolderAdvisory();
 checkPublicPluginHydration();
+checkLeanPublicThemeRendering();
 checkSettingsPresentation();
 checkAdsManager();
 checkAdminSettingsReadiness()

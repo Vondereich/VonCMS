@@ -30,7 +30,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
           Public
         </span>
       </h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-slate-500 dark:text-gray-400">
         This information may be displayed in the "About Author" widget or contact sections.
       </p>
       <aside
@@ -95,7 +95,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
             className={fieldClass}
             placeholder="https://example.com/avatar.jpg"
           />
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
             Leave empty to use Gravatar from Public Email.
           </p>
         </div>

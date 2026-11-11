@@ -34,12 +34,12 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
       {/* GLOBAL SWITCH */}
       <div className="bg-white dark:bg-admin-panel p-6 rounded-2xl border border-slate-200 dark:border-admin-border shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+          <div className="p-2 bg-blue-100 dark:bg-admin-hover-strong/30 text-blue-600 dark:text-blue-400 rounded-lg">
             <Zap size={20} />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-800 dark:text-white">Master Ad Switch</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-gray-400">
               Controls Header, In-feed, Popup, and the built-in AdSense loader
             </p>
           </div>
@@ -54,7 +54,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
             onChange={(e) => onChange('adsEnabled', e.target.checked)}
             className="sr-only peer"
           />
-          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-admin-border-strong peer-checked:bg-blue-600"></div>
+          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-gray-400 rounded-full peer dark:bg-admin-hover peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-admin-border-strong peer-checked:bg-blue-600 dark:peer-checked:bg-gray-500"></div>
         </label>
       </div>
 
@@ -82,7 +82,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.headerAd}
                 onChange={(e) => onChange('headerAd', e.target.value)}
                 placeholder="<!-- Paste top ad code here -->"
-                className="block w-full resize-y p-3 font-mono text-xs rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-colors md:min-h-64"
+                className="block w-full resize-y p-3 font-mono text-xs rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-colors md:min-h-64 dark:focus:ring-gray-400"
               />
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
@@ -90,7 +90,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 <HelpCircle size={14} className="text-blue-500" />
                 <span>Guidance</span>
               </div>
-              <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-3">
+              <ul className="text-[11px] text-slate-500 dark:text-gray-400 space-y-3">
                 <li className="flex gap-3 items-start">
                   <div>
                     <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">
@@ -139,7 +139,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
             </div>
             <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
               <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider dark:text-gray-400">
                   Frequency:
                 </span>
                 <select
@@ -173,7 +173,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 value={settings.ads.inFeedAd}
                 onChange={(e) => onChange('inFeedAd', e.target.value)}
                 placeholder="<!-- Paste native/feed ad code here -->"
-                className="block w-full resize-y p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-colors shadow-inner md:min-h-64"
+                className="block w-full resize-y p-4 font-mono text-xs rounded-xl border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden transition-colors shadow-inner md:min-h-64 dark:focus:ring-gray-400"
               />
             </div>
             <div className="bg-slate-50 dark:bg-admin-canvas/50 p-5 rounded-xl space-y-4 border border-slate-100 dark:border-white/10">
@@ -181,7 +181,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 <Info size={14} className="text-orange-500" />
                 <span>In-feed ad code</span>
               </div>
-              <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-3">
+              <ul className="text-[11px] text-slate-500 dark:text-gray-400 space-y-3">
                 <li className="flex gap-3 items-start">
                   <div>
                     <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">
@@ -224,7 +224,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 <h3 className="font-bold text-slate-800 dark:text-white leading-tight">
                   Popup Ad (Interstitial)
                 </h3>
-                <p className="text-[10px] text-slate-400 font-normal">
+                <p className="text-[10px] text-slate-400 font-normal dark:text-gray-400">
                   Displayed as an overlay on page load
                 </p>
               </div>
@@ -262,7 +262,7 @@ export const AdSettings: React.FC<AdSettingsProps> = ({ settings, onChange }) =>
                 <ShieldCheck size={14} className="text-purple-500" />
                 <span>Popup ad code</span>
               </div>
-              <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-3">
+              <ul className="text-[11px] text-slate-500 dark:text-gray-400 space-y-3">
                 <li className="flex gap-3 items-start">
                   <div>
                     <strong className="text-slate-700 dark:text-slate-300 block mb-0.5 whitespace-nowrap">

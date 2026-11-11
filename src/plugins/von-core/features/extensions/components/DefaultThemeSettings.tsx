@@ -90,14 +90,14 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
               <Type size={24} className="text-primary-600" />
               Default Theme Settings
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
               Customize appearance and layout.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-admin-hover dark:hover:text-white"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-gray-400 dark:hover:bg-admin-hover dark:hover:text-white"
             aria-label="Close Default theme settings"
           >
             <X size={20} />
@@ -116,7 +116,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Accent Color
                 </span>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   Buttons, links, category badges
                 </p>
                 <div className="flex items-center gap-3">
@@ -129,13 +129,13 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                     onChange={(e) => handleChange('primaryColor', e.target.value)}
                     className="h-10 w-14 rounded-sm cursor-pointer border-0 p-0"
                   />
-                  <span className="text-sm font-mono text-slate-600 dark:text-slate-400 uppercase">
+                  <span className="text-sm font-mono text-slate-600 dark:text-gray-400 uppercase">
                     {tempSettings.theme.default?.primaryColor}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleChange('primaryColor', '#0ea5ff')}
-                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover-strong"
                   >
                     Reset
                   </button>
@@ -146,7 +146,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Header & Footer
                 </span>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-gray-400">
                   Navigation background color
                 </p>
                 <div className="flex items-center gap-3">
@@ -167,7 +167,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                     }
                     className="h-10 w-14 rounded-sm cursor-pointer border-0 p-0"
                   />
-                  <span className="text-sm font-mono text-slate-600 dark:text-slate-400 uppercase">
+                  <span className="text-sm font-mono text-slate-600 dark:text-gray-400 uppercase">
                     {tempSettings.theme?.default?.navColor || '#0f172a'}
                   </span>
                   <button
@@ -181,7 +181,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                         },
                       }))
                     }
-                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                    className="text-xs px-2 py-1 rounded-sm bg-slate-100 dark:bg-admin-hover text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-admin-hover-strong"
                   >
                     Reset
                   </button>
@@ -247,7 +247,9 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   <span className="block text-sm font-bold text-slate-700 dark:text-slate-200">
                     Trending Ticker
                   </span>
-                  <span className="block text-[10px] text-slate-500">Show top bar on homepage</span>
+                  <span className="block text-[10px] text-slate-500 dark:text-gray-400">
+                    Show top bar on homepage
+                  </span>
                 </div>
                 <input
                   id="defaultthemesettings-268"
@@ -263,7 +265,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                       },
                     }))
                   }
-                  className="w-5 h-5 text-primary-600 rounded-sm focus:ring-primary-500"
+                  className="w-5 h-5 text-primary-600 rounded-sm focus:ring-primary-500 dark:accent-gray-400"
                 />
               </label>
               <label className="flex items-center justify-between p-4 border border-slate-200 dark:border-admin-border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-admin-panel transition-colors">
@@ -271,7 +273,9 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   <span className="block text-sm font-bold text-slate-700 dark:text-slate-200">
                     Marquee Animation
                   </span>
-                  <span className="block text-[10px] text-slate-500">Enable smooth scrolling</span>
+                  <span className="block text-[10px] text-slate-500 dark:text-gray-400">
+                    Enable smooth scrolling
+                  </span>
                 </div>
                 <input
                   id="defaultthemesettings-290"
@@ -287,7 +291,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                       },
                     }))
                   }
-                  className="w-5 h-5 text-primary-600 rounded-sm focus:ring-primary-500"
+                  className="w-5 h-5 text-primary-600 rounded-sm focus:ring-primary-500 dark:accent-gray-400"
                 />
               </label>
             </div>
@@ -308,7 +312,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                   onClick={() =>
                     updateFooterLinks([...footerLinks, { label: 'New Link', url: '#' }])
                   }
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700 dark:bg-admin-hover dark:hover:bg-admin-hover-strong"
                 >
                   <Plus size={14} /> Add Link
                 </button>
@@ -346,14 +350,14 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
                     />
                     <button
                       onClick={() => updateFooterLinks(footerLinks.filter((_, i) => i !== idx))}
-                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm"
+                      className="admin-action-delete p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-sm"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
                 ))}
                 {footerLinks.length === 0 && (
-                  <p className="text-sm text-slate-500 italic text-center py-2">
+                  <p className="text-sm text-slate-500 italic text-center py-2 dark:text-gray-400">
                     No links added. Default "Home" & "About" will be shown.
                   </p>
                 )}
@@ -371,7 +375,7 @@ export const DefaultThemeSettings: React.FC<DefaultThemeSettingsProps> = ({
           </button>
           <button
             onClick={handleSave}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 sm:w-auto"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
           >
             <Save size={18} />
             Save Changes
