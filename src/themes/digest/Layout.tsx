@@ -596,7 +596,7 @@ const DigestFooter: React.FC<{ settings: SiteSettings; colors: ReturnType<typeof
   return (
     <footer
       className="mt-auto border-t py-8"
-      style={{ background: colors.surface, borderColor: colors.border }}
+      style={{ background: colors.surfaceAlt, borderColor: colors.border }}
     >
       <div className="max-w-7xl mx-auto px-5 space-y-8">
         {/* Newsletter Widget */}
@@ -623,12 +623,12 @@ const DigestFooter: React.FC<{ settings: SiteSettings; colors: ReturnType<typeof
               {settings.siteName}
             </span>
             {settings.siteDescription && (
-              <p className="mt-2 text-sm leading-relaxed" style={{ color: colors.textMuted }}>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                 {settings.siteDescription}
               </p>
             )}
             {settings.siteTagline && (
-              <p className="mt-1 text-xs italic" style={{ color: colors.textMuted }}>
+              <p className="mt-1 text-xs italic" style={{ color: colors.textSecondary }}>
                 {settings.siteTagline}
               </p>
             )}
@@ -638,13 +638,13 @@ const DigestFooter: React.FC<{ settings: SiteSettings; colors: ReturnType<typeof
             <a
               href={rssPath}
               className="hover:opacity-100 transition-opacity flex items-center gap-1.5"
-              style={{ color: colors.textMuted }}
+              style={{ color: colors.textSecondary }}
               title="RSS Feed"
             >
               <Rss size={14} />
               <span className="text-sm">RSS</span>
             </a>
-            <p className="text-sm" style={{ color: colors.textMuted }}>
+            <p className="text-sm" style={{ color: colors.textSecondary }}>
               &copy; {new Date().getFullYear()} {settings.siteName}. Powered by VonCMS.
             </p>
           </div>
@@ -2102,6 +2102,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
 
       <main
         className="flex-1 max-w-7xl mx-auto px-5 py-8 w-full"
+        style={{ minHeight: publicPosts.posts.length === 0 ? '100svh' : undefined }}
         aria-busy={isCategoryRefreshing || undefined}
       >
         {/* Search / Category Header */}

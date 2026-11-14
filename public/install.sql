@@ -51,6 +51,18 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Private staff-owned AI credentials. Never project these rows into public user/profile data.
+CREATE TABLE IF NOT EXISTS user_ai_keys (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    provider VARCHAR(32) NOT NULL DEFAULT 'gemini',
+    encrypted_key TEXT NOT NULL,
+    saved_at DATETIME NOT NULL,
+    expires_at DATETIME DEFAULT NULL,
+    UNIQUE KEY unique_user_ai_key (user_id, provider),
+    CONSTRAINT fk_user_ai_key_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS remember_tokens (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -130,6 +142,7 @@ CREATE TABLE IF NOT EXISTS content_audit_logs (
 
 -- Insert Default Settings
 INSERT INTO settings (setting_group, setting_key, setting_value, setting_type, is_public, description, version) VALUES
+('api', 'config', '{}', 'json', FALSE, 'Private AI configuration and credential lock', 1),
 ('general', 'domain_url', '', 'string', TRUE, 'Domain URL', 1),
 ('general', 'site_name', 'VonCMS', 'string', TRUE, 'Site name', 1),
 ('general', 'site_description', 'A modern content management system', 'string', TRUE, 'Site description', 1),

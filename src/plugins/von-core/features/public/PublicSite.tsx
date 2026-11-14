@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 import { Post, User, Comment, SiteSettings, Page } from '../../../../types';
 import { useTheme } from '../themes/ThemeContext';
@@ -67,6 +67,22 @@ const PublicSite: React.FC<PublicSiteProps> = (props) => {
   const consentRequired = Boolean(props.settings.analytics?.cookieConsent);
   const measurementMode = props.settings.analytics?.measurementMode;
   const requestedThemeId = resolvePublicThemeId(activeTheme.id);
+  const startup = activeTheme.startup;
+  useLayoutEffect(() => {
+    // Match the pre-React canvas without overwriting the saved switchable-theme/admin mode.
+    const root = document.documentElement;
+    const clear = () => {
+      root.removeAttribute('data-public-theme-scheme');
+      root.style.removeProperty('--von-public-boot-bg');
+      root.style.removeProperty('--von-public-boot-text');
+    };
+    if (startup) {
+      root.style.setProperty('--von-public-boot-bg', startup.background);
+      root.style.setProperty('--von-public-boot-text', startup.text);
+      root.setAttribute('data-public-theme-scheme', startup.colorScheme);
+    } else clear();
+    return clear;
+  }, [startup]);
   const themeSettings = useMemo(
     () => resolvePublicThemeSettings(props.settings, requestedThemeId),
     [props.settings, requestedThemeId]

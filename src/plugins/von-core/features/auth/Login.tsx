@@ -47,7 +47,11 @@ const VpLogin: React.FC<LoginProps> = ({ onLogin, isModal = false, settings }) =
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationRequired, setVerificationRequired] = useState(false);
   const credentialRevision = React.useRef(0);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(() =>
+    !isModal && new URLSearchParams(window.location.search).get('reason') === 'password-updated'
+      ? { type: 'success', text: 'Password updated. Sign in again with your new password.' }
+      : null
+  );
   const [registrationResult, setRegistrationResult] = useState<{
     message: string;
     emailSent: boolean;

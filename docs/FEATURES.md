@@ -1,10 +1,10 @@
 # VonCMS Features
 
-> VonCMS v1.28.2 feature baseline for The BluePrint line. This version adds Lean Public Settings and inherits v1.28.1's opt-in Hybrid analytics, Post/Page deletion previews, optional News Sitemap, and targeted reliability and authorization corrections recorded in the [Changelog](../CHANGELOG.md). Existing collection modes and history remain unchanged until the Primary Admin selects Hybrid. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. Published downloads are listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases).
+> VonCMS v1.28.3 feature baseline for The BluePrint line. This is a development snapshot, not a published release. Eligible staff can manage an encrypted personal Gemini key in private User Manager, with Writer/Moderator limited to their own account. Existing installations require Primary Admin Database Repair. Existing analytics modes and history remain unchanged until the Primary Admin selects Hybrid. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. See the [Changelog](../CHANGELOG.md) for implemented changes and [GitHub Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
 
 Lean Public Settings sends visitors only the active bundled theme's namespace and shared appearance fields. Explicitly disabled Ads and Newsletter omit unused presentation content without losing their OFF controls. Inactive configuration stays saved and available in authorized Admin reads; reactivation does not require entering it again. Public reads never write this reduced snapshot back to storage. This is a payload optimization, not full-page caching or a change to permissions.
 
-## Introduction to VonCMS v1.28.2 "The BluePrint"
+## Introduction to VonCMS v1.28.3 "The BluePrint"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -136,7 +136,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Package version | `v1.28.2 "The BluePrint"`                 |
+| Package version | `v1.28.3 "The BluePrint"`                 |
 | Minimum PHP     | `8.2+`, with `8.3+` recommended           |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |

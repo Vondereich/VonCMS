@@ -324,6 +324,9 @@ function voncms_schema_foreign_key_map(PDO $pdo, string $table): array
 function voncms_schema_runtime_index_specs(): array
 {
   return [
+    'user_ai_keys' => [
+      ['name' => 'unique_user_ai_key', 'columns' => ['user_id', 'provider'], 'unique' => true],
+    ],
     'calendar_events' => [
       ['name' => 'idx_calendar_window', 'columns' => ['starts_at', 'ends_at'], 'unique' => false],
       ['name' => 'unique_calendar_request', 'columns' => ['request_key'], 'unique' => true],
@@ -375,6 +378,15 @@ function voncms_schema_runtime_index_specs(): array
 function voncms_schema_runtime_foreign_key_specs(): array
 {
   return [
+    'user_ai_keys' => [
+      [
+        'name' => 'fk_user_ai_key_user',
+        'column' => 'user_id',
+        'referenced_table' => 'users',
+        'referenced_column' => 'id',
+        'delete_rule' => 'CASCADE',
+      ],
+    ],
     'remember_tokens' => [
       [
         'name' => 'fk_remember_tokens_user',
@@ -407,6 +419,7 @@ function voncms_schema_runtime_foreign_key_specs(): array
 function voncms_schema_runtime_identity_specs(): array
 {
   return [
+    'user_ai_keys' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'calendar_events' => ['column' => 'id', 'type' => 'int'],
     'calendar_event_audit' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'remember_tokens' => ['column' => 'id', 'type' => 'bigint unsigned'],
@@ -621,6 +634,10 @@ function voncms_schema_missing_columns(PDO $pdo, string $table, array $requiredC
 function voncms_schema_capability_manifest(): array
 {
   return [
+    'personal_ai_keys' => [
+      'table' => 'user_ai_keys',
+      'columns' => ['id', 'user_id', 'provider', 'encrypted_key', 'saved_at', 'expires_at'],
+    ],
     'calendar_events' => [
       'table' => 'calendar_events',
       'columns' => [
@@ -1192,6 +1209,16 @@ function voncms_schema_has_capability(PDO $pdo, string $capability): bool
 function voncms_schema_runtime_table_sql(): array
 {
   return [
+    'user_ai_keys' => "CREATE TABLE IF NOT EXISTS user_ai_keys (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider VARCHAR(32) NOT NULL DEFAULT 'gemini',
+      encrypted_key TEXT NOT NULL,
+      saved_at DATETIME NOT NULL,
+      expires_at DATETIME DEFAULT NULL,
+      UNIQUE KEY unique_user_ai_key (user_id, provider),
+      CONSTRAINT fk_user_ai_key_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     'calendar_events' => "CREATE TABLE IF NOT EXISTS calendar_events (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(200) NOT NULL,
@@ -1305,6 +1332,45 @@ function voncms_schema_runtime_table_sql(): array
 function voncms_schema_runtime_column_specs(): array
 {
   return [
+    'user_ai_keys' => [
+      'id' => [
+        'definition' => 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+        'type' => 'bigint unsigned',
+        'safe' => false,
+      ],
+      'user_id' => [
+        'definition' => 'INT NOT NULL',
+        'type' => 'int',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'provider' => [
+        'definition' => "VARCHAR(32) NOT NULL DEFAULT 'gemini'",
+        'type' => 'varchar(32)',
+        'nullable' => false,
+        'default' => 'gemini',
+        'safe' => true,
+      ],
+      'encrypted_key' => [
+        'definition' => 'TEXT NOT NULL',
+        'type' => 'text',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'saved_at' => [
+        'definition' => 'DATETIME NOT NULL',
+        'type' => 'datetime',
+        'nullable' => false,
+        'safe' => false,
+      ],
+      'expires_at' => [
+        'definition' => 'DATETIME DEFAULT NULL',
+        'type' => 'datetime',
+        'nullable' => true,
+        'default' => null,
+        'safe' => true,
+      ],
+    ],
     'analytics_sessions' => [
       'visitor_hash' => [
         'definition' => 'CHAR(64) NOT NULL',
@@ -2431,6 +2497,18 @@ function voncms_schema_repair_auth_columns(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
+/** Run only after the install/repair owner has established the core settings columns. */
+function voncms_schema_seed_ai_config(PDO $pdo): void
+{
+  // Stable singleton lock for all shared/personal credential writers and rotation.
+  $pdo->exec("INSERT INTO settings (setting_group, setting_key, setting_value, setting_type, is_public)
+    SELECT 'api', 'config', '{}', 'json', 0
+    WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_group = 'api' AND setting_key = 'config')");
+  $pdo->exec(
+    "UPDATE settings SET is_public = 0 WHERE setting_group = 'api' AND setting_key = 'config'",
+  );
+}
+
 /** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_runtime_capabilities(PDO $pdo): array
 {
@@ -2468,6 +2546,11 @@ function voncms_schema_repair_runtime_capabilities(PDO $pdo): array
   $fixes = array_merge(
     $fixes,
     voncms_schema_repair_foreign_keys($pdo, voncms_schema_runtime_foreign_key_specs(), [
+      [
+        'label' => 'user_ai_keys',
+        'sql' =>
+          'SELECT 1 FROM user_ai_keys k LEFT JOIN users u ON k.user_id = u.id WHERE u.id IS NULL LIMIT 1',
+      ],
       [
         'label' => 'remember_tokens',
         'sql' =>

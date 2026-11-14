@@ -485,7 +485,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       : `No ${type === 'post' ? 'articles' : 'pages'} found.`;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="@container space-y-6 animate-fade-in">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
@@ -633,7 +633,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel lg:hidden">
+          <div
+            className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel ${type === 'post' ? '@min-[70rem]:hidden' : '@min-[56.25rem]:hidden'}`}
+          >
             {pageItems.length === 0 ? (
               <div className="px-4 py-12 text-center text-slate-500 dark:text-gray-400">
                 {emptyMessage}
@@ -732,10 +734,11 @@ const ContentManager: React.FC<ContentManagerProps> = ({
                             type="button"
                             onClick={() => onToggleNav(item.id)}
                             aria-label={`${isInNavigation ? 'Remove from navigation' : 'Add to navigation'}: ${decodeEntities(item.title)}`}
+                            aria-pressed={isInNavigation}
                             title={isInNavigation ? 'Remove from navigation' : 'Add to navigation'}
-                            className="min-h-11 whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-admin-border"
+                            className="inline-flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:border-admin-border dark:hover:bg-admin-hover"
                           >
-                            {isInNavigation ? '- Nav' : '+ Nav'}
+                            {isInNavigation ? 'Remove Nav' : 'Add to Nav'}
                           </button>
                         )}
                         <div className="grid auto-cols-fr grid-flow-col items-center gap-2">
@@ -777,7 +780,9 @@ const ContentManager: React.FC<ContentManagerProps> = ({
             )}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel lg:block">
+          <div
+            className={`hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-admin-border dark:bg-admin-panel ${type === 'post' ? '@min-[70rem]:block' : '@min-[56.25rem]:block'}`}
+          >
             <table
               className={`w-full ${
                 type === 'post' ? 'min-w-280' : 'min-w-225'

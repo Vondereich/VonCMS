@@ -1,6 +1,14 @@
-# VonCMS User Manual v1.28.2
+# VonCMS User Manual v1.28.3
 
-This manual covers the v1.28.2 "The BluePrint" development line. Features inherited from v1.28.1 include opt-in Hybrid analytics, Post/Page deletion previews, and the optional News Sitemap. Existing v1.28.0 features remain available; follow the [Changelog](../CHANGELOG.md) for exact changes, release status and compatibility boundaries.
+This manual covers the v1.28.3 "The BluePrint" development snapshot. Follow the [Changelog](../CHANGELOG.md) for exact changes, release status and compatibility boundaries.
+
+### Personal AI key
+
+Open **Users** in the private admin panel. Writer/Moderator see only **Your Account**; Root/Admin can choose **My Account** without losing their existing user-management view. Edit your own account to open **Personal AI Key**. Saved keys are masked; enter a new value and use **Save Key** or **Replace Key**, or explicitly **Remove Personal Key**. These actions are separate from saving profile fields. Username, email and role are read-only in the self-only view; existing profile/password validation remains in force.
+
+Your saved personal key takes priority for AI Generate/Check. Only when no personal key is saved can shared access apply. An expired, damaged or provider-rejected personal key returns an error instead of silently using the shared paid key. Optional 30-day expiry starts on Save/Replace and does not revoke the key at Google. Keys survive reload/login on the server, never in posts or browser storage. Member/Guest do not gain AI access.
+
+On an upgraded installation, the Primary Admin must run **Database Repair** first. Encrypted credentials need both the SQL data and the matching private `data/credential_master.key.php` backup. Do not delete this file to renew a key. See [Security](SECURITY.md) and [Upgrade](UPGRADE.md).
 
 This release supports PHP 8.2 or newer; PHP 8.3+ is recommended. Use a supported, patched PHP build; see [Installation](INSTALL.md) and [Security](SECURITY.md).
 
@@ -278,12 +286,13 @@ In **Extensions > VonSEO > Advanced**, enable XML Sitemap, then enable **News Si
 
 - `/sitemap-news.xml` serves the first file; if more than 1,000 articles qualify, additional files use `?page=2`, `?page=3`, and so on. `/sitemap.xml` lists every News chunk automatically. These are dynamic responses, not files to upload or regenerate manually.
 - Only Published posts whose original publication falls within the preceding 48 hours qualify. Future posts, Drafts, Pages and profiles are excluded. Editing an old article does not make it new. The shared fallback uses scheduled time, then creation time where a first-publication timestamp is unavailable; the CMS cannot reconstruct an unknown historical publication date.
+- News also requires the existing protected publication-readiness capability. Fresh installation activates it automatically. After upgrade or database restore, Primary Admin must run **Database Repair** before relying on the feed; missing, invalid or cleared readiness returns HTTP 503 with Repair guidance, while the ordinary sitemap index stays available without News links. No public request creates columns or changes a stored date. Publications created after readiness use the configured CMS clock; pre-Repair dates are not silently reinterpreted.
 - Choose **All categories** only for a news publication, or select specific news categories. Selection does not automatically judge whether an article meets Google's news policies. At least one category is required in selected-category mode; deselecting everything never silently means all categories.
 - Leave publication name and language blank to inherit General Settings. The name must match your publication as shown in Google News, without parenthetical additions. A comma-separated site language list uses its first code, just like the shared schema language helper; the saved General setting is unchanged. Regional site codes such as `ms-MY` become `ms`; overrides use ISO 639 two/three-letter codes. Chinese needs `zh-cn` or `zh-tw` (recognized regional/script site tags are normalized automatically).
 - A recent window with no eligible articles returns valid, empty XML. No older content is used as filler; Google may show an intentional Empty Sitemap warning. A disabled feed returns 404. Missing/invalid publication metadata or a database failure returns 503, not invented publication details; a News-only configuration failure does not disable the ordinary sitemap index.
 - Images are not filtered by width. For large-image Discover previews, Google recommends source images at least 1,200px wide and permission for large previews; this is not a News sitemap admission requirement or a guarantee that Google will choose an image.
 
-The ordinary sitemap, RSS and llms.txt keep their existing roles. There is no new table, migration, cron job or need to run Database Repair merely to enable this feature. A News sitemap aids discovery; it does not guarantee Google News eligibility, indexing or ranking. See [Google's News sitemap specification](https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap) and [Discover image guidance](https://developers.google.com/search/docs/appearance/google-discover).
+The ordinary sitemap, RSS and llms.txt keep their existing roles. There is no new table, migration or cron job for News; an already-ready installation does not need another Repair just to toggle the feature. A News sitemap aids discovery; it does not guarantee Google News eligibility, indexing or ranking. See [Google's News sitemap specification](https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap) and [Discover image guidance](https://developers.google.com/search/docs/appearance/google-discover).
 
 #### Understanding orphan-page audit reports
 

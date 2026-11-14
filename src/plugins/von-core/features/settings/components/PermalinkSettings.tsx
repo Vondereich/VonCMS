@@ -31,9 +31,9 @@ export const PermalinkSettings: React.FC<PermalinkSettingsProps> = ({ settings, 
     {
       id: 'date',
       label: 'Date & Name',
-      example: `${baseUrl}/2023/12/sample-post`,
+      example: `${baseUrl}/2023/12/15/sample-post`,
       seo: true,
-      description: 'Includes publish date in URL',
+      description: 'Includes the original creation date (year/month/day) in the URL',
     },
     {
       id: 'category',

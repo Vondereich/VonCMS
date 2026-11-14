@@ -1,6 +1,6 @@
-# VonCMS Extension Development Guide v1.28.2
+# VonCMS Extension Development Guide v1.28.3
 
-This guide describes the v1.28.2 "The BluePrint" development contracts, carried forward from v1.28.1 with a PHP 8.2 minimum and PHP 8.3+ recommended. Installer, bundled theme and built-in plugin labels remain 1.28. See the [Changelog](../CHANGELOG.md) for implemented runtime changes and release status; future extension features remain roadmap items.
+This guide describes the v1.28.3 "The BluePrint" development baseline, carrying forward v1.28.2's extension contracts with a PHP 8.2 minimum and PHP 8.3+ recommended. Installer, bundled theme and built-in plugin labels remain 1.28. See the [Changelog](../CHANGELOG.md) for implemented runtime changes and release status; future extension features remain roadmap items.
 
 This guide is the public source of truth for VonCMS theme and plugin development in The BluePrint line. It is written for developers using VS Code, Cursor, Antigravity, Codex, CLI agents, or any AI-assisted IDE to customize the public runtime without weakening deployment, security, SEO, or visual output.
 
@@ -517,7 +517,24 @@ This skeleton demonstrates shared ownership only. It is not a complete theme unt
 
 The id in `theme.json`, `ThemeDefinition`, `THEMES`, `publicThemeLayoutLoaders`, settings wiring, and saved `activeThemeId` must match exactly. A missing loader causes the runtime to resolve to the Default theme; a registry-only entry is not a working theme.
 
-The manifest is not a free-form settings file. Its current runtime purpose is stable theme identity plus optional bounded performance metadata copied into Deploy artifacts. Keep editable site preferences in `SiteSettings`, not in `theme.json`.
+The manifest is not a free-form settings file. It supplies stable theme identity, optional startup canvas and bounded performance metadata copied into Deploy artifacts. Keep editable site preferences in `SiteSettings`, not in `theme.json`.
+
+### Fixed Startup Canvas
+
+A theme that always uses one colour scheme can declare its first-paint canvas:
+
+```json
+{
+  "id": "theme-my-theme",
+  "startup": {
+    "colorScheme": "dark",
+    "background": "#050510",
+    "text": "#cbd5e1"
+  }
+}
+```
+
+Use `light` or `dark` and six-digit hexadecimal colours only. The existing public render helper reads the active manifest for PHP; Vite projects the same metadata before the Source startup guard. Add `startup: readThemeStartup(myThemeManifest)` to the registered theme definition so the public lifecycle uses the same canvas. Missing or invalid metadata falls back to the ordinary saved-mode canvas. Omit this field for switchable themes. It never changes the saved light/dark preference or styles admin, login or installation entries; the public lifecycle clears its marker and CSS variables on exit. Keep theme layout/widget rules inside the theme, not in global entries or the render helper.
 
 ### Homepage Hero Performance Metadata
 

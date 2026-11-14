@@ -4,7 +4,7 @@ import Gravatar from 'react-gravatar';
 import { SafeImage } from '../../../../components/SafeImage';
 import toast from 'react-hot-toast';
 import { User, UserRole } from '../../../../types';
-import { API } from '../../../../config/site.config';
+import { API, BASE_PATH } from '../../../../config/site.config';
 import { vonFetch } from '../../../../utils/api';
 import { getUserDisplayRole } from '../../../../utils/profileUtils';
 import {
@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import SmartPagination from '../../../../components/SmartPagination';
 import AdminModal from '../../../../components/admin/AdminModal';
+import { useSearchParams } from 'react-router';
+import PersonalAiKey from './PersonalAiKey';
 
 interface UserManagerProps {
   users: User[];
@@ -27,6 +29,7 @@ interface UserManagerProps {
   onDeleteUser: (id: string) => Promise<boolean | void> | boolean | void;
   onUpdateUser?: (u: User) => Promise<boolean | void> | boolean | void;
   currentUser: User | null;
+  onUpdateOwnAccount?: (updates: Partial<User>) => void;
 }
 
 interface FetchMeta {
@@ -39,12 +42,17 @@ interface FetchMeta {
 
 const itemsPerPage = 20;
 
-const UserManager: React.FC<UserManagerProps> = ({
+const UserManagerView: React.FC<
+  UserManagerProps & { selfOnly: boolean; onToggleScope?: () => void }
+> = ({
   users: _users,
   onAddUser,
   onDeleteUser,
   onUpdateUser,
   currentUser,
+  onUpdateOwnAccount,
+  selfOnly,
+  onToggleScope,
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -81,6 +89,7 @@ const UserManager: React.FC<UserManagerProps> = ({
     avatar: '',
   });
   const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
 
   // Delete Confirm State
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
@@ -96,9 +105,11 @@ const UserManager: React.FC<UserManagerProps> = ({
     hasMore: false,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const usersRequestId = useRef(0);
+  const mounted = useRef(true);
   const currentUserRole = String(currentUser?.role || '').toLowerCase();
   const currentUserId = String(currentUser?.id || '');
   const isPrimaryAdminActor = currentUserId === '1' || currentUserRole === 'root';
@@ -126,65 +137,81 @@ const UserManager: React.FC<UserManagerProps> = ({
   const userMutationInFlight = useRef(false);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
-  const fetchUsersPage = useCallback(async (page: number, filters?: { search?: string }) => {
-    const requestId = ++usersRequestId.current;
-    setLoading(true);
+  const fetchUsersPage = useCallback(
+    async (page: number, filters?: { search?: string }) => {
+      const requestId = ++usersRequestId.current;
+      setLoading(true);
+      setLoadError('');
 
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(itemsPerPage),
-    });
-    if (filters?.search) params.set('search', filters.search);
-
-    try {
-      const res = await vonFetch(`${API.getUsers}?${params.toString()}`);
-      if (!res.ok) {
-        throw new Error('Failed to fetch users');
-      }
-
-      const data = await res.json();
-      if (requestId !== usersRequestId.current) return;
-
-      const resolvedPage = Number(data?.meta?.page || page);
-      setPageUsers(Array.isArray(data?.users) ? data.users : []);
-      setMeta({
-        page: resolvedPage,
-        limit: Number(data?.meta?.limit || itemsPerPage),
-        total: Number(data?.meta?.total || 0),
-        totalPages: Math.max(1, Number(data?.meta?.totalPages || 1)),
-        hasMore: Boolean(data?.meta?.hasMore),
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(itemsPerPage),
       });
-      setCurrentPage(resolvedPage);
-    } catch (error) {
-      if (requestId === usersRequestId.current) {
-        console.warn('Failed to fetch users:', error);
-        setPageUsers([]);
+      if (filters?.search) params.set('search', filters.search);
+
+      try {
+        const res = await vonFetch(
+          selfOnly ? API.ownAccount : `${API.getUsers}?${params.toString()}`
+        );
+        if (!res.ok) {
+          throw new Error('Failed to fetch users');
+        }
+
+        const data = await res.json();
+        if (requestId !== usersRequestId.current) return;
+        if (selfOnly) {
+          if (!data.success || !data.user || String(data.user.id) !== currentUserId)
+            throw Error('Own account could not be verified.');
+          setPageUsers([data.user]);
+          setMeta({ page: 1, limit: 1, total: 1, totalPages: 1, hasMore: false });
+          setCurrentPage(1);
+          return;
+        }
+
+        const resolvedPage = Number(data?.meta?.page || page);
+        setPageUsers(Array.isArray(data?.users) ? data.users : []);
         setMeta({
-          page: 1,
-          limit: itemsPerPage,
-          total: 0,
-          totalPages: 1,
-          hasMore: false,
+          page: resolvedPage,
+          limit: Number(data?.meta?.limit || itemsPerPage),
+          total: Number(data?.meta?.total || 0),
+          totalPages: Math.max(1, Number(data?.meta?.totalPages || 1)),
+          hasMore: Boolean(data?.meta?.hasMore),
         });
-        setCurrentPage(1);
+        setCurrentPage(resolvedPage);
+      } catch (error) {
+        if (requestId === usersRequestId.current) {
+          console.warn('Failed to fetch users:', error);
+          if (selfOnly) setLoadError('Your account could not be loaded. Retry before editing.');
+          setPageUsers([]);
+          setMeta({
+            page: 1,
+            limit: itemsPerPage,
+            total: 0,
+            totalPages: 1,
+            hasMore: false,
+          });
+          setCurrentPage(1);
+        }
+      } finally {
+        if (requestId === usersRequestId.current) {
+          setLoading(false);
+        }
       }
-    } finally {
-      if (requestId === usersRequestId.current) {
-        setLoading(false);
-      }
-    }
-  }, []);
+    },
+    [selfOnly, currentUserId]
+  );
 
   useEffect(() => {
     void fetchUsersPage(1, { search: searchQuery || undefined });
   }, [fetchUsersPage, searchQuery]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       usersRequestId.current += 1;
-    },
-    []
-  );
+    };
+  }, []);
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > meta.totalPages) {
@@ -206,6 +233,7 @@ const UserManager: React.FC<UserManagerProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selfOnly) return;
 
     // Validate password
     const pwdError = validatePassword(newUser.password);
@@ -244,6 +272,7 @@ const UserManager: React.FC<UserManagerProps> = ({
   };
 
   const openEditModal = (user: User) => {
+    if (selfOnly && String(user.id) !== currentUserId) return;
     const restrictionMessage = getEditRestrictionMessage(user);
     if (restrictionMessage) {
       toast.error(restrictionMessage);
@@ -251,6 +280,7 @@ const UserManager: React.FC<UserManagerProps> = ({
     }
 
     setEditingUser(user);
+    setCurrentPassword('');
     setEditForm({
       username: user.username,
       display_name: user.display_name || '',
@@ -263,6 +293,63 @@ const UserManager: React.FC<UserManagerProps> = ({
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selfOnly) {
+      if (!editingUser || String(editingUser.id) !== currentUserId || userMutationInFlight.current)
+        return;
+      const invalidPassword = editForm.password ? validatePassword(editForm.password) : null;
+      if (invalidPassword || (editForm.password && !currentPassword)) {
+        setEditPasswordError(invalidPassword || 'Current password is required.');
+        return;
+      }
+      userMutationInFlight.current = true;
+      setUpdatingUserId(currentUserId);
+      try {
+        const response = await vonFetch(API.updateProfile, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentUserId,
+            ownAccount: true,
+            expectedUserId: currentUserId,
+            display_name: editForm.display_name,
+            avatar: editForm.avatar,
+            bio: editingUser.bio || '',
+            ...(editForm.password
+              ? { current_password: currentPassword, new_password: editForm.password }
+              : {}),
+          }),
+        });
+        const data = await response.json();
+        if (!mounted.current) return;
+        if (!response.ok || data.success !== true) {
+          toast.error(data.error || 'Account changes were not saved.');
+          return;
+        }
+        if (editForm.password) {
+          // Password-bound sessions are deliberately revoked by the server.
+          window.location.assign(`${BASE_PATH}login?reason=password-updated`);
+          return;
+        }
+        onUpdateOwnAccount?.({
+          id: currentUserId,
+          display_name: data.user?.display_name ?? editForm.display_name,
+          avatar: data.user?.avatar ?? editForm.avatar,
+          bio: data.user?.bio ?? editingUser.bio,
+        });
+        await fetchUsersPage(1);
+        if (!mounted.current) return;
+        setEditingUser(null);
+        setCurrentPassword('');
+        setEditPasswordError(null);
+        toast.success('Your account was updated.');
+      } catch {
+        if (mounted.current) toast.error('Account changes were not confirmed. Please retry.');
+      } finally {
+        userMutationInFlight.current = false;
+        if (mounted.current) setUpdatingUserId(null);
+      }
+      return;
+    }
 
     // Validate password if provided
     if (editForm.password) {
@@ -320,7 +407,7 @@ const UserManager: React.FC<UserManagerProps> = ({
   };
 
   const handleApproveEmail = async (user: User) => {
-    if (!onUpdateUser || !isPrimaryAdminActor || !user.has_pending_verification) {
+    if (selfOnly || !onUpdateUser || !isPrimaryAdminActor || !user.has_pending_verification) {
       return;
     }
 
@@ -345,6 +432,7 @@ const UserManager: React.FC<UserManagerProps> = ({
   };
 
   const confirmDelete = async () => {
+    if (selfOnly) return;
     if (deleteConfirmUser) {
       if (isDeleteBlocked(deleteConfirmUser)) {
         toast.error(getDeleteRestrictionMessage(deleteConfirmUser));
@@ -363,7 +451,7 @@ const UserManager: React.FC<UserManagerProps> = ({
     <div
       className={`flex flex-wrap items-center gap-2 ${mobile ? 'justify-start' : 'justify-end'}`}
     >
-      {isPrimaryAdminActor && user.has_pending_verification && (
+      {!selfOnly && isPrimaryAdminActor && user.has_pending_verification && (
         <button
           type="button"
           onClick={() => handleApproveEmail(user)}
@@ -387,7 +475,7 @@ const UserManager: React.FC<UserManagerProps> = ({
         <Pencil size={14} />
         Edit
       </button>
-      {isDeleteBlocked(user) ? (
+      {selfOnly ? null : isDeleteBlocked(user) ? (
         <button
           type="button"
           onClick={() => toast.error(getDeleteRestrictionMessage(user))}
@@ -415,9 +503,13 @@ const UserManager: React.FC<UserManagerProps> = ({
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">User Management</h2>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+            {selfOnly ? 'Your Account' : 'User Management'}
+          </h2>
           <p className="text-slate-500 text-sm dark:text-gray-400">
-            Add moderators or writers to help manage the site ({meta.total} total).
+            {selfOnly
+              ? 'Manage your own account and private AI key.'
+              : 'Add moderators or writers to help manage the site (' + meta.total + ' total).'}
           </p>
           {searchQuery && (
             <div className="flex items-center gap-2 text-sm">
@@ -433,52 +525,75 @@ const UserManager: React.FC<UserManagerProps> = ({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setIsFormOpen(true)}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
-        >
-          <Plus size={18} />
-          <span>Add User</span>
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {onToggleScope && (
+            <button
+              type="button"
+              onClick={onToggleScope}
+              className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 dark:border-admin-border dark:text-slate-300"
+            >
+              {selfOnly ? 'Manage Users' : 'My Account'}
+            </button>
+          )}
+          {!selfOnly && (
+            <button
+              type="button"
+              onClick={() => setIsFormOpen(true)}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700 sm:w-auto dark:bg-admin-hover dark:shadow-none dark:hover:bg-admin-hover-strong"
+            >
+              <Plus size={18} />
+              <span>Add User</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <div className="relative flex-1 max-w-md">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
-          />
-          <input
-            aria-label="Add User"
-            id="usermanager-310"
-            name="usermanager310"
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search users..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-white"
-          />
-        </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-admin-hover-strong"
-        >
-          Search
-        </button>
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={clearSearch}
-            className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-gray-400"
-          >
-            Clear
+      {selfOnly && loadError && (
+        <div role="alert" className="text-sm text-red-600 dark:text-red-400">
+          {loadError}{' '}
+          <button type="button" className="underline" onClick={() => void fetchUsersPage(1)}>
+            Retry
           </button>
-        )}
-      </form>
+        </div>
+      )}
+      {!selfOnly && (
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-400"
+            />
+            <input
+              aria-label="Add User"
+              id="usermanager-310"
+              name="usermanager310"
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search users..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 dark:border-admin-border dark:bg-admin-panel dark:text-white"
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-200 dark:bg-admin-hover dark:text-slate-300 dark:hover:bg-admin-hover-strong"
+          >
+            Search
+          </button>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-gray-400"
+            >
+              Clear
+            </button>
+          )}
+        </form>
+      )}
 
       {/* Add New User Form */}
-      {isFormOpen && (
+      {!selfOnly && isFormOpen && (
         <div className="bg-slate-50 dark:bg-admin-canvas border border-slate-200 dark:border-white/10 p-6 rounded-xl animate-fade-in">
           <h3 className="font-bold mb-4 text-slate-800 dark:text-white">Register New User</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -653,6 +768,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                         id="usermanager-455"
                         name="usermanager455"
                         type="text"
+                        disabled={selfOnly}
                         className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm"
                         value={editForm.username}
                         onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
@@ -688,6 +804,7 @@ const UserManager: React.FC<UserManagerProps> = ({
                         name="usermanager466"
                         aria-label="Email"
                         type="email"
+                        disabled={selfOnly}
                         className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm"
                         value={editForm.email}
                         onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
@@ -721,43 +838,45 @@ const UserManager: React.FC<UserManagerProps> = ({
                     <Shield size={15} className="text-blue-600 dark:text-blue-300" /> Account access
                   </h4>
                   <div className="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-x-6">
-                    <div className="min-w-0">
-                      <label
-                        htmlFor="edit-user-role"
-                        className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
-                      >
-                        Role
-                      </label>
-                      <select
-                        id="edit-user-role"
-                        name="editUserRole"
-                        aria-label="Role"
-                        className={`min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm ${
-                          isRoleChangeBlocked(editingUser) ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                        value={editForm.role}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, role: e.target.value as UserRole })
-                        }
-                        disabled={isRoleChangeBlocked(editingUser)}
-                        title={
-                          currentUser?.id == editingUser?.id
-                            ? 'You cannot change your own role'
-                            : String(editingUser?.role || '').toLowerCase() === 'root'
-                              ? 'Root role cannot be changed here'
-                              : !isPrimaryAdminActor && isProtectedAdminUser(editingUser)
-                                ? 'System owner permission is required to change this protected role'
-                                : ''
-                        }
-                      >
-                        <option value="Member">Member</option>
-                        <option value="Writer">Writer</option>
-                        <option value="Moderator">Moderator</option>
-                        {(isPrimaryAdminActor || editForm.role === 'Admin') && (
-                          <option value="Admin">Admin</option>
-                        )}
-                      </select>
-                    </div>
+                    {!selfOnly && (
+                      <div className="min-w-0">
+                        <label
+                          htmlFor="edit-user-role"
+                          className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                        >
+                          Role
+                        </label>
+                        <select
+                          id="edit-user-role"
+                          name="editUserRole"
+                          aria-label="Role"
+                          className={`min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white sm:text-sm ${
+                            isRoleChangeBlocked(editingUser) ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          value={editForm.role}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, role: e.target.value as UserRole })
+                          }
+                          disabled={isRoleChangeBlocked(editingUser)}
+                          title={
+                            currentUser?.id == editingUser?.id
+                              ? 'You cannot change your own role'
+                              : String(editingUser?.role || '').toLowerCase() === 'root'
+                                ? 'Root role cannot be changed here'
+                                : !isPrimaryAdminActor && isProtectedAdminUser(editingUser)
+                                  ? 'System owner permission is required to change this protected role'
+                                  : ''
+                          }
+                        >
+                          <option value="Member">Member</option>
+                          <option value="Writer">Writer</option>
+                          <option value="Moderator">Moderator</option>
+                          {(isPrimaryAdminActor || editForm.role === 'Admin') && (
+                            <option value="Admin">Admin</option>
+                          )}
+                        </select>
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <label
                         htmlFor="8-chars-a-z-0-9"
@@ -786,9 +905,30 @@ const UserManager: React.FC<UserManagerProps> = ({
                       {editPasswordError && (
                         <p className="text-red-500 text-xs mt-1">{editPasswordError}</p>
                       )}
+                      {selfOnly && (
+                        <div className="mt-4">
+                          <label
+                            htmlFor="own-current-password"
+                            className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                          >
+                            Current password
+                          </label>
+                          <input
+                            id="own-current-password"
+                            type="password"
+                            autoComplete="current-password"
+                            value={currentPassword}
+                            onChange={(event) => setCurrentPassword(event.target.value)}
+                            className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 dark:border-admin-border-strong dark:bg-admin-inset dark:text-white"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>
+                {String(editingUser.id) === currentUserId && (
+                  <PersonalAiKey key={currentUserId} userId={currentUserId} />
+                )}
               </div>
               <div className="admin-safe-bottom flex shrink-0 items-center justify-between gap-4 border-t border-slate-200 bg-slate-50 px-4 py-4 dark:border-admin-border dark:bg-admin-inset sm:px-6">
                 <p className="hidden text-xs text-slate-500 dark:text-gray-400 sm:block">
@@ -1014,14 +1154,31 @@ const UserManager: React.FC<UserManagerProps> = ({
       </div>
 
       {/* Smart Pagination Controls */}
-      <SmartPagination
-        currentPage={currentPage}
-        totalPages={meta.totalPages}
-        onPageChange={handlePageChange}
-        itemsPerPage={itemsPerPage}
-        totalItems={meta.total}
-      />
+      {!selfOnly && (
+        <SmartPagination
+          currentPage={currentPage}
+          totalPages={meta.totalPages}
+          onPageChange={handlePageChange}
+          itemsPerPage={itemsPerPage}
+          totalItems={meta.total}
+        />
+      )}
     </div>
+  );
+};
+
+const UserManager: React.FC<UserManagerProps> = (props) => {
+  const [search, setSearch] = useSearchParams();
+  const role = String(props.currentUser?.role || '').toLowerCase();
+  const canManage = role === 'root' || role === 'admin';
+  const selfOnly = !canManage || search.get('account') === 'me';
+  return (
+    <UserManagerView
+      key={`${props.currentUser?.id}:${role}:${selfOnly}`}
+      {...props}
+      selfOnly={selfOnly}
+      onToggleScope={canManage ? () => setSearch(selfOnly ? {} : { account: 'me' }) : undefined}
+    />
   );
 };
 

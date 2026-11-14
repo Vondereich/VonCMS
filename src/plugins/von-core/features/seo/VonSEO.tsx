@@ -8,6 +8,7 @@ import {
 } from '../../../../utils/siteUtils';
 import { API, BASE_PATH } from '../../../../config/site.config';
 import { htmlToPlainText } from '../../../../utils/security';
+import { decodeEntities } from '../../../../utils/textUtils';
 import { hasNonemptySeoQueryValue } from '../../../../utils/seoQuery';
 import { PUBLIC_LISTING_MAX_PAGE } from '../../../../hooks/usePublicPostsQuery';
 import {
@@ -346,7 +347,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
     let canonical = canonicalUrl();
 
     if (currentView === 'single-post' && selectedPost) {
-      title = `${selectedPost.title} | ${siteTitle}`;
+      title = `${decodeEntities(selectedPost.title)} | ${siteTitle}`;
       description =
         pickHydratedSeoDescription(
           selectedPost.metaDescription,
@@ -357,7 +358,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
       type = 'article';
       canonical = canonicalUrl(getPermalink(selectedPost, settings, false, true));
     } else if (currentView === 'page' && selectedPage) {
-      title = `${selectedPage.title} | ${siteTitle}`;
+      title = `${decodeEntities(selectedPage.title)} | ${siteTitle}`;
       description =
         pickHydratedSeoDescription(
           selectedPage.metaDescription,
@@ -543,7 +544,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
       const articleNode = {
         '@type': normalizeArticleSchemaType(settings.seo?.articleSchemaType),
         '@id': `${canonical}#article`,
-        headline: selectedPost.title,
+        headline: decodeEntities(selectedPost.title),
         description: description,
         ...(absoluteOgImage
           ? {
@@ -614,7 +615,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
             {
               '@type': 'ListItem',
               position: 3,
-              name: selectedPost.title,
+              name: decodeEntities(selectedPost.title),
               item: canonical,
             },
           ]

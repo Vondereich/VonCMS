@@ -902,7 +902,7 @@ const StatCard: React.FC<{
   isText?: boolean;
   animate?: boolean;
 }> = ({ title, value, icon, color, isText, animate }) => (
-  <div className="bg-white dark:bg-admin-canvas border border-slate-200 dark:border-white/10 p-5 rounded-xl shadow-xs hover:shadow-md transition-shadow">
+  <div className="min-w-0 bg-white dark:bg-admin-canvas border border-slate-200 dark:border-white/10 p-5 rounded-xl shadow-xs hover:shadow-md transition-shadow">
     <div className="flex justify-between items-start mb-2">
       <div className={`p-2.5 rounded-lg ${color} ${animate ? 'animate-pulse' : ''}`}>{icon}</div>
     </div>
@@ -911,7 +911,7 @@ const StatCard: React.FC<{
         {title}
       </p>
       <h3
-        className={`font-extrabold mt-1 text-slate-800 dark:text-white ${isText ? 'text-lg font-mono' : 'text-3xl'}`}
+        className={`font-extrabold mt-1 text-slate-800 dark:text-white ${isText ? 'text-lg font-mono [overflow-wrap:anywhere]' : 'text-3xl'}`}
       >
         {value}
       </h3>

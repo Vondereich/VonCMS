@@ -19,12 +19,23 @@ const useCalendar =
 const useDashboardReports = process.argv.includes('--dashboard-reports');
 const useDashboard = process.argv.includes('--dashboard') || useDashboardReports;
 const useSecurity = process.argv.includes('--security');
-const useAuth = process.argv.includes('--auth');
+const useAuthFeedback = process.argv.includes('--auth-feedback');
+const legacyAuthFeedback = useAuthFeedback && process.argv.includes('--legacy-auth-feedback');
+const useAuth = process.argv.includes('--auth') || useAuthFeedback;
 const useUsers = process.argv.includes('--users');
 const useWpBridge = process.argv.includes('--wp-bridge');
 const useThemeHooks = process.argv.includes('--theme-hooks');
+const useTechPressFeed = process.argv.includes('--techpress-feed');
+const legacyTechPressFeed = useTechPressFeed && process.argv.includes('--legacy-techpress-feed');
+const useDigestFooter = process.argv.includes('--digest-footer');
+const legacyDigestFooter = useDigestFooter && process.argv.includes('--legacy-digest-footer');
 const useRelatedPosts = process.argv.includes('--related-posts');
 const useNativeTracking = process.argv.includes('--native-tracking');
+const usePrismBoot = process.argv.includes('--prism-boot');
+const legacyPrismBoot = usePrismBoot && process.argv.includes('--legacy-prism-boot');
+const useDiscoveryLayout = process.argv.includes('--discovery-layout') || usePrismBoot;
+const legacyDiscoveryLayout =
+  useDiscoveryLayout && process.argv.includes('--legacy-discovery-layout');
 const useDeletePreview = process.argv.includes('--delete-preview');
 const useSeoTabs = process.argv.includes('--seo-tabs');
 const useNewsSitemap = process.argv.includes('--news-sitemap') || useSeoTabs;
@@ -56,13 +67,21 @@ async function main() {
   let calendarFault = '';
   let calendarDateProjection = null;
   let publicSettingsFixture = null;
+  let prismBootShells = null;
   const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
   const authModalWrapperClass = useAuth
-    ? app
-        .slice(app.indexOf('{/* Auth Modal */}'))
-        .match(/<div className="[^"]+">\s*<div className="([^"]+)">/)?.[1]
+    ? fs
+        .readFileSync(path.join(root, 'src/components/AuthModal.tsx'), 'utf8')
+        .match(/className="(relative w-full max-w-lg [^"]+)"/)?.[1]
     : '';
   if (useAuth) assert.ok(authModalWrapperClass, 'Actual public auth modal wrapper is required.');
+  if (useAuthFeedback)
+    assert.ok(
+      app.includes(
+        '<AuthModal settings={settings} onLogin={handleLogin} onClose={closeAuthModal} />'
+      ),
+      'The App must delegate to the real auth modal without delaying its login callback.'
+    );
   const start = app.indexOf('const PostEditorWrapper:');
   const end = app.indexOf('export default App;');
   assert.ok(start > 0 && end > start, 'Actual editor wrapper must be available.');
@@ -90,17 +109,19 @@ async function main() {
   let fixture = `
     import React from 'react';
     import {createRoot} from 'react-dom/client';
-    import {BrowserRouter,useLocation} from 'react-router';
+    import {BrowserRouter,useLocation,useNavigate} from 'react-router';
     import {ThemeProvider} from '/src/plugins/von-core/features/themes/ThemeContext.tsx';
     ${useExtensionLifecycle ? "import {THEMES} from '/src/plugins/von-core/features/themes/themeRegistry.ts';" : ''}
     import AdminLayout from '/src/components/layouts/AdminLayout.tsx';
     import ExtensionsManager from '/src/plugins/von-core/features/extensions/ExtensionsManager.tsx';
     import Wrapper from '/__navigation-wrapper.tsx';
-    ${useCalendar ? "import CalendarManager from '/src/plugins/von-core/features/calendar/CalendarManager.tsx'; import ProtectedRoute from '/src/components/ProtectedRoute.tsx';" : ''}
+    ${useCalendar ? "import CalendarManager from '/src/plugins/von-core/features/calendar/CalendarManager.tsx';" : ''}
+    ${useCalendar || useUsers ? "import ProtectedRoute from '/src/components/ProtectedRoute.tsx';" : ''}
     ${useAdsWorkspace ? "import SettingsView from '/src/plugins/von-core/features/settings/SettingsManager.tsx';" : ''}
     ${useDashboard ? "import Dashboard from '/src/plugins/von-core/features/dashboard/Dashboard.tsx';" : ''}
     ${useSecurity ? "import SecurityDashboard from '/src/plugins/von-core/features/security/SecurityDashboard.tsx';" : ''}
-    ${useAuth ? "import Login from '/src/plugins/von-core/features/auth/Login.tsx';" : ''}
+    ${useAuth || useUsers ? "import Login from '/src/plugins/von-core/features/auth/Login.tsx';" : ''}
+    ${useAuthFeedback ? "import AuthModal from '/src/components/AuthModal.tsx'; import {Toaster,useToasterStore} from 'react-hot-toast';" : ''}
     ${useUsers ? "import UserManager from '/src/plugins/von-core/features/users/UserManager.tsx';" : ''}
     ${useWpBridge ? "import {WPMigrator} from '/src/plugins/von-core/features/tools/WPMigrator.tsx';" : ''}
     ${useRealEditor ? "import {useContent} from '/src/hooks/useContent.ts';" : ''}
@@ -180,7 +201,7 @@ async function main() {
     ${
       useSecurity
         ? `
-    window.__qaSecurityRequests=[];
+    window.__qaSecurityRequests=[];window.__qaSource='192.0.2.9';
     window.fetch=async(input,options={})=>{
       const url=new URL(input,location.href);
       if(url.origin!==location.origin||options.method&&options.method!=='GET')throw new Error('Security fixture forbids external requests and writes');
@@ -188,7 +209,7 @@ async function main() {
       const types=['login_failed','honeypot_caught','login_rate_limited','remember_rotation_conflict'];
       const selected=url.searchParams.get('event_type');
       const logs=types.filter(type=>!selected||type===selected).map((type,index)=>({id:index+1,event_type:type,ip_address:'192.0.2.9',user_agent:'Fixture',endpoint:'/api/login.php',severity:'medium',details:'{}',blocked:type==='remember_rotation_conflict'?0:1,created_at:new Date().toISOString()}));
-      return new Response(JSON.stringify({success:true,logs,pagination:{total_pages:1,total_items:logs.length},stats:{blocked_today:3,active_last_hour:4,high_severity_today:0,top_attacker:'192.0.2.9',trends:[],distribution:[],top_ips:[]}}),{headers:{'Content-Type':'application/json'}});
+      return new Response(JSON.stringify({success:true,logs,pagination:{total_pages:1,total_items:logs.length},stats:{blocked_today:3,active_last_hour:4,high_severity_today:0,top_attacker:window.__qaSource,trends:[],distribution:[],top_ips:[]}}),{headers:{'Content-Type':'application/json'}});
     };`
         : ''
     }
@@ -262,10 +283,27 @@ async function main() {
       {id:'42',username:'fixture-writer',display_name:'Fixture Writer',email:'writer@example.invalid',role:'Writer',avatar}
     ];
     window.__userUpdates=[];window.__userUpdateResult=true;
-    window.fetch=async(input)=>{
+    window.__accountCalls=[];window.__keyFail=false;window.__keyHold=false;window.__keyPending=[];
+    let ownCredential={configured:false,mask:'',state:'empty',revision:'',savedAt:'',expiresAt:''};
+    const ownId=params.get('owner')==='1'?'1':'8';
+    const ownUser={...userFixtures.find(user=>user.id===ownId),role:params.get('role')||'Admin'};
+    window.fetch=async(input,options={})=>{
       const url=new URL(input,location.href);
-      if(url.origin!==location.origin||!url.pathname.endsWith('/get_users.php'))throw new Error('Unexpected User Manager fixture endpoint');
-      return new Response(JSON.stringify({users:userFixtures,meta:{page:1,limit:20,total:3,totalPages:1,hasMore:false}}),{headers:{'Content-Type':'application/json'}});
+      if(url.origin!==location.origin)throw new Error('Unexpected external User Manager request');
+      const payload=options.body?JSON.parse(options.body):null;
+      window.__accountCalls.push({path:url.pathname,query:url.search,method:options.method||'GET',payload});
+      const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
+      if(url.pathname.endsWith('/api.php'))return reply({success:true,csrf_token:'fixture-token'});
+      if(url.pathname.endsWith('/get_users.php'))return reply({users:userFixtures,meta:{page:1,limit:20,total:3,totalPages:1,hasMore:false}});
+      if(url.pathname.endsWith('/update_profile.php')){if(payload.new_password)window.__passwordChanged=true;return reply({success:true,user:{...ownUser,...payload}});}
+      if(!url.pathname.endsWith('/account.php'))throw new Error('Unexpected User Manager fixture endpoint');
+      if(window.__passwordChanged)throw new Error('Old password-bound session cannot read private account data');
+      if(options.method!=='POST')return reply(url.searchParams.get('section')==='ai'?{success:true,accountId:ownId,credential:ownCredential,sharedAvailable:true}:{success:true,user:ownUser});
+      if(window.__keyHold)await new Promise(resolve=>window.__keyPending.push(resolve));
+      if(window.__keyFail)return reply({success:false,error:'Fixture write failed. Reload status before retrying.'},503);
+      if(payload.expectedUserId!==ownId)return reply({success:false,error:'Account changed'},409);
+      ownCredential=payload.action==='remove'?{configured:false,mask:'',state:'empty',revision:'',savedAt:'',expiresAt:''}:{configured:true,mask:'********',state:'encrypted',revision:'b'.repeat(64),savedAt:'2026-11-12 00:00:00',expiresAt:payload.expireAfter30Days?'2026-12-12 00:00:00':''};
+      return reply({success:true,credential:ownCredential});
     };`
         : ''
     }
@@ -288,6 +326,7 @@ async function main() {
     };`
         : ''
     }
+    ${useAuthFeedback ? `function AuthToastProbe(){const {toasts}=useToasterStore();window.__authToasts=toasts.map(t=>({id:t.id,message:t.message,visible:t.visible,duration:t.duration,position:t.position}));return null;}` : ''}
     function Fixture(){
       const route=useLocation();
       ${
@@ -313,6 +352,25 @@ async function main() {
       React.useEffect(()=>{window.__qaSetUser=setUser;window.__qaReady=true},[]);
       ${useWpBridge ? 'return React.createElement(WPMigrator);' : ''}
       ${
+        useAuthFeedback
+          ? `
+      const navigate=useNavigate();
+      const [signedInUser,setSignedInUser]=React.useState(null);
+      const [authOpen,setAuthOpen]=React.useState(false);
+      const closeAuth=React.useCallback(()=>{window.__authEvents.push({kind:'close',at:performance.now()});setAuthOpen(false)},[]);
+      const loginAuth=React.useCallback(user=>{window.__authLogins.push(user);window.__authEvents.push({kind:'login',at:performance.now()});setSignedInUser(user)},[]);
+      React.useEffect(()=>{window.__authEvents=[];window.__qaAuthOpen=()=>setAuthOpen(true);window.__qaAuthUnmount=()=>setAuthOpen(false)},[]);
+      React.useEffect(()=>{window.__qaAuthNavigate=path=>navigate(path)},[navigate]);
+      return React.createElement(React.Fragment,null,
+        React.createElement(Toaster),React.createElement(AuthToastProbe),
+        React.createElement('header',{},signedInUser
+          ? React.createElement('button',{id:'qa-account-menu',key:'account-trigger'},signedInUser.username)
+          : React.createElement('button',{id:'qa-open-auth',key:params.has('replace-trigger')?'guest-trigger':'account-trigger',onClick:()=>setAuthOpen(true)},'Sign in')),
+        React.createElement('main',{id:'qa-public-content'},React.createElement('h1',{},'Public story')),
+        authOpen&&React.createElement(AuthModal,{settings,onLogin:loginAuth,onClose:closeAuth}));`
+          : ''
+      }
+      ${
         useAuth
           ? `const auth=React.createElement(Login,{settings,onLogin:user=>window.__authLogins.push(user),isModal:params.get('modal')==='1'});
       return params.get('modal')==='1'
@@ -320,7 +378,7 @@ async function main() {
         : auth;`
           : ''
       }
-      ${useUsers ? 'return React.createElement(UserManager,{users:[],currentUser:user,onAddUser:noWrite,onDeleteUser:noWrite,onUpdateUser:async value=>{window.__userUpdates.push(value);return window.__userUpdateResult;}});' : ''}
+      ${useUsers ? `return route.pathname.endsWith('/admin/users')?React.createElement(ProtectedRoute,{user,allowedRoles:['Admin','Moderator','Writer']},React.createElement(UserManager,{users:[],currentUser:user,onAddUser:noWrite,onDeleteUser:noWrite,onUpdateOwnAccount:value=>window.__userUpdates.push(value),onUpdateUser:async value=>{window.__userUpdates.push(value);return window.__userUpdateResult;}})):route.pathname==='/login'?React.createElement(Login,{settings,onLogin:noWrite}):React.createElement('p',{},'Account access denied.');` : ''}
       ${useRealEditor ? 'React.useEffect(()=>{window.__qaSaved={posts:contentState.posts,pages:contentState.pages}},[contentState.posts,contentState.pages]);' : ''}
       const content=${useSecurity ? "route.pathname==='/admin/security' ? React.createElement(SecurityDashboard,{isPrimaryAdmin:false}) :" : ''} ${useDashboard ? "route.pathname==='/admin/dashboard' ? React.createElement(Dashboard,{posts:dashboardPosts,pages:[],users:[],comments:[],currentUser:user,serverInfo:params.has('php')?{phpVersion:params.get('php')}:undefined,timeZone:settings.timeZone,analyticsMode:params.get('collection')||'strict',analyticsEnabled:params.get('analytics')!=='off',canManageAnalytics:settings._canManageSecrets===true}) :" : ''} ${useCalendar ? "route.pathname==='/admin/calendar' ? React.createElement(ProtectedRoute,{user,allowedRoles:['Admin','Moderator']},React.createElement(CalendarManager,{settings})) :" : ''} ${useAdsWorkspace ? "route.pathname==='/admin/settings' ? React.createElement(SettingsView,{settings,onUpdate:noWrite,notify:noWrite}) :" : ''} route.pathname==='/admin/extensions'
         ? React.createElement(ExtensionsManager,{settings:${useExtensionLifecycle ? 'extensionSettings' : 'settings'},onUpdateSettings:${useExtensionLifecycle ? 'saveExtensionSettings' : 'noWrite'}})
@@ -332,7 +390,7 @@ async function main() {
     }
     createRoot(document.getElementById('root')).render(
       React.createElement(BrowserRouter,{basename:location.pathname.startsWith('/zangetsu/')?'/zangetsu':undefined},
-        React.createElement(ThemeProvider,{},React.createElement(Fixture))));
+        React.createElement(ThemeProvider,{},${useAuthFeedback ? 'React.createElement(React.StrictMode,{},React.createElement(Fixture))' : 'React.createElement(Fixture)'})));
   `;
   if (useNewsSitemap)
     fixture = `
@@ -427,6 +485,52 @@ async function main() {
     }
     createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base||undefined},React.createElement(Fixture)));
   `;
+  if (useTechPressFeed || useDigestFooter)
+    fixture = `
+      import React from 'react';
+      import {createRoot} from 'react-dom/client';
+      import {BrowserRouter} from 'react-router';
+      import TechPress from '/src/themes/techpress/Layout.tsx';
+      import Digest from '/src/themes/digest/Layout.tsx';
+      import '/src/index.css';
+      const base=window.VON_BASE,params=new URLSearchParams(location.search);
+      const dark=params.get('dark')==='1',sidebar=params.get('sidebar')==='1';
+      document.documentElement.classList.toggle('dark',dark);
+      const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="1200" height="675" fill="#64748b"/></svg>');
+      const longTitle='Jensen Huang Rasmi Letak Jawatan CEO Nvidia, Saham Menjunam Lebih 12 Peratus - full headline stays available';
+      const posts=Array.from({length:13},(_,index)=>({id:String(101+index),slug:'qa-story-'+index,
+        title:index===5?longTitle:index===7?'UnbrokenHeadline'.repeat(18):'QA story '+index,
+        category:index===7?'LongCategory'.repeat(15):'Business',status:'published',author:'QA Writer',
+        author_data:{username:'QA Writer',avatar:image},createdAt:'2026-11-13T00:00:00Z',
+        publishedAt:'2026-11-13T00:00:00Z',image:index===6?'':image,
+        imageSrcSet:index===6?'':image+' 1200w',excerpt:'Fixture excerpt, unchanged by the feed layout.',content:'<p>Fixture article.</p>'}));
+      const settings={siteName:'SkripGlobal',siteDescription:'Isolated TechPress feed fixture',
+        domainUrl:location.origin+base,siteUrl:location.origin+base,postsPerPage:8,permalinkStructure:'category',
+        siteTagline:'Retained footer tagline',timeZone:'UTC',theme:{primaryColor:params.get('accent')||'#b42330',techpress:{enableBreaking:false},digest:{accentColor:params.get('accent')||'#b42330',showTrending:false}},
+        navigation:[{id:'home',label:'Home',url:'home',type:'internal'}],activePlugins:[],pluginConfig:{},
+        sidebarLayout:sidebar?[{id:'qa-side',type:'custom',title:'QA sidebar',content:'<p>Fixture widget</p>',isVisible:true}]:[],
+        ads:{adsEnabled:true,popupEnabled:false,inFeedAd:'<span>Fixture in-feed ad</span>',inFeedFrequency:2},
+        newsletter:{enabled:params.get('newsletter')==='1',position:'footer',title:'Newsletter fixture',description:'Retained newsletter description',buttonText:'Subscribe'},discussionEnabled:false};
+      const qa=window.__techPressFeed={calls:[],actions:[],posts,longTitle};
+      qa.feed=()=>[...document.querySelectorAll('main h2')].find(node=>node.textContent==='Latest Updates')?.parentElement.nextElementSibling;
+      qa.cards=()=>[...qa.feed().children].filter(node=>node.querySelector('h3'));
+      window.fetch=async(input,options={})=>{
+        const url=new URL(input,location.href);
+        if(url.origin!==location.origin||(options.method||'GET')!=='GET'||!url.pathname.endsWith('/get_posts.php'))
+          throw Error('TechPress feed fixture forbids writes, unexpected APIs and external requests');
+        qa.calls.push(url.pathname+url.search);
+        const page=Number(url.searchParams.get('page')||1),limit=Number(url.searchParams.get('limit'));
+        const rows=posts.slice((page-1)*limit,page*limit);
+        return new Response(JSON.stringify({posts:rows,meta:{page,limit,total:posts.length,totalPages:2,hasMore:page<2}}),{headers:{'Content-Type':'application/json'}});
+      };
+      const noop=()=>{},record=name=>value=>qa.actions.push([name,value]);
+      createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base==='/'?undefined:base.slice(0,-1)},
+        React.createElement(${useDigestFooter ? 'Digest' : 'TechPress'},{posts:posts.slice(0,8),pages:[],settings,user:null,isAuthLoading:false,
+          comments:[],allUsers:[],currentView:'home',selectedPost:null,selectedPage:null,selectedProfile:null,
+          onPostClick:record('post'),onCategoryClick:record('category'),onBackToHome:noop,
+          onLogin:noop,onLogout:noop,onNavigateAdmin:noop,onViewProfile:noop,onPageClick:noop,
+          onAddComment:noop,onLikeComment:noop,onReplyComment:noop,isDarkMode:dark,toggleDarkMode:noop})));
+    `;
   let nativeCrawlerMeta = '';
   if (useNativeTracking) {
     const php = require('./lint-php.cjs').findPhpBinary();
@@ -863,7 +967,7 @@ async function main() {
       const params=new URLSearchParams(location.search);
       const sample={title:'R&D <img src=x onerror=bad()> - Nur\\'Aini',excerpt:'Text x<y & punctuation. No HTML execution.',slug:'sample-post',author:'QA Writer',createdAt:'2026-11-04T08:00:00Z',updatedAt:'2026-11-04T08:00:00Z'};
       window.__deleteRecords={post:[{...sample,id:'801',status:'published'},{...sample,id:'802',title:'Draft record',status:'draft'},{...sample,id:'803',title:'Scheduled record',status:'scheduled'}],page:[{...sample,id:'901',status:'published'},{...sample,id:'902',title:'Draft page',status:'draft'}]};
-      window.__deleteCalls=[];window.__deleteReadCalls=[];window.__deleteReadRequests=[];window.__deleteErrors=[];window.__deleteFailId=null;window.__deleteFault='';window.__deleteHold=false;window.__deleteReleases=[];window.__deleteInvalidations=[];
+      window.__deleteCalls=[];window.__deleteReadCalls=[];window.__deleteReadRequests=[];window.__deleteErrors=[];window.__deleteFailId=null;window.__deleteFault='';window.__deleteHold=false;window.__deleteReleases=[];window.__deleteInvalidations=[];window.__pageNavCalls=[];
       window.fetch=async(input,options={})=>{
         const url=new URL(typeof input==='string'?input:input.url,location.href);
         const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
@@ -894,8 +998,9 @@ async function main() {
       function Fixture(){
         const content=useContent();
         const {posts,pages,setPosts,setPages,contentRefreshKeys}=content;
-        const settings={siteName:'Delete preview QA',timeZone:'UTC',navigation:[]};
-        const handleEdit=()=>{},onToggleNav=()=>{};
+        const [navigation,setNavigation]=React.useState([]);
+        const settings={siteName:'Delete preview QA',timeZone:'UTC',navigation};
+        const handleEdit=()=>{},onToggleNav=id=>{window.__pageNavCalls.push(id);setNavigation(items=>items.some(item=>item.url==='page:'+id)?items.filter(item=>item.url!=='page:'+id):[...items,{id:'qa-nav-'+id,url:'page:'+id,label:'QA page',type:'page'}])};
         const invalidateContentLoadCoverage=kind=>{window.__deleteInvalidations.push(kind);content.invalidateContentLoadCoverage(kind)};
         React.useEffect(()=>{window.__deleteRevision=contentRefreshKeys},[contentRefreshKeys]);
         React.useEffect(()=>{document.documentElement.classList.toggle('dark',params.get('dark')==='1');window.__deleteReady=true},[]);
@@ -906,6 +1011,117 @@ async function main() {
       }
       createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,{basename:base==='/'?undefined:base.slice(0,-1)},React.createElement(ThemeProvider,{},React.createElement(Fixture))));
     `;
+  }
+  if (useDiscoveryLayout) {
+    fixture = `
+      import React from 'react';
+      import {createRoot} from 'react-dom/client';
+      import {BrowserRouter,useLocation,useNavigate} from 'react-router';
+      import {ThemeProvider} from '/src/plugins/von-core/features/themes/ThemeContext.tsx';
+      import PublicSite from '/src/plugins/von-core/features/public/PublicSite.tsx';
+      import '/src/index.css';
+      const base=window.VON_BASE,params=new URLSearchParams(location.search),theme=params.get('theme');
+      const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="800" height="450" fill="#64748b"/></svg>');
+      const posts=Array.from({length:15},(_,index)=>({id:String(101+index),slug:'qa-story-'+index,title:'QA story '+index,category:'News',status:'published',author:'QA',author_data:{username:'QA'},createdAt:'2026-11-12T00:00:00Z',created_at:'2026-11-12T00:00:00Z',image,image_url:image,excerpt:'Fixture article excerpt.',content:'<p>Article fixture.</p>'.repeat(25)}));
+      const page={...posts[0],id:'901',slug:'qa-page',title:'QA page'};
+      const initialPosts=params.get('start')==='warm'?posts:[];
+      const settings={_settingsScope:'public',siteName:'Discovery layout QA',domainUrl:location.origin+base,siteDescription:'Isolated layout fixture',activeThemeId:theme,postsPerPage:15,permalinkStructure:'category',timeZone:'UTC',theme:{},activePlugins:[],pluginConfig:{},analytics:{cookieConsent:false},navigation:[{id:'home',label:'Home',url:'home',type:'internal'}],sidebarLayout:[],ads:{adsEnabled:false,popupEnabled:false},newsletter:{enabled:false},discussionEnabled:false};
+      const dark=params.get('dark')==='1';document.documentElement.classList.toggle('dark',dark);
+      window.__discovery={calls:[],pending:[],hold:false,outcome:'ok'};
+      const qa=window.__discovery;
+      window.fetch=async(input,options={})=>{
+        const url=new URL(input,location.href),method=options.method||'GET';
+        if(url.origin!==location.origin||method!=='GET')throw Error('Discovery fixture forbids external requests and writes');
+        qa.calls.push(url.pathname+url.search);
+        if(!url.pathname.endsWith('/get_posts.php'))throw Error('Unexpected discovery request: '+url.pathname);
+        if(qa.hold)await new Promise(resolve=>qa.pending.push(resolve));
+        if(qa.outcome==='error')return new Response('Unavailable',{status:503});
+        const rows=qa.outcome==='empty'?[]:posts;
+        return new Response(JSON.stringify({success:true,posts:rows,meta:{page:1,limit:15,total:rows.length,totalPages:1,hasMore:false}}),{headers:{'Content-Type':'application/json'}});
+      };
+      const noop=()=>{};
+      function Fixture(){
+        const location=useLocation(),navigate=useNavigate();
+        const [visible,setVisible]=React.useState(true);
+        qa.exit=()=>setVisible(false);
+        const view=location.pathname.endsWith('/qa-article')?'single-post':location.pathname.endsWith('/qa-page')?'page':'home';
+        qa.view=view;qa.navigate=next=>navigate(next+location.search);
+        if(!visible)return React.createElement('div',{id:'qa-private-state'},'Private route fixture');
+        return React.createElement(PublicSite,{posts:initialPosts,pages:[page],settings,user:null,isAuthLoading:false,comments:[],allUsers:[],currentView:view,selectedPost:view==='single-post'?posts[0]:null,selectedPage:view==='page'?page:null,selectedProfile:null,onAddComment:noop,onLikeComment:noop,onReplyComment:noop,onNavigateAdmin:noop,onLogin:noop,onLogout:noop,isDarkMode:dark,toggleDarkMode:noop,onPostClick:()=>qa.navigate('/qa-article'),onPageClick:()=>qa.navigate('/qa-page'),onViewProfile:noop,onBackToHome:()=>qa.navigate('/'),onPublicSearchChange:noop});
+      }
+      function ThemeHarness(){
+        const [themeId,setThemeId]=React.useState(theme);
+        qa.switchTheme=id=>{settings.activeThemeId=id;setThemeId(id)};
+        return React.createElement(ThemeProvider,{initialThemeId:themeId},React.createElement(Fixture));
+      }
+      ${usePrismBoot ? 'await new Promise(resolve=>{window.__qaStart=resolve});' : ''}
+      createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(BrowserRouter,{basename:base==='/'?undefined:base.slice(0,-1)},React.createElement(ThemeHarness))));
+    `;
+  }
+  if (usePrismBoot) {
+    const php = require('./lint-php.cjs').findPhpBinary();
+    assert.ok(php, 'Prism startup fixture requires PHP to render the real PHP guard');
+    const metadata = spawnSync(
+      php,
+      [
+        '-r',
+        `
+      require $argv[1].'/public/public_render_helper.php';
+      $result=[];
+      foreach (glob($argv[1].'/src/themes/*/theme.json') as $file) {
+        $id=json_decode(file_get_contents($file),true)['id'];
+        $result[$id]=voncms_public_theme_startup(voncms_load_public_theme_manifest($argv[1].'/public',$id));
+      }
+      echo json_encode($result);
+    `,
+        root,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(metadata.status, 0, metadata.stderr || metadata.stdout);
+    const startups = JSON.parse(metadata.stdout);
+    prismBootShells = {};
+    for (const [kind, file] of [
+      ['php', 'public/index.php'],
+      ['source', 'index.html'],
+    ]) {
+      const source = fs.readFileSync(path.join(root, file), 'utf8');
+      const marker = source.indexOf('<!-- Theme Guard:');
+      const scriptStart = source.indexOf('<script>', marker) + '<script>'.length;
+      const guard = source.slice(scriptStart, source.indexOf('</script>', scriptStart));
+      const css = source.match(
+        kind === 'php'
+          ? /<style>\s*\/\* Critical shell colours[\s\S]*?<\/style>/
+          : /<style>[\s\S]*?<\/style>/
+      )?.[0];
+      assert.ok(
+        marker >= 0 && css && guard.includes('von_dark_mode'),
+        'Actual startup owners required'
+      );
+      const guards = {};
+      for (const base of ['/', '/zangetsu/']) {
+        const rendered =
+          kind === 'php'
+            ? spawnSync(
+                php,
+                ['-r', '$basePath=$argv[1];eval("?>".stream_get_contents(STDIN));', base],
+                { input: guard, encoding: 'utf8' }
+              )
+            : { status: 0, stdout: guard };
+        assert.equal(rendered.status, 0, rendered.stderr || rendered.stdout);
+        guards[base] = legacyPrismBoot
+          ? rendered.stdout.replace(
+              'root.dataset.publicThemeScheme = startup.colorScheme;',
+              '/* negative control: no startup canvas marker */'
+            )
+          : rendered.stdout;
+      }
+      assert.ok(
+        !source.includes('prism'),
+        'Global entry must not contain a theme-specific exception'
+      );
+      prismBootShells[kind] = { css, guards, startups };
+    }
   }
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-navigation-'));
   try {
@@ -935,6 +1151,58 @@ async function main() {
             }
           },
           transform(code, id) {
+            if (
+              legacyDigestFooter &&
+              id.replaceAll('\\', '/').endsWith('/src/themes/digest/Layout.tsx')
+            ) {
+              const start = code.indexOf('const DigestFooter:');
+              assert.ok(start > 0, 'Actual Digest footer is required for the control');
+              return (
+                code.slice(0, start) +
+                code
+                  .slice(start)
+                  .replace(
+                    'style={{ background: colors.surfaceAlt, borderColor: colors.border }}',
+                    'style={{ background: colors.surface, borderColor: colors.border }}'
+                  )
+              );
+            }
+            if (
+              legacyTechPressFeed &&
+              id.replaceAll('\\', '/').endsWith('/src/themes/techpress/Layout.tsx')
+            ) {
+              const rowClass =
+                'flex flex-row-reverse items-center gap-4 border-b pb-5 group transition-all duration-200 sm:flex-row sm:items-stretch sm:gap-5 sm:rounded-lg sm:border sm:p-4 sm:hover:shadow-md';
+              assert.ok(code.includes(rowClass), 'Current feed class is required for the control');
+              // Restore the former stacked row in memory only; never edit the checkout.
+              return code
+                .replace(
+                  rowClass,
+                  'flex flex-col sm:flex-row gap-5 p-4 rounded-lg group transition-all duration-200 border hover:shadow-md'
+                )
+                .replace('w-28 min-[380px]:w-32', 'w-full')
+                .replace(
+                  'line-clamp-3 sm:line-clamp-2 cursor-pointer',
+                  'line-clamp-2 cursor-pointer'
+                );
+            }
+            if (
+              legacyDiscoveryLayout &&
+              /\/src\/themes\/(?:default|prism|digest|techpress)\/Layout\.tsx$/.test(
+                id.replaceAll('\\', '/')
+              )
+            ) {
+              assert.ok(code.includes("'100svh'"), 'Expected the narrow viewport reservation');
+              return code.replaceAll("'100svh'", 'undefined');
+            }
+            if (
+              legacyAuthFeedback &&
+              id.replaceAll('\\', '/').endsWith('/src/components/AuthModal.tsx')
+            ) {
+              assert.ok(code.includes('if (!isPublicLogin) {'));
+              // Negative control: restore immediate dismissal in memory only.
+              return code.replace('if (!isPublicLogin) {', 'if (true) {');
+            }
             if (
               legacyPublicSettings &&
               id.replaceAll('\\', '/').endsWith('/src/hooks/useSettings.ts')
@@ -1022,6 +1290,66 @@ async function main() {
           },
           configureServer(vite) {
             vite.middlewares.use(async (req, res, next) => {
+              if (
+                usePrismBoot &&
+                /^\/(?:zangetsu\/)?(?:qa-prism-boot|admin\/qa-prism-boot|login|install)(?:\?|$)/.test(
+                  req.url || ''
+                )
+              ) {
+                const url = new URL(req.url, 'http://fixture');
+                const base = url.pathname.startsWith('/zangetsu/') ? '/zangetsu/' : '/';
+                const shell = prismBootShells[url.searchParams.get('shell') || 'php'];
+                const theme = url.searchParams.get('theme') || 'theme-prism';
+                const preference = url.searchParams.get('dark') === '1' ? 'true' : 'false';
+                const fallback = url.searchParams.get('fallback') === '1';
+                const blocked = url.searchParams.get('blocked') === '1';
+                const metadataCase = url.searchParams.get('metadata');
+                const metadataOverrides = {
+                  missing: {},
+                  invalid: {
+                    [theme]: {
+                      colorScheme: 'dark',
+                      background: '#050510;display:none',
+                      text: '#cbd5e1',
+                    },
+                  },
+                  'future-dark': {
+                    [theme]: { colorScheme: 'dark', background: '#203040', text: '#cbd5e1' },
+                  },
+                  'future-light': {
+                    [theme]: { colorScheme: 'light', background: '#fdfdfd', text: '#123456' },
+                  },
+                };
+                const metadata =
+                  url.searchParams.get('shell') === 'source'
+                    ? '<!-- Public theme startup metadata -->'
+                    : '<script>window.__PUBLIC_THEME_STARTUP__=' +
+                      JSON.stringify(
+                        shell.startups[theme] ? { [theme]: shell.startups[theme] } : {}
+                      ) +
+                      ';</script>';
+                const setup = `window.VON_BASE=${JSON.stringify(base)};localStorage.setItem('von_dark_mode',${JSON.stringify(preference)});localStorage.setItem('von_active_theme_id',${JSON.stringify(fallback ? theme : 'theme-prism')});window.__INITIAL_SETTINGS__=${fallback ? 'null' : JSON.stringify({ activeThemeId: theme })};${blocked ? "Object.defineProperty(window,'localStorage',{get(){throw Error('Fixture storage blocked')}});" : ''}`;
+                const html = await vite.transformIndexHtml(
+                  req.url,
+                  '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="voncms-tracking" content="excluded"><script>' +
+                    setup +
+                    '</script>' +
+                    metadata +
+                    (metadataCase
+                      ? '<script>window.__PUBLIC_THEME_STARTUP__=' +
+                        JSON.stringify(metadataOverrides[metadataCase] || {}) +
+                        ';</script>'
+                      : '') +
+                    '<script>' +
+                    shell.guards[base] +
+                    '</script>' +
+                    shell.css +
+                    '</head><body class="bg-slate-50 dark:bg-[#181819]"><div id="root"><div class="voncms-boot-canvas" aria-hidden="true"><span class="voncms-loader-spinner voncms-boot-spinner"></span></div></div><script type="module" src="/__navigation-fixture.js"></script></body></html>'
+                );
+                res.setHeader('Content-Type', 'text/html');
+                res.end(html);
+                return;
+              }
               if (publicSettingsFixture && req.url === '/__public-settings-data.json') {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(publicSettingsFixture));
@@ -1071,12 +1399,30 @@ async function main() {
               if (
                 !/^\/(?:zangetsu\/)?admin(?:\/|\?|$)/.test(req.url || '') &&
                 !(useAuth && /^\/(?:zangetsu\/)?login(?:\?|$)/.test(req.url || '')) &&
-                !(useRelatedPosts && /^\/(?:zangetsu\/)?qa-[a-z0-9-]+(?:\?|$)/.test(req.url || ''))
+                !(
+                  useAuthFeedback &&
+                  /^\/(?:zangetsu\/)?qa-auth-feedback(?:\?|$)/.test(req.url || '')
+                ) &&
+                !(
+                  useRelatedPosts && /^\/(?:zangetsu\/)?qa-[a-z0-9-]+(?:\?|$)/.test(req.url || '')
+                ) &&
+                !(
+                  (useTechPressFeed || useDigestFooter) &&
+                  /^\/(?:zangetsu\/)?qa-feed(?:\?|$)/.test(req.url || '')
+                ) &&
+                !(
+                  useDiscoveryLayout &&
+                  /^\/(?:zangetsu\/)?(?:qa-article|qa-page)?(?:\?|$)/.test(req.url || '')
+                ) &&
+                !(useUsers && /^\/(?:zangetsu\/)?login(?:\?|$)/.test(req.url || ''))
               )
                 return next();
               const html = await vite.transformIndexHtml(
                 req.url,
                 '<!doctype html><html><head>' +
+                  (useDiscoveryLayout
+                    ? '<meta name="voncms-tracking" content="excluded"><link rel="stylesheet" href="/skeleton.css">'
+                    : '') +
                   (useNativeTracking &&
                   new URL(req.url, 'http://fixture').searchParams.get('crawler') === '1'
                     ? nativeCrawlerMeta
@@ -1338,6 +1684,226 @@ async function main() {
     );
     assert.equal(await evaluate('globalThis.__qaArgumentExecuted'), undefined);
     console.log('PASS CDP argument transport: selectors and hostile/Unicode text remain data.');
+    if (useTechPressFeed) {
+      let cases = 0;
+      for (const base of ['', '/zangetsu'])
+        for (const dark of [false, true])
+          for (const sidebar of [false, true])
+            for (const width of [320, 390, 639, 640, 768, 1024, 1440]) {
+              await metrics(width, 1000);
+              await send('Page.navigate', {
+                url: `http://127.0.0.1:${port}${base}/qa-feed?dark=${dark ? 1 : 0}&sidebar=${sidebar ? 1 : 0}`,
+              });
+              await wait(
+                'window.__techPressFeed?.calls.length===1 && window.__techPressFeed.cards().length===3'
+              );
+              const state = await evaluate(`(() => {
+                const qa=window.__techPressFeed,row=qa.cards()[0],title=row.querySelector('h3');
+                const image=row.firstElementChild,copy=row.lastElementChild,date=copy.lastElementChild;
+                const rect=node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}};
+                const style=getComputedStyle(row),ts=getComputedStyle(title),metadata=getComputedStyle(date);
+                const hero=document.querySelector('main > div a[aria-label]');
+                const highlight=[...document.querySelectorAll('main h2')].find(node=>node.textContent==='Latest Highlights').parentElement.nextElementSibling;
+                return {direction:style.flexDirection,image:rect(image),copy:rect(copy),row:rect(row),
+                  clamp:ts.webkitLineClamp,title:rect(title),lineHeight:parseFloat(ts.lineHeight),
+                  fullTitle:title.textContent,aria:image.getAttribute('aria-label'),href:image.getAttribute('href'),
+                  sizes:image.querySelector('img')?.getAttribute('sizes'),date:rect(date),dateText:date.textContent,
+                  author:getComputedStyle(date.children[1]).display,font:metadata.fontSize,
+                  heroWidth:hero?.getBoundingClientRect().width,highlightWidth:highlight.firstElementChild.firstElementChild.getBoundingClientRect().width,
+                  highlightDirection:getComputedStyle(highlight.firstElementChild).flexDirection,
+                  accent:getComputedStyle(copy.querySelector('a')).backgroundColor,
+                  overflow:document.documentElement.scrollWidth>innerWidth+1,
+                  rows:qa.cards().map(node=>({title:node.querySelector('h3').textContent,titleHeight:node.querySelector('h3').getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(node.querySelector('h3')).lineHeight),ratio:node.firstElementChild.getBoundingClientRect().width/node.firstElementChild.getBoundingClientRect().height})),
+                  ad:qa.feed().textContent.includes('Fixture in-feed ad'),calls:qa.calls};
+              })()`);
+              const mobile = width < 640;
+              assert.equal(state.direction, mobile ? 'row-reverse' : 'row');
+              assert.ok(Math.abs(state.image.w / state.image.h - 16 / 9) < 0.02);
+              assert.equal(state.clamp, mobile ? '3' : '2');
+              assert.ok(state.title.h <= state.lineHeight * (mobile ? 3 : 2) + 1);
+              assert.match(state.fullTitle, /full headline stays available$/);
+              assert.equal(state.aria, state.fullTitle);
+              assert.equal(state.href, `${base}/business/qa-story-5`);
+              assert.equal(
+                state.overflow,
+                false,
+                `No overflow: ${base}/${width}/${dark}/${sidebar}`
+              );
+              assert.equal(state.ad, true, 'In-feed placement is retained');
+              assert.equal(state.accent, 'rgb(180, 35, 48)', 'Saved theme accent is retained');
+              assert.equal(
+                state.highlightDirection,
+                'column',
+                'Highlights remain full vertical cards'
+              );
+              assert.ok(
+                state.date.h > 0 && state.dateText.trim(),
+                'Publication metadata stays visible'
+              );
+              for (const row of state.rows) {
+                assert.ok(
+                  Math.abs(row.ratio - 16 / 9) < 0.02,
+                  'Missing-image and long-title geometry'
+                );
+                if (row.title.startsWith('UnbrokenHeadline')) {
+                  assert.ok(row.titleHeight >= row.lineHeight * 2, 'Unbroken headlines wrap');
+                  assert.ok(row.titleHeight <= row.lineHeight * (mobile ? 3 : 2) + 1);
+                }
+              }
+              if (mobile) {
+                assert.ok(
+                  state.image.x > state.copy.x + state.copy.w - 1,
+                  'Thumbnail is on the right'
+                );
+                assert.ok(
+                  state.highlightWidth > state.image.w * 1.7,
+                  'Highlight image stays full width'
+                );
+                assert.equal(state.image.w, width < 380 ? 112 : 128);
+                assert.equal(state.author, 'none');
+                assert.equal(state.font, '12px');
+              } else {
+                assert.ok(state.image.x < state.copy.x, 'Existing tablet/desktop image stays left');
+                assert.equal(state.image.w, sidebar ? 256 : width < 1024 ? 288 : 320);
+                assert.notEqual(state.author, 'none');
+                assert.equal(state.font, '14px');
+              }
+              assert.match(state.sizes, /112px.*128px.*320px/);
+              for (const call of state.calls) {
+                const url = new URL(call, 'http://fixture');
+                assert.equal(url.pathname, `${base}/api/get_posts.php`);
+                assert.equal(url.searchParams.get('limit'), '8');
+                assert.equal(url.searchParams.get('public'), '1');
+              }
+              if (base === '/zangetsu' && width === 390 && !sidebar) {
+                await evaluate(
+                  'window.__techPressFeed.feed().previousElementSibling.scrollIntoView({block:"start"})'
+                );
+                await screenshot(`techpress-feed-${dark ? 'dark' : 'light'}`);
+              }
+              cases++;
+            }
+      await metrics(390, 1000);
+      await send('Page.navigate', {
+        url: `http://127.0.0.1:${port}/zangetsu/qa-feed?accent=%234d7c0f`,
+      });
+      await wait(
+        'window.__techPressFeed?.calls.length===1 && window.__techPressFeed.cards().length===3'
+      );
+      await evaluate(`(() => {
+        const qa=window.__techPressFeed,card=qa.cards()[0];
+        card.querySelector('h3 a').click();
+        card.firstElementChild.click();
+        card.lastElementChild.querySelector('a').click();
+      })()`);
+      assert.deepEqual(await evaluate('window.__techPressFeed.actions'), [
+        ['post', '106'],
+        ['post', '106'],
+        ['category', 'Business'],
+      ]);
+      assert.equal(
+        await evaluate(
+          'getComputedStyle(window.__techPressFeed.cards()[0].lastElementChild.querySelector("a")).backgroundColor'
+        ),
+        'rgb(77, 124, 15)'
+      );
+      assert.equal(
+        await evaluate(`(() => {
+          const qa=window.__techPressFeed,link=qa.cards()[0].querySelector('h3 a');
+          const event=new MouseEvent('click',{bubbles:true,cancelable:true,ctrlKey:true});
+          link.dispatchEvent(event);return event.defaultPrevented;
+        })()`),
+        false,
+        'Modified clicks keep native link behavior'
+      );
+      assert.equal(await evaluate('window.__techPressFeed.actions.length'), 3);
+      await evaluate(`(() => {
+        const button=[...document.querySelectorAll('a,button')].find(node=>node.textContent.trim()==='Load More Articles');
+        if(!button)throw Error('Actual Load More control missing');button.click();
+      })()`);
+      await wait(
+        'window.__techPressFeed.cards().length===8 && window.__techPressFeed.calls.length===2'
+      );
+      assert.equal(
+        await evaluate(
+          'new URL(window.__techPressFeed.calls[1],location.origin).searchParams.get("page")'
+        ),
+        '2'
+      );
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS TechPress Latest Updates: ${cases} Chrome root/subfolder, 320-1440px, light/dark and sidebar cases; 16:9, three-line mobile clamp, full headline/link semantics, missing images, unbroken copy, saved accents, unchanged Highlights and desktop geometry, ads and real discovery Load More. Synthetic local fixture; no installed data or settings changed.`
+      );
+      return;
+    }
+    if (useDigestFooter) {
+      const luminance = (color) => {
+        const channels = color
+          .match(/[\d.]+/g)
+          .slice(0, 3)
+          .map(Number)
+          .map((n) => {
+            const value = n / 255;
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+          });
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      };
+      let cases = 0;
+      for (const base of ['', '/zangetsu'])
+        for (const dark of [false, true])
+          for (const width of [320, 768, 1440])
+            for (const newsletter of [false, true]) {
+              await metrics(width, 1000);
+              await send('Page.navigate', {
+                url: `http://127.0.0.1:${port}${base}/qa-feed?dark=${dark ? 1 : 0}&newsletter=${newsletter ? 1 : 0}&accent=%234d7c0f`,
+              });
+              await wait(
+                'window.__techPressFeed?.calls.length===1 && !!document.querySelector("footer")'
+              );
+              const state = await evaluate(`(() => {
+                const footer=document.querySelector('footer'),rss=footer.querySelector('a[title="RSS Feed"]');
+                const style=getComputedStyle(footer),rect=footer.getBoundingClientRect();
+                return {background:style.backgroundColor,border:style.borderTopColor,
+                  parent:getComputedStyle(footer.parentElement).backgroundColor,
+                  text:[...footer.querySelectorAll('span,p,a')].filter(node=>node.textContent.trim()).map(node=>getComputedStyle(node).color),
+                  name:footer.querySelector('span.font-bold').textContent,rss:rss.getAttribute('href'),
+                  newsletter:!!footer.querySelector('form'),button:footer.querySelector('button[type="submit"]')?getComputedStyle(footer.querySelector('button[type="submit"]')).backgroundColor:null,
+                  width:rect.width,viewport:innerWidth,description:footer.textContent.includes('Isolated TechPress feed fixture'),tagline:footer.textContent.includes('Retained footer tagline')};
+              })()`);
+              assert.equal(state.background, dark ? 'rgb(18, 18, 23)' : 'rgb(240, 238, 235)');
+              assert.notEqual(state.background, state.parent, 'Footer is distinct from the body');
+              assert.equal(state.border, dark ? 'rgb(42, 42, 53)' : 'rgb(232, 229, 224)');
+              assert.equal(state.name, 'SkripGlobal');
+              assert.equal(state.rss, `${base}/rss`);
+              assert.equal(state.newsletter, newsletter);
+              assert.equal(state.description, true);
+              assert.equal(state.tagline, true);
+              assert.ok(
+                state.width <= state.viewport + 1,
+                'Footer shell stays inside the viewport'
+              );
+              // Plain footer copy must remain readable on its new surface.
+              const surface = luminance(state.background);
+              for (const color of state.text) {
+                const text = luminance(color);
+                assert.ok(
+                  (Math.max(surface, text) + 0.05) / (Math.min(surface, text) + 0.05) >= 4.5
+                );
+              }
+              if (newsletter)
+                assert.equal(state.button, 'rgb(77, 124, 15)', 'Saved accent is retained');
+              if (base === '/zangetsu' && width === 1440 && !newsletter) {
+                await evaluate('document.querySelector("footer").scrollIntoView({block:"end"})');
+                await screenshot(`digest-footer-${dark ? 'dark' : 'light'}`);
+              }
+              cases++;
+            }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Digest Footer: ${cases} Chrome root/subfolder, phone/tablet/desktop, light/dark and newsletter cases; distinct surface, readable footer text, saved accent, RSS and content retained. Synthetic local fixture only.`
+      );
+      return;
+    }
     if (useSeoTabs) {
       let cases = 0;
       for (const base of ['', '/zangetsu'])
@@ -1918,6 +2484,38 @@ async function main() {
       return;
     }
     if (useDeletePreview) {
+      for (const base of ['', '/zangetsu']) {
+        for (const type of ['post', 'page']) {
+          for (const [viewport, available] of [
+            [1024, 960],
+            [1440, 840],
+            [1440, 1160],
+          ]) {
+            await metrics(viewport, 1000);
+            await send('Page.navigate', {
+              url: `http://127.0.0.1:${port}${base}/admin/${type === 'post' ? 'posts' : 'pages'}`,
+            });
+            await wait('window.__deleteReady && !!document.querySelector("table tbody tr")');
+            await evaluateFunction(
+              'function(width){document.querySelector("#root").style.width=width+"px"}',
+              available
+            );
+            const expectedTable = available >= (type === 'post' ? 1120 : 900);
+            const layout = await evaluate(
+              `(()=>{const root=document.querySelector('#root');const table=document.querySelector('table');const area=table.getClientRects().length?'table':'article';const actions=[...document.querySelectorAll(area+' button[aria-label^="Edit ${type}:"],'+area+' button[aria-label^="Delete ${type}:"]')].filter(button=>button.getClientRects().length);const bounds=root.getBoundingClientRect();return {table:!!table.getClientRects().length,allActionsFit:actions.length>0&&actions.every(button=>{const box=button.getBoundingClientRect();return box.left>=bounds.left&&box.right<=bounds.right}),overflow:document.documentElement.scrollWidth>innerWidth,writes:window.__deleteCalls.length};})()`
+            );
+            assert.deepEqual(layout, {
+              table: expectedTable,
+              allActionsFit: true,
+              overflow: false,
+              writes: 0,
+            });
+          }
+        }
+      }
+      console.log(
+        'PASS Content actions: 12 root/subfolder available-width layouts; Posts/Pages Edit/Delete remain visible with tablet/sidebar constraints, no writes.'
+      );
       let cases = 0;
       const dialog = '[role="dialog"][aria-label="Review content deletion"]';
       const confirm = dialog + ' button:last-child';
@@ -1935,6 +2533,33 @@ async function main() {
               await wait(
                 `window.__deleteReady && !!document.querySelector(${JSON.stringify(target)})`
               );
+              if (type === 'page' && width < 1024) {
+                const nav = 'article button[aria-label^="Add to navigation:"]';
+                const initial = await evaluateFunction(
+                  `function(selector){const button=document.querySelector(selector);const box=button.getBoundingClientRect();const group=button.parentElement.getBoundingClientRect();return {label:button.textContent.trim(),pressed:button.getAttribute('aria-pressed'),fullWidth:Math.abs(box.width-group.width)<1,touchHeight:box.height>=44};}`,
+                  nav
+                );
+                assert.deepEqual(initial, {
+                  label: 'Add to Nav',
+                  pressed: 'false',
+                  fullWidth: true,
+                  touchHeight: true,
+                });
+                await click(nav);
+                const removeNav = 'article button[aria-label^="Remove from navigation:"]';
+                await wait(`!!document.querySelector(${JSON.stringify(removeNav)})`);
+                assert.equal(
+                  await evaluateFunction(
+                    'function(selector){return document.querySelector(selector).getAttribute("aria-pressed")}',
+                    removeNav
+                  ),
+                  'true'
+                );
+                await click(removeNav);
+                await wait(`!!document.querySelector(${JSON.stringify(nav)})`);
+                assert.deepEqual(await evaluate('window.__pageNavCalls'), ['901', '901']);
+                assert.equal(await evaluate('window.__deleteCalls.length'), 0);
+              }
               await click(target);
               assert.equal(
                 await evaluateFunction(
@@ -3083,6 +3708,266 @@ async function main() {
       );
       return;
     }
+    if (usePrismBoot) {
+      let cases = 0;
+      const sample = () =>
+        evaluate(
+          `({background:getComputedStyle(document.body).backgroundColor,marker:document.documentElement.dataset.publicThemeScheme||'',dark:document.documentElement.classList.contains('dark'),stored:localStorage.getItem('von_dark_mode'),variables:[document.documentElement.style.getPropertyValue('--von-public-boot-bg'),document.documentElement.style.getPropertyValue('--von-public-boot-text')]})`
+        );
+      const probe = async (shell, base, theme, dark, route = 'qa-prism-boot', extra = '') => {
+        await send('Page.navigate', {
+          url:
+            'http://127.0.0.1:' +
+            port +
+            base +
+            route +
+            '?shell=' +
+            shell +
+            '&theme=' +
+            theme +
+            '&dark=' +
+            (dark ? '1' : '0') +
+            extra,
+        });
+        await wait(
+          'typeof window.__qaStart==="function" && !!document.querySelector(".voncms-boot-canvas")'
+        );
+        const actual = await sample();
+        const prism = theme === 'theme-prism' && route === 'qa-prism-boot';
+        assert.equal(
+          actual.background,
+          prism ? 'rgb(5, 5, 16)' : dark ? 'rgb(24, 24, 25)' : 'rgb(248, 250, 252)',
+          `${shell}/${base}/${theme}/${route}: correct pre-React canvas`
+        );
+        assert.equal(actual.marker, prism ? 'dark' : '');
+        assert.equal(actual.stored, String(dark));
+        assert.equal(actual.dark, dark);
+        if (prism) {
+          await evaluate('window.__qaStart()');
+          await wait('!!document.querySelector("footer")');
+          assert.equal(
+            (await sample()).background,
+            'rgb(5, 5, 16)',
+            'Prism remains dark through StrictMode/theme hydration'
+          );
+          await evaluate('window.__discovery.switchTheme("theme-techpress")');
+          await wait(
+            '!document.documentElement.dataset.publicThemeScheme && !!document.querySelector("footer")'
+          );
+          assert.equal(
+            (await sample()).stored,
+            String(dark),
+            'Switching theme preserves preference'
+          );
+          await evaluate('window.__discovery.switchTheme("theme-prism")');
+          await wait('document.documentElement.dataset.publicThemeScheme==="dark"');
+          await evaluate('window.__discovery.exit()');
+          await wait('!!document.querySelector("#qa-private-state")');
+          assert.equal((await sample()).marker, '', 'Leaving public site clears startup marker');
+          assert.deepEqual(
+            (await sample()).variables,
+            ['', ''],
+            'Public startup variables are cleaned up'
+          );
+          assert.equal(
+            (await sample()).background,
+            dark ? 'rgb(24, 24, 25)' : 'rgb(248, 250, 252)',
+            'Private canvas retains saved mode'
+          );
+          assert.equal((await sample()).stored, String(dark));
+        }
+        cases++;
+      };
+      for (const shell of ['php', 'source'])
+        for (const base of ['/', '/zangetsu/']) {
+          for (const dark of [false, true])
+            for (const theme of ['theme-prism', 'theme-techpress'])
+              await probe(shell, base, theme, dark);
+          for (const route of ['admin/qa-prism-boot', 'login', 'install'])
+            await probe(shell, base, 'theme-prism', false, route);
+          await send('Page.navigate', {
+            url:
+              'http://127.0.0.1:' +
+              port +
+              base +
+              'qa-prism-boot?shell=' +
+              shell +
+              '&theme=theme-prism&blocked=1',
+          });
+          await wait('typeof window.__qaStart==="function"');
+          assert.equal(
+            await evaluate('getComputedStyle(document.body).backgroundColor'),
+            'rgb(5, 5, 16)',
+            'Injected Prism remains dark if storage access throws'
+          );
+          cases++;
+        }
+      for (const base of ['/', '/zangetsu/'])
+        for (const dark of [false, true])
+          await probe('source', base, 'theme-prism', dark, 'qa-prism-boot', '&fallback=1');
+      for (const theme of [
+        'theme-default',
+        'theme-portfolio',
+        'theme-digest',
+        'theme-corporate-pro',
+      ])
+        for (const dark of [false, true]) await probe('php', '/', theme, dark);
+      for (const shell of ['php', 'source'])
+        for (const base of ['/', '/zangetsu/'])
+          for (const kind of ['missing', 'invalid', 'future-dark', 'future-light']) {
+            await send('Page.navigate', {
+              url:
+                'http://127.0.0.1:' +
+                port +
+                base +
+                'qa-prism-boot?shell=' +
+                shell +
+                '&theme=theme-fixture&dark=1&metadata=' +
+                kind,
+            });
+            await wait('typeof window.__qaStart==="function"');
+            const state = await sample();
+            assert.equal(
+              state.background,
+              kind === 'future-dark'
+                ? 'rgb(32, 48, 64)'
+                : kind === 'future-light'
+                  ? 'rgb(253, 253, 253)'
+                  : 'rgb(24, 24, 25)'
+            );
+            assert.equal(
+              state.marker,
+              kind === 'future-dark' ? 'dark' : kind === 'future-light' ? 'light' : ''
+            );
+            assert.equal(state.stored, 'true');
+            assert.equal(state.dark, true, 'Fixed startup scheme must not alter saved-mode class');
+            assert.equal(
+              await evaluate('getComputedStyle(document.documentElement).colorScheme'),
+              kind === 'future-light' ? 'light' : 'dark'
+            );
+            cases++;
+          }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Theme startup: ${cases} Chrome PHP/Source, root/subfolder, saved-mode, all-theme controls, private-entry, storage-failure, theme-switch, public-unmount, missing/invalid metadata and future fixed-light/dark scenarios. Real inline guards/CSS, Vite metadata projection, PHP helper and PublicSite lifecycle; fixture-only, no installed settings or account changes.`
+      );
+      return;
+    }
+    if (useDiscoveryLayout) {
+      const themes = ['default', 'prism', 'techpress', 'portfolio', 'digest', 'corporate-pro'];
+      const patched = new Set(['default', 'prism', 'techpress', 'digest']);
+      let cases = 0;
+      for (const base of ['', '/zangetsu']) {
+        for (const theme of themes) {
+          for (const start of ['post', 'page', 'warm']) {
+            const query = '?theme=theme-' + theme + '&start=' + start;
+            await send('Emulation.setDeviceMetricsOverride', {
+              width: 1440,
+              height: 1000,
+              deviceScaleFactor: 1,
+              mobile: false,
+            });
+            await send('Page.navigate', {
+              url:
+                'http://127.0.0.1:' +
+                port +
+                base +
+                (start === 'warm' ? '/' : '/qa-' + (start === 'post' ? 'article' : 'page')) +
+                query,
+            });
+            await wait('!!window.__discovery && !!document.querySelector("footer")');
+            await pause(100);
+            if (start === 'warm') {
+              await wait('window.__discovery.calls.length>0');
+              await evaluate('window.__discovery.navigate("/qa-article")');
+              await wait(
+                'window.__discovery.view==="single-post" && !!document.querySelector("footer")'
+              );
+            }
+            await evaluateFunction(
+              `function(base){
+              const qa=window.__discovery;qa.hold=true;qa.frames=[];const started=performance.now();
+              const sample=()=>{if(qa.view==='home'){const r=document.querySelector('footer')?.getBoundingClientRect();qa.frames.push({top:r?.top??null,busy:!!document.querySelector('[aria-busy="true"]')});}if(performance.now()-started<250)requestAnimationFrame(sample);};sample();
+              const links=[...document.querySelectorAll('a[href]')].filter(a=>new URL(a.href).pathname===(base||'')+'/'&&a.getClientRects().length>0);
+              const home=links.find(a=>/^Home$|Back.*Home/i.test(a.textContent.trim()))||links[0];
+              if(!home)throw Error('No visible actual Home link');home.click();
+            }`,
+              base
+            );
+            await pause(280);
+            const frames = await evaluate('window.__discovery.frames');
+            assert.ok(frames.length > 0, `${theme}/${start}: actual Home rendered`);
+            for (const frame of frames) {
+              assert.ok(
+                frame.top !== null && frame.top >= 999,
+                `${theme}/${start}: footer must stay below the viewport before the discovery response: ${JSON.stringify(frame)}`
+              );
+            }
+            if (patched.has(theme) && start !== 'warm') {
+              assert.ok(
+                await evaluate('window.__discovery.pending.length>0'),
+                'Cold discovery must wait for its real list request'
+              );
+            }
+            await evaluate(
+              'window.__discovery.hold=false;window.__discovery.pending.splice(0).forEach(resolve=>resolve())'
+            );
+            await wait(
+              '!document.querySelector("[aria-busy=true]") && document.body.textContent.includes("QA story")'
+            );
+            if (patched.has(theme)) {
+              assert.equal(
+                await evaluate(
+                  '[...document.querySelectorAll("main,main > div")].some(node=>node.style.minHeight==="100svh")'
+                ),
+                false,
+                'Loaded articles must release the temporary minimum'
+              );
+            }
+            cases++;
+          }
+          console.log(`PASS Discovery layout ${base || '/'} ${theme}: Post/Page/warm return`);
+        }
+      }
+      for (const theme of ['default', 'prism', 'techpress', 'digest']) {
+        for (const outcome of ['ok', 'empty', 'error']) {
+          await send('Emulation.setDeviceMetricsOverride', {
+            width: 390,
+            height: 844,
+            deviceScaleFactor: 1,
+            mobile: true,
+          });
+          await send('Page.navigate', {
+            url:
+              'http://127.0.0.1:' + port + '/zangetsu/qa-article?theme=theme-' + theme + '&dark=1',
+          });
+          await wait('!!window.__discovery && !!document.querySelector("footer")');
+          await evaluate('window.__discovery.hold=true;window.__discovery.navigate("/")');
+          await wait('window.__discovery.pending.length>0');
+          assert.ok(
+            await evaluate('document.querySelector("footer").getBoundingClientRect().top>=843'),
+            `${theme}: phone loading footer below fold`
+          );
+          await evaluateFunction(
+            `function(outcome){const qa=window.__discovery;qa.outcome=outcome;qa.hold=false;qa.pending.splice(0).forEach(resolve=>resolve())}`,
+            outcome
+          );
+          await wait('!document.querySelector("[aria-busy=true]")');
+          assert.ok(
+            await evaluate(
+              '!!document.querySelector("footer") && document.documentElement.scrollHeight>=innerHeight'
+            ),
+            'Footer remains reachable after empty/error settlement'
+          );
+          cases++;
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Discovery footer layout: ${cases} real-theme Chrome root/subfolder, direct Post/Page, warm-return and phone/dark/empty/error scenarios. Cold list replies held in fixture; no CMS writes or changed requests.`
+      );
+      return;
+    }
     if (usePublicSettings) {
       let cases = 0;
       let emptyGroupCases = 0;
@@ -3836,6 +4721,16 @@ async function main() {
         await send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/admin/users?owner=1` });
         await wait('document.querySelectorAll("tr").length===4');
         await edit('fixture-writer');
+        assert.equal(
+          await evaluate('!!document.querySelector("[data-personal-ai]")'),
+          false,
+          'Editing another account exposes no personal-key panel'
+        );
+        assert.equal(
+          await evaluate('window.__accountCalls.some(call=>call.query==="?section=ai")'),
+          false,
+          'Editing another account must not load private key status'
+        );
         for (const dark of [false, true]) {
           await evaluate(
             `document.documentElement.classList.toggle('dark',${dark});document.querySelector('.admin-modal-layer').classList.toggle('dark',${dark})`
@@ -3942,9 +4837,190 @@ async function main() {
           'Close performs no mutation'
         );
       }
+      const keyButton = (label) =>
+        evaluateFunction(
+          `function(label){const section=document.querySelector('[aria-label="Personal AI key"]');const button=[...section.querySelectorAll('button')].find(button=>button.textContent.trim()===label);if(!button)throw Error('Missing key action '+label);button.click();button.click();}`,
+          label
+        );
+      for (const base of ['', '/zangetsu']) {
+        for (const role of ['Root', 'Admin', 'Moderator', 'Writer']) {
+          await send('Page.navigate', {
+            url: `http://127.0.0.1:${port}${base}/admin/users?role=${role}&account=me`,
+          });
+          await wait('document.querySelectorAll("tbody tr").length===1');
+          assert.equal(
+            await evaluate(
+              'window.__accountCalls.some(call=>call.path.endsWith("/get_users.php"))'
+            ),
+            false,
+            'Self view never requests the user collection'
+          );
+          assert.equal(await evaluate('!!document.querySelector("input[placeholder]")'), false);
+          assert.equal(await evaluate('!!document.querySelector("button[title^=Delete]")'), false);
+          await edit('fixture-admin');
+          await wait(
+            '!!document.querySelector("#personal-ai-key") && !document.querySelector("#personal-ai-key").disabled'
+          );
+          const keyGuidance = await evaluate(
+            'document.querySelector("[data-personal-ai]").textContent.replace(/\\s+/g," ")'
+          );
+          assert.ok(keyGuidance.includes("currently follows the Primary Admin's settings."));
+          assert.ok(keyGuidance.includes('More AI options are planned for future updates.'));
+          assert.equal(
+            await evaluate('!!document.querySelector("#edit-user-role")'),
+            false,
+            'Self-only mode has no role control'
+          );
+          assert.equal(
+            await evaluate(
+              'document.querySelector("#usermanager-455").disabled && document.querySelector("#usermanager-466").disabled'
+            ),
+            true
+          );
+          for (const dark of [false, true]) {
+            await evaluate(
+              `document.documentElement.classList.toggle('dark',${dark});document.querySelector('.admin-modal-layer').classList.toggle('dark',${dark})`
+            );
+            for (const width of [320, 768, 1440]) {
+              await metrics(width, 850);
+              assert.equal(
+                await evaluate(
+                  'document.documentElement.scrollWidth>innerWidth || document.querySelector("[role=dialog]").scrollWidth>document.querySelector("[role=dialog]").clientWidth+1'
+                ),
+                false,
+                'Private key panel fits phone/tablet/desktop'
+              );
+              const guidance = await evaluate(`(() => {
+                const info=document.querySelector('#personal-ai-key-guidance');
+                const input=document.querySelector('#personal-ai-key');
+                const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+                const context=canvas.getContext('2d'),parents=[];
+                for(let node=info;node;node=node.parentElement)parents.push(node);
+                context.fillStyle='#fff';context.fillRect(0,0,1,1);
+                for(const node of parents.reverse()){context.fillStyle=getComputedStyle(node).backgroundColor;context.fillRect(0,0,1,1);}
+                const background=[...context.getImageData(0,0,1,1).data].slice(0,3);
+                context.fillStyle=getComputedStyle(info).color;context.fillRect(0,0,1,1);
+                const foreground=[...context.getImageData(0,0,1,1).data].slice(0,3);
+                const luminance=rgb=>rgb.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+                const a=luminance(background),b=luminance(foreground),r=info.getBoundingClientRect();
+                return {contrast:(Math.max(a,b)+.05)/(Math.min(a,b)+.05),fontSize:parseFloat(getComputedStyle(info).fontSize),
+                  separate:getComputedStyle(info).backgroundColor!==getComputedStyle(input).backgroundColor,
+                  inside:r.width<=info.parentElement.getBoundingClientRect().width+1,
+                  staticOnly:info.querySelectorAll('input,button').length===0,
+                  keyHelp:input.getAttribute('aria-describedby'),expiryHelp:document.querySelector('#personal-ai-expiry').getAttribute('aria-describedby'),
+                  expiryText:document.querySelector('#personal-ai-key-expiry-help').textContent};
+              })()`);
+              assert.ok(guidance.contrast >= 4.5, 'Guidance text contrast must be readable');
+              assert.ok(guidance.fontSize >= 14 && guidance.inside && guidance.separate);
+              assert.equal(guidance.staticOnly, true, 'Guidance must not introduce new controls');
+              assert.equal(
+                guidance.keyHelp,
+                'personal-ai-key-guidance personal-ai-key-expiry-help'
+              );
+              assert.equal(guidance.expiryHelp, 'personal-ai-key-expiry-help');
+              assert.match(guidance.expiryText, /never silently charges the shared key/);
+              if (base === '/zangetsu' && role === 'Writer' && width === 768) {
+                await evaluate(
+                  'document.querySelector("[data-personal-ai]").scrollIntoView({block:"start"})'
+                );
+                await screenshot(`personal-ai-guidance-${dark ? 'dark' : 'light'}`);
+              }
+            }
+          }
+          await fill('#personal-ai-key', 'qa-browser-dummy-key');
+          await evaluate('window.__keyHold=true');
+          await keyButton('Save Key');
+          await wait(
+            'window.__accountCalls.filter(call=>call.path.endsWith("/account.php")&&call.method==="POST").length===1'
+          );
+          assert.equal(
+            await evaluate('window.__keyPending.length'),
+            1,
+            'Double-click reserves only one key mutation'
+          );
+          await evaluate('window.__keyHold=false;window.__keyPending.shift()()');
+          await wait(
+            'document.querySelector("#personal-ai-key").value==="" && document.querySelector("[data-personal-ai]").textContent.includes("Saved securely")'
+          );
+          const payload = await evaluate(
+            'window.__accountCalls.find(call=>call.method==="POST").payload'
+          );
+          assert.equal(payload.expectedUserId, '8');
+          assert.deepEqual(
+            Object.keys(payload).sort(),
+            ['action', 'expireAfter30Days', 'expectedUserId', 'key', 'revision'].sort()
+          );
+          assert.equal(
+            await evaluate('window.__userUpdates.length'),
+            0,
+            'Key Save must not submit the surrounding profile form'
+          );
+          await fill('#personal-ai-key', 'qa-browser-replace');
+          await evaluate('window.__keyFail=true');
+          await keyButton('Replace Key');
+          await wait(
+            'document.querySelector("[data-personal-ai] [role=alert]")?.textContent.includes("Fixture write failed")'
+          );
+          assert.equal(
+            await evaluate('document.querySelector("#personal-ai-key").value'),
+            'qa-browser-replace',
+            'Failed save preserves retry input'
+          );
+          await evaluate('window.__keyFail=false');
+          await keyButton('Replace Key');
+          await wait('document.querySelector("#personal-ai-key").value===""');
+          await click('[aria-label="Close user editor"]');
+          await edit('fixture-admin');
+          await wait(
+            'document.querySelector("[data-personal-ai]").textContent.includes("Saved securely")'
+          );
+          assert.equal(
+            await evaluate('document.querySelector("#personal-ai-key").value'),
+            '',
+            'Reload never reveals the saved key'
+          );
+          await keyButton('Remove Personal Key');
+          await wait(
+            'document.querySelector("[data-personal-ai]").textContent.includes("No personal key.")'
+          );
+          assert.equal(
+            await evaluate(
+              'JSON.stringify({...localStorage,...sessionStorage}).includes("qa-browser")'
+            ),
+            false,
+            'Keys must not persist in browser storage'
+          );
+          await click('[aria-label="Close user editor"]');
+        }
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}${base}/admin/users?role=Writer`,
+        });
+        await wait('document.querySelectorAll("tbody tr").length===1');
+        await edit('fixture-admin');
+        await fill('#own-current-password', 'Fixture_old1!');
+        await fill('[id="8-chars-a-z-0-9"]', 'Fixture_new1!');
+        await evaluate('document.querySelector("[role=dialog] form").requestSubmit()');
+        await wait(
+          'document.body.textContent.includes("Password updated. Sign in again with your new password.")'
+        );
+        assert.equal(
+          await evaluate('location.pathname'),
+          `${base}/login`,
+          'Password update goes directly to reauthentication'
+        );
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}${base}/admin/users?role=Member`,
+        });
+        await wait('document.body.textContent.includes("Account access denied.")');
+        assert.equal(
+          await evaluate('window.__accountCalls.length'),
+          0,
+          'Member route never requests private account data'
+        );
+      }
       assert.deepEqual(errors, []);
       console.log(
-        'PASS User Manager browser: real wide editor/avatar, 320/390/768/1440 light/dark layout, reachable footer, exact update payload/blank password, rejected save retention, password validation, own/protected roles, close/Escape/scroll restoration and root/subfolder. Mutation callback and user reads are fixtures only.'
+        'PASS User Manager browser: existing full-management controls plus self-only Root/appointed Admin/Moderator/Writer; no collection fetch or other-user credential panel; Save/Replace/Remove/reload/failure retry/double-click and no browser persistence. 48 responsive light/dark guidance contrast/accessibility cases across root/subfolder and staff roles. API/session transport is fixture-only; no provider call.'
       );
       return;
     }
@@ -3974,6 +5050,271 @@ async function main() {
         });
         await wait('!!document.querySelector("#login-374")');
       };
+      if (useAuthFeedback) {
+        await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+        await send('Page.bringToFront');
+        let groups = 0;
+        const feedbackState = `(()=>{const layer=document.querySelector('[data-auth-modal-phase]');return {
+          phase:layer?.getAttribute('data-auth-modal-phase')||null,
+          inert:document.querySelector('[role=dialog]')?.inert||false,
+          transition:layer?getComputedStyle(layer).transitionDuration:null,
+          animation:layer?getComputedStyle(layer).animationName:null,
+          logins:window.__authLogins.length,events:window.__authEvents,
+          account:document.querySelector('#qa-account-menu')?.textContent||null,
+          toasts:window.__authToasts,focus:document.activeElement?.id,
+          overflow:document.documentElement.scrollWidth>innerWidth
+        }})()`;
+        const openFeedback = async (
+          base,
+          dark = false,
+          width = 1440,
+          admin = false,
+          replaceTrigger = false
+        ) => {
+          await send('Page.navigate', {
+            url: `http://127.0.0.1:${port}${base}/${admin ? 'admin/auth-fixture' : 'qa-auth-feedback'}${replaceTrigger ? '?replace-trigger=1' : ''}`,
+          });
+          await wait('window.__qaReady&&!!document.querySelector("#qa-open-auth")');
+          assert.equal(
+            await evaluate('document.hasFocus()'),
+            true,
+            'Focus checks need an active document'
+          );
+          await metrics(width, 900);
+          await evaluateFunction(
+            `function(dark){localStorage.removeItem('login_lockout');document.documentElement.classList.toggle('dark',dark);const opener=document.querySelector('#qa-open-auth');opener.focus();opener.click();}`,
+            dark
+          );
+          await wait('!!document.querySelector("#login-374")');
+        };
+        const submitFeedback = async () => {
+          await fill('#login-374', 'demo.reader');
+          await fill('#login-403', 'FixturePass9!');
+          await evaluate('document.querySelector("form").requestSubmit()');
+          await wait('window.__authPending.length===1');
+        };
+        const reply = (body, status = 200) =>
+          evaluateFunction(
+            `async function(body,status){window.__authPending.shift()(body,status);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));}`,
+            body,
+            status
+          );
+        const success = {
+          success: true,
+          user: { id: '42', role: 'Member', username: 'demo.reader', avatar: '' },
+          csrf_token: 'fixture-success-token',
+        };
+        for (const base of ['', '/zangetsu']) {
+          for (const dark of [false, true]) {
+            for (const width of [390, 1440]) {
+              await openFeedback(base, dark, width);
+              await wait('document.activeElement?.id==="login-374"');
+              await evaluate('document.querySelector("#remember-me").click()');
+              await submitFeedback();
+              assert.match(
+                await evaluate('document.querySelector("form button[type=submit]").textContent'),
+                /signing in/i
+              );
+              await evaluate('document.querySelector("form button[type=submit]").click()');
+              assert.equal(await evaluate('window.__authRequests.length'), 1);
+              assert.equal(await evaluate('window.__authRequests[0].remember_me'), true);
+              await reply(success);
+              const fading = await evaluate(feedbackState);
+              assert.equal(
+                fading.logins,
+                1,
+                'The authenticated user is published before dismissal'
+              );
+              assert.equal(fading.account, 'demo.reader');
+              assert.equal(fading.phase, 'leaving');
+              assert.equal(fading.inert, true, 'The outgoing form cannot submit again');
+              assert.equal(fading.transition, '0.18s');
+              assert.equal(
+                fading.animation,
+                'none',
+                'The opening animation cannot override fade-out'
+              );
+              assert.equal(fading.events.filter((event) => event.kind === 'close').length, 0);
+              await wait('!document.querySelector("[data-auth-modal-phase]")');
+              const closed = await evaluate(feedbackState);
+              assert.equal(closed.focus, 'qa-account-menu', 'A reused header trigger keeps focus');
+              assert.equal(closed.overflow, false);
+              assert.equal(closed.events.filter((event) => event.kind === 'close').length, 1);
+              assert.equal(closed.toasts.filter((entry) => entry.visible).length, 1);
+              assert.equal(closed.toasts[0].duration, 2000);
+              assert.equal(closed.toasts[0].position, 'top-right');
+              await wait(
+                `(()=>{const notice=[...document.querySelectorAll('[role=status]')].find(el=>el.textContent.includes('Signed in successfully'));const top=notice?.getBoundingClientRect().top;return top>=8&&top<80})()`
+              );
+              const notice = await evaluate(
+                `(()=>{const status=[...document.querySelectorAll('[role=status]')].find(el=>el.textContent.includes('Signed in successfully'));const card=status?.closest('[style*="background"]');const box=status?.getBoundingClientRect();return {live:status?.getAttribute('aria-live'),background:card?getComputedStyle(card).backgroundColor:null,top:box?.top,left:box?.left,right:box?.right};})()`
+              );
+              assert.equal(notice.live, 'polite');
+              assert.equal(notice.background, dark ? 'rgb(32, 32, 32)' : 'rgb(253, 253, 253)');
+              assert.ok(notice.left >= 8 && notice.right <= width - 8);
+              assert.ok(notice.top >= 8 && notice.top < 80, 'Success remains near the top edge');
+              assert.ok(width - notice.right < 64, 'Success remains near the right edge');
+              await wait('window.__authToasts.every(entry=>!entry.visible)');
+              groups++;
+            }
+          }
+
+          await openFeedback(base, false, 1440, false, true);
+          await submitFeedback();
+          await reply(success);
+          await wait('!document.querySelector("[role=dialog]")');
+          await wait('document.activeElement.id==="qa-public-content"');
+          assert.equal(await evaluate('document.activeElement.id'), 'qa-public-content');
+          assert.equal(
+            await evaluate('document.querySelector("main").getAttribute("tabindex")'),
+            '-1'
+          );
+          const contentFocus = await evaluate(
+            `(()=>{const style=getComputedStyle(document.querySelector('main'));return {outline:style.outlineStyle,width:style.outlineWidth,color:style.outlineColor}})()`
+          );
+          assert.equal(
+            contentFocus.outline,
+            'none',
+            'Programmatic content focus must not frame the hero: ' + JSON.stringify(contentFocus)
+          );
+          await evaluate('document.querySelector("#qa-account-menu").focus()');
+          assert.equal(
+            await evaluate('document.querySelector("main").hasAttribute("tabindex")'),
+            false
+          );
+          assert.equal(
+            await evaluate('document.querySelector("main").style.getPropertyValue("outline")'),
+            '',
+            'Temporary content outline styling is restored after focus leaves'
+          );
+          assert.notEqual(
+            await evaluate(
+              'getComputedStyle(document.querySelector("#qa-account-menu")).outlineStyle'
+            ),
+            'none',
+            'Interactive account controls keep their keyboard-focus indicator'
+          );
+          groups++;
+
+          // A session-expiry prompt can open without a focused header trigger.
+          // StrictMode's effect rehearsal must not replace the original focus owner.
+          await openFeedback(base);
+          await evaluate('window.__qaAuthUnmount()');
+          await wait('!document.querySelector("[role=dialog]")');
+          await evaluate('document.activeElement.blur();window.__qaAuthOpen()');
+          await wait('document.activeElement.id==="login-374"');
+          await submitFeedback();
+          await reply(success);
+          await wait('!document.querySelector("[role=dialog]")');
+          await wait('document.activeElement.id==="qa-public-content"');
+          groups++;
+
+          await openFeedback(base);
+          await submitFeedback();
+          await reply({ success: false, error: 'Invalid username or password.' }, 401);
+          assert.equal((await evaluate(feedbackState)).phase, 'open');
+          assert.equal(await evaluate('window.__authLogins.length'), 0);
+          assert.deepEqual(await evaluate('window.__authToasts'), []);
+          assert.equal(await evaluate('document.querySelector("#login-374").value'), 'demo.reader');
+          await submitFeedback();
+          await reply(
+            { success: false, error: 'Please verify your email before logging in.' },
+            403
+          );
+          assert.equal(await resendVisible(), true);
+          await evaluate(
+            `[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Resend verification email')).click()`
+          );
+          await respond({ success: true, message: 'Verification email sent.' });
+          assert.equal((await evaluate(feedbackState)).phase, 'open');
+          assert.equal(await evaluate('window.__authLogins.length'), 0);
+          assert.deepEqual(await evaluate('window.__authToasts'), []);
+          await submitFeedback();
+          await reply(null);
+          assert.ok(await evaluate('document.body.textContent.includes("Connection error.")'));
+          assert.equal((await evaluate(feedbackState)).phase, 'open');
+          assert.equal(await evaluate('window.__authLogins.length'), 0);
+          assert.deepEqual(await evaluate('window.__authToasts'), []);
+          groups += 3;
+
+          // Cancel restores the trigger; a late successful response still publishes
+          // the authenticated user but cannot animate a detached modal.
+          await openFeedback(base);
+          await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape' });
+          await wait('!document.querySelector("[role=dialog]")');
+          assert.equal(await evaluate('document.activeElement.id'), 'qa-open-auth');
+          assert.equal(await evaluate('window.__authRequests.length'), 0);
+          await evaluate('document.querySelector("#qa-open-auth").click()');
+          await wait('!!document.querySelector("#login-374")');
+          await submitFeedback();
+          await evaluate(
+            `[...document.querySelectorAll('button')].find(button=>button.getAttribute('aria-label')==='Close sign in').click()`
+          );
+          await wait('!document.querySelector("[role=dialog]")');
+          await reply(success);
+          assert.equal(await evaluate('window.__authLogins.length'), 1);
+          assert.deepEqual(await evaluate('window.__authToasts'), []);
+          groups++;
+
+          await send('Emulation.setEmulatedMedia', {
+            features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+          });
+          await openFeedback(base);
+          assert.equal(
+            await evaluate(
+              'getComputedStyle(document.querySelector("[data-auth-modal-phase]")).animationName'
+            ),
+            'none'
+          );
+          await submitFeedback();
+          await reply(success);
+          assert.equal((await evaluate(feedbackState)).phase, null);
+          assert.equal(await evaluate('window.__authLogins.length'), 1);
+          assert.equal(
+            await evaluate('window.__authEvents.filter(event=>event.kind==="close").length'),
+            1
+          );
+          assert.deepEqual(
+            await evaluate(
+              `(()=>{const notice=[...document.querySelectorAll('[role=status]')].find(el=>el.textContent.includes('Signed in successfully'))?.closest('[style*="background"]');if(!notice)throw Error('Missing success notice');return [notice,...notice.querySelectorAll('*')].filter(el=>getComputedStyle(el).animationName!=='none').map(el=>({tag:el.tagName,animation:getComputedStyle(el).animationName}))})()`
+            ),
+            [],
+            'The reduced-motion notice and its icon must not animate'
+          );
+          await send('Emulation.setEmulatedMedia', {
+            features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+          });
+          groups++;
+
+          await openFeedback(base, false, 1440, true);
+          await submitFeedback();
+          await reply(success);
+          assert.equal((await evaluate(feedbackState)).phase, null);
+          assert.equal(await evaluate('window.__authLogins.length'), 1);
+          assert.deepEqual(await evaluate('window.__authToasts'), []);
+          groups++;
+
+          await openFeedback(base);
+          await submitFeedback();
+          await reply(success);
+          assert.equal((await evaluate(feedbackState)).phase, 'leaving');
+          await evaluate('window.__qaAuthNavigate("/qa-auth-feedback?after-login=1")');
+          await wait('!document.querySelector("[role=dialog]")');
+          await pause(250);
+          assert.equal(
+            await evaluate('window.__authEvents.filter(event=>event.kind==="close").length'),
+            1
+          );
+          assert.equal(await evaluate('window.__authToasts.some(entry=>entry.visible)'), false);
+          assert.equal(await evaluate('document.body.style.overflow'), '');
+          groups++;
+        }
+        assert.deepEqual(errors, []);
+        console.log(
+          `PASS Public login feedback: ${groups} Chrome scenario groups; actual Login/modal, immediate user publication, 180ms visual dismissal, 2s notice, light/dark, phone/desktop, root/subfolder, failed/unverified/resend/error, reduced motion, focus/cancel/late response/route cleanup and unchanged admin dismissal. Authentication transport is fixture-only; no installed accounts or settings touched.`
+        );
+        return;
+      }
       const assertNeutralAuth = async () => {
         // Theme transitions must settle; the hidden honeypot is not a visible control.
         await pause(250);
@@ -4476,33 +5817,47 @@ async function main() {
           ),
           true
         );
-        for (const dark of [false, true]) {
-          if (dark) await click('header button[aria-label="Use dark mode"]');
-          for (const width of [320, 768, 1440]) {
-            await metrics(width, 1000);
-            assert.equal(
-              await evaluate(`document.documentElement.scrollWidth>innerWidth`),
-              false,
-              `Security page overflow at ${width}px`
-            );
-            const content = await evaluate(
-              `Array.from(document.querySelectorAll('article,tr')).filter(e=>e.getBoundingClientRect().height>0).map(e=>e.textContent)`
-            );
-            const pattern = content.filter((text) => text.includes('Possible brute force'));
-            assert.equal(
-              pattern.length,
-              1,
-              'Only the repeated-login event gets the qualified pattern label'
-            );
-            assert(
-              pattern[0].includes('Too many login attempts') &&
-                pattern[0].includes('shared connection')
-            );
-            assert(
-              content.some(
-                (text) => text.includes('Login failed') && text.includes('typing mistake')
-              )
-            );
+        for (const source of ['192.0.2.9', '2401:4900:8818:93f8:5d9a:2a03:6da7:1409']) {
+          await evaluateFunction(
+            `function(source){window.__qaSource=source;document.querySelector('button[aria-label="Refresh security data"]').click();}`,
+            source
+          );
+          await wait('document.body.textContent.includes(window.__qaSource)');
+          for (const dark of [false, true]) {
+            await evaluate(`document.documentElement.classList.toggle('dark',${dark})`);
+            for (const width of [320, 768, 1440]) {
+              await metrics(width, 1000);
+              assert.equal(
+                await evaluate(`document.documentElement.scrollWidth>innerWidth`),
+                false,
+                `Security page overflow at ${width}px`
+              );
+              assert.equal(
+                await evaluate(
+                  `(()=>{const value=[...document.querySelectorAll('h3')].find(node=>node.textContent===window.__qaSource);return !!value&&value.scrollWidth<=value.clientWidth+1})()`
+                ),
+                true,
+                'Source address stays within its card'
+              );
+              const content = await evaluate(
+                `Array.from(document.querySelectorAll('article,tr')).filter(e=>e.getBoundingClientRect().height>0).map(e=>e.textContent)`
+              );
+              const pattern = content.filter((text) => text.includes('Possible brute force'));
+              assert.equal(
+                pattern.length,
+                1,
+                'Only the repeated-login event gets the qualified pattern label'
+              );
+              assert(
+                pattern[0].includes('Too many login attempts') &&
+                  pattern[0].includes('shared connection')
+              );
+              assert(
+                content.some(
+                  (text) => text.includes('Login failed') && text.includes('typing mistake')
+                )
+              );
+            }
           }
         }
         await evaluate(

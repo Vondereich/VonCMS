@@ -11,7 +11,7 @@ VonCMS is a lightweight, self-hosted CMS built with PHP and React for publishers
 **The BluePrint** is the v1.28.x series, following v1.27.x "OverDrive", whose maintenance line closed at v1.27.12. The BluePrint line focuses on clearer editorial workflows, safer content recovery, leaner public settings, and better staff tools while retaining VonCMS's PHP/MySQL hosting model.
 
 > [!IMPORTANT]
-> **v1.28.2 "The BluePrint" - Release preparation.** The latest published release is v1.28.1, dated 6 November 2026. Installer, bundled theme and built-in plugin labels remain 1.28. See the [Changelog](CHANGELOG.md) for the full change list and [Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
+> **v1.28.3 "The BluePrint" - In development.** Adds personal Gemini keys in a private, self-only User Manager view for eligible staff, alongside the maintenance changes in the [Changelog](CHANGELOG.md). Existing installations require Primary Admin Database Repair before using the new credential storage. The latest published release remains v1.28.2, dated 11 November 2026. Installer, bundled theme and built-in plugin labels remain 1.28. Use [Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
 
 ### v1.28.2 Highlights
 
@@ -52,15 +52,15 @@ Existing installations require Primary Admin **Database > Schema Repair** to ena
 
 ### 1.28.x Roadmap
 
-| Version        | Focus                                                                                                       | Status              |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------- |
-| **1.28.0**     | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Released baseline   |
-| **1.28.1**     | Hybrid analytics, deletion previews, optional News Sitemap, and targeted reliability/access corrections     | 6 November 2026     |
-| **1.28.2**     | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | Release preparation |
-| **1.28.3**     | Personal AI keys in eligible staff account profiles, with explicit credential selection                     | Planned             |
-| **1.28.4**     | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned             |
-| **1.28.5**     | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned             |
-| **Unassigned** | Post/Page Trash and Restore: retained for rescheduling, not bundled into 1.28.1                             | Planned             |
+| Version        | Focus                                                                                                       | Status            |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ----------------- |
+| **1.28.0**     | Editorial foundations: grouped navigation, Calendar, analytics modes, and maintenance work                  | Released baseline |
+| **1.28.1**     | Hybrid analytics, deletion previews, optional News Sitemap, and targeted reliability/access corrections     | 6 November 2026   |
+| **1.28.2**     | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | 11 November 2026  |
+| **1.28.3**     | Private, self-only User Manager with encrypted personal AI keys and server-owned credential selection       | In development    |
+| **1.28.4**     | Staff Activity Log: scoped history of supported staff actions, separate from security events                | Planned           |
+| **1.28.5**     | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned           |
+| **Unassigned** | Post/Page Trash and Restore: retained for rescheduling, not bundled into 1.28.1                             | Planned           |
 
 Each milestone is delivered and verified separately. Scope and order may change; this roadmap is not a release-date commitment. The 1.28.6 and later slots are reserved for maintenance, compatibility, security, and confirmed regression fixes. Interface translation does not automatically translate articles or create multilingual URLs.
 
@@ -335,6 +335,9 @@ The safe manual-update baseline is:
 5. Visit the site and admin dashboard, then confirm the Dashboard shows the expected release version.
 6. Follow any Database Repair, `.htaccess` repair, or configuration migration instruction shown for the installed starting version in [Upgrade](docs/UPGRADE.md).
 7. Verify one homepage, one post, one page, and `/admin` before ending maintenance.
+
+> [!IMPORTANT]
+> **v1.28.3 Database Repair:** After backing up and uploading the update, sign in as the Primary Admin and open **Settings > Tools > Repair Database Schema > Start Schema Repair**, even if the notification bell shows no warning. Run Repair before using Personal AI Keys, then reload the account editor. Uploading files alone does not create the new credential table. Fresh installations receive it automatically; other staff should ask the Primary Admin to perform this step.
 
 > [!IMPORTANT]
 > **v1.27.7 database step:** To activate the new large-archive indexes on an existing site, back up the database, sign in as the primary administrator, and run **Database > Schema Repair** once during a quiet period. This updates the schema, not `OPTIMIZE TABLE`, and preserves existing content, views, and analytics IDs. Until repair succeeds, the site keeps its previous query paths. Fresh installations receive the structures automatically. See [Upgrade](docs/UPGRADE.md#v1277-large-archive-indexes-and-counters) for compatibility warnings and large-database precautions.

@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -20,7 +21,7 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 import { Post, Page, User, type PostSaveOptions } from './types';
 import { VonProviders } from './plugins/von-core/providers/VonProviders';
-import { getPermalink } from './utils/siteUtils';
+import { getBasePathPrefix, getPermalink, isPublicContentPath } from './utils/siteUtils';
 import { vonFetch } from './utils/api';
 import { BASE_PATH, API } from './config/site.config';
 import { getCachedPublicPost } from './hooks/usePublicPostsQuery';
@@ -31,6 +32,7 @@ import { isPostWriter } from './utils/contentCapabilities';
 import { isSystemPluginActive } from './utils/pluginRuntime';
 
 const SESSION_VISIBILITY_CHECK_COOLDOWN = 60 * 1000;
+const INITIAL_DOCUMENT_PATHNAME = typeof window !== 'undefined' ? window.location.pathname : '';
 
 const canUseInjectedPublicSettings = (): boolean => {
   if (typeof window === 'undefined' || window.__INITIAL_SETTINGS_READY__ !== true) {
@@ -63,6 +65,7 @@ import {
 
 // Import Features
 import Login from './plugins/von-core/features/auth/Login';
+import AuthModal from './components/AuthModal';
 import PublicSite from './plugins/von-core/features/public/PublicSite';
 import InstallWizard from './plugins/von-core/features/setup/InstallWizard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -277,7 +280,10 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
         pageSlugToFetch = slug;
       } else {
         // Hydration Logic: Don't assume 404. Check if PHP confirmed Not Found.
-        const injectedStatus = injectedState?.status;
+        const injectedStatus =
+          `${getBasePathPrefix()}${location.pathname}` === INITIAL_DOCUMENT_PATHNAME
+            ? injectedState?.status
+            : undefined;
         if (injectedStatus === 'not_found') {
           isNotFound = true;
         } else {
@@ -705,6 +711,24 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
 import ErrorBoundary from './components/ErrorBoundary';
 import RouteProgressBar from './components/RouteProgressBar';
 
+const PublicContentRoutes: React.FC<PublicSiteWrapperProps & { paths: string[] }> = ({
+  paths,
+  ...props
+}) => {
+  const location = useLocation();
+  if (!isPublicContentPath(location.pathname)) {
+    return <NotFoundPage isDarkMode={props.isDarkMode} />;
+  }
+  return (
+    <Routes>
+      {paths.map((path) => (
+        <Route key={path} path={path} element={<PublicSiteWrapper {...props} />} />
+      ))}
+      <Route path="*" element={<NotFoundPage isDarkMode={props.isDarkMode} />} />
+    </Routes>
+  );
+};
+
 const App: React.FC = () => {
   const routerBasename = import.meta.env['PROD'] && BASE_PATH !== '/' ? BASE_PATH : undefined;
 
@@ -771,6 +795,7 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const closeAuthModal = useCallback(() => setShowAuthModal(false), []);
   const [isInitialLoading, setIsInitialLoading] = useState(() => !canUseInjectedPublicSettings());
   const lastSessionVisibilityCheckRef = useRef(0);
   const sessionVisibilityCheckInFlightRef = useRef(false);
@@ -986,15 +1011,6 @@ const App: React.FC = () => {
             />
           ) : (
             <Routes>
-              {/* Public Routes - Consolidated */}
-              {publicRoutes.map((path) => (
-                <Route
-                  key={path}
-                  path={path}
-                  element={<PublicSiteWrapper {...publicSiteProps} />}
-                />
-              ))}
-
               {/* Auth Routes */}
               <Route
                 path="/login"
@@ -1172,13 +1188,17 @@ const App: React.FC = () => {
                           <Route
                             path="users"
                             element={
-                              <ProtectedRoute user={user} allowedRoles={['Admin']}>
+                              <ProtectedRoute
+                                user={user}
+                                allowedRoles={['Admin', 'Moderator', 'Writer']}
+                              >
                                 <UserManager
                                   users={users}
                                   onAddUser={handleAddUser}
                                   onDeleteUser={handleDeleteUser}
                                   onUpdateUser={handleUpdateUserInList}
                                   currentUser={user}
+                                  onUpdateOwnAccount={handleUpdateUser}
                                 />
                               </ProtectedRoute>
                             }
@@ -1242,30 +1262,16 @@ const App: React.FC = () => {
                 }
               />
 
-              {/* 404 Catch-all Route */}
-              <Route path="*" element={<NotFoundPage isDarkMode={isDarkMode} />} />
+              {/* Public permalinks cannot outrank the protected system routes above. */}
+              <Route
+                path="*"
+                element={<PublicContentRoutes {...publicSiteProps} paths={publicRoutes} />}
+              />
             </Routes>
           )}
           {/* Auth Modal */}
           {showAuthModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in">
-              <div className="relative w-full max-w-lg has-data-[auth-view=register]:max-w-160">
-                <button
-                  onClick={() => setShowAuthModal(false)}
-                  className="absolute -top-12 right-0 text-white transition-colors hover:text-slate-300"
-                >
-                  <X size={24} />
-                </button>
-                <Login
-                  settings={settings}
-                  onLogin={(u) => {
-                    handleLogin(u);
-                    setShowAuthModal(false);
-                  }}
-                  isModal={true}
-                />
-              </div>
-            </div>
+            <AuthModal settings={settings} onLogin={handleLogin} onClose={closeAuthModal} />
           )}{' '}
         </VonProviders>
       </BrowserRouter>

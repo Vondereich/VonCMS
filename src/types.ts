@@ -151,6 +151,7 @@ export interface ContentEditorResponse {
   message?: string;
   text?: string;
   model?: string;
+  credentialSource?: 'personal' | 'shared';
   logs?: ContentAuditLog[];
 }
 

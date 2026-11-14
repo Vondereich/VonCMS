@@ -9,12 +9,14 @@ if (
 }
 
 require_once __DIR__ . '/../core/CredentialStore.php';
+require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/role_capability_helper.php';
 
 /**
  * Shared Gemini credential, quota, and provider boundary.
  *
- * Stored API keys never leave PHP. Callers using their own explicit key keep
- * the legacy flow, while shared-key calls use the server-owned model and quota.
+ * Stored API keys never leave PHP. A session-owned personal key takes priority;
+ * only an absent personal record permits the legacy explicit/shared flow.
  */
 
 /** @return list<string> */
@@ -172,6 +174,229 @@ function voncms_ai_load_config(PDO $pdo): array
   }
 }
 
+/** A short transaction holds this singleton through credential read/decrypt or write.
+ * @return array<array-key,mixed>
+ */
+function voncms_ai_lock_config(PDO $pdo, bool $exclusive): array
+{
+  if (!$pdo->inTransaction()) {
+    throw new RuntimeException('Credential transaction is required.', 503);
+  }
+  $lock =
+    $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite'
+      ? ''
+      : ($exclusive
+        ? ' FOR UPDATE'
+        : ' LOCK IN SHARE MODE');
+  $statement = $pdo->prepare(
+    "SELECT setting_value FROM settings WHERE setting_group = 'api' AND setting_key = 'config' LIMIT 1" .
+      $lock,
+  );
+  $statement->execute();
+  $raw = $statement->fetchColumn();
+  $config = is_string($raw) ? json_decode($raw, true) : null;
+  if (!is_array($config)) {
+    throw new RuntimeException('AI storage requires Database Repair before use.', 503);
+  }
+  return $config;
+}
+
+/** Fresh own-account eligibility, never a caller-selected target.
+ * @return array<string,bool|float|int|string|null>
+ */
+function voncms_ai_own_account(PDO $pdo, string $userId, bool $lock = false): array
+{
+  if (!ctype_digit($userId) || $userId === '0') {
+    throw new RuntimeException('Staff account required.', 403);
+  }
+  $suffix = $lock && $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite' ? ' FOR UPDATE' : '';
+  $statement = $pdo->prepare(
+    'SELECT id, username, display_name, email, role, avatar, bio, created_at AS createdAt FROM users WHERE id = ? LIMIT 1' .
+      $suffix,
+  );
+  $statement->execute([$userId]);
+  $user = DataBoundary::row($statement->fetch(PDO::FETCH_ASSOC));
+  if (!$user || !voncms_role_has_capability($user['role'] ?? null, 'posts.create')) {
+    throw new RuntimeException('Staff account required.', 403);
+  }
+  $user['id'] = (string) $user['id'];
+  return $user;
+}
+
+function voncms_ai_personal_context(string $userId): string
+{
+  return 'voncms:personal-gemini:v1:user:' . $userId;
+}
+
+/** @return array<string,bool|float|int|string|null>|false */
+function voncms_ai_personal_row(PDO $pdo, string $userId, bool $lock = false): array|false
+{
+  $suffix = $lock && $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite' ? ' FOR UPDATE' : '';
+  $statement = $pdo->prepare(
+    "SELECT encrypted_key, saved_at, expires_at FROM user_ai_keys WHERE user_id = ? AND provider = 'gemini' LIMIT 1" .
+      $suffix,
+  );
+  $statement->execute([$userId]);
+  return DataBoundary::row($statement->fetch(PDO::FETCH_ASSOC));
+}
+
+/** @param array<string,bool|float|int|string|null> $row */
+function voncms_ai_personal_plaintext(array $row, string $userId): string
+{
+  $expires = $row['expires_at'] ?? null;
+  if ($expires !== null) {
+    $date = is_string($expires)
+      ? DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $expires, new DateTimeZone('UTC'))
+      : false;
+    if ($date === false || $date->format('Y-m-d H:i:s') !== $expires) {
+      throw new RuntimeException(
+        'Your personal AI key expiry is invalid. Replace or remove it in User Manager.',
+        503,
+      );
+    }
+  }
+  if (is_string($expires) && $expires <= gmdate('Y-m-d H:i:s')) {
+    throw new RuntimeException(
+      'Your personal AI key expired. Replace or remove it in User Manager.',
+      400,
+    );
+  }
+  $stored = $row['encrypted_key'] ?? null;
+  if (!is_string($stored) || !VonCmsCredentialStore::isEncrypted($stored)) {
+    throw new RuntimeException(
+      'Your personal AI key is unavailable. Replace or remove it in User Manager.',
+      503,
+    );
+  }
+  $key = VonCmsCredentialStore::decrypt($stored, voncms_ai_personal_context($userId));
+  if ($key === '' || strlen($key) > 512 || preg_match('/[\x00-\x20\x7f*]/', $key)) {
+    throw new RuntimeException(
+      'Your personal AI key is unavailable. Replace or remove it in User Manager.',
+      503,
+    );
+  }
+  return $key;
+}
+
+/** @param array<string,bool|float|int|string|null>|false $row
+ * @return array{configured:bool,mask:string,state:string,revision:string,savedAt:string,expiresAt:string}
+ */
+function voncms_ai_personal_projection(array|false $row, string $userId): array
+{
+  $state = 'empty';
+  if ($row !== false) {
+    try {
+      voncms_ai_personal_plaintext($row, $userId);
+      $state = 'encrypted';
+    } catch (Throwable $e) {
+      $state = $e->getCode() === 400 ? 'expired' : 'unavailable';
+    }
+  }
+  return [
+    'configured' => $row !== false,
+    'mask' => $row === false ? '' : '********',
+    'state' => $state,
+    'revision' => $row === false ? '' : hash('sha256', (string) ($row['encrypted_key'] ?? '')),
+    'savedAt' => $row === false ? '' : (string) ($row['saved_at'] ?? ''),
+    'expiresAt' => $row === false ? '' : (string) ($row['expires_at'] ?? ''),
+  ];
+}
+
+/** Installation creation is allowed only if no existing encrypted record needs the old master.
+ * Caller holds the exclusive configuration anchor.
+ * @param array<array-key,mixed> $config
+ */
+function voncms_ai_can_create_master(PDO $pdo, array $config): bool
+{
+  $global = $config['aiApiKey'] ?? '';
+  if (is_string($global) && VonCmsCredentialStore::isEncrypted($global)) {
+    return false;
+  }
+  $statement = $pdo->query('SELECT 1 FROM user_ai_keys LIMIT 1');
+  if ($statement === false) {
+    throw new RuntimeException('AI credential storage is unavailable.', 503);
+  }
+  return $statement->fetchColumn() === false;
+}
+
+/** @return array{configured:bool,mask:string,state:string,revision:string,savedAt:string,expiresAt:string} */
+function voncms_ai_save_personal(
+  PDO $pdo,
+  string $userId,
+  string $action,
+  string $key,
+  string $revision,
+  bool $expire,
+): array {
+  if ($pdo->inTransaction()) {
+    throw new RuntimeException('Separate credential action required.', 409);
+  }
+  if (
+    $action === 'save' &&
+    ($key === '' ||
+      strlen($key) > 512 ||
+      preg_match('/[\x00-\x20\x7f*]/', $key) ||
+      VonCmsCredentialStore::isEncrypted($key))
+  ) {
+    throw new InvalidArgumentException(
+      'Enter a valid plaintext Gemini API key, not a mask or ciphertext.',
+    );
+  }
+  try {
+    $pdo->beginTransaction();
+    $config = voncms_ai_lock_config($pdo, true);
+    voncms_ai_own_account($pdo, $userId, true);
+    $existing = voncms_ai_personal_row($pdo, $userId, true);
+    $currentRevision =
+      $existing === false ? '' : hash('sha256', (string) $existing['encrypted_key']);
+    if (!hash_equals($currentRevision, $revision)) {
+      throw new RuntimeException('Your saved key changed. Reload before trying again.', 409);
+    }
+    if ($action === 'remove') {
+      $pdo
+        ->prepare("DELETE FROM user_ai_keys WHERE user_id = ? AND provider = 'gemini'")
+        ->execute([$userId]);
+      $projection = voncms_ai_personal_projection(false, $userId);
+    } elseif ($action === 'save') {
+      $stored = VonCmsCredentialStore::encrypt(
+        $key,
+        voncms_ai_personal_context($userId),
+        voncms_ai_can_create_master($pdo, $config),
+      );
+      $savedAt = gmdate('Y-m-d H:i:s');
+      $expiresAt = $expire ? gmdate('Y-m-d H:i:s', time() + 30 * 86400) : null;
+      if ($existing === false) {
+        $pdo
+          ->prepare(
+            "INSERT INTO user_ai_keys(user_id, provider, encrypted_key, saved_at, expires_at) VALUES (?, 'gemini', ?, ?, ?)",
+          )
+          ->execute([$userId, $stored, $savedAt, $expiresAt]);
+      } else {
+        $pdo
+          ->prepare(
+            "UPDATE user_ai_keys SET encrypted_key = ?, saved_at = ?, expires_at = ? WHERE user_id = ? AND provider = 'gemini'",
+          )
+          ->execute([$stored, $savedAt, $expiresAt, $userId]);
+      }
+      $projection = voncms_ai_personal_projection(
+        ['encrypted_key' => $stored, 'saved_at' => $savedAt, 'expires_at' => $expiresAt],
+        $userId,
+      );
+    } else {
+      throw new InvalidArgumentException('Unknown credential action.');
+    }
+    if (!$pdo->commit()) {
+      throw new RuntimeException('Credential save could not be confirmed.', 503);
+    }
+    return $projection;
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    throw $e;
+  }
+}
+
 /** @param array<array-key,mixed> $config */
 function voncms_ai_read_stored_key(array $config): string
 {
@@ -246,8 +471,11 @@ function voncms_ai_credential_status(array $config): array
  * @param array<array-key,mixed> $existing
  * @return array<array-key,mixed>
  */
-function voncms_ai_prepare_stored_config(array $incoming, array $existing): array
-{
+function voncms_ai_prepare_stored_config(
+  array $incoming,
+  array $existing,
+  bool $createMasterIfMissing = false,
+): array {
   $result = array_replace($existing, $incoming);
   unset(
     $result['aiKeyStorage'],
@@ -292,12 +520,12 @@ function voncms_ai_prepare_stored_config(array $incoming, array $existing): arra
     $result['aiApiKey'] = VonCmsCredentialStore::encrypt(
       $submitted,
       'voncms:global-gemini:v1',
-      true,
+      $createMasterIfMissing,
     );
   } elseif ($stored !== '') {
     $result['aiApiKey'] = VonCmsCredentialStore::isEncrypted($stored)
       ? $stored
-      : VonCmsCredentialStore::encrypt($stored, 'voncms:global-gemini:v1', true);
+      : VonCmsCredentialStore::encrypt($stored, 'voncms:global-gemini:v1', $createMasterIfMissing);
   } else {
     unset($result['aiApiKey'], $result['aiKeySavedAt'], $result['aiKeyExpiresAt']);
     return $result;
@@ -337,7 +565,7 @@ function voncms_ai_prepare_stored_config(array $incoming, array $existing): arra
   return $result;
 }
 
-/** Single global credential only; new stored providers/users must join this coordinator. */
+/** Rotate every persisted record sharing the installation master, including inactive accounts. */
 /** @return array<array-key,mixed> */
 function voncms_ai_rotate_global_key(PDO $pdo, string $expectedRevision, ?int $userId): array
 {
@@ -349,13 +577,8 @@ function voncms_ai_rotate_global_key(PDO $pdo, string $expectedRevision, ?int $u
   }
   try {
     $pdo->beginTransaction();
-    $statement = $pdo->prepare(
-      "SELECT setting_value FROM settings WHERE setting_group = 'api' AND setting_key = 'config' LIMIT 1 FOR UPDATE",
-    );
-    $statement->execute();
-    $raw = $statement->fetchColumn();
-    $config = is_string($raw) ? json_decode($raw, true) : null;
-    $stored = is_array($config) ? $config['aiApiKey'] ?? null : null;
+    $config = voncms_ai_lock_config($pdo, true);
+    $stored = $config['aiApiKey'] ?? null;
     if (
       !is_string($stored) ||
       !VonCmsCredentialStore::isEncrypted($stored) ||
@@ -363,20 +586,60 @@ function voncms_ai_rotate_global_key(PDO $pdo, string $expectedRevision, ?int $u
     ) {
       throw new RuntimeException('The saved key changed. Reload Settings before rotating.', 409);
     }
-    VonCmsCredentialStore::rotateSecret($stored, 'voncms:global-gemini:v1', static function (
-      string $ciphertext,
-    ) use ($pdo, &$config, $userId): void {
-      $config['aiApiKey'] = $ciphertext;
+    $lock = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite' ? '' : ' FOR UPDATE';
+    $personalStatement = $pdo->query(
+      'SELECT id, user_id, provider, encrypted_key FROM user_ai_keys ORDER BY id' . $lock,
+    );
+    if ($personalStatement === false) {
+      throw new RuntimeException('Personal credential storage is unavailable.', 503);
+    }
+    $personalRows = DataBoundary::rows($personalStatement->fetchAll(PDO::FETCH_ASSOC));
+    $records = ['global' => ['stored' => $stored, 'context' => 'voncms:global-gemini:v1']];
+    foreach ($personalRows as $row) {
+      if ($row['provider'] !== 'gemini') {
+        throw new RuntimeException('Unsupported stored credential provider.', 503);
+      }
+      $records['personal:' . $row['id']] = [
+        'stored' => (string) $row['encrypted_key'],
+        'context' => voncms_ai_personal_context((string) $row['user_id']),
+      ];
+    }
+    $projection = [];
+    VonCmsCredentialStore::rotateSecrets($records, static function (array $ciphertexts) use (
+      $pdo,
+      &$config,
+      $userId,
+      $personalRows,
+      &$projection,
+    ): void {
+      $config['aiApiKey'] = $ciphertexts['global'];
       $config['aiKeyRotatedAt'] = gmdate('c');
       $update = $pdo->prepare(
         "UPDATE settings SET setting_value = ?, is_public = 0, updated_by = ?, version = version + 1, updated_at = NOW() WHERE setting_group = 'api' AND setting_key = 'config'",
       );
       $update->execute([json_encode($config, JSON_THROW_ON_ERROR), $userId]);
-      if ($update->rowCount() !== 1 || !$pdo->commit()) {
+      if ($update->rowCount() !== 1) {
+        throw new RuntimeException('Shared credential rotation failed.');
+      }
+      $personalUpdate = $pdo->prepare(
+        "UPDATE user_ai_keys SET encrypted_key = ? WHERE id = ? AND user_id = ? AND provider = 'gemini'",
+      );
+      foreach ($personalRows as $row) {
+        $personalUpdate->execute([
+          $ciphertexts['personal:' . $row['id']],
+          $row['id'],
+          $row['user_id'],
+        ]);
+        if ($personalUpdate->rowCount() !== 1) {
+          throw new RuntimeException('Personal credential rotation failed.');
+        }
+      }
+      $projection = voncms_ai_credential_status($config);
+      if (!$pdo->commit()) {
         throw new RuntimeException('Encryption key rotation could not be committed.');
       }
     });
-    return voncms_ai_credential_status($config);
+    return $projection;
   } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
       $pdo->rollBack();
@@ -447,35 +710,64 @@ function voncms_ai_staff_projection(PDO $pdo): array
 /**
  * @return array{api_key: string, model: string, shared: bool}|null
  */
-function voncms_ai_resolve_request(PDO $pdo, mixed $requestedModel, mixed $headerKey): ?array
-{
-  $ownKey = is_scalar($headerKey) ? trim((string) $headerKey) : '';
-  if ($ownKey !== '') {
-    if (
-      strlen($ownKey) > 512 ||
-      str_contains($ownKey, '*') ||
-      VonCmsCredentialStore::isEncrypted($ownKey)
-    ) {
+function voncms_ai_resolve_request(
+  PDO $pdo,
+  mixed $requestedModel,
+  mixed $headerKey,
+  string $userId,
+): ?array {
+  if ($pdo->inTransaction()) {
+    throw new RuntimeException('Separate AI request required.', 503);
+  }
+  try {
+    $pdo->beginTransaction();
+    $config = voncms_ai_lock_config($pdo, false);
+    voncms_ai_own_account($pdo, $userId);
+    $personal = voncms_ai_personal_row($pdo, $userId);
+    if ($personal !== false) {
+      $result = [
+        'api_key' => voncms_ai_personal_plaintext($personal, $userId),
+        'model' => voncms_ai_normalize_model($requestedModel),
+        'shared' => false,
+      ];
+      $pdo->commit();
+      return $result;
+    }
+    $ownKey = is_scalar($headerKey) ? trim((string) $headerKey) : '';
+    if ($ownKey !== '') {
+      if (
+        strlen($ownKey) > 512 ||
+        str_contains($ownKey, '*') ||
+        VonCmsCredentialStore::isEncrypted($ownKey)
+      ) {
+        $pdo->commit();
+        return null;
+      }
+      $pdo->commit();
+      return [
+        'api_key' => $ownKey,
+        'model' => voncms_ai_normalize_model($requestedModel),
+        'shared' => false,
+      ];
+    }
+
+    $sharedKey = voncms_ai_configured_key($config);
+    $pdo->commit();
+    if ($sharedKey === '') {
       return null;
     }
+
     return [
-      'api_key' => $ownKey,
-      'model' => voncms_ai_normalize_model($requestedModel),
-      'shared' => false,
+      'api_key' => $sharedKey,
+      'model' => voncms_ai_normalize_model($config['aiModel'] ?? null),
+      'shared' => true,
     ];
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    throw $e;
   }
-
-  $config = voncms_ai_load_config($pdo);
-  $sharedKey = voncms_ai_configured_key($config);
-  if ($sharedKey === '') {
-    return null;
-  }
-
-  return [
-    'api_key' => $sharedKey,
-    'model' => voncms_ai_normalize_model($config['aiModel'] ?? null),
-    'shared' => true,
-  ];
 }
 
 function voncms_ai_consume_quota(string $scope, int $maxAttempts, int $windowSeconds): bool

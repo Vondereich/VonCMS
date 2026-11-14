@@ -43,6 +43,8 @@ if (!$canManagePages) {
   ResponseHelper::sendError('Page management access required', 403);
 }
 
+voncms_apply_site_timezone($pdo ?? null);
+
 $input = json_decode(CSRFProtection::getRequestBody(), true);
 if (!is_array($input)) {
   ResponseHelper::sendError('Invalid JSON payload', 400);
@@ -263,8 +265,9 @@ try {
     }
 
     // Update existing page
+    // Match the CMS-local first-publication convention without rewriting old dates.
     $publishedAtAssignment = $hasPublishedAtColumn
-      ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END,\n            "
+      ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN :publication_now ELSE published_at END,\n            "
       : '';
     $stmt = $pdo->prepare("UPDATE pages SET 
             title = :title, 
@@ -290,6 +293,7 @@ try {
     ];
     if ($hasPublishedAtColumn) {
       $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
+      $updateParams['publication_now'] = date('Y-m-d H:i:s');
     }
     $stmt->execute($updateParams);
 
@@ -349,7 +353,7 @@ try {
     // Insert new page
     $publishedAtColumn = $hasPublishedAtColumn ? ', published_at' : '';
     $publishedAtValue = $hasPublishedAtColumn
-      ? ', CASE WHEN :publish_now = 1 THEN NOW() ELSE NULL END'
+      ? ', CASE WHEN :publish_now = 1 THEN :publication_now ELSE NULL END'
       : '';
     $stmt = $pdo->prepare(
       "INSERT INTO pages (title, slug, content, excerpt, status, keywords, meta_description, author_id{$publishedAtColumn}, created_at, updated_at) VALUES (:title, :slug, :content, :excerpt, :status, :keywords, :meta_description, :author_id{$publishedAtValue}, NOW(), NOW())",
@@ -372,6 +376,7 @@ try {
     ];
     if ($hasPublishedAtColumn) {
       $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
+      $insertParams['publication_now'] = date('Y-m-d H:i:s');
     }
     $stmt->execute($insertParams);
 

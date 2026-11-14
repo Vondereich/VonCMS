@@ -172,6 +172,7 @@ try {
   $migrated = voncms_ai_prepare_stored_config(
     ['aiApiKey' => '******** (PROTECTED)', 'encryptStoredAiKey' => true],
     $legacy,
+    true,
   );
   credentialCheck(
     VonCmsCredentialStore::isEncrypted($migrated['aiApiKey']),
@@ -319,19 +320,26 @@ try {
 
   $pdo = new PDO('sqlite::memory:');
   $pdo->exec('CREATE TABLE settings(setting_group TEXT, setting_key TEXT, setting_value TEXT)');
+  $pdo->exec(
+    'CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, email TEXT, role TEXT, avatar TEXT, bio TEXT, created_at TEXT)',
+  );
+  $pdo->exec("INSERT INTO users(id,role) VALUES(1,'admin')");
+  $pdo->exec(
+    'CREATE TABLE user_ai_keys(id INTEGER PRIMARY KEY, user_id INTEGER, provider TEXT, encrypted_key TEXT, saved_at TEXT, expires_at TEXT, UNIQUE(user_id,provider))',
+  );
   $pdo
     ->prepare('INSERT INTO settings VALUES(?,?,?)')
     ->execute(['api', 'config', json_encode($migrated)]);
-  $shared = voncms_ai_resolve_request($pdo, 'gemini-3.5-flash-lite', '');
+  $shared = voncms_ai_resolve_request($pdo, 'gemini-3.5-flash-lite', '', '1');
   credentialCheck(
     $shared['shared'] && $shared['api_key'] === $fake && $shared['model'] === 'gemini-3.8-flash',
     'Shared server-owned credential/model authority changed.',
   );
   credentialCheck(
-    voncms_ai_resolve_request($pdo, 'gemini-3.8-flash', $migrated['aiApiKey']) === null,
+    voncms_ai_resolve_request($pdo, 'gemini-3.8-flash', $migrated['aiApiKey'], '1') === null,
     'Stored ciphertext accepted as an explicit provider key.',
   );
-  $own = voncms_ai_resolve_request($pdo, 'gemini-3.5-flash-lite', 'qa-own-key');
+  $own = voncms_ai_resolve_request($pdo, 'gemini-3.5-flash-lite', 'qa-own-key', '1');
   credentialCheck(
     !$own['shared'] &&
       $own['api_key'] === 'qa-own-key' &&
@@ -483,6 +491,9 @@ try {
   $database->exec(
     'CREATE TABLE settings(setting_group TEXT,setting_key TEXT,setting_value TEXT,setting_type TEXT,is_public INT,updated_by INT,version INT DEFAULT 1,updated_at TEXT,PRIMARY KEY(setting_group,setting_key))',
   );
+  $database->exec(
+    'CREATE TABLE user_ai_keys(id INTEGER PRIMARY KEY, user_id INTEGER, provider TEXT, encrypted_key TEXT, saved_at TEXT, expires_at TEXT, UNIQUE(user_id,provider))',
+  );
   $database
     ->prepare('INSERT INTO settings(setting_group,setting_key,setting_value) VALUES(?,?,?)')
     ->execute(['general', 'domain_url', 'https://qa.invalid']);
@@ -570,10 +581,15 @@ try {
   $controllerPath = $harness . '/api/save_settings.php';
   $controllerSource = file_get_contents($controllerPath);
   $disabled = str_replace(
-    '$value = voncms_ai_prepare_stored_config($value, $existingApiConfig);',
-    '$value = array_replace($existingApiConfig, $value);',
+    'voncms_ai_prepare_stored_config(',
+    'credentialNoEncryption(',
     $controllerSource,
     $replacementCount,
+  );
+  $disabled = str_replace(
+    '<?php',
+    '<?php function credentialNoEncryption($value, $existingApiConfig, $createMaster) { return array_replace($existingApiConfig, $value); }',
+    $disabled,
   );
   credentialCheck($replacementCount === 1, 'Could not prepare the isolated no-encryption control.');
   try {
@@ -645,6 +661,16 @@ try {
     ($response['body']['apiCredential']['aiKeyStorage'] ?? '') === 'unavailable',
     'Missing-master Save did not report unavailable status.',
   );
+  $response = credentialSaveRequest($harness, 'owner', [
+    'api' => ['aiApiKey' => 'qa-explicit-recovery-key'],
+  ]);
+  credentialCheck(
+    $response['status'] === 503 &&
+      $readConfig() === $savedSql &&
+      !file_exists($harness . '/data/credential_master.key.php'),
+    'Replacement regenerated a missing master while ciphertext still exists.',
+  );
+  file_put_contents($harness . '/data/credential_master.key.php', $harnessMaster);
   $response = credentialSaveRequest($harness, 'owner', [
     'api' => ['aiApiKey' => 'qa-explicit-recovery-key'],
   ]);

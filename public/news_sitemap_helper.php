@@ -9,6 +9,8 @@ if (
 }
 require_once __DIR__ . '/seo_schema_helper.php';
 
+final class VonCmsNewsPublicationUnavailable extends RuntimeException {}
+
 /** @return array{enabled: bool, publicationName: string, language: string, scope: string, categories: list<string>} */
 function voncms_news_sitemap_settings(mixed $value): array
 {
@@ -132,6 +134,13 @@ function voncms_news_sitemap_query(
   ?int $page = null,
 ): PDOStatement {
   $config = voncms_news_sitemap_settings($config);
+  // Ordinary public reads keep their legacy fallback. News promises a bounded
+  // publication window, so require Repair's trusted capability before querying.
+  if (!voncms_has_publication_column($pdo, 'posts')) {
+    throw new VonCmsNewsPublicationUnavailable(
+      'News publication storage is not ready. Run Database Repair before using the News sitemap.',
+    );
+  }
   $publication = voncms_publication_expression_sql($pdo, 'posts', 'p');
   $where = "p.status = 'published' AND (p.scheduled_at IS NULL OR p.scheduled_at <= :visibleAt)
     AND $publication >= :since AND $publication <= :until AND TRIM(p.title) <> ''";

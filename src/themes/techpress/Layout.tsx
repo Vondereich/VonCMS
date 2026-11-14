@@ -467,7 +467,7 @@ function NewsCard({
   }
   return (
     <div
-      className="flex flex-col sm:flex-row gap-5 p-4 rounded-lg group transition-all duration-200 border hover:shadow-md"
+      className="flex flex-row-reverse items-center gap-4 border-b pb-5 group transition-all duration-200 sm:flex-row sm:items-stretch sm:gap-5 sm:rounded-lg sm:border sm:p-4 sm:hover:shadow-md"
       style={{ background: colors.background, borderColor: colors.border }}
     >
       <a
@@ -477,12 +477,17 @@ function NewsCard({
             onClick(article.id);
           })
         }
-        className={`w-full ${expandedHorizontalImage ? 'sm:w-72 lg:w-80' : 'sm:w-64'} aspect-video rounded-lg shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer`}
+        className={`w-28 min-[380px]:w-32 ${expandedHorizontalImage ? 'sm:w-72 lg:w-80' : 'sm:w-64'} aspect-video rounded-lg shrink-0 transition-opacity duration-300 group-hover:opacity-90 bg-gray-200 overflow-hidden relative cursor-pointer`}
         aria-label={decodeEntities(article.title)}
       >
         {article.image && (
           <ThemeImage
             {...getResponsiveImageAttributes(article, 'listCard')}
+            sizes={
+              article.imageSrcSet
+                ? '(max-width: 379px) 112px, (max-width: 639px) 128px, 320px'
+                : undefined
+            }
             alt={decodeEntities(article.title)}
             loading="lazy"
             className="absolute inset-0 w-full h-full object-cover"
@@ -490,7 +495,7 @@ function NewsCard({
         )}
       </a>
 
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <div className="flex gap-2 mb-2">
           <a
             href={getPublicCategoryHref(article.category || 'News')}
@@ -498,14 +503,14 @@ function NewsCard({
               e.stopPropagation();
               handleCrawlableLinkClick(e, () => onCategoryClick?.(article.category));
             }}
-            className="px-2 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
+            className="max-w-full truncate px-2 py-1 text-xs font-bold uppercase rounded-sm cursor-pointer hover:opacity-80 transition-opacity"
             style={{ background: colors.primary, color: 'white' }}
           >
             {article.category || 'News'}
           </a>
         </div>
         <h3
-          className="text-lg font-bold mb-2 leading-tight group-hover:opacity-70 transition line-clamp-2 cursor-pointer"
+          className="text-base min-[380px]:text-lg font-bold mb-2 leading-tight wrap-anywhere group-hover:opacity-70 transition line-clamp-3 sm:line-clamp-2 cursor-pointer"
           style={{ color: colors.text }}
         >
           <a
@@ -519,15 +524,19 @@ function NewsCard({
             {decodeEntities(article.title)}
           </a>
         </h3>
-        <div className="flex items-center gap-3 text-sm" style={{ color: colors.textSecondary }}>
+        <div
+          className="flex items-center gap-3 text-xs sm:text-sm"
+          style={{ color: colors.textSecondary }}
+        >
           <TechPressAvatar
             name={article.author}
             email={authorEmail}
             url={authorAvatar}
             size="w-5 h-5"
+            className="hidden sm:block"
           />
-          <span>{article.author}</span>
-          <span>•</span>
+          <span className="hidden sm:inline">{article.author}</span>
+          <span className="hidden sm:inline">•</span>
           <span>
             {formatDate(getPostPublishTimestamp(article), settings.timeZone, settings.dateFormat)}
           </span>
@@ -1645,6 +1654,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
 
       <main
         className="max-w-7xl mx-auto px-5 py-8 flex-1 w-full"
+        style={{ minHeight: paginatedPosts.length === 0 ? '100svh' : undefined }}
         aria-busy={isCategoryRefreshing || undefined}
       >
         {isInitialDiscoveryLoading ? (

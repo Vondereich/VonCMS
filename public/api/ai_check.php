@@ -95,12 +95,27 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
   ResponseHelper::sendError('AI configuration is temporarily unavailable.', 503);
 }
 
-$aiRequest = voncms_ai_resolve_request($pdo, $requestedModel, $providedApiKey);
+$userId = DataBoundary::userText('id');
+try {
+  $aiRequest = voncms_ai_resolve_request($pdo, $requestedModel, $providedApiKey, $userId);
+} catch (Throwable $e) {
+  $status = in_array($e->getCode(), [400, 403], true) ? (int) $e->getCode() : 503;
+  voncms_ai_send_error(
+    $status === 503
+      ? 'AI credential storage is unavailable. Check your personal key or ask the owner to run Database Repair.'
+      : $e->getMessage(),
+    $status,
+    'AI_PERSONAL_KEY_UNAVAILABLE',
+  );
+}
 if ($aiRequest === null) {
-  voncms_ai_send_error('No usable Gemini API key is configured.', 400, 'AI_KEY_UNAVAILABLE');
+  voncms_ai_send_error(
+    'No usable Gemini API key is configured. Set your personal key in User Manager or ask the owner about shared access.',
+    400,
+    'AI_KEY_UNAVAILABLE',
+  );
 }
 
-$userId = DataBoundary::userText('id');
 if ($userId === '' || !voncms_ai_authorize_quota($userId, $aiRequest['shared'])) {
   voncms_ai_send_error('AI request limit reached. Please try again later.', 429, 'AI_RATE_LIMITED');
 }
@@ -174,5 +189,6 @@ echo json_encode([
   'success' => true,
   'text' => $generatedText,
   'model' => $aiResponse['model'],
+  'credentialSource' => $aiRequest['shared'] ? 'shared' : 'personal',
   'fallbackUsed' => $aiResponse['fallback_used'],
 ]);

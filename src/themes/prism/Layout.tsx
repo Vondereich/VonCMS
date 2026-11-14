@@ -657,6 +657,12 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
 
         <main
           className="grow w-full max-w-7xl mx-auto px-6 py-12"
+          style={{
+            minHeight:
+              (currentView === 'home' || currentView === 'category') && currentPosts.length === 0
+                ? '100svh'
+                : undefined,
+          }}
           aria-busy={isCategoryRefreshing || undefined}
         >
           {currentView === 'home' || currentView === 'category' ? (

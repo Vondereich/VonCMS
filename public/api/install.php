@@ -328,6 +328,7 @@ try {
 
   // Shared runtime capabilities are installed once here and repaired only by Database Repair.
   voncms_schema_repair_runtime_capabilities($pdo);
+  voncms_schema_seed_ai_config($pdo);
   $listingIndexResult = voncms_schema_repair_listing_indexes($pdo);
   $installWarnings = $listingIndexResult['warnings'];
 
@@ -706,8 +707,8 @@ if (writeInstallerFileAtomically($configFile, $configContent, 0600)) {
     # Keep PHP endpoints accessible
     RewriteRule ^(api\.php|index\.php)$ $1 [L]
 
-    # Handle API requests
-    RewriteRule ^api/(.*)$ api/$1 [L]
+    # Existing endpoint files were served above; missing API paths are not SPA routes.
+    RewriteRule ^api/ - [R=404,L,NC]
 
     # Dynamic robots.txt
     RewriteRule ^robots\.txt$ robots.php [L]

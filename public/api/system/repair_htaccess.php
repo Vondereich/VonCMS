@@ -60,6 +60,10 @@ $prefix = file_exists($projectRoot . '/public/index.php') ? 'public/' : '';
  */
 function getHtaccessContent($prefix)
 {
+  $apiRoute =
+    $prefix === ''
+      ? 'RewriteRule ^api/ - [R=404,L,NC]'
+      : 'RewriteRule ^api/(.*)$ ' . $prefix . 'api/$1 [L]';
   return <<<EOT
   # BEGIN VonCMS
   # The directives (lines) between "# BEGIN VonCMS" and "# END VonCMS" are
@@ -141,8 +145,8 @@ function getHtaccessContent($prefix)
     # Keep PHP endpoints accessible
     RewriteRule ^(api\.php|index\.php)$ {$prefix}$1 [L]
 
-    # Handle API requests
-    RewriteRule ^api/(.*)$ {$prefix}api/$1 [L]
+    # Source layouts delegate to public/; Deploy rejects missing endpoint paths.
+    {$apiRoute}
 
     # Dynamic robots.txt
     RewriteRule ^robots\.txt$ {$prefix}robots.php [L]

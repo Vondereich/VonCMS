@@ -1143,6 +1143,7 @@ const HomeView: React.FC<{
   return (
     <div
       className="animate-fade-in w-full max-w-7xl mx-auto"
+      style={{ minHeight: currentPosts.length === 0 ? '100svh' : undefined }}
       aria-busy={isCategoryRefreshing || undefined}
     >
       <div className="max-w-md mx-auto relative mb-8 mt-8">

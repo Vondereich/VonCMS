@@ -405,5 +405,7 @@ try {
   header('Content-Type: text/plain; charset=utf-8');
   header('Retry-After: 300');
   error_log('Sitemap Generation Error: ' . $e->getMessage());
-  echo 'Sitemap temporarily unavailable.';
+  echo $e instanceof VonCmsNewsPublicationUnavailable
+    ? 'News sitemap is temporarily unavailable. Ask the Primary Admin to run Database Repair.'
+    : 'Sitemap temporarily unavailable.';
 }

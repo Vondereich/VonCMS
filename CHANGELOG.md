@@ -2,6 +2,51 @@
 
 Changes and release history for the v1.28 and v1.27 series. Dated entries identify release packages; download availability is listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases). Historical entries retain their original status and dates. See the [Changelog Archive](docs/CHANGELOG-ARCHIVE.md) for v1.26.x and earlier release notes.
 
+### [v1.28.3] - In development
+
+- **TechPress Mobile Latest Updates**: Uses compact rows below the existing 640px breakpoint, with the headline on the left and a 16:9 thumbnail on the right. Headlines retain their full text but display at most three lines; dates remain visible and author details return on larger screens. Hero, Latest Highlights, tablet/desktop layouts, theme colours and discovery queries are unchanged.
+
+- **Digest Footer Contrast**: Uses the theme's warmer grey alternate surface in light mode and its existing dark alternate surface in dark mode. Footer descriptions, RSS and copyright use the existing secondary text colour for legibility. Content cards, saved accents, newsletter controls and footer links are unchanged.
+
+- **Slug Routing**: Fixed slug routing boundaries.
+
+- **Personal AI Keys**:
+  - **Private access**: Primary Admin (Root or Admin ID 1), appointed Admin, Moderator and Writer can save an encrypted Gemini key in their own User Manager editor. Writer/Moderator receive a self-only view, not user-management permission. Admin management never exposes another user's key or key status. Save/Replace and Remove use session-owned targets, CSRF and stale-revision rejection.
+  - **Key selection**: AI Generate/Check select the personal key first; only its absence permits shared access. Expired, damaged or rejected personal keys never silently retry with the shared paid key.
+  - **Model guidance**: A theme-aware information panel groups the privacy and model guidance; expiry guidance stays beside its control. The editor currently follows the Primary Admin's model setting. Additional AI choices are described as future plans, not available controls; key selection and billing behavior are unchanged.
+  - **Expiry and storage**: Optional local 30-day expiry starts on Save/Replace. Personal keys are not persisted in browser storage, public profiles or settings.
+  - **Upgrade and rollback**: Existing installations require Primary Admin Database Repair to create `user_ai_keys` and the private API-settings lock anchor; fresh installs create both automatically. A files-only rollback to older code ignores personal keys and may resume shared paid-key access. Review that access before rolling back.
+
+- **Database Repair Notification**: The Primary Admin's database check includes personal AI key storage, so missing or incomplete structures trigger the existing bell warning. The README also explains how to open Repair directly when no notification is visible. Repair permissions and shared/personal key selection are unchanged.
+
+- **Multi-Key Encryption Rotation**: Requires an encrypted shared key; personal-only installations do not currently offer rotation. Primary Admin rotation re-encrypts the shared key and all saved personal keys, preserving provider values and expiry, including keys retained for demoted accounts. Short database locks coordinate saves, reads and rotation. Failed transitions retain recoverable key generations without unbounded history. Missing master material is not regenerated while encrypted records remain; restore its matching private backup.
+
+- **Security Source Card**: Long IPv6 source addresses wrap inside the Security Dashboard card without changing collected events or source handling.
+
+- **Content Manager Responsive Actions**: Posts/Pages use their existing cards until the available content area can fit the table, keeping Edit/Delete within view on tablets and when the sidebar is open. The Page navigation toggle spans its card action group with clear Add to Nav/Remove Nav labels. Existing callbacks, permissions, publication fields and queries are unchanged.
+
+- **Theme Startup Canvas**: Theme-owned `theme.json` metadata supplies validated startup colours through the shared PHP render helper and Source build. Public Prism pages use their fixed dark canvas before React renders, including after another theme used light mode. Global entries contain no theme-specific exceptions. Missing or invalid startup metadata uses the ordinary canvas; saved light/dark preferences, private entries and other themes remain unchanged. Startup markers and colours are cleared when leaving the public site.
+
+- **Discovery Footer Stability**: Default, Prism, TechPress and Digest reserve a viewport of space while their Home/category discovery area has no articles to display. This prevents the footer flashing into view when returning from a directly opened Post/Page before the Home list arrives, including the first render before the request starts. The reservation is removed when articles are available; empty/error messages remain usable. Portfolio, Corporate Pro, request/query behavior, stored settings and login feedback are unchanged.
+
+- **Public Login Feedback**: Successful public popup sign-in updates the signed-in user immediately, fades the existing modal out over approximately 180 ms and shows a theme-aware confirmation at the top right for two seconds, matching other notifications. Respects reduced motion and keyboard focus without drawing an outline around the content/hero; interactive control focus indicators are retained. Cleans up pending dismissal work when the modal closes or the route changes. Failed login and email-verification responses do not show success. The login design, standalone `/login` redirects, admin reauthentication, CSRF, remember-me and PHP session behavior are unchanged.
+
+- **Public Name And Title Encoding**:
+  - **Consistent text**: Resolves one legacy entity layer in site names across server metadata, initial/public settings and RSS, retaining the "My Website" fallback. Post/Page metadata and RSS titles match theme headings; final HTML labels are escaped, and resolved content/collection schema titles are not decoded again. RSS descriptions reuse plain-text SEO cleanup.
+  - **Unchanged boundaries**: Stored content/settings, authorization, URLs and database schema are unchanged. This does not force Google's selected site name or search appearance.
+
+- **First-Publication Clock Consistency**: New first-publication timestamps from Save Post/Page use the configured CMS timezone, matching scheduling and News Sitemap comparisons even when MySQL uses a different timezone. Existing publication/creation timestamps and date-based URLs are not rewritten; ambiguous historical timestamps are not automatically repaired. No schema or server-timezone change is required.
+
+- **News Publication Readiness**: News queries require the existing publication capability activated by installation or successful Database Repair. Upgraded/restored sites without that readiness return HTTP 503 with Repair guidance instead of using database-clock creation dates in a successful but incomplete feed. The ordinary sitemap index remains available and omits unavailable News links; disabled feeds still return 404. Repair restores eligibility for new CMS-timestamped publications without reinterpreting pre-Repair dates. No automatic schema migration, new table or change to ordinary public/RSS date fallbacks is introduced.
+
+- **Date Permalink Guidance**: The Date & Name preview includes year, month and day and correctly describes its original creation-date basis. Actual URL generation is unchanged.
+
+- **Dependency Maintenance**: Updates OpenRouter SDK from 1.5.81 to 1.5.103, the TipTap family from 3.33.1 to 3.34.0, Lucide React from 1.71.0 to 1.73.0, Prettier from 3.9.10 to 3.10.1, Vite from 8.3.7 to 8.3.8, PostCSS from 8.5.32 to 8.5.33 and development-only ESLint from 10.14.0 to 10.15.0 within their compatible ranges. PHP requirements remain unchanged.
+
+- **Reviewed Install Scripts**: Explicitly denies the OpenRouter SDK's optional development-only model-type check, resolving npm's unreviewed-script warning without blanket script approval. Runtime behavior and dependency versions are unchanged.
+
+- **Version Baseline**: CMS package, lockfile, OTA metadata and current documentation use 1.28.3. Installer, bundled theme and built-in plugin labels remain 1.28. This development entry is not a published release.
+
 ### [v1.28.2] - 2026-11-11
 
 - **Promo Bar Controls**: An empty CTA destination leaves the announcement visible without a placeholder link. Valid links, including page fragments, keep their existing behavior. Admins can turn off visitor dismissal to hide the close button and ignore prior browser dismissals without changing the campaign schedule. Existing configurations remain dismissible by default.

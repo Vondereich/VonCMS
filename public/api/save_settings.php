@@ -807,29 +807,20 @@ try {
         if (!is_array($value)) {
           ResponseHelper::sendError('Invalid API settings data.', 400);
         }
-        $existingApiConfig = [];
         try {
-          $existingApiStmt = $pdo->prepare(
-            "SELECT setting_value FROM settings WHERE setting_group = 'api' AND setting_key = 'config' LIMIT 1 FOR UPDATE",
-          );
-          $existingApiStmt->execute();
-          $existingApiRaw = $existingApiStmt->fetchColumn();
-          $decodedApiConfig = is_string($existingApiRaw)
-            ? json_decode($existingApiRaw, true)
-            : null;
-          if (is_array($decodedApiConfig)) {
-            $existingApiConfig = $decodedApiConfig;
-          } elseif (is_string($existingApiRaw) && $existingApiRaw !== '') {
-            throw new RuntimeException('Existing API settings are invalid.');
-          }
+          $existingApiConfig = voncms_ai_lock_config($pdo, true);
         } catch (Throwable $e) {
           throw new RuntimeException(
-            'Existing API settings could not be verified. Nothing was saved.',
+            'Existing API settings could not be verified. Run Database Repair before saving.',
           );
         }
 
         try {
-          $value = voncms_ai_prepare_stored_config($value, $existingApiConfig);
+          $value = voncms_ai_prepare_stored_config(
+            $value,
+            $existingApiConfig,
+            voncms_ai_can_create_master($pdo, $existingApiConfig),
+          );
           $savedApiConfig = $value;
         } catch (InvalidArgumentException $e) {
           $apiCredentialFailureStatus = 400;

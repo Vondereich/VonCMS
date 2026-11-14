@@ -863,7 +863,7 @@ $cssFile = $publicAssets['cssFile'];
     data-voncms-ssr-route="<?php echo htmlspecialchars((string) ($_SERVER['REQUEST_URI'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
     data-voncms-ssr-robots="<?php echo htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8'); ?>"
     data-voncms-ssr-canonical="<?php echo htmlspecialchars($seoUrl, ENT_QUOTES, 'UTF-8'); ?>"
-    data-voncms-ssr-title="<?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8', false); ?>" />
+    data-voncms-ssr-title="<?php echo htmlspecialchars($seoTitle, ENT_QUOTES, 'UTF-8'); ?>" />
   <?php
   $faviconHref = !empty($faviconUrl)
     ? $faviconUrl
@@ -877,7 +877,7 @@ $cssFile = $publicAssets['cssFile'];
   <?php endif; ?>
 
   <!-- Dynamic SEO Meta Tags -->
-  <title><?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?></title>
+  <title><?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?></title>
   <meta name="csrf-token" content="<?php echo CSRFProtection::getToken(); ?>">
   <meta name="description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if (isset($post) && (!empty($post['author_name']) || !empty($post['author']))): ?>
@@ -885,12 +885,12 @@ $cssFile = $publicAssets['cssFile'];
   <?php endif; ?>
 
   <!-- Open Graph / Social Media -->
-  <meta property="og:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta property="og:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?>">
   <meta property="og:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php $socialImage = $seoImage; ?>
   <?php if ($socialImage !== ''): ?>
   <meta property="og:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
-  <meta property="og:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta property="og:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?>">
   <?php if ($seoImageWidth > 0 && $seoImageHeight > 0): ?>
   <meta property="og:image:width" content="<?php echo $seoImageWidth; ?>">
   <meta property="og:image:height" content="<?php echo $seoImageHeight; ?>">
@@ -901,9 +901,9 @@ $cssFile = $publicAssets['cssFile'];
   <link rel="canonical" href="<?php echo htmlspecialchars($seoUrl, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php endif; ?>
   <?php if (isset($domainUrl) && $domainUrl !== ''): ?>
-  <link rel="alternate" type="application/rss+xml" href="<?php echo htmlspecialchars($domainUrl, ENT_COMPAT, 'UTF-8', false); ?>/rss.xml" title="<?php echo htmlspecialchars($siteName ?? 'RSS Feed', ENT_COMPAT, 'UTF-8', false); ?> RSS Feed">
+  <link rel="alternate" type="application/rss+xml" href="<?php echo htmlspecialchars($domainUrl, ENT_COMPAT, 'UTF-8', false); ?>/rss.xml" title="<?php echo htmlspecialchars($siteName ?? 'RSS Feed', ENT_COMPAT, 'UTF-8'); ?> RSS Feed">
   <?php endif; ?>
-  <meta property="og:site_name" content="<?php echo htmlspecialchars($siteName ?? $seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta property="og:site_name" content="<?php echo htmlspecialchars($siteName ?? $seoTitle, ENT_COMPAT, 'UTF-8'); ?>">
   <meta property="og:type" content="<?php echo htmlspecialchars($seoOgType, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if ($openGraphLocale !== ''): ?>
   <meta property="og:locale" content="<?php echo htmlspecialchars($openGraphLocale, ENT_COMPAT, 'UTF-8', false); ?>">
@@ -911,11 +911,11 @@ $cssFile = $publicAssets['cssFile'];
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="<?php echo $twitterCard; ?>">
-  <meta name="twitter:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta name="twitter:title" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?>">
   <meta name="twitter:description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if ($socialImage !== ''): ?>
   <meta name="twitter:image" content="<?php echo htmlspecialchars($socialImage, ENT_COMPAT, 'UTF-8', false); ?>">
-  <meta name="twitter:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8', false); ?>">
+  <meta name="twitter:image:alt" content="<?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?>">
   <?php endif; ?>
 
   <!-- Google Search Console Verification -->
@@ -993,42 +993,23 @@ $cssFile = $publicAssets['cssFile'];
   $homepageHeroStrategy = '';
   $homepageHeroSizes = '100vw';
 
-  $themeManifestPaths = [__DIR__ . '/themes/' . $activeThemeId . '/theme.json'];
-  $sourceThemeManifestPaths = glob(dirname(__DIR__) . '/src/themes/*/theme.json');
-  if (is_array($sourceThemeManifestPaths)) {
-    $themeManifestPaths = array_merge($themeManifestPaths, $sourceThemeManifestPaths);
-  }
-
-  if (preg_match('/^[a-z0-9][a-z0-9-]*$/i', $activeThemeId)) {
-    foreach ($themeManifestPaths as $themeManifestPath) {
-      if (!is_file($themeManifestPath) || filesize($themeManifestPath) > 16384) {
-        continue;
-      }
-
-      $themeManifestJson = file_get_contents($themeManifestPath);
-      $themeManifest = is_string($themeManifestJson)
-        ? json_decode($themeManifestJson, true)
-        : null;
-      if (!is_array($themeManifest) || ($themeManifest['id'] ?? '') !== $activeThemeId) {
-        continue;
-      }
-
-      $manifestHeroStrategy = $themeManifest['performance']['homepageHero'] ?? '';
-      $homepageHeroStrategy = $manifestHeroStrategy === 'first-post-image'
-        ? 'first-post-image'
-        : '';
-      $manifestHeroSizes = $themeManifest['performance']['homepageHeroSizes'] ?? null;
-      if (
-        $homepageHeroStrategy === 'first-post-image' &&
-        is_string($manifestHeroSizes) &&
-        $manifestHeroSizes !== '' &&
-        strlen($manifestHeroSizes) <= 256 &&
-        !preg_match('/[\x00-\x1F\x7F<>"\']/', $manifestHeroSizes)
-      ) {
-        $homepageHeroSizes = $manifestHeroSizes;
-      }
-      break;
-    }
+  $themeManifest = voncms_load_public_theme_manifest(__DIR__, $activeThemeId);
+  $publicThemeStartup = voncms_public_theme_startup($themeManifest);
+  $themePerformance = is_array($themeManifest['performance'] ?? null)
+    ? $themeManifest['performance'] : [];
+  $manifestHeroStrategy = $themePerformance['homepageHero'] ?? '';
+  $homepageHeroStrategy = $manifestHeroStrategy === 'first-post-image'
+    ? 'first-post-image'
+    : '';
+  $manifestHeroSizes = $themePerformance['homepageHeroSizes'] ?? null;
+  if (
+    $homepageHeroStrategy === 'first-post-image' &&
+    is_string($manifestHeroSizes) &&
+    $manifestHeroSizes !== '' &&
+    strlen($manifestHeroSizes) <= 256 &&
+    !preg_match('/[\x00-\x1F\x7F<>"\']/', $manifestHeroSizes)
+  ) {
+    $homepageHeroSizes = $manifestHeroSizes;
   }
 
   $heroPreloadHref = '';
@@ -1061,6 +1042,10 @@ $cssFile = $publicAssets['cssFile'];
     <link rel="preload" as="image" href="<?php echo htmlspecialchars($heroPreloadHref, ENT_QUOTES, 'UTF-8'); ?>"<?php if ($heroPreloadSrcSet !== ''): ?> imagesrcset="<?php echo htmlspecialchars($heroPreloadSrcSet, ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?> imagesizes="<?php echo htmlspecialchars($homepageHeroSizes, ENT_QUOTES, 'UTF-8'); ?>" fetchpriority="high">
   <?php endif; ?>
   <script>
+    window.__PUBLIC_THEME_STARTUP__ = <?php echo json_encode(
+      $publicThemeStartup === null ? (object) [] : [$activeThemeId => $publicThemeStartup],
+      JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP,
+    ); ?>;
     window.__INITIAL_SETTINGS__ = <?php echo json_encode(array_merge($publicSettingsSnapshot, [
                                      'siteName'             => $siteName ?? 'My Website',
                                      'siteDescription'      => $publicSettingsSnapshot['siteDescription'] ?? $siteDescription ?? '',
@@ -1217,6 +1202,18 @@ $cssFile = $publicAssets['cssFile'];
       color: #f1f5f9;
     }
 
+    html[data-public-theme-scheme],
+    html[data-public-theme-scheme] body {
+      background-color: var(--von-public-boot-bg);
+      color: var(--von-public-boot-text);
+    }
+    html[data-public-theme-scheme='dark'] {
+      color-scheme: dark;
+    }
+    html[data-public-theme-scheme='light'] {
+      color-scheme: light;
+    }
+
     /* Keep this boot-loader block aligned with index.html. */
     .voncms-boot-canvas {
       display: grid;
@@ -1235,7 +1232,8 @@ $cssFile = $publicAssets['cssFile'];
       animation: voncms-loader-spin 900ms linear infinite;
     }
 
-    html.dark .voncms-loader-spinner {
+    html.dark:not([data-public-theme-scheme='light']) .voncms-loader-spinner,
+    html[data-public-theme-scheme='dark'] .voncms-loader-spinner {
       border-color: #34343a;
       border-top-color: #b4b4bd;
     }
@@ -1309,6 +1307,24 @@ $cssFile = $publicAssets['cssFile'];
   <script>
     (function() {
       try {
+        const basePath = window.VON_BASE || '/';
+        const appPath = window.location.pathname.startsWith(basePath)
+          ? window.location.pathname.slice(basePath.length)
+          : window.location.pathname;
+        const privateEntry = /^(?:admin|login|install)(?:\/|$)/i.test(appPath.replace(/^\/+/, ''));
+        if (!privateEntry) {
+          const themeId = window.__INITIAL_SETTINGS__?.activeThemeId || localStorage.getItem('von_active_theme_id');
+          const startup = window.__PUBLIC_THEME_STARTUP__?.[themeId];
+          if (startup && ['light', 'dark'].includes(startup.colorScheme) &&
+              typeof startup.background === 'string' && startup.background.length === 7 &&
+              typeof startup.text === 'string' && startup.text.length === 7 &&
+              /^#[\da-f]{6}$/i.test(startup.background) && /^#[\da-f]{6}$/i.test(startup.text)) {
+            const root = document.documentElement;
+            root.style.setProperty('--von-public-boot-bg', startup.background);
+            root.style.setProperty('--von-public-boot-text', startup.text);
+            root.dataset.publicThemeScheme = startup.colorScheme;
+          }
+        }
         const darkMode = localStorage.getItem('von_dark_mode') === 'true';
         if (darkMode) {
           document.documentElement.classList.add('dark');

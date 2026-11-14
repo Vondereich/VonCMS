@@ -386,6 +386,114 @@ check(
 $legacyThemeBytes = strlen(json_encode($savedTheme, JSON_THROW_ON_ERROR));
 $activeThemeBytes = strlen(json_encode($enabledPublic['theme'], JSON_THROW_ON_ERROR));
 check($activeThemeBytes < $legacyThemeBytes, 'Active-only fixture payload is actually smaller');
+
+$siteNameCases = [
+  ['plain', 'Skrip Global', 'Skrip Global'],
+  ['trimmed', '  Skrip Global  ', 'Skrip Global'],
+  ['ampersand', 'Tom & Jerry', 'Tom & Jerry'],
+  ['legacy entity', 'Tom &amp; Jerry', 'Tom & Jerry'],
+  ['single decode', 'Tom &amp;amp; Jerry', 'Tom &amp; Jerry'],
+  ['unicode', 'Café “世界” صوت', 'Café “世界” صوت'],
+  ['literal markup', 'News </script> & "Quotes"', 'News </script> & "Quotes"'],
+  ['zero', '0', '0'],
+  ['empty', '', 'My Website'],
+  ['whitespace', " \t\n ", 'My Website'],
+  ['encoded whitespace', '&#32;', 'My Website'],
+  ['absent', null, 'My Website'],
+];
+$siteNameMetaMatch = [];
+check(
+  preg_match('/<meta property="og:site_name"[^\r\n]*/', $indexSource, $siteNameMetaMatch) === 1,
+  'Actual Open Graph site-name template must be available',
+);
+$renderSiteNameMeta = static function (array $context) use ($siteNameMetaMatch): string {
+  extract($context, EXTR_SKIP);
+  ob_start();
+  try {
+    eval('?>' . $siteNameMetaMatch[0]);
+    return (string) ob_get_contents();
+  } finally {
+    ob_end_clean();
+  }
+};
+$siteNameRows = [];
+foreach (
+  [
+    ['https://example.test', '/'],
+    ['https://news.example.test', '/'],
+    ['https://example.test/blog', '/blog/'],
+    ['https://example.test/news/cms', '/news/cms/'],
+  ]
+  as [$siteNameDomain, $siteNameBase]
+) {
+  $pdo
+    ->prepare(
+      "UPDATE settings SET setting_value=? WHERE setting_group='general' AND setting_key='domain_url'",
+    )
+    ->execute([$siteNameDomain]);
+  foreach ($siteNameCases as [$caseLabel, $storedName, $expectedName]) {
+    $pdo->exec("DELETE FROM settings WHERE setting_group='general' AND setting_key='site_name'");
+    if ($storedName !== null) {
+      $insert->execute(['general', 'site_name', $storedName, 'string']);
+    }
+    $databaseBefore = $pdo->query('SELECT * FROM settings')->fetchAll(PDO::FETCH_ASSOC);
+    $context = voncms_load_public_runtime_context(
+      $pdo,
+      $siteNameBase,
+      '/',
+      1,
+      $siteNameDomain,
+      'My Website',
+      'Description',
+    );
+    $projected = voncms_build_public_settings_projection($pdo);
+    $seed = $renderSeed($context);
+    $graph = voncms_build_site_identity_schema_graph(
+      $context['schemaData'],
+      $context['siteName'],
+      $context['siteDescription'],
+      $context['domainUrl'],
+      '',
+    );
+    $websiteNodes = array_values(
+      array_filter($graph['@graph'], static fn(array $node): bool => $node['@type'] === 'WebSite'),
+    );
+    $metaMatch = [];
+    check(
+      preg_match('/content="([^"]*)"/', $renderSiteNameMeta($context), $metaMatch) === 1,
+      'Site-name output must retain its content attribute',
+    );
+    $metaName = html_entity_decode($metaMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    check(
+      ($projected['siteName'] ?? null) === $expectedName &&
+        $context['siteName'] === $expectedName &&
+        $seed['siteName'] === $expectedName &&
+        $metaName === $expectedName &&
+        count($websiteNodes) === 1 &&
+        $websiteNodes[0]['name'] === $expectedName &&
+        $websiteNodes[0]['url'] === $siteNameDomain . '/',
+      'Site-name SSR, bootstrap and API parity: ' . $siteNameDomain . ' / ' . $caseLabel,
+    );
+    check(
+      $pdo->query('SELECT * FROM settings')->fetchAll(PDO::FETCH_ASSOC) === $databaseBefore,
+      'Site-name normalization must never rewrite stored settings',
+    );
+    $siteNameRows[] = [
+      'case' => $caseLabel,
+      'domain' => $siteNameDomain,
+      'base' => $siteNameBase,
+      'expected' => $expectedName,
+      'seed' => $seed['siteName'],
+      'api' => $projected['siteName'],
+      'schema' => $graph,
+    ];
+  }
+}
+if (($argv[1] ?? '') === '--site-name-json') {
+  echo json_encode($siteNameRows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+  exit();
+}
+
 echo 'PASS Public settings: six themes/root/subfolder SSR/API parity, retained storage, reactivation, legacy alias precedence, explicit OFF/empty/zero values; fixture theme JSON ' .
   $legacyThemeBytes .
   ' -> ' .
