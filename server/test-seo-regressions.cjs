@@ -130,6 +130,51 @@ function collectClientEncoding(file, source) {
   visit(ast);
   return sortedObject(counts);
 }
+// Lightweight extraction for the review inventory, not an HTML sanitizer.
+function extractInlineScripts(source) {
+  return [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script(?:[\s/][^>]*)?>/gi)]
+    .map((match) => match[1])
+    .join('\n');
+}
+for (const [label, closingTag] of [
+  ['ordinary', '</script>'],
+  ['space', '</script >'],
+  ['tab', '</script\t>'],
+  ['newline', '</script\n>'],
+  ['mixed case and CRLF', '</ScRiPt\r\n >'],
+  ['slash', '</script/>'],
+  ['trailing attributes', '</script data-review="fixture">'],
+]) {
+  const body = 'decodeEntities(value);';
+  const extracted = extractInlineScripts(`<script type="module">${body}${closingTag}`);
+  check(
+    `HTML script inventory includes ${label} closing tag`,
+    extracted === body &&
+      JSON.stringify(collectClientEncoding('fixture.js', extracted)) ===
+        JSON.stringify({ decodeEntities: 1 }),
+    { closingTag, extracted }
+  );
+}
+const scriptLookalikeBody = 'const example = "</script-extra>"; decodeEntities(value);';
+check(
+  'HTML script inventory does not stop at a closing-tag name lookalike',
+  extractInlineScripts(`<script>${scriptLookalikeBody}</script >`) === scriptLookalikeBody
+);
+const multipleScripts = extractInlineScripts(
+  '<p>decodeEntities(outside);</p><script>decodeEntities(first);</script >' +
+    '<script>decodeEntities(second);</SCRIPT\n><p>decodeEntities(outside);</p>'
+);
+check(
+  'HTML script inventory collects each script without including surrounding HTML',
+  multipleScripts === 'decodeEntities(first);\ndecodeEntities(second);' &&
+    JSON.stringify(collectClientEncoding('fixture.js', multipleScripts)) ===
+      JSON.stringify({ decodeEntities: 2 })
+);
+check(
+  'HTML script inventory leaves absent and unterminated scripts empty',
+  extractInlineScripts('<p>decodeEntities(outside);</p>') === '' &&
+    extractInlineScripts('<script>decodeEntities(unfinished);') === ''
+);
 const phpInventoryProbe = spawnSync(
   phpBinary,
   [
@@ -180,11 +225,7 @@ for (const [file, counts] of Object.entries(phpInventory.files))
   actualEncodingOperations[path.relative(root, file).split(path.sep).join('/')] = counts;
 for (const file of productionFiles.filter((file) => !file.endsWith('.php'))) {
   const source = fs.readFileSync(file, 'utf8');
-  const scripts = file.endsWith('.html')
-    ? [...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
-        .map((match) => match[1])
-        .join('\n')
-    : source;
+  const scripts = file.endsWith('.html') ? extractInlineScripts(source) : source;
   const counts = collectClientEncoding(file, scripts);
   if (Object.keys(counts).length)
     actualEncodingOperations[path.relative(root, file).split(path.sep).join('/')] = counts;
