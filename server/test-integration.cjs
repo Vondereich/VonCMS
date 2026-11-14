@@ -66,9 +66,24 @@ try {
     const { Minimatch, minimatch } = createRequire(require.resolve(consumer))('minimatch');
     const pattern =
       Array.from({ length: 8 }, (_, index) => `**/../part${index}`).join('/') + '/*.ts';
-    const amplified = new Minimatch(pattern, { optimizationLevel: 2, braceExpandMax: 32 });
-    if (amplified.globParts.length > 32)
+    let amplified;
+    try {
+      amplified = new Minimatch(pattern, { optimizationLevel: 2, braceExpandMax: 32 });
+    } catch (error) {
+      // Newer minimatch rejects the whole expansion before allocating beyond the cap.
+      if (
+        !(error instanceof RangeError) ||
+        error.message !== "optimizationLevel 2: too many patterns from '**/..'"
+      ) {
+        throw error;
+      }
+    }
+    if (amplified && amplified.globParts.length > 32)
       throw new Error(`${consumer}: glob expansion exceeded cap`);
+    // The same pattern must still work when its complete expansion fits the budget.
+    const permitted = new Minimatch(pattern, { optimizationLevel: 2, braceExpandMax: 512 });
+    if (permitted.globParts.length !== 256)
+      throw new Error(`${consumer}: permitted glob expansion changed`);
     for (const [file, glob, options, partial, expected] of [
       ['src/.hidden.tsx', 'src/**/*.{ts,tsx}', { dot: true }, false, true],
       ['src/file.php', 'src/**/*.{ts,tsx}', { dot: true }, false, false],
@@ -4069,7 +4084,7 @@ assertIncludes(
     '$requiredDirectiveGroups = [',
     "'RewriteRule ^von_config\\\\.php$ - [F,L]'",
     "'RewriteRule \\.(sql|md|json|log|bak|env|zip|lock)$ - [F,L]'",
-    "'RewriteRule ^api/(.*)$ api/$1 [L]'",
+    "'RewriteRule ^api/ - [R=404,L,NC]'",
     "'RewriteRule ^ index.php [L,QSA]'",
     "preg_quote($directive, '/')",
     'SecurityHelper::hasRequiredHtaccessDirectives($content)',
@@ -4579,7 +4594,8 @@ if (
   ['login-483', 'login-500', 'login-514', 'login-525'].every((id) =>
     registrationView.includes(`htmlFor="${id}"`)
   ) &&
-  appShellContent.includes('has-data-[auth-view=register]:max-w-160')
+  read('src/components/AuthModal.tsx').includes('has-data-[auth-view=register]:max-w-160') &&
+  appShellContent.includes('<AuthModal settings={settings}')
 ) {
   pass(
     'Registration Password Space Contract: registration alone uses a wider desktop card and paired labelled fields; phone fields stack and the public popup follows the same width contract.'
@@ -5937,8 +5953,8 @@ if (
   !settingsManagerContent.includes('<option value="openai">OpenAI</option>') &&
   !settingsManagerContent.includes("tempSettings.api?.aiProvider === 'openai'") &&
   typesContent.includes("aiProvider?: 'gemini';") &&
-  (postEditorContent.includes('Please enter your Google Gemini API Key') ||
-    useAiWritingContent.includes('Please enter your Google Gemini API Key')) &&
+  useAiWritingContent.includes('API.aiGenerate') &&
+  useAiWritingContent.includes('API.aiCheck') &&
   !postEditorContent.includes("provider === 'openai'") &&
   !postEditorContent.includes('provider: provider')
 ) {
@@ -6126,7 +6142,7 @@ assertIncludes(
     'Expire saved AI key after 30 days',
     'Saved Gemini API key expired',
   ],
-  'AI Key Privacy and Rotation: API config stays private, can opt into 30-day expiry, and expired saved keys fall back to the prompt flow.',
+  'AI Key Privacy and Rotation: API config stays private, can opt into 30-day expiry, and expired saved keys remain unusable until explicit action.',
   'AI Key Privacy and Rotation: saved Gemini key privacy/expiry markers are incomplete.'
 );
 
@@ -6146,8 +6162,9 @@ assertIncludes(
     "voncms_role_has_capability($currentRole, 'posts.create')",
     "'sharedAvailable' => voncms_ai_configured_key($config) !== ''",
     "settings['aiAssistant'] = voncms_ai_staff_projection($pdo)",
-    'settings?.aiAssistant?.sharedAvailable',
-    "...(credential.apiKey ? { 'x-gemini-key': credential.apiKey } : {})",
+    'voncms_ai_personal_row($pdo, $userId)',
+    'voncms_ai_personal_plaintext($personal, $userId)',
+    "'credentialSource' => $aiRequest['shared'] ? 'shared' : 'personal'",
     "'shared' => true",
     "voncms_ai_consume_quota('shared-site', 300, 3600)",
     '$httpCode === 404',
@@ -6218,24 +6235,22 @@ if (
 }
 
 if (
-  useAiWritingContent.includes("import { useCallback, useRef, useState } from 'react';") &&
-  useAiWritingContent.includes("const promptedApiKeyRef = useRef('');") &&
-  useAiWritingContent.includes('promptedApiKeyRef.current') &&
-  useAiWritingContent.includes('promptedApiKeyRef.current = promptedApiKey;') &&
+  !useAiWritingContent.includes('prompt(') &&
+  !useAiWritingContent.includes('x-gemini-key') &&
+  !useAiWritingContent.includes('promptedApiKeyRef') &&
+  useAiWritingContent.includes('credentialSource') &&
   !useAiWritingContent.includes('localStorage.setItem') &&
   !useAiWritingContent.includes('sessionStorage.setItem')
 ) {
   pass(
-    'Staff AI Key Session Memory: prompted Gemini keys are reused in editor memory without persisting to browser storage.'
+    'Staff AI Key Boundary: editor delegates credential selection to PHP without prompts, key headers or browser persistence.'
   );
 } else {
-  fail(
-    'Staff AI Key Session Memory: staff users must not be prompted for the Gemini key on every AI action, and the key must not be persisted to browser storage.'
-  );
+  fail('Staff AI Key Boundary: editor must delegate private key selection to PHP.');
 }
 
 if (
-  saveSettingsContent.includes('voncms_ai_prepare_stored_config($value, $existingApiConfig)') &&
+  saveSettingsContent.includes('voncms_ai_prepare_stored_config(') &&
   aiProviderHelperContent.includes('voncms_ai_read_stored_key') &&
   aiProviderHelperContent.includes(
     "unset($result['aiApiKey'], $result['aiKeySavedAt'], $result['aiKeyExpiresAt']);"
@@ -6246,8 +6261,8 @@ if (
   settingsManagerContent.includes('expiredAiKeyNotice') &&
   settingsManagerContent.includes('Saved Gemini API key expired. Enter a fresh key to continue.') &&
   !settingsManagerContent.includes('clearExpiredAiKeyFromSettings') &&
-  useAiWritingContent.includes('settings?.api?.aiApiKey &&') &&
-  useAiWritingContent.includes('!Number.isFinite(aiKeyExpiresAtTime)')
+  aiProviderHelperContent.includes('voncms_ai_personal_plaintext') &&
+  !useAiWritingContent.includes('settings?.api?.aiApiKey')
 ) {
   pass(
     'Expired AI Key Preservation Contract: expired credentials stay masked and unusable without silent renewal or deletion; explicit replacement/removal owns persistence.'
@@ -9467,6 +9482,13 @@ assertIncludes(
   'Database Status Session Release Contract: a slow metadata scan can serialize other requests from the same admin session.'
 );
 assertIncludes(
+  'Personal AI Storage Repair Notification Contract',
+  read('public/api/system/check_db_status.php'),
+  ["'personal_ai_keys' => 'Personal AI key storage'"],
+  'Personal AI Storage Repair Notification Contract: the owner bell checks the new credential storage.',
+  'Personal AI Storage Repair Notification Contract: missing credential storage can be reported as healthy.'
+);
+assertIncludes(
   'Schema Repair Core Manifest And Mutation Drift Contract',
   schemaRepairHelperContent +
     '\n' +
@@ -9542,8 +9564,9 @@ assertIncludes(
     '\n' +
     wpImportContent,
   [
-    'published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END',
-    'CASE WHEN :publish_now = 1 THEN NOW() ELSE NULL END',
+    'published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN :publication_now ELSE published_at END',
+    'CASE WHEN :publish_now = 1 THEN :publication_now ELSE NULL END',
+    "['publication_now'] = date('Y-m-d H:i:s');",
     'published_at = COALESCE(published_at, scheduled_at)',
     '$postPublishedColumn',
     '$pagePublishedColumn',
@@ -11053,8 +11076,8 @@ assertIncludes(
     '\n' +
     read('src/themes/corporate-pro/Layout.tsx'),
   [
-    'title = `${selectedPost.title} | ${siteTitle}`;',
-    'title = `${selectedPage.title} | ${siteTitle}`;',
+    'title = `${decodeEntities(selectedPost.title)} | ${siteTitle}`;',
+    'title = `${decodeEntities(selectedPage.title)} | ${siteTitle}`;',
     'title = `${profileDisplayName} | ${siteTitle}`;',
     'const targetProfileForSEO = selectedProfile ? targetProfile : null;',
     'selectedProfile={targetProfile}',
@@ -13034,7 +13057,7 @@ if (exists(publicPostsQueryHookPath)) {
 try {
   const assert = require('assert');
   const themeAppearance = loadTsModuleForSmokeWithMocks('src/themes/shared/themeSettings.ts', {
-    '../../utils/settingsDraft': loadTsModuleForSmoke('src/utils/settingsDraft.ts'),
+    '../../utils/settingsDraft.ts': loadTsModuleForSmoke('src/utils/settingsDraft.ts'),
   });
   const corporate = loadTsModuleForSmokeWithMocks('src/themes/corporate-pro/config.ts', {
     '../shared/themeSettings': themeAppearance,
@@ -14272,15 +14295,15 @@ assertIncludes(
   'Appointed Admin Closeout Boundary',
   appointedAdminCloseoutContent,
   [
-    'isProtectedAiKey',
-    '!isProtectedAiKey(settings?.api?.aiApiKey)',
+    'credentialSource',
+    'API.aiGenerate',
     'path="gallery"',
     '<Navigate to="/admin" replace />',
     'canManageMediaDestructiveActions',
     'SessionManager::requirePrimaryAdmin();',
   ],
-  'Appointed Admin Closeout Boundary: masked AI keys prompt for staff-owned keys, user/admin tools and destructive media/WP/system endpoints are primary-admin gated.',
-  'Appointed Admin Closeout Boundary: appointed admins can still inherit masked AI keys, enumerate users, or run destructive tools/media/WP actions.'
+  'Appointed Admin Closeout Boundary: editor delegates key selection to PHP; existing destructive media/WP/system tools retain owner guards.',
+  'Appointed Admin Closeout Boundary: expected editor or owner-only tool guards are missing.'
 );
 
 const ownerOnlySystemEndpoints = [
@@ -15990,14 +16013,15 @@ assertIncludes(
 
 assertIncludes(
   'Homepage Hero Preload Contract',
-  indexContent,
+  indexContent + '\n' + phpPublicRenderHelperContent,
   [
     '$homepageHeroStrategy',
     '$homepageHeroSizes',
-    '$themeManifestPaths',
-    "glob(dirname(__DIR__) . '/src/themes/*/theme.json')",
+    'voncms_load_public_theme_manifest(__DIR__, $activeThemeId)',
+    "glob(dirname($publicDirectory) . '/src/themes/*/theme.json')",
     "'/theme.json'",
-    'json_decode($themeManifestJson, true)',
+    'json_decode($json, true)',
+    'strlen($json) > 16384',
     "$homepageHeroStrategy === 'first-post-image'",
     '$path = $currentPath;',
     'voncms_is_homepage_path($path)',
@@ -16067,7 +16091,7 @@ assertIncludes(
   'Site Name SSR Whitespace Guard',
   phpPublicRenderHelperContent,
   [
-    "$settings['siteName'] = trim((string) $value);",
+    "$settings['siteName'] = voncms_normalize_public_site_name((string) $value);",
     "$siteNameValue = trim((string) ($publicSettings['siteName'] ?? ''));",
   ],
   'Site Name SSR Whitespace Guard: legacy stored site names render without leading or trailing whitespace.',
@@ -18111,6 +18135,15 @@ const responsiveAdminRouteFiles = [
 if (
   responsiveAdminRouteFiles.every((file) => {
     const content = read(file);
+    if (file.endsWith('/content/ContentManager.tsx')) {
+      return [
+        '@container space-y-6',
+        '@min-[70rem]:hidden',
+        '@min-[70rem]:block',
+        '@min-[56.25rem]:hidden',
+        '@min-[56.25rem]:block',
+      ].every((marker) => content.includes(marker));
+    }
     return (
       content.includes('sm:hidden') ||
       content.includes('md:hidden') ||
@@ -18737,6 +18770,13 @@ if (phpBinary) {
     warn(warning.slice(5));
 }
 if (phpBinary) {
+  const personalProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/personal-ai-keys.php')],
+    { encoding: 'utf8' }
+  );
+  if (personalProbe.status === 0) pass(personalProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('Personal AI Keys: ' + (personalProbe.stderr || personalProbe.stdout).trim());
   const credentialProbe = spawnSync(
     phpBinary,
     [resolveFromRoot('server/integration/credential-storage.php')],
@@ -23796,6 +23836,17 @@ if (calendarProbe.status === 0) pass(calendarProbe.stdout.trim().replace(/^PASS 
 else if (calendarProbe.status === 2)
   warn('Calendar fixture: NOT_RUN; PHP SQLite/mbstring prerequisites unavailable.');
 else fail('Calendar fixture: ' + (calendarProbe.stderr || calendarProbe.stdout).trim());
+
+const publicRoutingProbe = spawnSync(
+  process.execPath,
+  [resolveFromRoot('server/test-public-routing.cjs')],
+  {
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
+  }
+);
+if (publicRoutingProbe.status === 0) pass(publicRoutingProbe.stdout.trim().replace(/^PASS /, ''));
+else fail('Public routing: ' + (publicRoutingProbe.stderr || publicRoutingProbe.stdout).trim());
 
 if (failed) {
   console.error(

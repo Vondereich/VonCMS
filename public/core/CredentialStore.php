@@ -307,9 +307,8 @@ final class VonCmsCredentialStore
   }
 
   /**
-   * Rotate the current single global credential. The caller must hold its database row lock
-   * until $persist commits. Before adding other stored credentials, extend this coordinator
-   * to re-encrypt every record sharing the installation key.
+   * Compatibility wrapper for a store containing only one credential.
+   * Multi-record stores must use rotateSecrets with every persisted encrypted record.
    *
    * Both old and new keys are published before the database change. They remain usable even
    * after process termination, rollback or an uncertain commit; never restore an old-only file.
@@ -319,7 +318,28 @@ final class VonCmsCredentialStore
     string $context,
     callable $persist,
   ): void {
+    self::rotateSecrets(
+      ['credential' => ['stored' => $stored, 'context' => $context]],
+      static function (array $values) use ($persist): void {
+        $persist($values['credential']);
+      },
+    );
+  }
+
+  /**
+   * Caller holds the installation's database anchor and all credential rows until persist commits.
+   * A failed/uncertain prior rotation is completed on the active generation before minting another.
+   * @param array<string,array{stored:string,context:string}> $records
+   * @param callable(array<string,string>):void $persist
+   */
+  public static function rotateSecrets(
+    #[\SensitiveParameter] array $records,
+    callable $persist,
+  ): void {
     self::requireCipher();
+    if ($records === []) {
+      throw new InvalidArgumentException('No stored credentials to rotate.');
+    }
     if (!self::canRotate()) {
       throw new RuntimeException('Private encryption key storage cannot be rotated.');
     }
@@ -349,31 +369,46 @@ final class VonCmsCredentialStore
         throw new RuntimeException('Another encryption key rotation is in progress.', 409);
       }
       $material = self::masterMaterial(false);
-      $plaintext = self::decrypt($stored, $context);
-      $used = str_starts_with($stored, self::PREFIX_V2)
-        ? bin2hex(
-          substr((string) base64_decode(substr($stored, strlen(self::PREFIX_V2)), true), 0, 16),
-        )
-        : $material['legacy'];
-      if (!is_string($used) || !isset($material['keys'][$used])) {
-        throw new RuntimeException('Stored credential key is unavailable.');
+      $plaintexts = [];
+      $allCurrent = true;
+      foreach ($records as $id => $record) {
+        $plaintexts[$id] = self::decrypt($record['stored'], $record['context']);
+        $used = str_starts_with($record['stored'], self::PREFIX_V2)
+          ? bin2hex(
+            substr(
+              (string) base64_decode(substr($record['stored'], strlen(self::PREFIX_V2)), true),
+              0,
+              16,
+            ),
+          )
+          : $material['legacy'];
+        $allCurrent = $allCurrent && $used === $material['active'];
       }
-      $newKey = random_bytes(32);
-      $newId = self::keyId($newKey);
-      $keys = [
-        $newId => $newKey,
-        $used => $material['keys'][$used],
-        $material['active'] => $material['keys'][$material['active']],
-      ];
-      $next = [
-        'format' => 2,
-        'active' => $newId,
-        'legacy' => isset($keys[$material['legacy'] ?? '']) ? $material['legacy'] : null,
-        'keys' => $keys,
-      ];
-      $ciphertext = self::encryptWithMaterial($plaintext, $context, $next);
-      self::writeKeyRing($next);
-      $persist($ciphertext);
+      $next = $material;
+      if ($allCurrent) {
+        $newKey = random_bytes(32);
+        $newId = self::keyId($newKey);
+        $keys = [$newId => $newKey, $material['active'] => $material['keys'][$material['active']]];
+        foreach ($material['keys'] as $id => $key) {
+          if (count($keys) < 3) {
+            $keys[$id] = $key;
+          }
+        }
+        $next = [
+          'format' => 2,
+          'active' => $newId,
+          'legacy' => isset($keys[$material['legacy'] ?? '']) ? $material['legacy'] : null,
+          'keys' => $keys,
+        ];
+      }
+      $ciphertexts = [];
+      foreach ($records as $id => $record) {
+        $ciphertexts[$id] = self::encryptWithMaterial($plaintexts[$id], $record['context'], $next);
+      }
+      if ($allCurrent) {
+        self::writeKeyRing($next);
+      }
+      $persist($ciphertexts);
     } finally {
       flock($lock, LOCK_UN);
       fclose($lock);

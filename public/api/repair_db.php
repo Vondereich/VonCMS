@@ -281,6 +281,7 @@ function voncms_run_database_schema_repair(PDO $pdo): array
   $coreStructureResult = voncms_schema_repair_core_structures($pdo);
   $fixes = array_merge($fixes, $coreStructureResult['fixes']);
   $warnings = array_merge($warnings, $coreStructureResult['warnings']);
+  voncms_schema_seed_ai_config($pdo);
 
   // Shared core column, index, foreign-key, and optional search-index repair is owned above.
   try {

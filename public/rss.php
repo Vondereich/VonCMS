@@ -40,8 +40,9 @@ try {
   $stmt->execute();
   $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-  $siteName = $rows['site_name'] ?? 'My Website';
-  $siteDesc = $rows['site_description'] ?? '';
+  $siteName = voncms_normalize_public_site_name((string) ($rows['site_name'] ?? ''));
+  $rawSiteDesc = (string) ($rows['site_description'] ?? '');
+  $siteDesc = voncms_clean_seo_description($rawSiteDesc, max(1, mb_strlen($rawSiteDesc, 'UTF-8')));
   $configuredDomainUrl = $rows['domain_url'] ?? '';
   $siteLanguage = trim((string) ($rows['site_language'] ?? ''));
 
@@ -375,7 +376,11 @@ try {
   $pubDate = date('r', strtotime($post['effective_publish_at'] ?? $post['created_at']));
   ?>
     <item>
-      <title><?php echo htmlspecialchars($post['title'], ENT_XML1, 'UTF-8'); ?></title>
+      <title><?php echo htmlspecialchars(
+        html_entity_decode((string) $post['title'], ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        ENT_XML1,
+        'UTF-8',
+      ); ?></title>
       <link><?php echo htmlspecialchars($postUrl, ENT_XML1, 'UTF-8'); ?></link>
       <guid><?php echo htmlspecialchars($postUrl, ENT_XML1, 'UTF-8'); ?></guid>
       <pubDate><?php echo $pubDate; ?></pubDate>

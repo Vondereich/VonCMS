@@ -44,6 +44,16 @@ if (!is_array($input) || !$input || !isset($input['id'])) {
 
 // Authorization: Only allow updating self OR if current user is admin
 $currentUser = DataBoundary::actor();
+// Private self-only User Manager saves are also bound against a browser session/account switch.
+if (
+  array_key_exists('ownAccount', $input) &&
+  ($input['ownAccount'] !== true ||
+    !is_string($input['expectedUserId'] ?? null) ||
+    !hash_equals($currentUser['id'], $input['expectedUserId']) ||
+    ($input['id'] ?? null) !== $currentUser['id'])
+) {
+  ResponseHelper::sendError('Your signed-in account changed. Reload before saving.', 409);
+}
 if (!is_scalar($input['id'])) {
   ResponseHelper::sendError('Invalid user ID', 400);
 }

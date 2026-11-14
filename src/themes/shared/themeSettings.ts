@@ -1,5 +1,32 @@
 import type { SiteSettings, ThemeAppearance } from '../../types';
-import { mergeSettingsDraft } from '../../utils/settingsDraft';
+import { mergeSettingsDraft } from '../../utils/settingsDraft.ts';
+
+export interface ThemeStartup {
+  colorScheme: 'light' | 'dark';
+  background: string;
+  text: string;
+}
+
+// Fixed-canvas themes opt in; ordinary switchable themes retain the saved browser mode.
+export const readThemeStartup = (manifest: unknown): ThemeStartup | null => {
+  if (!manifest || typeof manifest !== 'object' || !('startup' in manifest)) return null;
+  const startup = manifest.startup;
+  if (!startup || typeof startup !== 'object') return null;
+  if (
+    !('colorScheme' in startup) ||
+    (startup.colorScheme !== 'light' && startup.colorScheme !== 'dark') ||
+    !('background' in startup) ||
+    typeof startup.background !== 'string' ||
+    startup.background.length !== 7 ||
+    !/^#[\da-f]{6}$/i.test(startup.background) ||
+    !('text' in startup) ||
+    typeof startup.text !== 'string' ||
+    startup.text.length !== 7 ||
+    !/^#[\da-f]{6}$/i.test(startup.text)
+  )
+    return null;
+  return { colorScheme: startup.colorScheme, background: startup.background, text: startup.text };
+};
 
 export const THEME_SETTINGS_KEYS = {
   'theme-default': 'default',

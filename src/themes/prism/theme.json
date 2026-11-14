@@ -1,4 +1,9 @@
 {
   "id": "theme-prism",
+  "startup": {
+    "colorScheme": "dark",
+    "background": "#050510",
+    "text": "#cbd5e1"
+  },
   "performance": {}
 }

@@ -8,10 +8,39 @@
     <link rel="stylesheet" href="/skeleton.css" />
     <link rel="stylesheet" href="/fonts/inter/inter.css" />
 
+    <!-- Public theme startup metadata -->
     <!-- Theme Guard: Instant Dark Mode detection to prevent FOUC -->
     <script>
       (function () {
         try {
+          const basePath = window.VON_BASE || '/';
+          const appPath = window.location.pathname.startsWith(basePath)
+            ? window.location.pathname.slice(basePath.length)
+            : window.location.pathname;
+          const privateEntry = /^(?:admin|login|install)(?:\/|$)/i.test(
+            appPath.replace(/^\/+/, '')
+          );
+          if (!privateEntry) {
+            const themeId =
+              window.__INITIAL_SETTINGS__?.activeThemeId ||
+              localStorage.getItem('von_active_theme_id');
+            const startup = window.__PUBLIC_THEME_STARTUP__?.[themeId];
+            if (
+              startup &&
+              ['light', 'dark'].includes(startup.colorScheme) &&
+              typeof startup.background === 'string' &&
+              startup.background.length === 7 &&
+              typeof startup.text === 'string' &&
+              startup.text.length === 7 &&
+              /^#[\da-f]{6}$/i.test(startup.background) &&
+              /^#[\da-f]{6}$/i.test(startup.text)
+            ) {
+              const root = document.documentElement;
+              root.style.setProperty('--von-public-boot-bg', startup.background);
+              root.style.setProperty('--von-public-boot-text', startup.text);
+              root.dataset.publicThemeScheme = startup.colorScheme;
+            }
+          }
           const darkMode = localStorage.getItem('von_dark_mode') === 'true';
           if (darkMode) {
             document.documentElement.classList.add('dark');
@@ -48,6 +77,18 @@
         color: #f1f5f9;
       }
 
+      html[data-public-theme-scheme],
+      html[data-public-theme-scheme] body {
+        background-color: var(--von-public-boot-bg);
+        color: var(--von-public-boot-text);
+      }
+      html[data-public-theme-scheme='dark'] {
+        color-scheme: dark;
+      }
+      html[data-public-theme-scheme='light'] {
+        color-scheme: light;
+      }
+
       /* Keep this boot-loader block aligned with public/index.php. */
       .voncms-boot-canvas {
         display: grid;
@@ -64,7 +105,8 @@
         border-radius: 50%;
         animation: voncms-loader-spin 900ms linear infinite;
       }
-      html.dark .voncms-loader-spinner {
+      html.dark:not([data-public-theme-scheme='light']) .voncms-loader-spinner,
+      html[data-public-theme-scheme='dark'] .voncms-loader-spinner {
         border-color: #34343a;
         border-top-color: #b4b4bd;
       }

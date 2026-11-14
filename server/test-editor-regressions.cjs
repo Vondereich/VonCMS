@@ -1580,8 +1580,9 @@ async function checkSavedAiReadiness() {
       );
       const ai = useAiWriting({ settings: saved, parseJsonResponse: async () => ({}) });
       await ai.onGenerate({ title: 'Fixture topic', content: '' });
-      assert.equal(prompts, available ? 0 : 1, scenario);
-      assert.equal(requests, available ? 1 : 0, scenario);
+      // Selection is now session-owned on PHP, not gated by a potentially stale shared flag.
+      assert.equal(prompts, 0, scenario);
+      assert.equal(requests, 1, scenario);
       cases++;
     }
   }

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
 import { sanitizeEditorHtml } from '../utils/security';
@@ -41,73 +41,13 @@ const resolveAiModel = (settings?: import('../types').SiteSettings) => {
   return configuredModel.startsWith('gemini-') ? configuredModel : 'gemini-3.6-flash';
 };
 
-const isProtectedAiKey = (value?: string) => {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase();
-
-  return (
-    !normalized ||
-    normalized === '********' ||
-    normalized.includes('********') ||
-    normalized.includes('protected')
-  );
-};
-
 export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOptions) => {
   const [mode, setMode] = useState<AiAssistantMode>('write');
   const [writePrompt, setWritePrompt] = useState('');
   const [pendingResult, setPendingResult] = useState<AiAssistantResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const promptedApiKeyRef = useRef('');
-
-  const resolveCredential = useCallback(
-    (targetMode: AiAssistantMode) => {
-      if (settings?.aiAssistant?.sharedAvailable) {
-        return { apiKey: '', shared: true };
-      }
-
-      const hasUsableSavedAiKey = Boolean(
-        settings?.api?.aiApiKey && !isProtectedAiKey(settings?.api?.aiApiKey)
-      );
-      const aiKeyExpiresAt = settings?.api?.aiKeyExpiresAt?.trim();
-      const aiKeyExpiresAtTime = aiKeyExpiresAt ? Date.parse(aiKeyExpiresAt) : Number.NaN;
-      const savedAiKeyExpired = Boolean(
-        hasUsableSavedAiKey &&
-        settings?.api?.expireAiKeyAfter30Days &&
-        aiKeyExpiresAt &&
-        (!Number.isFinite(aiKeyExpiresAtTime) || aiKeyExpiresAtTime <= Date.now())
-      );
-
-      let apiKey = savedAiKeyExpired || !hasUsableSavedAiKey ? '' : settings?.api?.aiApiKey?.trim();
-
-      if (!apiKey && promptedApiKeyRef.current) {
-        return { apiKey: promptedApiKeyRef.current, shared: false };
-      }
-
-      if (savedAiKeyExpired) {
-        notify.error('Saved Gemini API key expired. Enter a fresh key to continue.');
-      }
-
-      if (!apiKey) {
-        const promptedApiKey =
-          (targetMode === 'write'
-            ? prompt('Please enter your Google Gemini API Key to generate content:')
-            : prompt('Please enter your Gemini API Key for AI Grammar Check:')
-          )?.trim() || '';
-
-        apiKey = promptedApiKey;
-
-        if (promptedApiKey) {
-          promptedApiKeyRef.current = promptedApiKey;
-        }
-      }
-
-      return apiKey ? { apiKey, shared: false } : null;
-    },
-    [settings]
-  );
+  const [credentialSource, setCredentialSource] = useState<'auto' | 'personal' | 'shared'>('auto');
 
   const setResultFromText = useCallback(
     (targetMode: AiAssistantMode, rawText: string, model: string) => {
@@ -146,9 +86,6 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         return;
       }
 
-      const credential = resolveCredential('write');
-      if (!credential) return;
-
       setMode('write');
       setPendingResult(null);
       setIsGenerating(true);
@@ -160,7 +97,6 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(credential.apiKey ? { 'x-gemini-key': credential.apiKey } : {}),
           },
           body: JSON.stringify({
             topic,
@@ -170,6 +106,8 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         });
 
         const data = await parseJsonResponse(res, 'AI generation');
+        if (data.credentialSource === 'personal' || data.credentialSource === 'shared')
+          setCredentialSource(data.credentialSource);
         setResultFromText('write', data.text || '', data.model || model);
       } catch (err) {
         notify.error(
@@ -179,7 +117,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         setIsGenerating(false);
       }
     },
-    [parseJsonResponse, resolveCredential, setResultFromText, settings, writePrompt]
+    [parseJsonResponse, setResultFromText, settings, writePrompt]
   );
 
   const onCheck = useCallback(
@@ -188,9 +126,6 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         notify.error('Please add some content first to check.');
         return;
       }
-
-      const credential = resolveCredential('check');
-      if (!credential) return;
 
       setMode('check');
       setPendingResult(null);
@@ -202,7 +137,6 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(credential.apiKey ? { 'x-gemini-key': credential.apiKey } : {}),
           },
           body: JSON.stringify({
             text: content,
@@ -211,6 +145,8 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         });
 
         const data = await parseJsonResponse(res, 'AI check');
+        if (data.credentialSource === 'personal' || data.credentialSource === 'shared')
+          setCredentialSource(data.credentialSource);
         setResultFromText('check', data.text || '', data.model || model);
       } catch (err) {
         notify.error('AI Check Failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -218,7 +154,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
         setIsChecking(false);
       }
     },
-    [parseJsonResponse, resolveCredential, setResultFromText, settings]
+    [parseJsonResponse, setResultFromText, settings]
   );
 
   const clearPendingResult = useCallback(() => {
@@ -227,7 +163,7 @@ export const useAiWriting = ({ settings, parseJsonResponse }: UseAiWritingOption
 
   return {
     activeModel: resolveAiModel(settings),
-    isSharedModel: Boolean(settings?.aiAssistant?.sharedAvailable),
+    credentialSource,
     mode,
     setMode,
     writePrompt,

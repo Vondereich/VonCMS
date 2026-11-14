@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 const { findPhpBinary } = require('./lint-php.cjs');
@@ -117,7 +118,7 @@ function load(file, react = React, mocks = {}, runtime = {}, extraExports = '', 
     if (name === 'react-gravatar') return { __esModule: true, default: Blank };
     if (name === 'lucide-react') return new Proxy({}, { get: () => Blank });
     if (name.endsWith('/shared')) return new Proxy(shared, { get: (o, key) => o[key] ?? Blank });
-    if (name.endsWith('settingsDraft')) return load('src/utils/settingsDraft.ts');
+    if (/settingsDraft(?:\.ts)?$/.test(name)) return load('src/utils/settingsDraft.ts');
     if (name.endsWith('/shared/themeSettings')) return load('src/themes/shared/themeSettings.ts');
     if (name.endsWith('/shared/themeColors')) return load('src/themes/shared/themeColors.ts');
     if (name.endsWith('/corporate-pro/config')) return load('src/themes/corporate-pro/config.ts');
@@ -3891,6 +3892,7 @@ async function checkNativeCrawlerTracking() {
             ...React,
             useState: (initial) => [typeof initial === 'function' ? initial() : initial, noop],
             useMemo: (factory) => factory(),
+            useLayoutEffect: (effect) => effects.push(effect),
             useEffect: (effect) => effects.push(effect),
           };
           const Component = load(
@@ -3926,6 +3928,13 @@ async function checkNativeCrawlerTracking() {
               document: {
                 cookie: '',
                 referrer: '',
+                documentElement: {
+                  removeAttribute: (name) => assert.equal(name, 'data-public-theme-scheme'),
+                  style: {
+                    removeProperty: (name) =>
+                      assert.ok(['--von-public-boot-bg', '--von-public-boot-text'].includes(name)),
+                  },
+                },
                 querySelector: (selector) => {
                   assert.equal(selector, 'meta[name="voncms-tracking"]');
                   return marker === null ? null : { getAttribute: () => marker };
@@ -3971,6 +3980,106 @@ async function checkNativeCrawlerTracking() {
   console.log(
     `PASS Native Crawler Tracking: ${cases} root/subfolder, five-route and three-mode actual component Effect cases retain crawler-document exclusion after changing to Linux/Chrome, while unmarked ordinary browsers still track. Controlled React/transport simulation, not a live bot.`
   );
+}
+
+function checkThemeStartupMetadata() {
+  const normalize = load('src/themes/shared/themeSettings.ts').readThemeStartup;
+  const valid = { colorScheme: 'dark', background: '#050510', text: '#cbd5e1' };
+  const samples = [
+    { startup: valid },
+    { startup: { ...valid, colorScheme: 'light', background: '#FdFdFd' } },
+    null,
+    [],
+    {},
+    { startup: null },
+    { startup: [] },
+    { startup: { ...valid, colorScheme: 'auto' } },
+    { startup: { ...valid, background: '#fff' } },
+    { startup: { ...valid, background: '#050510\n' } },
+    { startup: { ...valid, background: 'url(https://invalid.test/)' } },
+    { startup: { ...valid, text: ['#ffffff'] } },
+    { startup: { ...valid, text: '#ffffff;display:none' } },
+    { startup: { ...valid, text: '</script><script>alert(1)</script>' } },
+  ];
+  const expected = samples.map((sample, index) => (index < 2 ? sample.startup : null));
+  assert.deepEqual(JSON.parse(JSON.stringify(samples.map(normalize))), expected);
+  const php = findPhpBinary();
+  assert.ok(php, 'Theme startup metadata requires the supported PHP runtime');
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-theme-startup-'));
+  try {
+    const pub = path.join(temporary, 'public');
+    const deployed = path.join(pub, 'themes/theme-fixture');
+    const source = path.join(temporary, 'src/themes/fixture');
+    fs.mkdirSync(deployed, { recursive: true });
+    fs.mkdirSync(source, { recursive: true });
+    const manifest = {
+      id: 'theme-fixture',
+      startup: valid,
+      performance: { homepageHero: 'first-post-image', homepageHeroSizes: '100vw' },
+    };
+    fs.writeFileSync(path.join(source, 'theme.json'), JSON.stringify(manifest));
+    const run = (ids) => {
+      const result = spawnSync(
+        php,
+        [
+          '-r',
+          `
+        require $argv[1].'/public/public_render_helper.php';
+        $input=json_decode(stream_get_contents(STDIN),true);
+        $normalized=array_map('voncms_public_theme_startup',$input['samples']);
+        $manifests=[];
+        foreach ($input['ids'] as $id) $manifests[]=voncms_load_public_theme_manifest($argv[2],$id);
+        echo json_encode(['normalized'=>$normalized,'manifests'=>$manifests]);
+      `,
+          root,
+          pub,
+        ],
+        { input: JSON.stringify({ samples, ids }), encoding: 'utf8' }
+      );
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      return JSON.parse(result.stdout);
+    };
+    let actual = run(['theme-fixture', '../fixture', 'theme-missing']);
+    assert.deepEqual(actual.normalized, expected, 'PHP and React/Vite validate the same inputs');
+    assert.deepEqual(
+      actual.manifests,
+      [manifest, [], []],
+      'Source discovery preserves hero and startup metadata'
+    );
+    const deployedManifest = { ...manifest, startup: { ...valid, background: '#123456' } };
+    fs.writeFileSync(path.join(deployed, 'theme.json'), JSON.stringify(deployedManifest));
+    assert.deepEqual(
+      run(['theme-fixture']).manifests,
+      [deployedManifest],
+      'Deploy manifest takes precedence'
+    );
+    for (const invalid of [
+      '{broken',
+      JSON.stringify({ ...manifest, id: 'theme-other' }),
+      ' '.repeat(16385),
+    ]) {
+      fs.writeFileSync(path.join(deployed, 'theme.json'), invalid);
+      assert.deepEqual(
+        run(['theme-fixture']).manifests,
+        [manifest],
+        'Invalid/oversize/mismatched Deploy metadata uses valid Source fallback'
+      );
+    }
+    fs.unlinkSync(path.join(source, 'theme.json'));
+    assert.deepEqual(
+      run(['theme-fixture']).manifests,
+      [[]],
+      'Missing valid manifest falls back without throwing'
+    );
+    const prism = JSON.parse(read('src/themes/prism/theme.json'));
+    assert.deepEqual(JSON.parse(JSON.stringify(normalize(prism))), valid);
+    assert.ok(!read('index.html').includes('prism') && !read('public/index.php').includes('prism'));
+    console.log(
+      'PASS Theme startup metadata: 14 PHP/React/Vite input controls plus real Source/Deploy manifest precedence, missing/malformed/oversize/identity/path cases; hero metadata retained. Isolated files only.'
+    );
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
 function checkGoogleTrackingRuntime() {
@@ -4853,6 +4962,7 @@ checkPromoBarOptionalCta();
 checkRelatedMemoOwnership();
 checkPortfolioNavigationResolver();
 checkGoogleTrackingRuntime();
+checkThemeStartupMetadata();
 checkContentManagerActions();
 checkContentManagerExcerpts();
 checkCategoryFolderAdvisory();

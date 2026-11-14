@@ -49,6 +49,7 @@ export const API = {
 
   // User endpoints
   getUsers: `${BASE_PATH}api/get_users.php`,
+  ownAccount: `${BASE_PATH}api/account.php`,
   getUserStats: `${BASE_PATH}api/get_user_stats.php`,
   saveUser: `${BASE_PATH}api/save_user.php`,
   deleteUser: `${BASE_PATH}api/delete_user.php`,

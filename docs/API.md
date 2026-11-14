@@ -1,10 +1,18 @@
 # VonCMS API Guide
 
-Version: `1.28.2`
+Version: `1.28.3`
 
 Runtime minimum: PHP 8.2.0; PHP 8.3+ is recommended. Use a supported, patched PHP build; the CMS version guard does not install PHP security updates.
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
+
+### Private own-account credentials (v1.28.3)
+
+`GET /api/account.php` returns only the validated session's eligible staff account, never a user collection. `GET /api/account.php?section=ai` returns its `accountId`, masked `credential` status (`empty`, `encrypted`, `expired` or `unavailable`), opaque `revision`, UTC `savedAt`/`expiresAt`, and shared-access availability. Responses are private/no-store. Root/Admin/Moderator/Writer are eligible; fresh database role validation rejects demoted/deleted accounts. Member/Guest are excluded. Caller-selected account parameters are rejected, including for Admins.
+
+`POST /api/account.php` requires session and CSRF. Accepted fields are `action: "save" | "remove"`, the current `revision`, `expectedUserId` (a session-switch assertion, not a target), `key` for Save/Replace, and optional boolean `expireAfter30Days`. Invalid fields/types return 400, denied access 401/403, stale revision/account switches 409 and unavailable storage 503. Save acknowledgements return only masked status. No provider request is made while saving a key. The existing profile endpoint accepts `ownAccount: true` with `expectedUserId` for self-only profile saves; general user-management endpoints still require `users.manage`.
+
+`ai_generate.php` and `ai_check.php` select the session-owned saved key first. Only record absence permits existing explicit-header compatibility or shared-key selection. Personal failure/expiry/corruption never triggers shared paid fallback. Successful responses identify `credentialSource: "personal" | "shared"`, not the secret. The bundled editor sends no key header or browser-stored credential. Per-user/shared quotas and same-credential model fallback remain in force. Storage uses private `user_ai_keys` rows unique by user/provider, with user-bound encryption context and account-deletion cascade. Existing installations require Primary Admin Database Repair; runtime APIs do not create tables.
 
 This guide is a practical map of the current API surface. It focuses on the endpoint structure that exists in the project today instead of trying to document every response field in exhaustive detail.
 
@@ -22,7 +30,7 @@ Complete Admin settings responses carry the runtime-only `_settingsScope: "admin
 
 The existing authenticated, Admin-authorized, CSRF-protected `/api/save_settings.php` persists `seo.newsSitemap` in `seo.site_config`, with `enabled` (boolean), `publicationName` (string, at most 200 characters), `language` (blank to inherit, or a two/three-letter ISO 639 code, `zh-cn`, `zh-tw`), `scope` (`all` or `categories`) and `categories` (up to 200 nonempty names). Selected-category mode requires at least one category when enabled. Merge the latest SEO configuration when saving, preserving its other fields. No public write endpoint, new table or migration is added.
 
-OFF is the default. Disabling XML Sitemap also disables News while retaining its saved options. Disabled: 404; enabled and empty: 200 with valid empty XML; invalid/out-of-range page: 404 with empty XML; unavailable metadata/database: 503 with `Retry-After: 300`. News-only configuration errors omit News links from the otherwise usable ordinary index. See the [manual](MANUAL.md#optional-news-sitemap) for publication metadata and legacy-date limitations.
+OFF is the default. Disabling XML Sitemap also disables News while retaining its saved options. Disabled: 404; enabled, publication-ready and empty: 200 with valid empty XML; invalid/out-of-range page: 404 with empty XML; unavailable publication readiness/metadata/database: 503 with `Retry-After: 300`. Missing or invalid publication capability returns a fixed Primary Admin Database Repair instruction; it does not run a schema probe or migration. News-only failures omit News links from the otherwise usable ordinary index. Fresh install or successful existing Repair activates readiness; pre-Repair dates are not reinterpreted. See the [manual](MANUAL.md#optional-news-sitemap) for publication metadata and legacy-date limitations.
 
 Dashboard article report: `GET /api/track_visit.php?report=articles&days=7` returns up to 10 published articles ranked by daily views (7 or 30 days, including today). It retains the existing staff-only permission. Existing sites must run Database Repair to enable `post_daily_views`; fresh installation creates it automatically. Unavailable storage returns 503 rather than a misleading zero result. These anonymous counts follow accepted, session-deduplicated article views, independently of consent-gated visitor logs; no reader identifiers are stored. Lifetime counts are not backfilled, and aggregate writes are best-effort so reporting faults cannot break the existing counters. Dates use the configured site timezone, and bounded opportunistic cleanup removes expired daily rows.
 

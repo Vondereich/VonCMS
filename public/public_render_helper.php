@@ -381,7 +381,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
     );
     $stmt->execute();
 
-    $settings = [];
+    $settings = ['siteName' => voncms_normalize_public_site_name('')];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
       $group = (string) ($row['setting_group'] ?? '');
       $key = (string) ($row['setting_key'] ?? '');
@@ -405,7 +405,8 @@ if (!function_exists('voncms_build_public_settings_projection')) {
             $settings['site_language'] = $value;
             $settings['siteLanguage'] = $value;
           } elseif ($key === 'site_name') {
-            $settings['siteName'] = trim((string) $value);
+            // Resolve legacy entities once for SSR, its bootstrap and public API reads.
+            $settings['siteName'] = voncms_normalize_public_site_name((string) $value);
           } else {
             $camelKey = lcfirst(str_replace('_', '', ucwords($key, '_')));
             $settings[$camelKey] = $value;
@@ -628,7 +629,7 @@ if (!function_exists('voncms_load_public_runtime_context')) {
     $siteName = $defaultSeoTitle;
     $siteNameValue = trim((string) ($publicSettings['siteName'] ?? ''));
     if ($siteNameValue !== '') {
-      $siteName = html_entity_decode($siteNameValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      $siteName = $siteNameValue;
       $seoTitle = $siteName;
     }
 
@@ -727,6 +728,59 @@ if (!function_exists('voncms_load_public_runtime_context')) {
       'articleSchemaType' => $articleSchemaType,
       'schemaData' => $schemaData,
     ];
+  }
+}
+
+if (!function_exists('voncms_load_public_theme_manifest')) {
+  /** @return array<array-key, mixed> */
+  function voncms_load_public_theme_manifest(string $publicDirectory, string $themeId): array
+  {
+    if (!preg_match('/^theme-[a-z0-9][a-z0-9-]*$/D', $themeId)) {
+      return [];
+    }
+    $paths = [$publicDirectory . '/themes/' . $themeId . '/theme.json'];
+    $sourcePaths = glob(dirname($publicDirectory) . '/src/themes/*/theme.json');
+    if (is_array($sourcePaths)) {
+      $paths = array_merge($paths, $sourcePaths);
+    }
+    foreach ($paths as $file) {
+      if (!is_file($file)) {
+        continue;
+      }
+      $json = @file_get_contents($file, false, null, 0, 16385);
+      if (!is_string($json) || strlen($json) > 16384) {
+        continue;
+      }
+      $manifest = json_decode($json, true);
+      if (is_array($manifest) && ($manifest['id'] ?? null) === $themeId) {
+        return $manifest;
+      }
+    }
+    return [];
+  }
+}
+
+if (!function_exists('voncms_public_theme_startup')) {
+  /** @return array{colorScheme: 'light'|'dark', background: string, text: string}|null */
+  function voncms_public_theme_startup(mixed $manifest): ?array
+  {
+    $startup = is_array($manifest) ? $manifest['startup'] ?? null : null;
+    if (!is_array($startup)) {
+      return null;
+    }
+    $scheme = $startup['colorScheme'] ?? null;
+    $background = $startup['background'] ?? null;
+    $text = $startup['text'] ?? null;
+    if (
+      !in_array($scheme, ['light', 'dark'], true) ||
+      !is_string($background) ||
+      !preg_match('/^#[\da-f]{6}$/iD', $background) ||
+      !is_string($text) ||
+      !preg_match('/^#[\da-f]{6}$/iD', $text)
+    ) {
+      return null;
+    }
+    return ['colorScheme' => $scheme, 'background' => $background, 'text' => $text];
   }
 }
 

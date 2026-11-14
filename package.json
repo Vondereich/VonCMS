@@ -1,7 +1,7 @@
 {
   "name": "von-cms",
   "private": true,
-  "version": "1.28.2",
+  "version": "1.28.3",
   "type": "module",
   "engines": {
     "node": ">=22.22.0"
@@ -32,16 +32,16 @@
     "test:smoke": "node server/test-integration.cjs"
   },
   "dependencies": {
-    "@openrouter/sdk": "^1.5.81",
-    "@tiptap/core": "^3.33.1",
-    "@tiptap/extension-image": "^3.33.1",
-    "@tiptap/extension-link": "^3.33.1",
-    "@tiptap/extension-table": "^3.33.1",
-    "@tiptap/extension-text-align": "^3.33.1",
-    "@tiptap/extension-text-style": "^3.33.1",
-    "@tiptap/pm": "^3.33.1",
-    "@tiptap/react": "^3.33.1",
-    "@tiptap/starter-kit": "^3.33.1",
+    "@openrouter/sdk": "^1.5.103",
+    "@tiptap/core": "^3.34.0",
+    "@tiptap/extension-image": "^3.34.0",
+    "@tiptap/extension-link": "^3.34.0",
+    "@tiptap/extension-table": "^3.34.0",
+    "@tiptap/extension-text-align": "^3.34.0",
+    "@tiptap/extension-text-style": "^3.34.0",
+    "@tiptap/pm": "^3.34.0",
+    "@tiptap/react": "^3.34.0",
+    "@tiptap/starter-kit": "^3.34.0",
     "@types/nprogress": "^0.2.3",
     "cors": "^2.8.6",
     "dompurify": "^3.4.17",
@@ -49,7 +49,7 @@
     "express-rate-limit": "^8.7.4",
     "fflate": "^0.8.3",
     "fs-extra": "^11.4.1",
-    "lucide-react": "^1.71.0",
+    "lucide-react": "^1.73.0",
     "multer": "^2.5.0",
     "nprogress": "^0.2.0",
     "prop-types": "^15.8.1",
@@ -74,15 +74,18 @@
     "@types/react-gravatar": "^2.6.14",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitejs/plugin-react": "^6.3.0",
-    "eslint": "10.14.0",
+    "eslint": "10.15.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.14.0",
-    "postcss": "^8.5.32",
-    "prettier": "^3.9.10",
+    "postcss": "^8.5.33",
+    "prettier": "^3.10.1",
     "tailwindcss": "^4.3.5",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "8.72.2",
-    "vite": "^8.3.7"
+    "vite": "^8.3.8"
+  },
+  "allowScripts": {
+    "@openrouter/sdk": false
   },
   "overrides": {
     "@tailwindcss/typography": {

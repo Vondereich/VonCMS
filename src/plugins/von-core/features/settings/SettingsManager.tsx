@@ -128,7 +128,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     if (
       !window.confirm(
-        'Replace the private encryption key and re-encrypt the saved Gemini key? Your Gemini API key and its expiry will not change. Back up the private key file again after rotation.'
+        'Replace the private encryption key and re-encrypt all saved shared and personal Gemini keys? Provider keys and expiry dates will not change. Back up the private key file again after rotation.'
       )
     )
       return;
@@ -888,8 +888,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                         <ShieldCheck size={16} aria-hidden="true" /> Saved key encrypted
                       </p>
                       <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
-                        The private encryption key stays on the server. No file deletion or API key
-                        re-entry is needed to rotate it.
+                        The private encryption key stays on the server. Rotation includes all saved
+                        shared and personal keys; no file deletion or API key re-entry is needed.
                       </p>
                       <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
                         Last rotated:{' '}
@@ -919,7 +919,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                           ? 'Save or discard your unsaved settings before rotating.'
                           : !tempSettings.api.aiKeyCanRotate
                             ? 'Rotation is unavailable for this private-file location. Check server permissions or restore the matching key backup.'
-                            : 'Primary Admin only. Rotation does not change the Gemini API key or its expiry. Back up the private key file separately after rotation.'}
+                            : 'Primary Admin only. Rotation preserves all saved provider keys and expiry dates. Back up the private key file separately after rotation.'}
                       </p>
                     </div>
                   )}

@@ -14,6 +14,15 @@ unset($seoSchemaHelperPath, $requestedScriptPath);
 
 require_once __DIR__ . '/seo_route_helper.php';
 
+if (!function_exists('voncms_normalize_public_site_name')) {
+  /** Resolve one legacy entity layer without parsing the name as HTML. */
+  function voncms_normalize_public_site_name(string $value): string
+  {
+    $name = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    return $name !== '' ? $name : 'My Website';
+  }
+}
+
 /** Preserve comparisons that lack a complete tag or a valid HTML attribute prefix. */
 if (!function_exists('voncms_strip_description_tags')) {
   function voncms_strip_description_tags(string $text): string
@@ -1100,7 +1109,20 @@ if (!function_exists('voncms_build_public_schema_graph')) {
       ];
     }
 
+    // Collection producers use the resolved site name; content titles are resolved by
+    // apply_content_schema. Do not consume either title's entity layer again here.
+    $hasResolvedRouteTitle =
+      ($schemaData['@type'] ?? '') === 'CollectionPage' ||
+      (is_array($context['post'] ?? null) &&
+        in_array(
+          $schemaData['@type'] ?? '',
+          ['Article', 'NewsArticle', 'BlogPosting', 'WebPage'],
+          true,
+        ));
     foreach (['name', 'description', 'headline'] as $field) {
+      if ($hasResolvedRouteTitle && $field !== 'description') {
+        continue;
+      }
       if (!empty($schemaData[$field])) {
         $schemaData[$field] = html_entity_decode(
           (string) $schemaData[$field],

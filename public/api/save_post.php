@@ -471,8 +471,10 @@ try {
     }
 
     // Update an existing post. Workflow-only transitions cannot overwrite content fields.
+    // First publication uses CMS-local time, like scheduling and News comparisons.
+    // Do not reinterpret existing publication or creation timestamps.
     $publishedAtAssignment = $hasPublishedAtColumn
-      ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN NOW() ELSE published_at END,\n            "
+      ? "published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN :publication_now ELSE published_at END,\n            "
       : '';
     if ($statusOnlyTransition) {
       $stmt = $db->prepare("UPDATE posts SET
@@ -517,6 +519,7 @@ try {
     }
     if ($hasPublishedAtColumn) {
       $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
+      $updateParams['publication_now'] = date('Y-m-d H:i:s');
     }
     $stmt->execute($updateParams);
 
@@ -554,7 +557,7 @@ try {
     // Insert new post
     $publishedAtColumn = $hasPublishedAtColumn ? ', published_at' : '';
     $publishedAtValue = $hasPublishedAtColumn
-      ? ', CASE WHEN :publish_now = 1 THEN NOW() ELSE NULL END'
+      ? ', CASE WHEN :publish_now = 1 THEN :publication_now ELSE NULL END'
       : '';
     $stmt = $db->prepare("INSERT INTO posts 
             (title, slug, content, excerpt, status, image_url, keywords, category, meta_description, author_id, scheduled_at{$publishedAtColumn}, created_at, updated_at)
@@ -576,6 +579,7 @@ try {
     ];
     if ($hasPublishedAtColumn) {
       $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
+      $insertParams['publication_now'] = date('Y-m-d H:i:s');
     }
     $stmt->execute($insertParams);
 

@@ -1084,7 +1084,7 @@ class SecurityHelper
       ],
       ['RewriteRule ^api/(system/IndexNow|security/SecurityLogger)\\.php$ - [F,L,NC]'],
       ['RewriteRule ^api/tools/wp_wxr_reader_helper\\.php$ - [F,L,NC]'],
-      ['RewriteRule ^api/(.*)$ api/$1 [L]', 'RewriteRule ^api/(.*)$ public/api/$1 [L]'],
+      ['RewriteRule ^api/ - [R=404,L,NC]', 'RewriteRule ^api/(.*)$ public/api/$1 [L]'],
       [
         'RewriteRule ^robots\\.txt$ robots.php [L]',
         'RewriteRule ^robots\\.txt$ public/robots.php [L]',

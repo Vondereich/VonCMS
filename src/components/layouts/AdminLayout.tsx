@@ -261,7 +261,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       label: 'Users',
       path: '/admin/users',
       color: '#22d3ee', // Cyan 400
-      allowedRoles: ['Admin'],
+      allowedRoles: ['Admin', 'Moderator', 'Writer'],
     },
     {
       icon: <Blocks size={20} />,

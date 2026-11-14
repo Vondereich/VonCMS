@@ -56,6 +56,60 @@ export const getCategoryFolderConflict = (category: string | null | undefined): 
   return CATEGORY_FOLDER_PATHS.has(slug) ? slug : null;
 };
 
+const SYSTEM_ROUTE_PREFIXES = new Set([
+  'admin',
+  'api',
+  'api.php',
+  'assets',
+  'core',
+  'data',
+  'index.php',
+  'index.html',
+  'install',
+  'login',
+  'profile',
+  'register',
+  'reset-password',
+  'temp_update',
+  'uploads',
+]);
+const ROOT_DOCUMENT_ROUTES = new Set([
+  'robots.txt',
+  'llms.txt',
+  'sitemap.xml',
+  'sitemap-news.xml',
+  'rss',
+  'rss.xml',
+  'feed',
+  'feed.xml',
+]);
+
+// Receives React Router's installation-relative path, never an origin or base URL.
+export const isPublicContentPath = (pathname: string): boolean => {
+  const route = pathname.replace(/^\/+|\/+$/g, '');
+  if (!route) return true;
+  let parts: string[];
+  try {
+    parts = route.split('/').map((part) => decodeURIComponent(part));
+  } catch {
+    return false;
+  }
+  if (parts.some((part) => !part || /[\\/]|\p{Cc}/u.test(part))) return false;
+  const [prefix = '', month = '', day = ''] = parts;
+  const first = prefix.toLowerCase();
+  if (first === 'profile') return parts.length === 2;
+  if (SYSTEM_ROUTE_PREFIXES.has(first) || (parts.length === 1 && ROOT_DOCUMENT_ROUTES.has(first)))
+    return false;
+  // Generated category namespaces never contain a second encoded representation.
+  if (parts.length > 1 && first.includes('%')) return false;
+  if (parts.length <= 2) return true;
+  if (parts.length > 4 || !/^\d{4}$/.test(first) || !/^(0[1-9]|1[0-2])$/.test(month)) return false;
+  if (parts.length === 3) return true;
+  if (!/^(0[1-9]|[12]\d|3[01])$/.test(day)) return false;
+  const date = new Date(Date.UTC(Number(first), Number(month) - 1, Number(day)));
+  return date.getUTCFullYear() === Number(first) && date.getUTCMonth() === Number(month) - 1;
+};
+
 export const getPermalink = (
   post: Pick<Post, 'id'> &
     Partial<

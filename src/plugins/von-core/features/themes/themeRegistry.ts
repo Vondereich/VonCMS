@@ -5,6 +5,7 @@ import techpressManifest from '../../../../themes/techpress/theme.json';
 import portfolioManifest from '../../../../themes/portfolio/theme.json';
 import digestManifest from '../../../../themes/digest/theme.json';
 import corporateProManifest from '../../../../themes/corporate-pro/theme.json';
+import { readThemeStartup, type ThemeStartup } from '../../../../themes/shared/themeSettings';
 
 export interface ThemeDefinition {
   id: string;
@@ -12,6 +13,7 @@ export interface ThemeDefinition {
   description: string;
   version: string;
   author: string;
+  startup: ThemeStartup | null;
   performance: {
     homepageHero?: 'first-post-image';
     homepageHeroSizes?: string;
@@ -71,6 +73,7 @@ export const THEME_DEFAULT: ThemeDefinition = {
   version: '1.28',
   author: 'VonCMS Team',
   performance: readThemePerformance(defaultManifest),
+  startup: readThemeStartup(defaultManifest),
   config: {
     name: 'VonCMS Default',
     primaryColor: '#0ea5ff',
@@ -118,6 +121,7 @@ export const THEME_PRISM: ThemeDefinition = {
   version: '1.28',
   author: 'VonCMS Team',
   performance: readThemePerformance(prismManifest),
+  startup: readThemeStartup(prismManifest),
   config: {
     name: 'Von Prism',
     primaryColor: '#4F97FF',
@@ -164,6 +168,7 @@ export const THEME_TECHPRESS: ThemeDefinition = {
   version: '1.28',
   author: 'VonCMS Team',
   performance: readThemePerformance(techpressManifest),
+  startup: readThemeStartup(techpressManifest),
   config: {
     name: 'Von TechPress',
     primaryColor: '#0066cc',
@@ -211,6 +216,7 @@ export const THEME_PORTFOLIO: ThemeDefinition = {
   version: '1.28',
   author: 'VonCMS Team',
   performance: readThemePerformance(portfolioManifest),
+  startup: readThemeStartup(portfolioManifest),
   config: {
     name: 'Von Portfolio',
     primaryColor: '#8B5CF6',
@@ -258,6 +264,7 @@ export const THEME_DIGEST: ThemeDefinition = {
   version: '1.28',
   author: 'VonCMS Team',
   performance: readThemePerformance(digestManifest),
+  startup: readThemeStartup(digestManifest),
   config: {
     name: 'Von Digest',
     primaryColor: '#00D1D1',
@@ -305,6 +312,7 @@ export const THEME_CORPORATE_PRO: ThemeDefinition = {
   version: '1.28',
   author: 'VonCMS Team',
   performance: readThemePerformance(corporateProManifest),
+  startup: readThemeStartup(corporateProManifest),
   config: {
     name: 'Corporate Pro',
     primaryColor: '#2563eb',

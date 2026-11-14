@@ -47,6 +47,7 @@ try {
 
 // 2. Check shared runtime capabilities without mutating the schema.
 $capabilityLabels = [
+  'personal_ai_keys' => 'Personal AI key storage',
   'calendar_events' => 'Editorial calendar events',
   'calendar_event_audit' => 'Calendar event audit storage',
   'registration' => 'Registration schema',

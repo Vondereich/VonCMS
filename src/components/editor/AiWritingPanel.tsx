@@ -6,7 +6,7 @@ interface AiWritingPanelProps {
   title: string;
   hasContent: boolean;
   activeModel: string;
-  isSharedModel: boolean;
+  credentialSource?: 'auto' | 'personal' | 'shared';
   mode: AiAssistantMode;
   writePrompt: string;
   pendingResult: AiAssistantResult | null;
@@ -38,7 +38,7 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
   title,
   hasContent,
   activeModel,
-  isSharedModel,
+  credentialSource = 'auto',
   mode,
   writePrompt,
   pendingResult,
@@ -87,7 +87,11 @@ const AiWritingPanel: React.FC<AiWritingPanelProps> = ({
               {formatModelName(activeModel)}
             </div>
             <div className="mt-0.5 text-[11px] text-slate-400 dark:text-gray-400">
-              {isSharedModel ? 'Shared AI model' : 'Personal AI model'}
+              {credentialSource === 'shared'
+                ? 'Last request: shared key'
+                : credentialSource === 'personal'
+                  ? 'Last request: personal key'
+                  : 'Personal key first, otherwise shared'}
             </div>
           </div>
         </div>
