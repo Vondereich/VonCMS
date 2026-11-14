@@ -2,7 +2,7 @@
 
 Changes and release history for the v1.28 and v1.27 series. Dated entries identify release packages; download availability is listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases). Historical entries retain their original status and dates. See the [Changelog Archive](docs/CHANGELOG-ARCHIVE.md) for v1.26.x and earlier release notes.
 
-### [v1.28.3] - In development
+### [v1.28.3] - 2026-11-14
 
 - **TechPress Mobile Latest Updates**: Uses compact rows below the existing 640px breakpoint, with the headline on the left and a 16:9 thumbnail on the right. Headlines retain their full text but display at most three lines; dates remain visible and author details return on larger screens. Hero, Latest Highlights, tablet/desktop layouts, theme colours and discovery queries are unchanged.
 
@@ -45,7 +45,7 @@ Changes and release history for the v1.28 and v1.27 series. Dated entries identi
 
 - **Reviewed Install Scripts**: Explicitly denies the OpenRouter SDK's optional development-only model-type check, resolving npm's unreviewed-script warning without blanket script approval. Runtime behavior and dependency versions are unchanged.
 
-- **Version Baseline**: CMS package, lockfile, OTA metadata and current documentation use 1.28.3. Installer, bundled theme and built-in plugin labels remain 1.28. This development entry is not a published release.
+- **Version Baseline**: CMS package, lockfile, OTA metadata and current documentation use 1.28.3. Installer, bundled theme and built-in plugin labels remain 1.28. Released 14 November 2026.
 
 ### [v1.28.2] - 2026-11-11
 
