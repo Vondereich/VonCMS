@@ -1,6 +1,6 @@
 # Installation Guide
 
-> **VonCMS v1.28.3 "The BluePrint" - development baseline.** The installation wizard retains the 1.28 series label. Use a published Deploy ZIP from [GitHub Releases](https://github.com/Vondereich/VonCMS/releases) for a production installation.
+> **VonCMS v1.28.3 "The BluePrint" - release baseline.** The installation wizard retains the 1.28 series label. Use a published Deploy ZIP from [GitHub Releases](https://github.com/Vondereich/VonCMS/releases) for a production installation.
 
 PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. The dashboard recommendation does not block compatible PHP 8.2 sites. Use a supported, security-patched PHP build; CMS updates do not update PHP. See [PHP Runtime Baseline](SECURITY.md#php-runtime-baseline).
 

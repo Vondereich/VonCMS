@@ -1,6 +1,6 @@
 # VonCMS User Manual v1.28.3
 
-This manual covers the v1.28.3 "The BluePrint" development snapshot. Follow the [Changelog](../CHANGELOG.md) for exact changes, release status and compatibility boundaries.
+This manual covers the v1.28.3 "The BluePrint" release. Follow the [Changelog](../CHANGELOG.md) for exact changes, release status and compatibility boundaries.
 
 ### Personal AI key
 
