@@ -473,7 +473,10 @@ class IndexNow
       $permalinkStyle = $savedPermalinkStyle;
     }
 
-    $slug = trim((string) ($post['slug'] ?? '')) ?: (string) $post['id'];
+    $slug = trim((string) ($post['slug'] ?? ''));
+    if ($slug === '') {
+      $slug = (string) $post['id'];
+    }
     $path = '/' . $slug;
     $createdAt = !empty($post['created_at']) ? new DateTime((string) $post['created_at']) : null;
 

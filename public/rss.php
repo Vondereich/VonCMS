@@ -243,7 +243,10 @@ try {
      * @return string
      */
     function ($post) use ($domainUrl, $permalinkStyle) {
-      $slugOrId = $post['slug'] ?: $post['id'];
+      $slugOrId = (string) ($post['slug'] ?? '');
+      if ($slugOrId === '') {
+        $slugOrId = (string) $post['id'];
+      }
       switch ($permalinkStyle) {
         case 'date':
         case 'day_name':
@@ -283,14 +286,14 @@ try {
     : 'u.username';
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
-  if ($category) {
+  if ($category !== null) {
     $where .= ' AND p.category = :category';
   }
 
   $countSql = "SELECT COUNT(*) FROM posts p $where";
   $countStmt = $pdo->prepare($countSql);
   $countStmt->bindValue(':currentTime', $currentTime);
-  if ($category) {
+  if ($category !== null) {
     $countStmt->bindValue(':category', $category);
   }
   $countStmt->execute();
@@ -303,7 +306,7 @@ try {
 
   $stmt = $pdo->prepare($sql);
   $stmt->bindValue(':currentTime', $currentTime);
-  if ($category) {
+  if ($category !== null) {
     $stmt->bindValue(':category', $category);
   }
   $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -331,8 +334,8 @@ try {
   ) {
     $rssUrl .= '?' . $queryString;
   }
-  $feedTitle = $category ? "$category - $siteName" : $siteName;
-  $feedDesc = $category ? "Latest posts in $category" : $siteDesc;
+  $feedTitle = $category !== null ? "$category - $siteName" : $siteName;
+  $feedDesc = $category !== null ? "Latest posts in $category" : $siteDesc;
 
   echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
   ?>

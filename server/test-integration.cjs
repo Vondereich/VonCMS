@@ -13450,9 +13450,9 @@ if (
 }
 
 if (
-  appContent.includes(
-    'const fallbackPost = posts.find((p: Post) => p.id === id || p.slug === slug) || null;'
-  ) &&
+  appContent.includes('const fallbackPost =') &&
+  appContent.includes('(postIdToFetch && p.id === postIdToFetch)') &&
+  appContent.includes('(postSlugToFetch && p.slug === postSlugToFetch)') &&
   appContent.includes('!isLoadingPost ? fallbackPost : null') &&
   !appContent.includes('(fullPostMatchesCurrentRoute ? fullPost : null) ||\n      posts.find')
 ) {

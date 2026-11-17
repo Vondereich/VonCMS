@@ -295,7 +295,10 @@ try {
     $postStmt->execute();
 
     while ($post = $postStmt->fetch(PDO::FETCH_ASSOC)) {
-      $postSlug = $post['slug'] ?: $post['id'];
+      $postSlug = (string) ($post['slug'] ?? '');
+      if ($postSlug === '') {
+        $postSlug = (string) $post['id'];
+      }
       $path = ''; // Wait for switch statement to define it
 
       switch ($permalinkStyle) {

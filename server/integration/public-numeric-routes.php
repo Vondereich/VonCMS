@@ -28,6 +28,9 @@ function voncms_send_redirect(mixed $location, $status = 301, $source = ''): nev
 require_once $root . '/public/seo_schema_helper.php';
 require_once $root . '/public/seo_response_helper.php';
 require_once $root . '/public/core/ResponseHelper.php';
+require_once $root . '/public/content_metrics_helper.php';
+require_once $root . '/public/media_variants.php';
+require_once $root . '/public/api/system/IndexNow.php';
 
 $source = (string) file_get_contents($root . '/public/index.php');
 $start = strpos($source, '// Parse URL to detect post/page slug');
@@ -36,6 +39,12 @@ if ($start === false || $end === false || $end <= $start) {
   throw new RuntimeException('Could not isolate the actual public router.');
 }
 $router = substr($source, $start, $end - $start);
+$hydrationStart = strpos($source, "$" . "initialState = ['status' => 'idle'");
+$hydrationEnd = $hydrationStart === false ? false : strpos($source, '?>', $hydrationStart);
+if ($hydrationStart === false || $hydrationEnd === false) {
+  throw new RuntimeException('Could not isolate actual content hydration.');
+}
+$hydrator = substr($source, $hydrationStart, $hydrationEnd - $hydrationStart);
 final class PublicRouteFixturePDO extends PDO
 {
   public int $contentLookups = 0;
@@ -62,6 +71,7 @@ $pdo->exec(
   'CREATE TABLE posts (' . $columns . ', image_url TEXT, category TEXT, scheduled_at TEXT)',
 );
 $pdo->exec('CREATE TABLE pages (' . $columns . ')');
+$pdo->exec('CREATE TABLE settings (setting_group TEXT, setting_key TEXT, setting_value TEXT)');
 $insertPost = $pdo->prepare(
   'INSERT INTO posts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 );
@@ -135,7 +145,7 @@ $runRoute = static function (
   string $basePath,
   string $domainUrl,
   string $style,
-) use ($pdo, $router): array {
+) use ($pdo, $router, $hydrator): array {
   $_SERVER['REQUEST_URI'] = $request;
   $_SERVER['QUERY_STRING'] = (string) (parse_url($request, PHP_URL_QUERY) ?? '');
   $publicContentCurrentTime = '2026-10-17 00:00:00';
@@ -154,6 +164,7 @@ $runRoute = static function (
   http_response_code(200);
   try {
     eval($router);
+    eval($hydrator);
     return [
       'status' => http_response_code(),
       'id' => $post ? (int) $post['id'] : null,
@@ -163,6 +174,7 @@ $runRoute = static function (
       'description' => $seoDescription,
       'profile' => $profileUser ?? null,
       'contentLookups' => $pdo->contentLookups - $lookupsBefore,
+      'hydration' => $initialState,
     ];
   } catch (NumericRouteRedirect $redirect) {
     return [
@@ -399,4 +411,217 @@ foreach (
     $checks++;
   }
 }
+
+// Literal zero is a valid text slug, not an omitted value or the numeric identity 0.
+function numericSourceSpan(string $file, string $begin, string $end): string
+{
+  $text = (string) file_get_contents($file);
+  $start = strpos($text, $begin);
+  $stop = $start === false ? false : strpos($text, $end, $start + strlen($begin));
+  if ($start === false || $stop === false) {
+    throw new RuntimeException('Missing actual zero-slug source span: ' . $file);
+  }
+  return substr($text, $start, $stop - $start);
+}
+$sitemapPath = numericSourceSpan($root . '/public/sitemap.php', '$postSlug =', '$date =');
+$llmsPath = numericSourceSpan($root . '/public/llms.php', '$postSlug =', '$url =');
+$rssBuilder = numericSourceSpan($root . '/public/rss.php', '$buildPostUrl =', '// Query posts');
+$saveSlug = numericSourceSpan(
+  $root . '/public/api/save_post.php',
+  '// Generate slug if not provided',
+  '// Ensure slug uniqueness',
+);
+$profileGuard = numericSourceSpan(
+  $root . '/public/api/get_public_profile.php',
+  '// Get username from query parameter',
+  'try {',
+);
+$rssQuery = numericSourceSpan($root . '/public/rss.php', '// Query posts', '// Generate RSS');
+$insertZero = static function () use ($insertPost): void {
+  $insertPost->execute([
+    63,
+    'Literal zero',
+    '0',
+    'Zero body',
+    'Zero excerpt',
+    'editor',
+    1,
+    'Zero description',
+    '',
+    '2026-10-01 12:00:00',
+    '2026-10-01 12:00:00',
+    'published',
+    '',
+    '0',
+    null,
+  ]);
+};
+$insertZero();
+$pdo->exec(
+  "INSERT INTO users VALUES(2,'0','Public zero','','Zero biography','private-zero-canary@example.invalid','member')",
+);
+foreach (
+  ['0' => '0', '00' => '00', 'news-0' => 'news-0', '0-news' => '0-news', '' => 'different-title']
+  as $given => $expected
+) {
+  $rawSlug = (string) $given;
+  $rawTitle = 'Different Title';
+  $input = [];
+  eval($saveSlug);
+  if ($input['slug'] !== $expected) {
+    throw new RuntimeException(
+      'Actual Post save changed literal slug ' . var_export($rawSlug, true),
+    );
+  }
+  $checks++;
+}
+foreach (['editor', '0'] as $publicUsername) {
+  $_GET = ['username' => $publicUsername];
+  eval($profileGuard);
+  if ($username !== $publicUsername) {
+    throw new RuntimeException('Public profile text identity changed.');
+  }
+  $checks++;
+}
+foreach (
+  [
+    ['/', 'https://example.test'],
+    ['/', 'https://news.example.test'],
+    ['/zangetsu/', 'http://localhost/zangetsu'],
+    ['/news/cms/', 'https://example.test/news/cms'],
+  ]
+  as [$basePath, $domainUrl]
+) {
+  foreach (
+    [
+      'slug' => '/0',
+      'post_name' => '/0',
+      'category' => '/0/0',
+      'date' => '/2026/10/01/0',
+      'day_name' => '/2026/10/01/0',
+      'month_name' => '/2026/10/0',
+      'plain' => '/post/63',
+    ]
+    as $style => $expectedPath
+  ) {
+    $row = ['id' => 63, 'slug' => '0', 'category' => '0', 'created_at' => '2026-10-01 12:00:00'];
+    if (buildCanonicalContentPath($row, $style) !== $expectedPath) {
+      throw new RuntimeException('Canonical substituted the identity for literal zero: ' . $style);
+    }
+    $checks++;
+    foreach ([$sitemapPath, $llmsPath] as $pathCode) {
+      $post = $row;
+      $permalinkStyle = $style;
+      eval($pathCode);
+      if ($path !== $expectedPath) {
+        throw new RuntimeException('Crawler URL substituted the identity for zero: ' . $style);
+      }
+      $checks++;
+    }
+    eval($rssBuilder);
+    if ($buildPostUrl($row) !== $domainUrl . $expectedPath) {
+      throw new RuntimeException('RSS URL substituted the identity for zero: ' . $style);
+    }
+    $checks++;
+    $pdo->exec('DELETE FROM settings');
+    $setting = $pdo->prepare("INSERT INTO settings VALUES('general',?,?)");
+    $setting->execute(['domain_url', $domainUrl]);
+    $setting->execute(['permalink_structure', $style]);
+    if ((new IndexNow($pdo))->buildPostUrlForPost(63) !== $domainUrl . $expectedPath) {
+      throw new RuntimeException('IndexNow URL substituted the identity for zero: ' . $style);
+    }
+    $checks++;
+    $result = $runRoute(rtrim($basePath, '/') . $expectedPath, $basePath, $domainUrl, $style);
+    if (
+      ($result['status'] ?? 0) !== 200 ||
+      ($result['id'] ?? null) !== 63 ||
+      ($result['hydration']['post']['slug'] ?? null) !== '0' ||
+      ($result['url'] ?? '') !== $domainUrl . $expectedPath
+    ) {
+      throw new RuntimeException(
+        'Zero Post routing/hydration drifted: ' . $style . ' ' . json_encode($result),
+      );
+    }
+    $checks++;
+  }
+  foreach (['post/0', 'blog/0', 'post/63'] as $legacy) {
+    $result = $runRoute($basePath . $legacy, $basePath, $domainUrl, 'slug');
+    if (($result['status'] ?? 0) !== 301 || ($result['location'] ?? '') !== $domainUrl . '/0') {
+      throw new RuntimeException('Zero legacy alias drifted: ' . json_encode($result));
+    }
+    $checks++;
+  }
+  $profile = $runRoute($basePath . 'profile/0', $basePath, $domainUrl, 'slug');
+  if (
+    ($profile['type'] ?? '') !== 'ProfilePage' ||
+    ($profile['profile']['username'] ?? '') !== '0' ||
+    str_contains(json_encode($profile), 'private-zero-canary')
+  ) {
+    throw new RuntimeException('Zero public profile projection drifted.');
+  }
+  $checks++;
+  $pdo->exec('DELETE FROM posts WHERE id=63');
+  $insertPage->execute([
+    905,
+    'Zero Page',
+    '0',
+    'Zero Page body',
+    'Zero excerpt',
+    'editor',
+    1,
+    'Zero description',
+    '',
+    '2026-10-01 12:00:00',
+    '2026-10-01 12:00:00',
+    'published',
+  ]);
+  $page = $runRoute($basePath . '0', $basePath, $domainUrl, 'slug');
+  if (
+    ($page['id'] ?? null) !== 905 ||
+    ($page['type'] ?? '') !== 'WebPage' ||
+    ($page['url'] ?? '') !== $domainUrl . '/0' ||
+    ($page['hydration']['page']['slug'] ?? null) !== '0'
+  ) {
+    throw new RuntimeException('Zero Page route or hydration drifted: ' . json_encode($page));
+  }
+  $checks++;
+  $pdo->exec("UPDATE pages SET status='draft' WHERE id=905");
+  $missing = $runRoute($basePath . '0', $basePath, $domainUrl, 'slug');
+  if (
+    ($missing['status'] ?? 0) !== 404 ||
+    ($missing['hydration']['status'] ?? '') !== 'not_found' ||
+    ($missing['robots'] ?? '') !== 'noindex, follow'
+  ) {
+    throw new RuntimeException('Missing/draft zero Page became homepage or exposed content.');
+  }
+  $checks++;
+  $pdo->exec('DELETE FROM pages WHERE id=905');
+  $insertZero();
+}
+foreach ([null, '0', 'Technology'] as $category) {
+  $limit = 100;
+  $offset = 0;
+  eval($rssQuery);
+  $ids = array_column($posts, 'id');
+  if (
+    $category === '0'
+      ? $total !== 1 || $ids !== [63]
+      : ($category === null
+        ? !in_array(63, $ids, true)
+        : in_array(63, $ids, true))
+  ) {
+    throw new RuntimeException('Actual RSS category zero filter/count/binding drifted.');
+  }
+  $checks++;
+}
+if (
+  buildCanonicalContentPath(['id' => 63, 'slug' => '', 'category' => 'Technology'], 'slug') !==
+    '/63' ||
+  buildCanonicalContentPath(['id' => 63, 'slug' => null], 'slug') !== '/63' ||
+  voncms_normalize_public_page('0') !== 1 ||
+  voncms_is_public_content_path('/2026/00/0')
+) {
+  throw new RuntimeException('Empty fallback or numeric validation changed.');
+}
+$checks++;
 echo "PASS {$checks} public numeric-route checks (source router, in-memory SQLite)\n";

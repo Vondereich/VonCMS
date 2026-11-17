@@ -126,7 +126,7 @@ $input['meta_description'] = $rawMeta;
 $input['keywords'] = $rawKeywords;
 
 // Generate slug if not provided (use raw title)
-if (empty($rawSlug)) {
+if ($rawSlug === '') {
   $input['slug'] = preg_replace('/[^a-z0-9\-]+/', '-', strtolower($rawTitle));
 } else {
   $input['slug'] = $rawSlug;

@@ -33,7 +33,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 // Get username from query parameter
 $username = isset($_GET['username']) ? trim(DataBoundary::inputText($_GET['username'])) : '';
 
-if (empty($username)) {
+if ($username === '') {
   ResponseHelper::sendError('Username is required', 400);
 }
 if (mb_strlen($username) > 100 || !preg_match('/^[a-zA-Z0-9_.-]+$/', $username)) {

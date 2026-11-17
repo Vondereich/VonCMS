@@ -174,7 +174,10 @@ try {
       echo "## Posts\n\n";
       $hasPosts = true;
     }
-    $postSlug = !empty($post['slug']) ? (string) $post['slug'] : (string) $post['id'];
+    $postSlug = (string) ($post['slug'] ?? '');
+    if ($postSlug === '') {
+      $postSlug = (string) $post['id'];
+    }
     $path = '/' . $postSlug; // Default: use slug
 
     // Permalink switch (exact copy from sitemap.php)

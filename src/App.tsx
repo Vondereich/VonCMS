@@ -258,7 +258,9 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
 
   if (id) {
     currentView = 'single-post';
-    postIdToFetch = id;
+    // Match PHP's legacy routes: only positive canonical integers are IDs.
+    if (/^[1-9][0-9]*$/.test(id)) postIdToFetch = id;
+    else postSlugToFetch = id;
   } else if (slug) {
     const postFromList = posts.find((p: Post) => p.slug === slug);
     if (postFromList) {
@@ -321,7 +323,9 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
     props.settings?.adminProfile
   );
   const fullPostMatchesCurrentRoute = Boolean(
-    fullPost && ((id && fullPost.id === id) || (slug && fullPost.slug === slug))
+    fullPost &&
+    ((postIdToFetch && fullPost.id === postIdToFetch) ||
+      (postSlugToFetch && fullPost.slug === postSlugToFetch))
   );
   const fullPageMatchesCurrentRoute = Boolean(fullPage && slug && fullPage.slug === slug);
 
@@ -332,20 +336,24 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
   }, [id, slug, username, category, categoryParam]);
 
   useEffect(() => {
-    if (!id || !fullPost || !props.settings || fullPost.id !== id) return;
+    if (!id || !fullPost || !props.settings || !fullPostMatchesCurrentRoute) return;
 
     const canonicalPostPath = getPermalink(fullPost, props.settings, false, true);
     if (canonicalPostPath && canonicalPostPath !== `/post/${encodeURIComponent(id)}`) {
       navigate(canonicalPostPath, { replace: true });
     }
-  }, [fullPost, id, navigate, props.settings]);
+  }, [fullPost, fullPostMatchesCurrentRoute, id, navigate, props.settings]);
 
   const publicCommentPost =
     currentView === 'single-post'
       ? editedPostOverride ||
         (fullPostMatchesCurrentRoute ? fullPost : null) ||
         (!isLoadingPost
-          ? posts.find((post: Post) => post.id === id || post.slug === slug) || null
+          ? posts.find(
+              (post: Post) =>
+                (postIdToFetch && post.id === postIdToFetch) ||
+                (postSlugToFetch && post.slug === postSlugToFetch)
+            ) || null
           : null)
       : null;
   const publicCommentPostId = publicCommentPost?.id ? String(publicCommentPost.id) : '';
@@ -371,7 +379,12 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
   }
 
   if (currentView === 'single-post') {
-    const fallbackPost = posts.find((p: Post) => p.id === id || p.slug === slug) || null;
+    const fallbackPost =
+      posts.find(
+        (p: Post) =>
+          (postIdToFetch && p.id === postIdToFetch) ||
+          (postSlugToFetch && p.slug === postSlugToFetch)
+      ) || null;
     selectedPost =
       editedPostOverride ||
       (fullPostMatchesCurrentRoute ? fullPost : null) ||

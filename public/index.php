@@ -534,7 +534,7 @@ try {
         if ($post) {
           // Collapse any legacy /post|/blog route to the configured canonical permalink,
           // but avoid redirecting when the request is already on the canonical path.
-          if (!empty($post['slug'])) {
+          if ((string) ($post['slug'] ?? '') !== '') {
             $targetPath = buildCanonicalContentPath(
               $post,
               $permalinkStructureValue,
@@ -651,7 +651,7 @@ try {
 
       // Check for plain slug (could be post or page)
       // Apply the same normalized admission policy as the SPA before basename lookup.
-      elseif (!empty($path) && $isPublicContentRoute) {
+      elseif ($path !== '' && $isPublicContentRoute) {
         // Handle Permalink Structures (Date/Category/Plain)
         // e.g. /2023/12/my-slug or /category/my-slug -> extract 'my-slug'
         $slugOrId = basename($path);
@@ -736,7 +736,7 @@ try {
       }
 
       $isPreheadNotFoundRoute =
-        !empty($path) &&
+        $path !== '' &&
         empty($post) &&
         empty($profileUser) &&
         !voncms_is_spa_shell_route($path);
@@ -748,7 +748,7 @@ try {
       // ============================================
       // HOMEPAGE SEO: Latest posts for noscript + Schema
       // ============================================
-      if (empty($path)) {
+      if ($path === '') {
         try {
           $publicListing = voncms_fetch_public_listing_page(
             $pdo,
@@ -1090,7 +1090,7 @@ $cssFile = $publicAssets['cssFile'];
   // ============================================================
   $initialState = ['status' => 'idle', 'contentType' => null, 'post' => null, 'page' => null];
 
-  if (!empty($path) && isset($post) && $post) {
+  if ($path !== '' && isset($post) && $post) {
     $hydratedType = ($resolvedContentType ?? 'post') === 'page' ? 'page' : 'post';
 
     if ($hydratedType === 'page') {
@@ -1156,7 +1156,7 @@ $cssFile = $publicAssets['cssFile'];
         'page'        => null,
       ];
     }
-  } elseif (!empty($path) && empty($post) && empty($profileUser)) {
+  } elseif ($path !== '' && empty($post) && empty($profileUser)) {
     // SPA ROUTE SAFETY CHECK:
     // Don't mark as 404 if it's a known React shell route. Auth/setup routes are exact.
     // This prevents "Killer 404" where /login renders the NotFound page while

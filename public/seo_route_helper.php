@@ -620,7 +620,10 @@ if (!function_exists('buildCanonicalContentPath')) {
       return '/' . ltrim((string) ($content['slug'] ?? ''), '/');
     }
 
-    $postSlug = $content['slug'] ?: $content['id'];
+    $postSlug = (string) ($content['slug'] ?? '');
+    if ($postSlug === '') {
+      $postSlug = (string) $content['id'];
+    }
     switch ($permalinkStyle) {
       case 'category':
         $catSlug = voncms_category_slug($content['category'] ?? 'uncategorized');

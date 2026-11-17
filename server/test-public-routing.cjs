@@ -168,6 +168,9 @@ for (const route of [
 }
 for (const route of [
   '/',
+  '/0',
+  '/0/0',
+  '/profile/0',
   '/' + slug,
   '/business/' + slug,
   '/administrator/' + slug,
@@ -261,7 +264,7 @@ async function browser() {
       const u=new URL(typeof input==='string'?input:input.url,location.href);
       if(!u.pathname.includes('/api/')&&!u.pathname.endsWith('/api.php'))return nativeFetch(input,options);
       const endpoint=u.pathname.split('/').pop();
-      window.__qaFetches.push({path:u.pathname,method:options.method||'GET'});
+      window.__qaFetches.push({path:u.pathname,query:u.search,method:options.method||'GET'});
       const reply=body=>new Response(JSON.stringify(body),{headers:{'Content-Type':'application/json'}});
       const post={id:'701',slug:'${slug}',title:'${headline}',content:'<p>Public fixture body.</p>',excerpt:'Public fixture',category:'Business',status:'published',author:'QA',author_id:1,created_at:'2026-11-14 10:00:00',updated_at:'2026-11-14 10:00:00'};
       const params=new URLSearchParams(location.search);
@@ -270,9 +273,17 @@ async function browser() {
       if(endpoint==='check_auth.php')return reply({success:true,authenticated:!!user,user,csrf_token:'fixture-only'});
       if(endpoint==='get_settings.php')return reply({...window.__INITIAL_SETTINGS__,_settingsScope:['Root','Admin'].includes(role)?'admin':'public'});
       if(endpoint==='api.php')return reply({success:true,csrf_token:'fixture-only',installed:true});
-      if(endpoint==='get_post.php')return reply({success:true,post});
+      if(endpoint==='get_post.php'){
+        const token=u.searchParams.get('slug');
+        if(u.searchParams.get('id')==='0'||(token==='0'&&params.get('qaType')==='page'))return reply({success:false});
+        if(['0','00','0002','+1','1e3'].includes(token))return reply({success:true,post:{...post,id:'702',slug:token,title:'Literal slug '+token,content:'<p>Literal slug body '+token+'</p>'}});
+        return reply({success:true,post});
+      }
       if(endpoint==='get_posts.php')return reply({success:true,posts:[post],meta:{total:1,page:1,totalPages:1,hasMore:false,limit:6}});
-      if(endpoint==='get_pages.php')return reply({success:true,pages:[],meta:{total:0,totalPages:1,hasMore:false}});
+      if(endpoint==='get_pages.php'){
+        const pages=params.get('qaType')==='page'&&u.searchParams.get('slug')==='0'?[{id:'703',slug:'0',title:'Literal zero Page',content:'<p>Literal zero Page body.</p>',status:'published'}]:[];
+        return reply({success:true,pages,meta:{total:pages.length,totalPages:1,hasMore:false}});
+      }
       if(endpoint==='get_public_profile.php')return reply({success:true,user:{username:'public-user',bio:'Public QA profile'}});
       if(endpoint==='get_comments.php')return reply({success:true,comments:[],meta:{total:0,hasMore:false}});
       if(endpoint==='get_users.php')return reply({success:true,users:[],meta:{total:0}});
@@ -481,14 +492,14 @@ async function browser() {
     const wait = async (expression) => {
       const until = Date.now() + 20000;
       while (Date.now() < until) {
-        if (await evaluate(expression)) return;
+        if (await evaluate('!!document.body && (' + expression + ')')) return;
         await pause(80);
       }
       throw new Error(
         'Browser condition failed: ' +
           expression +
           '; ' +
-          (await evaluate('document.body.innerText.slice(0,600)'))
+          (await evaluate('document.body?.innerText.slice(0,600) || "No document body"'))
       );
     };
     const navigate = async (url) => {
@@ -571,6 +582,69 @@ async function browser() {
       );
       await wait(articleVisible);
       check(true, 'Original 404 state must not poison a new valid route');
+
+      const spaNavigate = (url) =>
+        evaluate(
+          'history.pushState({usr:null,key:"zero-slug",idx:3},"",' +
+            JSON.stringify(url) +
+            ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
+        );
+      const literalVisible = (token) =>
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText===' +
+        JSON.stringify('Literal slug ' + token) +
+        ') && document.body.innerText.includes(' +
+        JSON.stringify('Literal slug body ' + token) +
+        ')';
+      for (const prefix of ['', '/post', '/blog']) {
+        // /blog is also this fixture's subfolder basename; disambiguate it by nesting.
+        if (!base && prefix === '/blog') continue;
+        for (const token of prefix ? ['0', '00', '0002', '+1', '1e3'] : ['0']) {
+          const target = base + prefix + '/' + encodeURIComponent(token);
+          for (const mode of ['direct', 'spa']) {
+            if (mode === 'direct') await navigate(target);
+            else {
+              await navigate(base + '/business/' + slug);
+              await wait(articleVisible);
+              await spaNavigate(target);
+            }
+            await wait(literalVisible(token));
+            check(
+              await evaluate(
+                'window.__qaFetches.some(r=>r.path.endsWith("/get_post.php") && new URLSearchParams(r.query).get("slug")===' +
+                  JSON.stringify(token) +
+                  ')'
+              ),
+              mode + ' must fetch exact slug ' + target
+            );
+            check(!(await evaluate(articleVisible)), 'Stale article at literal slug ' + target);
+          }
+        }
+      }
+      await navigate(base + '/post/701');
+      await wait(articleVisible);
+      check(
+        await evaluate(
+          'window.__qaFetches.some(r=>r.path.endsWith("/get_post.php") && new URLSearchParams(r.query).get("id")==="701")'
+        ),
+        'Positive canonical ID still uses id lookup'
+      );
+      const zeroPageVisible =
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText==="Literal zero Page") && document.body.innerText.includes("Literal zero Page body.")';
+      await navigate(base + '/0?qaType=page');
+      await wait(zeroPageVisible);
+      await send('Page.reload', { ignoreCache: true });
+      await wait(zeroPageVisible);
+      check(true, 'Zero Page supports direct load and hard reload');
+      await navigate(base + '/business/' + slug + '?qaType=page');
+      await wait(articleVisible);
+      await spaNavigate(base + '/0?qaType=page');
+      await wait(zeroPageVisible);
+      check(true, 'Zero Page supports SPA navigation');
+      for (const prefix of ['/post', ...(base ? ['/blog'] : [])]) {
+        await navigate(base + prefix + '/0?qaType=page');
+        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+        check(!(await evaluate(zeroPageVisible)), 'Legacy Post-only route exposed a Page');
+      }
     }
     check(exceptions.length === 0, 'Unexpected browser exception: ' + exceptions.join('\n'));
   } finally {

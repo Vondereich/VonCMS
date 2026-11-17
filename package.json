@@ -49,7 +49,7 @@
     "express-rate-limit": "^8.7.4",
     "fflate": "^0.8.3",
     "fs-extra": "^11.4.1",
-    "lucide-react": "^1.73.0",
+    "lucide-react": "^1.74.0",
     "multer": "^2.5.0",
     "nprogress": "^0.2.0",
     "prop-types": "^15.8.1",
