@@ -815,17 +815,48 @@ async function saveCase(isPage, isAutoSave, edited) {
 }
 async function checkSaveErrors() {
   const reason = 'Upload the image through the Media Library before saving.';
+  let checked = 0;
   assert.equal(helpers.buildSaveStatusLabel('error', null, 60, reason), `Save failed: ${reason}`);
   assert.equal(helpers.buildSaveStatusLabel('error', null, 60, ''), 'Save failed. Try again.');
   for (const isPage of [false, true]) {
     for (const isAutoSave of [false, true]) {
       for (const { error, expectedReason, conflict } of [
         { error: new Error(reason), expectedReason: reason, conflict: false },
-        { error: { status: 409 }, expectedReason: helpers.SAVE_CONFLICT_MESSAGE, conflict: true },
+        ...[
+          'This slug is already reserved by a post. Choose a different slug.',
+          'This slug is already reserved by a page. Choose a different slug.',
+          'The new permalink already has a redirect. Review that rule before changing the slug.',
+          'The old permalink already has a redirect. Review that rule before changing the slug.',
+          'The new page permalink already has a redirect. Review that rule before changing the slug.',
+          'The old page permalink already has a redirect. Review that rule before changing the slug.',
+          'A redirect for this permalink appeared while saving. Review the redirects and try again.',
+          'A redirect for this page permalink appeared while saving. Review the redirects and try again.',
+          'Post status changed. Reload before applying this workflow action.',
+          'Failed to save content',
+          'The title contains "Content changed in another tab".',
+        ].map((message) => ({
+          error: Object.assign(new Error(message), { status: 409 }),
+          expectedReason: message,
+          conflict: false,
+        })),
+        {
+          error: Object.assign(
+            new Error('Content changed in another tab. Reload before saving again.'),
+            { status: 409 }
+          ),
+          expectedReason: helpers.SAVE_CONFLICT_MESSAGE,
+          conflict: true,
+        },
         {
           error: { message: 'Content changed in another tab. Reload before saving again.' },
           expectedReason: helpers.SAVE_CONFLICT_MESSAGE,
           conflict: true,
+        },
+        { error: { status: 409 }, expectedReason: '', conflict: false },
+        {
+          error: { status: 409, message: `  ${reason}  ` },
+          expectedReason: reason,
+          conflict: false,
         },
         { error: { status: '409', message: 123 }, expectedReason: '', conflict: false },
         { error: null, expectedReason: '', conflict: false },
@@ -869,18 +900,27 @@ async function checkSaveErrors() {
         const save = handler('src/components/PostEditor.tsx', 'handleSave', scope);
         assert.equal(await save(undefined, isAutoSave), null);
         assert.equal(scope.status, 'error');
-        assert.equal(scope.reason, expectedReason);
+        assert.equal(
+          scope.reason,
+          expectedReason,
+          `${isPage ? 'Page' : 'Post'} save must preserve the actual reason: ${getErrorMessage(error)}`
+        );
         assert.equal(scope.contentRef.current, original.content);
         assert.equal(scope.initialItemRef.current, original);
         assert.equal(scope.saved, undefined);
         assert.equal(scope.isSavingRef.current, false);
         assert.ok(cleared.includes(41), 'an old success timer must not erase this failure');
         if (isAutoSave && !conflict) assert.equal(notices.length, 0);
-        if (conflict) assert.ok(notices.includes(helpers.SAVE_CONFLICT_MESSAGE));
+        if (conflict) assert.deepEqual(notices, [helpers.SAVE_CONFLICT_MESSAGE]);
+        else if (!isAutoSave)
+          assert.deepEqual(notices, [
+            expectedReason ? `Save failed: ${expectedReason}` : 'Save failed. Try again.',
+          ]);
         rejectSave = false;
         await save(undefined, isAutoSave);
         assert.equal(scope.reason, '');
         assert.equal(scope.status, 'saved');
+        checked++;
       }
     }
   }
@@ -917,6 +957,7 @@ async function checkSaveErrors() {
   assert.ok(!html.includes('truncate'));
   assert.ok(html.includes('&lt;img'));
   assert.ok(!html.includes('<img'));
+  return checked;
 }
 async function checkWrapperRecovery() {
   for (const isPage of [false, true]) {
@@ -1930,7 +1971,7 @@ async function checkSavedAiReadiness() {
   );
   await checkInstallerErrors();
   await checkContactReceipts();
-  await checkSaveErrors();
+  const saveErrorCases = await checkSaveErrors();
   for (const isPage of [false, true])
     for (const isAutoSave of [false, true])
       for (const edited of [false, true]) await saveCase(isPage, isAutoSave, edited);
@@ -1946,7 +1987,7 @@ async function checkSavedAiReadiness() {
   assert.equal(newer.slug, 'draft');
   assert.equal(newer.content, 'New body');
   console.log(
-    `PASS Editor Regressions Runtime: 20 actual save-failure/retry cases plus escaped wrapping status markup; 5 Contact receipt/validation-message handler cases; ${autoFillCases} editor-only Auto Fill formatter/button cases; ${publicationCases} rendered publication cells across 3 locales plus schedule/draft/fallback controls; 15 URL cases, actual DOM-sync/image-selection handlers, 8 deferred actual-save-handler cases, and 4 actual-wrapper local/API post/page recovery cases preserve newer typing, editor identity and server metadata.`
+    `PASS Editor Regressions Runtime: ${saveErrorCases} actual save-failure/retry cases plus escaped wrapping status markup; 5 Contact receipt/validation-message handler cases; ${autoFillCases} editor-only Auto Fill formatter/button cases; ${publicationCases} rendered publication cells across 3 locales plus schedule/draft/fallback controls; 15 URL cases, actual DOM-sync/image-selection handlers, 8 deferred actual-save-handler cases, and 4 actual-wrapper local/API post/page recovery cases preserve newer typing, editor identity and server metadata.`
   );
 })().catch((error) => {
   console.error(error);

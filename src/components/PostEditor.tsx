@@ -557,10 +557,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
       return savedData;
     } catch (err) {
       console.error('Save failed:', err);
+      const errorMessage = getErrorMessage(err).trim();
       const isConflict =
-        (typeof err === 'object' && err !== null && 'status' in err && err.status === 409) ||
-        getErrorMessage(err).includes('Content changed in another tab');
-      const reason = isConflict ? SAVE_CONFLICT_MESSAGE : getErrorMessage(err).trim();
+        errorMessage === 'Content changed in another tab. Reload before saving again.';
+      const reason = isConflict ? SAVE_CONFLICT_MESSAGE : errorMessage;
       setSaveError(reason);
       setSaveStatus('error');
       if (manualSaveToastId) notify.dismiss(manualSaveToastId);
