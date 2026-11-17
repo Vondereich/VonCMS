@@ -10,6 +10,7 @@ if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
   throw new RuntimeException('Public route fixtures require pdo_sqlite.');
 }
 $root = dirname(__DIR__, 2);
+define('VONCMS_CORE_LOADED', true);
 $GLOBALS['voncms_publication_capability_cache'] = [];
 
 // Intercept only the terminating redirect emitter so each real route branch can be checked.
@@ -26,6 +27,7 @@ function voncms_send_redirect(mixed $location, $status = 301, $source = ''): nev
 }
 require_once $root . '/public/seo_schema_helper.php';
 require_once $root . '/public/seo_response_helper.php';
+require_once $root . '/public/core/ResponseHelper.php';
 
 $source = (string) file_get_contents($root . '/public/index.php');
 $start = strpos($source, '// Parse URL to detect post/page slug');
@@ -34,12 +36,26 @@ if ($start === false || $end === false || $end <= $start) {
   throw new RuntimeException('Could not isolate the actual public router.');
 }
 $router = substr($source, $start, $end - $start);
-$pdo = new PDO('sqlite::memory:');
+final class PublicRouteFixturePDO extends PDO
+{
+  public int $contentLookups = 0;
+
+  public function prepare(string $query, array $options = []): PDOStatement|false
+  {
+    if (preg_match('/\bFROM\s+(?:posts|pages)\b/i', $query) === 1) {
+      $this->contentLookups++;
+    }
+    return parent::prepare($query, $options);
+  }
+}
+$pdo = new PublicRouteFixturePDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec(
-  'CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, avatar TEXT)',
+  'CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, avatar TEXT, bio TEXT, email TEXT, role TEXT)',
 );
-$pdo->exec("INSERT INTO users VALUES (1, 'editor', 'Editor', '')");
+$pdo->exec(
+  "INSERT INTO users VALUES (1, 'editor', 'Editor', '', 'Public biography', 'private-profile-canary@example.invalid', 'root')",
+);
 $columns =
   'id INTEGER PRIMARY KEY, title TEXT, slug TEXT, content TEXT, excerpt TEXT, author TEXT, author_id INTEGER, meta_description TEXT, keywords TEXT, created_at TEXT, updated_at TEXT, status TEXT';
 $pdo->exec(
@@ -134,6 +150,7 @@ $runRoute = static function (
   $articleSchemaType = 'NewsArticle';
   $schemaLanguage = 'en';
   $post = null;
+  $lookupsBefore = $pdo->contentLookups;
   http_response_code(200);
   try {
     eval($router);
@@ -144,9 +161,15 @@ $runRoute = static function (
       'url' => $seoUrl,
       'robots' => $seoRobots,
       'description' => $seoDescription,
+      'profile' => $profileUser ?? null,
+      'contentLookups' => $pdo->contentLookups - $lookupsBefore,
     ];
   } catch (NumericRouteRedirect $redirect) {
-    return ['status' => $redirect->status, 'location' => $redirect->location];
+    return [
+      'status' => $redirect->status,
+      'location' => $redirect->location,
+      'contentLookups' => $pdo->contentLookups - $lookupsBefore,
+    ];
   }
 };
 
@@ -160,6 +183,112 @@ foreach (
   ]
   as [$basePath, $domainUrl]
 ) {
+  foreach (
+    [
+      'admin',
+      'api',
+      'api.php',
+      'assets',
+      'core',
+      'data',
+      'index.php',
+      'index.html',
+      'install',
+      'login',
+      'profile',
+      'register',
+      'reset-password',
+      'temp_update',
+      'uploads',
+    ]
+    as $prefix
+  ) {
+    $encoded = '%' . bin2hex($prefix[0]) . substr($prefix, 1);
+    foreach ([$prefix, strtoupper($prefix), $encoded, str_replace('%', '%25', $encoded)] as $form) {
+      foreach (['ordinary', 'draft', '2030', 'draft-page'] as $tail) {
+        $request = $basePath . $form . '/' . $tail;
+        $result = $runRoute($request, $basePath, $domainUrl, 'slug');
+        $expected = strtolower(rawurldecode($form)) === 'admin' ? 200 : 404;
+        if (
+          ($result['status'] ?? 0) !== $expected ||
+          ($result['id'] ?? null) !== null ||
+          ($result['contentLookups'] ?? -1) !== 0
+        ) {
+          throw new RuntimeException(
+            'Reserved namespace reached public lookup: ' . $request . ' ' . json_encode($result),
+          );
+        }
+        $checks++;
+      }
+    }
+  }
+  foreach (
+    ['administrator', 'admin-news', 'ADMIN-news', '%61dministrator', 'rss', 'feed', 'docs', 'fonts']
+    as $category
+  ) {
+    $result = $runRoute($basePath . $category . '/ordinary', $basePath, $domainUrl, 'slug');
+    if (
+      ($result['status'] ?? 0) !== 301 ||
+      ($result['location'] ?? '') !== $domainUrl . '/ordinary'
+    ) {
+      throw new RuntimeException(
+        'Valid category lookalike rejected: ' . $category . ' ' . json_encode($result),
+      );
+    }
+    $checks++;
+  }
+  foreach (
+    ['profile/editor', 'PROFILE/editor', '%70rofile/editor', 'profile/%65ditor']
+    as $profilePath
+  ) {
+    $result = $runRoute($basePath . $profilePath, $basePath, $domainUrl, 'slug');
+    if (
+      ($result['status'] ?? 0) !== 200 ||
+      ($result['type'] ?? '') !== 'ProfilePage' ||
+      ($result['profile']['username'] ?? '') !== 'editor' ||
+      ($result['url'] ?? '') !== $domainUrl . '/profile/editor' ||
+      str_contains(json_encode($result), 'private-profile-canary') ||
+      array_key_exists('role', $result['profile'] ?? [])
+    ) {
+      throw new RuntimeException(
+        'Public profile boundary drifted: ' . $profilePath . ' ' . json_encode($result),
+      );
+    }
+    $checks++;
+  }
+  foreach (
+    [
+      'admin\\ordinary',
+      'admin%2fordinary',
+      'admin%5cordinary',
+      'admin%252fordinary',
+      '%2fADMIN/ordinary',
+      'business//ordinary',
+      'business/%00ordinary',
+      'business/%C2%80ordinary',
+      'business/%xx',
+      'business/%FF',
+      'unrelated/deep/ordinary',
+      '2026/13/ordinary',
+      '2026/02/29/ordinary',
+    ]
+    as $invalidPath
+  ) {
+    $result = $runRoute($basePath . $invalidPath, $basePath, $domainUrl, 'slug');
+    if (($result['status'] ?? 0) !== 404 || ($result['id'] ?? null) !== null) {
+      throw new RuntimeException(
+        'Invalid path reached public lookup: ' . $invalidPath . ' ' . json_encode($result),
+      );
+    }
+    $checks++;
+  }
+  $result = $runRoute($basePath . '/ADMIN/ordinary', $basePath, $domainUrl, 'slug');
+  if (($result['status'] ?? 0) !== 200 || ($result['id'] ?? null) !== null) {
+    throw new RuntimeException(
+      'Leading slash normalization lost the private namespace: ' . json_encode($result),
+    );
+  }
+  $checks++;
   foreach (
     [
       ['2026', 50, 'NewsArticle'],

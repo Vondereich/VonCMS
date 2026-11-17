@@ -506,16 +506,18 @@ try {
 
       // Parse URL to detect post/page slug
       $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-      $path = (string)(parse_url($requestUri, PHP_URL_PATH) ?? '');
+      $path = voncms_request_path($requestUri);
 
       // Remove base path from URL
       if ($basePath !== '/' && strpos($path, $basePath) === 0) {
         $path = substr($path, strlen($basePath));
       }
       $path = trim($path, '/');
+      $publicRouteSegments = voncms_public_route_segments($path);
+      $isPublicContentRoute = voncms_is_public_content_path($path);
 
       // Check for /post/{slug} or /blog/{slug} pattern
-      if (preg_match('/^(post|blog)\/([^\/]+)$/i', $path, $matches)) {
+      if ($isPublicContentRoute && preg_match('/^(post|blog)\/([^\/]+)$/i', $path, $matches)) {
         $slugOrId = $matches[2];
         // Only canonical integer tokens can be legacy IDs; leading zeros/exponents are slugs.
         $isId = preg_match('/^[1-9][0-9]*$/D', $slugOrId) === 1;
@@ -590,8 +592,12 @@ try {
 
       // Check for public profile route. Keep SSR profile SEO on public-safe fields only:
       // username, display_name, avatar, and bio. Do not expose role/email/joined date/internal IDs here.
-      elseif (preg_match('/^profile\/([^\/]+)$/i', $path, $profileMatches)) {
-        $profileUsername = rawurldecode($profileMatches[1]);
+      elseif (
+        $publicRouteSegments !== null &&
+        count($publicRouteSegments) === 2 &&
+        strtolower($publicRouteSegments[0]) === 'profile'
+      ) {
+        $profileUsername = $publicRouteSegments[1];
         $profileSelect = $hasDisplayNameColumn
           ? 'SELECT username, display_name, avatar, bio FROM users WHERE username = ? LIMIT 1'
           : 'SELECT username, NULL AS display_name, avatar, bio FROM users WHERE username = ? LIMIT 1';
@@ -644,9 +650,8 @@ try {
       }
 
       // Check for plain slug (could be post or page)
-      // Reserved words: only actual PHP endpoints (admin, api, login, etc.)
-      // NOT SPA routes: search, tags, category, page are handled by React SPA
-      elseif (!empty($path) && !preg_match('/^(admin|api|login|install|assets|profile|register|reset-password)(\/|$)/', $path)) {
+      // Apply the same normalized admission policy as the SPA before basename lookup.
+      elseif (!empty($path) && $isPublicContentRoute) {
         // Handle Permalink Structures (Date/Category/Plain)
         // e.g. /2023/12/my-slug or /category/my-slug -> extract 'my-slug'
         $slugOrId = basename($path);

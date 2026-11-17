@@ -10635,8 +10635,12 @@ assertIncludes(
     phpSeoSchemaHelperContent,
   [
     'function voncms_is_spa_shell_route($path)',
-    "in_array($normalizedPath, ['login', 'install'], true)",
-    "preg_match('#^admin(/|$)#i', $normalizedPath)",
+    'function voncms_public_route_segments($path): ?array',
+    'voncms_public_route_segments($path) === [] || voncms_is_private_spa_shell_route($path)',
+    '$parts = voncms_public_route_segments($path);',
+    '$first = strtolower($parts[0]);',
+    "return $first === 'admin' ||",
+    "count($parts) === 1 && in_array($first, ['login', 'install'], true)",
     '$isPreheadNotFoundRoute',
     'empty($profileUser)',
     '!voncms_is_spa_shell_route($path)',
@@ -11071,7 +11075,11 @@ assertIncludes(
   'Public Profile SSR SEO Contract',
   indexContent,
   [
-    "preg_match('/^profile\\/([^\\/]+)$/i', $path, $profileMatches)",
+    '$publicRouteSegments = voncms_public_route_segments($path);',
+    '$publicRouteSegments !== null &&',
+    'count($publicRouteSegments) === 2 &&',
+    "strtolower($publicRouteSegments[0]) === 'profile'",
+    '$profileUsername = $publicRouteSegments[1];',
     'SELECT username, display_name, avatar, bio FROM users WHERE username = ? LIMIT 1',
     "ResponseHelper::scrubAvatarUrl((string) ($profileUser['avatar'] ?? ''))",
     "$seoOgType = 'profile';",
@@ -23913,9 +23921,10 @@ else fail('Calendar fixture: ' + (calendarProbe.stderr || calendarProbe.stdout).
 
 const publicRoutingProbe = spawnSync(
   process.execPath,
-  [resolveFromRoot('server/test-public-routing.cjs')],
+  [resolveFromRoot('server/test-public-routing.cjs'), '--php'],
   {
     encoding: 'utf8',
+    env: { ...process.env, PHP_BIN: phpBinary || '' },
     maxBuffer: 1024 * 1024,
   }
 );

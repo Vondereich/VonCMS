@@ -969,6 +969,116 @@ if (!function_exists('voncms_fetch_public_category_match')) {
   }
 }
 
+if (!function_exists('voncms_public_route_segments')) {
+  /** Decode each installation-relative segment once, without changing lookup bytes.
+   * @param mixed $path
+   * @return list<string>|null
+   */
+  function voncms_public_route_segments($path): ?array
+  {
+    $route = trim((string) $path, '/');
+    if ($route === '') {
+      return [];
+    }
+    if (preg_match('/%(?![0-9a-f]{2})/i', $route) === 1) {
+      return null;
+    }
+    $segments = [];
+    foreach (explode('/', $route) as $segment) {
+      $segment = rawurldecode($segment);
+      if (
+        $segment === '' ||
+        preg_match('//u', $segment) !== 1 ||
+        str_contains($segment, '/') ||
+        str_contains($segment, '\\') ||
+        preg_match('/\p{Cc}/u', $segment) === 1
+      ) {
+        return null;
+      }
+      $segments[] = $segment;
+    }
+    return $segments;
+  }
+}
+
+if (!function_exists('voncms_is_public_content_path')) {
+  /** Mirror the SPA admission policy before any public permalink lookup.
+   * @param mixed $path
+   * @return bool
+   */
+  function voncms_is_public_content_path($path): bool
+  {
+    $parts = voncms_public_route_segments($path);
+    if ($parts === null) {
+      return false;
+    }
+    if ($parts === []) {
+      return true;
+    }
+    $count = count($parts);
+    $first = strtolower($parts[0]);
+    if ($first === 'profile') {
+      return $count === 2;
+    }
+    if (
+      in_array(
+        $first,
+        [
+          'admin',
+          'api',
+          'api.php',
+          'assets',
+          'core',
+          'data',
+          'index.php',
+          'index.html',
+          'install',
+          'login',
+          'register',
+          'reset-password',
+          'temp_update',
+          'uploads',
+        ],
+        true,
+      ) ||
+      ($count === 1 &&
+        in_array(
+          $first,
+          [
+            'robots.txt',
+            'llms.txt',
+            'sitemap.xml',
+            'sitemap-news.xml',
+            'rss',
+            'rss.xml',
+            'feed',
+            'feed.xml',
+          ],
+          true,
+        )) ||
+      ($count > 1 && str_contains($first, '%'))
+    ) {
+      return false;
+    }
+    if ($count <= 2) {
+      return true;
+    }
+    if (
+      $count > 4 ||
+      preg_match('/^\d{4}$/D', $first) !== 1 ||
+      preg_match('/^(0[1-9]|1[0-2])$/D', $parts[1]) !== 1
+    ) {
+      return false;
+    }
+    if ($count === 3) {
+      return true;
+    }
+    return preg_match('/^(0[1-9]|[12]\d|3[01])$/D', $parts[2]) === 1 &&
+      (int) $first >= 100 &&
+      checkdate((int) $parts[1], (int) $parts[2], (int) $first);
+  }
+}
+
 if (!function_exists('voncms_is_spa_shell_route')) {
   /**
    * @param mixed $path
@@ -976,16 +1086,7 @@ if (!function_exists('voncms_is_spa_shell_route')) {
    */
   function voncms_is_spa_shell_route($path): bool
   {
-    $normalizedPath = strtolower(trim((string) $path, '/'));
-    if ($normalizedPath === '') {
-      return true;
-    }
-
-    if (in_array($normalizedPath, ['login', 'install'], true)) {
-      return true;
-    }
-
-    return preg_match('#^admin(/|$)#i', $normalizedPath) === 1;
+    return voncms_public_route_segments($path) === [] || voncms_is_private_spa_shell_route($path);
   }
 }
 
@@ -996,9 +1097,13 @@ if (!function_exists('voncms_is_private_spa_shell_route')) {
    */
   function voncms_is_private_spa_shell_route($path): bool
   {
-    $normalizedPath = strtolower(trim((string) $path, '/'));
-    return in_array($normalizedPath, ['login', 'install'], true) ||
-      preg_match('#^admin(/|$)#i', $normalizedPath) === 1;
+    $parts = voncms_public_route_segments($path);
+    if ($parts === null || $parts === []) {
+      return false;
+    }
+    $first = strtolower($parts[0]);
+    return $first === 'admin' ||
+      (count($parts) === 1 && in_array($first, ['login', 'install'], true));
   }
 }
 

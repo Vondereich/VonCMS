@@ -22,6 +22,7 @@ const articleVisible =
 const reserved = [
   'admin',
   'api',
+  'api.php',
   'login',
   'install',
   'register',
@@ -29,6 +30,8 @@ const reserved = [
   'assets',
   'data',
   'core',
+  'index.php',
+  'index.html',
   'uploads',
   'temp_update',
   'profile',
@@ -92,10 +95,53 @@ const policy = vm.runInNewContext(
     { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
   ).outputText
 );
+const prefixForms = (prefix) => {
+  const first = '%' + prefix.charCodeAt(0).toString(16) + prefix.slice(1);
+  const encoded = [...prefix].map((char) => '%' + char.charCodeAt(0).toString(16)).join('');
+  return [
+    ...new Set([
+      prefix,
+      prefix.toUpperCase(),
+      [...prefix].map((char, index) => (index % 2 ? char.toUpperCase() : char)).join(''),
+      first,
+      encoded,
+      encoded.toUpperCase(),
+      first.replaceAll('%', '%25'),
+      first.replaceAll('%', '%2525'),
+    ]),
+  ];
+};
+const policyPrefixes = [
+  ...utils.slice(start, utils.indexOf('const ROOT_DOCUMENT_ROUTES', start)).matchAll(/'([^']+)'/g),
+].map((match) => match[1]);
+check(
+  JSON.stringify([...policyPrefixes].sort()) === JSON.stringify([...reserved].sort()),
+  'The complete system-prefix inventory must be exercised'
+);
+const parityPaths = new Set();
 for (const key of reserved) {
   for (const tail of [slug, 'business/' + slug, '2026/11/' + slug]) {
     if (key === 'profile' && tail === slug) continue;
     check(!policy('/' + key + '/' + tail), 'Public namespace accepted ' + key + '/' + tail);
+  }
+}
+for (const prefix of reserved) {
+  for (const form of prefixForms(prefix)) {
+    for (const tail of [slug, 'business/' + slug, '2026/11/' + slug]) {
+      const route = '/' + form + '/' + tail;
+      const publicProfile = decodeURIComponent(form).toLowerCase() === 'profile' && tail === slug;
+      check(policy(route) === publicProfile, 'Case/encoded namespace policy drifted: ' + route);
+      parityPaths.add(route);
+    }
+    parityPaths.add('/' + form);
+  }
+}
+const documentStart = utils.indexOf('const ROOT_DOCUMENT_ROUTES', start);
+const documentEnd = utils.indexOf('// Receives React Router', documentStart);
+for (const [, document] of utils.slice(documentStart, documentEnd).matchAll(/'([^']+)'/g)) {
+  for (const form of prefixForms(document)) {
+    parityPaths.add('/' + form);
+    parityPaths.add('/' + form + '/' + slug);
   }
 }
 for (const route of [
@@ -116,8 +162,10 @@ for (const route of [
   '/2026/04/31/' + slug,
   '/2026/11/00/' + slug,
   '/not-a-year/not-a-month/' + slug,
-])
+]) {
   check(!policy(route), 'Malformed/system route accepted: ' + route);
+  parityPaths.add(route);
+}
 for (const route of [
   '/',
   '/' + slug,
@@ -136,8 +184,62 @@ for (const route of [
   '/2026/11/' + slug,
   '/2024/02/29/' + slug,
   '/2026/11/14/' + slug,
-])
+]) {
   check(policy(route), 'Legitimate public route rejected: ' + route);
+  parityPaths.add(route);
+}
+for (const prefix of [
+  'administrator',
+  'admin-news',
+  'apiary',
+  'assets-news',
+  'core-news',
+  'data-science',
+  'index.php-news',
+  'installer',
+  'login-help',
+  'profile-card',
+  'register-news',
+  'reset-password-help',
+  'temp_update-news',
+  'uploads-news',
+]) {
+  check(policy('/' + prefix + '/' + slug), 'Legitimate namespace lookalike rejected: ' + prefix);
+  parityPaths.add('/' + prefix + '/' + slug);
+}
+for (const route of [
+  '//ADMIN/' + slug,
+  '/%2fADMIN/' + slug,
+  '/business/%FF',
+  '/business/%C2%80',
+  '/business/%ED%A0%80',
+  '/2024/02/29/' + slug,
+  '/1900/02/29/' + slug,
+  '/0001/01/01/' + slug,
+])
+  parityPaths.add(route);
+
+function phpPolicy() {
+  const php = require('./lint-php.cjs').findPhpBinary();
+  if (!php) throw new Error('NOT_RUN: PHP route-policy parity requires a supported PHP runtime');
+  const paths = [...parityPaths];
+  const code = [
+    "require $argv[1].'/public/seo_route_helper.php';",
+    '$paths=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);',
+    "echo json_encode(array_map('voncms_is_public_content_path',$paths),JSON_THROW_ON_ERROR);",
+  ].join('\n');
+  const probe = spawnSync(php, ['-r', code, root], {
+    input: JSON.stringify(paths),
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  assert.equal(probe.status, 0, probe.stderr || probe.stdout);
+  assert.equal(probe.stderr, '');
+  const results = JSON.parse(probe.stdout);
+  check(results.length === paths.length, 'PHP must classify every policy vector');
+  for (const [index, route] of paths.entries())
+    check(results[index] === policy(route), 'PHP/SPA policy mismatch: ' + route);
+}
 
 async function browser() {
   const chromePath =
@@ -398,49 +500,59 @@ async function browser() {
       await wait('!!window.__qaFetches');
     };
     for (const base of ['', '/blog']) {
-      for (const actor of ['Guest', 'Root', 'Admin', 'Moderator', 'Writer', 'Member']) {
-        const query = '?actor=' + actor;
-        await navigate(base + '/admin/business/' + slug + query);
-        const staff = ['Root', 'Admin', 'Moderator', 'Writer'].includes(actor);
-        await wait(
-          staff
-            ? "document.body.innerText.includes('Admin page not found')"
-            : actor === 'Guest'
-              ? "!!document.querySelector('input[type=password]')"
-              : "document.body.innerText.includes('Routing QA')"
+      for (const prefix of ['admin', 'ADMIN', '%61dmin'])
+        for (const actor of ['Guest', 'Root', 'Admin', 'Moderator', 'Writer', 'Member']) {
+          const query = '?actor=' + actor;
+          await navigate(base + '/' + prefix + '/business/' + slug + query);
+          const staff = ['Root', 'Admin', 'Moderator', 'Writer'].includes(actor);
+          await wait(
+            staff
+              ? "document.body.innerText.includes('Admin page not found')"
+              : actor === 'Guest'
+                ? "!!document.querySelector('input[type=password]')"
+                : "document.body.innerText.includes('Routing QA')"
+          );
+          check(!(await evaluate(articleVisible)), 'Actor escaped admin routing ' + actor);
+        }
+      await navigate(base + '/business/' + slug);
+      await wait(articleVisible);
+      for (const key of reserved.filter((key) => key !== 'admin'))
+        for (const form of [key, key.toUpperCase(), prefixForms(key)[3]]) {
+          const tail = key === 'profile' ? 'business/' + slug : slug;
+          await evaluate(
+            'history.pushState({usr:null,key:"routing-qa",idx:1},"",' +
+              JSON.stringify(base + '/' + form + '/' + tail) +
+              ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
+          );
+          await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+          check(!(await evaluate(articleVisible)), 'Stale public body at ' + form);
+          await send('Page.reload', { ignoreCache: true });
+          await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+          check(!(await evaluate(articleVisible)), 'Reload public body at ' + form);
+          await evaluate(
+            'history.pushState({usr:null,key:"routing-back",idx:2},"",' +
+              JSON.stringify(base + '/business/' + slug) +
+              ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
+          );
+          await wait(articleVisible);
+          check(true, 'Public recovery');
+        }
+      for (const invalid of [
+        '%2561dmin/' + slug,
+        '%252561dmin/' + slug,
+        'admin%2fordinary',
+        'admin%5cordinary',
+        'business//' + slug,
+      ]) {
+        await navigate(base + '/' + invalid);
+        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+        check(
+          !(await evaluate(articleVisible)),
+          'Malformed namespace displayed an article: ' + invalid
         );
-        check(!(await evaluate(articleVisible)), 'Actor escaped admin routing ' + actor);
       }
       await navigate(base + '/business/' + slug);
       await wait(articleVisible);
-      for (const key of [
-        'login',
-        'install',
-        'register',
-        'reset-password',
-        'assets',
-        'api',
-        'profile',
-      ]) {
-        const tail = key === 'profile' ? 'business/' + slug : slug;
-        await evaluate(
-          'history.pushState({usr:null,key:"routing-qa",idx:1},"",' +
-            JSON.stringify(base + '/' + key + '/' + tail) +
-            ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
-        );
-        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
-        check(!(await evaluate(articleVisible)), 'Stale public body at ' + key);
-        await send('Page.reload', { ignoreCache: true });
-        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
-        check(!(await evaluate(articleVisible)), 'Reload public body at ' + key);
-        await evaluate(
-          'history.pushState({usr:null,key:"routing-back",idx:2},"",' +
-            JSON.stringify(base + '/business/' + slug) +
-            ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
-        );
-        await wait(articleVisible);
-        check(true, 'Public recovery');
-      }
       await evaluate('history.back()');
       await wait('document.body.innerText.includes("This Page Isn\'t Available")');
       check(
@@ -658,6 +770,7 @@ async function apache() {
 }
 
 (async () => {
+  if (process.argv.includes('--php')) phpPolicy();
   if (process.argv.includes('--browser')) await browser();
   if (process.argv.includes('--apache')) await apache();
   console.log(
