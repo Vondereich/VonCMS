@@ -4767,7 +4767,8 @@ async function checkDiscoveryRouteFetch() {
       dirty = false,
       result,
       timer = 0,
-      hold = false;
+      hold = false,
+      outcome = 'ok';
     const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
     const memo = (factory, deps) => {
       const i = cursor++;
@@ -4810,13 +4811,14 @@ async function checkDiscoveryRouteFetch() {
     };
     const query = new URLSearchParams();
     const response = (url) => ({
-      ok: true,
+      ok: outcome !== 'error',
       json: async () => {
         const page = Number(url.searchParams.get('page')),
           limit = Number(url.searchParams.get('limit'));
+        const available = outcome === 'empty' ? [] : posts;
         return {
-          posts: posts.slice((page - 1) * limit, page * limit),
-          meta: { page, limit, total: posts.length, hasMore: page * limit < posts.length },
+          posts: available.slice((page - 1) * limit, page * limit),
+          meta: { page, limit, total: available.length, hasMore: page * limit < available.length },
         };
       },
     });
@@ -4840,6 +4842,7 @@ async function checkDiscoveryRouteFetch() {
       {
         AbortController,
         URLSearchParams,
+        console: { ...console, error: noop },
         window: {
           setTimeout: (callback) => {
             timers.set(++timer, callback);
@@ -4875,6 +4878,9 @@ async function checkDiscoveryRouteFetch() {
       set hold(value) {
         hold = value;
       },
+      set outcome(value) {
+        outcome = value;
+      },
       searchTick: () => {
         const callbacks = [...timers.values()];
         timers.clear();
@@ -4904,6 +4910,60 @@ async function checkDiscoveryRouteFetch() {
         1,
         `${theme} pre-fix default must reproduce the unused fetch`
       );
+    }
+  }
+  let reentryCases = 0;
+  for (const prefix of ['', '/zangetsu']) {
+    for (const { theme, view, options } of captured.filter(({ view }) =>
+      ['page', 'single-post'].includes(view)
+    )) {
+      for (const initialPosts of [[], posts]) {
+        const disabled = { ...options, initialPosts, category: null, search: '', enabled: false };
+        const test = harness(disabled, prefix);
+        test.paint();
+        await test.flush();
+        assert.equal(test.requests.length, 0, `${theme}/${view}: no off-route fetch`);
+        for (let cycle = 0; cycle < 2; cycle++) {
+          test.hold = true;
+          test.paint({ ...disabled, enabled: true });
+          assert.ok(
+            test.value.posts.length > 0 || test.value.isLoading,
+            `${theme}/${view}/${prefix}: empty first Home render before request effects`
+          );
+          await test.flush();
+          assert.equal(test.requests.length, cycle + 1, 'One list request per Home entry');
+          assert.equal(test.value.error, null);
+          test.release();
+          await test.flush();
+          assert.equal(test.value.isLoading, false);
+          assert.ok(test.value.posts.length > 0, 'Home must display its successful response');
+          test.paint(disabled);
+          await test.flush();
+          assert.equal(test.requests.length, cycle + 1, 'Page/Post must not fetch a list');
+          reentryCases++;
+        }
+      }
+    }
+    for (const outcome of ['empty', 'error']) {
+      const options = { initialPosts: [], enabled: false, limit: 6, category: null, search: '' };
+      const test = harness(options, prefix);
+      test.paint();
+      await test.flush();
+      test.hold = true;
+      test.outcome = outcome;
+      test.paint({ ...options, enabled: true });
+      assert.equal(test.value.isLoading, true, 'Empty re-entry is pending immediately');
+      await test.flush();
+      test.release();
+      await test.flush();
+      assert.equal(
+        test.value.isLoading,
+        false,
+        'Empty/failure must not leave a perpetual skeleton'
+      );
+      assert.equal(test.value.posts.length, 0);
+      assert.equal(Boolean(test.value.error), outcome === 'error', 'Failure differs from empty');
+      reentryCases++;
     }
   }
   for (const prefix of ['', '/zangetsu']) {
@@ -4954,7 +5014,7 @@ async function checkDiscoveryRouteFetch() {
     assert.equal(test.value.error, null);
   }
   console.log(
-    'PASS Theme Discovery Routes: 20 actual layout/Hook cases, four pre-fix counterexamples, root/subfolder return-home, category, debounced search, Load More and pending-request cancellation. React lifecycle simulation; no installed data or requests.'
+    `PASS Theme Discovery Routes: 20 actual layout/Hook cases, ${reentryCases} first-render re-entry/settlement cases, four pre-fix unused-request counterexamples, root/subfolder return-home, category, debounced search, Load More and pending-request cancellation. React lifecycle simulation; no installed data or requests.`
   );
 }
 

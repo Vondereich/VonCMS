@@ -110,6 +110,13 @@ const LatestPostsSection = ({
         )}
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />
+        ) : publicPosts.error && visiblePosts.length === 0 ? (
+          <p
+            role="alert"
+            className="py-12 text-center text-sm text-slate-600 dark:text-neutral-400"
+          >
+            {publicPosts.error}
+          </p>
         ) : (
           <>
             <div className="grid md:grid-cols-3 gap-8">

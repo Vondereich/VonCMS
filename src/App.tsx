@@ -74,6 +74,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 const Dashboard = lazy(() => import('./plugins/von-core/features/dashboard/Dashboard'));
 const SettingsManager = lazy(() => import('./plugins/von-core/features/settings/SettingsManager'));
 const CalendarManager = lazy(() => import('./plugins/von-core/features/calendar/CalendarManager'));
+const ActivityLog = lazy(() => import('./plugins/von-core/features/activity/ActivityLog'));
 const DatabaseManager = lazy(() => import('./plugins/von-core/features/database/DatabaseManager'));
 const UserManager = lazy(() => import('./plugins/von-core/features/users/UserManager'));
 const ContentManager = lazy(() => import('./plugins/von-core/features/content/ContentManager'));
@@ -993,7 +994,12 @@ const App: React.FC = () => {
           position="top-right"
           toastOptions={{
             duration: 3000,
-            style: { background: '#333', color: '#fff' },
+            style: {
+              background: '#333',
+              color: '#fff',
+              maxWidth: 'min(350px, calc(100vw - 2rem))',
+              overflowWrap: 'anywhere',
+            },
             success: { duration: 3000, iconTheme: { primary: '#10b981', secondary: '#fff' } },
             error: { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
           }}
@@ -1075,6 +1081,18 @@ const App: React.FC = () => {
                             }
                           />
                           {/* Security Dashboard Route - PRESERVED */}
+                          <Route
+                            path="activity"
+                            element={
+                              <ProtectedRoute user={user} allowedRoles={['Admin']}>
+                                {isPrimaryAdmin ? (
+                                  <ActivityLog key={user?.id} timeZone={settings.timeZone} />
+                                ) : (
+                                  <Navigate to="/admin/dashboard" replace />
+                                )}
+                              </ProtectedRoute>
+                            }
+                          />
                           <Route
                             path="security"
                             element={

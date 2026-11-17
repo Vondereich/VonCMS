@@ -73,6 +73,7 @@ function createCalendarFixture() {
       'api/role_capability_helper.php',
       'api/publication_time_helper.php',
       'api/schema_repair_helper.php',
+      'api/activity/schema.php',
       'core/Calendar.php',
       'core/ResponseHelper.php',
       'core/DataBoundary.php',

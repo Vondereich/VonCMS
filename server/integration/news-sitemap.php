@@ -6,6 +6,7 @@ if (PHP_SAPI !== 'cli') {
   http_response_code(403);
   exit('Forbidden');
 }
+require_once __DIR__ . '/sqlite-compat.php';
 $root = dirname(__DIR__, 2);
 $checks = 0;
 function newsCheck(bool $ok, string $message): void
@@ -105,7 +106,7 @@ function newsXml(array $result): SimpleXMLElement
   return $xml;
 }
 
-class NewsClockSqlitePDO extends PDO
+class NewsClockSqlitePDO extends VonCmsFixtureSqlitePDO
 {
   public function prepare(string $query, array $options = []): PDOStatement|false
   {
@@ -248,7 +249,7 @@ function newsPublicationClockCases(string $root, bool $mysql = false): void
         $pdo = new NewsClockSqlitePDO('sqlite::memory:', null, null, [
           PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         ]);
-        $pdo->sqliteCreateFunction(
+        $pdo->createFunction(
           'NOW',
           static fn(): string => (new DateTimeImmutable(
             'now',
@@ -990,7 +991,7 @@ try {
     [['UTC', '+08:00'], ['Asia/Kuala_Lumpur', '+00:00'], ['Pacific/Kiritimati', '-05:00']]
     as [$siteZone, $databaseZone]
   ) {
-    $clockPdo->sqliteCreateFunction(
+    $clockPdo->createFunction(
       'NOW',
       static fn(): string => (new DateTimeImmutable(
         'now',

@@ -37,6 +37,11 @@ function uploadChecks() {
     fs.mkdirSync(path.join(fixture, 'php-tmp'));
     for (const file of ['upload_file.php', 'ImageProcessor.php'])
       fs.copyFileSync(path.join(root, 'public/api', file), path.join(api, file));
+    fs.mkdirSync(path.join(api, 'media'));
+    fs.copyFileSync(
+      path.join(root, 'public/api/media/SvgLogo.php'),
+      path.join(api, 'media/SvgLogo.php')
+    );
     fs.mkdirSync(path.join(site, 'core'));
     fs.copyFileSync(
       path.join(root, 'public/core/DataBoundary.php'),
@@ -49,12 +54,16 @@ function uploadChecks() {
     fs.writeFileSync(
       path.join(site, 'security.php'),
       `<?php
+define('VONCMS_CORE_LOADED',true);
 require_once __DIR__.'/core/DataBoundary.php';
 class ResponseHelper {
   static function sendError($error, $status=500) { http_response_code($status); echo json_encode(['success'=>false,'error'=>$error instanceof Throwable?'QA database failed':$error]); exit; }
   static function scrubUrl($url) { return $url; }
 }
-class SessionManager { static function requireValidSession() {} }
+class SessionManager {
+  static function requireValidSession() {}
+  static function requireAdmin() {if(!in_array(strtolower(getenv('QA_UPLOAD_ROLE')?:'admin'),['admin','root'],true))ResponseHelper::sendError('Admin access required',403);}
+}
 class CSRFProtection { static function requireToken() {} }
 function sendApiHeaders($methods) { header('Content-Type: application/json'); }
 $_SESSION=['user'=>['id'=>1,'role'=>'admin']];
@@ -101,7 +110,8 @@ $pdo=new QaDatabase;
       filename = 'test.png',
       bytes = png,
       expectedSuccess,
-      fileField = 'file'
+      fileField = 'file',
+      role = 'admin'
     ) {
       fs.writeFileSync(settingsPath, JSON.stringify(settings));
       const boundary = 'VonCMSMediaFixtureBoundary';
@@ -142,6 +152,7 @@ $pdo=new QaDatabase;
             SCRIPT_NAME: scriptName,
             SERVER_PROTOCOL: 'HTTP/1.1',
             QA_DB_FAIL: failure ? '1' : '',
+            QA_UPLOAD_ROLE: role,
           },
         }
       );
@@ -290,6 +301,7 @@ $pdo=new QaDatabase;
         ]),
       ]);
     }
+    require('./integration/media/svg-upload.cjs')({ upload, flat, site, api, png, root });
     const before = fs.readdirSync(path.join(site, 'uploads'), { recursive: true }).sort();
     const malformed = upload(
       flat,

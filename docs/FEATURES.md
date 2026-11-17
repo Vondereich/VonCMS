@@ -1,10 +1,10 @@
 # VonCMS Features
 
-> VonCMS v1.28.3 feature baseline for The BluePrint line. Eligible staff can manage an encrypted personal Gemini key in private User Manager, with Writer/Moderator limited to their own account. Existing installations require Primary Admin Database Repair. Existing analytics modes and history remain unchanged until the Primary Admin selects Hybrid. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. See the [Changelog](../CHANGELOG.md) for implemented changes and [GitHub Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
+> VonCMS v1.28.4 feature baseline for The BluePrint line. Package date: 17 November 2026. Staff Activity Log adds a Primary-Admin-only Monitoring view, existing history projections and new Media deletion/purge records. Existing sites require Database Repair for its additive storage and Settings actor snapshots. Public submission storage remains bounded, and Page/Post-to-Home loading is corrected. Eligible staff retain encrypted personal Gemini keys in private, self-only User Manager. PHP 8.2 is the compatibility minimum; PHP 8.3+ is recommended. See the [Changelog](../CHANGELOG.md) for implemented changes and [GitHub Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
 
 Lean Public Settings sends visitors only the active bundled theme's namespace and shared appearance fields. Explicitly disabled Ads and Newsletter omit unused presentation content without losing their OFF controls. Inactive configuration stays saved and available in authorized Admin reads; reactivation does not require entering it again. Public reads never write this reduced snapshot back to storage. This is a payload optimization, not full-page caching or a change to permissions.
 
-## Introduction to VonCMS v1.28.3 "The BluePrint"
+## Introduction to VonCMS v1.28.4 "The BluePrint"
 
 ### Publishing should not feel like plugin maintenance.
 
@@ -53,7 +53,7 @@ It's not trying to be everything. It's trying to be **the right thing** for peop
 
 _"The BluePrint" - the v1.28.x series, following the closed v1.27.x maintenance baseline._
 
-**The BluePrint** carries forward the v1.27.12 runtime with a PHP 8.2 minimum and PHP 8.3+ recommended. The CMS package uses version 1.28.0; the installer, bundled themes and built-in plugins use the 1.28 series label. Calendar adds its own event/audit schema. Read the [Changelog](../CHANGELOG.md) for implemented changes and [Upgrade](UPGRADE.md) before applying an update.
+**The BluePrint** carries forward the v1.27.12 runtime with a PHP 8.2 minimum and PHP 8.3+ recommended. The current CMS package uses version 1.28.4; the installer, bundled themes and built-in plugins use the 1.28 series label. Calendar adds its own event/audit schema. Read the [Changelog](../CHANGELOG.md) for implemented changes and [Upgrade](UPGRADE.md) before applying an update.
 
 Grouped admin navigation includes role-aware New Post/New Page/Event shortcuts and direct Plugins/Themes tab links. The internal Calendar provides Month/Agenda views, publication projections, event CRUD, content-author filters and responsive contextual details. Post/Page entries are read-only; event mutations require server-authorized Admin/Moderator access. Existing sites activate its new storage through Primary Admin Database Repair. Other roadmap modules remain planned.
 
@@ -136,7 +136,7 @@ VonCMS tries to keep the operating model simple: one publish stack, one hosting 
 
 | Detail          | Value                                     |
 | --------------- | ----------------------------------------- |
-| Package version | `v1.28.3 "The BluePrint"`                 |
+| Package version | `v1.28.4 "The BluePrint"`                 |
 | Minimum PHP     | `8.2+`, with `8.3+` recommended           |
 | Architecture    | React 19 frontend + PHP API backend       |
 | Hosting         | Shared hosting, cPanel, VPS - your choice |

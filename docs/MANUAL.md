@@ -1,6 +1,6 @@
-# VonCMS User Manual v1.28.3
+# VonCMS User Manual v1.28.4
 
-This manual covers the v1.28.3 "The BluePrint" release. Follow the [Changelog](../CHANGELOG.md) for exact changes, release status and compatibility boundaries.
+This manual covers v1.28.4 "The BluePrint", dated 17 November 2026. Follow the [Changelog](../CHANGELOG.md) for exact changes and compatibility boundaries, and [GitHub Releases](https://github.com/Vondereich/VonCMS/releases) for published downloads.
 
 ### Personal AI key
 
@@ -33,9 +33,9 @@ If you cannot see a menu that this manual mentions, the most common reasons are:
 
 ## Admin navigation
 
-Dashboard stays directly accessible. Content groups Posts, Pages and Calendar; Extensions opens Plugins or Themes; Monitoring contains the existing Security screen. Only destinations allowed for your account appear. Gallery, Widgets and Database retain their Primary Admin restriction.
+Dashboard stays directly accessible. Content groups Posts, Pages and Calendar; Extensions opens Plugins or Themes; Monitoring contains Activity Log and Security. Activity Log is Primary-Admin-only. Only destinations allowed for your account appear. Gallery, Widgets and Database retain their Primary Admin restriction.
 
-Use Create for New Post, New Page or New Event / Agenda when your role permits it. These open a fresh form, not the last item you edited. Selecting Create again while writing unsaved text asks before starting over. Status and Activity Log remain unavailable until their own implementation.
+Use Create for New Post, New Page or New Event / Agenda when your role permits it. These open a fresh form, not the last item you edited. Selecting Create again while writing unsaved text asks before starting over. Status remains unavailable until its own implementation.
 
 Click or press Enter/Space on a group to open or close it, including the current page's group. Entering a child route opens its group automatically; closing that group manually does not change the current page or its active highlighting. On a compact desktop sidebar, selecting a group expands the sidebar; on phones and tablets, use the navigation button and Escape to close the drawer. Create and group links are also included in admin search.
 
@@ -114,6 +114,18 @@ The dashboard is your control center. It usually gives you a quick read on:
 - storage or maintenance tools
 
 Use it as the first place to check whether the site is behaving normally after updates or configuration changes.
+
+## Staff Activity Log
+
+Primary Admin can open **Monitoring > Activity Log**, beside Security. Activity records staff operations; Security retains its separate incident view. Appointed Admins, Moderators, Writers, Members and Guests cannot open the global Activity API or view.
+
+The list reads existing Post/Page, Settings and Calendar history without copying records. Media deletion outcomes are recorded from v1.28.4 onward, including per-item outcomes when the Gallery deletes several files. Actor/target snapshots remain readable when their original log stored them; missing legacy names or roles are labelled as unrecorded rather than guessed from current accounts. Setting values, credentials, full content, raw request bodies and visitor identities are not displayed. The log is not every click, an immutable archive or a Restore tool.
+
+Apply actor ID, recorded role, action, target type or date filters, then use Previous/Next for up to 20 records per page. Refresh starts a new snapshot that includes newer events. Details show only allowlisted metadata. Times use the configured CMS clock; historical site-timezone changes cannot be reconstructed from old wall-clock records.
+
+New Media/purge records use a 90-day retention window. **Preview purge** shows the eligible count and cutoff; **Confirm purge** deletes at most 500 old rows and records a receipt. Cancel does nothing, and retrying the same confirmation does not delete another batch. Purged events cannot be restored here. Original Post/Page, Settings, Calendar and Security histories retain their existing owners and retention rules. No purge deletes posts, Pages, media files, users or credentials.
+
+For automatic bounded cleanup, configure the existing cron endpoint with a nonempty `CRON_KEY` and send it using `X-Cron-Key`; the manual Admin publish fallback does not clean Activity history. If cron is not configured, use the Primary Admin preview/confirm controls. Existing installations need **Database Repair** after updating. Audit storage failures do not block otherwise successful Media deletion, but missing events cannot be backfilled.
 
 ## Database backups and restores
 
@@ -202,6 +214,8 @@ Editorial advice:
 The inline/base64 image rule also applies when saving an existing article or page. Replace any such image through the Media Library before saving again. When this validation rejects a Save or autosave, the last saved content stays unchanged and the editor retains the unsaved text with an explanatory status.
 
 ## Media library
+
+**Site Logo SVG:** General Settings > Site Logo accepts static vector SVGs up to 1MB for Admin accounts. Paths, shapes, gradients, clips and simple class/presentation styles are supported. Export a plain static SVG without scripts, animations, embedded images, external resources or a DTD; unsupported SVG content is rejected. The server rebuilds the SVG before storing it publicly. Logo uploads do not enable SVG for favicon, OG, Gallery or editor uploads. Raster/ICO logo uploads retain the 10MB limit. Existing theme logo boxes, Logo Only sizing, `object-contain` and the optional dark-mode inversion are unchanged; SVG is not resized or converted to WebP.
 
 Use the media area to upload and manage files.
 

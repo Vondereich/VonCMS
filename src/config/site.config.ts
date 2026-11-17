@@ -41,6 +41,7 @@ export const API = {
   deletePage: `${BASE_PATH}api/delete_page.php`,
   contentAuditLogs: `${BASE_PATH}api/get_content_audit_logs.php`,
   calendar: `${BASE_PATH}api/calendar.php`,
+  activityLogs: `${BASE_PATH}api/activity/index.php`,
   manageCategories: `${BASE_PATH}api/manage_categories.php`,
 
   // Comments endpoints

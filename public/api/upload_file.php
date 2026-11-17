@@ -139,7 +139,10 @@ $standardImageTypes = [
   'ico' => ['image/x-icon', 'image/vnd.microsoft.icon'],
 ];
 $systemImageTypes = [
-  'logo' => $standardImageTypes,
+  'logo' => [
+    ...$standardImageTypes,
+    'svg' => ['image/svg+xml', 'application/xml', 'text/xml', 'text/plain'],
+  ],
   'favicon' => [
     'png' => ['image/png'],
     'ico' => ['image/x-icon', 'image/vnd.microsoft.icon'],
@@ -160,6 +163,10 @@ if ($isSystemUpload && !isset($systemImageTypes[$systemImageType])) {
   ResponseHelper::sendError('Invalid system image type.', 400);
 }
 $allowedImageTypes = $isSystemUpload ? $systemImageTypes[$systemImageType] : $standardImageTypes;
+$isSvgLogo = $isSystemUpload && $systemImageType === 'logo' && $extension === 'svg';
+if ($isSvgLogo) {
+  SessionManager::requireAdmin();
+}
 
 // Server-side MIME sniffing
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -176,15 +183,38 @@ if (
   ResponseHelper::sendError('Invalid or mismatched image file type.', 400);
 }
 
-$imageInfo = @getimagesize($file['tmp_name']);
-if ($imageInfo === false || empty($imageInfo[0]) || empty($imageInfo[1])) {
-  ResponseHelper::sendError('The uploaded file is not a readable image.', 400);
-}
-
 // Validate file size (max 10MB)
 $maxSize = 10 * 1024 * 1024; // 10MB
 if ($file['size'] > $maxSize) {
   ResponseHelper::sendError('File too large. Maximum size is 10MB.', 400);
+}
+
+if ($isSvgLogo) {
+  require_once __DIR__ . '/media/SvgLogo.php';
+  try {
+    $svgBytes = file_get_contents($file['tmp_name'], false, null, 0, SvgLogo::MAX_BYTES + 1);
+    if (!is_string($svgBytes)) {
+      throw new RuntimeException('Unable to read SVG logo.');
+    }
+    $safeSvg = SvgLogo::sanitize($svgBytes);
+    // Never move unvalidated XML into the public uploads directory, even briefly.
+    if (file_put_contents($file['tmp_name'], $safeSvg, LOCK_EX) !== strlen($safeSvg)) {
+      throw new RuntimeException('Unable to prepare SVG logo.');
+    }
+    $realMime = 'image/svg+xml';
+  } catch (InvalidArgumentException $error) {
+    ResponseHelper::sendError($error->getMessage(), 400);
+  } catch (Throwable $error) {
+    ResponseHelper::sendError(
+      'SVG logo processing unavailable. Check PHP DOM and mbstring support.',
+      503,
+    );
+  }
+} else {
+  $imageInfo = @getimagesize($file['tmp_name']);
+  if ($imageInfo === false || empty($imageInfo[0]) || empty($imageInfo[1])) {
+    ResponseHelper::sendError('The uploaded file is not a readable image.', 400);
+  }
 }
 
 // A rejected upload must not create filesystem entries.
@@ -276,7 +306,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     ? 'not_processed'
     : 'disabled';
   $responsiveVariantMessage = '';
-  if (ImageProcessor::isGdAvailable() && $mediaSettings['enabled']) {
+  if (!$isSvgLogo && ImageProcessor::isGdAvailable() && $mediaSettings['enabled']) {
     $processor = new ImageProcessor($mediaSettings);
     // Only these exact names can be created for this newly moved upload.
     $processingSources = [$targetPath];

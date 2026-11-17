@@ -161,6 +161,29 @@ export function usePublicPostsQuery({
   const [isLoading, setIsLoading] = useState(startsWithPublicFetch);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A route/query transition is pending before its Effect starts the fetch.
+  // Keep settlement tied to that exact scope so a real empty/error result can finish.
+  const requestScope = useMemo(
+    () => ({
+      category,
+      enabled,
+      hasShortSearch,
+      limit,
+      normalizedSearch,
+      requestedPage,
+      settledFallbackPosts,
+    }),
+    [
+      category,
+      enabled,
+      hasShortSearch,
+      limit,
+      normalizedSearch,
+      requestedPage,
+      settledFallbackPosts,
+    ]
+  );
+  const [settledRequestScope, setSettledRequestScope] = useState<object | null>(null);
 
   const fetchPage = useCallback(
     async (pageNum: number, append: boolean) => {
@@ -232,11 +255,14 @@ export function usePublicPostsQuery({
             abortControllerRef.current = null;
           }
           if (append) setLoadingMore(false);
-          else setIsLoading(false);
+          else {
+            setSettledRequestScope(requestScope);
+            setIsLoading(false);
+          }
         }
       }
     },
-    [category, enabled, hasShortSearch, limit, normalizedSearch, settledFallbackPosts]
+    [category, enabled, hasShortSearch, limit, normalizedSearch, requestScope, settledFallbackPosts]
   );
 
   useEffect(() => {
@@ -275,10 +301,28 @@ export function usePublicPostsQuery({
     return () => abortControllerRef.current?.abort();
   }, []);
 
+  const isDiscoveryLoading =
+    enabled &&
+    (isLoading ||
+      isDebouncingSearch ||
+      (!hasShortSearch &&
+        !hasPendingSearchDebounce &&
+        posts.length === 0 &&
+        settledRequestScope !== requestScope));
+
   const loadMore = useCallback(async () => {
-    if (loadingMore || isLoading || !hasMore || hasShortSearch || hasPendingSearchDebounce) return;
+    if (loadingMore || isDiscoveryLoading || !hasMore || hasShortSearch || hasPendingSearchDebounce)
+      return;
     await fetchPage(page + 1, true);
-  }, [fetchPage, hasMore, hasPendingSearchDebounce, hasShortSearch, isLoading, loadingMore, page]);
+  }, [
+    fetchPage,
+    hasMore,
+    hasPendingSearchDebounce,
+    hasShortSearch,
+    isDiscoveryLoading,
+    loadingMore,
+    page,
+  ]);
 
   const nextPageHref = useMemo(() => {
     const nextSearchParams = new URLSearchParams(urlSearchParams);
@@ -294,7 +338,7 @@ export function usePublicPostsQuery({
     meta,
     total: meta?.total ?? posts.length,
     hasMore,
-    isLoading: isLoading || isDebouncingSearch,
+    isLoading: isDiscoveryLoading,
     loadingMore,
     error,
     loadMore,

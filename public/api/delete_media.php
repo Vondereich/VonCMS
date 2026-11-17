@@ -7,6 +7,7 @@ require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/media_library_filter_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
+require_once __DIR__ . '/activity/ActivityLog.php';
 sendApiHeaders('POST, DELETE, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -63,6 +64,8 @@ foreach ($targetRelativePaths as $targetRelativePath) {
 
 $deletedPaths = [];
 $removedVariantPaths = [];
+voncms_apply_site_timezone($pdo ?? null);
+$activity = isset($pdo) ? new VonCmsActivityLog(DataBoundary::database($pdo)) : null;
 foreach ($targetRelativePaths as $targetRelativePath) {
   $targetPath = voncms_resolve_media_path_within_uploads($targetRelativePath, $uploadsDir);
   if ($targetPath === null || !file_exists($targetPath)) {
@@ -75,6 +78,16 @@ foreach ($targetRelativePaths as $targetRelativePath) {
     if (!empty($removedVariantPaths)) {
       voncms_unregister_generated_media_variant_paths($removedVariantPaths, $uploadsDir);
     }
+    $activity?->recordMedia(
+      DataBoundary::actor(),
+      $cleanRelativePath,
+      $deletedPaths === [] ? 'failed' : 'partial',
+      [
+        'file_deleted' => false,
+        'variants_deleted' => count($deletedPaths),
+        'reason' => 'filesystem_failure',
+      ],
+    );
     ResponseHelper::sendError(
       'Media deletion stopped before the original file was removed. Rebuildable variants may already be gone.',
       500,
@@ -118,6 +131,16 @@ if (isset($pdo) && !empty($lookupPaths)) {
     }
   } catch (Throwable $e) {
     error_log('Delete media database cleanup failed: ' . $e->getMessage());
+    $activity?->recordMedia(
+      DataBoundary::actor(),
+      $cleanRelativePath,
+      $deletedPaths === [] ? 'failed' : 'partial',
+      [
+        'file_deleted' => in_array($cleanRelativePath, $deletedPaths, true),
+        'variants_deleted' => count(array_diff($deletedPaths, [$cleanRelativePath])),
+        'reason' => 'database_cleanup_failure',
+      ],
+    );
     ResponseHelper::sendError(
       'The files were removed, but the media database could not be updated. Run Media Sync/Repair.',
       500,
@@ -128,6 +151,11 @@ if (isset($pdo) && !empty($lookupPaths)) {
 // Success if either DB or file was deleted
 if ($dbDeleted || !empty($deletedPaths)) {
   @unlink(dirname(__DIR__) . '/data/storage_usage.json');
+  $activity?->recordMedia(DataBoundary::actor(), $cleanRelativePath, 'success', [
+    'file_deleted' => in_array($cleanRelativePath, $deletedPaths, true),
+    'database_deleted' => $dbDeleted,
+    'variants_deleted' => count(array_diff($deletedPaths, [$cleanRelativePath])),
+  ]);
   echo json_encode([
     'success' => true,
     'message' => 'Deleted successfully',
@@ -137,5 +165,8 @@ if ($dbDeleted || !empty($deletedPaths)) {
     'deletedVariants' => count(array_diff($deletedPaths, [$cleanRelativePath])),
   ]);
 } else {
+  $activity?->recordMedia(DataBoundary::actor(), $cleanRelativePath, 'failed', [
+    'reason' => 'nothing_to_delete',
+  ]);
   ResponseHelper::sendError('Nothing to delete', 404);
 }

@@ -373,10 +373,10 @@ const DefaultLayout: React.FC<
         {/* Navbar */}
         <nav className="sticky top-0 z-50 w-full bg-(--bg-nav) text-(--text-nav) border-b border-(--border-color) shadow-md transition-colors duration-300">
           <div className="w-full px-6 lg:px-12">
-            <div className="flex justify-between items-center h-20">
+            <div className="flex justify-between items-center gap-3 h-20">
               <a
                 href={getPublicHomeHref()}
-                className="shrink-0 flex items-center cursor-pointer group gap-3"
+                className="min-w-0 flex items-center cursor-pointer group gap-3"
                 onClick={(event) => handleCrawlableLinkClick(event, goHome)}
               >
                 {headerIdentity.showUploadedLogo ? (
@@ -385,13 +385,13 @@ const DefaultLayout: React.FC<
                     alt={settings.siteName}
                     useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                     invertLogoInDarkMode={settings.invertLogoInDarkMode}
-                    className="transition-all"
+                    className="min-w-0 shrink! transition-all"
                   />
                 ) : headerIdentity.showFallbackMark ? (
                   <VonLogo variant="default" />
                 ) : null}
                 {headerIdentity.showTitle && (
-                  <div className="max-w-50 lg:max-w-65">
+                  <div className="min-w-0 max-w-50 lg:max-w-65">
                     <span
                       className="font-extrabold text-2xl tracking-tight block leading-none truncate"
                       style={{ color: 'var(--text-nav)' }}
@@ -472,7 +472,7 @@ const DefaultLayout: React.FC<
                   </div>
                 )}
               </div>
-              <div className="hidden md:flex items-center gap-6">
+              <div className="hidden md:flex shrink-0 items-center gap-6">
                 <button
                   onClick={toggleDarkMode}
                   className="p-2 text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
@@ -660,7 +660,7 @@ const DefaultLayout: React.FC<
                   </button>
                 )}
               </div>
-              <div className={`${compactNavigationClassName} flex items-center gap-4`}>
+              <div className={`${compactNavigationClassName} flex shrink-0 items-center gap-4`}>
                 <button
                   onClick={toggleDarkMode}
                   className="p-2 transition-colors"
@@ -1341,6 +1341,13 @@ const HomeView: React.FC<{
             </div>
           ) : isSearching ? (
             <PublicDiscoverySkeleton />
+          ) : publicPosts.error ? (
+            <p
+              role="alert"
+              className="py-12 text-center text-sm text-neutral-500 dark:text-neutral-400"
+            >
+              {publicPosts.error}
+            </p>
           ) : (
             <div className="flex flex-col items-center justify-center py-20 bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 animate-fade-in text-center px-4">
               <div className="bg-white dark:bg-neutral-800 p-4 rounded-full shadow-xs mb-6">

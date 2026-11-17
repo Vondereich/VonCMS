@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS settings_audit_log (
     old_value LONGTEXT COMMENT 'Previous value',
     new_value LONGTEXT COMMENT 'New value',
     changed_by INT DEFAULT NULL COMMENT 'User who made the change',
+    actor_username VARCHAR(255) NOT NULL DEFAULT '',
+    actor_role VARCHAR(64) NOT NULL DEFAULT '',
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'When change occurred',
     change_type ENUM('INSERT', 'UPDATE', 'DELETE') DEFAULT 'UPDATE' COMMENT 'Type of change',
     ip_address VARCHAR(45) DEFAULT NULL COMMENT 'IP address of user',
@@ -124,6 +126,25 @@ CREATE TABLE IF NOT EXISTS settings_audit_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit trail for all settings changes';
 
 -- Content Audit Log Table
+-- Activity owns only uncovered media events and bounded purge receipts, not copied history.
+CREATE TABLE IF NOT EXISTS staff_activity_log (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    action VARCHAR(32) NOT NULL,
+    actor_user_id BIGINT UNSIGNED DEFAULT NULL,
+    actor_username VARCHAR(255) NOT NULL DEFAULT '',
+    actor_role VARCHAR(64) NOT NULL DEFAULT '',
+    target_type VARCHAR(32) NOT NULL,
+    target_id VARCHAR(255) NOT NULL DEFAULT '',
+    target_label VARCHAR(255) NOT NULL DEFAULT '',
+    outcome VARCHAR(16) NOT NULL,
+    details_json TEXT NULL,
+    request_key CHAR(64) DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_activity_request (request_key),
+    INDEX idx_activity_date (created_at, id),
+    INDEX idx_activity_actor (actor_user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS content_audit_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     content_type ENUM('post', 'page') NOT NULL,
@@ -136,6 +157,7 @@ CREATE TABLE IF NOT EXISTS content_audit_logs (
     context_json LONGTEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_content_lookup (content_type, content_id, created_at),
+    INDEX idx_content_audit_date (created_at, id),
     INDEX idx_actor_user (actor_user_id),
     INDEX idx_action (action)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

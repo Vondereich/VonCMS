@@ -790,6 +790,14 @@ const ProjectsSection = ({
 
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />
+        ) : publicPosts.error && filteredProjects.length === 0 ? (
+          <p
+            role="alert"
+            className="py-12 text-center text-sm"
+            style={{ color: colors.textSecondary }}
+          >
+            {publicPosts.error}
+          </p>
         ) : (
           <>
             {/* Projects grid */}
@@ -982,11 +990,11 @@ const PortfolioNav = ({
         borderBottom: isScrolled ? `1px solid ${colors.cardBorder}` : 'none',
       }}
     >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between gap-3">
         <a
           href={getPublicHomeHref()}
           onClick={(event) => handleCrawlableLinkClick(event, onBackToHome)}
-          className="flex items-center gap-3 bg-transparent border-none cursor-pointer"
+          className="min-w-0 flex items-center gap-3 bg-transparent border-none cursor-pointer"
           title={siteName || 'Portfolio'}
         >
           {headerIdentity.showUploadedLogo && (
@@ -995,11 +1003,12 @@ const PortfolioNav = ({
               alt={siteName}
               useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
               invertLogoInDarkMode={settings?.invertLogoInDarkMode}
+              className="min-w-0 shrink!"
             />
           )}
           {headerIdentity.showTitle && (
             <span
-              className="text-xl font-bold max-w-50 truncate"
+              className="min-w-0 text-xl font-bold max-w-50 truncate"
               style={{
                 color: !isScrolled && transparentTextColor ? transparentTextColor : colors.text,
               }}
@@ -1009,7 +1018,7 @@ const PortfolioNav = ({
           )}
         </a>
 
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-4">
           {/* Standard Navigation */}
           {visibleNavigationItems.map((nav: import('../../types').NavItem) => (
             <PublicNavigationLink

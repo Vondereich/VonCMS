@@ -58,12 +58,19 @@ function warn(message) {
 
 try {
   const { createRequire } = require('node:module');
-  for (const consumer of [
-    'eslint',
-    '@eslint/config-array',
-    '@typescript-eslint/typescript-estree',
-  ]) {
-    const { Minimatch, minimatch } = createRequire(require.resolve(consumer))('minimatch');
+  const eslintRequire = createRequire(require.resolve('eslint'));
+  const typescriptEslintRequire = createRequire(require.resolve('typescript-eslint'));
+  const parserRequire = createRequire(typescriptEslintRequire.resolve('@typescript-eslint/parser'));
+  const minimatchConsumers = [
+    ['eslint', eslintRequire],
+    ['@eslint/config-array', createRequire(eslintRequire.resolve('@eslint/config-array'))],
+    [
+      '@typescript-eslint/typescript-estree',
+      createRequire(parserRequire.resolve('@typescript-eslint/typescript-estree')),
+    ],
+  ];
+  for (const [consumer, consumerRequire] of minimatchConsumers) {
+    const { Minimatch, minimatch } = consumerRequire('minimatch');
     const pattern =
       Array.from({ length: 8 }, (_, index) => `**/../part${index}`).join('/') + '/*.ts';
     let amplified;
@@ -5047,7 +5054,7 @@ try {
     ]) {
       assert.equal(paths.includes(path), mayAdmin, `${role}: ${path}`);
     }
-    for (const path of ['/admin/gallery', '/admin/widgets', '/admin/database']) {
+    for (const path of ['/admin/gallery', '/admin/widgets', '/admin/database', '/admin/activity']) {
       assert.equal(paths.includes(path), mayPrimary, `${role}: ${path}`);
     }
     assert.equal(!!button(nodes, 'Extensions'), mayAdmin);
@@ -5055,10 +5062,18 @@ try {
     assert.equal(!!button(nodes, 'Create'), mayStaff);
     assert.equal(paths.includes('/admin/calendar'), mayPage);
     assert.equal(paths.includes('/admin/calendar?new=event'), mayPage);
-    assert.ok(!paths.some((path) => /status|activity/.test(path)));
+    assert.ok(!paths.some((path) => /status/.test(path)));
   }
   pass(
     'Admin Navigation Runtime: six role/owner cases retain route boundaries and hide empty/future groups and creation actions.'
+  );
+  const activityNavigation = makeNavigation('Admin', '1', '/admin/activity').render();
+  assert.equal(button(activityNavigation, 'Monitoring').props['aria-expanded'], true);
+  assert.deepEqual(
+    activityNavigation
+      .filter((node) => node.props['aria-current'] === 'page')
+      .map((node) => node.props.to),
+    ['/admin/activity']
   );
   const controls = makeNavigation('root', '1')
     .render()
@@ -13027,8 +13042,8 @@ if (exists(publicPostsQueryHookPath)) {
     ) &&
     publicPostsQueryContent.includes('fallbackPostsRef.current = fallbackPosts;') &&
     publicPostsQueryContent.includes('if (hasShortSearch || hasPendingSearchDebounce) return;') &&
-    publicPostsQueryContent.includes(
-      '[category, enabled, hasShortSearch, limit, normalizedSearch, settledFallbackPosts]'
+    /\[\s*category,\s*enabled,\s*hasShortSearch,\s*limit,\s*normalizedSearch,\s*requestScope,\s*settledFallbackPosts,?\s*\]/.test(
+      publicPostsQueryContent
     ) &&
     !publicPostsQueryContent.includes(
       '[category, enabled, fallbackPosts, hasShortSearch, limit, normalizedSearch]'
@@ -13037,7 +13052,9 @@ if (exists(publicPostsQueryHookPath)) {
     publicPostsQueryContent.includes('const abortController = new AbortController();') &&
     publicPostsQueryContent.includes('signal: abortController.signal') &&
     publicPostsQueryContent.includes("(err as Error)?.name === 'AbortError'") &&
-    publicPostsQueryContent.includes('isLoading: isLoading || isDebouncingSearch') &&
+    publicPostsQueryContent.includes('isLoading: isDiscoveryLoading') &&
+    publicPostsQueryContent.includes('isDebouncingSearch ||') &&
+    publicPostsQueryContent.includes('settledRequestScope !== requestScope') &&
     !publicPostsQueryContent.includes('hasShortSearch ? search.trim() : normalizedSearch') &&
     !publicPostsQueryContent.includes('value.trim().slice(0, PUBLIC_SEARCH_MAX_LENGTH)')
   ) {
@@ -18753,6 +18770,49 @@ if (phpBinary) {
   else fail('Internal Core Modules: ' + (coreProbe.stderr || coreProbe.stdout).trim());
 }
 if (phpBinary) {
+  const submissionQuotaProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/public-submission-quotas.php')],
+    { encoding: 'utf8' }
+  );
+  if (
+    submissionQuotaProbe.status === 0 &&
+    submissionQuotaProbe.stdout.startsWith('PASS ') &&
+    !submissionQuotaProbe.stderr.trim()
+  ) {
+    pass(submissionQuotaProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail(
+      'Public submission quotas: ' +
+        (submissionQuotaProbe.stderr || submissionQuotaProbe.stdout).trim()
+    );
+  }
+}
+if (phpBinary) {
+  for (const file of ['run.php', 'endpoint.php']) {
+    const probe = spawnSync(phpBinary, [resolveFromRoot(`server/integration/activity/${file}`)], {
+      encoding: 'utf8',
+    });
+    if (probe.status === 0 && probe.stdout.startsWith('PASS ') && !probe.stderr.trim()) {
+      pass(probe.stdout.trim().replace(/^PASS /, ''));
+    } else fail('Staff Activity Log: ' + (probe.stderr || probe.stdout).trim());
+  }
+}
+if (phpBinary) {
+  const svgLogoProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/media/svg-logo.php')],
+    { encoding: 'utf8' }
+  );
+  if (
+    svgLogoProbe.status === 0 &&
+    svgLogoProbe.stdout.startsWith('PASS ') &&
+    !svgLogoProbe.stderr.trim()
+  )
+    pass(svgLogoProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('SVG logo profile: ' + (svgLogoProbe.stderr || svgLogoProbe.stdout).trim());
+}
+if (phpBinary) {
   const hardeningProbe = spawnSync(
     process.execPath,
     [resolveFromRoot('server/test-security-hardening.cjs'), phpBinary],
@@ -18777,6 +18837,19 @@ if (phpBinary) {
   );
   if (personalProbe.status === 0) pass(personalProbe.stdout.trim().replace(/^PASS /, ''));
   else fail('Personal AI Keys: ' + (personalProbe.stderr || personalProbe.stdout).trim());
+  const developerToolsProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/developer-tools.cjs')],
+    { encoding: 'utf8', env: { ...process.env, PHP_BIN: phpBinary } }
+  );
+  if (
+    developerToolsProbe.status === 0 &&
+    developerToolsProbe.stdout.startsWith('PASS ') &&
+    !developerToolsProbe.stderr.trim()
+  )
+    pass(developerToolsProbe.stdout.trim().replace(/^PASS /, ''));
+  else
+    fail('Developer tools: ' + (developerToolsProbe.stderr || developerToolsProbe.stdout).trim());
   const credentialProbe = spawnSync(
     phpBinary,
     [resolveFromRoot('server/integration/credential-storage.php')],
@@ -18933,7 +19006,7 @@ if (!phpBinary) {
   // Login CSRF and legacy comment payload runtime boundary.
   const loginCommentFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-auth-comment-'));
   try {
-    for (const directory of ['api/security', 'core', 'data', 'sessions', 'rate']) {
+    for (const directory of ['api/security', 'api/activity', 'core', 'data', 'sessions', 'rate']) {
       fs.mkdirSync(path.join(loginCommentFixture, directory), { recursive: true });
     }
     for (const relativePath of [
@@ -18946,6 +19019,7 @@ if (!phpBinary) {
       'api/reset_password.php',
       'api/mail_helper.php',
       'api/schema_repair_helper.php',
+      'api/activity/schema.php',
       'api/security/SecurityLogger.php',
       'api.php',
       'post.php',

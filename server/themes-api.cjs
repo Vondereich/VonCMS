@@ -990,15 +990,25 @@ app.post('/api/reset_password.php', (req, res) => {
 
 // --- INSTALLATION CHECK (Dev/Node) ---
 app.post('/api/install.php', (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ success: false, message: 'Invalid installation data' });
+  }
+  const { dbHost, dbName, dbUser, adminEmail } = req.body;
+
   // Simulate DB Connection Delay
   setTimeout(() => {
-    const { dbHost, dbName, dbUser, adminEmail } = req.body;
+    if (res.destroyed || res.writableEnded) return;
+    try {
+      console.log(`[Mock Install] Connecting to ${dbHost}/${dbName} as ${dbUser}...`);
+      console.log(`[Mock Install] Creating Admin: ${adminEmail}`);
 
-    console.log(`[Mock Install] Connecting to ${dbHost}/${dbName} as ${dbUser}...`);
-    console.log(`[Mock Install] Creating Admin: ${adminEmail}`);
-
-    // Return Success
-    return res.json({ success: true, message: 'Installation successful (Mock).' });
+      return res.json({ success: true, message: 'Installation successful (Mock).' });
+    } catch (error) {
+      console.error('Mock installation failed', error);
+      if (!res.headersSent) {
+        return res.status(500).json({ success: false, message: 'Mock installation failed' });
+      }
+    }
   }, 1500);
 });
 

@@ -671,7 +671,7 @@ if (($argv[1] ?? '') === '--worker') {
       }
     } else {
       /** @param string $to */
-      function vonSendMail($to, ...$arguments): array
+      function vonSendMail($to, mixed ...$arguments): array
       {
         global $pdo, $case, $directory;
         $payload = ['sessionActive' => session_status() === PHP_SESSION_ACTIVE];
@@ -824,7 +824,7 @@ if (($argv[1] ?? '') === '--worker') {
       eval(actionDeclaration($root . '/public/api/mail_helper.php', 'function ' . $name . '('));
     }
     /** @param string $to */
-    function vonSendMail($to, ...$arguments): array
+    function vonSendMail($to, mixed ...$arguments): array
     {
       global $pdo;
       $pdo
@@ -2926,8 +2926,11 @@ try {
         'Quota missing or charged before CSRF',
       );
       if ($files) {
+        $quota = json_decode(file_get_contents($files[0]), true);
+        $identity =
+          ($endpoint === 'submit_contact.php' ? 'contact:' : 'newsletter:') . '198.51.100.144';
         actionCheck(
-          json_decode(file_get_contents($files[0]), true)['attempts'] === 1,
+          count($quota) === 1 && ($quota[hash('sha256', $identity)]['attempts'] ?? null) === 1,
           'Attempt charged more than once',
         );
       }
@@ -2976,7 +2979,11 @@ try {
     'Mail failure permitted duplicate receipt',
   );
   $quota = json_decode(file_get_contents(glob($directory . '/rates/*.json')[0]), true);
-  actionCheck($quota['attempts'] === 1, 'Failed delivery was not charged exactly once');
+  actionCheck(
+    count($quota) === 1 &&
+      ($quota[hash('sha256', 'contact:198.51.100.144')]['attempts'] ?? null) === 1,
+    'Failed delivery was not charged exactly once',
+  );
 
   $directory = actionFixture('contact-session-release');
   actionRun($directory, [['endpoint' => 'submit_contact.php', 'case' => 'session-probe']]);

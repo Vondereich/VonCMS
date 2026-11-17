@@ -10,6 +10,7 @@ import { applyAdminPalette, normalizeAdminPalette } from '../../utils/adminPalet
 import {
   Gauge,
   ScrollText,
+  History,
   Files,
   Images,
   MessagesSquare,
@@ -293,6 +294,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       path: '/admin/security',
       color: '#f87171', // Red 400
       allowedRoles: ['Admin'],
+      group: 'monitoring',
+    },
+    {
+      icon: <History size={20} />,
+      label: 'Activity Log',
+      path: '/admin/activity',
+      color: '#94a3b8',
+      allowedRoles: ['Admin'],
+      requiresPrimaryAdmin: true,
       group: 'monitoring',
     },
     {

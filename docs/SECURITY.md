@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.28.3
+# VonCMS Security Policy v1.28.4
 
 ## PHP Runtime Baseline
 
@@ -141,7 +141,9 @@ In practice, standard image uploads are limited to safe raster formats such as:
 - `webp`
 - `ico`
 
-SVG is not accepted through the standard upload API because it is an XML document and can carry active script payloads.
+SVG remains rejected for ordinary Gallery/editor uploads, favicons and social-preview images because it is an XML document and can carry active content.
+
+The exception is **General Settings > Site Logo**: authenticated Admin/Root accounts can upload a static SVG of at most 1MB. The server requires PHP DOM and mbstring, rebuilds the document from an allowlisted XML profile, and rejects scripts, event handlers, animation, embedded media, external references and DTDs. Only this logo context accepts SVG; changing the upload fields does not bypass the server-side role check. Existing theme logo-size limits and optional dark-mode inversion remain unchanged.
 
 ## 5. Rate Limiting and Bot Friction
 
@@ -165,7 +167,11 @@ Password-recovery mail requests retain limits of three attempts per IP/email pai
 
 Contact submissions are restricted to bounded fields declared by the selected form template and validated by field type before storage or mail tag replacement. Stored contact leads are pruned after 90 days, linked leads are removed with their form, and detailed mail transport failures remain server-side.
 
-Newsletter subscription attempts use a dedicated per-IP throttle, including repeated requests for addresses already in the list. Public responses do not reveal whether an address is active or previously unsubscribed, and an unsubscribed address is not reactivated without a separate ownership-confirmation flow.
+From v1.28.4, Contact, guest comment and enabled Newsletter attempts use separate five-request/15-minute quotas, with IPv6 /64 grouping and IPv4-mapped normalization. Signed-in comments remain keyed by the authenticated user. Each purpose uses one expiry-pruned ledger capped at 4,096 active keys and 1 MiB; new address identities do not create additional legacy files. Corrupt/unavailable storage or exhausted capacity refuses that submission, not unrelated login/recovery or other form purposes. Bounded capacity is not an availability guarantee against distributed abuse.
+
+Pre-upgrade public quota files are read only for the exact known identity. Active lockouts and remaining allowances stay enforced under their legacy lock alongside the new ledger. Known expired public files are retired opportunistically; retained expired files still require the new quota. Unknown files and login/recovery state are not swept or reset. Do not purge the shared `data/rate_limits/` directory as an upgrade step.
+
+Newsletter attempts include repeated requests for addresses already in the list. Public responses do not reveal whether an address is active or previously unsubscribed, and an unsubscribed address is not reactivated without a separate ownership-confirmation flow.
 
 What this helps with:
 

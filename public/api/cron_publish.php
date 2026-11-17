@@ -48,6 +48,11 @@ try {
   }
 
   $count = voncms_publish_scheduled_posts($pdo);
+  // The old Admin manual-publish fallback is not permission to purge Activity history.
+  if (!empty($configuredKey)) {
+    require_once __DIR__ . '/activity/ActivityLog.php';
+    (new VonCmsActivityLog(DataBoundary::database($pdo)))->maintain();
+  }
 
   echo json_encode([
     'success' => true,

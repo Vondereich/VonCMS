@@ -239,6 +239,8 @@ try {
         old_value LONGTEXT,
         new_value LONGTEXT,
         changed_by INT DEFAULT NULL,
+        actor_username VARCHAR(255) NOT NULL DEFAULT '',
+        actor_role VARCHAR(64) NOT NULL DEFAULT '',
         changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         change_type ENUM('INSERT', 'UPDATE', 'DELETE') DEFAULT 'UPDATE',
         ip_address VARCHAR(45) DEFAULT NULL,

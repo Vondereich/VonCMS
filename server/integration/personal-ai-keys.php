@@ -1,5 +1,6 @@
 <?php
 /** Real credential helpers/controllers, dummy keys, owned SQLite/MySQL databases only. */
+require_once __DIR__ . '/sqlite-compat.php';
 $root = dirname(__DIR__, 2);
 $temporary = sys_get_temp_dir() . '/voncms-personal-ai-' . bin2hex(random_bytes(8));
 if (!mkdir($temporary, 0700)) {
@@ -116,9 +117,11 @@ try {
       [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
     );
   } else {
-    $pdo = new PDO('sqlite:' . $temporary . '/fixture.sqlite', null, null, [
+    $pdo = new VonCmsFixtureSqlitePDO('sqlite:' . $temporary . '/fixture.sqlite', null, null, [
       PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     ]);
+    $pdo->exec('PRAGMA foreign_keys=ON');
+    $pdo->createFunction('NOW', static fn() => gmdate('Y-m-d H:i:s'));
   }
   $pdo->exec(
     'CREATE TABLE settings(setting_group VARCHAR(32),setting_key VARCHAR(32),setting_value TEXT,is_public INT DEFAULT 0,updated_by INT,version INT DEFAULT 1,updated_at DATETIME,PRIMARY KEY(setting_group,setting_key))',
@@ -133,10 +136,6 @@ try {
     $pdo->exec(
       'CREATE TABLE user_ai_keys(id INTEGER PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,provider VARCHAR(32) NOT NULL,encrypted_key TEXT NOT NULL,saved_at DATETIME NOT NULL,expires_at DATETIME,UNIQUE(user_id,provider))',
     );
-  }
-  if (!$mysql) {
-    $pdo->exec('PRAGMA foreign_keys=ON');
-    $pdo->sqliteCreateFunction('NOW', static fn() => gmdate('Y-m-d H:i:s'));
   }
   $pdo
     ->prepare('INSERT INTO settings(setting_group,setting_key,setting_value) VALUES(?,?,?)')
@@ -420,11 +419,7 @@ try {
       var_export($root . '/public/api/ai_provider_helper.php', true) .
       ';$pdo=new PDO(' .
       var_export($dsn . ';dbname=' . $database, true) .
-      ',' .
-      var_export(getenv('VONCMS_TEST_MYSQL_USER') ?: 'root', true) .
-      ',' .
-      var_export(getenv('VONCMS_TEST_MYSQL_PASSWORD') ?: '', true) .
-      ',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);touch(' .
+      ',getenv("VONCMS_TEST_MYSQL_USER")?:"root",getenv("VONCMS_TEST_MYSQL_PASSWORD")?:"",[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);touch(' .
       var_export($temporary . '/started', true) .
       ');voncms_ai_rotate_global_key($pdo,' .
       var_export($revision, true) .
@@ -789,6 +784,8 @@ try {
     // Real status controller and schema inspection on owned MySQL; only auth transport is stubbed.
     $statusHarness = $temporary . '/database-status';
     mkdir($statusHarness . '/api/system', 0700, true);
+    mkdir($statusHarness . '/api/activity', 0700, true);
+    copy($root . '/public/api/activity/schema.php', $statusHarness . '/api/activity/schema.php');
     mkdir($statusHarness . '/core', 0700);
     copy($root . '/public/core/DataBoundary.php', $statusHarness . '/core/DataBoundary.php');
     copy(
@@ -836,6 +833,67 @@ try {
         $status['body']['details'] === [],
       'Healthy shipped schema incorrectly triggers the owner repair warning.',
     );
+    $legacySettingId = (int) $pdo
+      ->query("SELECT id FROM settings WHERE setting_group='general' AND setting_key='site_name'")
+      ->fetchColumn();
+    $pdo
+      ->prepare(
+        "INSERT INTO settings_audit_log(setting_id,setting_group,setting_key,change_type) VALUES (?,'general','site_name','UPDATE')",
+      )
+      ->execute([$legacySettingId]);
+    foreach (
+      [
+        'DROP TABLE staff_activity_log',
+        'ALTER TABLE staff_activity_log DROP COLUMN details_json',
+        'ALTER TABLE staff_activity_log DROP INDEX unique_activity_request',
+        'ALTER TABLE settings_audit_log DROP COLUMN actor_username',
+        'ALTER TABLE settings_audit_log DROP COLUMN actor_role',
+      ]
+      as $damage
+    ) {
+      $pdo->exec($damage);
+      $status = $readStatus();
+      $label = str_contains($damage, 'settings_audit_log')
+        ? 'Settings audit actor snapshots requires Database Repair'
+        : 'Staff Activity log storage requires Database Repair';
+      personalCheck(
+        $status['body']['needs_repair'] === true && $status['body']['details'] === [$label],
+        'Isolated Activity/Settings schema damage was falsely reported healthy: ' . $damage,
+      );
+      personalCheck(
+        $readStatus()['body']['details'] === [$label],
+        'Status read mutated or repaired storage',
+      );
+      if ($damage === 'DROP TABLE staff_activity_log') {
+        $withoutActivityStatus = str_replace(
+          "  'staff_activity_log' => 'Staff Activity log storage',\n",
+          '',
+          str_replace("\r\n", "\n", $statusSource),
+          $removedActivityStatus,
+        );
+        personalCheck($removedActivityStatus === 1, 'Activity status negative control failed');
+        file_put_contents(
+          $statusHarness . '/api/system/check_db_status.php',
+          $withoutActivityStatus,
+        );
+        personalCheck(
+          $readStatus()['body']['needs_repair'] === false,
+          'Negative control did not reproduce the missed Activity warning',
+        );
+        file_put_contents($statusHarness . '/api/system/check_db_status.php', $statusSource);
+      }
+      voncms_schema_repair_runtime_capabilities($pdo);
+      personalCheck(
+        $readStatus()['body']['needs_repair'] === false,
+        'Repaired storage still triggers a warning',
+      );
+      personalCheck(
+        $pdo
+          ->query('SELECT actor_username,actor_role FROM settings_audit_log')
+          ->fetch(PDO::FETCH_ASSOC) === ['actor_username' => '', 'actor_role' => ''],
+        'Repair fabricated a legacy actor on a populated Settings history',
+      );
+    }
     $pdo->exec('ALTER TABLE user_ai_keys DROP COLUMN saved_at');
     personalCheck(
       in_array(

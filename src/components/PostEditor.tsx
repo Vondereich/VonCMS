@@ -1043,7 +1043,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                 contentRevision={editorContentRevision}
                 onChange={handleEditorChange}
                 onImmediateChange={handleEditorImmediateChange}
-                onImageClick={handleEditorImageClick}
+                onImageClick={isPage ? undefined : handleEditorImageClick}
                 readOnly={isWriterLocked || isSaving}
               />
             </div>

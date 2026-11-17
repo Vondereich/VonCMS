@@ -1,10 +1,16 @@
 # VonCMS API Guide
 
-Version: `1.28.3`
+Version: `1.28.4`
 
 Runtime minimum: PHP 8.2.0; PHP 8.3+ is recommended. Use a supported, patched PHP build; the CMS version guard does not install PHP security updates.
 Primary API location: `/api/*.php`
 System endpoints: `/api/system/*.php`
+
+### Staff Activity Log (v1.28.4)
+
+`GET /api/activity/index.php` requires a currently validated Primary Admin session. It returns at most 20 projected `logs`, `nextCursor`, `hasMore`, `pageSize` and `unavailableSources`. Filters: `actor` (positive user ID), `role` (`admin`, `root`, `moderator`, `writer`, `system`, `unrecorded`), `event` (lowercase action), `type` (`post`, `page`, `settings`, `calendar`, `media`, `activity`), `from`/`to` (`YYYY-MM-DD`). Omit a filter for all values. Send `nextCursor` unchanged with the same filters for the next page; per-source high-water marks keep later inserts out of that traversal. Refresh starts a new snapshot. Missing legacy identities remain unrecorded; Settings values, credentials, IP addresses and raw payloads are excluded. Existing history timestamps are projected into the configured CMS clock; historical site-clock changes cannot be reconstructed.
+
+`POST` requires the same session plus CSRF. `{ "action": "preview" }` returns the eligible count, cutoff, batch size and a session-owned token valid for 10 minutes. `{ "action": "purge", "token": "..." }` removes at most 500 eligible `staff_activity_log` rows inside a transaction with its receipt. The client cannot choose the cutoff or IDs; retrying the same confirmed token returns the same receipt. Preview/GET do not remove records. Shared Post/Page, Settings, Calendar and Security histories, files and application content are never purged here. Missing/incomplete Activity storage returns 503 with Repair guidance; no request runs DDL. This is separate from Security incidents and not a complete immutable audit or restore API.
 
 ### Private own-account credentials (v1.28.3)
 
@@ -218,9 +224,15 @@ The endpoint accepts the key only through `X-Cron-Key`; `?key=...` is rejected s
 
 ### Newsletter
 
-- `newsletter_subscribe.php` - POST-only public subscription capture with CSRF, bounded email input, dedicated per-IP throttling, and membership-neutral responses
+- `newsletter_subscribe.php` - POST-only public subscription capture with CSRF, bounded email input, dedicated per-network throttling, and membership-neutral responses
 - `newsletter_list.php` - admin-only paginated subscriber listing and deletion with bounded search
 - `newsletter_export.php` - admin-only CSRF-protected CSV export with spreadsheet-formula neutralization
+
+### Public submission quotas
+
+From v1.28.4, Contact, guest comments and enabled Newsletter subscriptions use separate five-attempt/15-minute budgets, grouping IPv6 privacy addresses by /64 and IPv4-mapped addresses with ordinary IPv4. Signed-in comments retain a per-user budget. Each purpose has one expiry-pruned ledger, capped at 4,096 active identities and 1 MiB. Corrupt/unavailable storage or capacity exhaustion refuses the affected submission; other purposes, login and recovery keep their independent policies. Existing CSRF, feature gates and validation ordering remain unchanged, including the Contact oversized-body reservation before CSRF.
+
+Existing legacy public quota files are consulted without creating new per-address files. Active lockouts remain denied and outstanding attempts are reserved under the old lock as well as the new budget. Once an old lockout expires, that exact known public file is retired where filesystem permissions allow; a retained expired file still cannot bypass the bounded ledger. No directory-wide purge or automatic reset of other quota state occurs.
 
 ### Tracking and contact
 

@@ -8,6 +8,7 @@ if (
   exit('Forbidden');
 }
 require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/activity/schema.php';
 
 function voncms_schema_identifier(string $identifier): string
 {
@@ -324,6 +325,15 @@ function voncms_schema_foreign_key_map(PDO $pdo, string $table): array
 function voncms_schema_runtime_index_specs(): array
 {
   return [
+    'staff_activity_log' => [
+      ['name' => 'unique_activity_request', 'columns' => ['request_key'], 'unique' => true],
+      ['name' => 'idx_activity_date', 'columns' => ['created_at', 'id'], 'unique' => false],
+      [
+        'name' => 'idx_activity_actor',
+        'columns' => ['actor_user_id', 'created_at'],
+        'unique' => false,
+      ],
+    ],
     'user_ai_keys' => [
       ['name' => 'unique_user_ai_key', 'columns' => ['user_id', 'provider'], 'unique' => true],
     ],
@@ -358,6 +368,7 @@ function voncms_schema_runtime_index_specs(): array
       ['name' => 'idx_comment_likes_user', 'columns' => ['user_id'], 'unique' => false],
     ],
     'content_audit_logs' => [
+      ['name' => 'idx_content_audit_date', 'columns' => ['created_at', 'id'], 'unique' => false],
       [
         'name' => 'idx_content_lookup',
         'columns' => ['content_type', 'content_id', 'created_at'],
@@ -419,6 +430,7 @@ function voncms_schema_runtime_foreign_key_specs(): array
 function voncms_schema_runtime_identity_specs(): array
 {
   return [
+    'staff_activity_log' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'user_ai_keys' => ['column' => 'id', 'type' => 'bigint unsigned'],
     'calendar_events' => ['column' => 'id', 'type' => 'int'],
     'calendar_event_audit' => ['column' => 'id', 'type' => 'bigint unsigned'],
@@ -634,6 +646,14 @@ function voncms_schema_missing_columns(PDO $pdo, string $table, array $requiredC
 function voncms_schema_capability_manifest(): array
 {
   return [
+    'staff_activity_log' => [
+      'table' => 'staff_activity_log',
+      'columns' => array_keys(voncms_activity_column_specs()),
+    ],
+    'settings_audit_identity' => [
+      'table' => 'settings_audit_log',
+      'columns' => ['actor_username', 'actor_role'],
+    ],
     'personal_ai_keys' => [
       'table' => 'user_ai_keys',
       'columns' => ['id', 'user_id', 'provider', 'encrypted_key', 'saved_at', 'expires_at'],
@@ -1209,6 +1229,7 @@ function voncms_schema_has_capability(PDO $pdo, string $capability): bool
 function voncms_schema_runtime_table_sql(): array
 {
   return [
+    'staff_activity_log' => voncms_activity_schema_sql(),
     'user_ai_keys' => "CREATE TABLE IF NOT EXISTS user_ai_keys (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -1308,6 +1329,7 @@ function voncms_schema_runtime_table_sql(): array
       context_json LONGTEXT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_content_lookup (content_type, content_id, created_at),
+      INDEX idx_content_audit_date (created_at, id),
       INDEX idx_actor_user (actor_user_id),
       INDEX idx_action (action)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -1332,6 +1354,23 @@ function voncms_schema_runtime_table_sql(): array
 function voncms_schema_runtime_column_specs(): array
 {
   return [
+    'staff_activity_log' => voncms_activity_column_specs(),
+    'settings_audit_log' => [
+      'actor_username' => [
+        'definition' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'type' => 'varchar(255)',
+        'nullable' => false,
+        'default' => '',
+        'safe' => true,
+      ],
+      'actor_role' => [
+        'definition' => "VARCHAR(64) NOT NULL DEFAULT ''",
+        'type' => 'varchar(64)',
+        'nullable' => false,
+        'default' => '',
+        'safe' => true,
+      ],
+    ],
     'user_ai_keys' => [
       'id' => [
         'definition' => 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',

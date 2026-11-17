@@ -226,13 +226,15 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings196"
                   type="file"
                   className="hidden"
-                  accept=".jpg,.jpeg,.png,.gif,.webp,.ico,image/jpeg,image/png,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
+                  accept=".svg,.jpg,.jpeg,.png,.gif,.webp,.ico,image/svg+xml,image/jpeg,image/png,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
                   onChange={(e) => handleFileUpload(e, 'logo')}
                   disabled={uploading === 'logo'}
                 />
               </label>
               <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
-                Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB.
+                Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB. Static vector SVG: max 1MB; no
+                scripts, animation, embedded content or external resources. Existing theme logo size
+                limits still apply.
                 <br />
                 <span className="text-[10px] opacity-80">
                   Best size: <strong>200x50px</strong> (Landscape) or <strong>64x64px</strong>{' '}

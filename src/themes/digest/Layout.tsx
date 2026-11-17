@@ -1404,11 +1404,11 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       }}
     >
       <div className="max-w-7xl mx-auto px-5 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           {/* Logo & Site Info */}
           <a
             href={getPublicHomeHref()}
-            className="flex items-center gap-3 cursor-pointer"
+            className="min-w-0 flex items-center gap-3 cursor-pointer"
             onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
           >
             {headerIdentity.showUploadedLogo ? (
@@ -1417,6 +1417,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 alt={settings.siteName}
                 useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                 invertLogoInDarkMode={settings.invertLogoInDarkMode}
+                className="min-w-0 shrink!"
               />
             ) : headerIdentity.showFallbackMark ? (
               <VonLogo variant="default" className="w-10! h-10! mr-0!" />
@@ -1502,7 +1503,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           </nav>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
@@ -2222,6 +2223,10 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           </div>
         ) : isSearching ? (
           <PublicDiscoverySkeleton />
+        ) : publicPosts.error ? (
+          <p role="alert" className="py-12 text-center text-sm" style={{ color: colors.textMuted }}>
+            {publicPosts.error}
+          </p>
         ) : (
           <div className="text-center py-20">
             <p className="text-lg" style={{ color: colors.textMuted }}>

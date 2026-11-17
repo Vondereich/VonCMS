@@ -332,10 +332,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
       <div className="relative z-10 flex flex-col min-h-screen">
         {/* PRISM HEADER: Glassmorphism, Neon Borders */}
         <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#050510]/80 border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between gap-3">
             <a
               href={getPublicHomeHref()}
-              className="flex items-center gap-3 cursor-pointer group"
+              className="min-w-0 flex items-center gap-3 cursor-pointer group"
               onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
             >
               {headerIdentity.showUploadedLogo ? (
@@ -344,7 +344,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                   alt={settings.siteName}
                   useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                   invertLogoInDarkMode={settings.invertLogoInDarkMode}
-                  className="transition-all"
+                  className="min-w-0 shrink! transition-all"
                 />
               ) : headerIdentity.showFallbackMark ? (
                 <VonLogo
@@ -353,7 +353,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                 />
               ) : null}
               {headerIdentity.showTitle && (
-                <div className="max-w-50 lg:max-w-70">
+                <div className="min-w-0 max-w-50 lg:max-w-70">
                   <span
                     className="text-2xl font-bold tracking-tighter text-white block truncate"
                     title={settings.siteName}
@@ -426,7 +426,7 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
             </nav>
 
             {/* Mobile Menu Toggle */}
-            <div className={`${compactNavigationClassName} flex items-center gap-4`}>
+            <div className={`${compactNavigationClassName} flex shrink-0 items-center gap-4`}>
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="p-2 text-(--color-primary) hover:text-white transition-colors"
@@ -436,10 +436,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex shrink-0 items-center gap-6">
               {isAuthLoading ? (
                 <span
-                  className="block h-10 w-40 shrink-0 rounded-sm border border-white/10 bg-white/5 pointer-events-none"
+                  className="block h-10 w-20 md:w-40 shrink-0 rounded-sm border border-white/10 bg-white/5 pointer-events-none"
                   data-auth-placeholder="true"
                   aria-hidden="true"
                 />
@@ -734,6 +734,10 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
               )}
               {isInitialDiscoveryLoading ? (
                 <PublicDiscoverySkeleton className="mb-12" />
+              ) : publicPosts.error && currentPosts.length === 0 ? (
+                <p role="alert" className="py-12 text-center text-sm text-slate-400">
+                  {publicPosts.error}
+                </p>
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
