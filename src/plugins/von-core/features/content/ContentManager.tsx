@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import {
   getPermalink,
+  getPagePermalink,
   normalizeSchemaDateTime,
-  normalizeSiteUrl,
 } from '../../../../utils/siteUtils';
 import SmartPagination from '../../../../components/SmartPagination';
 import AdminModal from '../../../../components/admin/AdminModal';
@@ -217,7 +217,7 @@ const ContentManager: React.FC<ContentManagerProps> = ({
       }
       return getPermalink(post, settings);
     }
-    return item.slug ? normalizeSiteUrl(`/${item.slug}`) : null;
+    return item.slug ? getPagePermalink(item) : null;
   };
   const renderLiveLink = (item: Post | Page, desktop = false) => {
     const href = getLiveHref(item);

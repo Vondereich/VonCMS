@@ -88,10 +88,7 @@ const end = utils.indexOf('export const getPermalink', start);
 check(start !== -1 && end > start, 'Public route policy must be present');
 const policy = vm.runInNewContext(
   ts.transpileModule(
-    utils
-      .slice(start, end)
-      .replace('export const isPublicContentPath', 'const isPublicContentPath') +
-      '\nisPublicContentPath;',
+    utils.slice(start, end).replace(/\bexport const /g, 'const ') + '\nisPublicContentPath;',
     { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
   ).outputText
 );
@@ -275,12 +272,18 @@ async function browser() {
       if(endpoint==='api.php')return reply({success:true,csrf_token:'fixture-only',installed:true});
       if(endpoint==='get_post.php'){
         const token=u.searchParams.get('slug');
+        if(token==='704')return reply({success:true,post:{...post,id:'705',slug:'704',category:'Page',title:'Legacy Page category article',content:'<p>Correct legacy category Post body.</p>'}});
+        if(params.get('qaType')==='fallback' && u.searchParams.get('id')==='704')return reply({success:true,post:{...post,id:'704',slug:'docs',title:'Fallback docs Post',content:'<p>Correct fallback Post body.</p>'}});
         if(u.searchParams.get('id')==='0'||(token==='0'&&params.get('qaType')==='page'))return reply({success:false});
         if(['0','00','0002','+1','1e3'].includes(token))return reply({success:true,post:{...post,id:'702',slug:token,title:'Literal slug '+token,content:'<p>Literal slug body '+token+'</p>'}});
         return reply({success:true,post});
       }
       if(endpoint==='get_posts.php')return reply({success:true,posts:[post],meta:{total:1,page:1,totalPages:1,hasMore:false,limit:6}});
       if(endpoint==='get_pages.php'){
+        if(params.get('qaType')==='fallback'){
+          const pages=u.searchParams.get('id')==='704'?[{id:'704',slug:'login',title:'Fallback login Page',content:'<p>Correct fallback Page body.</p>',status:'published'}]:[];
+          return reply({success:true,pages,meta:{total:pages.length,totalPages:1,hasMore:false}});
+        }
         const pages=params.get('qaType')==='page'&&u.searchParams.get('slug')==='0'?[{id:'703',slug:'0',title:'Literal zero Page',content:'<p>Literal zero Page body.</p>',status:'published'}]:[];
         return reply({success:true,pages,meta:{total:pages.length,totalPages:1,hasMore:false}});
       }
@@ -342,7 +345,10 @@ async function browser() {
                 timeZone: 'UTC',
                 registrationEnabled: true,
                 discussionEnabled: false,
-                permalinkStructure: 'category',
+                permalinkStructure:
+                  new URL(req.url, 'http://fixture').searchParams.get('qaType') === 'fallback'
+                    ? 'slug'
+                    : 'category',
                 analytics: { cookieConsent: false, measurementMode: 'strict' },
                 theme: { primaryColor: '#123456' },
               };
@@ -695,6 +701,60 @@ async function browser() {
         await wait('document.body.innerText.includes("This Page Isn\'t Available")');
         check(!(await evaluate(zeroPageVisible)), 'Legacy Post-only route exposed a Page');
       }
+      for (const [tail, title, body, endpoint] of [
+        ['/post/704', 'Fallback docs Post', 'Correct fallback Post body.', 'get_post.php'],
+        ['/page/704', 'Fallback login Page', 'Correct fallback Page body.', 'get_pages.php'],
+      ]) {
+        const marker = tail.startsWith('/page/') ? '&voncms_page=1' : '';
+        const target = base + tail + '?qaType=fallback' + marker;
+        const visible =
+          '[...document.querySelectorAll("h1")].some(h=>h.innerText===' +
+          JSON.stringify(title) +
+          ') && document.body.innerText.includes(' +
+          JSON.stringify(body) +
+          ')';
+        await navigate(target);
+        await wait(visible);
+        check(
+          await evaluate(
+            'window.__qaFetches.some(r=>r.path.endsWith(' +
+              JSON.stringify(endpoint) +
+              ')&&new URLSearchParams(r.query).get("id")==="704")'
+          ),
+          'Fallback ID reaches the correct API type'
+        );
+        await send('Page.reload', { ignoreCache: true });
+        await wait(visible);
+        check(true, 'Fallback ID hard reload retains identity');
+        await spaNavigate(base + '/business/' + slug + '?qaType=fallback');
+        await wait(articleVisible);
+        await spaNavigate(target);
+        await wait(visible);
+        check(true, 'Fallback ID SPA retains identity');
+      }
+      await navigate(base + '/page/999999?qaType=fallback&voncms_page=1');
+      await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+      check(!(await evaluate(articleVisible)), 'Missing Page ID must not fall back to a Post');
+      const legacyVisible =
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText==="Legacy Page category article") && document.body.innerText.includes("Correct legacy category Post body.")';
+      for (const query of [
+        'qaType=fallback',
+        'qaType=fallback&voncms_page=0',
+        'qaType=fallback&voncms_page=1&voncms_page=0',
+      ]) {
+        await navigate(base + '/page/704?' + query);
+        await wait(legacyVisible);
+        check(true, 'Unmarked or invalid Page discriminator preserves legacy article');
+        await send('Page.reload', { ignoreCache: true });
+        await wait(legacyVisible);
+      }
+      await spaNavigate(base + '/page/704?qaType=fallback&voncms_page=1');
+      await wait(
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText==="Fallback login Page")'
+      );
+      await spaNavigate(base + '/page/704?qaType=fallback');
+      await wait(legacyVisible);
+      check(true, 'Same-path query transitions preserve separate Page and legacy Post identities');
     }
     check(exceptions.length === 0, 'Unexpected browser exception: ' + exceptions.join('\n'));
   } finally {

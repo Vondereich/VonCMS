@@ -736,8 +736,15 @@ if (($argv[1] ?? '') === '--worker') {
       'excerpt' => 'QA',
       'status' => 'draft',
     ];
-    // A 400 must be produced before the endpoint's database guard. No database is available.
-    unset($pdo);
+    if ($case === 'page-permalink') {
+      require_once $root . '/public/seo_schema_helper.php';
+      require_once $root . '/public/api/content_slug_helper.php';
+      require_once $root . '/public/api/content_audit_helper.php';
+      require_once $root . '/public/api/redirect_loop_helper.php';
+    } else {
+      // Validation-only cases must stop before the unavailable-database guard.
+      unset($pdo);
+    }
   } elseif ($endpoint === '../von_system.php' || $endpoint === 'system/updater.php') {
     // Exercise the actual legacy dispatch/direct handler, never the OTA transport.
     class SystemUpdater
@@ -937,6 +944,17 @@ if (($argv[1] ?? '') === '--worker') {
   $source = file_get_contents($root . '/public/api/' . $endpoint);
   $source = preg_replace('/^<\?php\s*/', '', $source, 1);
   $source = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $source);
+  if ($endpoint === 'save_page.php' && !empty($options['withoutPageIdentity'])) {
+    $source = str_replace(
+      'SELECT id, author_id, status, slug, updated_at,',
+      'SELECT author_id, status, slug, updated_at,',
+      $source,
+      $replaced,
+    );
+    if ($replaced !== 1) {
+      throw new RuntimeException('Missing Page identity negative-control point');
+    }
+  }
   if ($endpoint === 'system/updater.php') {
     $source = substr($source, strpos($source, '// REQUEST HANDLER - Wrapped'));
   }
@@ -2414,7 +2432,105 @@ function actionRoleBoundaryChecks(): void
   }
 }
 
+function actionPagePermalinkChecks(): void
+{
+  foreach (['/', '/zangetsu/'] as $base) {
+    foreach ([false, true] as $negative) {
+      $directory = actionFixture('page-permalink-' . bin2hex(random_bytes(4)));
+      $db = actionDatabase($directory);
+      $db->exec('CREATE TABLE posts(id INTEGER PRIMARY KEY,slug TEXT)');
+      $db->exec(
+        'CREATE TABLE pages(id INTEGER PRIMARY KEY,title TEXT,slug TEXT UNIQUE,content TEXT,excerpt TEXT,status TEXT,keywords TEXT,meta_description TEXT,author_id INTEGER,created_at TEXT,updated_at TEXT)',
+      );
+      $db->exec(
+        "INSERT INTO pages VALUES(902,'Original Page','disclaimer','Original body','','published','','',1,'2026-01-01 00:00:00','2026-01-01 00:00:00')",
+      );
+      $db
+        ->prepare(
+          "UPDATE settings SET setting_value=? WHERE setting_group='general' AND setting_key='domain_url'",
+        )
+        ->execute(['https://example.test' . rtrim($base, '/')]);
+      $db->exec(
+        'CREATE TABLE content_audit_logs(content_type TEXT,content_id INTEGER,action TEXT,actor_user_id INTEGER,actor_username TEXT,actor_role TEXT,summary TEXT,context_json TEXT)',
+      );
+      $input = [
+        'id' => '902',
+        'title' => 'Renamed Page',
+        'slug' => 'docs',
+        'content' => '<p>Saved body</p>',
+        'status' => 'published',
+        'baseUpdatedAt' => '2026-01-01 00:00:00',
+      ];
+      $result = actionRun($directory, [
+        [
+          'endpoint' => 'save_page.php',
+          'case' => 'page-permalink',
+          'input' => $input,
+          'withoutPageIdentity' => $negative,
+          'stderrLogs' => true,
+        ],
+      ])[0];
+      $target = $db
+        ->query("SELECT target_url FROM redirects WHERE source_url='/disclaimer'")
+        ->fetchColumn();
+      $expected = rtrim($base, '/') . '/page/902?voncms_page=1';
+      if ($negative) {
+        actionCheck(
+          $target !== $expected,
+          'Removing Page ID must fail the redirect identity contract',
+        );
+        continue;
+      }
+      actionCheck(
+        $result['status'] === 200 && !empty($result['body']['success']) && !$result['fatal'],
+        'Real Save Page succeeds: ' . $result['output'],
+      );
+      actionCheck(
+        $target === $expected,
+        'Real Save stores a complete Page ID and subfolder redirect',
+      );
+      actionCheck(
+        $db->query('SELECT slug FROM pages WHERE id=902')->fetchColumn() === 'docs',
+        'Real Save persists the intended Page',
+      );
+      actionCheck(
+        !str_contains($result['output'], 'Warning:') &&
+          !str_contains($result['output'], 'Undefined array key'),
+        'No PHP warning in Page save response',
+      );
+      $input['slug'] = 'new-disclaimer';
+      unset($input['baseUpdatedAt']);
+      $result = actionRun($directory, [
+        [
+          'endpoint' => 'save_page.php',
+          'case' => 'page-permalink',
+          'input' => $input,
+          'stderrLogs' => true,
+        ],
+      ])[0];
+      actionCheck(
+        $result['status'] === 200 && !empty($result['body']['success']),
+        'Save from reserved slug back to normal succeeds',
+      );
+      actionCheck(
+        (int) $db->query('SELECT COUNT(*) FROM redirects')->fetchColumn() === 3,
+        'No path-only redirect is created for the explicit Page alias',
+      );
+      actionCheck(
+        $db->query('SELECT slug FROM pages WHERE id=902')->fetchColumn() === 'new-disclaimer',
+        'Second Save retains the original Page identity',
+      );
+    }
+  }
+}
+
 try {
+  if (($argv[1] ?? '') === '--page-permalinks') {
+    actionPagePermalinkChecks();
+    echo "PASS Page permalink Save: $checks checks; actual Save Page controller/SQLite, complete redirect IDs, normal/reserved/normal transitions, negative control and root/subfolder.\n";
+    return;
+  }
+  actionPagePermalinkChecks();
   if (
     in_array(
       $argv[1] ?? '',

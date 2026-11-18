@@ -1943,8 +1943,100 @@ function checkCategoryFolderAdvisory() {
       assert.equal(item.category, category);
     }
   }
+  for (const base of ['/', '/zangetsu/', '/news/cms/']) {
+    const utils = load('src/utils/siteUtils.ts', React, {
+      ...categoryTextMock,
+      '../config/site.config': { BASE_PATH: base },
+    });
+    for (const [query, expected] of [
+      ['?voncms_page=1', true],
+      ['?utm_source=qa&voncms_page=1', true],
+      ['', false],
+      ['?voncms_page=0', false],
+      ['?voncms_page=1&voncms_page=0', false],
+      ['?voncms_page[]=1', false],
+    ])
+      assert.equal(utils.isExplicitPageIdRequest('/page/902', query), expected);
+    assert.equal(utils.isExplicitPageIdRequest('/admin/902', '?voncms_page=1'), false);
+    for (const slug of [
+      'docs',
+      'admin',
+      'login',
+      'rss',
+      'fonts',
+      'public',
+      'server',
+      'src',
+      'ordinary',
+      'docs-1',
+      '0',
+    ]) {
+      const item = { ...posts[0], slug, category: 'Business' };
+      const normal = ['ordinary', 'docs-1', '0'].includes(slug);
+      for (const mode of [
+        'slug',
+        'post_name',
+        'plain',
+        'date',
+        'day_name',
+        'month_name',
+        'category',
+      ]) {
+        const path =
+          mode === 'plain'
+            ? '/post/1'
+            : mode === 'category'
+              ? '/business/' + slug
+              : ['date', 'day_name'].includes(mode)
+                ? '/2026/10/01/' + slug
+                : mode === 'month_name'
+                  ? '/2026/10/' + slug
+                  : normal
+                    ? '/' + slug
+                    : '/post/1';
+        assert.equal(
+          utils.getPermalink(item, { permalinkStructure: mode }),
+          base.replace(/\/$/, '') + path,
+          mode + ' ' + slug
+        );
+        assert.equal(
+          utils.getPermalink(
+            item,
+            {
+              permalinkStructure: mode,
+              domainUrl: 'https://news.example.test' + base.replace(/\/$/, ''),
+            },
+            true
+          ),
+          'https://news.example.test' + base.replace(/\/$/, '') + path
+        );
+        assert.equal(item.slug, slug);
+      }
+      const page = { id: '1', slug, status: 'published' };
+      const pagePath = normal ? '/' + slug : '/page/1?voncms_page=1';
+      assert.equal(utils.getPagePermalink(page), base.replace(/\/$/, '') + pagePath);
+      assert.equal(
+        utils.getPublicNavigationHref({ url: 'page:1' }, settings, [], [page]),
+        base.replace(/\/$/, '') + pagePath
+      );
+    }
+    assert.equal(
+      utils.getPermalink(
+        { ...posts[0], category: 'page', slug: '1' },
+        { permalinkStructure: 'category' }
+      ),
+      base.replace(/\/$/, '') + '/page/1'
+    );
+    assert.equal(
+      utils.getPermalink(
+        { ...posts[0], category: 'page', slug: '0' },
+        { permalinkStructure: 'category' }
+      ),
+      base.replace(/\/$/, '') + '/page/0'
+    );
+  }
   console.log(
-    'PASS Category Permalink Fallback: folder/system conflicts and legacy numeric ambiguity use Post Name; labels, valid lookalikes, ordinary category URLs, enabled Save/Publish and root/subdomain/subfolder paths are preserved.'
+    'PASS All-mode Permalink Fallback: Post/Page identity, safe root-slug fallback, category/date/ID modes, navigation, suffix lookalikes and root/subfolder absolute links are preserved.'
   );
 }
 

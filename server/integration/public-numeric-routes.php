@@ -30,6 +30,7 @@ require_once $root . '/public/seo_response_helper.php';
 require_once $root . '/public/core/ResponseHelper.php';
 require_once $root . '/public/content_metrics_helper.php';
 require_once $root . '/public/media_variants.php';
+require_once $root . '/public/public_render_helper.php';
 require_once $root . '/public/api/system/IndexNow.php';
 
 $source = (string) file_get_contents($root . '/public/index.php');
@@ -423,8 +424,16 @@ function numericSourceSpan(string $file, string $begin, string $end): string
   }
   return substr($text, $start, $stop - $start);
 }
-$sitemapPath = numericSourceSpan($root . '/public/sitemap.php', '$postSlug =', '$date =');
-$llmsPath = numericSourceSpan($root . '/public/llms.php', '$postSlug =', '$url =');
+$sitemapPath = numericSourceSpan(
+  $root . '/public/sitemap.php',
+  '$path = buildCanonicalContentPath($post, $permalinkStyle)',
+  '$date =',
+);
+$llmsPath = numericSourceSpan(
+  $root . '/public/llms.php',
+  '$path = buildCanonicalContentPath($post, $permalinkStyle)',
+  '$url =',
+);
 $rssBuilder = numericSourceSpan($root . '/public/rss.php', '$buildPostUrl =', '// Query posts');
 $saveSlug = numericSourceSpan(
   $root . '/public/api/save_post.php',
@@ -771,4 +780,215 @@ foreach (
 foreach ($originalCategories as $id => $category) {
   $setCategory->execute([$category, $id]);
 }
+
+// Every generated mode must retain identity, not merely return HTTP 200.
+$pageRow = $pdo->query('SELECT * FROM pages WHERE id=902')->fetch(PDO::FETCH_NUM);
+foreach (
+  [906 => 'docs', 907 => 'login', 908 => 'docs-1', 909 => '0', 910 => 'admin']
+  as $id => $slug
+) {
+  $pageRow[0] = $id;
+  $pageRow[1] = 'Fallback Page ' . $slug;
+  $pageRow[2] = $slug;
+  $insertPage->execute($pageRow);
+}
+$postRow = $pdo->query('SELECT * FROM posts WHERE id=67')->fetch(PDO::FETCH_NUM);
+$postRow[0] = 77;
+$postRow[1] = 'Unrelated docs-1 Post';
+$postRow[2] = 'docs-1';
+$insertPost->execute($postRow);
+foreach (
+  [
+    ['/', 'https://example.test'],
+    ['/', 'https://news.example.test'],
+    ['/zangetsu/', 'http://localhost/zangetsu'],
+    ['/news/cms/', 'https://example.test/news/cms'],
+  ]
+  as [$basePath, $domainUrl]
+) {
+  foreach (['slug', 'post_name', 'plain', 'date', 'day_name', 'month_name', 'category'] as $style) {
+    foreach (
+      [
+        67 => 'docs',
+        64 => 'login',
+        65 => 'admin',
+        66 => 'rss',
+        68 => 'fonts',
+        70 => 'backups',
+        74 => 'public',
+        75 => 'server',
+        76 => 'src',
+        56 => 'ordinary',
+        63 => '0',
+        77 => 'docs-1',
+      ]
+      as $id => $slug
+    ) {
+      $row = [
+        'id' => $id,
+        'slug' => $slug,
+        'category' => 'Business',
+        'created_at' => '2026-10-01 12:00:00',
+      ];
+      $setCategory->execute(['Business', $id]);
+      $expected = match ($style) {
+        'plain' => '/post/' . $id,
+        'category' => '/business/' . $slug,
+        'date', 'day_name' => '/2026/10/01/' . $slug,
+        'month_name' => '/2026/10/' . $slug,
+        default => in_array($slug, ['ordinary', '0', 'docs-1'], true)
+          ? '/' . $slug
+          : '/post/' . $id,
+      };
+      $actual = buildCanonicalContentPath($row, $style);
+      $r = $runRoute(rtrim($basePath, '/') . $actual, $basePath, $domainUrl, $style);
+      if (
+        $actual !== $expected ||
+        ($r['status'] ?? 0) !== 200 ||
+        ($r['id'] ?? null) !== $id ||
+        ($r['url'] ?? '') !== $domainUrl . $expected ||
+        ($r['hydration']['post']['slug'] ?? null) !== $slug
+      ) {
+        throw new RuntimeException(
+          'All-mode Post identity mismatch: ' . json_encode([$style, $row, $actual, $expected, $r]),
+        );
+      }
+      $checks++;
+      foreach ([$sitemapPath, $llmsPath] as $pathCode) {
+        $post = $row;
+        $permalinkStyle = $style;
+        eval($pathCode);
+        if ($path !== $expected) {
+          throw new RuntimeException('All-mode crawler mismatch');
+        }
+        $checks++;
+      }
+      eval($rssBuilder);
+      if ($buildPostUrl($row) !== $domainUrl . $expected) {
+        throw new RuntimeException('All-mode RSS mismatch');
+      }
+      $pdo->exec('DELETE FROM settings');
+      $setting = $pdo->prepare("INSERT INTO settings VALUES('general',?,?)");
+      $setting->execute(['domain_url', $domainUrl]);
+      $setting->execute(['permalink_structure', $style]);
+      if ((new IndexNow($pdo))->buildPostUrlForPost($id) !== $domainUrl . $expected) {
+        throw new RuntimeException('All-mode IndexNow mismatch');
+      }
+      $checks += 2;
+    }
+  }
+  foreach ([906 => 'docs', 907 => 'login', 910 => 'admin'] as $id => $slug) {
+    $canonical = buildCanonicalContentPath(['id' => $id, 'slug' => $slug], 'slug', 'page');
+    $r = $runRoute(rtrim($basePath, '/') . $canonical, $basePath, $domainUrl, 'slug');
+    if (
+      $canonical !== '/page/' . $id . '?voncms_page=1' ||
+      ($r['status'] ?? 0) !== 200 ||
+      ($r['id'] ?? null) !== $id ||
+      ($r['type'] ?? '') !== 'WebPage' ||
+      ($r['hydration']['page']['slug'] ?? null) !== $slug ||
+      ($r['url'] ?? '') !== $domainUrl . $canonical
+    ) {
+      throw new RuntimeException(
+        'Page fallback identity mismatch: ' . json_encode([$canonical, $r]),
+      );
+    }
+    $projected = voncms_project_public_navigation_hrefs($pdo, [['url' => 'page:' . $id]]);
+    if (($projected[0]['resolvedHref'] ?? '') !== $canonical) {
+      throw new RuntimeException('Navigation Page fallback diverged from canonical');
+    }
+    $pdo->exec("UPDATE pages SET status='draft' WHERE id=" . $id);
+    $r = $runRoute(rtrim($basePath, '/') . $canonical, $basePath, $domainUrl, 'slug');
+    if (($r['status'] ?? 0) !== 404 || ($r['hydration']['status'] ?? '') !== 'not_found') {
+      throw new RuntimeException('Draft Page fallback exposed');
+    }
+    $projected = voncms_project_public_navigation_hrefs($pdo, [['url' => 'page:' . $id]]);
+    if (isset($projected[0]['resolvedHref'])) {
+      throw new RuntimeException('Draft Page navigation exposed');
+    }
+    $pdo->exec("UPDATE pages SET status='published' WHERE id=" . $id);
+    $checks += 4;
+  }
+  foreach ([902 => 'disclaimer', 909 => '0'] as $id => $slug) {
+    $r = $runRoute($basePath . 'page/' . $id . '?voncms_page=1', $basePath, $domainUrl, 'slug');
+    if (($r['status'] ?? 0) !== 301 || ($r['location'] ?? '') !== $domainUrl . '/' . $slug) {
+      throw new RuntimeException('Normal Page alias must collapse to original slug');
+    }
+    $checks++;
+  }
+  foreach (['page/999999?voncms_page=1', 'admin/docs', 'API/docs', 'install/docs'] as $tail) {
+    $r = $runRoute($basePath . $tail, $basePath, $domainUrl, 'slug');
+    if (($r['hydration']['post'] ?? null) !== null || ($r['hydration']['page'] ?? null) !== null) {
+      throw new RuntimeException('Reserved/missing path resolved content');
+    }
+    $checks++;
+  }
+  $postAlias = $runRoute($basePath . 'post/67', $basePath, $domainUrl, 'slug');
+  $pageAlias = $runRoute($basePath . 'page/906?voncms_page=1', $basePath, $domainUrl, 'slug');
+  if (($postAlias['id'] ?? null) !== 67 || ($pageAlias['id'] ?? null) !== 906) {
+    throw new RuntimeException('Post/Page ID namespaces mixed');
+  }
+  $checks++;
+}
+
+$postRow = $pdo->query('SELECT * FROM posts WHERE id=67')->fetch(PDO::FETCH_NUM);
+foreach ([78 => '902', 79 => '999999'] as $id => $slug) {
+  $postRow[0] = $id;
+  $postRow[1] = 'Legacy Page category Post';
+  $postRow[2] = $slug;
+  $postRow[13] = 'Page';
+  $insertPost->execute($postRow);
+}
+$pdo->exec(
+  'CREATE TABLE redirects(source_url TEXT UNIQUE,target_url TEXT,redirect_type INTEGER,hit_count INTEGER DEFAULT 0)',
+);
+$pdo->exec(
+  "INSERT INTO redirects(source_url,target_url,redirect_type) VALUES('/page/902','/legacy-article-target',301)",
+);
+foreach (
+  [['/', 'https://example.test'], ['/zangetsu/', 'http://localhost/zangetsu']]
+  as [$basePath, $domainUrl]
+) {
+  foreach ([78 => '902', 79 => '999999'] as $id => $slug) {
+    $row = ['id' => $id, 'slug' => $slug, 'category' => 'Page'];
+    if (buildCanonicalContentPath($row, 'category') !== '/page/' . $slug) {
+      throw new RuntimeException('Legacy Page category URL changed');
+    }
+    foreach (['', '?voncms_page=0', '?voncms_page=1&voncms_page=0', '?voncms_page[]=1'] as $query) {
+      $r = $runRoute($basePath . 'page/' . $slug . $query, $basePath, $domainUrl, 'category');
+      if (
+        ($r['status'] ?? 0) !== 200 ||
+        ($r['id'] ?? null) !== $id ||
+        ($r['hydration']['contentType'] ?? null) !== 'post'
+      ) {
+        throw new RuntimeException('Legacy category Post identity hijacked: ' . json_encode($r));
+      }
+      $checks++;
+    }
+  }
+  $r = $runRoute($basePath . 'page/902?voncms_page=1', $basePath, $domainUrl, 'category');
+  if (($r['location'] ?? '') !== $domainUrl . '/disclaimer') {
+    throw new RuntimeException('Explicit ordinary Page alias failed');
+  }
+  $r = $runRoute($basePath . 'page/999999?voncms_page=1', $basePath, $domainUrl, 'category');
+  if (($r['status'] ?? 0) !== 404) {
+    throw new RuntimeException('Explicit missing Page fell back to an article');
+  }
+  $explicit = voncms_resolve_public_redirect(
+    $pdo,
+    $basePath . 'page/902?voncms_page=1',
+    $basePath,
+    'example.test',
+  );
+  $ordinary = voncms_resolve_public_redirect(
+    $pdo,
+    $basePath . 'page/902',
+    $basePath,
+    'example.test',
+  );
+  if ($explicit !== null || ($ordinary['location'] ?? '') !== '/legacy-article-target') {
+    throw new RuntimeException('Page discriminator changed path-only legacy redirect ownership');
+  }
+  $checks += 3;
+}
+
 echo "PASS {$checks} public numeric-route checks (source router, in-memory SQLite)\n";

@@ -657,8 +657,9 @@ try {
         $slugOrId = basename($path);
         $resolvedContentType = 'post';
 
-        // Slug/category/date routes use exact slugs, even when they look like an existing ID.
-        $post = voncms_fetch_public_post(
+        // Only the Page fallback namespace uses Page IDs; ordinary numeric slugs stay exact.
+        $pageIdRoute = voncms_is_explicit_page_id_request($path, (string) ($_SERVER['QUERY_STRING'] ?? ''));
+        $post = $pageIdRoute ? false : voncms_fetch_public_post(
           $pdo,
           $slugOrId,
           false,
@@ -670,10 +671,11 @@ try {
         if (!$post) {
           // Try pages
           $pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');
+          $pageLookup = $pageIdRoute ? 'p.id = ?' : 'p.slug = ?';
           $stmt = $pdo->prepare(
-            "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, {$pagePublishedAtSql}, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p LEFT JOIN users u ON p.author_id = u.id WHERE p.slug = ? AND p.status = 'published' LIMIT 1"
+            "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, {$pagePublishedAtSql}, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p LEFT JOIN users u ON p.author_id = u.id WHERE {$pageLookup} AND p.status = 'published' LIMIT 1"
           );
-          $stmt->execute([$path]);
+          $stmt->execute([$pageIdRoute ? $slugOrId : $path]);
           $post = $stmt->fetch(PDO::FETCH_ASSOC);
           if ($post) {
             $resolvedContentType = 'page';
@@ -718,6 +720,9 @@ try {
             $seoUrl = $domainUrl . $canonicalPath;
           } else {
             $canonicalPath = buildCanonicalContentPath($post, 'slug', 'page');
+            if ('/' . ltrim($path, '/') !== parse_url($canonicalPath, PHP_URL_PATH)) {
+              voncms_send_redirect($domainUrl . $canonicalPath);
+            }
             $seoUrl = $domainUrl . $canonicalPath;
           }
           $seoOgType = $resolvedContentType === 'page' ? 'website' : 'article';

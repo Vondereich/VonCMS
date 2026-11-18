@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import { Post, Page, SiteSettings, User } from '../../../../types';
 import {
   getPermalink,
+  getPagePermalink,
   getPostPublishTimestamp,
   normalizeSchemaDateTime,
 } from '../../../../utils/siteUtils';
@@ -366,7 +367,7 @@ const VonSEO: React.FC<VonSEOProps> = ({
           selectedPage.content
         ) || description;
       type = 'website';
-      canonical = canonicalUrl(selectedPage.slug);
+      canonical = canonicalUrl(getPagePermalink(selectedPage, true));
     } else if (currentView === 'profile' && selectedProfile) {
       const profileDisplayName = selectedProfile.display_name || selectedProfile.username;
       title = `${profileDisplayName} | ${siteTitle}`;

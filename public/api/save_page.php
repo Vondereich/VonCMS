@@ -169,7 +169,7 @@ try {
   if ($isUpdate) {
     // SECURITY: Check ownership before update
     $checkOwner = $pdo->prepare(
-      "SELECT author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE",
+      "SELECT id, author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$pageId]);
     $existingPage = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));

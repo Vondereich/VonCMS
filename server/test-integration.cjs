@@ -6747,7 +6747,7 @@ assertIncludes(
   'Page Editor Atomic Conflict Guard',
   savePageApiContent,
   [
-    'SELECT author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
+    'SELECT id, author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
   ],
   'Page Editor Atomic Conflict Guard: page updates lock the current row before comparing updated_at.',
   'Page Editor Atomic Conflict Guard: simultaneous page saves can both pass the stale-content check before overwriting each other.'
@@ -15418,7 +15418,8 @@ assertIncludes(
     '$stmt->execute();',
     'voncms_fetch_public_post(',
     "$pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');",
-    "WHERE p.slug = ? AND p.status = 'published' LIMIT 1",
+    "$pageLookup = $pageIdRoute ? 'p.id = ?' : 'p.slug = ?';",
+    "WHERE {$pageLookup} AND p.status = 'published' LIMIT 1",
     'function voncms_fetch_public_listing_page(',
     "WHERE p.status = 'published'",
     'AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)',

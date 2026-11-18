@@ -295,44 +295,7 @@ try {
     $postStmt->execute();
 
     while ($post = $postStmt->fetch(PDO::FETCH_ASSOC)) {
-      $postSlug = (string) ($post['slug'] ?? '');
-      if ($postSlug === '') {
-        $postSlug = (string) $post['id'];
-      }
-      $path = ''; // Wait for switch statement to define it
-
-      switch ($permalinkStyle) {
-        case 'date':
-        case 'day_name':
-          $postDate = new DateTime(!empty($post['created_at']) ? $post['created_at'] : 'now');
-          $path =
-            '/' .
-            $postDate->format('Y') .
-            '/' .
-            $postDate->format('m') .
-            '/' .
-            $postDate->format('d') .
-            '/' .
-            $postSlug;
-          break;
-        case 'month_name':
-          $postDate = new DateTime(!empty($post['created_at']) ? $post['created_at'] : 'now');
-          $path = '/' . $postDate->format('Y') . '/' . $postDate->format('m') . '/' . $postSlug;
-          break;
-        case 'category':
-          $path = buildCanonicalContentPath($post, 'category');
-          break;
-        case 'post_name':
-        case 'slug':
-          $path = '/' . $postSlug;
-          break;
-        case 'plain':
-          $path = '/post/' . $post['id'];
-          break;
-        default:
-          $path = '/' . $postSlug; // Fallback to slug (safer than /post/{id})
-          break;
-      }
+      $path = buildCanonicalContentPath($post, $permalinkStyle);
 
       $date = $post['updated_at'] ?: ($post['created_at'] ?: date('c'));
       $date = date('c', strtotime($date));
@@ -378,14 +341,14 @@ try {
     echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
 
     $pageStmt = $pdo->prepare(
-      "SELECT slug, updated_at, created_at FROM pages WHERE status = 'published' AND slug <> 'home' ORDER BY updated_at DESC, id DESC LIMIT :limit OFFSET :offset",
+      "SELECT id, slug, updated_at, created_at FROM pages WHERE status = 'published' AND slug <> 'home' ORDER BY updated_at DESC, id DESC LIMIT :limit OFFSET :offset",
     );
     $pageStmt->bindValue(':limit', MAX_URLS_PER_SITEMAP, PDO::PARAM_INT);
     $pageStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $pageStmt->execute();
 
     while ($page = $pageStmt->fetch(PDO::FETCH_ASSOC)) {
-      $path = "/{$page['slug']}";
+      $path = buildCanonicalContentPath($page, 'slug', 'page');
       $date = $page['updated_at'] ?: ($page['created_at'] ?: date('c'));
       $date = date('c', strtotime($date));
 

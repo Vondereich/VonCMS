@@ -128,7 +128,11 @@ if (!function_exists('voncms_project_public_navigation_hrefs')) {
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $page) {
           $slug = trim((string) ($page['slug'] ?? ''));
           if ($slug !== '') {
-            $pageHrefs[(string) ($page['id'] ?? '')] = '/' . ltrim($slug, '/');
+            $pageHrefs[(string) ($page['id'] ?? '')] = buildCanonicalContentPath(
+              $page,
+              'slug',
+              'page',
+            );
           }
         }
       } catch (Throwable $e) {

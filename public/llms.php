@@ -174,45 +174,7 @@ try {
       echo "## Posts\n\n";
       $hasPosts = true;
     }
-    $postSlug = (string) ($post['slug'] ?? '');
-    if ($postSlug === '') {
-      $postSlug = (string) $post['id'];
-    }
-    $path = '/' . $postSlug; // Default: use slug
-
-    // Permalink switch (exact copy from sitemap.php)
-    switch ($permalinkStyle) {
-      case 'date':
-      case 'day_name':
-        $postDate = new DateTime(!empty($post['created_at']) ? $post['created_at'] : 'now');
-        $path =
-          '/' .
-          $postDate->format('Y') .
-          '/' .
-          $postDate->format('m') .
-          '/' .
-          $postDate->format('d') .
-          '/' .
-          $postSlug;
-        break;
-      case 'month_name':
-        $postDate = new DateTime(!empty($post['created_at']) ? $post['created_at'] : 'now');
-        $path = '/' . $postDate->format('Y') . '/' . $postDate->format('m') . '/' . $postSlug;
-        break;
-      case 'category':
-        $path = buildCanonicalContentPath($post, 'category');
-        break;
-      case 'post_name':
-      case 'slug':
-        $path = '/' . $postSlug;
-        break;
-      case 'plain':
-        $path = '/post/' . $post['id'];
-        break;
-      default:
-        $path = '/' . $postSlug; // Fallback to slug
-        break;
-    }
+    $path = buildCanonicalContentPath($post, $permalinkStyle);
 
     $url = $baseUrl . $path;
     $title = llmsMarkdownText($post['title'] ?? 'Untitled', 180);
@@ -243,7 +205,7 @@ try {
   // OUTPUT: PAGES
   // =====================
   $pageStmt = $pdo->prepare(
-    "SELECT slug, title, excerpt FROM pages WHERE status = 'published' ORDER BY title ASC LIMIT 500",
+    "SELECT id, slug, title, excerpt FROM pages WHERE status = 'published' ORDER BY title ASC LIMIT 500",
   );
   $pageStmt->execute();
   $hasPages = false;
@@ -256,7 +218,7 @@ try {
       $hasPages = true;
     }
 
-    $url = $baseUrl . '/' . ($page['slug'] ?? '');
+    $url = $baseUrl . buildCanonicalContentPath($page, 'slug', 'page');
     $title = llmsMarkdownText($page['title'] ?? 'Untitled', 180);
     $excerpt = llmsMarkdownText($page['excerpt'] ?? '', 200);
 

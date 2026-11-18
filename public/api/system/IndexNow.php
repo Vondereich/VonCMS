@@ -474,32 +474,7 @@ class IndexNow
       $permalinkStyle = $savedPermalinkStyle;
     }
 
-    $slug = trim((string) ($post['slug'] ?? ''));
-    if ($slug === '') {
-      $slug = (string) $post['id'];
-    }
-    $path = '/' . $slug;
-    $createdAt = !empty($post['created_at']) ? new DateTime((string) $post['created_at']) : null;
-
-    switch ($permalinkStyle) {
-      case 'date':
-      case 'day_name':
-        if ($createdAt) {
-          $path = '/' . $createdAt->format('Y/m/d') . '/' . $slug;
-        }
-        break;
-      case 'month_name':
-        if ($createdAt) {
-          $path = '/' . $createdAt->format('Y/m') . '/' . $slug;
-        }
-        break;
-      case 'category':
-        $path = buildCanonicalContentPath($post, 'category');
-        break;
-      case 'plain':
-        $path = '/post/' . $post['id'];
-        break;
-    }
+    $path = buildCanonicalContentPath($post, $permalinkStyle);
 
     return $this->publicBaseUrl . $path;
   }

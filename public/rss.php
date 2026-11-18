@@ -243,36 +243,7 @@ try {
      * @return string
      */
     function ($post) use ($domainUrl, $permalinkStyle) {
-      $slugOrId = (string) ($post['slug'] ?? '');
-      if ($slugOrId === '') {
-        $slugOrId = (string) $post['id'];
-      }
-      switch ($permalinkStyle) {
-        case 'date':
-        case 'day_name':
-          $d = new DateTime($post['created_at'] ?? 'now');
-          return $domainUrl .
-            '/' .
-            $d->format('Y') .
-            '/' .
-            $d->format('m') .
-            '/' .
-            $d->format('d') .
-            '/' .
-            $slugOrId;
-        case 'month_name':
-          $d = new DateTime($post['created_at'] ?? 'now');
-          return $domainUrl . '/' . $d->format('Y') . '/' . $d->format('m') . '/' . $slugOrId;
-        case 'category':
-          return $domainUrl . buildCanonicalContentPath($post, 'category');
-        case 'post_name':
-        case 'slug':
-          return $domainUrl . '/' . $slugOrId;
-        case 'plain':
-          return $domainUrl . '/post/' . $post['id'];
-        default:
-          return $domainUrl . '/' . $slugOrId;
-      }
+      return $domainUrl . buildCanonicalContentPath($post, $permalinkStyle);
     };
 
   // Query posts

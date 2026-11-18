@@ -635,6 +635,28 @@ if (!function_exists('voncms_is_homepage_path')) {
   }
 }
 
+if (!function_exists('voncms_is_explicit_page_id_request')) {
+  /** Explicit discriminator preserves existing /page/<numeric-slug> article URLs. */
+  function voncms_is_explicit_page_id_request(string $path, string $query): bool
+  {
+    return preg_match('~^/?page/[1-9][0-9]*/?$~iD', $path) === 1 &&
+      preg_match('/(?:^|&)voncms_page=1(?:&|$)/D', $query) === 1 &&
+      preg_match_all('/(?:^|&)voncms_page(?:=|(?=&|$))/', $query) === 1;
+  }
+}
+
+if (!function_exists('voncms_is_safe_generated_content_path')) {
+  /** System-owned root paths must never be emitted as article/Page permalinks. */
+  function voncms_is_safe_generated_content_path(string $path): bool
+  {
+    $parts = voncms_public_route_segments($path);
+    return $parts !== null &&
+      $parts !== [] &&
+      voncms_is_public_content_path($path) &&
+      !(count($parts) === 1 && voncms_is_bundled_permalink_folder(trim($path, '/'), true));
+  }
+}
+
 if (!function_exists('buildCanonicalContentPath')) {
   /**
    * @param array<string, mixed> $content
@@ -645,19 +667,25 @@ if (!function_exists('buildCanonicalContentPath')) {
   function buildCanonicalContentPath($content, $permalinkStyle, $contentType = 'post')
   {
     if ($contentType !== 'post') {
-      return '/' . ltrim((string) ($content['slug'] ?? ''), '/');
+      $pagePath = '/' . ltrim((string) ($content['slug'] ?? ''), '/');
+      return count(voncms_public_route_segments($pagePath) ?? []) === 1 &&
+        voncms_is_safe_generated_content_path($pagePath)
+        ? $pagePath
+        : '/page/' . $content['id'] . '?voncms_page=1';
     }
 
     $postSlug = (string) ($content['slug'] ?? '');
     if ($postSlug === '') {
       $postSlug = (string) $content['id'];
     }
+    if (count(voncms_public_route_segments('/' . $postSlug) ?? []) !== 1) {
+      return '/post/' . $content['id'];
+    }
     switch ($permalinkStyle) {
       case 'category':
         $catSlug = voncms_category_slug($content['category'] ?? 'uncategorized');
         if (voncms_category_permalink_conflicts($catSlug, $postSlug)) {
-          return voncms_is_public_content_path('/' . $postSlug) &&
-            !voncms_is_bundled_permalink_folder($postSlug, true)
+          return voncms_is_safe_generated_content_path('/' . $postSlug)
             ? '/' . $postSlug
             : '/post/' . $content['id'];
         }
@@ -679,11 +707,15 @@ if (!function_exists('buildCanonicalContentPath')) {
         return '/' . $postDate->format('Y') . '/' . $postDate->format('m') . '/' . $postSlug;
       case 'post_name':
       case 'slug':
-        return '/' . $postSlug;
+        return voncms_is_safe_generated_content_path('/' . $postSlug)
+          ? '/' . $postSlug
+          : '/post/' . $content['id'];
       case 'plain':
         return '/post/' . $content['id'];
       default:
-        return '/' . $postSlug;
+        return voncms_is_safe_generated_content_path('/' . $postSlug)
+          ? '/' . $postSlug
+          : '/post/' . $content['id'];
     }
   }
 }
@@ -750,6 +782,11 @@ if (!function_exists('voncms_page_slug_redirect_paths')) {
    */
   function voncms_page_slug_redirect_paths(array $oldPage, array $newPage, string $basePath): ?array
   {
+    // The ID alias resolves the live Page and redirects itself after a later rename.
+    // A path-only Redirect Manager row here would also redirect an unrelated Post.
+    if (str_contains(buildCanonicalContentPath($oldPage, 'slug', 'page'), '?voncms_page=1')) {
+      return null;
+    }
     return voncms_content_slug_redirect_paths($oldPage, $newPage, 'slug', $basePath, 'page');
   }
 }
