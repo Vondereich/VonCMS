@@ -110,10 +110,20 @@ $legacy = static fn(string $directory, string $identifier): string => $directory
   '/' .
   md5($identifier) .
   '.json';
-$ledger = static fn(string $directory, string $purpose): string => $directory .
-  '/' .
-  md5('submission-' . $purpose . '-ledger:v1') .
-  '.json';
+$ledger = static function (string $directory, string $purpose, string $identifier): string {
+  $quota = (new ReflectionMethod(RateLimiter::class, 'getPublicSubmissionQuota'))->invoke(
+    null,
+    $identifier,
+  );
+  $placement = (new ReflectionMethod(RateLimiter::class, 'submissionShardIdentity'))->invoke(
+    null,
+    $quota['identifier'],
+  );
+  return $directory .
+    '/' .
+    md5('submission-' . $purpose . '-ledger:v2:' . hash('sha256', $placement)[0]) .
+    '.json';
+};
 
 try {
   foreach (
@@ -128,7 +138,10 @@ try {
       );
     }
     submissionCheck(count(glob($directory . '/*.json') ?: []) === 1, 'Per-address files grew.');
-    submissionCheck(filesize($ledger($directory, $purpose)) <= 1048576, 'Ledger exceeded 1 MiB.');
+    submissionCheck(
+      filesize($ledger($directory, $purpose, $prefix . '2001:db8:11:22::1')) <= 1048576,
+      'Ledger exceeded 1 MiB.',
+    );
     submissionCheck(
       !RateLimiter::consumeAttempt($prefix . '2001:0db8:0011:0022:FFFF::1'),
       'Expanded IPv6 alias bypassed the public budget.',
@@ -154,7 +167,7 @@ try {
       );
     }
     submissionCheck(
-      count(glob($directory . '/*.json') ?: []) === 1,
+      count(glob($directory . '/*.json') ?: []) <= 16,
       'Many networks created files.',
     );
   }
@@ -174,7 +187,8 @@ try {
     'Another account lost its budget.',
   );
   submissionCheck(
-    count(glob($directory . '/*.json') ?: []) === 3,
+    count(glob($directory . '/*.json') ?: []) >= 4 &&
+      count(glob($directory . '/*.json') ?: []) <= 5,
     'Purpose files are not bounded.',
   );
 
@@ -186,7 +200,7 @@ try {
     $key = $i === 0 ? $currentKey : hash('sha256', 'capacity:' . $i);
     $buckets[$key] = ['attempts' => 1, 'window_started_at' => time(), 'window_seconds' => 900];
   }
-  $file = $ledger($directory, 'contact');
+  $file = $ledger($directory, 'contact', $identifier);
   file_put_contents($file, json_encode($buckets));
   submissionCheck(
     !RateLimiter::consumeAttempt('contact:198.51.100.32'),

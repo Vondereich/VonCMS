@@ -15,6 +15,19 @@ unset($publicRenderHelperPath, $requestedScriptPath);
 require_once __DIR__ . '/seo_route_helper.php';
 require_once __DIR__ . '/seo_schema_helper.php';
 
+/** Theme contact text is public content, not an SMTP/account credential.
+ * Preserve only this bundled, explicitly public path across the conservative secret scrub.
+ * @param array<string, mixed> $settings
+ */
+function voncms_mask_settings_projection(array &$settings): void
+{
+  $publicEmail = $settings['theme']['corporatePro']['contactEmail'] ?? null;
+  SecurityHelper::maskSensitiveData($settings);
+  if (is_string($publicEmail)) {
+    $settings['theme']['corporatePro']['contactEmail'] = $publicEmail;
+  }
+}
+
 if (!function_exists('voncms_project_public_admin_profile')) {
   function voncms_project_public_admin_profile(mixed $profile): ?array
   {
@@ -540,7 +553,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
       $publicAdminProfileEmail = (string) $settings['adminProfile']['email'];
     }
 
-    SecurityHelper::maskSensitiveData($settings);
+    voncms_mask_settings_projection($settings);
     $publicAdminProfile = voncms_project_public_admin_profile($settings['adminProfile'] ?? null);
     if ($publicAdminProfile !== null) {
       if ($publicAdminProfileEmail !== null) {

@@ -628,6 +628,13 @@ if (($argv[1] ?? '') === '--worker') {
     : actionDatabase($databaseDirectory);
   $case = $options['case'] ?? 'normal';
   $endpoint = $options['endpoint'];
+  if ($endpoint === 'rollback_setting.php') {
+    require_once $root . '/public/core/SettingsStorage.php';
+    require_once $root . '/public/api/settings_audit_helper.php';
+  }
+  if ($endpoint === 'update_media.php') {
+    require_once $root . '/public/api/media_library_filter_helper.php';
+  }
   if ($endpoint === 'submit_contact.php') {
     require $root . '/public/api/contact_honeypot_helper.php';
     $challenge = $_SESSION['qa_contact_challenge'] ?? voncms_contact_honeypot_issue('qa_form');
@@ -944,6 +951,15 @@ if (($argv[1] ?? '') === '--worker') {
   $source = file_get_contents($root . '/public/api/' . $endpoint);
   $source = preg_replace('/^<\?php\s*/', '', $source, 1);
   $source = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $source);
+  if ($endpoint === 'rollback_setting.php') {
+    foreach (['maintenance.flag', 'site_settings.json'] as $name) {
+      $source = str_replace(
+        "__DIR__ . '/../data/" . $name . "'",
+        var_export($directory . '/' . $name, true),
+        $source,
+      );
+    }
+  }
   if ($endpoint === 'save_page.php' && !empty($options['withoutPageIdentity'])) {
     $source = str_replace(
       'SELECT id, author_id, status, slug, updated_at,',
@@ -1879,7 +1895,7 @@ function actionSettingsChecks(): void
       [
         'theme',
         'customization',
-        '{"primaryColor":"#123456","default":{"footerCopyright":"SAVED_INACTIVE_THEME"},"digest":{"showHero":false,"footerLinks":[]}}',
+        '{"primaryColor":"#123456","default":{"footerCopyright":"SAVED_INACTIVE_THEME"},"digest":{"showHero":false,"footerLinks":[]},"corporatePro":{"contactEmail":"public@example.invalid","customApiKey":"PRIVATE_THEME_KEY"}}',
         'json',
       ],
       [
@@ -1986,6 +2002,15 @@ function actionSettingsChecks(): void
     }
     if ($admin) {
       actionCheck(
+        $settings['theme']['corporatePro']['contactEmail'] === 'public@example.invalid',
+        'Appointed Admin public theme email was masked',
+      );
+      actionCheck(
+        ($settings['theme']['corporatePro']['customApiKey'] === 'PRIVATE_THEME_KEY') ===
+          ($role === 'Root'),
+        'Theme email exception exposed an unknown credential',
+      );
+      actionCheck(
         $settings['_settingsScope'] === 'admin' &&
           $settings['adminPalette'] === 'harbour-amber' &&
           $settings['media']['defaultView'] === 'grid',
@@ -2016,6 +2041,197 @@ function actionSettingsChecks(): void
       'Canonical empty configuration revived a legacy alias for ' . ($actor['role'] ?? 'Guest'),
     );
   }
+}
+
+/** Execute actual rollback, partial media and migration controllers in owned fixtures. */
+function actionQcRecoveryChecks(): void
+{
+  $directory = actionFixture('qc-settings-recovery');
+  $db = actionDatabase($directory);
+  foreach (
+    ['id INT', 'setting_type TEXT', 'updated_by INT', 'is_public INT', 'version INT DEFAULT 1']
+    as $column
+  ) {
+    $db->exec('ALTER TABLE settings ADD COLUMN ' . $column);
+  }
+  $db->exec(
+    "UPDATE settings SET id=rowid, setting_type=CASE WHEN setting_group='newsletter' THEN 'json' ELSE 'string' END",
+  );
+  $db->exec(
+    "INSERT INTO settings(setting_group,setting_key,setting_value,id,setting_type) VALUES('general','maintenance_mode','false',20,'boolean')",
+  );
+  $db->exec(
+    "INSERT INTO settings(setting_group,setting_key,setting_value,id,setting_type) VALUES('media','storage','{\"location\":\"local\",\"folderStructure\":\"flat\"}',21,'json')",
+  );
+  $db->exec(
+    'CREATE TABLE settings_audit_log(id INTEGER PRIMARY KEY,setting_id INT,setting_group TEXT,setting_key TEXT,old_value TEXT,new_value TEXT,changed_by INT,change_type TEXT,ip_address TEXT,user_agent TEXT,actor_username TEXT,actor_role TEXT)',
+  );
+  $db->exec(
+    "INSERT INTO settings_audit_log(id,setting_id,setting_group,setting_key,old_value,new_value) VALUES(1,20,'general','maintenance_mode','true','false')",
+  );
+  $request = [
+    'endpoint' => 'rollback_setting.php',
+    'actor' => ['id' => '1', 'username' => 'qa_owner', 'role' => 'Root'],
+    'input' => ['audit_log_id' => 1],
+  ];
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    ($result['body']['success'] ?? false) && is_file($directory . '/maintenance.flag'),
+    'Rollback did not enable real maintenance flag: ' . $result['output'],
+  );
+  $mirror = json_decode(
+    file_get_contents($directory . '/site_settings.json'),
+    true,
+    512,
+    JSON_THROW_ON_ERROR,
+  );
+  actionCheck(
+    $mirror['maintenanceMode'] === true &&
+      $mirror['domainUrl'] === 'https://qa.invalid/blog' &&
+      $mirror['media']['storage']['folderStructure'] === 'flat',
+    'Rollback mirror did not match committed Settings',
+  );
+  $audit = $db
+    ->query('SELECT * FROM settings_audit_log ORDER BY id DESC LIMIT 1')
+    ->fetch(PDO::FETCH_ASSOC);
+  actionCheck(
+    $audit['old_value'] === 'false' &&
+      $audit['new_value'] === 'true' &&
+      $audit['actor_username'] === 'qa_owner' &&
+      $audit['actor_role'] === 'root',
+    'Rollback did not record actor and actual before/after',
+  );
+  $request['input']['audit_log_id'] = (int) $audit['id'];
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    ($result['body']['success'] ?? false) && !is_file($directory . '/maintenance.flag'),
+    'Rolling back rollback did not disable maintenance',
+  );
+  $request['input']['audit_log_id'] = 1;
+  $result = actionRun($directory, [$request + ['failCommit' => true]])[0];
+  actionCheck(
+    $result['status'] === 500 &&
+      !is_file($directory . '/maintenance.flag') &&
+      $db->query('SELECT setting_value FROM settings WHERE id=20')->fetchColumn() === 'false',
+    'Commit failure did not compensate maintenance/DB state',
+  );
+  $result = actionRun($directory, [
+    array_replace($request, ['actor' => ['id' => '5', 'role' => 'Admin']]),
+  ])[0];
+  actionCheck($result['status'] === 403, 'Appointed Admin can roll back Settings');
+  mkdir($directory . '/maintenance.flag');
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    $result['status'] === 500 &&
+      $db->query('SELECT setting_value FROM settings WHERE id=20')->fetchColumn() === 'false',
+    'Unwritable maintenance flag changed database state',
+  );
+  rmdir($directory . '/maintenance.flag');
+  unlink($directory . '/site_settings.json');
+  mkdir($directory . '/site_settings.json');
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    ($result['body']['success'] ?? false) &&
+      is_string($result['body']['warning'] ?? null) &&
+      is_file($directory . '/maintenance.flag') &&
+      $db->query('SELECT setting_value FROM settings WHERE id=20')->fetchColumn() === 'true',
+    'Mirror failure was concealed or incorrectly rolled back a committed change',
+  );
+  rmdir($directory . '/site_settings.json');
+
+  $directory = actionFixture('qc-media-patch');
+  $db = actionDatabase($directory);
+  $db->exec(
+    'CREATE TABLE media(id INTEGER PRIMARY KEY,filepath TEXT,filename TEXT,uploaded_by INT,alt_text TEXT,caption TEXT,description TEXT)',
+  );
+  $db->exec(
+    "INSERT INTO media VALUES(20,'qa.png','qa.png',1,'old alt','keep caption','keep description')",
+  );
+  $request = [
+    'endpoint' => 'update_media.php',
+    'actor' => ['id' => '5', 'role' => 'Writer'],
+    'input' => ['id' => 20, 'alt_text' => 'new alt'],
+  ];
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    $result['body']['success'] ?? false,
+    'Shared Writer metadata access changed: ' . $result['output'],
+  );
+  $row = $db
+    ->query('SELECT alt_text,caption,description FROM media WHERE id=20')
+    ->fetch(PDO::FETCH_ASSOC);
+  actionCheck(
+    $row === [
+      'alt_text' => 'new alt',
+      'caption' => 'keep caption',
+      'description' => 'keep description',
+    ],
+    'Partial update erased omitted media metadata',
+  );
+  $request['input'] = ['id' => 20, 'caption' => ''];
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    ($result['body']['success'] ?? false) &&
+      $db->query('SELECT caption FROM media WHERE id=20')->fetchColumn() === '',
+    'Explicit metadata clear failed',
+  );
+  $request['input'] = ['id' => 20, 'description' => ['invalid']];
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    $result['status'] === 400 &&
+      $db->query('SELECT description FROM media WHERE id=20')->fetchColumn() === 'keep description',
+    'Invalid metadata changed data',
+  );
+
+  $directory = actionFixture('qc-comments-migration');
+  $db = actionDatabase($directory);
+  $db->exec('DROP TABLE comments');
+  $db->exec(
+    'CREATE TABLE comments(id INTEGER PRIMARY KEY,post_id INT,user_id INT,parent_id INT,user_name TEXT,user_avatar TEXT,content TEXT,likes INT,status TEXT,created_at TEXT)',
+  );
+  $payload = [
+    'comments' => [
+      [
+        'postId' => 42,
+        'userId' => 1,
+        'username' => 'Historical owner',
+        'content' => 'Fixture migration',
+        'likes' => 900,
+        'createdAt' => '2001-01-01 00:00:00',
+      ],
+    ],
+  ];
+  foreach (['Member', 'Writer', 'Moderator', 'Admin'] as $role) {
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'save_comments.php',
+        'actor' => ['id' => '5', 'role' => $role],
+        'rawBody' => json_encode($payload),
+      ],
+    ])[0];
+    actionCheck(
+      $result['status'] === 403 &&
+        (int) $db->query('SELECT COUNT(*) FROM comments')->fetchColumn() === 0,
+      'Non-owner migration can forge attribution: ' . $role,
+    );
+  }
+  $request = [
+    'endpoint' => 'save_comments.php',
+    'actor' => ['id' => '1', 'role' => 'Root'],
+    'rawBody' => json_encode($payload),
+  ];
+  $result = actionRun($directory, [$request])[0];
+  actionCheck(
+    ($result['body']['success'] ?? false) &&
+      (int) $db->query('SELECT user_id FROM comments')->fetchColumn() === 1,
+    'Primary Admin historical migration stopped working: ' . $result['output'],
+  );
+  $result = actionRun($directory, [$request + ['case' => 'csrf']])[0];
+  actionCheck(
+    $result['status'] === 403 &&
+      (int) $db->query('SELECT COUNT(*) FROM comments')->fetchColumn() === 1,
+    'Owner migration bypassed CSRF',
+  );
 }
 
 /** Execute malformed-type regressions through the real endpoint bodies and SQLite. */
@@ -2564,6 +2780,7 @@ try {
     return;
   }
   actionSettingsChecks();
+  actionQcRecoveryChecks();
   if (($argv[1] ?? '') === '--settings-read') {
     echo 'PASS Settings read contracts: ' .
       $checks .

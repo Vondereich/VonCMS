@@ -424,10 +424,12 @@ try {
   }
   copy($root . '/public/core/CredentialStore.php', $harness . '/core/CredentialStore.php');
   copy($root . '/public/core/DataBoundary.php', $harness . '/core/DataBoundary.php');
+  copy($root . '/public/core/SettingsStorage.php', $harness . '/core/SettingsStorage.php');
   file_put_contents(
     $harness . '/security.php',
     <<<'PHP'
     <?php
+    define('VONCMS_CORE_LOADED', true);
     require_once __DIR__ . '/core/DataBoundary.php';
     define('VONCMS_CREDENTIAL_KEY_FILE', __DIR__ . '/data/credential_master.key.php');
     $_SESSION['user'] = ['id' => ($GLOBALS['QA_ROLE'] === 'owner' ? 1 : 2), 'role' => ($GLOBALS['QA_ROLE'] === 'owner' ? 'admin' : $GLOBALS['QA_ROLE'])];
@@ -576,6 +578,43 @@ try {
   credentialCheck(
     $rootControl['status'] === 200 && $readConfig() === $savedSql,
     'Existing Root owner privilege changed.',
+  );
+  $originalTheme = [
+    'corporatePro' => [
+      'contactEmail' => 'public@example.invalid',
+      'showAuthor' => false,
+      'customApiKey' => 'PRIVATE_THEME_KEY',
+      'heroTitle' => 'Original',
+    ],
+  ];
+  $database
+    ->prepare(
+      'INSERT INTO settings(setting_group,setting_key,setting_value,setting_type) VALUES(?,?,?,?)',
+    )
+    ->execute(['theme', 'customization', json_encode($originalTheme), 'json']);
+  $themeDraft = [
+    'corporatePro' => [
+      'contactEmail' => '******** (PROTECTED)',
+      'showAuthor' => '******** (PROTECTED)',
+      'customApiKey' => '******** (PROTECTED)',
+      'heroTitle' => 'Changed',
+    ],
+  ];
+  $response = credentialSaveRequest($harness, 'admin', ['theme' => $themeDraft]);
+  $expectedTheme = $originalTheme;
+  $expectedTheme['corporatePro']['heroTitle'] = 'Changed';
+  $themeSql = $database
+    ->query(
+      "SELECT setting_value FROM settings WHERE setting_group='theme' AND setting_key='customization'",
+    )
+    ->fetchColumn();
+  credentialCheck(
+    $response['status'] === 200 && json_decode($themeSql, true) === $expectedTheme,
+    'Appointed Admin theme save corrupted masked email/boolean/custom credential fields',
+  );
+  credentialCheck(
+    $readConfig() === $savedSql,
+    'Theme save changed shared AI credential configuration',
   );
   // A negative control in the disposable controller proves the SQL assertion detects no encryption.
   $controllerPath = $harness . '/api/save_settings.php';

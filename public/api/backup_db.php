@@ -36,6 +36,7 @@ CSRFProtection::requireToken();
 // Owner-only: database dumps can expose raw settings, credentials, and user data.
 SessionManager::requirePrimaryAdmin();
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+require_once __DIR__ . '/../core/DatabaseBackup.php';
 
 /**
  * @param mixed $value
@@ -207,14 +208,14 @@ try {
       writeBackupStream($backupStream, "-- Data for table: {$tableLabel} ($rowCount rows)\n");
       writeBackupStream($backupStream, "-- \n");
 
-      $stmt = $pdo->query("SELECT * FROM {$quotedTable}");
+      $columns = VonCMSDatabaseBackup::writableColumns($pdo, $table);
+      $quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);
+      $columnList = implode(', ', $quotedColumns);
+      $stmt = $pdo->query("SELECT {$columnList} FROM {$quotedTable}");
       if ($stmt === false) {
         throw new RuntimeException('Unable to read backup rows.');
       }
       while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
-        $columns = array_keys($row);
-        $quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);
-
         $values = [];
         foreach ($row as $key => $v) {
           if ($v === null) {

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
 
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/../core/SettingsStorage.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/settings_audit_helper.php';
 
@@ -48,6 +49,10 @@ if (!$auditLogId) {
 
 $userId = (int) DataBoundary::userText('id');
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+$maintenanceFlagFile = __DIR__ . '/../data/maintenance.flag';
+$maintenanceFlagPreviouslyEnabled = is_file($maintenanceFlagFile);
+$maintenanceFlagTouched = false;
+$settingsCommitted = false;
 
 try {
   $pdo->beginTransaction();
@@ -81,6 +86,17 @@ try {
     SecurityHelper::isSensitiveKey($settingKey)
       ? 0
       : 1;
+
+  $lockSuffix = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+  $beforeStmt = $pdo->prepare(
+    'SELECT id, setting_group, setting_key, setting_value FROM settings WHERE setting_group = ? AND setting_key = ?' .
+      $lockSuffix,
+  );
+  $beforeStmt->execute([$settingGroup, $settingKey]);
+  $beforeSnapshot = DataBoundary::row($beforeStmt->fetch(PDO::FETCH_ASSOC));
+  if (!$beforeSnapshot) {
+    ResponseHelper::sendError('Setting not found', 404);
+  }
 
   try {
     // Update the setting
@@ -118,8 +134,39 @@ try {
     ResponseHelper::sendError('Setting not found', 404);
   }
 
+  voncms_record_setting_audit(
+    $pdo,
+    $settingGroup,
+    $settingKey,
+    $beforeSnapshot,
+    $rollbackValue === null ? null : (string) $rollbackValue,
+    $userId,
+  );
+  if ($settingGroup === 'general' && $settingKey === 'maintenance_mode') {
+    if (!in_array($rollbackValue, ['0', '1', 'false', 'true'], true)) {
+      throw new RuntimeException('Invalid maintenance mode history value.');
+    }
+    $maintenanceFlagTouched = true;
+    voncms_apply_maintenance_flag(
+      $maintenanceFlagFile,
+      in_array($rollbackValue, ['1', 'true'], true),
+    );
+  }
   $pdo->commit();
+  $settingsCommitted = true;
   voncms_public_cache_clear();
+
+  $mirrorWarning = null;
+  try {
+    voncms_write_settings_json_mirror(
+      __DIR__ . '/../data/site_settings.json',
+      voncms_read_settings_mirror($pdo),
+    );
+  } catch (Throwable $mirrorError) {
+    error_log('Settings rollback mirror refresh failed: ' . $mirrorError->getMessage());
+    $mirrorWarning =
+      'Setting restored in database, but the legacy JSON mirror could not be refreshed.';
+  }
 
   echo json_encode([
     'success' => true,
@@ -127,8 +174,18 @@ try {
     'setting_group' => $settingGroup,
     'setting_key' => $settingKey,
     'rolled_back_to' => $rollbackValue,
+    'warning' => $mirrorWarning,
   ]);
-} catch (Exception $e) {
-  $pdo->rollBack();
+} catch (Throwable $e) {
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
+  if (!$settingsCommitted && $maintenanceFlagTouched) {
+    try {
+      voncms_apply_maintenance_flag($maintenanceFlagFile, $maintenanceFlagPreviouslyEnabled);
+    } catch (Throwable $restoreError) {
+      error_log('Settings rollback maintenance recovery failed: ' . $restoreError->getMessage());
+    }
+  }
   ResponseHelper::sendError($e);
 }

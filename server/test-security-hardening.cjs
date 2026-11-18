@@ -324,6 +324,36 @@ $pdo=new QaDatabase;
       Buffer.from('<?php echo "not an image";')
     );
     upload(flat, '/api/upload_file.php', {}, false, 'image.png.php');
+    // Construct a GPS-bearing JPEG with a large SOF header: no huge pixel buffer is allocated.
+    const gps = spawnSync(
+      php,
+      [
+        '-r',
+        `
+$image=imagecreatetruecolor(1,1);ob_start();imagejpeg($image);$jpeg=ob_get_clean();
+$tiff="II".pack('vV',42,8).pack('v',1).pack('vvVV',0x8825,4,1,26).pack('V',0);
+$tiff.=pack('v',4).pack('vvV',1,2,2)."N\\0\\0\\0".pack('vvVV',2,5,3,80).pack('vvV',3,2,2)."E\\0\\0\\0".pack('vvVV',4,5,3,104).pack('V',0).pack('V*',3,1,8,1,0,1,101,1,41,1,0,1);
+$exif="Exif\\0\\0".$tiff;$jpeg=substr($jpeg,0,2)."\\xff\\xe1".pack('n',strlen($exif)+2).$exif.substr($jpeg,2);
+$sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn',8000,8000),$sof+5,4));
+`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(gps.status, 0, gps.stderr);
+    const previousRow = fs.readFileSync(path.join(site, 'data/last-row.json'));
+    for (const base of ['', '/zangetsu']) {
+      const rejected = upload(
+        flat,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'gps-fallback.jpg',
+        Buffer.from(gps.stdout, 'base64'),
+        false
+      );
+      assert.match(rejected.error, /location metadata.*Resize/);
+      assert.deepEqual(fs.readFileSync(path.join(site, 'data/last-row.json')), previousRow);
+    }
     // Force a processor exception after it has written the canonical WebP and a variant.
     // Only this disposable copied class is replaced; the actual endpoint/CGI path is unchanged.
     const processorPath = path.join(api, 'ImageProcessor.php');

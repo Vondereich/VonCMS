@@ -62,6 +62,7 @@ import {
   getProfileDisplayRole,
   isOwnUserProfile,
   getSavedProfileUpdates,
+  redirectAfterProfilePasswordChange,
 } from '../../utils/profileUtils';
 
 interface ThemeLayoutProps {
@@ -187,6 +188,7 @@ const CorporateProfile: React.FC<{
       const data = await response.json();
 
       if (response.ok && data.success) {
+        if (redirectAfterProfilePasswordChange(payload.new_password)) return;
         const savedUpdates = getSavedProfileUpdates(data.user, {
           display_name: editDisplayName,
           bio: editBio,

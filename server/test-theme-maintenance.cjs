@@ -168,6 +168,10 @@ function load(file, react = React, mocks = {}, runtime = {}, extraExports = '', 
 const apiErrorHelpers = load('src/utils/api.ts', React, { './security': { getCsrfToken: noop } });
 helpers.getErrorMessage = apiErrorHelpers.getErrorMessage;
 helpers.getSavedProfileUpdates = load('src/utils/profileUtils.ts').getSavedProfileUpdates;
+helpers.redirectAfterProfilePasswordChange = load(
+  'src/utils/profileUtils.ts'
+).redirectAfterProfilePasswordChange;
+helpers.hasPasswordSpecialCharacter = load('src/utils/security.ts').hasPasswordSpecialCharacter;
 
 const base = {
   posts,
@@ -3370,6 +3374,19 @@ function checkDiscussionPostLinks() {
 
 async function checkAvatarState() {
   const profileUtils = load('src/utils/profileUtils.ts');
+  for (const basePath of ['/', '/zangetsu/']) {
+    const redirects = [];
+    const lifecycle = load(
+      'src/utils/profileUtils.ts',
+      React,
+      { '../config/site.config': { BASE_PATH: basePath } },
+      { window: { location: { assign: (url) => redirects.push(url) } } }
+    );
+    assert.equal(lifecycle.redirectAfterProfilePasswordChange(), false);
+    assert.equal(redirects.length, 0);
+    assert.equal(lifecycle.redirectAfterProfilePasswordChange('New1!fixture'), true);
+    assert.deepEqual(redirects, [basePath + 'login?reason=password-updated']);
+  }
   const original = { display_name: 'Old', bio: 'Old bio', avatar: 'http://qa.invalid/raw.webp' };
   const canonical = { display_name: 'Saved & Name', bio: 'Saved bio', avatar: '' };
   assert.equal(
@@ -3511,7 +3528,8 @@ async function checkAvatarState() {
   ]) {
     const h = harness(),
       published = [],
-      requests = [];
+      requests = [],
+      redirects = [];
     let ok = true,
       hold = false,
       release;
@@ -3540,7 +3558,19 @@ async function checkAvatarState() {
     const module = load(
       file,
       h.hooks,
-      { [prefix + 'utils/api']: transport },
+      {
+        [prefix + 'utils/api']: transport,
+        [prefix + 'utils/profileUtils']: {
+          ...profileUtils,
+          ...helpers,
+          redirectAfterProfilePasswordChange: load(
+            'src/utils/profileUtils.ts',
+            React,
+            { '../config/site.config': { BASE_PATH: '/zangetsu/' } },
+            { window: { location: { assign: (url) => redirects.push(url) } } }
+          ).redirectAfterProfilePasswordChange,
+        },
+      },
       {},
       name ? `\nexport { ${name} as AvatarProfileFixture };` : ''
     );
@@ -3646,6 +3676,26 @@ async function checkAvatarState() {
         'late profile response must not publish after navigation'
       );
     }
+    hold = false;
+    props.targetUser = target;
+    view = draw();
+    const passwordSlot = name ? 5 : 4;
+    h.slots[passwordSlot].value = true;
+    h.slots[passwordSlot + 1].value = 'Old1!fixture';
+    h.slots[passwordSlot + 2].value = 'New1!fixture';
+    h.slots[passwordSlot + 3].value = 'New1!fixture';
+    view = draw();
+    ok = false;
+    await save();
+    assert.equal(redirects.length, 0, file + ' rejected password must stay editable');
+    view = draw();
+    ok = true;
+    await save();
+    assert.deepEqual(
+      redirects,
+      ['/zangetsu/login?reason=password-updated'],
+      file + ' accepted password must reauthenticate'
+    );
   }
 
   assert.ok(

@@ -92,7 +92,9 @@ if ($action !== null && !in_array($action, $allowedActions, true)) {
 }
 
 if ($isLegacyBulkMigration) {
-  SessionManager::requireAdmin();
+  // This compatibility importer may bind historical authors and timestamps.
+  // Ordinary moderation must not grant authority to impersonate another account.
+  SessionManager::requirePrimaryAdmin();
   CSRFProtection::requireToken();
 
   if (count($input['comments']) > 10000) {

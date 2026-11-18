@@ -6000,6 +6000,7 @@ if (
 }
 
 const saveSettingsContent = read('public/api/save_settings.php');
+const settingsStorageContent = read('public/core/SettingsStorage.php');
 const getSettingsContent = read('public/api/get_settings.php');
 const getSettingsPublicContractContent =
   getSettingsContent + '\n' + read('public/public_render_helper.php');
@@ -6011,6 +6012,7 @@ const dateFormatSettingsContract = [
   dateFormatUtilityContent,
   read('src/utils/siteUtils.ts'),
   saveSettingsContent,
+  settingsStorageContent,
   getSettingsContent,
   read('public/public_render_helper.php'),
   installContent,
@@ -6289,9 +6291,11 @@ if (
 }
 
 const settingsMirrorUsesUniqueTemp =
-  saveSettingsContent.includes("'.' . bin2hex(random_bytes(6)) . '.tmp'") &&
-  saveSettingsContent.includes('LOCK_EX') &&
-  !saveSettingsContent.includes("$tempFile = $settingsFile . '.tmp';");
+  settingsStorageContent.includes("'.' . bin2hex(random_bytes(6)) . '.tmp'") &&
+  settingsStorageContent.includes('LOCK_EX') &&
+  settingsStorageContent.includes('@rename($tempFile, $settingsFile)') &&
+  saveSettingsContent.includes("require_once __DIR__ . '/../core/SettingsStorage.php';") &&
+  !settingsStorageContent.includes("$tempFile = $settingsFile . '.tmp';");
 const settingsMirrorFailureIsNonBlocking =
   saveSettingsContent.includes('$mirrorWarning = null;') &&
   saveSettingsContent.includes("error_log('Settings JSON mirror write failed: '") &&
@@ -7207,8 +7211,9 @@ if (
   saveSettingsContent.includes(
     "ResponseHelper::sendError('Primary Admin permission is required for these settings.', 403);"
   ) &&
-  saveSettingsContent.includes("['activePlugins', 'plugins', 'active_plugins', 'json']") &&
-  saveSettingsContent.includes("['pluginConfig', 'plugins', 'plugin_config', 'json']") &&
+  settingsStorageContent.includes("['activePlugins', 'plugins', 'active_plugins', 'json']") &&
+  settingsStorageContent.includes("['pluginConfig', 'plugins', 'plugin_config', 'json']") &&
+  saveSettingsContent.includes('$mappings = voncms_settings_mappings();') &&
   appointedAdminSettingsCommit >= 0 &&
   appointedAdminSettingsCachePurge > appointedAdminSettingsCommit &&
   saveSettingsContent.includes("'ignored' => $ignoredSettingsKeys,") &&
@@ -8007,7 +8012,7 @@ assertIncludes(
 
 assertIncludes(
   'Maintenance Flag Persistence Contract',
-  saveSettingsContent,
+  saveSettingsContent + read('public/core/SettingsStorage.php'),
   [
     'function voncms_apply_maintenance_flag(string $flagFile, bool $enabled): void',
     'LOCK_EX',
@@ -8321,7 +8326,8 @@ assertIncludes(
     '$quotedTable = quoteImportBackupMysqlIdentifier($table);',
     "$quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);",
     'SHOW CREATE TABLE {$quotedTable}',
-    'SELECT * FROM {$quotedTable}',
+    'SELECT {$columnList} FROM {$quotedTable}',
+    'VonCMSDatabaseBackup::writableColumns($pdo, $table)',
     'DROP TABLE IF EXISTS {$quotedTable}',
     'function sanitizeImportBackupCommentLabel(string $value): string',
   ],
@@ -8900,7 +8906,8 @@ assertIncludes(
     "$quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);",
     'SHOW CREATE TABLE {$quotedTable}',
     'SELECT COUNT(*) FROM {$quotedTable}',
-    'SELECT * FROM {$quotedTable}',
+    'SELECT {$columnList} FROM {$quotedTable}',
+    'VonCMSDatabaseBackup::writableColumns($pdo, $table)',
     'DROP TABLE IF EXISTS {$quotedTable}',
     'function sanitizeDatabaseBackupCommentLabel(string $value): string',
   ],
@@ -8958,7 +8965,8 @@ if (
     backupDbContent.indexOf('$countQuery =') &&
   backupDbContent.includes('$countQuery->closeCursor();') &&
   backupDbContent.indexOf('$countQuery->closeCursor();') <
-    backupDbContent.indexOf('$stmt = $pdo->query("SELECT *') &&
+    backupDbContent.indexOf('$stmt = $pdo->query("SELECT {$columnList}') &&
+  read('public/core/DatabaseBackup.php').includes('$statement->closeCursor();') &&
   backupDbContent.includes('$stmt->closeCursor();') &&
   backupDbContent.includes('$activeStatement->closeCursor();')
 ) {
@@ -9203,7 +9211,8 @@ if (
   ) &&
   updateMediaContent.includes('CSRFProtection::requireToken();') &&
   updateMediaContent.includes("ResponseHelper::sendError('Media item not found', 404);") &&
-  updateMediaContent.includes('mb_substr(strip_tags(trim((string) $input') &&
+  updateMediaContent.includes('mb_substr(strip_tags(trim($input[$field]))') &&
+  updateMediaContent.includes('if (!array_key_exists($field, $input))') &&
   !updateMediaContent.includes('filepath LIKE ?')
 ) {
   pass(
@@ -12684,7 +12693,7 @@ assertIncludes(
 );
 assertIncludes(
   'Admin Palette Server Allowlist Contract',
-  saveSettingsContent + '\n' + getSettingsContent,
+  saveSettingsContent + '\n' + settingsStorageContent + '\n' + getSettingsContent,
   [
     "['charcoal-blue', 'meadow-gold', 'harbour-amber']",
     "['adminPalette', 'general', 'admin_palette', 'string']",
@@ -17070,7 +17079,7 @@ const headerIdentityPersistenceMarkers = [
   generalSettingsContent.includes('<option value="text_only">Text Only</option>'),
   generalSettingsContent.includes("onChange('useLogoAsTitle', mode === 'logo_only')"),
   saveSettingsContent.includes("['logo_and_text', 'logo_only', 'text_only']"),
-  saveSettingsContent.includes(
+  read('public/core/SettingsStorage.php').includes(
     "['headerIdentityMode', 'general', 'header_identity_mode', 'string']"
   ),
   saveSettingsContent.includes(
@@ -17160,7 +17169,7 @@ if (
   useSettingsContent.includes('invertLogoInDarkMode: _s?.invertLogoInDarkMode ?? false') &&
   logoGeneralSettingsContent.includes("onChange('invertLogoInDarkMode', e.target.checked)") &&
   logoGeneralSettingsContent.includes('Invert logo in dark mode') &&
-  saveSettingsContent.includes(
+  read('public/core/SettingsStorage.php').includes(
     "['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean']"
   ) &&
   getSettingsPublicContractContent.includes("'invert_logo_in_dark_mode'") &&
@@ -19021,6 +19030,7 @@ if (!phpBinary) {
     for (const relativePath of [
       'security.php',
       ...coreSecurityModules.map((name) => 'core/' + name + '.php'),
+      'core/SettingsStorage.php',
       'api/login.php',
       'api/save_comments.php',
       'api/register.php',
@@ -19067,7 +19077,8 @@ if (!phpBinary) {
       ['comment-mixed-updateStatus', 400, false],
       ['comment-guest-bulk', 401, false],
       ['comment-member-bulk', 403, false],
-      ['comment-admin-bulk', 200, true],
+      ['comment-admin-bulk', 403, false],
+      ['comment-owner-bulk', 200, true],
       ['comment-guest-add', 200, true],
     ];
     const loginCommentResults = loginCommentCases.map(([mode, expectedStatus, expectedSuccess]) => {
@@ -19119,8 +19130,8 @@ if (!str_starts_with($mode, 'comment-mixed-') && $mode !== 'comment-guest-bulk')
   $pdo->exec('CREATE TABLE comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER, user_id INTEGER, parent_id INTEGER, user_name TEXT, user_avatar TEXT, content TEXT, likes INTEGER, status TEXT, created_at TEXT)');
 }
 $GLOBALS['fixturePdo'] = $pdo;
-if (in_array($mode, ['comment-admin-bulk', 'comment-member-bulk'], true)) {
-  $role = $mode === 'comment-admin-bulk' ? 'admin' : 'member';
+if (in_array($mode, ['comment-admin-bulk', 'comment-member-bulk', 'comment-owner-bulk'], true)) {
+  $role = $mode === 'comment-owner-bulk' ? 'root' : ($mode === 'comment-admin-bulk' ? 'admin' : 'member');
   $pdo->prepare('UPDATE users SET role = ? WHERE id = 7')->execute([$role]);
   SessionManager::establishAuthenticatedSession(['id' => 7, 'username' => 'fixture', 'role' => $role], $passwordHash);
 }
@@ -19168,7 +19179,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEP
         (!mode.startsWith('login-') || result.authenticated === expectedSuccess) &&
         result?.rememberRows === (mode === 'login-remember' ? 1 : 0) &&
         result?.commentRows ===
-          (['comment-admin-bulk', 'comment-guest-add'].includes(mode) ? 1 : 0) &&
+          (['comment-owner-bulk', 'comment-guest-add'].includes(mode) ? 1 : 0) &&
         fs.readFileSync(path.join(loginCommentFixture, 'data/comments.json'), 'utf8') ===
           legacySentinel;
       if (!matches)
@@ -19179,7 +19190,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEP
     });
     if (loginCommentResults.every(Boolean)) {
       pass(
-        'Login/Comment Boundary Runtime: cross-site plain and tokenless login fail; normal login, remember-me, guest comments, and admin-only migration remain valid; mixed payloads cannot write legacy JSON.'
+        'Login/Comment Boundary Runtime: cross-site plain and tokenless login fail; normal login, remember-me, guest comments, and Primary-Admin migration remain valid; appointed Admin migration is refused and mixed payloads cannot write legacy JSON.'
       );
     }
     const legacyShimCases = [
@@ -19447,7 +19458,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api/reset_password.php'
     'function voncms_guard_restricted_settings_for_non_primary_admin'
   );
   const domainMirrorNormalizer = extractPhpFunctionSource(
-    saveSettingsContent,
+    read('public/core/SettingsStorage.php'),
     'function voncms_prepare_settings_domain_mirror'
   );
   const domainUrlValidation = sliceBetween(

@@ -1,4 +1,12 @@
 import { User } from '../types';
+import { BASE_PATH } from '../config/site.config';
+
+/** Password changes revoke the native session; never leave a successful form looking logged in. */
+export const redirectAfterProfilePasswordChange = (newPassword?: string): boolean => {
+  if (!newPassword) return false;
+  window.location.assign(`${BASE_PATH}login?reason=password-updated`);
+  return true;
+};
 
 /** Only adopt editable profile fields, including an explicitly cleared server avatar. */
 export const getSavedProfileUpdates = (

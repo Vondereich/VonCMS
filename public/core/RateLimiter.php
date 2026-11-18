@@ -143,11 +143,19 @@ class RateLimiter
    */
   public static function consumeFixedWindows(array $limits, string $namespace = 'recovery'): bool
   {
-    $partitioned = in_array(
+    $submission = in_array(
       $namespace,
-      ['analytics-request', 'analytics-issue', 'analytics-session'],
+      [
+        'submission-contact',
+        'submission-comment',
+        'submission-newsletter',
+        'submission-comment-member',
+      ],
       true,
     );
+    $partitioned =
+      in_array($namespace, ['analytics-request', 'analytics-issue', 'analytics-session'], true) ||
+      $submission;
     if (
       $limits === [] ||
       count($limits) > 8 ||
@@ -185,7 +193,10 @@ class RateLimiter
       'submission-newsletter' => 'submission-newsletter-ledger:v1',
       default => 'fixed-window-ledger:v1',
     };
-    $shard = $partitioned ? hash('sha256', (string) array_key_first($limits))[0] : '';
+    $identifier = (string) array_key_first($limits);
+    $shard = $partitioned
+      ? hash('sha256', $submission ? self::submissionShardIdentity($identifier) : $identifier)[0]
+      : '';
     if ($partitioned) {
       // Fixed 16 shards per purpose, never a file per attacker-selected address.
       $ledger = $namespace . '-ledger:v2:' . $shard;
@@ -216,7 +227,7 @@ class RateLimiter
       }
       $now = time();
       $data = self::decodeFixedWindowLedger($raw, $now);
-      if ($partitioned && $raw === '') {
+      if ($partitioned && !$submission && $raw === '') {
         // Import once while holding this shard's lock. Nonempty JSON marks initialization,
         // even when this first request is denied. Old/rollback writers keep their own ledger.
         $legacyFile = self::$storageDir . md5('analytics-admission-ledger:v1') . '.json';
@@ -245,11 +256,44 @@ class RateLimiter
         }
         self::writeFixedWindowLedger($handle, $data);
       }
+      $legacySubmission = [];
+      if ($submission && !isset($data[hash('sha256', $identifier)])) {
+        // Preserve active pre-upgrade counters for this exact identity, not the
+        // old ledger's global capacity. Never allocate new keys in the old file.
+        $legacyPurpose =
+          $namespace === 'submission-comment-member' ? 'submission-comment' : $namespace;
+        $legacyFile = self::$storageDir . md5($legacyPurpose . '-ledger:v1') . '.json';
+        if (is_file($legacyFile)) {
+          $legacyHandle = @fopen($legacyFile, 'r');
+          if ($legacyHandle === false) {
+            throw new RuntimeException('Unreadable legacy submission ledger.');
+          }
+          try {
+            if (!@flock($legacyHandle, LOCK_SH)) {
+              throw new RuntimeException('Unavailable legacy submission lock.');
+            }
+            $legacyRaw = stream_get_contents($legacyHandle, 1048577);
+            if (!is_string($legacyRaw)) {
+              throw new RuntimeException('Unreadable legacy submission ledger.');
+            }
+            $legacySubmission = self::decodeFixedWindowLedger($legacyRaw, $now);
+          } finally {
+            @flock($legacyHandle, LOCK_UN);
+            @fclose($legacyHandle);
+          }
+        }
+      }
       $pending = [];
       foreach ($limits as $identifier => [$maxAttempts, $windowSeconds]) {
         $maxAttempts = max(1, (int) $maxAttempts);
         $windowSeconds = max(1, (int) $windowSeconds);
         $key = hash('sha256', (string) $identifier);
+        if (!isset($data[$key]) && isset($legacySubmission[$key])) {
+          if (count($data) >= 4096) {
+            return false;
+          }
+          $data[$key] = $legacySubmission[$key];
+        }
         if (isset($data[$key])) {
           if ($data[$key]['attempts'] >= $maxAttempts) {
             return false;
@@ -470,8 +514,29 @@ class RateLimiter
       }
     }
     return str_starts_with($identifier, 'comment:user:')
-      ? ['identifier' => $identifier, 'namespace' => 'submission-comment']
+      ? ['identifier' => $identifier, 'namespace' => 'submission-comment-member']
       : null;
+  }
+
+  /** One rotating IPv6 /48 (or IPv4 /24) cannot choose all purpose shards.
+   * Individual quotas remain /64/address; this is capacity placement, not a subnet ban.
+   */
+  private static function submissionShardIdentity(string $identifier): string
+  {
+    foreach (['contact:', 'comment:ip:', 'newsletter:'] as $prefix) {
+      if (!str_starts_with($identifier, $prefix)) {
+        continue;
+      }
+      $address = substr($identifier, strlen($prefix));
+      if (preg_match('/^[a-f0-9]{16}\/64$/D', $address)) {
+        return $prefix . substr($address, 0, 12) . '/48';
+      }
+      $packed = @inet_pton($address);
+      return $packed !== false && strlen($packed) === 4
+        ? $prefix . bin2hex(substr($packed, 0, 3)) . '/24'
+        : $identifier;
+    }
+    return $identifier;
   }
 
   /** @param array{identifier: string, namespace: string} $quota */

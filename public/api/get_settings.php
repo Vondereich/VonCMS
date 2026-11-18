@@ -401,7 +401,7 @@ try {
 
   // SECURITY SCRUBBING: Appointed admins retain a complete but masked settings projection.
   if (!$isPrimaryAdmin) {
-    SecurityHelper::maskSensitiveData($settings);
+    voncms_mask_settings_projection($settings);
     if (
       $adminProfilePublicEmail !== null &&
       isset($settings['adminProfile']) &&
