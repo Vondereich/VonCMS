@@ -38,8 +38,8 @@ export const getCategorySlug = (category: string | null | undefined): string => 
   return slug || 'uncategorized';
 };
 
-// Folder namespaces cannot safely own Category & Name article links.
-const CATEGORY_FOLDER_PATHS = new Set([
+// Built-in folders can take precedence over both category URLs and root-slug fallbacks.
+const BUNDLED_PERMALINK_FOLDERS = new Set([
   'api',
   'assets',
   'backups',
@@ -51,6 +51,9 @@ const CATEGORY_FOLDER_PATHS = new Set([
   'uploads',
 ]);
 
+// Source ZIP folders also claim exact root URLs, not their whole category namespace.
+const ROOT_PERMALINK_FOLDERS = new Set([...BUNDLED_PERMALINK_FOLDERS, 'public', 'server', 'src']);
+
 export const getCategoryFolderConflict = (
   category: string | null | undefined,
   postSlug?: string | null
@@ -58,7 +61,7 @@ export const getCategoryFolderConflict = (
   const slug = getCategorySlug(category);
   const legacyIdConflict =
     (slug === 'post' || slug === 'blog') && (postSlug == null || /^[1-9][0-9]*$/.test(postSlug));
-  return CATEGORY_FOLDER_PATHS.has(slug) || SYSTEM_ROUTE_PREFIXES.has(slug) || legacyIdConflict
+  return BUNDLED_PERMALINK_FOLDERS.has(slug) || SYSTEM_ROUTE_PREFIXES.has(slug) || legacyIdConflict
     ? slug
     : null;
 };
@@ -164,7 +167,8 @@ export const getPermalink = (
       // Keep client links aligned with PHP canonical, sitemap, RSS, and llms category slugs.
       const category = getCategorySlug(post.category);
       path = getCategoryFolderConflict(post.category, slug)
-        ? isPublicContentPath(`/${slug}`)
+        ? isPublicContentPath(`/${slug}`) &&
+          !ROOT_PERMALINK_FOLDERS.has(decodeURIComponent(slug).toLowerCase())
           ? `/${slug}`
           : `/post/${post.id}`
         : `/${category}/${slug}`;

@@ -596,12 +596,29 @@ if (!function_exists('voncms_category_slug')) {
   }
 }
 
+if (!function_exists('voncms_is_bundled_permalink_folder')) {
+  /** Match built-in folder names without changing the published slug. */
+  function voncms_is_bundled_permalink_folder(
+    string $segment,
+    bool $includeSourceRoot = false,
+  ): bool {
+    $name = strtolower(rawurldecode($segment));
+    return in_array(
+      $name,
+      ['api', 'assets', 'backups', 'core', 'data', 'docs', 'fonts', 'themes', 'uploads'],
+      true,
+    ) ||
+      ($includeSourceRoot && in_array($name, ['public', 'server', 'src'], true));
+  }
+}
+
 if (!function_exists('voncms_category_permalink_conflicts')) {
   /** Category slugs are already normalized; preserve system and legacy route ownership. */
   function voncms_category_permalink_conflicts(string $categorySlug, string $postSlug): bool
   {
     return !voncms_is_public_content_path($categorySlug . '/article') ||
-      in_array($categorySlug, ['backups', 'docs', 'fonts', 'themes', 'profile'], true) ||
+      voncms_is_bundled_permalink_folder($categorySlug) ||
+      $categorySlug === 'profile' ||
       (in_array($categorySlug, ['post', 'blog'], true) &&
         preg_match('/^[1-9][0-9]*$/D', $postSlug) === 1);
   }
@@ -639,7 +656,8 @@ if (!function_exists('buildCanonicalContentPath')) {
       case 'category':
         $catSlug = voncms_category_slug($content['category'] ?? 'uncategorized');
         if (voncms_category_permalink_conflicts($catSlug, $postSlug)) {
-          return voncms_is_public_content_path('/' . $postSlug)
+          return voncms_is_public_content_path('/' . $postSlug) &&
+            !voncms_is_bundled_permalink_folder($postSlug, true)
             ? '/' . $postSlug
             : '/post/' . $content['id'];
         }

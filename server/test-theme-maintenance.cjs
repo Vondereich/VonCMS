@@ -1898,6 +1898,16 @@ function checkCategoryFolderAdvisory() {
     ['core', 'admin', true, '/post/1'],
     ['install', 'rss', true, '/post/1'],
     ['Business', 'login', false],
+    ['admin', 'docs', true, '/post/1'],
+    ['api', 'FONTS', true, '/post/1'],
+    ['docs', 'themes', true, '/post/1'],
+    ['install', '%62ackups', true, '/post/1'],
+    ['Business', 'docs', false],
+    ['admin', 'docs-news', true],
+    ['admin', 'public', true, '/post/1'],
+    ['core', 'server', true, '/post/1'],
+    ['install', 'src', true, '/post/1'],
+    ['src', 'ordinary', false],
   ]) {
     const item = { ...posts[0], category, slug };
     const html = render(PostEditor, { ...props, initialItem: item });

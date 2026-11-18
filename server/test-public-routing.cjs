@@ -534,6 +534,16 @@ async function browser() {
           ['core', 'admin', '/post/701'],
           ['install', 'rss', '/post/701'],
           ['Business', 'login', '/business/login'],
+          ['admin', 'docs', '/post/701'],
+          ['api', 'FONTS', '/post/701'],
+          ['docs', 'themes', '/post/701'],
+          ['install', '%62ackups', '/post/701'],
+          ['Business', 'docs', '/business/docs'],
+          ['admin', 'docs-news', '/docs-news'],
+          ['admin', 'public', '/post/701'],
+          ['core', 'server', '/post/701'],
+          ['install', 'src', '/post/701'],
+          ['src', 'ordinary', '/src/ordinary'],
         ])}.map(([category,slug,expected])=>{
           const item={id:'701',slug,category};
           const settings={permalinkStructure:'category',domainUrl:location.origin+${JSON.stringify(base)}};
@@ -723,12 +733,19 @@ async function apache() {
     /\$htaccessContent = <<<EOT\r?\n[\s\S]*?\r?\n[ \t]*EOT;/
   )?.[0];
   assert.ok(repair && installer, 'Actual installer/repair templates are required');
-  const render = (code) => {
-    const r = spawnSync(php, ['-r', code], { encoding: 'utf8', windowsHide: true });
+  const render = (code, ...args) => {
+    const r = spawnSync(php, ['-r', code, ...args], { encoding: 'utf8', windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stderr, '');
     return r.stdout;
   };
+  const categoryFallback = (id, slug) =>
+    render(
+      'require $argv[1]; echo buildCanonicalContentPath(["id"=>$argv[2],"category"=>"admin","slug"=>$argv[3]],"category");',
+      path.join(root, 'public', 'seo_route_helper.php'),
+      String(id),
+      slug
+    );
   const deploy = process.env.VONCMS_ROUTING_APACHE_BASELINE
     ? fs.readFileSync(process.env.VONCMS_ROUTING_APACHE_BASELINE, 'utf8')
     : read('public/.htaccess');
@@ -750,8 +767,12 @@ async function apache() {
   try {
     for (const [name, variant] of variants) {
       write(name + '/.htaccess', variant.rules);
+      write(name + '/docs/fixture.txt', 'DOCUMENTATION_FIXTURE');
       const pub = name + (variant.child ? '/public' : '');
-      if (variant.child) write(pub + '/.htaccess', variant.child);
+      if (variant.child) {
+        write(pub + '/.htaccess', variant.child);
+        write(name + '/src/fixture.txt', 'SOURCE_FIXTURE');
+      }
       for (const file of [
         'api/fixture.php',
         'api/system/fixture.php',
@@ -838,6 +859,32 @@ async function apache() {
       }
     }
     check(ready, 'Isolated Apache did not start');
+    for (const [prefix, slug, id, ordinaryPath] of [
+      ['', 'docs', 67, '/business/docs'],
+      ['/blog', 'docs', 67, '/business/docs'],
+      ['/source', 'src', 76, '/src/ordinary'],
+      ['/source-repaired', 'src', 76, '/src/ordinary'],
+    ]) {
+      const fallbackPath = categoryFallback(id, slug);
+      const folder = await fetch(origin + prefix + '/' + slug, { redirect: 'manual' });
+      const target = await fetch(origin + prefix + fallbackPath, { redirect: 'manual' });
+      const ordinary = await fetch(origin + prefix + ordinaryPath, { redirect: 'manual' });
+      check(
+        folder.status === 301 &&
+          new URL(folder.headers.get('location'), origin).pathname === prefix + '/' + slug + '/',
+        prefix + '/' + slug + ' is a real directory and must not be used for the article'
+      );
+      check(
+        fallbackPath === '/post/' + id &&
+          target.status === 200 &&
+          (await target.text()) === 'ROUTING_FIXTURE',
+        prefix + ' generated fallback must reach the document router instead of the directory'
+      );
+      check(
+        ordinary.status === 200 && (await ordinary.text()) === 'ROUTING_FIXTURE',
+        prefix + ordinaryPath + ' still reaches the document router'
+      );
+    }
     for (const prefix of ['', '/blog', '/source', '/installed', '/repaired', '/source-repaired']) {
       for (const [tail, expected] of [
         ['/api/fixture.php', 200],

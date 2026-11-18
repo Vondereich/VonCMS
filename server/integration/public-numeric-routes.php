@@ -628,7 +628,24 @@ $checks++;
 // Generated category permalinks must not enter a system/folder namespace or
 // reinterpret a positive-integer slug as an unrelated legacy Post ID.
 $reservedSlugRow = $pdo->query('SELECT * FROM posts WHERE id=56')->fetch(PDO::FETCH_NUM);
-foreach ([64 => 'login', 65 => 'admin', 66 => 'rss'] as $id => $reservedSlug) {
+foreach (
+  [
+    64 => 'login',
+    65 => 'admin',
+    66 => 'rss',
+    67 => 'docs',
+    68 => 'fonts',
+    69 => 'themes',
+    70 => 'backups',
+    71 => 'docs-news',
+    72 => 'FONTS',
+    73 => '%62ackups',
+    74 => 'public',
+    75 => 'server',
+    76 => 'src',
+  ]
+  as $id => $reservedSlug
+) {
   $reservedSlugRow[0] = $id;
   $reservedSlugRow[2] = $reservedSlug;
   $insertPost->execute($reservedSlugRow);
@@ -665,6 +682,18 @@ $categoryCases = [
   ['core', 'admin', 65, '/post/65'],
   ['install', 'rss', 66, '/post/66'],
   ['Business', 'login', 64, '/business/login'],
+  ['admin', 'docs', 67, '/post/67'],
+  ['api', 'fonts', 68, '/post/68'],
+  ['docs', 'themes', 69, '/post/69'],
+  ['install', 'backups', 70, '/post/70'],
+  ['Business', 'docs', 67, '/business/docs'],
+  ['admin', 'docs-news', 71, '/docs-news'],
+  ['admin', 'FONTS', 72, '/post/72'],
+  ['admin', '%62ackups', 73, '/post/73'],
+  ['admin', 'public', 74, '/post/74'],
+  ['core', 'server', 75, '/post/75'],
+  ['install', 'src', 76, '/post/76'],
+  ['src', 'ordinary', 56, '/src/ordinary'],
 ];
 $originalCategories = $pdo->query('SELECT id, category FROM posts')->fetchAll(PDO::FETCH_KEY_PAIR);
 $setCategory = $pdo->prepare('UPDATE posts SET category = ? WHERE id = ?');
