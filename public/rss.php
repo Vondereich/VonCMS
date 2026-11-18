@@ -264,8 +264,7 @@ try {
           $d = new DateTime($post['created_at'] ?? 'now');
           return $domainUrl . '/' . $d->format('Y') . '/' . $d->format('m') . '/' . $slugOrId;
         case 'category':
-          $cat = voncms_category_slug($post['category'] ?? 'uncategorized');
-          return $domainUrl . '/' . $cat . '/' . $slugOrId;
+          return $domainUrl . buildCanonicalContentPath($post, 'category');
         case 'post_name':
         case 'slug':
           return $domainUrl . '/' . $slugOrId;

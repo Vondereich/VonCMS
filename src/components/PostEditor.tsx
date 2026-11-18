@@ -123,7 +123,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
   const titleLength = item?.title?.length || 0;
   const excerptLength = item?.excerpt?.length || 0;
   const categoryFolderConflict =
-    !isPage && item ? getCategoryFolderConflict((item as Post).category) : null;
+    !isPage && item ? getCategoryFolderConflict((item as Post).category, item.slug) : null;
   const categoryDescription = categoryFolderConflict
     ? 'post-category-help post-category-path-warning'
     : 'post-category-help';
@@ -1311,8 +1311,8 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       className="mt-1 text-xs text-slate-400 dark:text-gray-400"
                     >
                       Pick an existing category or type a new one. Empty values still save as{' '}
-                      Uncategorized. Avoid names matching VonCMS folders when using Category &amp;
-                      Name permalinks.
+                      Uncategorized. Categories matching system or folder paths use Post Name
+                      article links in Category &amp; Name mode.
                     </p>
                     {categoryFolderConflict && (
                       <div
@@ -1323,10 +1323,10 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       >
                         <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
                         <span>
-                          The /{categoryFolderConflict}/ path is used by a VonCMS folder. Category
-                          &amp; Name permalinks can conflict with this path. Choose a different
-                          category name or keep Post Name permalinks. This is a warning only; saving
-                          remains available.
+                          The /{categoryFolderConflict}/ path is used by VonCMS. In Category &amp;
+                          Name mode, this article uses a safe fallback URL instead: Post Name, or
+                          its Post ID if the slug is also reserved. The category name is unchanged;
+                          saving remains available.
                         </span>
                       </div>
                     )}

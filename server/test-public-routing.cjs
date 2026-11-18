@@ -511,6 +511,46 @@ async function browser() {
       await wait('!!window.__qaFetches');
     };
     for (const base of ['', '/blog']) {
+      await navigate(base + '/');
+      await wait('document.body.innerText.includes(' + JSON.stringify(headline) + ')');
+      const categoryLinks = await evaluate(`(async()=>{
+        const utils=await import('/src/utils/siteUtils.ts');
+        return ${JSON.stringify([
+          ['admin', 'ordinary', '/ordinary'],
+          ['ADMIN', 'ordinary', '/ordinary'],
+          ['&#97;dmin', 'ordinary', '/ordinary'],
+          ['api', 'ordinary', '/ordinary'],
+          ['Core', 'ordinary', '/ordinary'],
+          ['install', 'ordinary', '/ordinary'],
+          ['profile', 'ordinary', '/ordinary'],
+          ['post', '1', '/1'],
+          ['blog', '1', '/1'],
+          ['post', '0', '/post/0'],
+          ['blog', '00123', '/blog/00123'],
+          ['post', '1e3', '/post/1e3'],
+          ['Business', 'ordinary', '/business/ordinary'],
+          ['Admin News', 'ordinary', '/admin-news/ordinary'],
+          ['admin', 'login', '/post/701'],
+          ['core', 'admin', '/post/701'],
+          ['install', 'rss', '/post/701'],
+          ['Business', 'login', '/business/login'],
+        ])}.map(([category,slug,expected])=>{
+          const item={id:'701',slug,category};
+          const settings={permalinkStructure:'category',domainUrl:location.origin+${JSON.stringify(base)}};
+          return {category,slug,expected,path:utils.getPermalink(item,settings),absolute:utils.getPermalink(item,settings,true),stored:item.category};
+        });
+      })()`);
+      for (const row of categoryLinks) {
+        check(
+          row.path === base + row.expected,
+          'Browser category permalink mismatch: ' + JSON.stringify(row)
+        );
+        check(
+          row.absolute === origin + base + row.expected,
+          'Browser absolute category URL mismatch'
+        );
+        check(row.stored === row.category, 'Browser category label was mutated');
+      }
       for (const prefix of ['admin', 'ADMIN', '%61dmin'])
         for (const actor of ['Guest', 'Root', 'Admin', 'Moderator', 'Writer', 'Member']) {
           const query = '?actor=' + actor;

@@ -31,7 +31,6 @@ const expectedEncodingOperations = {
   'public/api/reset_password.php': { htmlspecialchars: 2 },
   'public/api/save_comments.php': { htmlspecialchars: 6 },
   'public/api/submit_contact.php': { html_entity_decode: 1, htmlspecialchars: 2 },
-  'public/api/system/IndexNow.php': { html_entity_decode: 1 },
   'public/api/tools/wp_import.php': { html_entity_decode: 7, htmlspecialchars: 7 },
   'public/api/verify_email.php': { htmlspecialchars: 3 },
   'public/core/ResponseHelper.php': { html_entity_decode: 1 },

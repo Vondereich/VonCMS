@@ -596,6 +596,17 @@ if (!function_exists('voncms_category_slug')) {
   }
 }
 
+if (!function_exists('voncms_category_permalink_conflicts')) {
+  /** Category slugs are already normalized; preserve system and legacy route ownership. */
+  function voncms_category_permalink_conflicts(string $categorySlug, string $postSlug): bool
+  {
+    return !voncms_is_public_content_path($categorySlug . '/article') ||
+      in_array($categorySlug, ['backups', 'docs', 'fonts', 'themes', 'profile'], true) ||
+      (in_array($categorySlug, ['post', 'blog'], true) &&
+        preg_match('/^[1-9][0-9]*$/D', $postSlug) === 1);
+  }
+}
+
 if (!function_exists('voncms_is_homepage_path')) {
   /**
    * @param mixed $path
@@ -627,6 +638,11 @@ if (!function_exists('buildCanonicalContentPath')) {
     switch ($permalinkStyle) {
       case 'category':
         $catSlug = voncms_category_slug($content['category'] ?? 'uncategorized');
+        if (voncms_category_permalink_conflicts($catSlug, $postSlug)) {
+          return voncms_is_public_content_path('/' . $postSlug)
+            ? '/' . $postSlug
+            : '/post/' . $content['id'];
+        }
         return '/' . $catSlug . '/' . $postSlug;
       case 'date':
       case 'day_name':

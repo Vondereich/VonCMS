@@ -17,6 +17,7 @@ if (
 }
 
 require_once __DIR__ . '/../settings_audit_helper.php';
+require_once __DIR__ . '/../../seo_route_helper.php';
 
 class IndexNow
 {
@@ -493,19 +494,7 @@ class IndexNow
         }
         break;
       case 'category':
-        $category = html_entity_decode(
-          trim((string) ($post['category'] ?? 'uncategorized')),
-          ENT_QUOTES | ENT_HTML5,
-          'UTF-8',
-        );
-        $category = function_exists('mb_strtolower')
-          ? mb_strtolower($category, 'UTF-8')
-          : strtolower($category);
-        $category = preg_replace('/[^\p{L}\p{N}\s_-]+/u', '', $category);
-        $category = str_replace('_', ' ', (string) $category);
-        $category = preg_replace('/\s+/u', '-', (string) $category);
-        $category = trim((string) preg_replace('/-+/', '-', (string) $category), '-');
-        $path = '/' . ($category !== '' ? $category : 'uncategorized') . '/' . $slug;
+        $path = buildCanonicalContentPath($post, 'category');
         break;
       case 'plain':
         $path = '/post/' . $post['id'];

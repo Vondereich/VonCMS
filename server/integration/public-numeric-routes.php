@@ -624,4 +624,122 @@ if (
   throw new RuntimeException('Empty fallback or numeric validation changed.');
 }
 $checks++;
+
+// Generated category permalinks must not enter a system/folder namespace or
+// reinterpret a positive-integer slug as an unrelated legacy Post ID.
+$reservedSlugRow = $pdo->query('SELECT * FROM posts WHERE id=56')->fetch(PDO::FETCH_NUM);
+foreach ([64 => 'login', 65 => 'admin', 66 => 'rss'] as $id => $reservedSlug) {
+  $reservedSlugRow[0] = $id;
+  $reservedSlugRow[2] = $reservedSlug;
+  $insertPost->execute($reservedSlugRow);
+}
+$categoryCases = [
+  ['admin', 'ordinary', 56, '/ordinary'],
+  ['ADMIN', 'ordinary', 56, '/ordinary'],
+  ['&#97;dmin', 'ordinary', 56, '/ordinary'],
+  ['api', 'ordinary', 56, '/ordinary'],
+  ['assets', 'ordinary', 56, '/ordinary'],
+  ['backups', 'ordinary', 56, '/ordinary'],
+  ['core', 'ordinary', 56, '/ordinary'],
+  ['data', 'ordinary', 56, '/ordinary'],
+  ['docs', 'ordinary', 56, '/ordinary'],
+  ['fonts', 'ordinary', 56, '/ordinary'],
+  ['themes', 'ordinary', 56, '/ordinary'],
+  ['uploads', 'ordinary', 56, '/ordinary'],
+  ['install', 'ordinary', 56, '/ordinary'],
+  ['login', 'ordinary', 56, '/ordinary'],
+  ['profile', 'ordinary', 56, '/ordinary'],
+  ['register', 'ordinary', 56, '/ordinary'],
+  ['reset-password', 'ordinary', 56, '/ordinary'],
+  ['post', '1', 51, '/1'],
+  ['blog', '1', 51, '/1'],
+  ['post', '0', 63, '/post/0'],
+  ['blog', '0002', 52, '/blog/0002'],
+  ['post', '1e3', 53, '/post/1e3'],
+  ['post', 'ordinary', 56, '/post/ordinary'],
+  ['blog', 'ordinary', 56, '/blog/ordinary'],
+  ['Business', 'ordinary', 56, '/business/ordinary'],
+  ['Admin News', 'ordinary', 56, '/admin-news/ordinary'],
+  ['temp_update', 'ordinary', 56, '/temp-update/ordinary'],
+  ['admin', 'login', 64, '/post/64'],
+  ['core', 'admin', 65, '/post/65'],
+  ['install', 'rss', 66, '/post/66'],
+  ['Business', 'login', 64, '/business/login'],
+];
+$originalCategories = $pdo->query('SELECT id, category FROM posts')->fetchAll(PDO::FETCH_KEY_PAIR);
+$setCategory = $pdo->prepare('UPDATE posts SET category = ? WHERE id = ?');
+foreach (
+  [
+    ['/', 'https://example.test'],
+    ['/', 'https://news.example.test'],
+    ['/zangetsu/', 'http://localhost/zangetsu'],
+    ['/news/cms/', 'https://example.test/news/cms'],
+  ]
+  as [$basePath, $domainUrl]
+) {
+  $permalinkStyle = $permalinkStructureValue = 'category';
+  foreach ($categoryCases as [$category, $slug, $id, $expectedPath]) {
+    $setCategory->execute([$category, $id]);
+    $row = [
+      'id' => $id,
+      'slug' => $slug,
+      'category' => $category,
+      'created_at' => '2026-10-01 12:00:00',
+    ];
+    $canonical = buildCanonicalContentPath($row, 'category');
+    if ($canonical !== $expectedPath || $row['category'] !== $category) {
+      throw new RuntimeException(
+        'Category permalink collision: ' . json_encode([$row, $canonical, $expectedPath]),
+      );
+    }
+    $result = $runRoute(rtrim($basePath, '/') . $canonical, $basePath, $domainUrl, 'category');
+    if (
+      ($result['status'] ?? 0) !== 200 ||
+      ($result['id'] ?? null) !== $id ||
+      ($result['url'] ?? '') !== $domainUrl . $expectedPath
+    ) {
+      throw new RuntimeException(
+        'Category canonical reached the wrong record: ' . json_encode($result),
+      );
+    }
+    $checks += 2;
+    foreach ([$sitemapPath, $llmsPath] as $pathCode) {
+      $post = $row;
+      eval($pathCode);
+      if ($path !== $expectedPath) {
+        throw new RuntimeException(
+          'Crawler category URL diverged: ' . json_encode([$category, $path, $expectedPath]),
+        );
+      }
+      $checks++;
+    }
+    eval($rssBuilder);
+    if ($buildPostUrl($row) !== $domainUrl . $expectedPath) {
+      throw new RuntimeException('RSS category URL diverged.');
+    }
+    $pdo->exec('DELETE FROM settings');
+    $setting = $pdo->prepare("INSERT INTO settings VALUES('general',?,?)");
+    $setting->execute(['domain_url', $domainUrl]);
+    $setting->execute(['permalink_structure', 'category']);
+    if ((new IndexNow($pdo))->buildPostUrlForPost($id) !== $domainUrl . $expectedPath) {
+      throw new RuntimeException('IndexNow category URL diverged.');
+    }
+    $checks += 2;
+  }
+  // Legacy incoming URLs retain their established ID priority, never redirecting
+  // the private/system namespace to an article to compensate for a bad category.
+  foreach (['post/1', 'blog/1'] as $legacyPath) {
+    $legacy = $runRoute($basePath . $legacyPath, $basePath, $domainUrl, 'category');
+    if (
+      ($legacy['status'] ?? 0) !== 301 ||
+      ($legacy['location'] ?? '') !== $domainUrl . '/technology/original'
+    ) {
+      throw new RuntimeException('Legacy numeric ID priority changed: ' . json_encode($legacy));
+    }
+    $checks++;
+  }
+}
+foreach ($originalCategories as $id => $category) {
+  $setCategory->execute([$category, $id]);
+}
 echo "PASS {$checks} public numeric-route checks (source router, in-memory SQLite)\n";

@@ -320,8 +320,7 @@ try {
           $path = '/' . $postDate->format('Y') . '/' . $postDate->format('m') . '/' . $postSlug;
           break;
         case 'category':
-          $catSlug = voncms_category_slug($post['category'] ?? 'uncategorized');
-          $path = '/' . $catSlug . '/' . $postSlug;
+          $path = buildCanonicalContentPath($post, 'category');
           break;
         case 'post_name':
         case 'slug':

@@ -1771,7 +1771,12 @@ async function checkAdminSettingsReadiness() {
 }
 
 function checkCategoryFolderAdvisory() {
+  // Controlled one-layer entity case; actual DOMPurify decoding is browser-tested separately.
+  const categoryTextMock = {
+    './textUtils': { decodeEntities: (value) => String(value || '').replace(/&#97;/g, 'a') },
+  };
   const siteUtils = load('src/utils/siteUtils.ts', React, {
+    ...categoryTextMock,
     '../config/site.config': { BASE_PATH: '/zangetsu/' },
   });
   for (const folder of [
@@ -1784,9 +1789,35 @@ function checkCategoryFolderAdvisory() {
     'fonts',
     'themes',
     'uploads',
+    'admin',
+    'install',
+    'login',
+    'profile',
+    'register',
+    'reset-password',
   ]) {
     for (const category of [folder, folder.toUpperCase(), ` _${folder}_ `, `${folder}!`]) {
       assert.equal(siteUtils.getCategoryFolderConflict(category), folder);
+      assert.equal(
+        siteUtils.getPermalink({ ...posts[0], category }, { permalinkStructure: 'category' }),
+        '/zangetsu/qa-1'
+      );
+    }
+  }
+  for (const category of ['post', 'blog']) {
+    for (const slug of ['1', '123', '999999999999999999999999']) {
+      assert.equal(siteUtils.getCategoryFolderConflict(category, slug), category);
+      assert.equal(
+        siteUtils.getPermalink({ ...posts[0], category, slug }, { permalinkStructure: 'category' }),
+        `/zangetsu/${slug}`
+      );
+    }
+    for (const slug of ['0', '00', '00123', '1e3', 'ordinary']) {
+      assert.equal(siteUtils.getCategoryFolderConflict(category, slug), null);
+      assert.equal(
+        siteUtils.getPermalink({ ...posts[0], category, slug }, { permalinkStructure: 'category' }),
+        `/zangetsu/${category}/${slug}`
+      );
     }
   }
   for (const category of [
@@ -1824,8 +1855,9 @@ function checkCategoryFolderAdvisory() {
   for (const permalinkStructure of ['slug', 'category']) {
     const html = render(PostEditor, { ...props, settings: { ...settings, permalinkStructure } });
     assert.match(html, /id="post-category-path-warning" role="status" aria-live="polite"/);
-    assert.match(html, /The \/core\/ path is used by a VonCMS folder/);
-    assert.match(html, /Category &amp; Name permalinks can conflict/);
+    assert.match(html, /The \/core\/ path is used by VonCMS/);
+    assert.match(html, /this article uses a safe fallback URL instead/);
+    assert.match(html, /category name is unchanged/);
     assert.match(html, /aria-describedby="post-category-help post-category-path-warning"/);
     assert.match(html, /saving remains available/);
     assert.doesNotMatch(html, /aria-invalid=/);
@@ -1844,18 +1876,65 @@ function checkCategoryFolderAdvisory() {
   }
   assert.doesNotMatch(render(PostEditor, { ...props, isPage: true }), /id="post-category/);
   const post = { ...posts[0], category: 'Core' };
-  assert.equal(
-    siteUtils.getPermalink(post, { permalinkStructure: 'category' }),
-    '/zangetsu/core/qa-1'
-  );
+  assert.equal(siteUtils.getPermalink(post, { permalinkStructure: 'category' }), '/zangetsu/qa-1');
   assert.equal(siteUtils.getPermalink(post, { permalinkStructure: 'slug' }), '/zangetsu/qa-1');
   const rootUtils = load('src/utils/siteUtils.ts', React, {
+    ...categoryTextMock,
     '../config/site.config': { BASE_PATH: '/' },
   });
-  assert.equal(rootUtils.getPermalink(post, { permalinkStructure: 'category' }), '/core/qa-1');
+  assert.equal(rootUtils.getPermalink(post, { permalinkStructure: 'category' }), '/qa-1');
   assert.equal(rootUtils.getCategoryFolderConflict('Core'), 'core');
+  for (const [category, slug, conflict, fallbackPath] of [
+    ['admin', 'qa-1', true],
+    ['&#97;dmin', 'qa-1', true],
+    ['profile', 'qa-1', true],
+    ['post', '1', true],
+    ['blog', '1', true],
+    ['post', '0', false],
+    ['blog', '00123', false],
+    ['Admin News', 'qa-1', false],
+    ['temp_update', 'qa-1', false],
+    ['admin', 'login', true, '/post/1'],
+    ['core', 'admin', true, '/post/1'],
+    ['install', 'rss', true, '/post/1'],
+    ['Business', 'login', false],
+  ]) {
+    const item = { ...posts[0], category, slug };
+    const html = render(PostEditor, { ...props, initialItem: item });
+    assert.equal(
+      html.includes('id="post-category-path-warning"'),
+      conflict,
+      JSON.stringify({ category, slug })
+    );
+    for (const [base, domain] of [
+      ['/', 'https://example.test'],
+      ['/', 'https://news.example.test'],
+      ['/zangetsu/', 'http://localhost/zangetsu'],
+      ['/news/cms/', 'https://example.test/news/cms'],
+    ]) {
+      const utils = load('src/utils/siteUtils.ts', React, {
+        ...categoryTextMock,
+        '../config/site.config': { BASE_PATH: base },
+      });
+      const expected =
+        fallbackPath || (conflict ? `/${slug}` : `/${utils.getCategorySlug(category)}/${slug}`);
+      assert.equal(
+        utils.getPermalink(item, { permalinkStructure: 'category' }),
+        base.replace(/\/$/, '') + expected
+      );
+      assert.equal(
+        utils.getPermalink(item, { permalinkStructure: 'category', domainUrl: domain }, true),
+        domain + expected
+      );
+      assert.equal(
+        utils.getPermalink(item, { permalinkStructure: 'category' }, false, true),
+        expected
+      );
+      assert.equal(item.category, category);
+    }
+  }
   console.log(
-    'PASS Category Folder Advisory: normalized folder matches, accessible editor warning, ordinary categories/pages, enabled Publish and unchanged root/subfolder permalink behavior.'
+    'PASS Category Permalink Fallback: folder/system conflicts and legacy numeric ambiguity use Post Name; labels, valid lookalikes, ordinary category URLs, enabled Save/Publish and root/subdomain/subfolder paths are preserved.'
   );
 }
 

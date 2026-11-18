@@ -38,7 +38,7 @@ export const getCategorySlug = (category: string | null | undefined): string => 
   return slug || 'uncategorized';
 };
 
-// Advisory only: these public folders can collide with Category & Name permalinks.
+// Folder namespaces cannot safely own Category & Name article links.
 const CATEGORY_FOLDER_PATHS = new Set([
   'api',
   'assets',
@@ -51,9 +51,16 @@ const CATEGORY_FOLDER_PATHS = new Set([
   'uploads',
 ]);
 
-export const getCategoryFolderConflict = (category: string | null | undefined): string | null => {
+export const getCategoryFolderConflict = (
+  category: string | null | undefined,
+  postSlug?: string | null
+): string | null => {
   const slug = getCategorySlug(category);
-  return CATEGORY_FOLDER_PATHS.has(slug) ? slug : null;
+  const legacyIdConflict =
+    (slug === 'post' || slug === 'blog') && (postSlug == null || /^[1-9][0-9]*$/.test(postSlug));
+  return CATEGORY_FOLDER_PATHS.has(slug) || SYSTEM_ROUTE_PREFIXES.has(slug) || legacyIdConflict
+    ? slug
+    : null;
 };
 
 const SYSTEM_ROUTE_PREFIXES = new Set([
@@ -156,7 +163,11 @@ export const getPermalink = (
     case 'category': {
       // Keep client links aligned with PHP canonical, sitemap, RSS, and llms category slugs.
       const category = getCategorySlug(post.category);
-      path = `/${category}/${slug}`;
+      path = getCategoryFolderConflict(post.category, slug)
+        ? isPublicContentPath(`/${slug}`)
+          ? `/${slug}`
+          : `/post/${post.id}`
+        : `/${category}/${slug}`;
       break;
     }
     case 'post_name':
