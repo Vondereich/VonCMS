@@ -1,6 +1,7 @@
 import React from 'react';
 import { SiteSettings } from '../../../../../types';
 import { BarChart3, DollarSign, Search, CheckCircle, HelpCircle } from 'lucide-react';
+import { isSystemPluginActive } from '../../../../../utils/pluginRuntime';
 
 interface GoogleSettingsProps {
   settings: SiteSettings;
@@ -34,6 +35,8 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
 
   const googleVerification = settings.seo?.googleSearchConsole || '';
   const analyticsId = settings.analytics?.googleAnalyticsId || '';
+  const analyticsPluginActive = isSystemPluginActive(settings, 'vp_analytics');
+  const analyticsInactive = !analyticsPluginActive || settings.analytics?.enableTracking === false;
   const adsenseId = settings.ads?.adsenseVerification || '';
 
   return (
@@ -170,10 +173,14 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
           </div>
           {analyticsId.trim() ? (
             <span
-              className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${settings.analytics?.enableTracking === false ? 'text-slate-500 bg-slate-100 dark:bg-admin-hover dark:text-gray-400' : 'text-green-600 bg-green-100 dark:bg-green-900/20'}`}
+              className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${analyticsInactive ? 'text-slate-500 bg-slate-100 dark:bg-admin-hover dark:text-gray-400' : 'text-green-600 bg-green-100 dark:bg-green-900/20'}`}
             >
               <CheckCircle size={12} />
-              {settings.analytics?.enableTracking === false ? 'TRACKING DISABLED' : 'CONFIGURED'}
+              {!analyticsPluginActive
+                ? 'PLUGIN INACTIVE'
+                : settings.analytics?.enableTracking === false
+                  ? 'TRACKING DISABLED'
+                  : 'CONFIGURED'}
             </span>
           ) : (
             <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-admin-hover px-2 py-1 rounded-full dark:text-gray-400">
@@ -182,6 +189,12 @@ export const GoogleSettings: React.FC<GoogleSettingsProps> = ({ settings, onChan
           )}
         </div>
         <div className="p-6 space-y-4">
+          {analyticsId.trim() && !analyticsPluginActive && (
+            <p role="status" className="text-sm text-slate-600 dark:text-gray-400">
+              This ID is saved, but tracking is inactive. Activate VonAnalytics in Extensions &gt;
+              Plugins to enable Google Analytics.
+            </p>
+          )}
           {!canManageAnalytics && (
             <p role="status" className="text-sm text-slate-600 dark:text-gray-400">
               Read-only. Only the Primary Admin can change analytics settings.

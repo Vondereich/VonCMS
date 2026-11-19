@@ -49,6 +49,7 @@ const usePublicSettings = process.argv.includes('--public-settings');
 const useWarmActions = process.argv.includes('--warm-actions');
 const useAiDisclosure = process.argv.includes('--ai-disclosure');
 const useAdminQcFindings = process.argv.includes('--admin-qc-findings');
+const useMaintenanceUi = process.argv.includes('--maintenance-ui');
 const useEditActions = process.argv.includes('--edit-actions');
 const useTableRowHover = process.argv.includes('--table-row-hover');
 const useAdminNeutral =
@@ -1149,6 +1150,15 @@ async function main() {
       },
     }).outputText;
   if (useSvgLogo) fixture = require('./integration/media/svg-browser.cjs').fixture;
+  if (useMaintenanceUi)
+    fixture = ts.transpileModule(require('./integration/maintenance/browser.cjs').fixture, {
+      fileName: 'maintenance-fixture.tsx',
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    }).outputText;
   if (useActivityLive) fixture = require('./integration/activity/live.cjs').fixture;
   if (useToastLong) {
     const appAst = ts.createSourceFile(
@@ -1759,6 +1769,18 @@ createRoot(document.getElementById('root')).render(<>${toasters[0]}</>);`,
         wait,
         port,
         backend: activityLiveFixture,
+        errors,
+      });
+      return;
+    }
+    if (useMaintenanceUi) {
+      await require('./integration/maintenance/browser.cjs').verify({
+        send,
+        evaluate,
+        evaluateFunction,
+        wait,
+        metrics,
+        port,
         errors,
       });
       return;

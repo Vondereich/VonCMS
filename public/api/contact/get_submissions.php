@@ -40,7 +40,7 @@ try {
         SELECT s.*, f.title as form_name 
         FROM contact_submissions s
         LEFT JOIN contact_forms f ON s.form_id = f.id
-        ORDER BY s.created_at DESC
+        ORDER BY s.created_at DESC, s.id DESC
         LIMIT $limit OFFSET $offset
     ");
   if ($stmt === false) {

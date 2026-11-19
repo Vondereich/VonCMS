@@ -18,6 +18,7 @@ import { ContactForm } from '../../types';
 import { API } from '../../config/site.config';
 import { getAuthHeader } from '../../config/auth.config';
 import { getErrorMessage, vonFetch } from '../../utils/api';
+import ContactSubmissions from './contact/ContactSubmissions';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 const LEGACY_VONCMS_EMAIL_DOMAIN = ['von', 'cms'].join('') + '.com';
@@ -64,7 +65,7 @@ const DEFAULT_MESSAGES = {
 const ContactManager = () => {
   const [forms, setForms] = useState<ContactForm[]>([]);
   const [currentForm, setCurrentForm] = useState<ContactForm | null>(null);
-  const [view, setView] = useState<'list' | 'edit'>('list');
+  const [view, setView] = useState<'list' | 'edit' | 'submissions'>('list');
   const [activeTab, setActiveTab] = useState<'form' | 'mail' | 'messages'>('form');
   const [loading, setLoading] = useState(false);
 
@@ -187,6 +188,8 @@ const ContactManager = () => {
     toast.success('Shortcode copied to clipboard');
   };
 
+  if (view === 'submissions') return <ContactSubmissions onBack={() => setView('list')} />;
+
   if (view === 'list') {
     return (
       <div className="mx-auto max-w-6xl animate-fade-in">
@@ -198,6 +201,13 @@ const ContactManager = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setView('submissions')}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-700 dark:border-admin-border dark:bg-admin-panel dark:text-gray-200"
+            >
+              <Mail size={18} /> Submissions
+            </button>
             <button
               onClick={handleMigrate}
               disabled={loading}

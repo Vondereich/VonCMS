@@ -1392,6 +1392,8 @@ try {
 
 const releasePathPolicy = require(resolveFromRoot('server/release-path-policy.cjs'));
 const forbiddenReleasePolicyFixtures = [
+  'public/data/install_setup.key.php',
+  'data/install_setup.key.php.partial',
   'public/von_config.php',
   'public/data/site_settings.json',
   'public/data/site_settings.json.a1b2c3.tmp',
@@ -1409,6 +1411,7 @@ const forbiddenReleasePolicyFixtures = [
   'public/database.sqlite',
 ];
 const allowedReleasePolicyFixtures = [
+  'public/core/RuntimeLogging.php',
   'public/von_config.sample.php',
   'public/install.sql',
   'src/data/site_settings.json',
@@ -4125,23 +4128,21 @@ if (
     'Configuration Sample Direct Guard: the tracked configuration template can execute directly or its guard runs too late.'
   );
 }
+const runtimeLoggingContent = read('public/core/RuntimeLogging.php');
 const runtimeStoragePathsArePrivate =
   read('public/core/RateLimiter.php').includes("__DIR__ . '/../data/rate_limits/'") &&
   !read('public/security.php').includes("__DIR__ . '/../data/rate_limits/'") &&
-  configSampleContent.includes("$_SERVER['DOCUMENT_ROOT']") &&
-  configSampleContent.includes("dirname($documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
-  configSampleContent.includes("rtrim(sys_get_temp_dir(), '/\\\\')") &&
-  configSampleContent.includes("substr(hash('sha256', __DIR__), 0, 16)") &&
-  configSampleContent.includes('@mkdir($logDir, 0700, true)') &&
-  configSampleContent.includes("$logDir . '/php_error_dev.log'") &&
-  configSampleContent.includes("getenv('VONCMS_ENV') ?: 'production'") &&
-  installContent.includes("\\$_SERVER['DOCUMENT_ROOT']") &&
-  installContent.includes("dirname(\\$documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
-  installContent.includes("rtrim(sys_get_temp_dir(), '/\\\\\\\\')") &&
-  installContent.includes("substr(hash('sha256', __DIR__), 0, 16)") &&
-  installContent.includes('@mkdir(\\$logDir, 0700, true)') &&
-  installContent.includes("\\$logDir . '/php_error_dev.log'") &&
-  installContent.includes("getenv('VONCMS_ENV') ?: 'production'");
+  [configSampleContent, installContent].every(
+    (source) =>
+      source.includes('RuntimeLogging::configure(__DIR__);') &&
+      source.includes('/core/RuntimeLogging.php')
+  ) &&
+  runtimeLoggingContent.includes("dirname($documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
+  runtimeLoggingContent.includes("substr(hash('sha256', $installationRoot), 0, 16)") &&
+  runtimeLoggingContent.includes("ini_get('open_basedir')") &&
+  /if \(!self::allowedPath\(\$logDir\)\)\s*\{\s*continue;/.test(runtimeLoggingContent) &&
+  runtimeLoggingContent.includes('@mkdir($logDir, 0700, true)') &&
+  runtimeLoggingContent.includes("getenv('VONCMS_ENV') ?: 'production'");
 if (runtimeStoragePathsArePrivate) {
   pass(
     'Private Runtime Storage: rate limits remain under denied application data while PHP error logs use a private per-install directory outside the document root with a private temporary fallback, and development display requires an explicit environment opt-in.'
@@ -18807,6 +18808,29 @@ if (phpBinary) {
   }
 }
 if (phpBinary) {
+  const installerProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/maintenance/installer.cjs')],
+    {
+      encoding: 'utf8',
+      timeout: 120000,
+    }
+  );
+  if (installerProbe.status === 0 && installerProbe.stdout.startsWith('PASS ')) {
+    pass(installerProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail(
+      'Installer HTTP boundaries: ' +
+        (
+          installerProbe.stderr ||
+          installerProbe.stdout ||
+          installerProbe.error?.message ||
+          'No result'
+        ).trim()
+    );
+  }
+}
+if (phpBinary) {
   for (const file of ['run.php', 'endpoint.php']) {
     const probe = spawnSync(phpBinary, [resolveFromRoot(`server/integration/activity/${file}`)], {
       encoding: 'utf8',
@@ -19544,7 +19568,7 @@ $_SERVER['SCRIPT_NAME'] = '/installer-proxy-boundary-probe.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $fixtureDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-installer-key-' . bin2hex(random_bytes(6));
 if (!mkdir($fixtureDir, 0700, true)) exit(2);
-$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key';
+$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key.php';
 define('VONCMS_INSTALL_SETUP_KEY_PATH', $keyPath);
 require ${JSON.stringify(resolveFromRoot('public/security.php'))};
 register_shutdown_function(static function () use ($keyPath, $fixtureDir) {
@@ -19552,7 +19576,7 @@ register_shutdown_function(static function () use ($keyPath, $fixtureDir) {
   @rmdir($fixtureDir);
 });
 if (!InstallBootstrap::ensureKey()) exit(3);
-$key = trim((string) file_get_contents($keyPath));
+$key = trim(explode("\n", (string) file_get_contents($keyPath), 2)[1] ?? '');
 if (!preg_match('/^[a-f0-9]{64}$/', $key) || !InstallBootstrap::claim($key)) exit(4);
 if (InstallBootstrap::claim($key) || InstallBootstrap::validate(str_repeat('0', 64))) exit(5);
 InstallBootstrap::consume();
@@ -19615,10 +19639,10 @@ echo 'ok';`,
 if (!mkdir($fixtureDir, 0700, true)) exit(2);
 $sessionDir = $fixtureDir . DIRECTORY_SEPARATOR . 'sessions';
 if (!mkdir($sessionDir, 0700, true)) exit(3);
-$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key';
+$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key.php';
 $workerPath = $fixtureDir . DIRECTORY_SEPARATOR . 'worker.php';
 $key = str_repeat('a', 64);
-$keyContents = $key . PHP_EOL;
+$keyContents = '<?php http_response_code(403); exit; ?>' . "\n" . $key . "\n";
 if (file_put_contents($keyPath, $keyContents, LOCK_EX) !== strlen($keyContents)) exit(4);
 $securityPath = ${JSON.stringify(resolveFromRoot('public/security.php'))};
 $worker = '<?php\n'
@@ -19628,7 +19652,7 @@ $worker = '<?php\n'
   . '$_SERVER["REQUEST_METHOD"] = "GET";\n'
   . 'define("VONCMS_INSTALL_SETUP_KEY_PATH", $argv[1]);\n'
   . 'require ' . var_export($securityPath, true) . ';\n'
-  . '$key = trim((string) @file_get_contents($argv[1]));\n'
+  . '$key = str_repeat("a", 64);\n'
   . 'if (!InstallBootstrap::claim($key)) exit(20);\n'
   . 'echo "claimed\\n"; flush();\n'
   . 'if (($argv[2] ?? "") === "hold") { fgets(STDIN); exit(0); }\n'
@@ -21356,6 +21380,8 @@ require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
     ['admin', { id: 223 }, 1, 1, 1, 200, 223, false],
     ['moderator', { id: 223 }, 1, 1, 1, 200, 223, false],
     ['root', {}, 200, 224, 1, 200, 224, true],
+    ['root', { view: 'menu', limit: 200 }, 200, 224, 1, 200, 224, true],
+    ['guest', { view: 'menu', limit: 20 }, 20, 222, 1, 20, 222, true],
   ];
   for (const [role, query, count, total, page, limit, firstId, hasMore] of pageReadCases) {
     const pageReadProbe = spawnSync(
@@ -21388,7 +21414,7 @@ require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
       (firstId === null || pageReadRows[0]?.id === String(firstId)) &&
       pageReadRows.every(
         (row) =>
-          row.content === 'Complete page body 😀. '.repeat(40) &&
+          row.content === (query.view === 'menu' ? '' : 'Complete page body 😀. '.repeat(40)) &&
           row.excerpt === 'Page excerpt 中文 😀' &&
           row.meta_description === 'Explicit page meta description.' &&
           (['root', 'admin', 'moderator'].includes(role) ||

@@ -17,6 +17,7 @@ const modules = [
   'ResponseHelper',
   'CredentialStore',
   'DataBoundary',
+  'RuntimeLogging',
 ];
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-core-paths-'));
 let assertions = 0;
@@ -100,12 +101,12 @@ if (!is_file($expectedRoot . '/data/credential_master.key.php')) exit(31);
 $rate = (new ReflectionClass(RateLimiter::class))->getStaticProperties()['storageDir'];
 if (realpath($rate) !== realpath($expectedRoot . '/data/rate_limits')) exit(12);
 $key = (new ReflectionMethod(InstallBootstrap::class, 'keyPath'))->invoke(null);
-if (realpath(dirname($key)) !== realpath($expectedRoot . '/data') || basename($key) !== 'install_setup.key') exit(13);
+if (realpath(dirname($key)) !== realpath($expectedRoot . '/data') || basename($key) !== 'install_setup.key.php') exit(13);
 if (!RateLimiter::consumeAttempt('core-path-qa')) exit(14);
 if (!is_file($expectedRoot . '/data/rate_limits/' . md5('core-path-qa') . '.json')) exit(15);
 if (is_dir($expectedRoot . '/core/data')) exit(16);
-if (!InstallBootstrap::ensureKey() || !is_file($expectedRoot . '/data/install_setup.key')) exit(17);
-$candidate = trim(file_get_contents($key));
+if (!InstallBootstrap::ensureKey() || !is_file($expectedRoot . '/data/install_setup.key.php')) exit(17);
+$candidate = trim(explode("\n", file_get_contents($key), 2)[1] ?? '');
 if (!InstallBootstrap::validate($candidate) || !InstallBootstrap::claim($candidate) || InstallBootstrap::claim($candidate)) exit(18);
 InstallBootstrap::consume();
 if (is_file($key)) exit(19);

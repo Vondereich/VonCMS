@@ -111,8 +111,11 @@ try {
   $total = (int) $totalStmt->fetchColumn();
 
   $publishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');
+  // Menu Quick Add needs identities and labels, not every Page body.
+  $contentSql =
+    DataBoundary::inputText($_GET['view'] ?? '') === 'menu' ? "'' AS content" : 'p.content';
   $stmt = $pdo->prepare(
-    "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.status, p.keywords, p.meta_description, p.author_id, p.created_at, p.updated_at, {$publishedAtSql}, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name
+    "SELECT p.id, p.title, p.slug, {$contentSql}, p.excerpt, p.status, p.keywords, p.meta_description, p.author_id, p.created_at, p.updated_at, {$publishedAtSql}, $authorNameSql as author_name, u.username as author_username, $authorDisplayNameSql as author_display_name
      FROM pages p
      LEFT JOIN users u ON p.author_id = u.id
      $statusClause

@@ -95,20 +95,20 @@ inspection, but it cannot replace host-root robots configuration.
 2. Installer Wizard starts automatically
 3. Fill in:
 
-| Field          | Example                  |
-| -------------- | ------------------------ |
-| DB Host        | `localhost`              |
-| DB Name        | `my_site`                |
-| DB User        | `root`                   |
-| DB Password    | _(your password)_        |
-| Setup Key      | `data/install_setup.key` |
-| Admin Username | `admin`                  |
-| Admin Email    | `admin@site.com`         |
-| Admin Password | `MyP@ss123!`             |
+| Field          | Example                      |
+| -------------- | ---------------------------- |
+| DB Host        | `localhost`                  |
+| DB Name        | `my_site`                    |
+| DB User        | `root`                       |
+| DB Password    | _(your password)_            |
+| Setup Key      | `data/install_setup.key.php` |
+| Admin Username | `admin`                      |
+| Admin Email    | `admin@site.com`             |
+| Admin Password | `MyP@ss123!`                 |
 
 > **Password:** 8+ chars, 1 uppercase, 1 number, 1 symbol
 
-> **Setup key:** After opening the installer, open `data/install_setup.key` in your hosting File Manager, or download it through SFTP and open it in a plain-text editor such as Notepad. Copy **only the 64-character key** into the **Installer setup key** field, not the filename, quotes or additional text. Do not insert spaces within the key. Avoid Word or LibreOffice, which may introduce formatting characters when copying.
+> **Setup key:** After opening the installer, open `data/install_setup.key.php` through your hosting File Manager or SFTP in a plain-text editor such as Notepad. Copy **only the 64-character key on the line below the PHP guard** into the **Installer setup key** field. Do not copy or edit the guard, filename or additional text. The browser URL intentionally refuses access. Avoid Word or LibreOffice, which may introduce formatting characters. Pending installations updated from the older plaintext-key format receive a new key; read the new file instead of reusing the old value. Nginx/OpenLiteSpeed still require their documented protection rules before installation.
 >
 > Ordinary spaces and line breaks before or after the key are ignored automatically. Spaces inside the key or other extra characters cause a validation error before database changes; copy the key again and retry. The data directory is blocked from web access, and VonCMS removes the key after installation succeeds.
 

@@ -380,6 +380,63 @@ function voncms_validate_plugin_config_node(mixed $value, int $depth = 0): void
   }
 }
 
+/**
+ * @param array<array-key, mixed> $config
+ * @return array<array-key, mixed>
+ */
+function voncms_normalize_promo_schedule(array $config, string $timeZone): array
+{
+  try {
+    $zone = new DateTimeZone($timeZone);
+  } catch (Throwable $e) {
+    throw new InvalidArgumentException('The announcement timezone is invalid.');
+  }
+  foreach (['startsAt', 'endsAt'] as $key) {
+    if (!array_key_exists($key, $config)) {
+      continue;
+    }
+    if (!is_string($config[$key])) {
+      throw new InvalidArgumentException('Use a valid announcement date and time.');
+    }
+    $value = trim($config[$key]);
+    if ($value === '') {
+      $config[$key] = '';
+      continue;
+    }
+    if (
+      !preg_match(
+        '/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/',
+        $value,
+        $parts,
+      )
+    ) {
+      throw new InvalidArgumentException('Use a valid announcement date and time.');
+    }
+    $format =
+      '!Y-m-d\TH:i' .
+      (isset($parts[3]) && $parts[3] !== '' ? ':s' : '') .
+      (isset($parts[4]) && $parts[4] !== '' ? '.u' : '') .
+      (isset($parts[5]) ? 'P' : '');
+    $date = DateTimeImmutable::createFromFormat($format, str_replace(' ', 'T', $value), $zone);
+    $errors = DateTimeImmutable::getLastErrors();
+    $wallClock = $parts[1] . 'T' . $parts[2] . ':' . (($parts[3] ?? '') !== '' ? $parts[3] : '00');
+    if (
+      $date === false ||
+      ($errors !== false && ($errors['warning_count'] || $errors['error_count'])) ||
+      $date->format('Y-m-d\TH:i:s') !== $wallClock
+    ) {
+      throw new InvalidArgumentException('Use a valid announcement date and time.');
+    }
+    $config[$key] = $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.v\Z');
+  }
+  $start = $config['startsAt'] ?? '';
+  $end = $config['endsAt'] ?? '';
+  if ($start !== '' && $end !== '' && strcmp((string) $end, (string) $start) <= 0) {
+    throw new InvalidArgumentException('The announcement end must be after its start.');
+  }
+  return $config;
+}
+
 if (array_key_exists('activePlugins', $settings)) {
   $settings['activePlugins'] = voncms_normalize_active_plugins($settings['activePlugins']);
 }
@@ -394,6 +451,31 @@ if (array_key_exists('pluginConfig', $settings)) {
   }
 
   voncms_validate_plugin_config_node($settings['pluginConfig']);
+
+  if (isset($settings['pluginConfig']['vp_promo_bar'])) {
+    $promo = $settings['pluginConfig']['vp_promo_bar'];
+    if (!is_array($promo)) {
+      ResponseHelper::sendError('Invalid announcement configuration.', 400);
+    }
+    if (array_key_exists('startsAt', $promo) || array_key_exists('endsAt', $promo)) {
+      $timeZoneStmt = $pdo->prepare(
+        "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'time_zone' LIMIT 1",
+      );
+      $timeZoneStmt->execute();
+      $storedTimeZone = $timeZoneStmt->fetchColumn();
+      $timeZone = DataBoundary::inputText(
+        $settings['timeZone'] ?? (is_string($storedTimeZone) ? $storedTimeZone : 'UTC'),
+      );
+      try {
+        $settings['pluginConfig']['vp_promo_bar'] = voncms_normalize_promo_schedule(
+          $promo,
+          $timeZone,
+        );
+      } catch (InvalidArgumentException $e) {
+        ResponseHelper::sendError($e->getMessage(), 400);
+      }
+    }
+  }
 
   if (isset($settings['pluginConfig']['pluginStatus'])) {
     $pluginStatus = $settings['pluginConfig']['pluginStatus'];

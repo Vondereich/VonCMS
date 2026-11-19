@@ -10,6 +10,7 @@ import {
   formatDate,
   getPermalink,
   getPostPublishTimestamp,
+  normalizeSchemaDateTime,
   normalizeSiteUrl,
 } from '../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
@@ -38,7 +39,7 @@ const formatSidebarFreshness = (
 ): string | null => {
   if (!dateValue) return null;
 
-  const timestamp = new Date(dateValue).getTime();
+  const timestamp = new Date(normalizeSchemaDateTime(dateValue, settings.timeZone) || '').getTime();
   if (!Number.isFinite(timestamp)) return null;
 
   const minuteMs = 60 * 1000;

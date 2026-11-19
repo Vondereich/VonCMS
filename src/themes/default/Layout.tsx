@@ -1354,16 +1354,22 @@ const HomeView: React.FC<{
                 <FileQuestion size={48} className="text-neutral-300 dark:text-neutral-600" />
               </div>
               <h3 className="text-2xl font-bold text-neutral-800 dark:text-white mb-2">
-                No results found for "{activeSearchQuery}"
+                {activeSearchQuery
+                  ? `No results found for "${activeSearchQuery}"`
+                  : selectedCategory
+                    ? 'No articles in this category yet.'
+                    : 'No articles published yet.'}
               </h3>
-              <div className="flex flex-wrap justify-center gap-3">
-                <button
-                  onClick={onClearSearch}
-                  className="px-6 py-3 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30"
-                >
-                  Clear Search & Show All
-                </button>
-              </div>
+              {(activeSearchQuery || selectedCategory) && (
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={onClearSearch}
+                    className="px-6 py-3 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30"
+                  >
+                    {activeSearchQuery ? 'Clear Search & Show All' : 'Show All Articles'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {/* Load More Button */}

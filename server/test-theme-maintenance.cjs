@@ -121,6 +121,11 @@ function load(file, react = React, mocks = {}, runtime = {}, extraExports = '', 
     if (/settingsDraft(?:\.ts)?$/.test(name)) return load('src/utils/settingsDraft.ts');
     if (name.endsWith('/shared/themeSettings')) return load('src/themes/shared/themeSettings.ts');
     if (name.endsWith('/shared/themeColors')) return load('src/themes/shared/themeColors.ts');
+    if (name.endsWith('/utils/dateFormat')) return load('src/utils/dateFormat.ts');
+    if (name === './schedule' && file.includes('promo-bar/'))
+      return load('src/plugins/von-core/features/plugins/built-in/promo-bar/schedule.ts');
+    if (name.endsWith('/providers/VonProviders'))
+      return { ...helpers, usePlugin: () => ({ timeZone: 'UTC' }) };
     if (name.endsWith('/corporate-pro/config')) return load('src/themes/corporate-pro/config.ts');
     if (name === '../config' && file.includes('themes/corporate-pro/'))
       return load('src/themes/corporate-pro/config.ts');
@@ -258,7 +263,20 @@ function checkPromoBarOptionalCta() {
         })
       );
     dismissedAt = String(Date.now());
-    assert.equal(banner({}), '', 'legacy settings still honor a recent dismissal');
+    assert.match(
+      banner({}),
+      /QA announcement/,
+      'Unidentified legacy dismissals must not hide a new campaign'
+    );
+    const campaign = JSON.stringify(['QA announcement', '#details', 'Click Here', '', '']);
+    dismissedAt = JSON.stringify({ campaign, at: Date.now() });
+    assert.equal(banner({}), '', 'The same campaign honors a recent dismissal');
+    assert.match(
+      renderToStaticMarkup(
+        PromoBarPlugin.render('header_top', { text: 'Different campaign', linkUrl: '#details' })
+      ),
+      /Different campaign/
+    );
     const readsBeforeDisabled = storageReads;
     const persistent = banner({ allowDismiss: false });
     assert.match(persistent, /QA announcement/);
@@ -267,7 +285,7 @@ function checkPromoBarOptionalCta() {
     assert.equal(storageReads, readsBeforeDisabled);
     assert.equal(banner({ allowDismiss: false, endsAt: '2000-01-01T00:00:00Z' }), '');
     assert.equal(banner({ allowDismiss: true }), '', 're-enabled dismissal respects its timer');
-    dismissedAt = String(Date.now() - 3 * 60 * 60 * 1000);
+    dismissedAt = JSON.stringify({ campaign, at: Date.now() - 3 * 60 * 60 * 1000 });
     assert.match(banner({ allowDismiss: true, dismissHours: 2 }), /Dismiss announcement/);
   }
   console.log('PASS Promo Bar: optional CTA, dismissal toggle, expiry and campaign window.');
@@ -969,9 +987,12 @@ function checkSettingsPresentation() {
       else assert.equal(change.value.performance.lazyLoadImages, true);
     }
   }
-  const Google = load(`${directory}GoogleSettings.tsx`).GoogleSettings;
+  const Google = load(`${directory}GoogleSettings.tsx`, React, {
+    '../../../../../utils/pluginRuntime': load('src/utils/pluginRuntime.ts'),
+  }).GoogleSettings;
   const googleSettings = (value, enableTracking = true) => ({
     ...settings,
+    activePlugins: ['vp_analytics'],
     seo: { googleSearchConsole: value },
     analytics: { googleAnalyticsId: value, enableTracking },
     ads: { ...settings.ads, adsenseVerification: value },
@@ -5249,42 +5270,59 @@ async function checkDiscoveryRouteFetch() {
   );
 }
 
-checkPromoBarOptionalCta();
-checkRelatedMemoOwnership();
-checkPortfolioNavigationResolver();
-checkGoogleTrackingRuntime();
-checkThemeStartupMetadata();
-checkContentManagerActions();
-checkContentManagerExcerpts();
-checkCategoryFolderAdvisory();
-checkPublicPluginHydration();
-checkLeanPublicThemeRendering();
-checkSettingsPresentation();
-checkAdsManager();
-checkAdminSettingsReadiness()
-  .then(checkNativeCrawlerTracking)
-  .then(checkDiscoveryRouteFetch)
-  .then(checkRelatedCandidateReliability)
-  .then(checkAiSettingsModels)
-  .then(checkSettingsDraftLifecycle)
-  .then(checkAiKeyStorageUi)
-  .then(checkAiKeyRotationUi)
-  .then(checkMediaSettingsRuntime)
-  .then(checkIndexNowReadOnly)
-  .then(checkAnalyticsReadOnly)
-  .then(checkPublicProfileArticles)
-  .then(checkSettings)
-  .then(checkOtherCustomizers)
-  .then(checkNewsletterPagination)
-  .then(checkNewsletterSaveResult)
-  .then(checkAvatarState)
-  .then(checkDiscussionPostLinks)
-  .then(() => {
-    console.log(
-      'PASS Theme Maintenance Runtime: global limits, account placeholders, comments, animations, Digest article retention, six independent customizers, legacy appearance migration, public settings projection, and latest-settings draft merge.'
-    );
-  })
-  .catch((error) => {
+const checkMaintenanceCorrections = () =>
+  require('./integration/maintenance/runtime.cjs')({
+    load,
+    React,
+    shared,
+    settings,
+    renderToStaticMarkup,
+  });
+
+if (process.argv.includes('--maintenance-qc')) {
+  checkMaintenanceCorrections().catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });
+} else {
+  checkPromoBarOptionalCta();
+  checkRelatedMemoOwnership();
+  checkPortfolioNavigationResolver();
+  checkGoogleTrackingRuntime();
+  checkThemeStartupMetadata();
+  checkContentManagerActions();
+  checkContentManagerExcerpts();
+  checkCategoryFolderAdvisory();
+  checkPublicPluginHydration();
+  checkLeanPublicThemeRendering();
+  checkSettingsPresentation();
+  checkAdsManager();
+  checkAdminSettingsReadiness()
+    .then(checkNativeCrawlerTracking)
+    .then(checkDiscoveryRouteFetch)
+    .then(checkRelatedCandidateReliability)
+    .then(checkAiSettingsModels)
+    .then(checkSettingsDraftLifecycle)
+    .then(checkAiKeyStorageUi)
+    .then(checkAiKeyRotationUi)
+    .then(checkMediaSettingsRuntime)
+    .then(checkIndexNowReadOnly)
+    .then(checkAnalyticsReadOnly)
+    .then(checkPublicProfileArticles)
+    .then(checkSettings)
+    .then(checkOtherCustomizers)
+    .then(checkNewsletterPagination)
+    .then(checkNewsletterSaveResult)
+    .then(checkAvatarState)
+    .then(checkDiscussionPostLinks)
+    .then(checkMaintenanceCorrections)
+    .then(() => {
+      console.log(
+        'PASS Theme Maintenance Runtime: global limits, account placeholders, comments, animations, Digest article retention, six independent customizers, legacy appearance migration, public settings projection, and latest-settings draft merge.'
+      );
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+}

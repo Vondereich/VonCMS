@@ -68,6 +68,11 @@ $honeypot = (string) $honeypot;
 
 // Honeypot check
 if ($honeypot !== '') {
+  require_once __DIR__ . '/security/SecurityLogger.php';
+  SecurityLogger::log('honeypot_caught', 'medium', [
+    'context' => 'newsletter',
+    'field' => 'hp_field',
+  ]);
   error_log(
     'Honeypot triggered during newsletter subscription from IP: ' .
       DataBoundary::serverString('REMOTE_ADDR', 'unknown'),

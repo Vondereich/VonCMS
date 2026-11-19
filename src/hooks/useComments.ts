@@ -6,6 +6,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Comment, User } from '../types';
 import { API } from '../config/site.config';
 import { vonFetch } from '../utils/api';
+import { setCsrfToken } from '../utils/security';
 import toast from 'react-hot-toast';
 
 const getCommentNumericId = (comment: Pick<Comment, 'id' | 'dbId'>): string =>
@@ -97,7 +98,7 @@ export function useComments(initialComments: Comment[] = []) {
         body: JSON.stringify({ action, ...data }),
       });
       const result = await res.json();
-      return result;
+      return { ...result, httpStatus: res.status };
     } catch (e) {
       console.error('Comment API error:', e);
       return { success: false };
@@ -107,7 +108,10 @@ export function useComments(initialComments: Comment[] = []) {
   // Add new comment
   const handleAddComment = useCallback(
     async (postId: string, content: string, user: User | null, onRequireAuth: () => void) => {
-      if (!user) return onRequireAuth();
+      if (!user) {
+        onRequireAuth();
+        throw new Error('Please sign in before commenting.');
+      }
 
       // Generate proper avatar URL
       // If user has a custom avatar URL, use it.
@@ -131,6 +135,7 @@ export function useComments(initialComments: Comment[] = []) {
       setComments((prev) => [...prev, newComment]);
 
       const result = await saveCommentToDb('add', {
+        requireAuth: true,
         postId,
         userId: user.id,
         username: user.username,
@@ -143,7 +148,11 @@ export function useComments(initialComments: Comment[] = []) {
       } else {
         // Rollback optimistic update
         setComments((prev) => prev.filter((c) => c.id !== tempId));
-        toast.error(result.error || result.message || 'Failed to post comment');
+        if (result.httpStatus === 401) {
+          setCsrfToken('');
+          onRequireAuth();
+        }
+        throw new Error(result.error || result.message || 'Failed to post comment');
       }
     },
     []
@@ -152,7 +161,10 @@ export function useComments(initialComments: Comment[] = []) {
   // Reply to comment — uses functional state update to avoid stale closure
   const handleReplyComment = useCallback(
     async (commentId: string, content: string, user: User | null, onRequireAuth: () => void) => {
-      if (!user) return onRequireAuth();
+      if (!user) {
+        onRequireAuth();
+        throw new Error('Please sign in before replying.');
+      }
 
       const parentIdNum = commentId.replace(/[^0-9]/g, '');
       const tempId = `r-${Date.now()}`;
@@ -164,7 +176,8 @@ export function useComments(initialComments: Comment[] = []) {
       // ensures the API save path always has the correct postId even if
       // the functional updater runs before comments are fully loaded.
       const parentComment = comments.find((c) => c.id === commentId);
-      if (!parentComment) return;
+      if (!parentComment)
+        throw new Error('This comment is no longer available. Reload before replying.');
 
       // Optimistic update using fresh parent data
       setComments((prev) => {
@@ -192,6 +205,7 @@ export function useComments(initialComments: Comment[] = []) {
       });
 
       const result = await saveCommentToDb('add', {
+        requireAuth: true,
         postId: parentComment.postId,
         parentId: parentIdNum,
         userId: user.id,
@@ -222,7 +236,11 @@ export function useComments(initialComments: Comment[] = []) {
             return c;
           })
         );
-        toast.error(result.error || result.message || 'Failed to post reply');
+        if (result.httpStatus === 401) {
+          setCsrfToken('');
+          onRequireAuth();
+        }
+        throw new Error(result.error || result.message || 'Failed to post reply');
       }
     },
     [comments]

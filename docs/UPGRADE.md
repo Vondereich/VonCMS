@@ -8,6 +8,23 @@ The public submission quota component itself needs no database migration. It cre
 
 **Database backups:** Generate a new SQL backup after applying these files and verify a restore in isolation. Manual and pre-import backups exclude computed columns (including repaired listing timestamps) but retain ordinary stored timestamps. Affected older dumps that insert generated values are rejected before DROP/CREATE; they must be regenerated or corrected using a trusted database tool. This is not an automatic conversion of old backups or an atomic DDL restore: keep an independent, verified recovery copy. Settings Rollback now refreshes maintenance state and the compatibility JSON; a mirror refresh warning means the database change succeeded but fallback readers may still be stale.
 
+**Installer and logging templates:** Pending installations now use `data/install_setup.key.php`; obsolete plaintext setup keys are not accepted. Existing installed accounts/database configuration are unchanged. New generated configurations and the manual sample use `core/RuntimeLogging.php`, which respects `open_basedir` and keeps the host's PHP log when no private application log directory is allowed. OTA does not rewrite your existing private `von_config.php`. If an older configuration reports `open_basedir` warnings in its logging block, back it up and replace only that block with the following; do not replace database credentials or other custom configuration:
+
+```php
+if (PHP_SAPI !== 'cli') {
+  ini_set('display_errors', '0');
+  ini_set('log_errors', '1');
+}
+$runtimeLogging = __DIR__ . '/core/RuntimeLogging.php';
+if (is_file($runtimeLogging)) {
+  require_once $runtimeLogging;
+  RuntimeLogging::configure(__DIR__);
+}
+unset($runtimeLogging);
+```
+
+Keep the web-server protection rules in place. The PHP guard on the setup key is an additional layer, not protection for every file under `data/`.
+
 **Managed routing:** After applying v1.28.3 through OTA or another update that preserves `.htaccess`, Primary Admin should run **System Tools > Repair `.htaccess`** once. This refreshes the managed rules while preserving hosting-specific directives outside the VonCMS block; the routing fix does not require a database migration.
 
 The v1.28.3 release introduces private personal Gemini keys. After applying the files, Primary Admin must run **Database Repair** to create `user_ai_keys` and the private API-settings lock anchor before using personal/shared credential actions. Fresh installations create both automatically. Existing shared credentials and expiry are preserved; no personal key is invented for existing users. Writer/Moderator gain only an own-account User Manager view, not general user-management permission. Analytics and publishing policy are unchanged. Use a published package for production.

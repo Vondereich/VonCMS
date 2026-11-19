@@ -64,6 +64,7 @@ function walkSync(dir, baseDir = basePath) {
       normalizedRelativePath === 'public/data/schema-capabilities.json' ||
       normalizedRelativePath.startsWith('public/data/schema-capabilities.json.') ||
       normalizedRelativePath === 'public/data/install_setup.key' ||
+      normalizedRelativePath === 'public/data/install_setup.key.php' ||
       normalizedRelativePath.startsWith('public/data/media_cleanup_previews/') ||
       normalizedRelativePath.startsWith('data/backups/') ||
       normalizedRelativePath.startsWith('data/public-cache/') ||
@@ -119,6 +120,7 @@ try {
     'data/generated_media_variants.lock',
     'data/schema-capabilities.json',
     'data/install_setup.key',
+    'data/install_setup.key.php',
     'data/media_cleanup_previews',
   ].forEach((item) => {
     const itemPath = path.join(basePath, 'dist', item);

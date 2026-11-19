@@ -431,7 +431,7 @@ Fill in:
 - admin username
 - admin email
 - admin password
-- the one-time value from `data/install_setup.key`, read through SSH or the hosting File Manager after the installer first opens
+- the one-time value from `data/install_setup.key.php`, read through SSH or the hosting File Manager after the installer first opens; copy only the 64-character line below the PHP guard, not the guard itself
 
 The admin password must be at least 8 characters and include an uppercase letter, a number, and one special character from `!@#$%^&*(),.?":{}|<>`. For example, `MyPass1!`. Weak passwords are rejected by the installer.
 
@@ -577,7 +577,7 @@ Check:
 - Nginx rewrite rules are present
 - PHP 8.3+ is selected
 - PHP-FPM can write `von_config.php` and `install.lock`
-- PHP-FPM can create and remove `data/install_setup.key`
+- PHP-FPM can create and remove `data/install_setup.key.php`
 - The extracted files have the correct owner
 - The Deploy ZIP contents are directly inside the site root
 

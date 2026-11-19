@@ -238,6 +238,10 @@ Let both import and final link-resolution phases finish. A failed item pauses wi
 
 Verify article bodies, source-URL redirects, metadata and images before retiring WordPress. Query-based external redirects need server configuration. Authors, comments, schedules, page hierarchy, custom post types, arbitrary metadata and dynamic/plugin-rendered blocks are not transferred in full. Duplicate slugs are skipped, not updated, and older imported content is not rewritten automatically. See the [Bridge API contract](API.md#wordpress-bridge-endpoints).
 
+## Contact submissions
+
+In **Contact > Submissions**, Admin accounts can read saved form receipts, refresh and browse 20 per page. These records follow the existing 90-day retention policy. A receipt confirms the form was stored, not that its notification email was delivered. This screen does not delete or export submissions.
+
 ## Comments and discussion
 
 If discussion is enabled, comment moderation usually happens through the admin comments screen.

@@ -524,6 +524,7 @@ if (($argv[1] ?? '') === '--worker') {
           'output' => $output,
           'fatal' => $error && in_array($error['type'], [E_ERROR, E_PARSE, E_COMPILE_ERROR], true),
           'sessionUser' => $_SESSION['user'] ?? null,
+          'securityEvents' => $GLOBALS['actionSecurityEvents'] ?? [],
           'contactSession' => [
             'cooldown' => isset($_SESSION['last_contact_submit']),
             'used' => count($_SESSION['contact_honeypot_used'] ?? []),
@@ -584,6 +585,10 @@ if (($argv[1] ?? '') === '--worker') {
     }
     public static function isValid(): bool
     {
+      if (!empty($GLOBALS['actionSessionRevoked'])) {
+        unset($_SESSION['user'], $_SESSION['csrf_token']);
+        return false;
+      }
       return isset($_SESSION['user']);
     }
     public static function isStaff(): bool
@@ -601,7 +606,10 @@ if (($argv[1] ?? '') === '--worker') {
   }
   class SecurityLogger
   {
-    public static function log(...$arguments): void {}
+    public static function log(...$arguments): void
+    {
+      $GLOBALS['actionSecurityEvents'][] = $arguments;
+    }
   }
   require $root . '/public/core/RateLimiter.php';
   require $root . '/public/core/ResponseHelper.php';
@@ -886,6 +894,14 @@ if (($argv[1] ?? '') === '--worker') {
       unset($_SESSION['user']);
     }
     $input = [];
+  } elseif ($endpoint === 'contact/get_submissions.php') {
+    $_SERVER['REQUEST_METHOD'] = 'GET';
+    $_GET = $options['query'] ?? ['page' => '1', 'limit' => '20'];
+    $_SESSION['user'] = $options['actor'] ?? ['id' => '1', 'role' => 'Root'];
+    if (!empty($options['guest'])) {
+      unset($_SESSION['user']);
+    }
+    $input = [];
   } elseif ($endpoint === 'get_comments.php') {
     $_SERVER['REQUEST_METHOD'] = 'GET';
     $_GET = $options['query'] ?? ['flat' => 'true', 'limit' => '20'];
@@ -943,6 +959,7 @@ if (($argv[1] ?? '') === '--worker') {
     $_SESSION['user'] = $options['actor'];
   }
   $GLOBALS['actionNoopUpdate'] = !empty($options['noopUpdate']);
+  $GLOBALS['actionSessionRevoked'] = !empty($options['revokedSession']);
   $GLOBALS['actionFailCommit'] = !empty($options['failCommit']);
   $GLOBALS['actionFailRecoveryPublication'] = !empty($options['failRecoveryPublication']);
   $_SERVER['HTTP_X_CSRF_TOKEN'] = $case === 'csrf' ? 'forged' : CSRFProtection::getToken();
@@ -2740,7 +2757,174 @@ function actionPagePermalinkChecks(): void
   }
 }
 
+function actionMaintenanceChecks(): void
+{
+  foreach (['Root', 'Admin', 'Moderator', 'Writer', 'Member'] as $role) {
+    $directory = actionFixture('maintenance-comments-' . strtolower($role));
+    $db = actionDatabase($directory);
+    $db->exec('DROP TABLE comments');
+    $db->exec(
+      'CREATE TABLE comments(id INTEGER PRIMARY KEY,post_id INT,user_id INT,parent_id INT,user_name TEXT,user_avatar TEXT,content TEXT,likes INT,status TEXT,created_at TEXT)',
+    );
+    $db->exec('CREATE TABLE posts(id INT,status TEXT,scheduled_at TEXT)');
+    $db->exec("INSERT INTO posts VALUES(42,'published',NULL)");
+    $insert = $db->prepare(
+      "INSERT INTO comments VALUES(?,42,2,NULL,'QA','','Parent comment',0,?,CURRENT_TIMESTAMP)",
+    );
+    foreach (['approved', 'pending', 'spam'] as $index => $status) {
+      $insert->execute([100 + $index, $status]);
+    }
+    foreach (['approved', 'pending', 'spam'] as $index => $status) {
+      $before = (int) $db->query('SELECT COUNT(*) FROM comments')->fetchColumn();
+      $result = actionRun($directory, [
+        [
+          'endpoint' => 'save_comments.php',
+          'case' => 'add',
+          'actor' => ['id' => $role === 'Root' ? '1' : '2', 'role' => $role],
+          'input' => ['parentId' => 100 + $index, 'requireAuth' => true],
+        ],
+      ])[0];
+      actionCheck(
+        $result['status'] === ($status === 'approved' ? 200 : 404),
+        'Reply to hidden parent: ' . $role . '/' . $status . ': ' . $result['output'],
+      );
+      actionCheck(
+        (int) $db->query('SELECT COUNT(*) FROM comments')->fetchColumn() ===
+          $before + ($status === 'approved' ? 1 : 0),
+        'Rejected reply changed comments.',
+      );
+    }
+    // A parent can be moderated after the reply was created. The public reader must hide that reply.
+    $db->exec("UPDATE comments SET status='pending' WHERE id=100");
+    $result = actionRun($directory, [
+      ['endpoint' => 'get_comments.php', 'case' => 'guest', 'query' => ['post_id' => '42']],
+    ])[0];
+    actionCheck(
+      $result['status'] === 200 && ($result['body']['comments'] ?? null) === [],
+      'Public reply outlived its parent visibility.',
+    );
+  }
+
+  foreach (['revoked', 'guest-required', 'valid', 'guest-compatible', 'forged-csrf'] as $scenario) {
+    $directory = actionFixture('maintenance-session-' . $scenario);
+    $db = actionDatabase($directory);
+    $db->exec('DROP TABLE comments');
+    $db->exec(
+      'CREATE TABLE comments(id INTEGER PRIMARY KEY,post_id INT,user_id INT,parent_id INT,user_name TEXT,user_avatar TEXT,content TEXT,likes INT,status TEXT,created_at TEXT)',
+    );
+    $db->exec('CREATE TABLE posts(id INT,status TEXT,scheduled_at TEXT)');
+    $db->exec("INSERT INTO posts VALUES(42,'published',NULL)");
+    $request = [
+      'endpoint' => 'save_comments.php',
+      'case' => 'add',
+      'input' => ['requireAuth' => $scenario !== 'guest-compatible'],
+    ];
+    if ($scenario === 'revoked') {
+      $request['revokedSession'] = true;
+    }
+    if (str_starts_with($scenario, 'guest-')) {
+      $request['guest'] = true;
+    }
+    if ($scenario === 'forged-csrf') {
+      $request['case'] = 'csrf';
+      $request['input'] += ['action' => 'add', 'postId' => '42', 'content' => 'hello world friend'];
+    }
+    $result = actionRun($directory, [$request])[0];
+    $expected = match ($scenario) {
+      'revoked', 'guest-required' => 401,
+      'forged-csrf' => 403,
+      default => 200,
+    };
+    actionCheck(
+      $result['status'] === $expected,
+      'Comment session recovery contract: ' . $scenario . ': ' . $result['output'],
+    );
+    actionCheck(
+      (int) $db->query('SELECT COUNT(*) FROM comments')->fetchColumn() ===
+        ($expected === 200 ? 1 : 0),
+      'Comment auth/CSRF rejection wrote data.',
+    );
+  }
+
+  foreach (['register.php', 'newsletter_subscribe.php'] as $endpoint) {
+    $directory = actionFixture('maintenance-honeypot-' . str_replace('.php', '', $endpoint));
+    $result = actionRun($directory, [
+      ['endpoint' => $endpoint, 'input' => ['hp_field' => 'bot']],
+    ])[0];
+    actionCheck($result['status'] === 400, 'Honeypot rejection changed.');
+    actionCheck(
+      ($result['securityEvents'][0][0] ?? '') === 'honeypot_caught',
+      'Honeypot absent from the shared SecurityLogger.',
+    );
+    actionCheck(
+      ($result['securityEvents'][0][2]['field'] ?? '') === 'hp_field',
+      'Honeypot event lost its field context.',
+    );
+    actionCheck(
+      !str_contains(json_encode($result['securityEvents']), 'qa@example.invalid'),
+      'Honeypot logger received submitted personal fields.',
+    );
+  }
+
+  foreach (['Root', 'Admin', 'Moderator', 'Writer', 'Member', 'Guest'] as $role) {
+    $directory = actionFixture('maintenance-inbox-' . strtolower($role));
+    $db = actionDatabase($directory);
+    $insert = $db->prepare(
+      "INSERT INTO contact_submissions(form_id,data,created_at) VALUES('qa_form',?,CURRENT_TIMESTAMP)",
+    );
+    for ($index = 0; $index < 21; $index++) {
+      $insert->execute([json_encode(['message' => 'Receipt ' . $index])]);
+    }
+    $request = ['endpoint' => 'contact/get_submissions.php'];
+    if ($role === 'Guest') {
+      $request['guest'] = true;
+    } else {
+      $request['actor'] = ['id' => $role === 'Root' ? '1' : '2', 'role' => $role];
+    }
+    $result = actionRun($directory, [$request])[0];
+    $allowed = in_array($role, ['Root', 'Admin'], true);
+    actionCheck(
+      $result['status'] === ($allowed ? 200 : 403),
+      'Inbox role boundary: ' . $role . ': ' . $result['output'],
+    );
+    if ($allowed) {
+      actionCheck(
+        count($result['body']['submissions']) === 20 &&
+          $result['body']['pagination']['pages'] === 2,
+        'Inbox server pagination is not bounded.',
+      );
+      $request['query'] = ['page' => '2', 'limit' => '20'];
+      $second = actionRun($directory, [$request])[0];
+      actionCheck(
+        count($second['body']['submissions']) === 1,
+        'Inbox second page omitted its final receipt.',
+      );
+      actionCheck(
+        count(
+          array_unique(
+            array_column(
+              array_merge($result['body']['submissions'], $second['body']['submissions']),
+              'id',
+            ),
+          ),
+        ) === 21,
+        'Inbox pages repeated receipts with identical timestamps.',
+      );
+    } else {
+      actionCheck(
+        !isset($result['body']['submissions']),
+        'Forbidden inbox request leaked receipt data.',
+      );
+    }
+  }
+}
+
 try {
+  if (($argv[1] ?? '') === '--maintenance-qc') {
+    actionMaintenanceChecks();
+    echo "PASS Maintenance API: $checks checks; actual comment/inbox controllers with SQLite, fixture session revocation and shared honeypot logger calls. No installed data or mail.\n";
+    return;
+  }
   if (($argv[1] ?? '') === '--page-permalinks') {
     actionPagePermalinkChecks();
     echo "PASS Page permalink Save: $checks checks; actual Save Page controller/SQLite, complete redirect IDs, normal/reserved/normal transitions, negative control and root/subfolder.\n";
@@ -2781,6 +2965,7 @@ try {
   }
   actionSettingsChecks();
   actionQcRecoveryChecks();
+  actionMaintenanceChecks();
   if (($argv[1] ?? '') === '--settings-read') {
     echo 'PASS Settings read contracts: ' .
       $checks .

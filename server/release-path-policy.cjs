@@ -44,6 +44,8 @@ function isForbiddenReleasePath(input) {
   if (fileName === 'von_config.php') return true;
   if (fileName === 'credential_master.key.php' || fileName.startsWith('credential_master.key.php.'))
     return true;
+  if (fileName === 'install_setup.key.php' || fileName.startsWith('install_setup.key.php.'))
+    return true;
   if (
     lower === 'public/data/storage_usage.json' ||
     lower.startsWith('public/data/storage_usage.json.') ||

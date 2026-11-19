@@ -642,6 +642,105 @@ try {
   $generateProbe = Closure::fromCallable('GeminiHeaderProbe\\voncms_ai_generate_with_fallback');
   $success = ['status' => 200, 'body' => '{"candidates":[]}'];
   foreach (
+    [
+      [
+        400,
+        ['status' => 'INVALID_ARGUMENT', 'details' => [['reason' => 'API_KEY_INVALID']]],
+        'AI_AUTH_FAILED',
+      ],
+      [
+        400,
+        ['status' => 'INVALID_ARGUMENT', 'details' => [['reason' => 'INVALID_FIELD']]],
+        'AI_PROVIDER_ERROR',
+      ],
+      [400, ['status' => 'INVALID_ARGUMENT', 'details' => 'API_KEY_INVALID'], 'AI_PROVIDER_ERROR'],
+      [400, ['details' => [null, 'API_KEY_INVALID', ['reason' => []]]], 'AI_PROVIDER_ERROR'],
+      [401, [], 'AI_AUTH_FAILED'],
+      [403, [], 'AI_AUTH_FAILED'],
+      [429, [], 'AI_QUOTA_EXCEEDED'],
+    ]
+    as [$status, $error, $expected]
+  ) {
+    $GLOBALS['gemini_calls'] = [];
+    $GLOBALS['gemini_responses'] = [
+      ['status' => $status, 'body' => json_encode(['error' => $error])],
+      $success,
+    ];
+    $result = $generateProbe('qa-fake-personal-key', 'gemini-3.8-flash', ['contents' => []], 12);
+    check(
+      !$result['ok'] && $result['error_code'] === $expected,
+      'Gemini error classification: ' . $expected,
+    );
+    check(
+      count($GLOBALS['gemini_calls']) === 1 && !$result['fallback_used'],
+      'Gemini errors must not silently retry another credential or model.',
+    );
+  }
+  loadFunction('public/api/save_settings.php', 'voncms_normalize_promo_schedule');
+  foreach (
+    [
+      ['UTC', '2099-12-31T09:00', '2099-12-31T09:00:00.000Z'],
+      ['Asia/Kuala_Lumpur', '2099-12-31T09:00Z', '2099-12-31T09:00:00.000Z'],
+      ['Asia/Kuala_Lumpur', '2099-12-31 09:00:00', '2099-12-31T01:00:00.000Z'],
+      ['America/New_York', '2099-12-31T09:00', '2099-12-31T14:00:00.000Z'],
+      ['Asia/Kuala_Lumpur', '2099-12-31T09:00:00Z', '2099-12-31T09:00:00.000Z'],
+      ['UTC', '2099-12-31T09:00:00.123+08:00', '2099-12-31T01:00:00.123Z'],
+    ]
+    as [$zone, $raw, $expected]
+  ) {
+    $config = ['startsAt' => $raw, 'text' => 'Keep campaign content'];
+    $normalized = voncms_normalize_promo_schedule($config, $zone);
+    check(
+      $normalized['startsAt'] === $expected && $normalized['text'] === $config['text'],
+      'Announcement timezone or content changed.',
+    );
+    check($config['startsAt'] === $raw, 'Announcement normalization mutated its input.');
+  }
+  foreach (
+    [
+      '31/12/2099 09:00',
+      '2099-02-31T09:00',
+      '2099-12-31T25:00',
+      '2099-12-31T09:00+24:00',
+      '2099-12-31T09:00+08:60',
+      'garbage',
+      null,
+      [],
+      true,
+    ]
+    as $raw
+  ) {
+    check(
+      rejected(fn() => voncms_normalize_promo_schedule(['startsAt' => $raw], 'UTC')),
+      'Invalid announcement date accepted.',
+    );
+  }
+  check(
+    rejected(
+      fn() => voncms_normalize_promo_schedule(
+        ['startsAt' => '2026-03-08T02:30'],
+        'America/New_York',
+      ),
+    ),
+    'Nonexistent DST wall-clock time accepted.',
+  );
+  check(
+    rejected(
+      fn() => voncms_normalize_promo_schedule(
+        ['startsAt' => '2099-12-31T10:00Z', 'endsAt' => '2099-12-31T09:00Z'],
+        'UTC',
+      ),
+    ),
+    'Inverted announcement window accepted.',
+  );
+  check(
+    voncms_normalize_promo_schedule(['startsAt' => '', 'endsAt' => ''], 'UTC') === [
+      'startsAt' => '',
+      'endsAt' => '',
+    ],
+    'Optional announcement schedule must remain optional.',
+  );
+  foreach (
     [[$success], [['status' => 404, 'body' => '{"error":{"status":"NOT_FOUND"}}'], $success]]
     as $responses
   ) {

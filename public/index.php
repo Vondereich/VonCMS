@@ -91,7 +91,7 @@ if (!file_exists($configFile)) {
 
   if (!InstallBootstrap::ensureKey()) {
     http_response_code(500);
-    die('<h1>Installer unavailable</h1><p>VonCMS could not create <code>data/install_setup.key</code>. Check that the data directory is writable, then reload this page.</p>');
+    die('<h1>Installer unavailable</h1><p>VonCMS could not create <code>data/install_setup.key.php</code>. Check that the data directory is writable, then reload this page.</p>');
   }
 
   // Allow only: /install, /api/*, /assets/*

@@ -76,6 +76,7 @@ public/data/schema-capabilities.json.*
 public/data/storage_usage.json
 /data/storage_usage.json
 public/data/install_setup.key
+public/data/install_setup.key.php
 logs/
 
 # Internal Planning (Private)

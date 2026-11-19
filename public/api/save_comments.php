@@ -70,6 +70,14 @@ if ($isLegacyBulkMigration && $action !== null) {
 if ($action !== null) {
   $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
 
+  // The signed-in UI must never retry a revoked identity as an anonymous comment.
+  if (isset($input['requireAuth']) && !is_bool($input['requireAuth'])) {
+    ResponseHelper::sendError('Invalid authentication requirement', 400);
+  }
+  if (($input['requireAuth'] ?? false) === true && !$hasValidSession) {
+    ResponseHelper::sendError('Your session has expired. Please sign in again.', 401);
+  }
+
   // Moderation actions: Mandatory Session + CSRF
   if (in_array($action, ['delete', 'updateStatus', 'like'], true)) {
     SessionManager::requireValidSession();
@@ -279,7 +287,7 @@ try {
       if ((string) ($parentComment['post_id'] ?? '') !== (string) $postId) {
         ResponseHelper::sendError('Parent comment does not belong to this post', 400);
       }
-      if (!SessionManager::isStaff() && ($parentComment['status'] ?? '') !== 'approved') {
+      if (($parentComment['status'] ?? '') !== 'approved') {
         ResponseHelper::sendError('Parent comment is not available for replies', 404);
       }
     }

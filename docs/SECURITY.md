@@ -252,6 +252,8 @@ What this helps with:
 
 VonCMS protects the installer after setup is complete.
 
+The first-run ownership key is stored in `data/install_setup.key.php` with a PHP denial guard. Pending installations moving from the old plaintext format generate a fresh key instead of accepting the old value. The key is excluded from release copying and Git and removed after installation. Operators read its 64-character line through File Manager/SSH/SFTP, not an HTTP endpoint. Nginx/OpenLiteSpeed protection rules remain required for all other private data; the guard assumes a working PHP handler.
+
 What it does:
 
 - blocks the installer when `install.lock` exists

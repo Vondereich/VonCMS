@@ -137,6 +137,12 @@ New events must start today or later in the configured site timezone. The API re
 
 ### Comments and discussion
 
+Native signed-in comment/reply requests send boolean `requireAuth: true`. A missing or revoked session returns `401`, not an anonymous retry. Omitted `requireAuth` preserves guest API compatibility; ordinary session, CSRF, moderation and quota checks still apply. Public replies are visible only while their direct parent is approved. Rejected submissions retain the browser draft.
+
+Menu Quick Add reads bounded title/ID collections only while its Settings section is open. `get_pages.php?view=menu&limit=200` returns empty `content` strings; ordinary Page reads still return their existing bodies and visibility rules.
+
+`GET /api/contact/get_submissions.php?page=1&limit=20` requires Admin access and returns `submissions` plus `pagination` (`page`, `limit`, `total`, `pages`). The new Contact Submissions screen reads 20 receipts per page. The existing endpoint retains receipts for 90 days; a stored receipt does not prove email delivery. No delete or export action is added.
+
 - `get_comments.php`
 - `save_comments.php`
 
