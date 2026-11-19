@@ -180,6 +180,10 @@ function newsClockWrite(
   // Exercise the actual bootstrap after a deliberately wrong PHP initial zone.
   date_default_timezone_set('Pacific/Honolulu');
   eval($bootstrap[0]);
+  if (preg_match('/\$writeTime = date\(\x27Y-m-d H:i:s\x27\);/', $source, $clockAssignment) !== 1) {
+    throw new RuntimeException('Save must capture its CMS-local write clock.');
+  }
+  eval($clockAssignment[0]);
   $db = $pdo;
   $postId = $pageId = $id;
   $currentUser = ['id' => 1];

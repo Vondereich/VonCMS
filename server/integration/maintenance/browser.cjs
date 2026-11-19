@@ -7,17 +7,31 @@ import {createRoot} from 'react-dom/client';
 import {BrowserRouter} from 'react-router';
 import {Toaster} from 'react-hot-toast';
 import ContactSubmissions from '/src/pages/admin/contact/ContactSubmissions.tsx';
+import {CategorySettings} from '/src/plugins/von-core/features/settings/components/CategorySettings.tsx';
+import AdminLayout from '/src/components/layouts/AdminLayout.tsx';
 import {VpComments} from '/src/plugins/von-core/features/public/components/Comments.tsx';
 import {PromoBarPlugin} from '/src/plugins/von-core/features/plugins/built-in/promo-bar/index.tsx';
 import {VonProviders} from '/src/plugins/von-core/providers/VonProviders.tsx';
 import '/src/index.css';
 const settings={timeZone:'Asia/Kuala_Lumpur',activeThemeId:'theme-default',activePlugins:[],pluginConfig:{},theme:{},discussionEnabled:true};
 const area=new URLSearchParams(location.search).get('area');
+if(area==='nav')settings.activePlugins=['von-designer'];
+const categories=['Berita'];
 window.__maintenance={fail:false,requests:[],commentFail:true,pages:2};
 const qa=window.__maintenance;
 window.fetch=async(input,options={})=>{
   const url=new URL(input,location.href);
   if(url.origin!==location.origin)throw Error('No external requests in maintenance QA');
+  if(url.pathname.endsWith('/manage_categories.php')){
+    let result={success:true,categories:categories.map(name=>({name,postCount:0}))};
+    if(options.method==='POST'){
+      const input=JSON.parse(options.body),name=input.category.trim().replace(/\\s+/g,' ');
+      const existing=categories.find(label=>label.toLowerCase()===name.toLowerCase());
+      if(!existing)categories.push(name);
+      result={...result,added:!existing,category:existing||name,message:existing?'Category "'+existing+'" already exists.':'Category added.',categories:categories.map(name=>({name,postCount:0}))};
+    }
+    return new Response(JSON.stringify(result));
+  }
   if(url.pathname.includes('/api/')){
     qa.requests.push(url.search);
     const page=Number(url.searchParams.get('page')||1);
@@ -31,7 +45,7 @@ function Shell(){
   window.__setPromo=patch=>setPromo(old=>({...old,...patch}));
   const submit=async()=>{if(qa.hold)await new Promise(resolve=>qa.release=resolve);if(qa.commentFail)throw Error('QA comment rejected');};
   return <BrowserRouter><VonProviders settings={settings}><main className="p-4">
-    {area==='inbox'?(closed?<p>Forms QA</p>:<ContactSubmissions onBack={()=>setClosed(true)}/>):area==='comments'?<VpComments comments={[]} user={{id:'9',username:'QA Member',role:'Member'}} onAddComment={submit} onReplyComment={submit} onLikeComment={()=>true} onLogin={()=>{}} settings={settings}/>:<div id="qa-promo">{PromoBarPlugin.render('header_top',promo)}</div>}
+    {area==='nav'?<AdminLayout user={{id:'1',username:'QA Owner',role:'Root'}} settings={settings} onLogout={()=>{}} isDarkMode={false} toggleDarkMode={()=>{}}><p>Navigation QA</p></AdminLayout>:area==='categories'?<CategorySettings/>:area==='inbox'?(closed?<p>Forms QA</p>:<ContactSubmissions onBack={()=>setClosed(true)}/>):area==='comments'?<VpComments comments={[]} user={{id:'9',username:'QA Member',role:'Member'}} onAddComment={submit} onReplyComment={submit} onLikeComment={()=>true} onLogin={()=>{}} settings={settings}/>:<div id="qa-promo">{PromoBarPlugin.render('header_top',promo)}</div>}
   </main><Toaster/></VonProviders></BrowserRouter>;
 }
 localStorage.removeItem('voncms_promo_bar_dismissed');
@@ -61,6 +75,35 @@ async function verify({ send, evaluate, evaluateFunction, wait, metrics, port, e
   for (const base of ['', '/zangetsu']) {
     const open = (area) =>
       send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/admin/qa?area=${area}` });
+    await open('categories');
+    await wait(`document.body.innerText.includes('Berita')`);
+    const categoryType = (value) =>
+      evaluateFunction(
+        `function(value){const input=document.querySelector('[aria-label="New category name"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));}`,
+        value
+      );
+    await categoryType('bErItA');
+    await click('Add Category');
+    await wait(`document.body.innerText.includes('already exists')`);
+    check(
+      await evaluate(`document.querySelector('[aria-label="New category name"]').value===''`),
+      'Duplicate feedback did not complete its UI state'
+    );
+    await categoryType('Teknologi');
+    await click('Add Category');
+    await wait(`document.body.innerText.includes('Category added.')`);
+    check(
+      await evaluate(
+        `[...document.querySelectorAll('button')].some(e=>e.textContent.includes('Teknologi'))`
+      ),
+      'Normal category add stopped working'
+    );
+    await open('nav');
+    await wait(`document.body.innerText.includes('Navigation QA')`);
+    check(
+      await evaluate(`!document.querySelector('a[href$="/admin/designer"]')`),
+      'Unavailable Designer route is still advertised'
+    );
     await open('inbox');
     await wait(`document.body.innerText.includes('QA Contact Form')`);
     check(
@@ -146,7 +189,7 @@ async function verify({ send, evaluate, evaluateFunction, wait, metrics, port, e
   console.log(
     'PASS Maintenance Chrome: ' +
       checks +
-      ' checks; actual inbox/comment/promo components, root/subfolder, light/dark phone/tablet/desktop, synthetic transport only. No installed data.'
+      ' checks; actual category feedback/navigation/inbox/comment/promo components, root/subfolder, responsive inbox light/dark phone/tablet/desktop, synthetic transport only. No installed data.'
   );
 }
 module.exports = { fixture, verify };

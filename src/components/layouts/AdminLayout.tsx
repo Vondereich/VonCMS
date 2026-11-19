@@ -34,7 +34,6 @@ import {
   NotebookTabs,
   Puzzle,
   Activity,
-  PenTool,
   ChevronDown,
   CirclePlus,
   FilePenLine,
@@ -321,19 +320,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       requiresPrimaryAdmin: true,
     },
   ];
-
-  // Inject Von Designer menu item if plugin is active
-  if (settings?.activePlugins?.includes('von-designer')) {
-    // Insert before "Users" or "Extensions" usually
-    // Let's put it after "Comments" (index 6) or before "Users"
-    menuItems.splice(7, 0, {
-      icon: <PenTool size={20} />,
-      label: 'Designer',
-      path: '/admin/designer', // Dashboard view for Designer
-      color: '#2dd4bf', // Teal 400
-      allowedRoles: ['Admin', 'Moderator'],
-    });
-  }
 
   // Filter menu items based on user role - Case Insensitive
   const isPrimaryAdmin = rawUserRole === 'root' || String(user?.id || '') === '1';

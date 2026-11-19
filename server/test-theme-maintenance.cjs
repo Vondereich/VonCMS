@@ -5,6 +5,7 @@ const os = require('node:os');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 const { findPhpBinary } = require('./lint-php.cjs');
+const { readPhpJson } = require('./integration/maintenance/php-json.cjs');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
@@ -1278,8 +1279,7 @@ function checkLeanPublicThemeRendering() {
       input: JSON.stringify(cases.map((item) => item.settings)),
     }
   );
-  assert.equal(probe.status, 0, probe.stderr || probe.stdout);
-  const projected = JSON.parse(probe.stdout);
+  const projected = readPhpJson(probe, 'Public theme settings projection');
   const folders = {
     default: 'default',
     prism: 'prism',
@@ -4288,8 +4288,7 @@ function checkThemeStartupMetadata() {
         ],
         { input: JSON.stringify({ samples, ids }), encoding: 'utf8' }
       );
-      assert.equal(result.status, 0, result.stderr || result.stdout);
-      return JSON.parse(result.stdout);
+      return readPhpJson(result, 'Theme startup metadata');
     };
     let actual = run(['theme-fixture', '../fixture', 'theme-missing']);
     assert.deepEqual(actual.normalized, expected, 'PHP and React/Vite validate the same inputs');

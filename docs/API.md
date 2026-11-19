@@ -123,6 +123,12 @@ Post and Page slugs share a reservation across both content types. Saving a conf
 
 `get_posts.php?status=pending_review&scope=all` is reviewer-only. `countOnly=true` returns the pending total used by the admin navigation badge without transferring post bodies. Writers can read only their own protected posts, and `delete_post.php` permits a Writer to delete only an owned Draft. The server capability helper is the authority for every mutation; hiding a frontend button is not treated as permission.
 
+`manage_categories.php` Add returns `added: false` and the canonical `category` with an "already exists" message for an existing label (case/whitespace insensitive). This is an acknowledged no-op, not a newly created category. Ordinary Add returns `added: true`; session, Admin and CSRF rules are unchanged.
+
+Normal Post/Page saves normalize comma-separated `keywords`, remove empty/repeated case-insensitive entries and return the cleaned `keywords`. The first spelling is kept; separate articles may use the same keywords. Raw and normalized values must fit the existing 255-character limit. Workflow-only Post transitions do not rewrite keywords or return a replacement keyword field. Post categories reuse registered spelling when a normalized match exists.
+
+Save Post/Page creation, update and first-publication writes share the PHP/CMS clock, independently of the database session timezone. Existing creation/publication values are preserved by ordinary updates. This is not a historical-timezone migration or a global PDO timezone setting.
+
 ### Editorial Calendar
 
 `/api/calendar.php` requires a validated Admin/root/Moderator session and the server-owned `calendar.manage` capability. Responses are private/no-store and are not included in guest settings, feeds, sitemap or public caches.

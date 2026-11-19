@@ -18,6 +18,7 @@ const modules = [
   'CredentialStore',
   'DataBoundary',
   'RuntimeLogging',
+  'ContentMetadata',
 ];
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-core-paths-'));
 let assertions = 0;

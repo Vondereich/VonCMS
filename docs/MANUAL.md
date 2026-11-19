@@ -148,6 +148,8 @@ Typical flow:
 3. Fill in title, content, excerpt, category, image, and status.
 4. Save as draft or publish.
 
+Adding `BERITA` when `Berita` already exists reports that the category already exists. The Post editor reuses that category label. Within one Keywords field, `Berita, BERITA, berita` saves as `Berita`; the first spelling is kept. You can still reuse `Berita` in other articles. These changes apply on Save without interrupting every keystroke or autosave with a duplicate warning.
+
 ### Writer review flow
 
 The buttons shown in the post editor follow the signed-in role:

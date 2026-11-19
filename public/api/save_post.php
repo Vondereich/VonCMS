@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/../core/ContentMetadata.php';
 /**
  * VonCMS - Save Post API
  * Creates or updates a post in the database
@@ -93,6 +94,10 @@ if (mb_strlen($rawExcerpt) > 220) {
   ResponseHelper::sendError('Excerpt is too long. Maximum 220 characters allowed.', 400);
 }
 if (mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
+  ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
+}
+$rawKeywords = ContentMetadata::keywords($rawKeywords);
+if (mb_strlen($rawKeywords) > 255) {
   ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
 }
 
@@ -274,10 +279,22 @@ try {
 
   // Get category (default to Uncategorized if not provided)
   $category = is_scalar($input['category'] ?? null)
-    ? mb_substr(trim((string) $input['category']), 0, 100)
+    ? ContentMetadata::category((string) $input['category'])
     : 'Uncategorized';
   if ($category === '') {
     $category = 'Uncategorized';
+  }
+  if (!$statusOnlyTransition) {
+    $categoryStmt = $db->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'content' AND setting_key = 'categories' LIMIT 1",
+    );
+    $categoryStmt->execute();
+    $knownCategories = json_decode((string) ($categoryStmt->fetchColumn() ?: '[]'), true);
+    $category =
+      ContentMetadata::existingCategory(
+        $category,
+        is_array($knownCategories) ? $knownCategories : [],
+      ) ?? ContentMetadata::category($category);
   }
 
   // Get meta description
@@ -416,6 +433,7 @@ try {
       409,
     );
   }
+  $writeTime = date('Y-m-d H:i:s');
   if ($isUpdate) {
     // Never send an old public permalink to a draft or other non-public status.
     if (
@@ -481,7 +499,7 @@ try {
             status = :status,
             scheduled_at = :scheduled_at,
             {$publishedAtAssignment}
-            updated_at = NOW()
+            updated_at = :modified_now
         WHERE id = :id");
       $updateParams = [
         'status' => $status,
@@ -501,7 +519,7 @@ try {
             meta_description = :meta_description,
             scheduled_at = :scheduled_at,
             {$publishedAtAssignment}
-            updated_at = NOW()
+            updated_at = :modified_now
         WHERE id = :id");
       $updateParams = [
         'title' => $input['title'],
@@ -517,9 +535,10 @@ try {
         'id' => $postId,
       ];
     }
+    $updateParams['modified_now'] = $writeTime;
     if ($hasPublishedAtColumn) {
       $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
-      $updateParams['publication_now'] = date('Y-m-d H:i:s');
+      $updateParams['publication_now'] = $writeTime;
     }
     $stmt->execute($updateParams);
 
@@ -562,7 +581,7 @@ try {
     $stmt = $db->prepare("INSERT INTO posts 
             (title, slug, content, excerpt, status, image_url, keywords, category, meta_description, author_id, scheduled_at{$publishedAtColumn}, created_at, updated_at)
             VALUES 
-            (:title, :slug, :content, :excerpt, :status, :image_url, :keywords, :category, :meta_description, :author_id, :scheduled_at{$publishedAtValue}, NOW(), NOW())");
+            (:title, :slug, :content, :excerpt, :status, :image_url, :keywords, :category, :meta_description, :author_id, :scheduled_at{$publishedAtValue}, :created_now, :modified_now)");
 
     $insertParams = [
       'title' => $input['title'],
@@ -576,10 +595,12 @@ try {
       'meta_description' => $metaDescription,
       'author_id' => $currentUser['id'],
       'scheduled_at' => $scheduledAt,
+      'created_now' => $writeTime,
+      'modified_now' => $writeTime,
     ];
     if ($hasPublishedAtColumn) {
       $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
-      $insertParams['publication_now'] = date('Y-m-d H:i:s');
+      $insertParams['publication_now'] = $writeTime;
     }
     $stmt->execute($insertParams);
 
@@ -653,6 +674,7 @@ try {
     'slug' => $input['slug'],
     'image' => ResponseHelper::scrubUrl($featuredImage),
     'category' => $category,
+    ...!$statusOnlyTransition ? ['keywords' => $input['keywords'] ?? ''] : [],
     'status' => $status,
     'scheduled_at' => $scheduledAt,
     'scheduledAt' => $scheduledAt,

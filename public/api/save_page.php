@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/../core/ContentMetadata.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/../seo_schema_helper.php';
 require_once __DIR__ . '/content_audit_helper.php';
@@ -106,6 +107,10 @@ if (mb_strlen($rawExcerpt) > 220) {
 if (mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
   ResponseHelper::sendError('Page metadata exceeds the allowed length.', 400);
 }
+$rawKeywords = ContentMetadata::keywords($rawKeywords);
+if (mb_strlen($rawKeywords) > 255) {
+  ResponseHelper::sendError('Page metadata exceeds the allowed length.', 400);
+}
 
 // SECURITY: Match post-save hardening for page content too
 if (!SessionManager::isAdmin()) {
@@ -151,6 +156,7 @@ try {
   $contentSlugLock = VonCmsContentSlugLock::acquire($pdo);
   // Start Transaction (Critical for Atomic Slug Check)
   $pdo->beginTransaction();
+  $writeTime = date('Y-m-d H:i:s');
 
   $pageId = $input['id'] ?? null;
   $isUpdate = $pageId && is_numeric($pageId);
@@ -278,7 +284,7 @@ try {
             keywords = :keywords,
             meta_description = :meta_description,
             {$publishedAtAssignment}
-            updated_at = NOW() 
+            updated_at = :modified_now
         WHERE id = :id");
 
     $updateParams = [
@@ -288,12 +294,13 @@ try {
       'excerpt' => $input['excerpt'] ?? '',
       'status' => $status,
       'keywords' => $keywords,
+      'modified_now' => $writeTime,
       'meta_description' => $metaDescription,
       'id' => $pageId,
     ];
     if ($hasPublishedAtColumn) {
       $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
-      $updateParams['publication_now'] = date('Y-m-d H:i:s');
+      $updateParams['publication_now'] = $writeTime;
     }
     $stmt->execute($updateParams);
 
@@ -341,6 +348,7 @@ try {
     echo json_encode([
       'success' => true,
       'message' => 'Page updated',
+      'keywords' => $keywords,
       'id' => (string) $pageId,
       'slug' => $input['slug'],
       'status' => $status,
@@ -356,7 +364,7 @@ try {
       ? ', CASE WHEN :publish_now = 1 THEN :publication_now ELSE NULL END'
       : '';
     $stmt = $pdo->prepare(
-      "INSERT INTO pages (title, slug, content, excerpt, status, keywords, meta_description, author_id{$publishedAtColumn}, created_at, updated_at) VALUES (:title, :slug, :content, :excerpt, :status, :keywords, :meta_description, :author_id{$publishedAtValue}, NOW(), NOW())",
+      "INSERT INTO pages (title, slug, content, excerpt, status, keywords, meta_description, author_id{$publishedAtColumn}, created_at, updated_at) VALUES (:title, :slug, :content, :excerpt, :status, :keywords, :meta_description, :author_id{$publishedAtValue}, :created_now, :modified_now)",
     );
     $status = $input['status'] ?? 'draft';
     $validStatuses = ['published', 'draft', 'archived'];
@@ -373,10 +381,12 @@ try {
       'keywords' => $keywords,
       'meta_description' => $metaDescription,
       'author_id' => $currentUser['id'],
+      'created_now' => $writeTime,
+      'modified_now' => $writeTime,
     ];
     if ($hasPublishedAtColumn) {
       $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
-      $insertParams['publication_now'] = date('Y-m-d H:i:s');
+      $insertParams['publication_now'] = $writeTime;
     }
     $stmt->execute($insertParams);
 
@@ -421,6 +431,7 @@ try {
     echo json_encode([
       'success' => true,
       'message' => 'Page created',
+      'keywords' => $keywords,
       'id' => (string) $newId,
       'slug' => $input['slug'],
       'status' => $status,

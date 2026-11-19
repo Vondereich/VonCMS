@@ -9591,7 +9591,8 @@ assertIncludes(
   [
     'published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN :publication_now ELSE published_at END',
     'CASE WHEN :publish_now = 1 THEN :publication_now ELSE NULL END',
-    "['publication_now'] = date('Y-m-d H:i:s');",
+    "['publication_now'] = $writeTime;",
+    "$writeTime = date('Y-m-d H:i:s');",
     'published_at = COALESCE(published_at, scheduled_at)',
     '$postPublishedColumn',
     '$pagePublishedColumn',
@@ -18829,6 +18830,15 @@ if (phpBinary) {
         ).trim()
     );
   }
+}
+if (phpBinary) {
+  const probe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/maintenance/php-json.cjs')],
+    { encoding: 'utf8' }
+  );
+  if (probe.status === 0) pass(probe.stdout.trim().replace(/^PASS /, ''));
+  else fail('PHP JSON probe diagnostics: ' + (probe.stderr || probe.stdout).trim());
 }
 if (phpBinary) {
   for (const file of ['run.php', 'endpoint.php']) {

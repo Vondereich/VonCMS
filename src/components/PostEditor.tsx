@@ -135,11 +135,22 @@ const PostEditor: React.FC<PostEditorProps> = ({
     ...posts.map((post) => post.category || ''),
     ...(!isPage && item && 'category' in item ? [(item as Post).category || ''] : []),
   ]) {
-    const category = rawCategory.trim();
-    if (category && !availableCategories.includes(category)) {
+    const category = rawCategory.trim().replace(/\s+/g, ' ');
+    if (
+      category &&
+      !availableCategories.some((known) => known.toLowerCase() === category.toLowerCase())
+    ) {
       availableCategories.push(category);
     }
   }
+  const selectedCategoryLabel = availableCategories.find(
+    (known) =>
+      known.toLowerCase() ===
+      String(item?.category || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+  );
 
   const hasSeoItem = Boolean(item);
   const seoTitle = item?.title || '';
@@ -1274,11 +1285,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         name="categoryPreset"
                         aria-label="Choose existing category"
                         aria-describedby={categoryDescription}
-                        value={
-                          availableCategories.includes((item as Post).category || '')
-                            ? (item as Post).category || 'Uncategorized'
-                            : '__custom__'
-                        }
+                        value={selectedCategoryLabel || '__custom__'}
                         onChange={(e) => {
                           if (e.target.value === '__custom__') return;
                           setItem((prev) => (prev ? { ...prev, category: e.target.value } : null));

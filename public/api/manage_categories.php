@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/../core/ContentMetadata.php';
 /**
  * VonCMS - Category Management API
  * Admin-only helper for listing, adding, renaming, and removing post categories.
@@ -27,9 +28,7 @@ $userId = (int) DataBoundary::userText('id');
  */
 function normalizeCategoryLabel($value)
 {
-  $label = trim(DataBoundary::inputText($value));
-  $label = preg_replace('/\s+/', ' ', $label);
-  return mb_substr($label ?? '', 0, 100);
+  return ContentMetadata::category(DataBoundary::inputText($value));
 }
 
 /**
@@ -47,7 +46,7 @@ function categories_case_insensitive_unique($categories)
 
     $exists = false;
     foreach ($unique as $existing) {
-      if (strcasecmp($existing, $category) === 0) {
+      if (ContentMetadata::existingCategory($category, [$existing]) !== null) {
         $exists = true;
         break;
       }
@@ -230,6 +229,22 @@ try {
       ResponseHelper::sendError('Category name is required.', 400);
     }
 
+    $summary = buildCategorySummary($pdo);
+    $existingCategory = ContentMetadata::existingCategory(
+      $category,
+      array_column($summary, 'name'),
+    );
+    if ($existingCategory !== null) {
+      $pdo->commit();
+      echo json_encode([
+        'success' => true,
+        'added' => false,
+        'category' => $existingCategory,
+        'message' => 'Category "' . $existingCategory . '" already exists.',
+        'categories' => $summary,
+      ]);
+      exit();
+    }
     $storedCategories[] = $category;
     saveStoredCategories($pdo, $storedCategories, $userId);
     $pdo->commit();
@@ -238,6 +253,7 @@ try {
     echo json_encode([
       'success' => true,
       'message' => 'Category added.',
+      'added' => true,
       'categories' => buildCategorySummary($pdo),
     ]);
     exit();

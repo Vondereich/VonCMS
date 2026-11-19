@@ -87,6 +87,12 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
         throw new Error(data.message || data.error || 'Category action failed');
       }
 
+      if (action === 'add' && data.added === false) {
+        toast(data.message || 'This category already exists.');
+        setNewCategory('');
+        await refreshCategories(data.category);
+        return;
+      }
       toast.success(data.message || 'Categories updated.');
       const preserveSelection =
         action === 'delete'

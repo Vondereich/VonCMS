@@ -84,6 +84,17 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
       $query = str_replace('ON DUPLICATE KEY UPDATE', 'ON CONFLICT(id) DO UPDATE SET', $query);
       $query = preg_replace('/VALUES\((\w+)\)/', 'excluded.$1', $query);
     }
+    if (
+      str_contains($query, 'INSERT INTO settings') &&
+      str_contains($query, 'ON DUPLICATE KEY UPDATE')
+    ) {
+      $query = str_replace(
+        'ON DUPLICATE KEY UPDATE',
+        'ON CONFLICT(setting_group,setting_key) DO UPDATE SET',
+        $query,
+      );
+      $query = preg_replace('/VALUES\((\w+)\)/', 'excluded.$1', $query);
+    }
     return parent::prepare(
       str_replace(
         [
@@ -94,6 +105,7 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
           '? >= UNIX_TIMESTAMP()',
           'ON DUPLICATE KEY UPDATE visitor_hash=visitor_hash',
           'CAST(email AS BINARY) = CAST(? AS BINARY)',
+          ':publish_now = 1',
         ],
         [
           'UPDATE comments AS c',
@@ -103,6 +115,7 @@ class ActionFixturePDO extends VonCmsFixtureSqlitePDO
           'CAST(? AS INTEGER) >= UNIX_TIMESTAMP()',
           'ON CONFLICT(visitor_hash) DO NOTHING',
           'CAST(email AS BLOB) = CAST(? AS BLOB)',
+          'CAST(:publish_now AS INTEGER) = 1',
         ],
         $query,
       ),
@@ -613,6 +626,7 @@ if (($argv[1] ?? '') === '--worker') {
   }
   require $root . '/public/core/RateLimiter.php';
   require $root . '/public/core/ResponseHelper.php';
+  require_once $root . '/public/core/ContentMetadata.php';
   require $root . '/public/api/role_capability_helper.php';
   require $root . '/public/api/schema_repair_helper.php';
   require_once $root . '/public/api/publication_time_helper.php';
@@ -634,6 +648,22 @@ if (($argv[1] ?? '') === '--worker') {
   $pdo = isset($options['mysqlDatabase'])
     ? actionMysqlAuthConnection($options['mysqlDatabase'])
     : actionDatabase($databaseDirectory);
+  if (isset($options['databaseClockOffset']) && $pdo instanceof ActionFixturePDO) {
+    $clockOffset = (int) $options['databaseClockOffset'];
+    $pdo->createFunction('NOW', fn() => gmdate('Y-m-d H:i:s', time() + $clockOffset));
+  }
+  if (isset($options['mysqlTimeZone'])) {
+    if (!in_array($options['mysqlTimeZone'], ['+00:00', '+08:00'], true)) {
+      throw new RuntimeException('Invalid fixture SQL clock');
+    }
+    $pdo->exec('SET time_zone = ' . $pdo->quote($options['mysqlTimeZone']));
+  }
+  if (!empty($options['publicationReady'])) {
+    $GLOBALS['voncms_publication_capability_cache'] = [
+      'version' => 1,
+      'published_at' => ['posts' => true, 'pages' => true],
+    ];
+  }
   $case = $options['case'] ?? 'normal';
   $endpoint = $options['endpoint'];
   if ($endpoint === 'rollback_setting.php') {
@@ -751,7 +781,7 @@ if (($argv[1] ?? '') === '--worker') {
       'excerpt' => 'QA',
       'status' => 'draft',
     ];
-    if ($case === 'page-permalink') {
+    if (in_array($case, ['page-permalink', 'editor-inputs'], true)) {
       require_once $root . '/public/seo_schema_helper.php';
       require_once $root . '/public/api/content_slug_helper.php';
       require_once $root . '/public/api/content_audit_helper.php';
@@ -760,6 +790,10 @@ if (($argv[1] ?? '') === '--worker') {
       // Validation-only cases must stop before the unavailable-database guard.
       unset($pdo);
     }
+  } elseif ($endpoint === 'manage_categories.php') {
+    require_once $root . '/public/api/settings_audit_helper.php';
+    $_SESSION['user'] = ['id' => '1', 'role' => 'Root'];
+    $input = $options['input'] ?? [];
   } elseif ($endpoint === '../von_system.php' || $endpoint === 'system/updater.php') {
     // Exercise the actual legacy dispatch/direct handler, never the OTA transport.
     class SystemUpdater
@@ -968,6 +1002,31 @@ if (($argv[1] ?? '') === '--worker') {
   $source = file_get_contents($root . '/public/api/' . $endpoint);
   $source = preg_replace('/^<\?php\s*/', '', $source, 1);
   $source = preg_replace('/^\s*require_once [^\r\n]+;\s*$/m', '', $source);
+  if (!empty($options['withoutKeywordCleanup'])) {
+    $source = str_replace('$rawKeywords = ContentMetadata::keywords($rawKeywords);', '', $source);
+  }
+  if (!empty($options['withoutSiteClock'])) {
+    // Disposable mutation control: restore the previous MySQL-clock write boundary.
+    $source = str_replace(
+      ['updated_at = :modified_now', ':created_now, :modified_now'],
+      ['updated_at = NOW()', 'NOW(), NOW()'],
+      $source,
+    );
+    $source = str_replace('$updateParams[\'modified_now\'] = $writeTime;', '', $source);
+    $source = preg_replace(
+      '/^\s*\x27(?:created_now|modified_now)\x27 => \$writeTime,\R/m',
+      '',
+      $source,
+    );
+  }
+  if (!empty($options['withoutCategoryFeedback'])) {
+    $start = strpos($source, '    $summary = buildCategorySummary($pdo);');
+    $end = strpos($source, '    $storedCategories[] = $category;', $start);
+    if ($start === false || $end === false) {
+      throw new RuntimeException('Missing category feedback mutation point');
+    }
+    $source = substr_replace($source, '', $start, $end - $start);
+  }
   if ($endpoint === 'rollback_setting.php') {
     foreach (['maintenance.flag', 'site_settings.json'] as $name) {
       $source = str_replace(
@@ -2757,6 +2816,275 @@ function actionPagePermalinkChecks(): void
   }
 }
 
+function actionMysqlEditorClockChecks(): void
+{
+  if (!getenv('VONCMS_TEST_MYSQL_DSN')) {
+    throw new RuntimeException('NOT_RUN: set VONCMS_TEST_MYSQL_DSN without dbname');
+  }
+  $admin = actionMysqlAuthConnection();
+  $name = 'voncms_auth_' . bin2hex(random_bytes(8));
+  $created = false;
+  $db = null;
+  try {
+    $admin->exec('CREATE DATABASE `' . $name . '` CHARACTER SET utf8mb4');
+    $created = true;
+    $db = actionMysqlAuthConnection($name);
+    $db->exec(
+      'CREATE TABLE settings(setting_group VARCHAR(32),setting_key VARCHAR(64),setting_value LONGTEXT)',
+    );
+    $db->exec(
+      'INSERT INTO settings VALUES(\'general\',\'domain_url\',\'https://qa.invalid/blog\'),(\'content\',\'categories\',\'["Berita"]\')',
+    );
+    $db->exec(
+      'CREATE TABLE posts(id INT AUTO_INCREMENT PRIMARY KEY,title TEXT,slug VARCHAR(255),content LONGTEXT,excerpt TEXT,status VARCHAR(32),image_url TEXT,keywords TEXT,category TEXT,meta_description TEXT,author_id INT,scheduled_at DATETIME,published_at DATETIME,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)',
+    );
+    $db->exec(
+      'CREATE TABLE pages(id INT AUTO_INCREMENT PRIMARY KEY,title TEXT,slug VARCHAR(255),content LONGTEXT,excerpt TEXT,status VARCHAR(32),keywords TEXT,meta_description TEXT,author_id INT,published_at DATETIME,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)',
+    );
+    $db->exec(
+      'CREATE TABLE content_audit_logs(content_type VARCHAR(16),content_id INT,action VARCHAR(32),actor_user_id INT,actor_username TEXT,actor_role TEXT,summary TEXT,context_json TEXT)',
+    );
+    $db->exec(
+      'CREATE TABLE redirects(id INT AUTO_INCREMENT PRIMARY KEY,source_url VARCHAR(255) UNIQUE,target_url TEXT,redirect_type INT)',
+    );
+    foreach (['UTC', 'Asia/Kuala_Lumpur', 'America/New_York'] as $zone) {
+      foreach (['save_post.php' => 'posts', 'save_page.php' => 'pages'] as $endpoint => $table) {
+        $directory = actionFixture('mysql-clock-' . bin2hex(random_bytes(4)));
+        $request = [
+          'endpoint' => $endpoint,
+          'case' => 'editor-inputs',
+          'mysqlDatabase' => $name,
+          'mysqlTimeZone' => $zone === 'Asia/Kuala_Lumpur' ? '+00:00' : '+08:00',
+          'phpTimezone' => $zone,
+          'publicationReady' => true,
+        ];
+        $input = [
+          'title' => 'Native clock QA',
+          'slug' => 'clock-' . bin2hex(random_bytes(4)),
+          'content' => '<p>Safe fixture</p>',
+          'excerpt' => 'QA',
+          'status' => 'published',
+          'category' => 'BERITA',
+          'keywords' => 'Berita, BERITA',
+        ];
+        $result = actionRun($directory, [$request + ['input' => $input]])[0];
+        actionCheck(
+          $result['status'] === 200 && !empty($result['body']['id']),
+          'Native MySQL Save failed: ' . $result['output'],
+        );
+        $id = (int) $result['body']['id'];
+        $row = $db->query('SELECT * FROM ' . $table . ' WHERE id=' . $id)->fetch();
+        $stamp = new DateTimeImmutable($row['updated_at'], new DateTimeZone($zone));
+        actionCheck(
+          abs($stamp->getTimestamp() - time()) < 5 &&
+            $row['published_at'] === $row['updated_at'] &&
+            $row['created_at'] === $row['updated_at'],
+          'Native MySQL created/publication/modified clocks differ',
+        );
+        actionCheck($row['keywords'] === 'Berita', 'Native MySQL keyword normalization failed');
+        $input['id'] = $id;
+        $input['baseUpdatedAt'] = $row['updated_at'];
+        $input['title'] = 'Updated native clock QA';
+        $result = actionRun($directory, [$request + ['input' => $input]])[0];
+        actionCheck($result['status'] === 200, 'Native MySQL update failed: ' . $result['output']);
+        $updated = $db->query('SELECT * FROM ' . $table . ' WHERE id=' . $id)->fetch();
+        $stamp = new DateTimeImmutable($updated['updated_at'], new DateTimeZone($zone));
+        actionCheck(
+          abs($stamp->getTimestamp() - time()) < 5 &&
+            $updated['created_at'] === $row['created_at'] &&
+            $updated['published_at'] === $row['published_at'],
+          'Native MySQL update changed historical timestamps or used DB time',
+        );
+        $input['baseUpdatedAt'] = $updated['updated_at'];
+        $result = actionRun($directory, [
+          $request + ['input' => $input, 'withoutSiteClock' => true],
+        ])[0];
+        actionCheck($result['status'] === 200, 'Native negative clock control failed to execute');
+        $stamp = new DateTimeImmutable($result['body']['updated_at'], new DateTimeZone($zone));
+        actionCheck(
+          abs($stamp->getTimestamp() - time()) > 3600,
+          'Native old NOW() writes must reproduce the timezone offset',
+        );
+      }
+    }
+  } finally {
+    $db = null;
+    if ($created && preg_match('/^voncms_auth_[a-f0-9]{16}$/D', $name)) {
+      $admin->exec('DROP DATABASE `' . $name . '`');
+    }
+  }
+}
+
+function actionEditorMetadataChecks(): void
+{
+  foreach (['UTC', 'Asia/Kuala_Lumpur', 'America/New_York'] as $zone) {
+    foreach (['save_post.php' => 'posts', 'save_page.php' => 'pages'] as $endpoint => $table) {
+      $directory = actionFixture('metadata-' . bin2hex(random_bytes(4)));
+      $db = actionDatabase($directory);
+      $db->exec(
+        'CREATE TABLE posts(id INTEGER PRIMARY KEY,title TEXT,slug TEXT,content TEXT,excerpt TEXT,status TEXT,image_url TEXT,keywords TEXT,category TEXT,meta_description TEXT,author_id INTEGER,scheduled_at TEXT,published_at TEXT,created_at TEXT,updated_at TEXT)',
+      );
+      $db->exec(
+        'CREATE TABLE pages(id INTEGER PRIMARY KEY,title TEXT,slug TEXT,content TEXT,excerpt TEXT,status TEXT,keywords TEXT,meta_description TEXT,author_id INTEGER,published_at TEXT,created_at TEXT,updated_at TEXT)',
+      );
+      $db->exec(
+        'CREATE TABLE content_audit_logs(content_type TEXT,content_id INTEGER,action TEXT,actor_user_id INTEGER,actor_username TEXT,actor_role TEXT,summary TEXT,context_json TEXT)',
+      );
+      $db->exec('INSERT INTO settings VALUES(\'content\',\'categories\',\'["Berita","Ékonomi"]\')');
+      $base = [
+        'endpoint' => $endpoint,
+        'case' => 'editor-inputs',
+        'phpTimezone' => $zone,
+        'databaseClockOffset' => $zone === 'Asia/Kuala_Lumpur' ? 0 : 28800,
+        'publicationReady' => true,
+      ];
+      $input = [
+        'title' => 'Metadata QA',
+        'slug' => 'metadata-qa',
+        'content' => '<p>Safe QA body.</p>',
+        'excerpt' => 'QA',
+        'status' => 'published',
+        'category' => '  bErItA  ',
+        'keywords' => 'Berita, BERITA, berita, Ékonomi, éKONOMI, AI, Ais, 0, 0',
+      ];
+      $before = time();
+      $result = actionRun($directory, [$base + ['input' => $input]])[0];
+      actionCheck(
+        $result['status'] === 200 && !empty($result['body']['id']),
+        'Metadata create failed: ' . $result['output'],
+      );
+      $row = $db->query('SELECT * FROM ' . $table)->fetch();
+      actionCheck(
+        $row['keywords'] === 'Berita, Ékonomi, AI, Ais, 0' &&
+          $result['body']['keywords'] === $row['keywords'],
+        'Keyword cleanup/storage/response disagree',
+      );
+      if ($table === 'posts') {
+        actionCheck($row['category'] === 'Berita', 'Known category casing was not reused');
+      }
+      $time = new DateTimeImmutable($row['updated_at'], new DateTimeZone($zone));
+      actionCheck(
+        $time->getTimestamp() >= $before && $time->getTimestamp() <= time(),
+        'Modified time used the fake DB clock',
+      );
+      actionCheck(
+        $row['created_at'] === $row['updated_at'] && $row['published_at'] === $row['updated_at'],
+        'New publication/creation/modification instants differ: ' .
+          json_encode([$endpoint, $zone, $row, $result['body']]),
+      );
+      $input['id'] = $result['body']['id'];
+      $input['baseUpdatedAt'] = $row['updated_at'];
+      $input['keywords'] = 'New  York, new york, R&D, R&D';
+      $result = actionRun($directory, [$base + ['input' => $input]])[0];
+      actionCheck(
+        $result['status'] === 200 && ($result['body']['keywords'] ?? null) === 'New York, R&D',
+        'Metadata update failed: ' . $result['output'],
+      );
+      $updated = $db->query('SELECT * FROM ' . $table)->fetch();
+      actionCheck(
+        $updated['created_at'] === $row['created_at'] &&
+          $updated['published_at'] === $row['published_at'],
+        'Editing rewrote historical creation/publication',
+      );
+      $time = new DateTimeImmutable($updated['updated_at'], new DateTimeZone($zone));
+      actionCheck(
+        abs($time->getTimestamp() - time()) <= 3,
+        'Updated timestamp has a timezone offset',
+      );
+      $input['id'] = null;
+      $input['slug'] = 'second-metadata';
+      unset($input['baseUpdatedAt']);
+      $result = actionRun($directory, [$base + ['input' => $input]])[0];
+      actionCheck(
+        $result['status'] === 200 &&
+          (int) $db->query('SELECT COUNT(*) FROM ' . $table)->fetchColumn() === 2,
+        'Same keywords in separate records were blocked',
+      );
+      $input['slug'] = 'boundary-keywords';
+      $boundaryKeywords = implode(
+        ',',
+        array_map(static fn(int $i): string => sprintf('%03d', $i), range(0, 63)),
+      );
+      $input['keywords'] = $boundaryKeywords;
+      $boundary = actionRun($directory, [$base + ['input' => $input]])[0];
+      actionCheck(
+        $boundary['status'] === 200 &&
+          ($boundary['body']['keywords'] ?? null) === $boundaryKeywords,
+        'Valid 255-character input must not fail because separator spaces were inserted',
+      );
+      $input['keywords'] = str_repeat('x', 256);
+      $result = actionRun($directory, [$base + ['input' => $input]])[0];
+      actionCheck($result['status'] === 400, 'Existing metadata length limit changed');
+      $input['slug'] = 'counter-keywords';
+      $input['keywords'] = 'Berita, berita';
+      $counter = actionRun($directory, [
+        $base + ['input' => $input, 'withoutKeywordCleanup' => true],
+      ])[0];
+      actionCheck(
+        ($counter['body']['keywords'] ?? null) === 'Berita, berita',
+        'Removing cleanup must reproduce duplicate storage',
+      );
+      $input['slug'] = 'counter-clock';
+      $counter = actionRun($directory, [
+        $base + ['input' => $input, 'withoutSiteClock' => true],
+      ])[0];
+      actionCheck($counter['status'] === 200, 'Clock mutation control must reach Save');
+      $wrong = new DateTimeImmutable($counter['body']['updated_at'], new DateTimeZone($zone));
+      actionCheck(
+        abs($wrong->getTimestamp() - time()) > 3600,
+        'Restored DB-clock writes must fail the actual-instant assertion',
+      );
+    }
+  }
+  $directory = actionFixture('category-feedback');
+  $db = actionDatabase($directory);
+  $db->exec('DROP TABLE settings');
+  $db->exec(
+    'CREATE TABLE settings(setting_group TEXT,setting_key TEXT,setting_value TEXT,setting_type TEXT,is_public INT,PRIMARY KEY(setting_group,setting_key))',
+  );
+  $db->exec(
+    'INSERT INTO settings VALUES(\'content\',\'categories\',\'["Berita","Ékonomi"]\',\'json\',1)',
+  );
+  $db->exec('CREATE TABLE posts(id INTEGER PRIMARY KEY,category TEXT)');
+  foreach (['berita', 'BERITA', '  bErItA  ', 'éKONOMI'] as $label) {
+    $result = actionRun($directory, [
+      ['endpoint' => 'manage_categories.php', 'input' => ['action' => 'add', 'category' => $label]],
+    ])[0];
+    actionCheck(
+      $result['status'] === 200 &&
+        ($result['body']['added'] ?? null) === false &&
+        str_contains($result['body']['message'], 'already exists'),
+      'Duplicate category feedback failed: ' . $result['output'],
+    );
+    actionCheck(
+      $db->query('SELECT setting_value FROM settings')->fetchColumn() === '["Berita","Ékonomi"]',
+      'Duplicate category changed storage',
+    );
+  }
+  $result = actionRun($directory, [
+    [
+      'endpoint' => 'manage_categories.php',
+      'input' => ['action' => 'add', 'category' => 'Teknologi'],
+    ],
+  ])[0];
+  actionCheck(
+    $result['status'] === 200 && !empty($result['body']['added']),
+    'Ordinary category add failed: ' . $result['output'],
+  );
+  $result = actionRun($directory, [
+    [
+      'endpoint' => 'manage_categories.php',
+      'input' => ['action' => 'add', 'category' => 'BERITA'],
+      'withoutCategoryFeedback' => true,
+    ],
+  ])[0];
+  actionCheck(
+    ($result['body']['added'] ?? null) === true &&
+      !str_contains($result['body']['message'], 'already exists'),
+    'Removing duplicate feedback must reproduce the misleading added response',
+  );
+}
+
 function actionMaintenanceChecks(): void
 {
   foreach (['Root', 'Admin', 'Moderator', 'Writer', 'Member'] as $role) {
@@ -2920,6 +3248,17 @@ function actionMaintenanceChecks(): void
 }
 
 try {
+  if (($argv[1] ?? '') === '--mysql-editor-metadata') {
+    actionMysqlEditorClockChecks();
+    echo "PASS MySQL editor clocks: $checks checks; actual Save Post/Page controllers, native InnoDB/NOW(), three site zones, preserved timestamps and old-write counterexamples. Owned QA database removed.\n";
+    return;
+  }
+  if (($argv[1] ?? '') === '--editor-metadata') {
+    actionEditorMetadataChecks();
+    echo "PASS Editor metadata: $checks checks; actual Save Post/Page/category controllers, SQLite with a deliberately different DB clock, three site zones, keyword storage/response and ordinary controls. No installed data.\n";
+    return;
+  }
+  actionEditorMetadataChecks();
   if (($argv[1] ?? '') === '--maintenance-qc') {
     actionMaintenanceChecks();
     echo "PASS Maintenance API: $checks checks; actual comment/inbox controllers with SQLite, fixture session revocation and shared honeypot logger calls. No installed data or mail.\n";
