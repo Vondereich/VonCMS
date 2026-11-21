@@ -592,7 +592,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   aria-label="SMTP Username / Email"
                   id="generalsettings-491"
                   name="generalsettings491"
-                  type="email"
+                  type="text"
                   value={settings.smtpUser || ''}
                   onChange={(e) => onChange('smtpUser', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
@@ -653,6 +653,28 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   placeholder="My Website"
                 />
               </div>
+            </div>
+          )}
+          {canManageSecrets && (
+            <div className="mt-3">
+              <label
+                htmlFor="smtp-from-email"
+                className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1"
+              >
+                SMTP From Email
+              </label>
+              <input
+                id="smtp-from-email"
+                type="email"
+                value={settings.smtpFromEmail || ''}
+                onChange={(e) => onChange('smtpFromEmail', e.target.value)}
+                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
+                placeholder="sender@example.com"
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                Required for provider usernames such as apikey or SES access keys. Leave empty to
+                keep using an email-address SMTP username as the sender.
+              </p>
             </div>
           )}
           {canManageSecrets && (

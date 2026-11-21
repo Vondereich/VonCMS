@@ -47,7 +47,7 @@ try {
   $whereClauses = [];
   $params = [];
 
-  if (!$isAdmin) {
+  if (!$isAdmin || DataBoundary::inputText($_GET['view'] ?? '') === 'menu') {
     $whereClauses[] = "p.status = 'published'";
   }
 

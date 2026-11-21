@@ -514,6 +514,7 @@ export interface SiteSettings {
   smtpPass?: string;
   smtpEncryption?: string;
   smtpFromName?: string;
+  smtpFromEmail?: string;
   ads: AdConfig;
   theme: ThemeConfig;
   activeThemeId?: string;

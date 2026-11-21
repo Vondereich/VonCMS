@@ -92,7 +92,7 @@ if (in_array('--backup-mysql', $argv, true)) {
     );
     $db->exec('CREATE TABLE empty_items (id INT PRIMARY KEY)');
     $installer = file_get_contents($root . '/public/api/install.php');
-    foreach (['users', 'posts'] as $table) {
+    foreach (['users', 'posts', 'pages'] as $table) {
       check(
         preg_match(
           '/CREATE TABLE IF NOT EXISTS ' . $table . ' \(.*?\) ENGINE=InnoDB[^;\"]*/s',
@@ -113,6 +113,9 @@ if (in_array('--backup-mysql', $argv, true)) {
     $db->exec(
       "INSERT INTO posts(title,slug,status,author_id,published_at,created_at,updated_at) VALUES ('Restore QA','restore-qa','published',1,'2002-03-04 05:06:07','2001-02-03 04:05:06','2003-04-05 06:07:08')",
     );
+    $db->exec(
+      "INSERT INTO pages(title,slug,status,author_id,published_at,created_at,updated_at) VALUES ('Restore Page QA','restore-page-qa','published',1,'2002-03-04 05:06:07','2001-02-03 04:05:06','2003-04-05 06:07:08')",
+    );
     $nativeBefore = $db->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC);
     $insert = $db->prepare('INSERT INTO items VALUES (?, ?, ?, ?)');
     $body =
@@ -128,7 +131,12 @@ if (in_array('--backup-mysql', $argv, true)) {
     copy($root . '/public/core/DataBoundary.php', $fixture . '/core/DataBoundary.php');
     copy($root . '/public/core/DatabaseBackup.php', $fixture . '/core/DatabaseBackup.php');
     foreach (
-      ['import_db.php', 'public_cache_helper.php', 'publication_time_helper.php']
+      [
+        'import_db.php',
+        'public_cache_helper.php',
+        'publication_time_helper.php',
+        'schema_repair_helper.php',
+      ]
       as $helper
     ) {
       $source =
@@ -138,6 +146,8 @@ if (in_array('--backup-mysql', $argv, true)) {
           : $root . '/public/api/' . $helper;
       copy($source, $fixture . '/api/' . $helper);
     }
+    mkdir($fixture . '/api/activity', 0700);
+    copy($root . '/public/api/activity/schema.php', $fixture . '/api/activity/schema.php');
     file_put_contents(
       $fixture . '/security.php',
       <<<'PHP'
@@ -222,7 +232,7 @@ if (in_array('--backup-mysql', $argv, true)) {
         check(str_ends_with($output, "-- End of backup\n"), 'Incomplete SQL download');
         check(strlen($output) > 5242880, 'Fixture did not exercise disk-spilled temporary output');
         check(
-          count($state['streamModes']) === 4 && !in_array(true, $state['streamModes'], true),
+          count($state['streamModes']) === 5 && !in_array(true, $state['streamModes'], true),
           'Backup stopped streaming table data',
         );
         $restore = new PDO(
@@ -261,6 +271,13 @@ if (in_array('--backup-mysql', $argv, true)) {
           $_POST['confirm_destructive_import'] = 'yes';
           $sql = getenv('VONCMS_RESTORE_SQL');
           $_FILES['sqlfile'] = ['name' => 'qa.sql', 'tmp_name' => $sql, 'size' => filesize($sql), 'error' => UPLOAD_ERR_OK];
+          register_shutdown_function(static function():void {
+            global $pdo;
+            try {
+              $expression=voncms_publication_expression_sql($pdo,'posts');
+              file_put_contents(__DIR__.'/publication-state.json',json_encode(['published'=>$pdo->query('SELECT '.$expression.' FROM posts LIMIT 1')->fetchColumn()]));
+            } catch (Throwable $error) {}
+          });
           require __DIR__ . '/api/import_db.php';
           PHP
           ,
@@ -293,6 +310,31 @@ if (in_array('--backup-mysql', $argv, true)) {
         check(
           ($response['success'] ?? false) === true,
           'Actual restore rejected fresh backup: ' . json_encode($response),
+        );
+        check(
+          ($response['repairRequired'] ?? true) === false,
+          'Restored publication columns still require Repair',
+        );
+        $publicationState = json_decode(
+          file_get_contents($fixture . '/publication-state.json'),
+          true,
+          512,
+          JSON_THROW_ON_ERROR,
+        );
+        check(
+          ($publicationState['published'] ?? '') === '2002-03-04 05:06:07',
+          'Public publication expression fell back to creation after import',
+        );
+        $capabilities = json_decode(
+          file_get_contents($fixture . '/data/schema-capabilities.json'),
+          true,
+          512,
+          JSON_THROW_ON_ERROR,
+        );
+        check(
+          ($capabilities['published_at']['posts'] ?? false) === true &&
+            ($capabilities['published_at']['pages'] ?? false) === true,
+          'Import did not restore publication capabilities',
         );
         check(
           $restore->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC) === $nativeBefore,
@@ -627,7 +669,13 @@ $enabledAssignment = between(
   "      \$mediaSettings['maxWidth']",
 );
 foreach (
-  [[null, true], [[], true], [['enabled' => false], false], [['enabled' => true], true]]
+  [
+    [null, false],
+    [[], false],
+    [['enabled' => false], false],
+    [['enabled' => true], true],
+    [['enabled' => 'false'], false],
+  ]
   as [$opt, $expectedEnabled]
 ) {
   $mediaSettings = ['enabled' => $defaultEnabled];

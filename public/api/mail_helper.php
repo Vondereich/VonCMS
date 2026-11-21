@@ -161,10 +161,17 @@ function vonSendMail($to, $subject, $htmlBody, $fromEmail = '', $fromName = '', 
 
   // Try to load settings from database first
   $settings = loadSmtpSettings();
+  if (!empty($settings['_smtpUnavailable'])) {
+    return [
+      'success' => false,
+      'method' => 'smtp',
+      'message' => 'Mail settings are temporarily unavailable. Please try again later.',
+    ];
+  }
 
   $smtpHost = $settings['smtpHost'] ?? '';
   $smtpPort = $settings['smtpPort'] ?? 587;
-  $smtpUser = $settings['smtpUser'] ?? '';
+  $smtpUser = trim(DataBoundary::inputText($settings['smtpUser'] ?? ''));
   $smtpPass = $settings['smtpPass'] ?? '';
   $smtpEncryption = $settings['smtpEncryption'] ?? 'tls';
 
@@ -179,8 +186,14 @@ function vonSendMail($to, $subject, $htmlBody, $fromEmail = '', $fromName = '', 
 
   // SMTP Robustness: If using SMTP, some providers (Gmail/Outlook) reject the email
   // if the "From" header doesn't match the authenticated user.
-  // We use the SMTP user as the literal sender, but keep the original fromEmail as Reply-To.
-  $authenticatedFrom = !empty($smtpUser) ? $smtpUser : $finalFromEmail;
+  // Prefer the configured sender; legacy email usernames remain valid senders.
+  $authenticatedFrom = trim((string) ($settings['smtpFromEmail'] ?? ''));
+  if ($authenticatedFrom === '') {
+    $authenticatedFrom = filter_var($smtpUser, FILTER_VALIDATE_EMAIL) ? $smtpUser : $finalFromEmail;
+  }
+  if (!filter_var($finalFromEmail, FILTER_VALIDATE_EMAIL)) {
+    $finalFromEmail = $authenticatedFrom;
+  }
 
   // Formatting: If body is plain text, convert newlines and wrap in clean HTML
   $formattedBody = $htmlBody;
@@ -219,18 +232,19 @@ function vonSendMail($to, $subject, $htmlBody, $fromEmail = '', $fromName = '', 
     'fromEmail' => $authenticatedFrom, // Authenticated sender
     'fromName' => $finalFromName,
     'replyTo' => $finalFromEmail, // Original sender for user to reply to
-    'authEmail' => $smtpUser,
+    'domainUrl' => $settings['domainUrl'] ?? '',
   ]);
 }
 
 /**
- * Load SMTP settings from database or JSON file
+ * Load SMTP settings from the database; refuse a legacy credential fallback.
  *
  * @return array<string, scalar|null>
  */
 function loadSmtpSettings()
 {
   global $pdo;
+  $databaseUnavailable = false;
 
   // Try database first
   try {
@@ -279,6 +293,13 @@ function loadSmtpSettings()
               case 'smtpFromName':
                 $settings['smtpFromName'] = $value;
                 break;
+              case 'smtp_from_email':
+              case 'smtpFromEmail':
+                $settings['smtpFromEmail'] = $value;
+                break;
+              case 'domain_url':
+                $settings['domainUrl'] = $value;
+                break;
             }
           }
 
@@ -289,26 +310,19 @@ function loadSmtpSettings()
       }
     }
   } catch (Exception $e) {
+    $databaseUnavailable = true;
     error_log('SMTP settings DB load failed: ' . $e->getMessage());
   }
 
-  // Fallback to JSON file
-  $settingsPath = dirname(__DIR__) . '/data/site_settings.json';
-  if (file_exists($settingsPath)) {
-    $jsonText = file_get_contents($settingsPath);
-    $json = is_string($jsonText) ? json_decode($jsonText, true) : null;
-    if (is_array($json)) {
-      $settings = [];
-      foreach ($json as $key => $value) {
-        if (is_scalar($value) || $value === null) {
-          $settings[(string) $key] = $value;
-        }
-      }
-      return $settings;
-    }
+  // A public-readable compatibility file is not an authority for SMTP credentials.
+  // SMTP delivery requires the database; never reuse a legacy mirrored password.
+  $legacyPath = dirname(__DIR__) . '/data/site_settings.json';
+  if (is_file($legacyPath)) {
+    $legacy = json_decode((string) @file_get_contents($legacyPath), true);
+    $databaseUnavailable =
+      $databaseUnavailable || (is_array($legacy) && !empty($legacy['smtpHost']));
   }
-
-  return [];
+  return $databaseUnavailable ? ['_smtpUnavailable' => true] : [];
 }
 
 /**
@@ -358,9 +372,15 @@ function voncms_build_mail_message(
     }
   }
   $body = preg_replace('/\r\n|\r|\n/', "\r\n", $htmlBody);
+  $fromDomain = strrchr($fromEmail, '@');
+  if ($fromDomain === false) {
+    throw new InvalidArgumentException('Invalid mail sender domain.');
+  }
   return [
     'subject' => voncms_encode_mail_header($subject),
     'headers' => [
+      'Date: ' . date(DATE_RFC2822),
+      'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . substr($fromDomain, 1) . '>',
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=UTF-8',
       'Content-Transfer-Encoding: base64',
@@ -431,7 +451,9 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     $port < 1 ||
     $port > 65535 ||
     !in_array($encryption, ['tls', 'ssl'], true) ||
-    !filter_var($user, FILTER_VALIDATE_EMAIL) ||
+    $user === '' ||
+    strlen($user) > 320 ||
+    preg_match('/[\r\n\0]/', $user) ||
     !filter_var($fromEmail, FILTER_VALIDATE_EMAIL) ||
     !filter_var($to, FILTER_VALIDATE_EMAIL)
   ) {
@@ -573,11 +595,22 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     error_log('SMTP Greeting: ' . trim($greeting));
 
     // EHLO
-    $ehloHost = preg_replace(
-      '/[^a-zA-Z0-9.\-:]/',
-      '',
-      DataBoundary::serverString('HTTP_HOST', 'localhost'),
+    $ehloHost = (string) parse_url(
+      voncms_normalize_trusted_public_base_url($config['domainUrl'] ?? ''),
+      PHP_URL_HOST,
     );
+    $fromDomain = strrchr($fromEmail, '@');
+    $ehloHost = trim(
+      $ehloHost !== '' ? $ehloHost : ($fromDomain !== false ? substr($fromDomain, 1) : 'localhost'),
+      '[]',
+    );
+    if (filter_var($ehloHost, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+      $ehloHost = '[IPv6:' . $ehloHost . ']';
+    } elseif (filter_var($ehloHost, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+      $ehloHost = '[' . $ehloHost . ']';
+    } elseif (!preg_match('/^[a-zA-Z0-9.-]+$/D', $ehloHost)) {
+      $ehloHost = 'localhost';
+    }
     $ehloResp = $sendCmd('EHLO ' . $ehloHost);
     $expectResponse($ehloResp, [250], 'EHLO');
     error_log('SMTP EHLO Response: ' . trim($ehloResp));
@@ -619,7 +652,7 @@ function sendWithSmtp($to, $subject, $htmlBody, $textBody, $config)
     error_log('SMTP Pass Response: ' . trim($passResp));
 
     // MAIL FROM (Envelope Sender)
-    $envelopeEmail = (string) ($config['authEmail'] ?? '') ?: $fromEmail;
+    $envelopeEmail = $fromEmail;
     $mailFromResp = $sendCmd("MAIL FROM:<$envelopeEmail>");
     $expectResponse($mailFromResp, [250], 'MAIL FROM');
     error_log('SMTP MAIL FROM Response: ' . trim($mailFromResp));

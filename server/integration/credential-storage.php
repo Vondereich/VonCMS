@@ -616,6 +616,66 @@ try {
     $readConfig() === $savedSql,
     'Theme save changed shared AI credential configuration',
   );
+  // S4: an unchanged invalid legacy announcement must not block another plugin's save.
+  $legacyPlugins = ['vp_promo_bar' => ['startsAt' => '31/12/2099 09:00', 'text' => 'Legacy']];
+  $database
+    ->prepare(
+      'INSERT INTO settings(setting_group,setting_key,setting_value,setting_type) VALUES(?,?,?,?)',
+    )
+    ->execute(['plugins', 'plugin_config', json_encode($legacyPlugins), 'json']);
+  $otherPluginChange = $legacyPlugins + ['gift' => ['url' => '/ordinary']];
+  $response = credentialSaveRequest($harness, 'owner', ['pluginConfig' => $otherPluginChange]);
+  credentialCheck(
+    $response['status'] === 200,
+    'Legacy Promo Bar blocked unrelated plugin settings',
+  );
+  $changedPromo = $otherPluginChange;
+  $changedPromo['vp_promo_bar']['text'] = 'Changed';
+  $response = credentialSaveRequest($harness, 'owner', ['pluginConfig' => $changedPromo]);
+  credentialCheck($response['status'] === 400, 'Changed Promo Bar accepted invalid dates');
+  $changedPromo['vp_promo_bar']['startsAt'] = '';
+  $response = credentialSaveRequest($harness, 'owner', ['pluginConfig' => $changedPromo]);
+  credentialCheck($response['status'] === 200, 'Legacy Promo Bar could not be repaired explicitly');
+  foreach (
+    [
+      [['smtpHost' => 'smtp.example.invalid', 'smtpUser' => 'apikey'], 400],
+      [
+        [
+          'smtpHost' => 'smtp.example.invalid',
+          'smtpUser' => 'apikey',
+          'smtpFromEmail' => 'sender@example.invalid',
+        ],
+        200,
+      ],
+      [['smtpFromEmail' => 'invalid'], 400],
+      [['smtpUser' => 'mailer@example.invalid', 'smtpFromEmail' => ''], 200],
+    ]
+    as [$smtpInput, $expectedStatus]
+  ) {
+    $response = credentialSaveRequest($harness, 'owner', $smtpInput);
+    credentialCheck($response['status'] === $expectedStatus, 'SMTP identity validation failed');
+  }
+  $response = credentialSaveRequest($harness, 'admin', [
+    'smtpFromEmail' => 'other@example.invalid',
+  ]);
+  credentialCheck($response['status'] === 403, 'Appointed Admin changed the SMTP sender');
+  $response = credentialSaveRequest($harness, 'owner', ['smtpPass' => 'qa-smtp-private-password']);
+  credentialCheck($response['status'] === 200, 'SMTP password Save failed');
+  credentialCheck(
+    $database
+      ->query(
+        "SELECT setting_value FROM settings WHERE setting_group='smtp' AND setting_key='smtpPass'",
+      )
+      ->fetchColumn() === 'qa-smtp-private-password',
+    'SMTP password was not retained in its database authority',
+  );
+  credentialCheck(
+    !str_contains(
+      file_get_contents($harness . '/data/site_settings.json'),
+      'qa-smtp-private-password',
+    ),
+    'Actual Settings Save mirrored the SMTP password',
+  );
   // A negative control in the disposable controller proves the SQL assertion detects no encryption.
   $controllerPath = $harness . '/api/save_settings.php';
   $controllerSource = file_get_contents($controllerPath);

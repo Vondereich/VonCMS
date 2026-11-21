@@ -2267,7 +2267,7 @@ assertExcludes(
 assertIncludes(
   'Security Logs Pagination Contract',
   securityLogsContent,
-  ['$page = max(1,', '$limit = min(100, max(1,', '$offset = ($page - 1) * $limit;'],
+  ['$page = min(1000000, max(1,', '$limit = min(100, max(1,', '$offset = ($page - 1) * $limit;'],
   'Security Logs Pagination Contract: admin security logs clamp page and limit before querying.',
   'Security Logs Pagination Contract: admin security logs still trust raw page/limit query values.'
 );
@@ -2350,8 +2350,8 @@ assertIncludes(
     'overrides.includeStats === true ||',
     "$includeStats = isset($_GET['include_stats']) ? $_GET['include_stats'] === '1' : $page === 1;",
     'if ($includeStats)',
-    'SUM(created_at >= CURDATE() AND blocked = 1) AS blocked_today',
-    "SUM(created_at >= CURDATE() AND severity IN ('high', 'critical')) AS high_severity_today",
+    'SUM(created_at >= FROM_UNIXTIME($todayEpoch) AND blocked = 1) AS blocked_today',
+    "SUM(created_at >= FROM_UNIXTIME($todayEpoch) AND severity IN ('high', 'critical')) AS high_severity_today",
     'WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)',
     "toast.success(data.message || 'Security log maintenance completed.');",
   ],
@@ -18634,7 +18634,7 @@ if (
   v1268SiteUtilsContent.includes('export const getPublicNavigationHref') &&
   phpPublicRenderHelperContent.includes('function voncms_project_public_navigation_hrefs') &&
   phpPublicRenderHelperContent.includes(
-    "$postHrefs[$postId] = '/post/' . rawurlencode($postId);"
+    "$postIdHrefs[$postId] = '/post/' . rawurlencode($postId);"
   ) &&
   v1268PublicNavigationRuntimePass &&
   v1268SaveSettingsContent.includes('function voncms_strip_navigation_runtime_projection') &&
@@ -18839,6 +18839,21 @@ if (phpBinary) {
   );
   if (probe.status === 0) pass(probe.stdout.trim().replace(/^PASS /, ''));
   else fail('PHP JSON probe diagnostics: ' + (probe.stderr || probe.stdout).trim());
+}
+if (phpBinary) {
+  for (const file of ['s4-regressions.cjs', 'smtp-fixture.cjs']) {
+    const probe = spawnSync(
+      process.execPath,
+      [resolveFromRoot(`server/integration/maintenance/${file}`)],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PHP_BIN: phpBinary },
+      }
+    );
+    if (probe.status === 0 && probe.stdout.startsWith('PASS ') && !probe.stderr.trim())
+      pass(probe.stdout.trim().replace(/^PASS /, ''));
+    else fail('S4 regression: ' + (probe.stderr || probe.stdout || probe.error).toString());
+  }
 }
 if (phpBinary) {
   for (const file of ['run.php', 'endpoint.php']) {
@@ -20521,19 +20536,19 @@ require ${JSON.stringify(resolveFromRoot('public/public_render_helper.php'))};
 if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) { echo 'skip'; exit; }
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('CREATE TABLE pages (id TEXT PRIMARY KEY, slug TEXT, status TEXT NULL)');
-$pdo->exec('CREATE TABLE posts (id TEXT PRIMARY KEY, status TEXT NULL, scheduled_at TEXT NULL)');
-$pdo->exec("INSERT INTO pages (id, slug, status) VALUES ('page-live', 'about', 'published'), ('page-draft', 'draft-page', 'draft')");
-$pdo->exec("INSERT INTO posts (id, status, scheduled_at) VALUES ('post-live', 'published', NULL), ('post-null', NULL, NULL), ('post-future', 'published', '2999-01-01 00:00:00'), ('post-draft', 'draft', NULL)");
+$pdo->exec('CREATE TABLE pages (id INTEGER PRIMARY KEY, slug TEXT, status TEXT NULL)');
+$pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, slug TEXT, status TEXT NULL, scheduled_at TEXT NULL)');
+$pdo->exec("INSERT INTO pages (id, slug, status) VALUES (1, 'about', 'published'), (2, 'draft-page', 'draft')");
+$pdo->exec("INSERT INTO posts (id, slug, status, scheduled_at) VALUES (3, 'post-live', 'published', NULL), (4, 'post-null', NULL, NULL), (5, 'post-future', 'published', '2999-01-01 00:00:00'), (6, 'post-draft', 'draft', NULL)");
 $navigation = [
   ['id' => 'home', 'url' => 'home'],
-  ['id' => 'page-live', 'url' => 'page:page-live'],
-  ['id' => 'page-draft', 'url' => 'page:page-draft', 'resolvedHref' => '/stale-page'],
-  ['id' => 'post-live', 'url' => 'post:post-live'],
-  ['id' => 'post-null', 'url' => 'post:post-null'],
-  ['id' => 'post-future', 'url' => 'post:post-future'],
-  ['id' => 'post-draft', 'url' => 'post:post-draft', 'resolvedHref' => '/stale-post'],
-  ['id' => 'post-missing', 'url' => 'post:post-missing'],
+  ['id' => 'page-live', 'url' => 'page:1'],
+  ['id' => 'page-draft', 'url' => 'page:2', 'resolvedHref' => '/stale-page'],
+  ['id' => 'post-live', 'url' => 'post:3'],
+  ['id' => 'post-null', 'url' => 'post:4'],
+  ['id' => 'post-future', 'url' => 'post:5'],
+  ['id' => 'post-draft', 'url' => 'post:6', 'resolvedHref' => '/stale-post'],
+  ['id' => 'post-missing', 'url' => 'post:7'],
 ];
 $projected = voncms_project_public_navigation_hrefs($pdo, $navigation);
 $byId = [];
@@ -20542,8 +20557,8 @@ if (
   ($byId['home']['resolvedHref'] ?? '') !== '/' ||
   ($byId['page-live']['resolvedHref'] ?? '') !== '/about' ||
   isset($byId['page-draft']['resolvedHref']) ||
-  ($byId['post-live']['resolvedHref'] ?? '') !== '/post/post-live' ||
-  ($byId['post-null']['resolvedHref'] ?? '') !== '/post/post-null' ||
+  ($byId['post-live']['resolvedHref'] ?? '') !== '/post/3' ||
+  ($byId['post-null']['resolvedHref'] ?? '') !== '/post/4' ||
   isset($byId['post-future']['resolvedHref']) ||
   isset($byId['post-draft']['resolvedHref']) ||
   isset($byId['post-missing']['resolvedHref'])
@@ -21390,7 +21405,10 @@ require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
     ['admin', { id: 223 }, 1, 1, 1, 200, 223, false],
     ['moderator', { id: 223 }, 1, 1, 1, 200, 223, false],
     ['root', {}, 200, 224, 1, 200, 224, true],
-    ['root', { view: 'menu', limit: 200 }, 200, 224, 1, 200, 224, true],
+    ['root', { view: 'menu', limit: 200 }, 200, 222, 1, 200, 222, true],
+    ['admin', { view: 'menu', limit: 200 }, 200, 222, 1, 200, 222, true],
+    ['moderator', { view: 'menu', limit: 200 }, 200, 222, 1, 200, 222, true],
+    ['writer', { view: 'menu', limit: 20 }, 20, 222, 1, 20, 222, true],
     ['guest', { view: 'menu', limit: 20 }, 20, 222, 1, 20, 222, true],
   ];
   for (const [role, query, count, total, page, limit, firstId, hasMore] of pageReadCases) {

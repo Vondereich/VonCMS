@@ -30,6 +30,8 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 
 SessionManager::requireAdmin();
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+require_once __DIR__ . '/../../core/CmsClock.php';
+voncms_apply_site_timezone($pdo);
 if (session_status() === PHP_SESSION_ACTIVE) {
   session_write_close();
 }
@@ -50,7 +52,7 @@ function sanitizeSecurityCsvCell(mixed $value): string
 
 try {
   // Pagination
-  $page = max(1, isset($_GET['page']) ? DataBoundary::inputInt($_GET['page']) : 1);
+  $page = min(1000000, max(1, isset($_GET['page']) ? DataBoundary::inputInt($_GET['page']) : 1));
   $limit = min(100, max(1, isset($_GET['limit']) ? DataBoundary::inputInt($_GET['limit']) : 20));
   $offset = ($page - 1) * $limit;
 
@@ -70,13 +72,39 @@ try {
 
   // Date range (YYYY-MM-DD)
   if (isset($_GET['start_date']) && !empty($_GET['start_date'])) {
-    $where[] = 'DATE(created_at) >= ?';
-    $params[] = $_GET['start_date'];
+    if (
+      !is_string($_GET['start_date']) ||
+      !preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $_GET['start_date'])
+    ) {
+      ResponseHelper::sendError('Invalid start date', 400);
+    }
+    $start = DateTimeImmutable::createFromFormat(
+      '!Y-m-d',
+      DataBoundary::inputText($_GET['start_date']),
+    );
+    if (!$start || $start->format('Y-m-d') !== $_GET['start_date']) {
+      ResponseHelper::sendError('Invalid start date', 400);
+    }
+    $where[] = 'created_at >= FROM_UNIXTIME(?)';
+    $params[] = $start->getTimestamp();
   }
 
   if (isset($_GET['end_date']) && !empty($_GET['end_date'])) {
-    $where[] = 'DATE(created_at) <= ?';
-    $params[] = $_GET['end_date'];
+    if (
+      !is_string($_GET['end_date']) ||
+      !preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $_GET['end_date'])
+    ) {
+      ResponseHelper::sendError('Invalid end date', 400);
+    }
+    $end = DateTimeImmutable::createFromFormat(
+      '!Y-m-d',
+      DataBoundary::inputText($_GET['end_date']),
+    );
+    if (!$end || $end->format('Y-m-d') !== $_GET['end_date']) {
+      ResponseHelper::sendError('Invalid end date', 400);
+    }
+    $where[] = 'created_at < FROM_UNIXTIME(?)';
+    $params[] = $end->modify('+1 day')->getTimestamp();
   }
 
   if (isset($_GET['search']) && !empty($_GET['search'])) {
@@ -113,7 +141,7 @@ try {
     ]);
 
     // Fetch ALL matching records (no limit for export, but maybe cap at 5000 for safety)
-    $sql = "SELECT * FROM security_logs $whereClause ORDER BY created_at DESC LIMIT 5000";
+    $sql = "SELECT *,UNIX_TIMESTAMP(created_at) AS _created_epoch FROM security_logs $whereClause ORDER BY created_at DESC LIMIT 5000";
     $stmt = $pdo->prepare($sql);
 
     // Bind params again
@@ -125,6 +153,7 @@ try {
     $stmt->execute();
 
     while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
+      $row = voncms_project_timestamp_row($row);
       fputcsv(
         $output,
         array_map('sanitizeSecurityCsvCell', [
@@ -146,7 +175,7 @@ try {
   }
 
   // Get Logs (Normal JSON)
-  $sql = "SELECT * FROM security_logs $whereClause ORDER BY created_at DESC LIMIT ? OFFSET ?";
+  $sql = "SELECT *,UNIX_TIMESTAMP(created_at) AS _created_epoch FROM security_logs $whereClause ORDER BY created_at DESC LIMIT ? OFFSET ?";
   $stmt = $pdo->prepare($sql);
 
   // Bind params
@@ -158,7 +187,10 @@ try {
   $stmt->bindValue($paramIndex++, $offset, PDO::PARAM_INT);
 
   $stmt->execute();
-  $logs = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
+  $logs = array_map(
+    'voncms_project_timestamp_row',
+    DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)),
+  );
 
   // Get Total Count
   $countSql = "SELECT COUNT(*) as total FROM security_logs $whereClause";
@@ -170,12 +202,14 @@ try {
   $stats = [];
   $includeStats = isset($_GET['include_stats']) ? $_GET['include_stats'] === '1' : $page === 1;
   if ($includeStats) {
+    $today = new DateTimeImmutable('today');
+    $todayEpoch = $today->getTimestamp();
     // One indexed-friendly aggregate replaces three separate COUNT queries.
     $summarySql = "
             SELECT
-                SUM(created_at >= CURDATE() AND blocked = 1) AS blocked_today,
+                SUM(created_at >= FROM_UNIXTIME($todayEpoch) AND blocked = 1) AS blocked_today,
                 SUM(created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)) AS active_last_hour,
-                SUM(created_at >= CURDATE() AND severity IN ('high', 'critical')) AS high_severity_today
+                SUM(created_at >= FROM_UNIXTIME($todayEpoch) AND severity IN ('high', 'critical')) AS high_severity_today
             FROM security_logs
             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         ";
@@ -189,21 +223,38 @@ try {
     $stats['high_severity_today'] = (int) ($summary['high_severity_today'] ?? 0);
 
     // Top attacker today
-    $topSql =
-      'SELECT ip_address, COUNT(*) as count FROM security_logs WHERE created_at >= CURDATE() GROUP BY ip_address ORDER BY count DESC LIMIT 1';
+    $topSql = "SELECT ip_address, COUNT(*) as count FROM security_logs WHERE created_at >= FROM_UNIXTIME($todayEpoch) GROUP BY ip_address ORDER BY count DESC LIMIT 1";
     $stmt = $pdo->query($topSql);
     $topAttacker = DataBoundary::row(DataBoundary::statement($stmt)->fetch(PDO::FETCH_ASSOC));
     $stats['top_attacker'] = $topAttacker ? $topAttacker['ip_address'] : 'None';
 
     // Daily Trends (Last 7 days) - For Line Chart
-    $trendSql = "
+    $days = [];
+    for ($ago = 6; $ago >= 0; $ago--) {
+      $day = $today->modify('-' . $ago . ' days');
+      $after = $day->modify('+1 day');
+      $days[] =
+        'WHEN created_at >= FROM_UNIXTIME(' .
+        $day->getTimestamp() .
+        ') AND created_at < FROM_UNIXTIME(' .
+        $after->getTimestamp() .
+        ") THEN '" .
+        $day->format('Y-m-d') .
+        "'";
+    }
+    $dayCase = 'CASE ' . implode(' ', $days) . ' ELSE NULL END';
+    $firstDayEpoch = $today->modify('-6 days')->getTimestamp();
+    $trendSql =
+      "
             SELECT 
-                DATE(created_at) as date,
+                $dayCase as date,
                 event_type,
                 COUNT(*) as count
             FROM security_logs 
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-            GROUP BY DATE(created_at), event_type
+            WHERE created_at >= FROM_UNIXTIME($firstDayEpoch) AND created_at < FROM_UNIXTIME(" .
+      $today->modify('+1 day')->getTimestamp() .
+      ")
+            GROUP BY date, event_type
             ORDER BY date ASC
         ";
     $stmt = $pdo->query($trendSql);

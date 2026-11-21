@@ -213,13 +213,19 @@ export const MediaManager: React.FC<MediaManagerProps> = ({ settings }) => {
       if (!item) continue;
 
       try {
-        const res = await vonFetch(API.deleteMedia, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: item.path || item.name }),
-        });
-
-        const data = await res.json();
+        const deleteRequest = (confirmReferenced = false) =>
+          vonFetch(API.deleteMedia, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: item.path || item.name, confirmReferenced }),
+          });
+        let res = await deleteRequest();
+        let data = await res.json();
+        if (res.status === 409 && data.requiresConfirmation === true) {
+          if (!confirm(`${item.name}: ${data.error}`)) continue;
+          res = await deleteRequest(true);
+          data = await res.json();
+        }
         if (data.success) {
           deleted++;
         } else {

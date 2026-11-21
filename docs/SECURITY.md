@@ -145,7 +145,7 @@ SVG remains rejected for ordinary Gallery/editor uploads, favicons and social-pr
 
 The exception is **General Settings > Site Logo**: authenticated Admin/Root accounts can upload a static SVG of at most 1MB. The server requires PHP DOM and mbstring, rebuilds the document from an allowlisted XML profile, and rejects scripts, event handlers, animation, embedded media, external references and DTDs. Only this logo context accepts SVG; changing the upload fields does not bypass the server-side role check. Existing theme logo-size limits and optional dark-mode inversion remain unchanged.
 
-With image optimization enabled, a JPEG that would otherwise be preserved because pixel processing is unsafe is checked for EXIF GPS and location-bearing XMP. Location-bearing or unverifiable metadata is refused with resize/remove-metadata guidance; the failed upload is cleaned up instead of publishing its original bytes. Metadata-free fallbacks and verified orientation-only EXIF are preserved without pixel decoding. This is not a universal metadata-removal guarantee: disabled optimization, original animated images and other ingestion paths retain their own policies.
+With image optimization enabled, a JPEG that would otherwise be preserved because pixel processing is unsafe is checked for EXIF GPS and location-bearing XMP. Location-bearing or unverifiable metadata is refused with resize/remove-metadata guidance; the failed upload is cleaned up instead of publishing its original bytes. Metadata-free fallbacks and verified orientation-only EXIF are preserved without pixel decoding. This is not a universal metadata-removal guarantee: original animated images and other ingestion paths retain their own policies. Uploads with optimization disabled (or without GD) also reject JPEGs containing location-bearing or unverifiable metadata, with guidance to enable optimization or remove location metadata first. Accepted as-is JPEGs keep their bytes and EXIF orientation; the upload path does not strip metadata or rotate pixels silently.
 
 ## 5. Rate Limiting and Bot Friction
 
@@ -200,6 +200,8 @@ Calendar requires the server-owned `calendar.manage` capability, limited to root
 The primary administrator owns canonical-domain, SMTP/API credential, Media storage or optimization, and Analytics settings, together with protected IndexNow key actions. IndexNow, GA4 and VonAnalytics privacy controls are read-only for appointed administrators. They can still manage normal site settings, including delegated SEO, Search Console and AdSense fields, but direct API requests cannot overwrite owner-only values; disabled UI controls do not replace server authorization.
 
 Secret-bearing settings are not retained in rollback history. Legacy sensitive audit rows are removed when Settings or the audit viewer runs, and public contact forms receive only the dedicated safe field projection rather than private delivery configuration.
+
+The compatibility JSON mirror excludes SMTP passwords as well as AI and IndexNow credentials. SMTP uses database settings; database failure does not silently reuse an old mirrored password or switch a configured SMTP delivery to PHP mail. After upgrading, Primary Admin must run Database Repair to refresh older mirrors and resolve any permission warning. File replacement cannot erase a previously downloaded copy or SQL backup. Keep the documented Apache/Nginx `data/` access-denial rules in place for the remaining private runtime files.
 
 ### Shared and personal Gemini credential encryption
 

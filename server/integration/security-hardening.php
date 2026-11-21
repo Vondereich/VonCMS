@@ -1761,7 +1761,8 @@ try {
     'Unused secrets survive mirror.',
   );
   check(
-    $mirror['smtpPass'] === 'legacy-password' &&
+    !isset($mirror['smtpPass']) &&
+      $mirror['smtpHost'] === 'mail.example.test' &&
       $mirror['api']['enabled'] === false &&
       $mirror['zero'] === 0 &&
       $mirror['items'] === [],

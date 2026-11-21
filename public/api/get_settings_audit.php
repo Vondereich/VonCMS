@@ -10,6 +10,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
 // 1. Load Security Layer FIRST
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/settings_audit_helper.php';
+require_once __DIR__ . '/../core/CmsClock.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('GET, OPTIONS');
@@ -32,6 +33,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 SessionManager::requirePrimaryAdmin();
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+voncms_apply_site_timezone($pdo);
 
 try {
   voncms_purge_sensitive_setting_audit_history($pdo);
@@ -56,6 +58,7 @@ try {
                 al.new_value,
                 al.change_type,
                 al.changed_at,
+                UNIX_TIMESTAMP(al.changed_at) AS _created_epoch,
                 u.username as changed_by_username,
                 al.ip_address,
                 al.user_agent
@@ -87,6 +90,7 @@ try {
 
   // Format output
   foreach ($logs as &$log) {
+    $log = voncms_project_timestamp_row($log, 'changed_at');
     // Truncate long values for display
     $oldValue = (string) ($log['old_value'] ?? '');
     $newValue = (string) ($log['new_value'] ?? '');

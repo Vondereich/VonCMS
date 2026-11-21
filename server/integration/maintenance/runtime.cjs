@@ -328,8 +328,10 @@ module.exports = async function checkMaintenance({
   await manager.flush();
   assert.match(text(managerDraw()), /QA menu article/);
   assert.match(text(managerDraw()), /QA menu Page/);
-  assert.ok(menuCalls.some(({ url }) => url === 'pages?limit=200&view=menu'));
-  assert.ok(menuCalls.some(({ url }) => url === 'posts?limit=20&includeTotal=false'));
+  assert.ok(menuCalls.some(({ url }) => url === 'pages?limit=200&view=menu&status=published'));
+  assert.ok(
+    menuCalls.some(({ url }) => url === 'posts?limit=20&includeTotal=false&status=published')
+  );
   manager.unmount();
 
   const inbox = harness(React),

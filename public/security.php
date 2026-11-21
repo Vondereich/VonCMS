@@ -320,14 +320,29 @@ if (isset($_SESSION['user'])) {
   } elseif ($_SESSION['ua_bind'] !== $uaHash) {
     // Potential Session Hijacking detected
     SessionManager::destroy();
-    http_response_code(401);
-    header('Content-Type: application/json; charset=UTF-8');
-    die(
-      json_encode([
-        'error' => 'Security session mismatch. Please login again.',
-        'code' => 'SESSION_HIJACK',
-      ])
-    );
+    $bindingScript = strtolower(str_replace('\\', '/', DataBoundary::serverString('SCRIPT_NAME')));
+    $bindingApi =
+      str_contains($bindingScript, '/api/') || preg_match('#/(api|api\.php)$#', $bindingScript);
+    $bindingHtml =
+      !$bindingApi &&
+      in_array(
+        strtoupper(DataBoundary::serverString('REQUEST_METHOD', 'GET')),
+        ['GET', 'HEAD'],
+        true,
+      ) &&
+      (str_contains(strtolower(DataBoundary::serverString('HTTP_ACCEPT')), 'text/html') ||
+        basename($bindingScript) === 'index.php');
+    if (!$bindingHtml) {
+      http_response_code(401);
+      header('Content-Type: application/json; charset=UTF-8');
+      die(
+        json_encode([
+          'error' => 'Security session mismatch. Please login again.',
+          'code' => 'SESSION_HIJACK',
+        ])
+      );
+    }
+    // HTML continues without authenticated state; subsequent API requests still require login.
   }
 }
 

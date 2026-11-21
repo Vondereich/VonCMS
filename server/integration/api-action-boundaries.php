@@ -157,7 +157,10 @@ function actionDatabase(string $directory): ActionFixturePDO
   $pdo->createFunction('NOW', fn() => gmdate('Y-m-d H:i:s'));
   $pdo->createFunction('CURDATE', fn() => gmdate('Y-m-d'));
   $pdo->createFunction('CURTIME', fn() => gmdate('H:i:s'));
-  $pdo->createFunction('UNIX_TIMESTAMP', fn() => time());
+  $pdo->createFunction(
+    'UNIX_TIMESTAMP',
+    fn(?string $value = null) => $value === null ? time() : strtotime($value . ' UTC'),
+  );
   return $pdo;
 }
 
@@ -554,8 +557,17 @@ if (($argv[1] ?? '') === '--worker') {
   $_SERVER['SCRIPT_FILENAME'] = __FILE__;
   $_SERVER['HTTP_HOST'] = 'qa.invalid';
   session_save_path($directory);
-  session_id('actionqa' . ($options['session'] ?? bin2hex(random_bytes(12))));
+  $fixtureSessionId = 'actionqa' . ($options['session'] ?? bin2hex(random_bytes(12)));
+  // Seed the owned session before selecting it: PHP 8.6 strict mode rejects invented IDs.
+  $sessionSeed = @fopen($directory . '/sess_' . $fixtureSessionId, 'x');
+  if (is_resource($sessionSeed)) {
+    fclose($sessionSeed);
+  }
+  session_id($fixtureSessionId);
   session_start();
+  if (session_id() !== $fixtureSessionId) {
+    throw new RuntimeException('QA session was not resumed');
+  }
   define('VONCMS_CORE_LOADED', true);
   function sendApiHeaders($methods = 'GET, OPTIONS'): void {}
   function is_https(): bool
@@ -566,11 +578,7 @@ if (($argv[1] ?? '') === '--worker') {
   {
     return [];
   }
-  // These probes do not exercise site timezone configuration.
-  function voncms_apply_site_timezone($pdo): ?string
-  {
-    return null;
-  }
+  eval(actionDeclaration($root . '/public/security.php', 'function voncms_apply_site_timezone('));
   class SessionManager
   {
     public static function requireValidSession(): void {}
@@ -672,6 +680,11 @@ if (($argv[1] ?? '') === '--worker') {
   }
   if ($endpoint === 'update_media.php') {
     require_once $root . '/public/api/media_library_filter_helper.php';
+  }
+  if (
+    in_array($endpoint, ['contact/get_submissions.php', 'security/get_security_logs.php'], true)
+  ) {
+    require_once $root . '/public/core/CmsClock.php';
   }
   if ($endpoint === 'submit_contact.php') {
     require $root . '/public/api/contact_honeypot_helper.php';
@@ -928,7 +941,9 @@ if (($argv[1] ?? '') === '--worker') {
       unset($_SESSION['user']);
     }
     $input = [];
-  } elseif ($endpoint === 'contact/get_submissions.php') {
+  } elseif (
+    in_array($endpoint, ['contact/get_submissions.php', 'security/get_security_logs.php'], true)
+  ) {
     $_SERVER['REQUEST_METHOD'] = 'GET';
     $_GET = $options['query'] ?? ['page' => '1', 'limit' => '20'];
     $_SESSION['user'] = $options['actor'] ?? ['id' => '1', 'role' => 'Root'];
@@ -1046,6 +1061,13 @@ if (($argv[1] ?? '') === '--worker') {
     if ($replaced !== 1) {
       throw new RuntimeException('Missing Page identity negative-control point');
     }
+  }
+  if (!empty($options['withoutAncillarySiteClock'])) {
+    $source = str_replace(
+      "date('Y-m-d H:i:s')",
+      '(string)$pdo->query("SELECT NOW()")->fetchColumn()',
+      $source,
+    );
   }
   if ($endpoint === 'system/updater.php') {
     $source = substr($source, strpos($source, '// REQUEST HANDLER - Wrapped'));
@@ -1191,6 +1213,28 @@ if (($argv[1] ?? '') === '--worker') {
     }
     $source = str_replace($needle, $barrier . $needle, $source);
   }
+  if (
+    !empty($options['fixedSlugTime']) &&
+    in_array($endpoint, ['save_post.php', 'save_page.php'], true)
+  ) {
+    $source = str_replace(
+      "\$input['slug'] .= '-' . time();",
+      "\$input['slug'] .= '-1234567890';",
+      $source,
+    );
+  }
+  if (!empty($options['withoutSlugConflictHandling'])) {
+    $source = preg_replace(
+      '/  if \(\$e instanceof PDOException && \(int\) \(\$e->errorInfo\[1\] \?\? 0\) === 1062\) \{.*?\n  \}/s',
+      '',
+      $source,
+      1,
+      $removed,
+    );
+    if ($removed !== 1) {
+      throw new RuntimeException('Missing slug error mutation point');
+    }
+  }
   eval($source);
   exit();
 }
@@ -1219,7 +1263,7 @@ function actionFixture(string $label): string
   $pdo->exec("INSERT INTO settings VALUES('newsletter','newsletter_config','{\"enabled\":true}')");
   $pdo->exec("INSERT INTO settings VALUES('general','domain_url','https://qa.invalid/blog')");
   $pdo->exec(
-    "CREATE TABLE newsletter_subscribers(id INTEGER PRIMARY KEY,email TEXT UNIQUE,ip_address TEXT,source TEXT,status TEXT DEFAULT 'subscribed')",
+    "CREATE TABLE newsletter_subscribers(id INTEGER PRIMARY KEY,email TEXT UNIQUE,ip_address TEXT,source TEXT,status TEXT DEFAULT 'subscribed',subscribed_at TEXT)",
   );
   $pdo->exec(
     'CREATE TABLE contact_forms(id TEXT PRIMARY KEY,title TEXT,template TEXT,mail_to TEXT,mail_from TEXT,mail_subject TEXT,mail_body TEXT,msg_success TEXT,msg_error TEXT,msg_validation TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
@@ -2841,12 +2885,58 @@ function actionMysqlEditorClockChecks(): void
     $db->exec(
       'CREATE TABLE pages(id INT AUTO_INCREMENT PRIMARY KEY,title TEXT,slug VARCHAR(255),content LONGTEXT,excerpt TEXT,status VARCHAR(32),keywords TEXT,meta_description TEXT,author_id INT,published_at DATETIME,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)',
     );
+    $db->exec('ALTER TABLE posts ADD UNIQUE KEY(slug)');
+    $db->exec('ALTER TABLE pages ADD UNIQUE KEY(slug)');
     $db->exec(
       'CREATE TABLE content_audit_logs(content_type VARCHAR(16),content_id INT,action VARCHAR(32),actor_user_id INT,actor_username TEXT,actor_role TEXT,summary TEXT,context_json TEXT)',
     );
     $db->exec(
       'CREATE TABLE redirects(id INT AUTO_INCREMENT PRIMARY KEY,source_url VARCHAR(255) UNIQUE,target_url TEXT,redirect_type INT)',
     );
+    foreach (['save_post.php' => 'posts', 'save_page.php' => 'pages'] as $endpoint => $table) {
+      $directory = actionFixture('mysql-slug-race-' . bin2hex(random_bytes(4)));
+      $slug = 'race-' . $table;
+      $request = [
+        'endpoint' => $endpoint,
+        'case' => 'editor-inputs',
+        'mysqlDatabase' => $name,
+        'publicationReady' => true,
+        'fixedSlugTime' => true,
+      ];
+      $input = [
+        'title' => 'Slug race QA',
+        'slug' => $slug,
+        'content' => '<p>Safe fixture</p>',
+        'status' => 'draft',
+        'category' => 'Berita',
+      ];
+      $seed = actionRun($directory, [$request + ['input' => $input]])[0];
+      actionCheck($seed['status'] === 200, 'Slug collision control could not be created');
+      $race = actionRun($directory, array_fill(0, 6, $request + ['input' => $input]));
+      foreach ($race as $result) {
+        actionCheck(
+          in_array($result['status'], [200, 409], true),
+          'Concurrent slug returned 500: ' . $result['output'],
+        );
+        actionCheck(
+          !str_contains($result['output'], 'SQLSTATE'),
+          'Concurrent slug exposed SQLSTATE',
+        );
+      }
+      actionCheck(
+        (int) $db
+          ->query('SELECT COUNT(*) FROM ' . $table . ' WHERE slug LIKE ' . $db->quote($slug . '%'))
+          ->fetchColumn() === 2,
+        'Collision changed saved identities',
+      );
+      $counter = actionRun($directory, [
+        $request + ['input' => $input, 'withoutSlugConflictHandling' => true],
+      ])[0];
+      actionCheck(
+        $counter['status'] === 500 && str_contains($counter['output'], 'SQLSTATE'),
+        'Old duplicate-key behavior was not reproduced',
+      );
+    }
     foreach (['UTC', 'Asia/Kuala_Lumpur', 'America/New_York'] as $zone) {
       foreach (['save_post.php' => 'posts', 'save_page.php' => 'pages'] as $endpoint => $table) {
         $directory = actionFixture('mysql-clock-' . bin2hex(random_bytes(4)));
@@ -2905,6 +2995,177 @@ function actionMysqlEditorClockChecks(): void
           abs($stamp->getTimestamp() - time()) > 3600,
           'Native old NOW() writes must reproduce the timezone offset',
         );
+      }
+    }
+    // Reuse the installer schemas and real controllers for ancillary display clocks.
+    $installer = file_get_contents(dirname(__DIR__, 2) . '/public/api/install.php');
+    foreach (
+      ['users', 'comments', 'newsletter_subscribers', 'contact_forms', 'contact_submissions']
+      as $table
+    ) {
+      if (
+        !preg_match(
+          '/CREATE TABLE IF NOT EXISTS ' .
+            $table .
+            ' \\([\\s\\S]*?ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;/',
+          $installer,
+          $match,
+        )
+      ) {
+        throw new RuntimeException('Missing actual installer table ' . $table);
+      }
+      $db->exec($match[0]);
+    }
+    $db->exec(
+      "INSERT INTO users(id,username,email,password,role) VALUES(1,'owner','owner@example.invalid','dummy','Root'),(2,'member','member@example.invalid','dummy','Member')",
+    );
+    $db->exec(
+      'CREATE TABLE mail_calls(id INT AUTO_INCREMENT PRIMARY KEY,recipient TEXT,payload TEXT)',
+    );
+    $db->exec(
+      "INSERT INTO settings VALUES('newsletter','newsletter_config','{\"enabled\":true}'),('general','time_zone','UTC')",
+    );
+    $db->exec("INSERT INTO contact_forms(id,title) VALUES('qa_clock','Clock')");
+    $db->exec(
+      'CREATE TABLE security_logs(id INT AUTO_INCREMENT PRIMARY KEY,event_type VARCHAR(50),ip_address VARCHAR(45),user_agent TEXT,endpoint TEXT,severity VARCHAR(20),details TEXT,blocked INT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)',
+    );
+    foreach (['UTC', 'America/New_York', 'Asia/Kuala_Lumpur'] as $zone) {
+      $db
+        ->prepare("UPDATE settings SET setting_value=? WHERE setting_key='time_zone'")
+        ->execute([$zone]);
+      foreach (
+        ['save_user.php', 'register.php', 'newsletter_subscribe.php', 'save_comments.php']
+        as $endpoint
+      ) {
+        $directory = actionFixture('ancillary-clock-' . bin2hex(random_bytes(4)));
+        $suffix = bin2hex(random_bytes(4));
+        $input = [
+          'id' => null,
+          'username' => 'clock_' . $suffix,
+          'email' => 'clock_' . $suffix . '@example.invalid',
+          'password' => 'New1!Password',
+          'confirmPassword' => 'New1!Password',
+          'role' => 'Writer',
+          'postId' => '42',
+        ];
+        $db->exec(
+          "INSERT IGNORE INTO posts(id,title,slug,status) VALUES(42,'Comment target','clock-comment-target','published')",
+        );
+        $result = actionRun($directory, [
+          [
+            'endpoint' => $endpoint,
+            'case' => $endpoint === 'save_comments.php' ? 'add' : 'normal',
+            'mysqlDatabase' => $name,
+            'mysqlTimeZone' => '+08:00',
+            'phpTimezone' => 'UTC',
+            'input' => $input,
+          ],
+        ])[0];
+        actionCheck(
+          $result['status'] === 200 && !empty($result['body']['success']),
+          'Ancillary actual controller failed: ' . $endpoint . ' ' . $result['output'],
+        );
+        $sql = match ($endpoint) {
+          'newsletter_subscribe.php'
+            => 'SELECT subscribed_at FROM newsletter_subscribers ORDER BY id DESC LIMIT 1',
+          'save_comments.php' => 'SELECT created_at FROM comments ORDER BY id DESC LIMIT 1',
+          default => 'SELECT created_at FROM users ORDER BY id DESC LIMIT 1',
+        };
+        $stamp = new DateTimeImmutable(
+          (string) $db->query($sql)->fetchColumn(),
+          new DateTimeZone($zone),
+        );
+        actionCheck(
+          abs($stamp->getTimestamp() - time()) < 8,
+          $endpoint . ' used DB clock instead of configured CMS clock',
+        );
+        if ($endpoint === 'register.php') {
+          actionCheck(
+            abs(
+              (int) $db
+                ->query(
+                  'SELECT TIMESTAMPDIFF(SECOND,NOW(),verification_token_expires) FROM users ORDER BY id DESC LIMIT 1',
+                )
+                ->fetchColumn() - 86400,
+            ) < 8,
+            'Registration display fix changed token expiry clock',
+          );
+        }
+        if ($zone === 'America/New_York') {
+          $input['username'] .= '_old';
+          $input['email'] = 'old_' . $input['email'];
+          $counter = actionRun($directory, [
+            [
+              'endpoint' => $endpoint,
+              'case' => $endpoint === 'save_comments.php' ? 'add' : 'normal',
+              'mysqlDatabase' => $name,
+              'mysqlTimeZone' => '+08:00',
+              'phpTimezone' => 'UTC',
+              'input' => $input,
+              'withoutAncillarySiteClock' => true,
+            ],
+          ])[0];
+          actionCheck(
+            $counter['status'] === 200,
+            'Ancillary old-clock counterexample did not reach writer',
+          );
+          $wrong = new DateTimeImmutable(
+            (string) $db->query($sql)->fetchColumn(),
+            new DateTimeZone($zone),
+          );
+          actionCheck(
+            abs($wrong->getTimestamp() - time()) > 3600,
+            'Old DB-clock write must reproduce the display offset',
+          );
+        }
+      }
+      $directory = actionFixture('timestamp-projection-' . bin2hex(random_bytes(4)));
+      $db->exec('SET time_zone = "+08:00"');
+      $db->exec("INSERT INTO contact_submissions(form_id,data) VALUES('qa_clock','{}')");
+      $db->exec(
+        "INSERT INTO security_logs(event_type,ip_address,severity,details,blocked) VALUES('qa_clock','127.0.0.1','low','{}',1)",
+      );
+      foreach (
+        ['contact/get_submissions.php' => 'submissions', 'security/get_security_logs.php' => 'logs']
+        as $endpoint => $key
+      ) {
+        $result = actionRun($directory, [
+          [
+            'endpoint' => $endpoint,
+            'mysqlDatabase' => $name,
+            'mysqlTimeZone' => '+08:00',
+            'phpTimezone' => 'UTC',
+            'query' => ['include_stats' => '1'],
+          ],
+        ])[0];
+        actionCheck(
+          $result['status'] === 200 && !empty($result['body'][$key]),
+          'TIMESTAMP actual controller failed: ' . $endpoint . ' ' . $result['output'],
+        );
+        $row = $result['body'][$key][0];
+        $stamp = new DateTimeImmutable($row['created_at'], new DateTimeZone($zone));
+        actionCheck(
+          abs($stamp->getTimestamp() - time()) < 8 && !array_key_exists('_created_epoch', $row),
+          'TIMESTAMP projection shifted the instant or leaked its internal field',
+        );
+        if ($endpoint === 'security/get_security_logs.php' && $zone === 'America/New_York') {
+          foreach (['start_date', 'end_date'] as $field) {
+            foreach (["2026-11-21\0", '2026-02-30', ['bad']] as $invalid) {
+              $invalidResult = actionRun($directory, [
+                [
+                  'endpoint' => $endpoint,
+                  'mysqlDatabase' => $name,
+                  'mysqlTimeZone' => '+08:00',
+                  'query' => [$field => $invalid, 'include_stats' => '0'],
+                ],
+              ])[0];
+              actionCheck(
+                $invalidResult['status'] === 400 && !$invalidResult['fatal'],
+                'Invalid Security date escaped as a fatal response',
+              );
+            }
+          }
+        }
       }
     }
   } finally {

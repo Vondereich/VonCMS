@@ -24,6 +24,8 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/ImageProcessor.php';
+require_once __DIR__ . '/../core/SettingsStorage.php';
+voncms_apply_site_timezone($pdo ?? null);
 
 function voncms_build_cdn_media_url(string $cdnUrl, string $relativePath): string
 {
@@ -91,6 +93,17 @@ $allSettings = is_file($settingsFile)
   ? json_decode((string) file_get_contents($settingsFile), true)
   : [];
 $allSettings = is_array($allSettings) ? $allSettings : [];
+// Committed DB preferences own uploads; the private mirror is only an availability fallback.
+if (isset($pdo) && $pdo instanceof PDO) {
+  try {
+    $committedSettings = voncms_read_settings_mirror($pdo);
+    $allSettings['media'] = is_array($committedSettings['media'] ?? null)
+      ? $committedSettings['media']
+      : [];
+  } catch (Throwable $settingsError) {
+    error_log('VonCMS media: committed settings unavailable; using compatibility mirror.');
+  }
+}
 $savedMedia = is_array($allSettings['media'] ?? null) ? $allSettings['media'] : [];
 $savedStorage = is_array($savedMedia['storage'] ?? null) ? $savedMedia['storage'] : [];
 $folderStructure = $_POST['folderStructure'] ?? ($savedStorage['folderStructure'] ?? 'year_month');
@@ -242,7 +255,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
 
   // Load media optimization settings
   $mediaSettings = [
-    'enabled' => true, // Default ON (WebP auto-conversion spec)
+    'enabled' => false, // Match fresh-install and Settings defaults.
     'maxWidth' => 1920,
     'maxHeight' => 1080,
     'quality' => 85,
@@ -258,8 +271,8 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
   if ($allSettings !== []) {
     if (is_array($savedMedia['optimization'] ?? null)) {
       $opt = $savedMedia['optimization'];
-      $enabled = $opt['enabled'] ?? true;
-      $mediaSettings['enabled'] = is_scalar($enabled) ? (bool) $enabled : true;
+      $enabled = $opt['enabled'] ?? false;
+      $mediaSettings['enabled'] = filter_var($enabled, FILTER_VALIDATE_BOOLEAN);
       $mediaSettings['maxWidth'] = is_numeric($opt['maxWidth'] ?? null)
         ? (int) $opt['maxWidth']
         : 1920;
@@ -299,6 +312,19 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
   }
 
   $mediaSettings['responsiveWidths'] = voncms_get_responsive_widths($mediaSettings['maxWidth']);
+
+  // As-is JPEGs still must not publish location data; do not rewrite EXIF orientation.
+  if (
+    $realMime === 'image/jpeg' &&
+    (!$mediaSettings['enabled'] || !ImageProcessor::isGdAvailable()) &&
+    !ImageProcessor::canPreserveJpegMetadata($targetPath)
+  ) {
+    voncms_cleanup_failed_media_upload([$targetPath]);
+    ResponseHelper::sendError(
+      'JPEG location metadata cannot be published as-is. Enable image optimization or remove location metadata before uploading.',
+      400,
+    );
+  }
 
   // Process image if GD available and optimization enabled
   $webpUrl = null;
@@ -396,9 +422,10 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
       // Check if media table exists
       $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
       if ($tableCheck->rowCount() > 0) {
+        $uploadedAt = date('Y-m-d H:i:s');
         $stmt = $pdo->prepare(
-          'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by, alt_text, caption)
-           VALUES (:filename, :filepath, :filetype, :filesize, :user_id, :alt, :caption)',
+          'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by, alt_text, caption, uploaded_at, created_at)
+           VALUES (:filename, :filepath, :filetype, :filesize, :user_id, :alt, :caption, :uploaded_at, :created_at)',
         );
         $stmt->execute([
           'filename' => $filename,
@@ -408,6 +435,8 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
           'user_id' => DataBoundary::userText('id'),
           'alt' => pathinfo($filename, PATHINFO_FILENAME),
           'caption' => pathinfo($filename, PATHINFO_FILENAME),
+          'uploaded_at' => $uploadedAt,
+          'created_at' => $uploadedAt,
         ]);
         $mediaId = $pdo->lastInsertId();
       }

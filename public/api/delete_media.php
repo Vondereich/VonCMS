@@ -64,6 +64,23 @@ foreach ($targetRelativePaths as $targetRelativePath) {
 
 $deletedPaths = [];
 $removedVariantPaths = [];
+if (($input['confirmReferenced'] ?? false) !== true) {
+  try {
+    if (voncms_media_is_referenced(DataBoundary::database($pdo ?? null), $targetRelativePaths)) {
+      http_response_code(409);
+      echo json_encode([
+        'success' => false,
+        'requiresConfirmation' => true,
+        'error' =>
+          'This media is referenced by Post/Page content. Deleting it can break images or links. Confirm permanent deletion to continue.',
+      ]);
+      exit();
+    }
+  } catch (Throwable $usageError) {
+    error_log('Media reference check failed: ' . $usageError->getMessage());
+    ResponseHelper::sendError('Could not check media usage. Retry after Database Repair.', 503);
+  }
+}
 voncms_apply_site_timezone($pdo ?? null);
 $activity = isset($pdo) ? new VonCmsActivityLog(DataBoundary::database($pdo)) : null;
 foreach ($targetRelativePaths as $targetRelativePath) {

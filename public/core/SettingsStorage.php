@@ -35,7 +35,7 @@ function voncms_apply_maintenance_flag(string $flagFile, bool $enabled): void
   }
 }
 
-/** SMTP fallback remains private; AI/IndexNow credentials have no mirror consumer.
+/** Credentials belong to the database/private credential store, never the JSON mirror.
  * @param array<array-key, mixed> $settings
  * @return array<array-key, mixed>
  */
@@ -45,7 +45,15 @@ function voncms_filter_settings_mirror(array $settings): array
     if (
       in_array(
         strtolower(str_replace('_', '', (string) $key)),
-        ['aiapikey', 'indexnowkey', 'encryptstoredaikey', 'replaceaikey', 'aikeystorage'],
+        [
+          'aiapikey',
+          'indexnowkey',
+          'encryptstoredaikey',
+          'replaceaikey',
+          'aikeystorage',
+          'smtppass',
+          'smtppassword',
+        ],
         true,
       )
     ) {
@@ -168,6 +176,7 @@ function voncms_settings_mappings(): array
     ['smtpPass', 'smtp', 'smtpPass', 'string'],
     ['smtpEncryption', 'smtp', 'smtpEncryption', 'string'],
     ['smtpFromName', 'smtp', 'smtpFromName', 'string'],
+    ['smtpFromEmail', 'smtp', 'smtpFromEmail', 'string'],
     // Share Settings
     ['shareScript', 'share', 'shareScript', 'string'],
     ['sharePlacement', 'share', 'share_placement', 'string'],

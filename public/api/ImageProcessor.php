@@ -574,7 +574,7 @@ class ImageProcessor
   /** Inspect bounded JPEG metadata segments without decoding pixels or rewriting orientation.
    * Native EXIF owns TIFF/GPS parsing. Unverifiable metadata fails closed on as-is fallback only.
    */
-  private static function canPreserveJpegMetadata(string $path): bool
+  public static function canPreserveJpegMetadata(string $path): bool
   {
     $handle = @fopen($path, 'rb');
     if ($handle === false) {

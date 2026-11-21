@@ -348,6 +348,7 @@ try {
   $settings['navigation'] = voncms_project_public_navigation_hrefs(
     $pdo,
     $settings['navigation'] ?? [],
+    false, // Public/staff projections already returned above; retain owner-editable legacy items.
   );
 
   // --- SMART BRIDGE: Fallback to JSON for Contact Forms if DB is empty ---

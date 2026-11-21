@@ -28,6 +28,7 @@ if (!voncms_role_has_capability(DataBoundary::userText('role'), 'media.admin_too
 }
 CSRFProtection::requireToken();
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+voncms_apply_site_timezone($pdo);
 
 /** @var string $uploadsDir */
 $uploadsDir = rtrim(str_replace('\\', '/', dirname(__DIR__) . '/uploads/'), '/');
@@ -145,7 +146,7 @@ function scanAndSync(
         // Insert into database
         try {
           $stmt = $pdo->prepare(
-            'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by, uploaded_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
           );
           $stmt->execute([
             $item,
@@ -154,6 +155,7 @@ function scanAndSync(
             $stat['size'],
             $uploadedBy,
             date('Y-m-d H:i:s', $stat['mtime']),
+            date('Y-m-d H:i:s'),
           ]);
           $synced++;
         } catch (PDOException $e) {

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -950,6 +951,25 @@ try {
   if ($pdo->inTransaction()) {
     $pdo->commit();
   }
+  $repairRequired = false;
+  if ($destructiveSummary['count'] > 0) {
+    try {
+      if (
+        voncms_schema_missing_columns($pdo, 'posts', ['published_at']) === [] &&
+        voncms_schema_missing_columns($pdo, 'pages', ['published_at']) === []
+      ) {
+        voncms_mark_publication_columns_ready(
+          voncms_schema_listing_capabilities($pdo),
+          voncms_schema_has_capability($pdo, 'post_daily_views'),
+        );
+      } else {
+        $repairRequired = true;
+      }
+    } catch (Throwable $capabilityError) {
+      $repairRequired = true;
+      error_log('VonCMS SQL restore: publication capability refresh requires Database Repair.');
+    }
+  }
   voncms_public_cache_clear();
 
   echo json_encode([
@@ -957,6 +977,7 @@ try {
     'message' => "Import complete. Executed $executed statements.",
     'executed' => $executed,
     'safetyBackup' => $safetyBackup,
+    'repairRequired' => $repairRequired,
   ]);
 } catch (Exception $e) {
   // Always re-enable FK checks even if something unexpected fails

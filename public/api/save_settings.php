@@ -149,6 +149,7 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'smtpPass',
     'smtpEncryption',
     'smtpFromName',
+    'smtpFromEmail',
     'emailSmtp',
     'indexnowEnabled',
     'indexnowKey',
@@ -211,6 +212,33 @@ if (array_key_exists('smtpEncryption', $settings)) {
     ResponseHelper::sendError('SMTP authentication requires TLS or SSL encryption.', 400);
   }
   $settings['smtpEncryption'] = $smtpEncryption;
+}
+
+if (array_intersect(['smtpHost', 'smtpUser', 'smtpFromEmail'], array_keys($settings)) !== []) {
+  $currentSmtp = voncms_read_settings_mirror($pdo);
+  $smtpIdentity = array_replace($currentSmtp, $settings);
+  $smtpUser = trim(DataBoundary::inputText($smtpIdentity['smtpUser'] ?? ''));
+  $smtpFromEmail = trim(DataBoundary::inputText($smtpIdentity['smtpFromEmail'] ?? ''));
+  if ($smtpFromEmail !== '' && filter_var($smtpFromEmail, FILTER_VALIDATE_EMAIL) === false) {
+    ResponseHelper::sendError('SMTP From Email must be a valid email address.', 400);
+  }
+  if (
+    trim(DataBoundary::inputText($smtpIdentity['smtpHost'] ?? '')) !== '' &&
+    $smtpUser !== '' &&
+    !filter_var($smtpUser, FILTER_VALIDATE_EMAIL) &&
+    $smtpFromEmail === ''
+  ) {
+    ResponseHelper::sendError(
+      'Set SMTP From Email when the SMTP username is not an email address.',
+      400,
+    );
+  }
+  if (strlen($smtpUser) > 320 || preg_match('/[\r\n\0]/', $smtpUser)) {
+    ResponseHelper::sendError('Invalid SMTP username.', 400);
+  }
+  if (array_key_exists('smtpFromEmail', $settings)) {
+    $settings['smtpFromEmail'] = $smtpFromEmail;
+  }
 }
 
 $maintenanceFlagFile = __DIR__ . '/../data/maintenance.flag';
@@ -457,7 +485,17 @@ if (array_key_exists('pluginConfig', $settings)) {
     if (!is_array($promo)) {
       ResponseHelper::sendError('Invalid announcement configuration.', 400);
     }
-    if (array_key_exists('startsAt', $promo) || array_key_exists('endsAt', $promo)) {
+    $storedPromoStmt = $pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'plugins' AND setting_key = 'plugin_config' LIMIT 1",
+    );
+    $storedPromoStmt->execute();
+    $storedPluginsValue = $storedPromoStmt->fetchColumn();
+    $storedPlugins = is_string($storedPluginsValue) ? json_decode($storedPluginsValue, true) : [];
+    $storedPromo = is_array($storedPlugins) ? $storedPlugins['vp_promo_bar'] ?? null : null;
+    if (
+      $promo != $storedPromo &&
+      (array_key_exists('startsAt', $promo) || array_key_exists('endsAt', $promo))
+    ) {
       $timeZoneStmt = $pdo->prepare(
         "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'time_zone' LIMIT 1",
       );

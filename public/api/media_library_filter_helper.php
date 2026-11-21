@@ -10,6 +10,39 @@ if (
 
 require_once __DIR__ . '/../media_variants.php';
 
+/** @param list<string> $relativePaths */
+function voncms_media_is_referenced(PDO $pdo, array $relativePaths): bool
+{
+  $patterns = [];
+  foreach ($relativePaths as $path) {
+    $plain = ltrim($path, '/');
+    $encoded = implode('/', array_map('rawurlencode', explode('/', $plain)));
+    foreach (array_unique([$plain, $encoded]) as $candidate) {
+      $patterns[] = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $candidate) . '%';
+    }
+  }
+  foreach (array_chunk(array_values(array_unique($patterns)), 32) as $chunk) {
+    foreach (['posts' => ['image_url', 'content'], 'pages' => ['content']] as $table => $columns) {
+      $where = [];
+      $parameters = [];
+      foreach ($columns as $column) {
+        foreach ($chunk as $pattern) {
+          $where[] = "$column LIKE ? ESCAPE '!'";
+          $parameters[] = $pattern;
+        }
+      }
+      $statement = $pdo->prepare(
+        'SELECT 1 FROM ' . $table . ' WHERE ' . implode(' OR ', $where) . ' LIMIT 1',
+      );
+      $statement->execute($parameters);
+      if ($statement->fetchColumn() !== false) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function voncms_normalize_media_library_path(string $path): string
 {
   $path = str_replace('\\', '/', trim($path));
@@ -57,7 +90,7 @@ function voncms_is_safe_media_relative_path(string $path): bool
   }
 
   foreach (explode('/', $normalized) as $segment) {
-    if ($segment === '' || $segment === '.' || $segment === '..') {
+    if ($segment === '' || str_starts_with($segment, '.')) {
       return false;
     }
   }

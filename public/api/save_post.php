@@ -690,5 +690,8 @@ try {
     $db->rollBack();
   }
   $contentSlugLock?->release();
+  if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+    ResponseHelper::sendError('Slug already exists. Choose a different slug and save again.', 409);
+  }
   ResponseHelper::sendError($e);
 }

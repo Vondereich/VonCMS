@@ -11,7 +11,7 @@ VonCMS is a lightweight, self-hosted CMS built with PHP and React for publishers
 **The BluePrint** is the v1.28.x series, following v1.27.x "OverDrive", whose maintenance line closed at v1.27.12. The BluePrint line focuses on clearer editorial workflows, safer content recovery, leaner public settings, and better staff tools while retaining VonCMS's PHP/MySQL hosting model.
 
 > [!IMPORTANT]
-> **v1.28.4 "The BluePrint" - 17 November 2026.** Adds Primary-Admin-only **Monitoring > Activity Log**, with existing history projections, new Media deletion records and bounded retention. Existing installations require **Database Repair** for Activity storage and Settings actor snapshots; fresh installs create them automatically. Also corrects Page/Post-to-Home loading, bounds public submission quotas while retaining active legacy limits, supports sanitized static SVG site logos, and fixes generated-column backups plus Settings/account/media recovery behavior. Generate and verify a new database backup after updating; affected older SQL dumps require trusted correction before restore. Download availability is listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases). Installer, bundled theme and built-in plugin labels remain 1.28.
+> **v1.28.4 "The BluePrint" - 21 November 2026.** Adds Primary-Admin-only **Monitoring > Activity Log**, with existing history projections, new Media deletion records and bounded retention. Existing installations require **Database Repair** for Activity storage and Settings actor snapshots; fresh installs create them automatically. Also corrects Page/Post-to-Home loading, bounds public submission quotas while retaining active legacy limits, supports sanitized static SVG site logos, and fixes generated-column backups plus Settings/account/media recovery behavior. Generate and verify a new database backup after updating; affected older SQL dumps require trusted correction before restore. Download availability is listed on [GitHub Releases](https://github.com/Vondereich/VonCMS/releases). Installer, bundled theme and built-in plugin labels remain 1.28.
 
 ### v1.28.2 Highlights
 
@@ -58,7 +58,7 @@ Existing installations require Primary Admin **Database > Schema Repair** to ena
 | **1.28.1** | Hybrid analytics, deletion previews, optional News Sitemap, and targeted reliability/access corrections     | 6 November 2026   |
 | **1.28.2** | Lean Public Settings: smaller visitor-facing settings payloads while retaining saved inactive configuration | 11 November 2026  |
 | **1.28.3** | Private, self-only User Manager with encrypted personal AI keys and server-owned credential selection       | 14 November 2026  |
-| **1.28.4** | Staff Activity Log, bounded public quotas and discovery loading correction                                  | 17 November 2026  |
+| **1.28.4** | Staff Activity Log, bounded public quotas and discovery loading correction                                  | 21 November 2026  |
 | **1.28.5** | Gradual interface translation: English source, Malay first, and right-to-left layout foundations            | Planned           |
 | **1.30.4** | Post/Page Trash and Restore: separate from the permanent-deletion previews introduced in 1.28.1             | Planned           |
 

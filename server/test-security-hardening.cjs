@@ -48,6 +48,10 @@ function uploadChecks() {
       path.join(site, 'core/DataBoundary.php')
     );
     fs.copyFileSync(
+      path.join(root, 'public/core/SettingsStorage.php'),
+      path.join(site, 'core/SettingsStorage.php')
+    );
+    fs.copyFileSync(
       path.join(root, 'public/media_variants.php'),
       path.join(site, 'media_variants.php')
     );
@@ -66,6 +70,7 @@ class SessionManager {
 }
 class CSRFProtection { static function requireToken() {} }
 function sendApiHeaders($methods) { header('Content-Type: application/json'); }
+function voncms_apply_site_timezone($pdo) {}
 $_SESSION=['user'=>['id'=>1,'role'=>'admin']];
 `
     );
@@ -90,6 +95,23 @@ class QaDatabase {
   function lastInsertId() { return '17'; }
 }
 $pdo=new QaDatabase;
+if (getenv('QA_DB_MEDIA')) {
+  class QaMediaPreferencesStatement extends PDOStatement {
+    public function rowCount():int {return str_contains($this->queryString,'sqlite_master')?count($this->fetchAll()):parent::rowCount();}
+  }
+  class QaMediaPreferencesPDO extends PDO {
+    public function query(string $sql, ?int $mode=null, mixed ...$args): PDOStatement|false {
+      if ($sql==="SHOW TABLES LIKE 'media'") $sql="SELECT name FROM sqlite_master WHERE name='media'";
+      return parent::query($sql,$mode,...$args);
+    }
+  }
+  $pdo=new QaMediaPreferencesPDO('sqlite::memory:',null,null,[PDO::ATTR_STATEMENT_CLASS=>[QaMediaPreferencesStatement::class]]);
+  $pdo->exec('CREATE TABLE media(filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,alt_text TEXT,caption TEXT,uploaded_at TEXT,created_at TEXT)');
+  $pdo->exec('CREATE TABLE settings(setting_group TEXT,setting_key TEXT,setting_value TEXT,setting_type TEXT)');
+  foreach(json_decode(getenv('QA_DB_MEDIA'),true) as $key=>$value) {
+    $pdo->prepare('INSERT INTO settings VALUES(?,?,?,?)')->execute(['media',$key,json_encode($value),'json']);
+  }
+}
 `
     );
     const image = path.join(fixture, 'sample.png');
@@ -111,9 +133,12 @@ $pdo=new QaDatabase;
       bytes = png,
       expectedSuccess,
       fileField = 'file',
-      role = 'admin'
+      role = 'admin',
+      databaseMedia = null,
+      disableGd = false
     ) {
-      fs.writeFileSync(settingsPath, JSON.stringify(settings));
+      if (settings === null) fs.rmSync(settingsPath, { force: true });
+      else fs.writeFileSync(settingsPath, JSON.stringify(settings));
       const boundary = 'VonCMSMediaFixtureBoundary';
       const body = Buffer.concat([
         ...Object.entries(fields).map(([name, value]) =>
@@ -136,6 +161,8 @@ $pdo=new QaDatabase;
           '-d',
           'opcache.enable=0',
           '-d',
+          disableGd ? 'disable_functions=imagecreatetruecolor' : 'disable_functions=',
+          '-d',
           `upload_tmp_dir=${path.join(fixture, 'php-tmp')}`,
         ],
         {
@@ -153,6 +180,7 @@ $pdo=new QaDatabase;
             SERVER_PROTOCOL: 'HTTP/1.1',
             QA_DB_FAIL: failure ? '1' : '',
             QA_UPLOAD_ROLE: role,
+            QA_DB_MEDIA: databaseMedia === null ? '' : JSON.stringify(databaseMedia),
           },
         }
       );
@@ -179,6 +207,45 @@ $pdo=new QaDatabase;
         optimization: { enabled: true, convertToWebP: true },
       },
     };
+    for (const base of ['', '/zangetsu']) {
+      for (const [databaseEnabled, mirrorEnabled] of [
+        [false, null],
+        [false, true],
+        [true, false],
+        [false, false],
+        [null, true],
+      ]) {
+        const snapshot =
+          mirrorEnabled === null
+            ? null
+            : {
+                media: {
+                  storage: { folderStructure: 'flat' },
+                  optimization: { enabled: mirrorEnabled },
+                },
+              };
+        const uploaded = upload(
+          snapshot,
+          base + '/api/upload_file.php',
+          {},
+          false,
+          'prefs.png',
+          png,
+          true,
+          'file',
+          'admin',
+          {
+            storage: { folderStructure: 'flat' },
+            ...(databaseEnabled === null ? {} : { optimization: { enabled: databaseEnabled } }),
+          }
+        );
+        assert.equal(
+          uploaded.processed !== null,
+          databaseEnabled === true,
+          'Upload ignored the committed DB media preference'
+        );
+      }
+    }
     for (const base of ['', '/zangetsu']) {
       for (const fields of [
         {},
@@ -340,6 +407,96 @@ $sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn
       { encoding: 'utf8' }
     );
     assert.equal(gps.status, 0, gps.stderr);
+    const smallGps = Buffer.from(gps.stdout, 'base64');
+    const smallSof = smallGps.indexOf(Buffer.from([0xff, 0xc0]));
+    assert.ok(smallSof > 0);
+    smallGps.writeUInt16BE(1, smallSof + 5);
+    smallGps.writeUInt16BE(1, smallSof + 7);
+    const ordinaryJpeg = spawnSync(php, ['-r', '$im=imagecreatetruecolor(2,1);imagejpeg($im);'], {
+      encoding: null,
+    });
+    assert.equal(ordinaryJpeg.status, 0);
+    const orientation = Buffer.from(
+      '45786966000049492a0008000000010012010300010000000600000000000000',
+      'hex'
+    );
+    const app1 = Buffer.alloc(4);
+    app1[0] = 0xff;
+    app1[1] = 0xe1;
+    app1.writeUInt16BE(orientation.length + 2, 2);
+    const orientedJpeg = Buffer.concat([
+      ordinaryJpeg.stdout.subarray(0, 2),
+      app1,
+      orientation,
+      ordinaryJpeg.stdout.subarray(2),
+    ]);
+    const singleGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+    const frame = singleGif.subarray(singleGif.indexOf(0x2c), -1);
+    const animatedGif = Buffer.concat([
+      singleGif.subarray(0, singleGif.indexOf(0x2c)),
+      frame,
+      frame,
+      Buffer.from([0x3b]),
+    ]);
+    for (const base of ['', '/zangetsu']) {
+      const reject = upload(
+        null,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'fresh-gps.jpg',
+        smallGps,
+        false,
+        'file',
+        'admin',
+        { storage: { folderStructure: 'flat' } }
+      );
+      assert.match(reject.error, /location metadata.*Enable image optimization/);
+      const noGd = upload(
+        flat,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'no-gd-gps.jpg',
+        smallGps,
+        false,
+        'file',
+        'admin',
+        null,
+        true
+      );
+      assert.match(noGd.error, /location metadata/);
+      for (const [name, bytes] of [
+        ['oriented.jpg', orientedJpeg],
+        ['animated.gif', animatedGif],
+      ]) {
+        const keep = upload(null, base + '/api/upload_file.php', {}, false, name, bytes, true);
+        const keepPath = path.join(site, 'uploads', keep.path);
+        assert.deepEqual(
+          fs.readFileSync(keepPath),
+          bytes,
+          'As-is upload changed orientation or animation bytes'
+        );
+        fs.unlinkSync(keepPath);
+      }
+      const accepted = upload(
+        flat,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'optimized-gps.jpg',
+        smallGps,
+        true
+      );
+      const stored = fs.readFileSync(path.join(site, 'uploads', accepted.path));
+      assert.equal(
+        stored.includes(Buffer.from('Exif\0\0')),
+        false,
+        'Optimization retained JPEG EXIF/GPS'
+      );
+      // Successful control belongs to this case, not the following failed-upload inventory.
+      fs.unlinkSync(path.join(site, 'uploads', accepted.path));
+    }
     const previousRow = fs.readFileSync(path.join(site, 'data/last-row.json'));
     for (const base of ['', '/zangetsu']) {
       const rejected = upload(
@@ -487,7 +644,7 @@ if(loadMediaCleanupPreview($reviewToken)!==null) throw new RuntimeException('Mal
 if(!is_file($probeSource)) throw new RuntimeException('Rejected media review touched an image');
 $pdo=new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
-$pdo->exec('CREATE TABLE media(id INTEGER PRIMARY KEY,filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,uploaded_at TEXT)');
+$pdo->exec('CREATE TABLE media(id INTEGER PRIMARY KEY,filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,uploaded_at TEXT,created_at TEXT)');
 $pdo->exec('CREATE TABLE posts(image_url TEXT)');
 $synced=$skipped=$skippedVariants=0; $errors=[];
 $uploads=str_replace('\\\\','/',realpath(__DIR__.'/../uploads'));

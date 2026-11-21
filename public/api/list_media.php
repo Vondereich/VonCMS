@@ -72,7 +72,7 @@ $page = isset($_GET['page']) ? DataBoundary::inputInt($_GET['page']) : 1;
 
 /** @var int $limit */
 $limit = isset($_GET['limit']) ? DataBoundary::inputInt($_GET['limit']) : 32;
-$page = max(1, $page);
+$page = min(1000000, max(1, $page));
 $limit = min(100, max(1, $limit));
 $search = voncms_normalize_media_search($_GET['search'] ?? '');
 /** @var int $offset */

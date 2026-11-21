@@ -160,6 +160,7 @@ try {
 
   $pageId = $input['id'] ?? null;
   $isUpdate = $pageId && is_numeric($pageId);
+  $existingPage = [];
 
   // Ensure slug uniqueness (prevent SEO issues) - LOCKING READ
   $checkSlug = $pdo->prepare('SELECT id FROM pages WHERE slug = ? AND id != ? FOR UPDATE');
@@ -447,5 +448,8 @@ try {
     $pdo->rollBack();
   }
   $contentSlugLock?->release();
+  if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+    ResponseHelper::sendError('Slug already exists. Choose a different slug and save again.', 409);
+  }
   ResponseHelper::sendError($e);
 }

@@ -66,9 +66,12 @@ try {
   $db->exec('CREATE TABLE settings (setting_group TEXT,setting_key TEXT,setting_value TEXT)');
   $db->exec("INSERT INTO settings VALUES ('general','time_zone','Asia/Kuala_Lumpur')");
   $db->exec(
-    'CREATE TABLE posts (id INTEGER PRIMARY KEY,status TEXT,scheduled_at TEXT,updated_at TEXT)',
+    'CREATE TABLE posts (id INTEGER PRIMARY KEY,status TEXT,scheduled_at TEXT,updated_at TEXT,image_url TEXT,content TEXT)',
   );
-  $db->exec("INSERT INTO posts VALUES (1,'scheduled','2020-01-01 00:00:00',NULL)");
+  $db->exec(
+    "INSERT INTO posts(id,status,scheduled_at,updated_at) VALUES (1,'scheduled','2020-01-01 00:00:00',NULL)",
+  );
+  $db->exec('CREATE TABLE pages(id INTEGER PRIMARY KEY,content TEXT)');
   $db->exec('CREATE TABLE media (id INTEGER PRIMARY KEY,filepath TEXT)');
   $db->exec(
     'CREATE TABLE staff_activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT,action TEXT NOT NULL,actor_user_id INTEGER,actor_username TEXT NOT NULL,actor_role TEXT NOT NULL,target_type TEXT NOT NULL,target_id TEXT NOT NULL,target_label TEXT NOT NULL,outcome TEXT NOT NULL,details_json TEXT,request_key TEXT UNIQUE,created_at TEXT NOT NULL)',

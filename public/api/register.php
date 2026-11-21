@@ -171,15 +171,18 @@ try {
   // Verification token generation
   $verificationToken = generateVerificationToken();
 
+  // Display timestamps use the CMS clock; verification expiry retains the database clock.
+  voncms_apply_site_timezone($pdo);
   // Insert new user (email_verified = 0, let DB handle AUTO_INCREMENT ID)
   $stmt = $pdo->prepare(
-    "INSERT INTO users (username, email, password, role, email_verified, verification_token, verification_token_expires, created_at) VALUES (?, ?, ?, 'Member', 0, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), NOW())",
+    "INSERT INTO users (username, email, password, role, email_verified, verification_token, verification_token_expires, created_at) VALUES (?, ?, ?, 'Member', 0, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), ?)",
   );
   $stmt->execute([
     $username,
     $email,
     $hashedPassword,
     voncms_account_token_digest($verificationToken),
+    date('Y-m-d H:i:s'),
   ]);
 
   $userId = $pdo->lastInsertId();

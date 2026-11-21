@@ -9,6 +9,7 @@ require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/schema_repair_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
+require_once __DIR__ . '/../core/SettingsStorage.php';
 
 // 2. Send Headers immediately
 sendApiHeaders('POST, OPTIONS');
@@ -403,13 +404,32 @@ if ($repairLockName === null) {
 $repairResult = null;
 $repairFailure = null;
 try {
+  $publicationCapabilityMissing =
+    !voncms_has_publication_column($pdo, 'posts') || !voncms_has_publication_column($pdo, 'pages');
   $repairResult = voncms_run_database_schema_repair($pdo);
   if (($repairResult['success'] ?? false) === true) {
     voncms_mark_publication_columns_ready(
       voncms_schema_listing_capabilities($pdo),
       voncms_schema_has_capability($pdo, 'post_daily_views'),
     );
+    if ($publicationCapabilityMissing) {
+      $repairResult['repaired'] = true;
+      $repairResult['message'] =
+        ($repairResult['message'] === 'Database schema is healthy. No schema repairs needed.'
+          ? 'Database structure is healthy.'
+          : $repairResult['message']) . ' Publication capability restored.';
+    }
     voncms_public_cache_clear();
+    try {
+      voncms_write_settings_json_mirror(
+        __DIR__ . '/../data/site_settings.json',
+        voncms_read_settings_mirror($pdo),
+      );
+    } catch (Throwable $mirrorError) {
+      $repairResult['warnings'][] =
+        'Settings mirror could not be sanitized. Save Settings after resolving data-directory permissions.';
+      error_log('Database Repair settings mirror refresh failed: ' . $mirrorError->getMessage());
+    }
   }
 } catch (Throwable $repairError) {
   $repairFailure = $repairError;

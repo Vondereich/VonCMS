@@ -54,11 +54,11 @@ const legacyAiModels = [
 ];
 const supportedAiModels = [...currentAiModels.map(({ value }) => value), ...legacyAiModels];
 
-type MenuContentItem = { id: string; title: string };
+type MenuContentItem = { id: string; title: string; status?: string | null };
 
 const readMenuContent = (value: unknown): MenuContentItem[] => {
   if (!Array.isArray(value)) throw new Error('Invalid menu content response.');
-  return value.map((item: unknown) => {
+  return value.flatMap((item: unknown) => {
     if (
       !item ||
       typeof item !== 'object' ||
@@ -69,7 +69,8 @@ const readMenuContent = (value: unknown): MenuContentItem[] => {
     ) {
       throw new Error('Invalid menu content response.');
     }
-    return { id: String(item.id), title: item.title };
+    if ('status' in item && item.status != null && item.status !== 'published') return [];
+    return [{ id: String(item.id), title: item.title }];
   });
 };
 
@@ -220,8 +221,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     const loadMenuContent = async () => {
       try {
         const [postResponse, pageResponse] = await Promise.all([
-          vonFetch(`${API.getPosts}?limit=20&includeTotal=false`, { signal: controller.signal }),
-          vonFetch(`${API.getPages}?limit=200&view=menu`, { signal: controller.signal }),
+          vonFetch(`${API.getPosts}?limit=20&includeTotal=false&status=published`, {
+            signal: controller.signal,
+          }),
+          vonFetch(`${API.getPages}?limit=200&view=menu&status=published`, {
+            signal: controller.signal,
+          }),
         ]);
         if (!postResponse.ok || !pageResponse.ok)
           throw new Error('Menu content could not be loaded.');

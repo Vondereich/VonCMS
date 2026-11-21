@@ -395,8 +395,17 @@ try {
     // ============================================
 
     $stmt = $pdo->prepare("INSERT INTO comments (post_id, user_id, parent_id, user_name, user_avatar, content, likes, status, created_at) 
-                               VALUES (?, ?, ?, ?, ?, ?, 0, ?, NOW())");
-    $stmt->execute([$postId, $userId, $parentId, $username, $userAvatar, $content, $status]);
+                               VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)");
+    $stmt->execute([
+      $postId,
+      $userId,
+      $parentId,
+      $username,
+      $userAvatar,
+      $content,
+      $status,
+      date('Y-m-d H:i:s'),
+    ]);
     $newId = $pdo->lastInsertId();
     $prefix = $parentId ? 'r-' : 'c-';
 
