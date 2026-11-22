@@ -220,6 +220,15 @@ try {
     ResponseHelper::sendError('Missing category action.', 400);
   }
 
+  foreach (['category', 'new_category', 'replacement_category'] as $field) {
+    if (
+      isset($input[$field]) &&
+      ContentMetadata::categoryExceedsLimit(DataBoundary::inputText($input[$field]))
+    ) {
+      ResponseHelper::sendError('Category name is limited to 100 characters.', 400);
+    }
+  }
+
   $pdo->beginTransaction();
   $storedCategories = loadStoredCategories($pdo);
 

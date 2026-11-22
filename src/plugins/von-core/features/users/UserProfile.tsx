@@ -453,11 +453,11 @@ const UserProfile: React.FC<ProfileProps> = ({
                         />
                       )}
                     </div>
-                    <div className="flex flex-col justify-center">
+                    <div className="flex flex-col justify-center min-w-0">
                       <span className="text-[10px] uppercase font-bold text-primary-600 mb-1">
                         {post.category}
                       </span>
-                      <h3 className="font-bold text-neutral-900 dark:text-white leading-tight mb-2 group-hover:text-primary-600 transition-colors line-clamp-2">
+                      <h3 className="font-bold text-neutral-900 dark:text-white leading-tight mb-2 group-hover:text-primary-600 transition-colors line-clamp-2 wrap-anywhere">
                         {decodeEntities(post.title)}
                       </h3>
                       <p className="text-xs text-neutral-400">

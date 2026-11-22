@@ -738,6 +738,14 @@ const PrismLayout: React.FC<ThemeLayoutProps> = ({
                 <p role="alert" className="py-12 text-center text-sm text-slate-400">
                   {publicPosts.error}
                 </p>
+              ) : currentPosts.length === 0 ? (
+                <p role="status" className="py-12 text-center text-sm text-slate-400 wrap-anywhere">
+                  {activeSearchQuery
+                    ? `No results found for "${activeSearchQuery}".`
+                    : selectedCategory
+                      ? 'No articles in this category yet.'
+                      : 'No articles published yet.'}
+                </p>
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">

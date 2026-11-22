@@ -1718,7 +1718,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                     colors={colors}
                   />
                   <h1
-                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mt-4 mb-6 leading-tight"
+                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mt-4 mb-6 leading-tight wrap-anywhere"
                     style={{ color: colors.text }}
                   >
                     {decodeEntities(selectedPost.title)}

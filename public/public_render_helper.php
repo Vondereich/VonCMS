@@ -416,7 +416,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
          'logo_url', 'header_identity_mode', 'use_logo_as_title', 'invert_logo_in_dark_mode',
          'favicon_url', 'og_image_url', 'og_image_square_url', 'discussion_enabled',
          'registration_enabled', 'maintenance_mode', 'permalink_structure', 'time_zone',
-         'date_format', 'posts_per_page', 'admin_profile'
+         'date_format', 'posts_per_page', 'admin_profile', 'meta_description_limit'
        ))
        OR (setting_group = 'ads' AND setting_key IN ('ads_config', 'configuration'))
        OR (setting_group = 'analytics' AND setting_key = 'config')
@@ -454,6 +454,10 @@ if (!function_exists('voncms_build_public_settings_projection')) {
             $settings['siteUrl'] = ResponseHelper::scrubUrl($value);
           } elseif ($key === 'posts_per_page') {
             $settings['postsPerPage'] = max(6, min(50, (int) $value));
+          } elseif ($key === 'meta_description_limit') {
+            $limit = filter_var($value, FILTER_VALIDATE_INT);
+            $settings['metaDescriptionLimit'] =
+              is_int($limit) && $limit >= 1 && $limit <= 250 ? $limit : 160;
           } elseif ($key === 'site_language') {
             $settings['site_language'] = $value;
             $settings['siteLanguage'] = $value;

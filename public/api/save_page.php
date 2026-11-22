@@ -151,6 +151,7 @@ try {
   if (!isset($pdo)) {
     ResponseHelper::sendError('Database not configured', 503);
   }
+  $metaDescriptionLimit = ContentMetadata::metaDescriptionLimit($pdo);
 
   // Use the same namespace lock as Post saves, before taking transaction row locks.
   $contentSlugLock = VonCmsContentSlugLock::acquire($pdo);
@@ -176,7 +177,7 @@ try {
   if ($isUpdate) {
     // SECURITY: Check ownership before update
     $checkOwner = $pdo->prepare(
-      "SELECT id, author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE",
+      "SELECT id, author_id, status, slug, meta_description, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$pageId]);
     $existingPage = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
@@ -190,6 +191,22 @@ try {
 
     if (!$isOwner && !$isAdminOrModerator) {
       ResponseHelper::sendError('Not authorized to edit this page', 403);
+    }
+
+    if (
+      !ContentMetadata::metaDescriptionAllowed(
+        $rawMeta,
+        isset($existingPage['meta_description'])
+          ? DataBoundary::inputText($existingPage['meta_description'])
+          : null,
+        $metaDescriptionLimit,
+      )
+    ) {
+      $pdo->rollBack();
+      ResponseHelper::sendError(
+        "Meta description is limited to {$metaDescriptionLimit} characters.",
+        400,
+      );
     }
 
     if ($clientUpdatedAt !== '' && !empty($existingPage['updated_at'])) {
@@ -359,6 +376,13 @@ try {
       'updatedAt' => $savedUpdatedAt,
     ]);
   } else {
+    if (!ContentMetadata::metaDescriptionAllowed($rawMeta, null, $metaDescriptionLimit)) {
+      $pdo->rollBack();
+      ResponseHelper::sendError(
+        "Meta description is limited to {$metaDescriptionLimit} characters.",
+        400,
+      );
+    }
     // Insert new page
     $publishedAtColumn = $hasPublishedAtColumn ? ', published_at' : '';
     $publishedAtValue = $hasPublishedAtColumn

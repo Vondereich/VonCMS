@@ -271,6 +271,10 @@ if (!function_exists('voncms_detect_session_cookie_path')) {
   }
 }
 
+require_once __DIR__ . '/core/PublicRead.php';
+$voncmsStatelessRead = voncms_is_stateless_public_read();
+voncms_register_public_cache_policy($voncmsStatelessRead);
+
 // 1. Initialise Session with Secure Parameters
 // Must be called BEFORE session_start()
 if (session_status() === PHP_SESSION_NONE) {
@@ -286,7 +290,7 @@ if (session_status() === PHP_SESSION_NONE) {
   $isCrawlerPageRequest = !$isApiScript && in_array($requestMethod, ['GET', 'HEAD'], true);
 
   // Keep crawler-facing page renders lightweight without changing API security.
-  if ($isBot && $isCrawlerPageRequest) {
+  if ($isBot && $isCrawlerPageRequest && $voncmsStatelessRead) {
     // Public GET/HEAD page shells must remain indexable for known crawler user agents.
     if (!headers_sent()) {
       http_response_code(200);
@@ -299,16 +303,8 @@ if (session_status() === PHP_SESSION_NONE) {
     }
 
     // Let index.php render the public page without starting a visitor session.
-  } else {
-    session_set_cookie_params([
-      'lifetime' => 0, // Session cookie (expires on browser close)
-      'path' => voncms_detect_session_cookie_path(),
-      'domain' => '',
-      'secure' => is_https(), // Only Secure if HTTPS is active (Proxy-Aware)
-      'httponly' => true, // XSS protection
-      'samesite' => 'Lax', // Changed to Lax for better compatibility with redirects
-    ]);
-    session_start();
+  } elseif (!$voncmsStatelessRead) {
+    voncms_start_native_session();
   }
 }
 
@@ -467,6 +463,9 @@ class CSRFProtection
   {
     if (defined('CRAWLER_PAGE_RENDER') && CRAWLER_PAGE_RENDER === true) {
       return 'crawler-page-render';
+    }
+    if (session_status() === PHP_SESSION_NONE) {
+      voncms_start_native_session();
     }
     if (!is_string($_SESSION[self::$tokenName] ?? null)) {
       $_SESSION[self::$tokenName] = bin2hex(random_bytes(32));

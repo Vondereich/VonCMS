@@ -868,7 +868,7 @@ $cssFile = $publicAssets['cssFile'];
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <?php echo voncms_tracking_document_meta(); ?>
+  <?php echo voncms_tracking_document_meta($voncmsStatelessRead); ?>
   <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>"
     data-voncms-ssr-route="<?php echo htmlspecialchars((string) ($_SERVER['REQUEST_URI'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
     data-voncms-ssr-robots="<?php echo htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8'); ?>"
@@ -888,7 +888,9 @@ $cssFile = $publicAssets['cssFile'];
 
   <!-- Dynamic SEO Meta Tags -->
   <title><?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?></title>
+  <?php if (session_status() === PHP_SESSION_ACTIVE): ?>
   <meta name="csrf-token" content="<?php echo CSRFProtection::getToken(); ?>">
+  <?php endif; ?>
   <meta name="description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if (isset($post) && (!empty($post['author_name']) || !empty($post['author']))): ?>
     <meta name="author" content="<?php echo htmlspecialchars($post['author_name'] ?? $post['author'], ENT_COMPAT, 'UTF-8', false); ?>">

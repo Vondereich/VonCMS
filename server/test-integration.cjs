@@ -15,6 +15,7 @@ const read = (file) => fs.readFileSync(resolveFromRoot(file), 'utf8');
 const coreSecurityModules = [
   'DataBoundary',
   'InstallBootstrap',
+  'PublicRead',
   'ContentViewDeduplicator',
   'RateLimiter',
   'ResponseHelper',
@@ -3962,7 +3963,7 @@ assertIncludes(
 
 assertIncludes(
   'Session Cookie Base Path Contract',
-  securityContent,
+  securityContent + read('public/core/PublicRead.php'),
   [
     'function voncms_detect_session_cookie_path()',
     "preg_replace('#/api(/.*)?$#i', '', $scriptName)",
@@ -5684,7 +5685,7 @@ assertIncludes(
     "'voncms:public-categories-invalidated'",
     'const handlePublicCategoriesInvalidated = () => {',
     'void loadSettings(true);',
-    'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
+    'SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
     '$previousScheduledAt !== $savedScheduledAt',
     "'public_categories_changed' => $publicCategoriesChanged",
     "typeof data.public_categories_changed === 'boolean'",
@@ -6752,7 +6753,7 @@ assertIncludes(
   'Page Editor Atomic Conflict Guard',
   savePageApiContent,
   [
-    'SELECT id, author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
+    'SELECT id, author_id, status, slug, meta_description, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
   ],
   'Page Editor Atomic Conflict Guard: page updates lock the current row before comparing updated_at.',
   'Page Editor Atomic Conflict Guard: simultaneous page saves can both pass the stale-content check before overwriting each other.'
@@ -15702,7 +15703,7 @@ if (mutatingMethodGuardMissing.length === 0) {
 }
 
 const postOwnerGuardIndex = savePostContent.indexOf(
-  'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
+  'SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
 );
 const postOwnershipDecisionIndex = savePostContent.indexOf(
   "ResponseHelper::sendError('Not authorized to edit this post', 403);"
@@ -18934,6 +18935,20 @@ if (phpBinary) {
   if (maintenanceProbe.status === 0) pass(maintenanceProbe.stdout.trim().replace(/^PASS /, ''));
   else
     fail('Maintenance Boundaries: ' + (maintenanceProbe.stderr || maintenanceProbe.stdout).trim());
+  const publicReadProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/maintenance/public-read.cjs')],
+    { encoding: 'utf8', env: { ...process.env, PHP_BIN: phpBinary } }
+  );
+  if (publicReadProbe.status === 0) pass(publicReadProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('Public read sessions: ' + (publicReadProbe.stderr || publicReadProbe.stdout).trim());
+  const metadataProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/api-action-boundaries.php'), '--round3-metadata'],
+    { encoding: 'utf8' }
+  );
+  if (metadataProbe.status === 0) pass(metadataProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('Round-3 metadata: ' + (metadataProbe.stderr || metadataProbe.stdout).trim());
 }
 if (phpBinary) {
   const actionBoundariesProbe = spawnSync(
@@ -19079,6 +19094,7 @@ if (!phpBinary) {
     for (const relativePath of [
       'security.php',
       ...coreSecurityModules.map((name) => 'core/' + name + '.php'),
+      'core/ContentMetadata.php',
       'core/SettingsStorage.php',
       'api/login.php',
       'api/save_comments.php',
@@ -23720,7 +23736,7 @@ const cacheFiles = () => fs.existsSync(storage)
       "$expectedStatus = is_scalar($input['expectedStatus'] ?? null)",
       'Post status changed. Reload before applying this workflow action.',
       "$statusOnlyTransition = $workflow['status_only'];",
-      'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
+      'SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
       '!voncms_is_post_workflow_action($requestedWorkflowAction)',
       'Post version is required for this legacy workflow action.',
       '$serverTimestamp !== $clientTimestamp',

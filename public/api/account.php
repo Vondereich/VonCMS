@@ -94,10 +94,12 @@ try {
   }
   $status = in_array($error->getCode(), [400, 403, 409], true) ? (int) $error->getCode() : 503;
   error_log('VonCMS own-account action unavailable: ' . $status);
-  ResponseHelper::sendError(
-    $status === 503
-      ? 'Personal AI storage is unavailable. Run Database Repair or restore the matching private encryption key; nothing was confirmed saved.'
-      : $error->getMessage(),
-    $status,
-  );
+  if ($status === 503) {
+    voncms_ai_send_error(
+      'Personal AI storage is unavailable. Ask the Primary Admin to run Database Repair or restore the matching private encryption key; nothing was confirmed saved.',
+      503,
+      'AI_PERSONAL_STORAGE_UNAVAILABLE',
+    );
+  }
+  ResponseHelper::sendError($error->getMessage(), $status);
 }

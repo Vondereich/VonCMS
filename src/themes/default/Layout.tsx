@@ -1482,7 +1482,7 @@ const SinglePostView: React.FC<{
             <span className="text-neutral-300">•</span>
             <span>{post.readTime || '5 min read'}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-neutral-900 dark:text-white mb-10 leading-[1.15]">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-neutral-900 dark:text-white mb-10 leading-[1.15] wrap-anywhere">
             {decodeEntities(post.title)}
           </h1>
           <div className="flex flex-col sm:flex-row items:center justify-center lg:justify-start gap-6 pt-8 border-t border-neutral-100 dark:border-neutral-800">

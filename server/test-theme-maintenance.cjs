@@ -4220,7 +4220,7 @@ async function checkNativeCrawlerTracking() {
     }
   }
   assert.ok(
-    read('public/index.php').includes('echo voncms_tracking_document_meta();'),
+    read('public/index.php').includes('echo voncms_tracking_document_meta($voncmsStatelessRead);'),
     'PHP entry must emit its real shared document classification'
   );
   assert.ok(

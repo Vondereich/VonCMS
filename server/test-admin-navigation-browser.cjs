@@ -39,7 +39,9 @@ const useRelatedPosts = process.argv.includes('--related-posts');
 const useNativeTracking = process.argv.includes('--native-tracking');
 const usePrismBoot = process.argv.includes('--prism-boot');
 const legacyPrismBoot = usePrismBoot && process.argv.includes('--legacy-prism-boot');
-const useDiscoveryLayout = process.argv.includes('--discovery-layout') || usePrismBoot;
+const useDiscoveryStress = process.argv.includes('--discovery-stress');
+const useDiscoveryLayout =
+  process.argv.includes('--discovery-layout') || usePrismBoot || useDiscoveryStress;
 const legacyDiscoveryLayout =
   useDiscoveryLayout && process.argv.includes('--legacy-discovery-layout');
 const useDeletePreview = process.argv.includes('--delete-preview');
@@ -1041,15 +1043,18 @@ async function main() {
       const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="800" height="450" fill="#64748b"/></svg>');
       const posts=Array.from({length:15},(_,index)=>({id:String(101+index),slug:'qa-story-'+index,title:'QA story '+index,category:'News',status:'published',author:'QA',author_data:{username:'QA'},createdAt:'2026-11-12T00:00:00Z',created_at:'2026-11-12T00:00:00Z',image,image_url:image,excerpt:'Fixture article excerpt.',content:'<p>Article fixture.</p>'.repeat(25)}));
       const page={...posts[0],id:'901',slug:'qa-page',title:'QA page'};
+      ${useDiscoveryStress ? "posts.forEach(post=>post.title='W'.repeat(60)+' Stress title');" : ''}
       const initialPosts=params.get('start')?.startsWith('warm')?posts:[];
       const settings={_settingsScope:'public',siteName:'Discovery layout QA',domainUrl:location.origin+base,siteDescription:'Isolated layout fixture',activeThemeId:theme,postsPerPage:15,permalinkStructure:'category',timeZone:'UTC',theme:{},activePlugins:[],pluginConfig:{},analytics:{cookieConsent:false},navigation:[{id:'home',label:'Home',url:'home',type:'internal'}],sidebarLayout:[],ads:{adsEnabled:false,popupEnabled:false},newsletter:{enabled:false},discussionEnabled:false};
       const dark=params.get('dark')==='1';document.documentElement.classList.toggle('dark',dark);
+      ${useDiscoveryStress ? "settings.sidebarLayout=[{id:'stress-trending',type:'trending',title:'Trending',isVisible:true,itemCount:3}];" : ''}
       window.__discovery={calls:[],pending:[],hold:false,outcome:'ok'};
       const qa=window.__discovery;
       window.fetch=async(input,options={})=>{
         const url=new URL(input,location.href),method=options.method||'GET';
         if(url.origin!==location.origin||method!=='GET')throw Error('Discovery fixture forbids external requests and writes');
         qa.calls.push(url.pathname+url.search);
+        if(${useDiscoveryStress ? 'true' : 'false'}&&url.pathname.endsWith('/get_comments.php'))return new Response(JSON.stringify({success:true,comments:[],meta:{page:1,limit:6,total:0,hasMore:false}}));
         if(!url.pathname.endsWith('/get_posts.php'))throw Error('Unexpected discovery request: '+url.pathname);
         if(qa.hold)await new Promise(resolve=>qa.pending.push(resolve));
         if(qa.outcome==='error')return new Response('Unavailable',{status:503});
@@ -1061,10 +1066,11 @@ async function main() {
         const location=useLocation(),navigate=useNavigate();
         const [visible,setVisible]=React.useState(true);
         qa.exit=()=>setVisible(false);
-        const view=location.pathname.endsWith('/qa-article')?'single-post':location.pathname.endsWith('/qa-page')?'page':'home';
+        const view=location.pathname.endsWith('/qa-article')?'single-post':location.pathname.endsWith('/qa-page')?'page':location.pathname.endsWith('/qa-profile')?'profile':'home';
         qa.view=view;qa.navigate=next=>navigate(next+location.search);
         if(!visible)return React.createElement('div',{id:'qa-private-state'},'Private route fixture');
-        return React.createElement(PublicSite,{posts:initialPosts,pages:[page],settings,user:null,isAuthLoading:false,comments:[],allUsers:[],currentView:view,selectedPost:view==='single-post'?posts[0]:null,selectedPage:view==='page'?page:null,selectedProfile:null,onAddComment:noop,onLikeComment:noop,onReplyComment:noop,onNavigateAdmin:noop,onLogin:noop,onLogout:noop,isDarkMode:dark,toggleDarkMode:noop,onPostClick:()=>qa.navigate('/qa-article'),onPageClick:()=>qa.navigate('/qa-page'),onViewProfile:noop,onBackToHome:()=>qa.navigate('/'),onPublicSearchChange:noop});
+        const profile=view==='profile'?{id:'9',username:'QA',role:'Writer',avatar:image,createdAt:'2026-11-12T00:00:00Z'}:null;
+        return React.createElement(PublicSite,{posts:initialPosts,pages:[page],settings,user:null,isAuthLoading:false,comments:[],allUsers:profile?[profile]:[],currentView:view,selectedPost:view==='single-post'?posts[0]:null,selectedPage:view==='page'?page:null,selectedProfile:profile?.username??null,resolvedProfile:profile,onAddComment:noop,onLikeComment:noop,onReplyComment:noop,onNavigateAdmin:noop,onLogin:noop,onLogout:noop,isDarkMode:dark,toggleDarkMode:noop,onPostClick:()=>qa.navigate('/qa-article'),onPageClick:()=>qa.navigate('/qa-page'),onViewProfile:noop,onBackToHome:()=>qa.navigate('/'),onPublicSearchChange:noop});
       }
       function ThemeHarness(){
         const [themeId,setThemeId]=React.useState(theme);
@@ -1490,7 +1496,7 @@ createRoot(document.getElementById('root')).render(<>${toasters[0]}</>);`,
                 ) &&
                 !(
                   useDiscoveryLayout &&
-                  /^\/(?:zangetsu\/)?(?:qa-article|qa-page)?(?:\?|$)/.test(req.url || '')
+                  /^\/(?:zangetsu\/)?(?:qa-article|qa-page|qa-profile)?(?:\?|$)/.test(req.url || '')
                 ) &&
                 !(useUsers && /^\/(?:zangetsu\/)?login(?:\?|$)/.test(req.url || ''))
               )
@@ -3974,6 +3980,57 @@ createRoot(document.getElementById('root')).render(<>${toasters[0]}</>);`,
       assert.deepEqual(errors, []);
       console.log(
         `PASS Theme startup: ${cases} Chrome PHP/Source, root/subfolder, saved-mode, all-theme controls, private-entry, storage-failure, theme-switch, public-unmount, missing/invalid metadata and future fixed-light/dark scenarios. Real inline guards/CSS, Vite metadata projection, PHP helper and PublicSite lifecycle; fixture-only, no installed settings or account changes.`
+      );
+      return;
+    }
+    if (useDiscoveryStress) {
+      let cases = 0;
+      for (const base of ['', '/zangetsu']) {
+        for (const theme of [
+          'default',
+          'prism',
+          'techpress',
+          'portfolio',
+          'digest',
+          'corporate-pro',
+        ]) {
+          for (const width of [320, 375]) {
+            await send('Emulation.setDeviceMetricsOverride', {
+              width,
+              height: 900,
+              deviceScaleFactor: 1,
+              mobile: true,
+            });
+            for (const route of ['/qa-article', '/', '/qa-profile']) {
+              await send('Page.navigate', {
+                url: `http://127.0.0.1:${port}${base}${route}?theme=theme-${theme}&start=warm`,
+              });
+              try {
+                await wait(
+                  '!!document.querySelector("footer") && document.body.innerText.includes("Stress title")'
+                );
+              } catch (error) {
+                throw new Error(
+                  `${theme} ${base}${route} ${width}px: ${error.message}; ${await evaluate('document.body.innerText.slice(0,400)')}; ${JSON.stringify(errors)}`,
+                  { cause: error }
+                );
+              }
+              await pause(180);
+              const dimensions = await evaluate(
+                '({viewport:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth})'
+              );
+              assert.ok(
+                dimensions.scroll <= width,
+                `${theme} ${base}${route} ${width}px: ${JSON.stringify(dimensions)}`
+              );
+              cases++;
+            }
+          }
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Discovery stress: ${cases} Chrome real-theme Post/Home/Profile cases, 320/375px, root/subfolder, 60-character words. Synthetic content; no installed site.`
       );
       return;
     }

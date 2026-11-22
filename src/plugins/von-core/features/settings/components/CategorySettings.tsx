@@ -173,6 +173,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
             <h4 className="font-semibold text-slate-800 dark:text-white">Add Category</h4>
             <input
               aria-label="New category name"
+              maxLength={100}
               id="categorysettings-162"
               name="categorysettings162"
               type="text"
@@ -181,6 +182,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
               placeholder="New category name"
               className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-admin-border bg-white dark:bg-admin-canvas text-slate-900 dark:text-slate-100"
             />
+            <p className="text-xs text-slate-500 dark:text-gray-400">Max 100 characters.</p>
             <button
               type="button"
               onClick={() => runAction('add', { category: normalizedNewCategory })}
@@ -203,6 +205,7 @@ export const CategorySettings: React.FC<CategorySettingsProps> = ({ onCategories
               id="categorysettings-187"
               name="categorysettings187"
               aria-label="Renamed category name"
+              maxLength={100}
               type="text"
               value={renameTarget}
               onChange={(e) => setRenameTarget(e.target.value)}

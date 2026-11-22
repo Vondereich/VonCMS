@@ -40,6 +40,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
+voncms_apply_site_timezone($pdo);
 
 // Reuse the authorized GET report boundary; visitor tracking and its consent policy are unchanged.
 $days = 7;
@@ -104,9 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ============================================
 if (rand(1, 100) === 1) {
   try {
-    $pdo->exec(
-      'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
-    );
+    voncms_prune_native_visits($pdo);
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $analyticsMode !== 'strict') {
       voncms_prune_analytics_sessions($pdo, time());
     }
@@ -173,14 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       exit();
     }
     $modeWhere = $modeReady ? ' AND measurement_mode = ?' : '';
-    $reportParams = $modeReady ? [$days, $mode] : [$days];
+    $boundary = voncms_analytics_day_boundary($days - 1);
+    $reportParams = $modeReady ? [$boundary, $mode] : [$boundary];
     $dailyIndexHint = voncms_query_index_hint($pdo, 'analytics', 'idx_visit_daily');
 
     // Get visits per day
     $stmt = $pdo->prepare("
             SELECT visit_date, COUNT(*) as visits, COUNT(DISTINCT ip_hash) as unique_visitors
             FROM analytics{$dailyIndexHint}
-            WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL (? - 1) DAY){$modeWhere}
+            WHERE visit_date >= ?{$modeWhere}
             GROUP BY visit_date
             ORDER BY visit_date ASC
         ");
@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 COUNT(*) as total_views,
                 COUNT(DISTINCT ip_hash) as unique_visitors
             FROM analytics{$dailyIndexHint}
-            WHERE visit_date >= DATE_SUB(CURDATE(), INTERVAL (? - 1) DAY){$modeWhere}
+            WHERE visit_date >= ?{$modeWhere}
         ");
     $stmt->execute($reportParams);
     $totals = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC));

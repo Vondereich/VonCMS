@@ -86,6 +86,10 @@ $rawExcerpt = is_scalar($input['excerpt'] ?? '') ? (string) ($input['excerpt'] ?
 $rawMetaValue = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
 $rawMeta = is_scalar($rawMetaValue) ? (string) $rawMetaValue : '';
 $rawKeywords = is_scalar($input['keywords'] ?? '') ? (string) ($input['keywords'] ?? '') : '';
+$rawCategory = is_scalar($input['category'] ?? '') ? (string) ($input['category'] ?? '') : '';
+if (ContentMetadata::categoryExceedsLimit($rawCategory)) {
+  ResponseHelper::sendError('Category name is limited to 100 characters.', 400);
+}
 
 if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
   ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
@@ -129,6 +133,7 @@ $input['excerpt'] = $rawExcerpt;
 $input['metaDescription'] = $rawMeta;
 $input['meta_description'] = $rawMeta;
 $input['keywords'] = $rawKeywords;
+$input['category'] = $rawCategory;
 
 // Generate slug if not provided (use raw title)
 if ($rawSlug === '') {
@@ -182,6 +187,7 @@ try {
   }
   /** @var PDO $db */
   $db = $pdo;
+  $metaDescriptionLimit = ContentMetadata::metaDescriptionLimit($db);
   $hasPublishedAtColumn = voncms_has_publication_column($db, 'posts');
   $publishedAtSelect = voncms_publication_column_sql($db, 'posts');
 
@@ -198,7 +204,7 @@ try {
 
   if ($isUpdate) {
     $checkOwner = $db->prepare(
-      "SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
+      "SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$postId]);
     $ownerPost = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
@@ -276,6 +282,23 @@ try {
   $statusOnlyTransition = $workflow['status_only'];
   $workflowAuditAction = $workflow['audit_action'];
   $workflowMessage = $workflow['message'];
+
+  if (
+    !$statusOnlyTransition &&
+    !ContentMetadata::metaDescriptionAllowed(
+      $rawMeta,
+      isset($existingPost['meta_description'])
+        ? DataBoundary::inputText($existingPost['meta_description'])
+        : null,
+      $metaDescriptionLimit,
+    )
+  ) {
+    $db->rollBack();
+    ResponseHelper::sendError(
+      "Meta description is limited to {$metaDescriptionLimit} characters.",
+      400,
+    );
+  }
 
   // Get category (default to Uncategorized if not provided)
   $category = is_scalar($input['category'] ?? null)

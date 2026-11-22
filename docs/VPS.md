@@ -741,6 +741,17 @@ VonCMS `.htaccess` baseline only enables gzip. That is normal. Compression and
 static caching are server/CDN responsibilities; VonCMS only ships the safe
 portable baseline.
 
+#### Public Read CDN Boundaries
+
+Short public-read caching is not permission to cache every route. Before enabling HTML caching:
+
+- Bypass `/admin`, login/recovery/installer routes and `/api/` (including `/api.php` and `check_auth.php`), with the installation's subfolder prefix when applicable.
+- Bypass requests carrying the configured PHP session cookie (normally `PHPSESSID`), `voncms_remember`, or an Authorization header. Keep query strings in cache keys.
+- Respect origin `private` and `no-store`; do not override them with a forced Edge TTL. Purge older cached authentication/API/HTML responses when changing these rules.
+- Do not rely on `Vary: Cookie` alone: [Cloudflare ignores most Vary values by default](https://developers.cloudflare.com/cache/concepts/cache-control/). Use explicit bypass rules or an appropriately configured cache key. The CMS cannot enforce a remote CDN's override settings.
+
+Shared guest HTML contains no CSRF token or User-Agent-specific tracking marker. Authentication status remains private/no-store even without a cookie. Fingerprinted assets keep their separate long-cache policy.
+
 ### LiteSpeed Cache Notes
 
 On LiteSpeed hosting, start with static file/browser cache and compression.

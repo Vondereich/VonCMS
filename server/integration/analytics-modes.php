@@ -372,6 +372,10 @@ try {
       voncms_tracking_document_meta() === '<meta name="voncms-tracking" content="excluded">',
       'Original crawler document retains its renderer exclusion',
     );
+    check(
+      voncms_tracking_document_meta(true) === '',
+      'Shared HTML must not vary tracking markers by User-Agent',
+    );
     foreach (['strict', 'balanced', 'hybrid'] as $collection) {
       $outcome = voncms_record_native_visit($pdo, $collection, [], '/crawler', '', $agent, $now);
       check(
@@ -516,12 +520,15 @@ try {
     );
     $storedClock = $pdo
       ->query(
-        'SELECT visit_date=CURDATE() AS same_day,created_at=NOW() AS same_time FROM analytics ORDER BY id DESC LIMIT 1',
+        'SELECT visit_date,visit_time,created_at=NOW() AS same_time FROM analytics ORDER BY id DESC LIMIT 1',
       )
       ->fetch(PDO::FETCH_ASSOC);
     check(
-      (int) $storedClock['same_day'] === 1 && (int) $storedClock['same_time'] === 1,
-      'Analytics storage and reporting share DB clock at offset ' . $clockOffset,
+      $storedClock['visit_date'] === date('Y-m-d', $legacyStart + 1801) &&
+        $storedClock['visit_time'] === date('H:i:s', $legacyStart + 1801) &&
+        (int) $storedClock['same_time'] === 1,
+      'Visit buckets must use the site clock while the legacy throttle clock remains compatible at offset ' .
+        $clockOffset,
     );
   }
   $setDbOffset(8);

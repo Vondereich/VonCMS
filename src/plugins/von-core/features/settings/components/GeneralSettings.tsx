@@ -702,6 +702,28 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           />
         </div>
         <div className="flex items-center gap-3">
+          {canManageSecrets && (
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Meta Description Limit
+              <input
+                aria-label="Meta Description Limit"
+                id="meta-description-limit"
+                name="metaDescriptionLimit"
+                type="number"
+                min={1}
+                max={250}
+                value={settings.metaDescriptionLimit ?? 160}
+                onChange={(event) => onChange('metaDescriptionLimit', Number(event.target.value))}
+                className="mt-1 w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
+              />
+              <span className="block mt-1 text-xs text-slate-500 dark:text-gray-400">
+                Default 160; maximum 250 characters. Enforced for Post and Page saves. Excerpts
+                remain limited to 220.
+              </span>
+            </label>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
           <input
             id="generalsettings-558"
             name="generalsettings558"

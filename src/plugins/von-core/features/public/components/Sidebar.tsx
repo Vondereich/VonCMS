@@ -200,7 +200,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                     >
                       {index + 1}
                     </span>
-                    <div className="flex-1 pt-1">
+                    <div className="flex-1 min-w-0 pt-1">
                       {(() => {
                         const sourceDate = getPostPublishTimestamp(post);
                         const freshnessLabel = formatSidebarFreshness(sourceDate, settings);
@@ -212,7 +212,7 @@ export const VpSidebarWidget: React.FC<SidebarProps> = ({
                         ) : null;
                       })()}
                       <p
-                        className={`text-sm font-bold transition-colors leading-relaxed line-clamp-2 ${
+                        className={`text-sm font-bold transition-colors leading-relaxed line-clamp-2 wrap-anywhere ${
                           isCurrentPost
                             ? 'text-(--color-primary)'
                             : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'

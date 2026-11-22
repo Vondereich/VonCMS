@@ -147,6 +147,10 @@ try {
           $settings['siteUrl'] = ResponseHelper::scrubUrl((string) DataBoundary::scalar($value)); // Legacy support
         } elseif ($key === 'posts_per_page') {
           $settings['postsPerPage'] = max(6, min(50, (int) DataBoundary::scalar($value)));
+        } elseif ($key === 'meta_description_limit') {
+          $limit = filter_var($value, FILTER_VALIDATE_INT);
+          $settings['metaDescriptionLimit'] =
+            is_int($limit) && $limit >= 1 && $limit <= 250 ? $limit : 160;
         } elseif ($key === 'site_language') {
           // Maintain both for frontend state and internal consistency
           $settings['site_language'] = $value;

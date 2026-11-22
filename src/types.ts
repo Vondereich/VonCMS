@@ -505,6 +505,7 @@ export interface SiteSettings {
   siteDescription: string;
   siteTagline?: string;
   postsPerPage: number;
+  metaDescriptionLimit?: number;
   maintenanceMode: boolean;
   emailSmtp: string;
   emailFrom?: string;

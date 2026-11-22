@@ -502,6 +502,24 @@ try {
   $readConfig = static fn() => $database
     ->query("SELECT setting_value FROM settings WHERE setting_group='api' AND setting_key='config'")
     ->fetchColumn();
+  foreach ([160, 220, 250] as $limit) {
+    $metaResponse = credentialSaveRequest($harness, 'owner', ['metaDescriptionLimit' => $limit]);
+    credentialCheck($metaResponse['status'] === 200, 'Owner meta limit save failed');
+    credentialCheck(
+      (int) $database
+        ->query(
+          "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='meta_description_limit'",
+        )
+        ->fetchColumn() === $limit,
+      'Settings did not persist meta limit',
+    );
+  }
+  foreach ([0, 251, 160.5, [], true, 'bad'] as $limit) {
+    $metaResponse = credentialSaveRequest($harness, 'owner', ['metaDescriptionLimit' => $limit]);
+    credentialCheck($metaResponse['status'] === 400, 'Invalid meta limit accepted');
+  }
+  $metaResponse = credentialSaveRequest($harness, 'admin', ['metaDescriptionLimit' => 200]);
+  credentialCheck($metaResponse['status'] === 403, 'Appointed Admin changed owner meta limit');
   foreach (['guest', 'member', 'writer', 'moderator', 'admin'] as $role) {
     $response = credentialSaveRequest($harness, $role, ['api' => ['aiApiKey' => $fake]]);
     credentialCheck(

@@ -16,6 +16,31 @@ final class ContentMetadata
     return mb_substr(trim(preg_replace('/\s+/u', ' ', $value) ?? ''), 0, 100);
   }
 
+  public static function categoryExceedsLimit(string $value): bool
+  {
+    return mb_strlen(trim(preg_replace('/\s+/u', ' ', $value) ?? ''), 'UTF-8') > 100;
+  }
+
+  public static function metaDescriptionLimit(PDO $pdo): int
+  {
+    $read = $pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group='general' AND setting_key='meta_description_limit' LIMIT 1",
+    );
+    $read->execute();
+    $value = $read->fetchColumn();
+    $read->closeCursor();
+    $limit = filter_var($value, FILTER_VALIDATE_INT);
+    return is_int($limit) && $limit >= 1 && $limit <= 250 ? $limit : 160;
+  }
+
+  public static function metaDescriptionAllowed(
+    string $value,
+    ?string $stored = null,
+    int $limit = 160,
+  ): bool {
+    return mb_strlen($value, 'UTF-8') <= $limit || ($stored !== null && $value === $stored);
+  }
+
   /** @param array<array-key, mixed> $known */
   public static function existingCategory(string $value, array $known): ?string
   {

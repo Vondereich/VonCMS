@@ -302,6 +302,7 @@ for (const isPage of [false, true]) {
       const scope = {
         item,
         EXCERPT_RECOMMENDED_MAX_LENGTH: 200,
+        metaDescriptionLimit: 160,
         getPostEditorCleanText: textHelpers.getPostEditorCleanText,
         getPostEditorAutofillText: textHelpers.getPostEditorAutofillText,
         setItem: (update) => {

@@ -445,6 +445,74 @@ module.exports = async function checkMaintenance({
     assert.match(markup, expected);
     assert.doesNotMatch(markup, /No results found for &quot;&quot;/);
   }
+  const SeoPanel = load('src/components/editor/PostEditorSeoPanel.tsx', React, {
+    '../../utils/seoAnalyzer': load('src/utils/seoAnalyzer.ts'),
+  }).default;
+  for (const limit of [160, 220, 250]) {
+    const html = renderToStaticMarkup(
+      React.createElement(SeoPanel, {
+        item: { content: '<p>QA</p>' },
+        setItem() {},
+        isRestoring: false,
+        result: null,
+        metaDescriptionLimit: limit,
+      })
+    );
+    assert.match(html, new RegExp(`maxLength="${limit}"`, 'i'));
+    assert.ok(html.includes(`/${limit} characters`), 'Editor counter disagrees with Settings');
+  }
+  for (const theme of ['prism', 'corporate-pro']) {
+    for (const state of ['empty', 'loading', 'error']) {
+      const query = {
+        posts: [],
+        total: 0,
+        isLoading: state === 'loading',
+        error: state === 'error' ? 'QA discovery failure' : null,
+        hasMore: false,
+      };
+      const mocks = new Proxy(
+        {
+          ...shared,
+          usePublicPostsQuery: () => query,
+          PublicDiscoverySkeleton: () => React.createElement('p', null, 'QA skeleton'),
+        },
+        { get: (target, key) => target[key] ?? (() => null) }
+      );
+      const Component = load(
+        theme === 'prism'
+          ? 'src/themes/prism/Layout.tsx'
+          : 'src/themes/corporate-pro/sections/LatestPostsSection.tsx',
+        React,
+        { '../shared': mocks, '../../shared': mocks }
+      ).default;
+      const html = renderToStaticMarkup(
+        React.createElement(Component, {
+          settings,
+          posts: [],
+          pages: [],
+          user: null,
+          currentView: 'category',
+          selectedCategory: 'Absent',
+          publicPosts: query,
+          isInitialDiscoveryLoading: state === 'loading',
+          onNavigate() {},
+          onPostClick() {},
+          onBackToHome() {},
+        })
+      );
+      assert.match(
+        html,
+        state === 'empty'
+          ? /No articles in this category yet/
+          : state === 'loading'
+            ? /QA skeleton/
+            : /QA discovery failure/,
+        theme + ' ' + state
+      );
+      if (state !== 'empty') assert.doesNotMatch(html, /No articles in this category yet/);
+      if (state === 'empty') assert.doesNotMatch(html, /Showing server-backed results/);
+    }
+  }
   console.log(
     'PASS Maintenance UI: site-clock ages, schedule validation, failed/stale comment drafts, Menu lazy loading/retry, Contact inbox paging/escaping, GA4 plugin status and real empty states. React/request simulation only.'
   );

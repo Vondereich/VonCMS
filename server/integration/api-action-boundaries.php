@@ -644,6 +644,10 @@ if (($argv[1] ?? '') === '--worker') {
     throw new RuntimeException('QA requires writable, lockable rate-limit storage');
   }
   eval(actionDeclaration($root . '/public/security.php', 'class CSRFProtection'));
+  require_once $root . '/public/core/PublicRead.php';
+  eval(
+    actionDeclaration($root . '/public/security.php', 'function voncms_detect_session_cookie_path(')
+  );
   eval(actionDeclaration($root . '/public/security.php', 'class SecurityHelper'));
   eval(actionDeclaration($root . '/public/von_config.sample.php', 'function sanitize_input('));
   $databaseDirectory = $options['databaseDirectory'] ?? $directory;
@@ -1053,8 +1057,8 @@ if (($argv[1] ?? '') === '--worker') {
   }
   if ($endpoint === 'save_page.php' && !empty($options['withoutPageIdentity'])) {
     $source = str_replace(
-      'SELECT id, author_id, status, slug, updated_at,',
-      'SELECT author_id, status, slug, updated_at,',
+      'SELECT id, author_id, status, slug, meta_description, updated_at,',
+      'SELECT author_id, status, slug, meta_description, updated_at,',
       $source,
       $replaced,
     );
@@ -1148,6 +1152,13 @@ if (($argv[1] ?? '') === '--worker') {
       }
       $name = $i % 2 ? 'track_visit.php' : 'track_monolithic.php';
       $_SERVER['SCRIPT_NAME'] = '/zangetsu/api/' . $name;
+      if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+      }
+      $trackingSessionId = 'tracking' . bin2hex(random_bytes(12));
+      $trackingSessionFile = fopen($directory . '/sess_' . $trackingSessionId, 'x');
+      fclose($trackingSessionFile);
+      session_id($trackingSessionId);
       $_SESSION = [];
       $_SERVER['HTTP_X_CSRF_TOKEN'] = CSRFProtection::getToken();
       $_COOKIE = [
@@ -1999,6 +2010,7 @@ function actionSettingsChecks(): void
   foreach (
     [
       ['general', 'site_name', 'Tom & Jerry', 'string'],
+      ['general', 'meta_description_limit', '220', 'number'],
       [
         'general',
         'admin_profile',
@@ -2100,6 +2112,10 @@ function actionSettingsChecks(): void
     actionCheck(
       in_array('Private draft', $settings['categories'], true) === $admin,
       'Settings category role visibility changed.',
+    );
+    actionCheck(
+      ($settings['metaDescriptionLimit'] ?? null) === 220,
+      'Configured meta limit missing from ' . $role . ' Settings projection',
     );
     actionCheck(
       $settings['publicCategories'] === ['Visible'],
@@ -3346,6 +3362,146 @@ function actionEditorMetadataChecks(): void
   );
 }
 
+function actionRoundThreeMetadataChecks(): void
+{
+  $directory = actionFixture('round3-metadata');
+  $db = actionDatabase($directory);
+  $db->exec(
+    'CREATE TABLE posts(id INTEGER PRIMARY KEY,title TEXT,slug TEXT,content TEXT,excerpt TEXT,status TEXT,image_url TEXT,keywords TEXT,category TEXT,meta_description TEXT,author_id INTEGER,scheduled_at TEXT,published_at TEXT,created_at TEXT,updated_at TEXT)',
+  );
+  $db->exec(
+    'CREATE TABLE pages(id INTEGER PRIMARY KEY,title TEXT,slug TEXT,content TEXT,excerpt TEXT,status TEXT,keywords TEXT,meta_description TEXT,author_id INTEGER,published_at TEXT,created_at TEXT,updated_at TEXT)',
+  );
+  $db->exec(
+    'CREATE TABLE content_audit_logs(content_type TEXT,content_id INTEGER,action TEXT,actor_user_id INTEGER,actor_username TEXT,actor_role TEXT,summary TEXT,context_json TEXT)',
+  );
+  $labels = ['C++ & Rust', 'Q&A', "Rock 'n' Roll", 'Tips "Pro"', 'A < B', 'Literal &amp; Label'];
+  $db
+    ->prepare('INSERT INTO settings VALUES(?,?,?)')
+    ->execute(['content', 'categories', json_encode($labels)]);
+  foreach ($labels as $index => $label) {
+    $result = actionRun($directory, [
+      [
+        'endpoint' => 'save_post.php',
+        'case' => 'editor-inputs',
+        'publicationReady' => true,
+        'input' => [
+          'title' => 'Category QA',
+          'slug' => 'category-' . $index,
+          'content' => '<p>QA</p>',
+          'status' => 'draft',
+          'category' => $label,
+        ],
+      ],
+    ])[0];
+    actionCheck($result['status'] === 200, 'Special category Save failed: ' . $result['output']);
+    $query = $db->prepare('SELECT category FROM posts WHERE id=?');
+    $query->execute([$result['body']['id']]);
+    actionCheck($query->fetchColumn() === $label, 'Category must be stored as raw text: ' . $label);
+    $query = $db->prepare('SELECT COUNT(*) FROM posts WHERE category=?');
+    $query->execute([$label]);
+    actionCheck((int) $query->fetchColumn() === 1, 'Exact category filtering lost the saved post');
+  }
+  foreach (['save_post.php' => 'posts', 'save_page.php' => 'pages'] as $endpoint => $table) {
+    $base = ['endpoint' => $endpoint, 'case' => 'editor-inputs', 'publicationReady' => true];
+    $input = [
+      'title' => 'Limits QA',
+      'slug' => 'limit-' . $table,
+      'content' => '<p>QA</p>',
+      'status' => 'draft',
+      'category' => str_repeat('é', 100),
+      'metaDescription' => str_repeat('é', 160),
+    ];
+    $valid = actionRun($directory, [$base + ['input' => $input]])[0];
+    actionCheck($valid['status'] === 200, 'Exact metadata limits refused: ' . $valid['output']);
+    if ($table === 'posts') {
+      $invalid = actionRun($directory, [
+        $base + [
+          'input' => array_replace($input, [
+            'slug' => 'over-category',
+            'category' => str_repeat('é', 101),
+          ]),
+        ],
+      ])[0];
+      actionCheck(
+        $invalid['status'] === 400 && str_contains($invalid['body']['error'], '100 characters'),
+        'Overlength category was silently shortened',
+      );
+    }
+    $invalid = actionRun($directory, [
+      $base + [
+        'input' => array_replace($input, [
+          'slug' => 'over-meta-' . $table,
+          'metaDescription' => str_repeat('é', 161),
+        ]),
+      ],
+    ])[0];
+    actionCheck(
+      $invalid['status'] === 400 && str_contains($invalid['body']['error'], '160 characters'),
+      'Overlength new meta description accepted',
+    );
+    $legacy = str_repeat('L', 300);
+    $db
+      ->prepare('UPDATE ' . $table . ' SET meta_description=? WHERE id=?')
+      ->execute([$legacy, $valid['body']['id']]);
+    $input['id'] = $valid['body']['id'];
+    $input['metaDescription'] = $legacy;
+    $unchanged = actionRun($directory, [$base + ['input' => $input]])[0];
+    actionCheck(
+      $unchanged['status'] === 200,
+      'Unchanged legacy meta description must remain saveable: ' . $unchanged['output'],
+    );
+    $input['metaDescription'] .= '!';
+    $changed = actionRun($directory, [$base + ['input' => $input]])[0];
+    actionCheck($changed['status'] === 400, 'Changed legacy description bypassed the limit');
+    $db
+      ->prepare('INSERT INTO settings VALUES(?,?,?)')
+      ->execute(['general', 'meta_description_limit', '250']);
+    unset($input['id']);
+    $input['slug'] = 'configured-meta-' . $table;
+    $input['metaDescription'] = str_repeat('é', 250);
+    $configured = actionRun($directory, [$base + ['input' => $input]])[0];
+    actionCheck(
+      $configured['status'] === 200,
+      'Configured 250-character description refused: ' . $configured['output'],
+    );
+    $input['slug'] .= '-over';
+    $input['metaDescription'] .= 'é';
+    $over = actionRun($directory, [$base + ['input' => $input]])[0];
+    actionCheck(
+      $over['status'] === 400 && str_contains($over['body']['error'], '250 characters'),
+      'Direct API bypassed configured meta limit',
+    );
+    $db->exec(
+      "DELETE FROM settings WHERE setting_group='general' AND setting_key='meta_description_limit'",
+    );
+  }
+  require_once dirname(__DIR__, 2) . '/public/api/schema_repair_helper.php';
+  $db->exec("UPDATE posts SET category='Q&amp;A' WHERE slug='category-1'");
+  $beforeRepair = $db->query("SELECT category FROM posts WHERE slug='category-1'")->fetchColumn();
+  actionCheck(
+    $beforeRepair === 'Q&amp;A',
+    'Legacy control must retain the bad category before Repair',
+  );
+  actionCheck(
+    voncms_schema_repair_encoded_categories($db) === 1,
+    'Repair did not recover encoded registered label',
+  );
+  actionCheck(
+    $db->query("SELECT category FROM posts WHERE slug='category-1'")->fetchColumn() === 'Q&A',
+    'Repair category spelling mismatch',
+  );
+  actionCheck(
+    voncms_schema_repair_encoded_categories($db) === 0,
+    'Category repair must be idempotent',
+  );
+  actionCheck(
+    $db->query("SELECT category FROM posts WHERE slug='category-5'")->fetchColumn() ===
+      'Literal &amp; Label',
+    'Repair decoded a legitimate literal entity label',
+  );
+}
+
 function actionMaintenanceChecks(): void
 {
   foreach (['Root', 'Admin', 'Moderator', 'Writer', 'Member'] as $role) {
@@ -3513,6 +3669,12 @@ try {
     actionMysqlEditorClockChecks();
     echo "PASS MySQL editor clocks: $checks checks; actual Save Post/Page controllers, native InnoDB/NOW(), three site zones, preserved timestamps and old-write counterexamples. Owned QA database removed.\n";
     return;
+  }
+  if (($argv[1] ?? '') === '--round3-metadata') {
+    actionRoundThreeMetadataChecks();
+    actionSettingsChecks();
+    echo "PASS Round-3 metadata: $checks checks; actual Save Post/Page controllers in disposable SQLite.\n";
+    exit();
   }
   if (($argv[1] ?? '') === '--editor-metadata') {
     actionEditorMetadataChecks();

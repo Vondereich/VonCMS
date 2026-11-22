@@ -1156,7 +1156,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     {selectedPost.category || 'Lifestyle'}
                   </a>
                   <h1
-                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-8 leading-tight tracking-tight"
+                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-8 leading-tight tracking-tight wrap-anywhere"
                     style={{ color: colors.text }}
                   >
                     {decodeEntities(selectedPost.title)}

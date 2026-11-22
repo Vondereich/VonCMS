@@ -39,6 +39,10 @@ function uploadChecks() {
       fs.copyFileSync(path.join(root, 'public/api', file), path.join(api, file));
     fs.mkdirSync(path.join(api, 'media'));
     fs.copyFileSync(
+      path.join(root, 'public/api/media/LocationMetadata.php'),
+      path.join(api, 'media/LocationMetadata.php')
+    );
+    fs.copyFileSync(
       path.join(root, 'public/api/media/SvgLogo.php'),
       path.join(api, 'media/SvgLogo.php')
     );
@@ -430,7 +434,62 @@ $sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn
       orientation,
       ordinaryJpeg.stdout.subarray(2),
     ]);
+    const noExifPath = path.join(fixture, 'no-exif-orientation.jpg');
+    fs.writeFileSync(noExifPath, orientedJpeg);
+    const noExifResult = spawnSync(
+      php,
+      [
+        '-d',
+        'disable_functions=exif_read_data',
+        '-r',
+        'require $argv[1]; echo json_encode((new ImageProcessor(["generateResponsiveVariants"=>false]))->processUpload($argv[2]));',
+        path.join(root, 'public/api/ImageProcessor.php'),
+        noExifPath,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(noExifResult.status, 0, noExifResult.stderr);
+    assert.equal(
+      JSON.parse(noExifResult.stdout).success,
+      true,
+      'Valid oriented JPEG was refused without EXIF extension'
+    );
+    assert.deepEqual(
+      fs.readFileSync(noExifPath),
+      orientedJpeg,
+      'No-EXIF fallback lost orientation or compressed pixels'
+    );
     const singleGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+    const metadataFormats = spawnSync(
+      php,
+      [
+        '-r',
+        `
+$tiff=base64_decode($argv[1]);$im=imagecreatetruecolor(1,1);ob_start();imagepng($im);$png=ob_get_clean();
+$xmp='<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:exif="http://ns.adobe.com/exif/1.0/" exif:GPSLatitude="3,8N" exif:GPSLongitude="101,41E"/>';
+$chunk=static fn($type,$data)=>pack('N',strlen($data)).$type.$data.pack('N',crc32($type.$data));
+$gpsPng=substr($png,0,33).$chunk('eXIf',$tiff).$chunk('iTXt',"XML:com.adobe.xmp\\0\\0\\0\\0\\0".$xmp).substr($png,33);
+$profile=static fn($bytes)=>chr(10).'exif'.chr(10).sprintf('%8d',strlen($bytes)).chr(10).chunk_split(bin2hex($bytes),72,chr(10));
+$raw=$profile("Exif\\0\\0".$tiff);
+$withText=static fn($type,$data)=>substr($png,0,33).$chunk($type,$data).substr($png,33);
+$rawPng=$withText('tEXt',"Raw profile type exif\\0".$raw);
+$zRawPng=$withText('zTXt',"Raw profile type exif\\0\\0".gzcompress($raw));
+$app1Png=$withText('tEXt',"Raw profile type APP1\\0".$raw);
+$app1XmpPng=$withText('tEXt',"Raw profile type APP1\\0".$profile("http://ns.adobe.com/xap/1.0/\\0".$xmp));
+$rawOrientedPng=$withText('tEXt',"Raw profile type exif\\0".$profile(base64_decode($argv[2])));
+$badRawPng=$withText('tEXt',"Raw profile type exif\\0".chr(10).'exif'.chr(10).'100'.chr(10).'1234');
+$hugeRawPng=$withText('zTXt',"Raw profile type exif\\0\\0".gzcompress(str_repeat('X',3000000)));
+ob_start();imagewebp($im);$webp=ob_get_clean();$chunk=static fn($type,$data)=>$type.pack('V',strlen($data)).$data.(strlen($data)%2?"\\0":'');
+$payload='WEBP'.$chunk('VP8X',"\\x0c".str_repeat("\\0",9)).substr($webp,12).$chunk('EXIF',$tiff).$chunk('XMP ',$xmp);
+echo json_encode(array_map('base64_encode',['png'=>$png,'gpsPng'=>$gpsPng,'webp'=>$webp,'gpsWebp'=>'RIFF'.pack('V',strlen($payload)).$payload,'rawPng'=>$rawPng,'zRawPng'=>$zRawPng,'app1Png'=>$app1Png,'app1XmpPng'=>$app1XmpPng,'rawOrientedPng'=>$rawOrientedPng,'badRawPng'=>$badRawPng,'hugeRawPng'=>$hugeRawPng]));
+`,
+        smallGps.subarray(12, 4 + smallGps.readUInt16BE(4)).toString('base64'),
+        orientation.toString('base64'),
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(metadataFormats.status, 0, metadataFormats.stderr);
+    const formatFixtures = JSON.parse(metadataFormats.stdout);
     const frame = singleGif.subarray(singleGif.indexOf(0x2c), -1);
     const animatedGif = Buffer.concat([
       singleGif.subarray(0, singleGif.indexOf(0x2c)),
@@ -439,19 +498,89 @@ $sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn
       Buffer.from([0x3b]),
     ]);
     for (const base of ['', '/zangetsu']) {
-      const reject = upload(
+      for (const [name, key] of [
+        ['gps.png', 'gpsPng'],
+        ['gps.webp', 'gpsWebp'],
+        ['raw-gps.png', 'rawPng'],
+        ['compressed-raw-gps.png', 'zRawPng'],
+        ['app1-gps.png', 'app1Png'],
+        ['app1-xmp-gps.png', 'app1XmpPng'],
+      ]) {
+        const bytes = Buffer.from(formatFixtures[key], 'base64');
+        const cleaned = upload(null, base + '/api/upload_file.php', {}, false, name, bytes, true);
+        const cleanedPath = path.join(site, 'uploads', cleaned.path);
+        const stored = fs.readFileSync(cleanedPath);
+        assert.equal(stored.includes(Buffer.from('GPSLatitude')), false);
+        assert.equal(stored.includes(Buffer.from('GPSLongitude')), false);
+        assert.equal(stored.includes(Buffer.from('Exif\0\0')), false);
+        if (name.endsWith('.png'))
+          assert.deepEqual(
+            stored,
+            Buffer.from(formatFixtures.png, 'base64'),
+            'PNG pixel/container bytes changed beyond metadata'
+          );
+        const dimensions = spawnSync(
+          php,
+          ['-r', 'echo json_encode(getimagesize($argv[1]));', cleanedPath],
+          { encoding: 'utf8' }
+        );
+        assert.equal(dimensions.status, 0);
+        const size = JSON.parse(dimensions.stdout);
+        assert.deepEqual([size[0], size[1]], [1, 1]);
+        if (name.endsWith('.webp')) {
+          assert.equal(stored.includes(Buffer.from('EXIF')), false);
+          assert.equal(stored.includes(Buffer.from('XMP ')), false);
+          assert.ok(
+            stored.includes(Buffer.from(formatFixtures.webp, 'base64').subarray(12)),
+            'WebP compressed pixels changed'
+          );
+        }
+        fs.unlinkSync(cleanedPath);
+      }
+      const orientedPng = upload(
+        null,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'raw-oriented.png',
+        Buffer.from(formatFixtures.rawOrientedPng, 'base64'),
+        true
+      );
+      const orientedPngPath = path.join(site, 'uploads', orientedPng.path);
+      const pngBytes = fs.readFileSync(orientedPngPath);
+      assert.equal(pngBytes.includes(Buffer.from('Raw profile type exif')), false);
+      assert.ok(
+        pngBytes.includes(orientation.subarray(6)),
+        'PNG raw EXIF cleanup lost orientation'
+      );
+      fs.unlinkSync(orientedPngPath);
+      for (const key of ['badRawPng', 'hugeRawPng']) {
+        const refused = upload(
+          null,
+          base + '/api/upload_file.php',
+          {},
+          false,
+          key + '.png',
+          Buffer.from(formatFixtures[key], 'base64'),
+          false
+        );
+        assert.match(refused.error, /metadata.*cleaned safely/);
+      }
+      const sanitized = upload(
         null,
         base + '/api/upload_file.php',
         {},
         false,
         'fresh-gps.jpg',
         smallGps,
-        false,
+        true,
         'file',
         'admin',
         { storage: { folderStructure: 'flat' } }
       );
-      assert.match(reject.error, /location metadata.*Enable image optimization/);
+      const sanitizedPath = path.join(site, 'uploads', sanitized.path);
+      assert.equal(fs.readFileSync(sanitizedPath).includes(Buffer.from('Exif\0\0')), false);
+      fs.unlinkSync(sanitizedPath);
       const noGd = upload(
         flat,
         base + '/api/upload_file.php',
@@ -459,13 +588,15 @@ $sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn
         false,
         'no-gd-gps.jpg',
         smallGps,
-        false,
+        true,
         'file',
         'admin',
         null,
         true
       );
-      assert.match(noGd.error, /location metadata/);
+      const noGdPath = path.join(site, 'uploads', noGd.path);
+      assert.equal(fs.readFileSync(noGdPath).includes(Buffer.from('Exif\0\0')), false);
+      fs.unlinkSync(noGdPath);
       for (const [name, bytes] of [
         ['oriented.jpg', orientedJpeg],
         ['animated.gif', animatedGif],
@@ -497,19 +628,23 @@ $sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn
       // Successful control belongs to this case, not the following failed-upload inventory.
       fs.unlinkSync(path.join(site, 'uploads', accepted.path));
     }
-    const previousRow = fs.readFileSync(path.join(site, 'data/last-row.json'));
     for (const base of ['', '/zangetsu']) {
-      const rejected = upload(
+      const kept = upload(
         flat,
         base + '/api/upload_file.php',
         {},
         false,
         'gps-fallback.jpg',
         Buffer.from(gps.stdout, 'base64'),
+        true
+      );
+      assert.equal(kept.processed.resized, false);
+      assert.equal(kept.responsiveVariantStatus, 'fallback_original');
+      assert.equal(
+        fs.readFileSync(path.join(site, 'uploads', kept.path)).includes(Buffer.from('Exif\0\0')),
         false
       );
-      assert.match(rejected.error, /location metadata.*Resize/);
-      assert.deepEqual(fs.readFileSync(path.join(site, 'data/last-row.json')), previousRow);
+      fs.unlinkSync(path.join(site, 'uploads', kept.path));
     }
     // Force a processor exception after it has written the canonical WebP and a variant.
     // Only this disposable copied class is replaced; the actual endpoint/CGI path is unchanged.

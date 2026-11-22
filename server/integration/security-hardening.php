@@ -151,6 +151,9 @@ mkdir($temp);
 $checkingImageDeprecations = false;
 try {
   eval(declaration($root . '/public/security.php', 'class CSRFProtection'));
+  // Token generation now ensures a native session; keep its storage isolated.
+  session_save_path($temp);
+  session_start();
   $savedRequestState = [$_SERVER, $_POST, $_SESSION ?? []];
   $csrfInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
   $_SESSION = [];
@@ -1997,18 +2000,17 @@ try {
     $path = $temp . '/large-' . $kind . '.jpg';
     file_put_contents($path, $largeBytes);
     $result = (new ImageProcessor(['generateResponsiveVariants' => false]))->processUpload($path);
+    check($result['success'], 'Valid large JPEG must remain accepted without re-encoding');
     check(
-      $result['success'] === ($kind === 'plain'),
-      'Unsafe GPS fallback accepted or ordinary large JPEG rejected',
-    );
-    check(
-      file_get_contents($path) === $largeBytes,
-      'Memory fallback rewrote orientation/image bytes',
+      $kind === 'plain'
+        ? file_get_contents($path) === $largeBytes
+        : empty(exif_read_data($path, null, true)['GPS']),
+      'Memory fallback changed plain pixels or kept GPS',
     );
     if ($kind === 'gps') {
       check(
-        str_contains($result['message'], 'metadata'),
-        'GPS rejection has no actionable message',
+        strpos(file_get_contents($path), "Exif\0\0") === false,
+        'GPS metadata block remains after cleanup',
       );
     }
   }
@@ -2095,6 +2097,9 @@ try {
   }
   echo "PASS security hardening: $checks assertions\n";
 } finally {
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
   if ($checkingImageDeprecations) {
     restore_error_handler();
   }

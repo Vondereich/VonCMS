@@ -25,6 +25,7 @@ if (
 }
 
 require_once __DIR__ . '/../media_variants.php';
+require_once __DIR__ . '/media/LocationMetadata.php';
 
 /**
  * @phpstan-type Settings array{enabled: bool, maxWidth: int, maxHeight: int, quality: int, convertToWebP: bool, generateResponsiveVariants: bool, responsiveWidths: array<int,int>, skipAbsolute?: bool, compressionLevel?: string}
@@ -88,13 +89,6 @@ class ImageProcessor
       'responsiveVariantMessage' => '',
     ];
 
-    // Skip if processing disabled
-    if (!$this->settings['enabled']) {
-      $result['success'] = true;
-      $result['message'] = 'Processing disabled, file saved as-is.';
-      return $result;
-    }
-
     // Validate file exists
     if (!file_exists($filePath)) {
       $result['message'] = 'File not found.';
@@ -119,17 +113,24 @@ class ImageProcessor
       return $result;
     }
 
+    try {
+      VonCmsLocationMetadata::cleanFile($filePath, $mimeType);
+    } catch (RuntimeException $error) {
+      $result['message'] = $error->getMessage();
+      return $result;
+    }
+    if (!$this->settings['enabled']) {
+      $result['success'] = true;
+      $result['message'] = 'Optimization disabled; location metadata removed without re-encoding.';
+      return $result;
+    }
+
     // GD only decodes a GIF's first frame. Preserve GIF bytes and animation.
     // Without EXIF support, preserve JPEG orientation metadata rather than flattening it.
     if (
       $mimeType === 'image/gif' ||
       ($mimeType === 'image/jpeg' && !function_exists('exif_read_data'))
     ) {
-      if ($mimeType === 'image/jpeg' && !self::canPreserveJpegMetadata($filePath)) {
-        $result['message'] =
-          'JPEG location metadata cannot be processed safely. Resize the image or remove its metadata before uploading.';
-        return $result;
-      }
       $result['success'] = true;
       $result['message'] = 'Original image preserved for animation or orientation compatibility.';
       $result['responsiveVariantStatus'] = 'fallback_original';
@@ -137,11 +138,6 @@ class ImageProcessor
     }
 
     if (!self::hasProcessingMemoryBudget($originalWidth, $originalHeight)) {
-      if ($mimeType === 'image/jpeg' && !self::canPreserveJpegMetadata($filePath)) {
-        $result['message'] =
-          'JPEG location metadata cannot be processed within the safe memory limit. Resize the image or remove its metadata before uploading.';
-        return $result;
-      }
       $result['success'] = true;
       $result['message'] =
         'Image saved as-is because processing would exceed the safe memory budget.';

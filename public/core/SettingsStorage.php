@@ -152,6 +152,7 @@ function voncms_settings_mappings(): array
     ['siteTagline', 'general', 'site_tagline', 'string'],
     ['site_language', 'general', 'site_language', 'string'],
     ['postsPerPage', 'general', 'posts_per_page', 'number'],
+    ['metaDescriptionLimit', 'general', 'meta_description_limit', 'number'],
     ['maintenanceMode', 'general', 'maintenance_mode', 'boolean'],
     ['emailSmtp', 'general', 'email_smtp', 'string'],
     ['logoUrl', 'general', 'logo_url', 'string'],

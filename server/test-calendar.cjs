@@ -75,6 +75,7 @@ function createCalendarFixture() {
       'api/schema_repair_helper.php',
       'api/activity/schema.php',
       'core/Calendar.php',
+      'core/ContentMetadata.php',
       'core/ResponseHelper.php',
       'core/DataBoundary.php',
     ])

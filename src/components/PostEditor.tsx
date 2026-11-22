@@ -1303,6 +1303,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
                         id="post-category"
                         name="category"
                         aria-label="Custom category"
+                        maxLength={100}
                         aria-describedby={categoryDescription}
                         type="text"
                         className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
@@ -1317,9 +1318,9 @@ const PostEditor: React.FC<PostEditorProps> = ({
                       id="post-category-help"
                       className="mt-1 text-xs text-slate-400 dark:text-gray-400"
                     >
-                      Pick an existing category or type a new one. Empty values still save as{' '}
-                      Uncategorized. Categories matching system or folder paths use Post Name
-                      article links in Category &amp; Name mode.
+                      Pick an existing category or type a new one. Max 100 characters. Empty values
+                      still save as Uncategorized. Categories matching system or folder paths use
+                      Post Name article links in Category &amp; Name mode.
                     </p>
                     {categoryFolderConflict && (
                       <div
@@ -1508,6 +1509,13 @@ const PostEditor: React.FC<PostEditorProps> = ({
 
             <fieldset disabled={isWriterLocked || isSaving} className="contents">
               <PostEditorSeoPanel
+                metaDescriptionLimit={
+                  Number.isInteger(settings?.metaDescriptionLimit) &&
+                  (settings?.metaDescriptionLimit ?? 0) >= 1 &&
+                  (settings?.metaDescriptionLimit ?? 0) <= 250
+                    ? settings?.metaDescriptionLimit
+                    : 160
+                }
                 item={item}
                 setItem={setItem}
                 isRestoring={isSeoRestoring}

@@ -48,6 +48,7 @@ function createFixture() {
       'security.php',
       'core/DataBoundary.php',
       'core/InstallBootstrap.php',
+      'core/PublicRead.php',
       'core/ContentViewDeduplicator.php',
       'core/RateLimiter.php',
       'core/ResponseHelper.php',

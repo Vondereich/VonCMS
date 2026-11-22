@@ -24,6 +24,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/ImageProcessor.php';
+require_once __DIR__ . '/media/LocationMetadata.php';
 require_once __DIR__ . '/../core/SettingsStorage.php';
 voncms_apply_site_timezone($pdo ?? null);
 
@@ -313,17 +314,17 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
 
   $mediaSettings['responsiveWidths'] = voncms_get_responsive_widths($mediaSettings['maxWidth']);
 
-  // As-is JPEGs still must not publish location data; do not rewrite EXIF orientation.
-  if (
-    $realMime === 'image/jpeg' &&
-    (!$mediaSettings['enabled'] || !ImageProcessor::isGdAvailable()) &&
-    !ImageProcessor::canPreserveJpegMetadata($targetPath)
-  ) {
-    voncms_cleanup_failed_media_upload([$targetPath]);
-    ResponseHelper::sendError(
-      'JPEG location metadata cannot be published as-is. Enable image optimization or remove location metadata before uploading.',
-      400,
-    );
+  // Privacy does not depend on compression, GD availability or the pixel budget.
+  if (!$isSvgLogo) {
+    try {
+      VonCmsLocationMetadata::cleanFile($targetPath, $realMime);
+    } catch (RuntimeException $error) {
+      voncms_cleanup_failed_media_upload([$targetPath]);
+      ResponseHelper::sendError(
+        'Image metadata could not be cleaned safely. Please export the image again.',
+        400,
+      );
+    }
   }
 
   // Process image if GD available and optimization enabled

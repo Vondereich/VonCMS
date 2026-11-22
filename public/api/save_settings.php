@@ -154,6 +154,7 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'indexnowEnabled',
     'indexnowKey',
     'domainUrl',
+    'metaDescriptionLimit',
     'adminProfile',
     'sidebarLayout',
     'media',
@@ -734,6 +735,22 @@ try {
 
       if ($jsonKey === 'postsPerPage') {
         $value = max(6, min(50, DataBoundary::inputInt($value)));
+      }
+
+      if ($jsonKey === 'metaDescriptionLimit') {
+        $limit = is_int($value)
+          ? $value
+          : (is_string($value)
+            ? filter_var($value, FILTER_VALIDATE_INT)
+            : false);
+        if (!is_int($limit) || $limit < 1 || $limit > 250) {
+          ResponseHelper::sendError(
+            'Meta description limit must be a whole number from 1 to 250.',
+            400,
+          );
+        }
+        $value = $limit;
+        $settings[$jsonKey] = $limit;
       }
 
       if ($jsonKey === 'spamKeywords') {

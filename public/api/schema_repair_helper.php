@@ -8,6 +8,7 @@ if (
   exit('Forbidden');
 }
 require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/../core/ContentMetadata.php';
 require_once __DIR__ . '/activity/schema.php';
 
 function voncms_schema_identifier(string $identifier): string
@@ -2419,6 +2420,39 @@ function voncms_schema_repair_listing_indexes(PDO $pdo): array
   return ['fixes' => $fixes, 'warnings' => $warnings];
 }
 
+/** Repair only an encoded label whose decoded spelling is explicitly registered. */
+function voncms_schema_repair_encoded_categories(PDO $pdo): int
+{
+  $read = $pdo->prepare(
+    "SELECT setting_value FROM settings WHERE setting_group = 'content' AND setting_key = 'categories' LIMIT 1",
+  );
+  $read->execute();
+  $known = json_decode((string) ($read->fetchColumn() ?: '[]'), true);
+  $read->closeCursor();
+  if (!is_array($known) || $known === []) {
+    return 0;
+  }
+  $labels = DataBoundary::statement(
+    $pdo->query("SELECT DISTINCT category FROM posts WHERE category LIKE '%&%'"),
+  )->fetchAll(PDO::FETCH_COLUMN);
+  $update = $pdo->prepare(
+    'UPDATE posts SET category = ?, updated_at = updated_at WHERE category = ?',
+  );
+  $affected = 0;
+  foreach ($labels as $label) {
+    if (!is_string($label) || ContentMetadata::existingCategory($label, $known) !== null) {
+      continue;
+    }
+    $decoded = html_entity_decode($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $registered = ContentMetadata::existingCategory($decoded, $known);
+    if ($decoded !== $label && $registered !== null) {
+      $update->execute([$registered, $label]);
+      $affected += $update->rowCount();
+    }
+  }
+  return $affected;
+}
+
 /** @return array{fixes: list<string>, warnings: list<string>} */
 function voncms_schema_repair_core_structures(PDO $pdo): array
 {
@@ -2428,6 +2462,10 @@ function voncms_schema_repair_core_structures(PDO $pdo): array
     voncms_schema_core_foreign_key_specs(),
   );
   $fixes = array_merge($fixes, voncms_schema_repair_core_columns($pdo));
+  $categoryRepairs = voncms_schema_repair_encoded_categories($pdo);
+  if ($categoryRepairs > 0) {
+    $fixes[] = "Content: Restored registered category spelling on {$categoryRepairs} post(s).";
+  }
   $fixes = array_merge($fixes, voncms_schema_backfill_publication_timestamps($pdo));
   $warnings = [];
   $fixes = array_merge(

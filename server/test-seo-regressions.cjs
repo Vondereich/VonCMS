@@ -21,6 +21,8 @@ const check = (name, ok, evidence) => results.push({ name, ok: Boolean(ok), evid
 // run; a new/removed encoding operation requires an explicit contract/test review.
 // Counts do not prove semantics. The output and mutation checks below are separate.
 const expectedEncodingOperations = {
+  // Repair reverses one historical storage escape only after a registered-label match.
+  'public/api/schema_repair_helper.php': { html_entity_decode: 1 },
   'public/api/contact/get_forms.php': { html_entity_decode: 3 },
   'public/api/content_embed_helper.php': { html_entity_decode: 4 },
   'public/api/get_comments.php': { html_entity_decode: 1 },

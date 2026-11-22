@@ -12,6 +12,7 @@ const cgi =
   path.join(path.dirname(php), process.platform === 'win32' ? 'php-cgi.exe' : 'php-cgi');
 const modules = [
   'InstallBootstrap',
+  'PublicRead',
   'ContentViewDeduplicator',
   'RateLimiter',
   'ResponseHelper',
