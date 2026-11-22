@@ -70,6 +70,14 @@ if ($isLegacyBulkMigration && $action !== null) {
 if ($action !== null) {
   $hasValidSession = isset($_SESSION['user']) && SessionManager::isValid();
 
+  // The signed-in UI must never retry a revoked identity as an anonymous comment.
+  if (isset($input['requireAuth']) && !is_bool($input['requireAuth'])) {
+    ResponseHelper::sendError('Invalid authentication requirement', 400);
+  }
+  if (($input['requireAuth'] ?? false) === true && !$hasValidSession) {
+    ResponseHelper::sendError('Your session has expired. Please sign in again.', 401);
+  }
+
   // Moderation actions: Mandatory Session + CSRF
   if (in_array($action, ['delete', 'updateStatus', 'like'], true)) {
     SessionManager::requireValidSession();
@@ -92,7 +100,9 @@ if ($action !== null && !in_array($action, $allowedActions, true)) {
 }
 
 if ($isLegacyBulkMigration) {
-  SessionManager::requireAdmin();
+  // This compatibility importer may bind historical authors and timestamps.
+  // Ordinary moderation must not grant authority to impersonate another account.
+  SessionManager::requirePrimaryAdmin();
   CSRFProtection::requireToken();
 
   if (count($input['comments']) > 10000) {
@@ -277,7 +287,7 @@ try {
       if ((string) ($parentComment['post_id'] ?? '') !== (string) $postId) {
         ResponseHelper::sendError('Parent comment does not belong to this post', 400);
       }
-      if (!SessionManager::isStaff() && ($parentComment['status'] ?? '') !== 'approved') {
+      if (($parentComment['status'] ?? '') !== 'approved') {
         ResponseHelper::sendError('Parent comment is not available for replies', 404);
       }
     }
@@ -385,8 +395,17 @@ try {
     // ============================================
 
     $stmt = $pdo->prepare("INSERT INTO comments (post_id, user_id, parent_id, user_name, user_avatar, content, likes, status, created_at) 
-                               VALUES (?, ?, ?, ?, ?, ?, 0, ?, NOW())");
-    $stmt->execute([$postId, $userId, $parentId, $username, $userAvatar, $content, $status]);
+                               VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)");
+    $stmt->execute([
+      $postId,
+      $userId,
+      $parentId,
+      $username,
+      $userAvatar,
+      $content,
+      $status,
+      date('Y-m-d H:i:s'),
+    ]);
     $newId = $pdo->lastInsertId();
     $prefix = $parentId ? 'r-' : 'c-';
 

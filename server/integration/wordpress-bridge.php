@@ -675,6 +675,35 @@ bridgeCheck(
 );
 bridgeRequest($file);
 
+foreach (['post', 'page'] as $zeroType) {
+  $file = 'wp_import_' . bin2hex(random_bytes(16)) . '.xml';
+  $zeroItem = str_replace(
+    ['<title>0</title>', 'https://source.invalid/2025/01/02/0/'],
+    [
+      '<title>Different zero title</title>',
+      'https://source.invalid/literal-zero-' . $zeroType . '/',
+    ],
+    bridgeItem('0', $zeroType),
+  );
+  file_put_contents($fixture . '/uploads/temp/' . $file, bridgeXml($zeroItem));
+  bridgeRequest($file);
+  bridgeRequest($file);
+  $zeroTable = $zeroType === 'post' ? 'posts' : 'pages';
+  $zeroRead = $pdo->prepare("SELECT id, title FROM $zeroTable WHERE slug = ?");
+  $zeroRead->execute(['0']);
+  $zeroRow = $zeroRead->fetch(PDO::FETCH_ASSOC);
+  $zeroRead->closeCursor();
+  bridgeCheck(
+    is_array($zeroRow) && $zeroRow['title'] === 'Different zero title',
+    'WordPress ' . $zeroType . ' import replaced literal zero with a title-derived slug',
+  );
+  $zeroDelete = $pdo->prepare("DELETE FROM $zeroTable WHERE id = ?");
+  $zeroDelete->execute([$zeroRow['id']]);
+  $zeroDelete->closeCursor();
+  $zeroRead = null;
+  $zeroDelete = null;
+}
+
 echo 'WordPress Bridge runtime: ' .
   $checks .
   ' assertions passed.' .

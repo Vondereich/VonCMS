@@ -21,7 +21,13 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 import { Post, Page, User, type PostSaveOptions } from './types';
 import { VonProviders } from './plugins/von-core/providers/VonProviders';
-import { getBasePathPrefix, getPermalink, isPublicContentPath } from './utils/siteUtils';
+import {
+  getBasePathPrefix,
+  getPermalink,
+  getPagePermalink,
+  isExplicitPageIdRequest,
+  isPublicContentPath,
+} from './utils/siteUtils';
 import { vonFetch } from './utils/api';
 import { BASE_PATH, API } from './config/site.config';
 import { getCachedPublicPost } from './hooks/usePublicPostsQuery';
@@ -74,6 +80,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 const Dashboard = lazy(() => import('./plugins/von-core/features/dashboard/Dashboard'));
 const SettingsManager = lazy(() => import('./plugins/von-core/features/settings/SettingsManager'));
 const CalendarManager = lazy(() => import('./plugins/von-core/features/calendar/CalendarManager'));
+const ActivityLog = lazy(() => import('./plugins/von-core/features/activity/ActivityLog'));
 const DatabaseManager = lazy(() => import('./plugins/von-core/features/database/DatabaseManager'));
 const UserManager = lazy(() => import('./plugins/von-core/features/users/UserManager'));
 const ContentManager = lazy(() => import('./plugins/von-core/features/content/ContentManager'));
@@ -205,10 +212,13 @@ type PublicSiteWrapperProps = Omit<
   commentsError?: string | null;
 };
 const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...props }) => {
-  const { id, username, slug, category } = useParams();
+  const { id, pageId, username, slug: routeSlug, category: routeCategory } = useParams();
+  const location = useLocation();
+  const isPageIdRoute = !!pageId && isExplicitPageIdRequest(location.pathname, location.search);
+  const slug = pageId && !isPageIdRoute ? pageId : routeSlug;
+  const category = pageId && !isPageIdRoute ? 'page' : routeCategory;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [isQuickEditOpen, setIsQuickEditOpen] = useState(false);
   const [isQuickEditDirty, setIsQuickEditDirty] = useState(false);
   const [editedPostOverride, setEditedPostOverride] = useState<Post | null>(null);
@@ -231,13 +241,14 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
 
   let currentView: 'home' | 'single-post' | 'page' | 'profile' | 'category' = 'home';
   let selectedPost = null;
-  let selectedPage = null;
+  let selectedPage: Page | null = null;
   let selectedProfile = null;
   let selectedCategory = null;
   let isNotFound = false;
   let postIdToFetch: string | null = null;
   let postSlugToFetch: string | null = null;
   let pageSlugToFetch: string | null = null;
+  let pageIdToFetch: string | null = null;
   let isAmbiguousSlugRoute = false;
   const injectedState = window.__INITIAL_STATE__;
   const injectedPage = useMemo(
@@ -255,9 +266,17 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
       ? location.state.publicContentSlug
       : null;
 
-  if (id) {
+  if (isPageIdRoute) {
+    currentView = 'page';
+    pageIdToFetch = pageId || null;
+    selectedPage =
+      pages?.find((p: Page) => p.id === pageId) ||
+      (injectedPage?.id === pageId ? injectedPage : null);
+  } else if (id) {
     currentView = 'single-post';
-    postIdToFetch = id;
+    // Match PHP's legacy routes: only positive canonical integers are IDs.
+    if (/^[1-9][0-9]*$/.test(id)) postIdToFetch = id;
+    else postSlugToFetch = id;
   } else if (slug) {
     const postFromList = posts.find((p: Post) => p.slug === slug);
     if (postFromList) {
@@ -269,7 +288,7 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
       currentView = 'single-post';
       postSlugToFetch = slug;
     } else {
-      selectedPage = pages?.find((p: Page) => p.slug === slug);
+      selectedPage = pages?.find((p: Page) => p.slug === slug) || null;
       if (selectedPage) {
         currentView = 'page';
       } else if (injectedPage?.slug === slug) {
@@ -310,9 +329,9 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
     currentView === 'single-post' || isAmbiguousSlugRoute
   );
   const { fullPage, isLoading: isLoadingPage } = useSinglePage(
-    null,
+    pageIdToFetch,
     pageSlugToFetch,
-    Boolean(pageSlugToFetch && !selectedPage)
+    Boolean((pageIdToFetch || pageSlugToFetch) && !selectedPage)
   );
   const { targetProfile: resolvedPublicProfile, isLoading: isLoadingProfile } = usePublicProfile(
     selectedProfile,
@@ -320,31 +339,55 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
     props.settings?.adminProfile
   );
   const fullPostMatchesCurrentRoute = Boolean(
-    fullPost && ((id && fullPost.id === id) || (slug && fullPost.slug === slug))
+    fullPost &&
+    ((postIdToFetch && fullPost.id === postIdToFetch) ||
+      (postSlugToFetch && fullPost.slug === postSlugToFetch))
   );
-  const fullPageMatchesCurrentRoute = Boolean(fullPage && slug && fullPage.slug === slug);
+  const fullPageMatchesCurrentRoute = Boolean(
+    fullPage &&
+    ((pageIdToFetch && fullPage.id === pageIdToFetch) || (slug && fullPage.slug === slug))
+  );
+
+  useEffect(() => {
+    if (!isPageIdRoute) return;
+    const page = selectedPage || (fullPageMatchesCurrentRoute ? fullPage : null);
+    if (!page) return;
+    const canonical = getPagePermalink(page, true);
+    if (location.pathname !== canonical.split('?')[0]) navigate(canonical, { replace: true });
+  }, [
+    isPageIdRoute,
+    selectedPage,
+    fullPageMatchesCurrentRoute,
+    fullPage,
+    location.pathname,
+    navigate,
+  ]);
 
   useEffect(() => {
     setIsQuickEditOpen(false);
     setEditedPostOverride(null);
     setEditedPageOverride(null);
-  }, [id, slug, username, category, categoryParam]);
+  }, [id, pageId, slug, username, category, categoryParam]);
 
   useEffect(() => {
-    if (!id || !fullPost || !props.settings || fullPost.id !== id) return;
+    if (!id || !fullPost || !props.settings || !fullPostMatchesCurrentRoute) return;
 
     const canonicalPostPath = getPermalink(fullPost, props.settings, false, true);
     if (canonicalPostPath && canonicalPostPath !== `/post/${encodeURIComponent(id)}`) {
       navigate(canonicalPostPath, { replace: true });
     }
-  }, [fullPost, id, navigate, props.settings]);
+  }, [fullPost, fullPostMatchesCurrentRoute, id, navigate, props.settings]);
 
   const publicCommentPost =
     currentView === 'single-post'
       ? editedPostOverride ||
         (fullPostMatchesCurrentRoute ? fullPost : null) ||
         (!isLoadingPost
-          ? posts.find((post: Post) => post.id === id || post.slug === slug) || null
+          ? posts.find(
+              (post: Post) =>
+                (postIdToFetch && post.id === postIdToFetch) ||
+                (postSlugToFetch && post.slug === postSlugToFetch)
+            ) || null
           : null)
       : null;
   const publicCommentPostId = publicCommentPost?.id ? String(publicCommentPost.id) : '';
@@ -370,7 +413,12 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
   }
 
   if (currentView === 'single-post') {
-    const fallbackPost = posts.find((p: Post) => p.id === id || p.slug === slug) || null;
+    const fallbackPost =
+      posts.find(
+        (p: Post) =>
+          (postIdToFetch && p.id === postIdToFetch) ||
+          (postSlugToFetch && p.slug === postSlugToFetch)
+      ) || null;
     selectedPost =
       editedPostOverride ||
       (fullPostMatchesCurrentRoute ? fullPost : null) ||
@@ -379,7 +427,10 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
   }
 
   if (currentView === 'page') {
-    const fallbackPage = selectedPage || pages?.find((p: Page) => p.slug === slug) || null;
+    const fallbackPage =
+      selectedPage ||
+      pages?.find((p: Page) => (pageIdToFetch ? p.id === pageIdToFetch : p.slug === slug)) ||
+      null;
     selectedPage =
       editedPageOverride || (fullPageMatchesCurrentRoute ? fullPage : null) || fallbackPage;
     if (!selectedPage && !isLoadingPage) isNotFound = true;
@@ -493,7 +544,7 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
 
       if (!isAutoSave) {
         setIsQuickEditOpen(false);
-        navigate(`/${savedPage.slug}`, { replace: true });
+        navigate(getPagePermalink(savedPage, true), { replace: true });
       }
     } else {
       const savedPost = {
@@ -602,7 +653,7 @@ const PublicSiteWrapper: React.FC<PublicSiteWrapperProps> = ({ posts, pages, ...
             }
 
             if (targetPage?.slug) {
-              navigate(`/${targetPage.slug}`, {
+              navigate(getPagePermalink(targetPage, true), {
                 state: {
                   publicContentType: 'page',
                   publicContentSlug: targetPage.slug,
@@ -967,6 +1018,7 @@ const App: React.FC = () => {
   const publicRoutes = [
     '/',
     '/post/:id',
+    '/page/:pageId',
     '/profile/:username',
     '/:year/:month/:day/:slug',
     '/:year/:month/:slug',
@@ -993,7 +1045,12 @@ const App: React.FC = () => {
           position="top-right"
           toastOptions={{
             duration: 3000,
-            style: { background: '#333', color: '#fff' },
+            style: {
+              background: '#333',
+              color: '#fff',
+              maxWidth: 'min(350px, calc(100vw - 2rem))',
+              overflowWrap: 'anywhere',
+            },
             success: { duration: 3000, iconTheme: { primary: '#10b981', secondary: '#fff' } },
             error: { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
           }}
@@ -1075,6 +1132,18 @@ const App: React.FC = () => {
                             }
                           />
                           {/* Security Dashboard Route - PRESERVED */}
+                          <Route
+                            path="activity"
+                            element={
+                              <ProtectedRoute user={user} allowedRoles={['Admin']}>
+                                {isPrimaryAdmin ? (
+                                  <ActivityLog key={user?.id} timeZone={settings.timeZone} />
+                                ) : (
+                                  <Navigate to="/admin/dashboard" replace />
+                                )}
+                              </ProtectedRoute>
+                            }
+                          />
                           <Route
                             path="security"
                             element={

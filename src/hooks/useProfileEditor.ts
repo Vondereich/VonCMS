@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { API } from '../config/site.config';
 import { User } from '../types';
 import { vonFetch } from '../utils/api';
-import { getSavedProfileUpdates } from '../utils/profileUtils';
+import { getSavedProfileUpdates, redirectAfterProfilePasswordChange } from '../utils/profileUtils';
 
 interface UseProfileEditorOptions {
   targetUser: User;
@@ -96,6 +96,8 @@ export function useProfileEditor({
         body: JSON.stringify(payload),
       });
       const data = await response.json();
+      if (response.ok && data.success && redirectAfterProfilePasswordChange(payload.new_password))
+        return;
       if (activeProfileId.current !== targetUser.id) return;
 
       if (!response.ok || !data.success) {

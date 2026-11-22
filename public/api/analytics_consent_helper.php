@@ -26,8 +26,11 @@ function voncms_tracking_is_automated(string $userAgent): bool
 }
 
 /** Keep the original document classification when a crawler's renderer changes User-Agent. */
-function voncms_tracking_document_meta(): string
+function voncms_tracking_document_meta(bool $sharedPublicDocument = false): string
 {
+  if ($sharedPublicDocument) {
+    return '';
+  }
   return voncms_tracking_is_automated(DataBoundary::serverString('HTTP_USER_AGENT', ''))
     ? '<meta name="voncms-tracking" content="excluded">'
     : '';
@@ -394,7 +397,7 @@ function voncms_record_native_visit(
         $pdo->commit();
         return array_replace($result, ['throttled' => true]);
       }
-      voncms_insert_native_visit($pdo, $identity, 'balanced', $url, $referrer, $userAgent);
+      voncms_insert_native_visit($pdo, $identity, 'balanced', $url, $referrer, $userAgent, $now);
       $pdo->commit();
       return array_replace($result, ['visit' => true]);
     } catch (Throwable $error) {
@@ -468,6 +471,7 @@ function voncms_record_strict_visit(
       $url,
       $referrer,
       $userAgent,
+      $now,
     );
     return array_replace($result, ['visit' => true]);
   } finally {
@@ -488,10 +492,14 @@ function voncms_insert_native_visit(
   string $url,
   string $referrer,
   string $userAgent,
+  ?int $now = null,
 ): void {
   $column = $mode === null ? '' : ',measurement_mode';
   $placeholder = $mode === null ? '' : ',?';
-  $values = [$url, $referrer, $userAgent, $identity];
+  $now ??= time();
+  // Daily buckets are site-local. Keep created_at on the DB clock for existing
+  // Strict 30-minute windows; changing that clock would reinterpret old visits.
+  $values = [$url, $referrer, $userAgent, $identity, date('Y-m-d', $now), date('H:i:s', $now)];
   if ($mode !== null) {
     $values[] = $mode;
   }
@@ -499,11 +507,23 @@ function voncms_insert_native_visit(
     ->prepare(
       'INSERT INTO analytics (page_url,referrer,user_agent,ip_hash,visit_date,visit_time,created_at' .
         $column .
-        ') VALUES (?,?,?,?,CURDATE(),CURTIME(),NOW()' .
+        ') VALUES (?,?,?,?,?,?,NOW()' .
         $placeholder .
         ')',
     )
     ->execute($values);
+}
+
+function voncms_analytics_day_boundary(int $days): string
+{
+  return (new DateTimeImmutable('today'))->modify('-' . max(0, $days) . ' days')->format('Y-m-d');
+}
+
+function voncms_prune_native_visits(PDO $pdo): void
+{
+  $pdo
+    ->prepare('DELETE FROM analytics WHERE visit_date < ? ORDER BY visit_date, id LIMIT 1000')
+    ->execute([voncms_analytics_day_boundary(30)]);
 }
 
 function voncms_prune_analytics_sessions(PDO $pdo, int $now): void

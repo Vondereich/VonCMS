@@ -20,7 +20,7 @@ interface EditorImageBubbleProps extends BubblePositionProps {
   setBubbleCredit: (value: string) => void;
   updateImageAlt: () => void;
   updateImageCredit: () => void;
-  setAsFeaturedIndex: () => void;
+  setAsFeaturedIndex?: () => void;
   removeSelectedImage: () => void;
 }
 
@@ -161,13 +161,15 @@ export const EditorImageBubble = ({
       </div>
     </div>
 
-    <button
-      type="button"
-      onClick={setAsFeaturedIndex}
-      className="text-xs p-1.5 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-200 hover:text-amber-950 focus-visible:bg-amber-200 focus-visible:text-amber-950 dark:hover:bg-amber-900/40 dark:hover:text-amber-200 dark:focus-visible:bg-amber-900/40 dark:focus-visible:text-amber-200 flex items-center justify-center gap-1 font-medium mt-1"
-    >
-      <Sparkles size={14} /> Set as Featured Image
-    </button>
+    {setAsFeaturedIndex && (
+      <button
+        type="button"
+        onClick={setAsFeaturedIndex}
+        className="text-xs p-1.5 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded-sm hover:bg-amber-200 hover:text-amber-950 focus-visible:bg-amber-200 focus-visible:text-amber-950 dark:hover:bg-amber-900/40 dark:hover:text-amber-200 dark:focus-visible:bg-amber-900/40 dark:focus-visible:text-amber-200 flex items-center justify-center gap-1 font-medium mt-1"
+      >
+        <Sparkles size={14} /> Set as Featured Image
+      </button>
+    )}
     <button
       type="button"
       onMouseDown={(event) => event.preventDefault()}

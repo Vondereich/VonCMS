@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../core/DataBoundary.php';
+require_once __DIR__ . '/../core/ContentMetadata.php';
 /**
  * VonCMS - Save Post API
  * Creates or updates a post in the database
@@ -85,6 +86,10 @@ $rawExcerpt = is_scalar($input['excerpt'] ?? '') ? (string) ($input['excerpt'] ?
 $rawMetaValue = $input['metaDescription'] ?? ($input['meta_description'] ?? '');
 $rawMeta = is_scalar($rawMetaValue) ? (string) $rawMetaValue : '';
 $rawKeywords = is_scalar($input['keywords'] ?? '') ? (string) ($input['keywords'] ?? '') : '';
+$rawCategory = is_scalar($input['category'] ?? '') ? (string) ($input['category'] ?? '') : '';
+if (ContentMetadata::categoryExceedsLimit($rawCategory)) {
+  ResponseHelper::sendError('Category name is limited to 100 characters.', 400);
+}
 
 if (function_exists('mb_strlen') ? mb_strlen($rawTitle) > 255 : strlen($rawTitle) > 255) {
   ResponseHelper::sendError('Title is too long. Maximum 255 characters allowed.', 400);
@@ -93,6 +98,10 @@ if (mb_strlen($rawExcerpt) > 220) {
   ResponseHelper::sendError('Excerpt is too long. Maximum 220 characters allowed.', 400);
 }
 if (mb_strlen($rawMeta) > 5000 || mb_strlen($rawKeywords) > 255) {
+  ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
+}
+$rawKeywords = ContentMetadata::keywords($rawKeywords);
+if (mb_strlen($rawKeywords) > 255) {
   ResponseHelper::sendError('Post metadata exceeds the allowed length.', 400);
 }
 
@@ -124,9 +133,10 @@ $input['excerpt'] = $rawExcerpt;
 $input['metaDescription'] = $rawMeta;
 $input['meta_description'] = $rawMeta;
 $input['keywords'] = $rawKeywords;
+$input['category'] = $rawCategory;
 
 // Generate slug if not provided (use raw title)
-if (empty($rawSlug)) {
+if ($rawSlug === '') {
   $input['slug'] = preg_replace('/[^a-z0-9\-]+/', '-', strtolower($rawTitle));
 } else {
   $input['slug'] = $rawSlug;
@@ -177,6 +187,7 @@ try {
   }
   /** @var PDO $db */
   $db = $pdo;
+  $metaDescriptionLimit = ContentMetadata::metaDescriptionLimit($db);
   $hasPublishedAtColumn = voncms_has_publication_column($db, 'posts');
   $publishedAtSelect = voncms_publication_column_sql($db, 'posts');
 
@@ -193,7 +204,7 @@ try {
 
   if ($isUpdate) {
     $checkOwner = $db->prepare(
-      "SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
+      "SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE",
     );
     $checkOwner->execute([$postId]);
     $ownerPost = DataBoundary::row($checkOwner->fetch(PDO::FETCH_ASSOC));
@@ -272,12 +283,41 @@ try {
   $workflowAuditAction = $workflow['audit_action'];
   $workflowMessage = $workflow['message'];
 
+  if (
+    !$statusOnlyTransition &&
+    !ContentMetadata::metaDescriptionAllowed(
+      $rawMeta,
+      isset($existingPost['meta_description'])
+        ? DataBoundary::inputText($existingPost['meta_description'])
+        : null,
+      $metaDescriptionLimit,
+    )
+  ) {
+    $db->rollBack();
+    ResponseHelper::sendError(
+      "Meta description is limited to {$metaDescriptionLimit} characters.",
+      400,
+    );
+  }
+
   // Get category (default to Uncategorized if not provided)
   $category = is_scalar($input['category'] ?? null)
-    ? mb_substr(trim((string) $input['category']), 0, 100)
+    ? ContentMetadata::category((string) $input['category'])
     : 'Uncategorized';
   if ($category === '') {
     $category = 'Uncategorized';
+  }
+  if (!$statusOnlyTransition) {
+    $categoryStmt = $db->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'content' AND setting_key = 'categories' LIMIT 1",
+    );
+    $categoryStmt->execute();
+    $knownCategories = json_decode((string) ($categoryStmt->fetchColumn() ?: '[]'), true);
+    $category =
+      ContentMetadata::existingCategory(
+        $category,
+        is_array($knownCategories) ? $knownCategories : [],
+      ) ?? ContentMetadata::category($category);
   }
 
   // Get meta description
@@ -416,6 +456,7 @@ try {
       409,
     );
   }
+  $writeTime = date('Y-m-d H:i:s');
   if ($isUpdate) {
     // Never send an old public permalink to a draft or other non-public status.
     if (
@@ -481,7 +522,7 @@ try {
             status = :status,
             scheduled_at = :scheduled_at,
             {$publishedAtAssignment}
-            updated_at = NOW()
+            updated_at = :modified_now
         WHERE id = :id");
       $updateParams = [
         'status' => $status,
@@ -501,7 +542,7 @@ try {
             meta_description = :meta_description,
             scheduled_at = :scheduled_at,
             {$publishedAtAssignment}
-            updated_at = NOW()
+            updated_at = :modified_now
         WHERE id = :id");
       $updateParams = [
         'title' => $input['title'],
@@ -517,9 +558,10 @@ try {
         'id' => $postId,
       ];
     }
+    $updateParams['modified_now'] = $writeTime;
     if ($hasPublishedAtColumn) {
       $updateParams['publish_now'] = $status === 'published' ? 1 : 0;
-      $updateParams['publication_now'] = date('Y-m-d H:i:s');
+      $updateParams['publication_now'] = $writeTime;
     }
     $stmt->execute($updateParams);
 
@@ -562,7 +604,7 @@ try {
     $stmt = $db->prepare("INSERT INTO posts 
             (title, slug, content, excerpt, status, image_url, keywords, category, meta_description, author_id, scheduled_at{$publishedAtColumn}, created_at, updated_at)
             VALUES 
-            (:title, :slug, :content, :excerpt, :status, :image_url, :keywords, :category, :meta_description, :author_id, :scheduled_at{$publishedAtValue}, NOW(), NOW())");
+            (:title, :slug, :content, :excerpt, :status, :image_url, :keywords, :category, :meta_description, :author_id, :scheduled_at{$publishedAtValue}, :created_now, :modified_now)");
 
     $insertParams = [
       'title' => $input['title'],
@@ -576,10 +618,12 @@ try {
       'meta_description' => $metaDescription,
       'author_id' => $currentUser['id'],
       'scheduled_at' => $scheduledAt,
+      'created_now' => $writeTime,
+      'modified_now' => $writeTime,
     ];
     if ($hasPublishedAtColumn) {
       $insertParams['publish_now'] = $status === 'published' ? 1 : 0;
-      $insertParams['publication_now'] = date('Y-m-d H:i:s');
+      $insertParams['publication_now'] = $writeTime;
     }
     $stmt->execute($insertParams);
 
@@ -653,6 +697,7 @@ try {
     'slug' => $input['slug'],
     'image' => ResponseHelper::scrubUrl($featuredImage),
     'category' => $category,
+    ...!$statusOnlyTransition ? ['keywords' => $input['keywords'] ?? ''] : [],
     'status' => $status,
     'scheduled_at' => $scheduledAt,
     'scheduledAt' => $scheduledAt,
@@ -668,5 +713,8 @@ try {
     $db->rollBack();
   }
   $contentSlugLock?->release();
+  if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+    ResponseHelper::sendError('Slug already exists. Choose a different slug and save again.', 409);
+  }
   ResponseHelper::sendError($e);
 }

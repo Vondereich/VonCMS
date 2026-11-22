@@ -1,4 +1,4 @@
-# VonCMS Security Policy v1.28.3
+# VonCMS Security Policy v1.28.4
 
 ## PHP Runtime Baseline
 
@@ -141,7 +141,11 @@ In practice, standard image uploads are limited to safe raster formats such as:
 - `webp`
 - `ico`
 
-SVG is not accepted through the standard upload API because it is an XML document and can carry active script payloads.
+SVG remains rejected for ordinary Gallery/editor uploads, favicons and social-preview images because it is an XML document and can carry active content.
+
+The exception is **General Settings > Site Logo**: authenticated Admin/Root accounts can upload a static SVG of at most 1MB. The server requires PHP DOM and mbstring, rebuilds the document from an allowlisted XML profile, and rejects scripts, event handlers, animation, embedded media, external references and DTDs. Only this logo context accepts SVG; changing the upload fields does not bypass the server-side role check. Existing theme logo-size limits and optional dark-mode inversion remain unchanged.
+
+New JPEG, PNG and WebP uploads remove EXIF/XMP metadata blocks while preserving EXIF orientation, independently of compression, GD availability and pixel-memory fallbacks. Container cleanup leaves compressed pixels untouched; metadata-free originals and GIF animation remain unchanged. Invalid container or orientation metadata is rejected safely and newly uploaded files are cleaned up. This also removes camera/capture information in the discarded blocks; it is not a promise to erase arbitrary sensitive text embedded in pixels or unrelated formats/ingestion paths. Existing uploads and WordPress-imported originals are not bulk-rewritten.
 
 ## 5. Rate Limiting and Bot Friction
 
@@ -165,7 +169,13 @@ Password-recovery mail requests retain limits of three attempts per IP/email pai
 
 Contact submissions are restricted to bounded fields declared by the selected form template and validated by field type before storage or mail tag replacement. Stored contact leads are pruned after 90 days, linked leads are removed with their form, and detailed mail transport failures remain server-side.
 
-Newsletter subscription attempts use a dedicated per-IP throttle, including repeated requests for addresses already in the list. Public responses do not reveal whether an address is active or previously unsubscribed, and an unsubscribed address is not reactivated without a separate ownership-confirmation flow.
+From v1.28.4, Contact, guest comment and enabled Newsletter attempts use separate five-request/15-minute quotas, with IPv6 /64 grouping and IPv4-mapped normalization. Signed-in comments remain keyed by the authenticated user with capacity separate from guests. Each purpose uses 16 fixed, expiry-pruned shards capped at 4,096 active keys and 1 MiB each; no file is allocated per address. Capacity placement groups IPv6 /48 and IPv4 /24 networks in one shard without combining their individual attempt quotas. Corrupt/unavailable storage or exhausted capacity refuses the affected shard, not every submission or unrelated login/recovery. Other networks can still hash into that shard, and an attacker with enough independent networks can exhaust multiple shards. This is capacity isolation, not a distributed-abuse availability guarantee. Active v1 counters are consulted for their remaining windows without deleting old state; simultaneous old/new writers are not one combined quota authority.
+
+Password-recovery messages are generic, but synchronous mail transport may still cause an account-dependent timing difference. This is a known limitation, not a claim of constant network response time. Remember-me replay-family hardening is deferred; invalid validators remain rejected under the existing token contract.
+
+Pre-upgrade public quota files are read only for the exact known identity. Active lockouts and remaining allowances stay enforced under their legacy lock alongside the new ledger. Known expired public files are retired opportunistically; retained expired files still require the new quota. Unknown files and login/recovery state are not swept or reset. Do not purge the shared `data/rate_limits/` directory as an upgrade step.
+
+Newsletter attempts include repeated requests for addresses already in the list. Public responses do not reveal whether an address is active or previously unsubscribed, and an unsubscribed address is not reactivated without a separate ownership-confirmation flow.
 
 What this helps with:
 
@@ -190,6 +200,8 @@ Calendar requires the server-owned `calendar.manage` capability, limited to root
 The primary administrator owns canonical-domain, SMTP/API credential, Media storage or optimization, and Analytics settings, together with protected IndexNow key actions. IndexNow, GA4 and VonAnalytics privacy controls are read-only for appointed administrators. They can still manage normal site settings, including delegated SEO, Search Console and AdSense fields, but direct API requests cannot overwrite owner-only values; disabled UI controls do not replace server authorization.
 
 Secret-bearing settings are not retained in rollback history. Legacy sensitive audit rows are removed when Settings or the audit viewer runs, and public contact forms receive only the dedicated safe field projection rather than private delivery configuration.
+
+The compatibility JSON mirror excludes SMTP passwords as well as AI and IndexNow credentials. SMTP uses database settings; database failure does not silently reuse an old mirrored password or switch a configured SMTP delivery to PHP mail. After upgrading, Primary Admin must run Database Repair to refresh older mirrors and resolve any permission warning. File replacement cannot erase a previously downloaded copy or SQL backup. Keep the documented Apache/Nginx `data/` access-denial rules in place for the remaining private runtime files.
 
 ### Shared and personal Gemini credential encryption
 
@@ -241,6 +253,8 @@ What this helps with:
 ## 7. Installer and Reinstall Protection
 
 VonCMS protects the installer after setup is complete.
+
+The first-run ownership key is stored in `data/install_setup.key.php` with a PHP denial guard. Pending installations moving from the old plaintext format generate a fresh key instead of accepting the old value. The key is excluded from release copying and Git and removed after installation. Operators read its 64-character line through File Manager/SSH/SFTP, not an HTTP endpoint. Nginx/OpenLiteSpeed protection rules remain required for all other private data; the guard assumes a working PHP handler.
 
 What it does:
 
@@ -303,7 +317,7 @@ What it does claim is:
 
 ### v1.28 account tokens and native analytics
 
-Known automation exclusion in v1.28.1 is a measurement policy, not an access-control or bot-authentication boundary. Recognized User-Agents do not record native visitor/content views; crawler-rendered PHP documents mark the bundled frontend to skip native tracking when a renderer uses a different User-Agent. No shared-IP reputation, OS/browser ban, new identity cookie or external bot lookup is introduced. An unmarked request that impersonates an ordinary browser can still be counted. The public marker grants no authority, and CSRF, authentication and consent policy remain independent. Historical analytics rows are not rewritten.
+Known automation exclusion is a measurement policy, not an access-control or bot-authentication boundary. Recognized User-Agents do not record native visitor/content views. Older/private document contexts can mark the bundled frontend to skip tracking after a renderer changes User-Agent; shared-cacheable guest HTML deliberately omits that User-Agent-specific marker to prevent cached bot classifications from suppressing human measurements. Native tracking endpoints still perform their own User-Agent checks. No shared-IP reputation, OS/browser ban, new identity cookie or external bot lookup is introduced. An unmarked request that impersonates an ordinary browser can still be counted. The marker grants no authority, and CSRF, authentication and consent policy remain independent. Historical analytics rows are not rewritten.
 
 New reset and email-verification tokens are random secrets sent only in account-action links. The database stores `s1:`-prefixed SHA-256 digests encoded to fit the existing token columns. The prefix separates new digests from legacy raw 64-hex tokens: a stored digest is not a usable account token. Outstanding legacy links retain their original expiry and single-use behavior. Reset consumption remains transactional and revokes remember tokens. Protect database backups regardless; digest storage does not make database disclosure harmless.
 

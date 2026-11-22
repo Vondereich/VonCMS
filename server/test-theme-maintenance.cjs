@@ -5,6 +5,7 @@ const os = require('node:os');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 const { findPhpBinary } = require('./lint-php.cjs');
+const { readPhpJson } = require('./integration/maintenance/php-json.cjs');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
@@ -121,6 +122,11 @@ function load(file, react = React, mocks = {}, runtime = {}, extraExports = '', 
     if (/settingsDraft(?:\.ts)?$/.test(name)) return load('src/utils/settingsDraft.ts');
     if (name.endsWith('/shared/themeSettings')) return load('src/themes/shared/themeSettings.ts');
     if (name.endsWith('/shared/themeColors')) return load('src/themes/shared/themeColors.ts');
+    if (name.endsWith('/utils/dateFormat')) return load('src/utils/dateFormat.ts');
+    if (name === './schedule' && file.includes('promo-bar/'))
+      return load('src/plugins/von-core/features/plugins/built-in/promo-bar/schedule.ts');
+    if (name.endsWith('/providers/VonProviders'))
+      return { ...helpers, usePlugin: () => ({ timeZone: 'UTC' }) };
     if (name.endsWith('/corporate-pro/config')) return load('src/themes/corporate-pro/config.ts');
     if (name === '../config' && file.includes('themes/corporate-pro/'))
       return load('src/themes/corporate-pro/config.ts');
@@ -168,6 +174,10 @@ function load(file, react = React, mocks = {}, runtime = {}, extraExports = '', 
 const apiErrorHelpers = load('src/utils/api.ts', React, { './security': { getCsrfToken: noop } });
 helpers.getErrorMessage = apiErrorHelpers.getErrorMessage;
 helpers.getSavedProfileUpdates = load('src/utils/profileUtils.ts').getSavedProfileUpdates;
+helpers.redirectAfterProfilePasswordChange = load(
+  'src/utils/profileUtils.ts'
+).redirectAfterProfilePasswordChange;
+helpers.hasPasswordSpecialCharacter = load('src/utils/security.ts').hasPasswordSpecialCharacter;
 
 const base = {
   posts,
@@ -254,7 +264,20 @@ function checkPromoBarOptionalCta() {
         })
       );
     dismissedAt = String(Date.now());
-    assert.equal(banner({}), '', 'legacy settings still honor a recent dismissal');
+    assert.match(
+      banner({}),
+      /QA announcement/,
+      'Unidentified legacy dismissals must not hide a new campaign'
+    );
+    const campaign = JSON.stringify(['QA announcement', '#details', 'Click Here', '', '']);
+    dismissedAt = JSON.stringify({ campaign, at: Date.now() });
+    assert.equal(banner({}), '', 'The same campaign honors a recent dismissal');
+    assert.match(
+      renderToStaticMarkup(
+        PromoBarPlugin.render('header_top', { text: 'Different campaign', linkUrl: '#details' })
+      ),
+      /Different campaign/
+    );
     const readsBeforeDisabled = storageReads;
     const persistent = banner({ allowDismiss: false });
     assert.match(persistent, /QA announcement/);
@@ -263,7 +286,7 @@ function checkPromoBarOptionalCta() {
     assert.equal(storageReads, readsBeforeDisabled);
     assert.equal(banner({ allowDismiss: false, endsAt: '2000-01-01T00:00:00Z' }), '');
     assert.equal(banner({ allowDismiss: true }), '', 're-enabled dismissal respects its timer');
-    dismissedAt = String(Date.now() - 3 * 60 * 60 * 1000);
+    dismissedAt = JSON.stringify({ campaign, at: Date.now() - 3 * 60 * 60 * 1000 });
     assert.match(banner({ allowDismiss: true, dismissHours: 2 }), /Dismiss announcement/);
   }
   console.log('PASS Promo Bar: optional CTA, dismissal toggle, expiry and campaign window.');
@@ -965,9 +988,12 @@ function checkSettingsPresentation() {
       else assert.equal(change.value.performance.lazyLoadImages, true);
     }
   }
-  const Google = load(`${directory}GoogleSettings.tsx`).GoogleSettings;
+  const Google = load(`${directory}GoogleSettings.tsx`, React, {
+    '../../../../../utils/pluginRuntime': load('src/utils/pluginRuntime.ts'),
+  }).GoogleSettings;
   const googleSettings = (value, enableTracking = true) => ({
     ...settings,
+    activePlugins: ['vp_analytics'],
     seo: { googleSearchConsole: value },
     analytics: { googleAnalyticsId: value, enableTracking },
     ads: { ...settings.ads, adsenseVerification: value },
@@ -1253,8 +1279,7 @@ function checkLeanPublicThemeRendering() {
       input: JSON.stringify(cases.map((item) => item.settings)),
     }
   );
-  assert.equal(probe.status, 0, probe.stderr || probe.stdout);
-  const projected = JSON.parse(probe.stdout);
+  const projected = readPhpJson(probe, 'Public theme settings projection');
   const folders = {
     default: 'default',
     prism: 'prism',
@@ -1771,7 +1796,12 @@ async function checkAdminSettingsReadiness() {
 }
 
 function checkCategoryFolderAdvisory() {
+  // Controlled one-layer entity case; actual DOMPurify decoding is browser-tested separately.
+  const categoryTextMock = {
+    './textUtils': { decodeEntities: (value) => String(value || '').replace(/&#97;/g, 'a') },
+  };
   const siteUtils = load('src/utils/siteUtils.ts', React, {
+    ...categoryTextMock,
     '../config/site.config': { BASE_PATH: '/zangetsu/' },
   });
   for (const folder of [
@@ -1784,9 +1814,35 @@ function checkCategoryFolderAdvisory() {
     'fonts',
     'themes',
     'uploads',
+    'admin',
+    'install',
+    'login',
+    'profile',
+    'register',
+    'reset-password',
   ]) {
     for (const category of [folder, folder.toUpperCase(), ` _${folder}_ `, `${folder}!`]) {
       assert.equal(siteUtils.getCategoryFolderConflict(category), folder);
+      assert.equal(
+        siteUtils.getPermalink({ ...posts[0], category }, { permalinkStructure: 'category' }),
+        '/zangetsu/qa-1'
+      );
+    }
+  }
+  for (const category of ['post', 'blog']) {
+    for (const slug of ['1', '123', '999999999999999999999999']) {
+      assert.equal(siteUtils.getCategoryFolderConflict(category, slug), category);
+      assert.equal(
+        siteUtils.getPermalink({ ...posts[0], category, slug }, { permalinkStructure: 'category' }),
+        `/zangetsu/${slug}`
+      );
+    }
+    for (const slug of ['0', '00', '00123', '1e3', 'ordinary']) {
+      assert.equal(siteUtils.getCategoryFolderConflict(category, slug), null);
+      assert.equal(
+        siteUtils.getPermalink({ ...posts[0], category, slug }, { permalinkStructure: 'category' }),
+        `/zangetsu/${category}/${slug}`
+      );
     }
   }
   for (const category of [
@@ -1824,8 +1880,9 @@ function checkCategoryFolderAdvisory() {
   for (const permalinkStructure of ['slug', 'category']) {
     const html = render(PostEditor, { ...props, settings: { ...settings, permalinkStructure } });
     assert.match(html, /id="post-category-path-warning" role="status" aria-live="polite"/);
-    assert.match(html, /The \/core\/ path is used by a VonCMS folder/);
-    assert.match(html, /Category &amp; Name permalinks can conflict/);
+    assert.match(html, /The \/core\/ path is used by VonCMS/);
+    assert.match(html, /this article uses a safe fallback URL instead/);
+    assert.match(html, /category name is unchanged/);
     assert.match(html, /aria-describedby="post-category-help post-category-path-warning"/);
     assert.match(html, /saving remains available/);
     assert.doesNotMatch(html, /aria-invalid=/);
@@ -1844,18 +1901,167 @@ function checkCategoryFolderAdvisory() {
   }
   assert.doesNotMatch(render(PostEditor, { ...props, isPage: true }), /id="post-category/);
   const post = { ...posts[0], category: 'Core' };
-  assert.equal(
-    siteUtils.getPermalink(post, { permalinkStructure: 'category' }),
-    '/zangetsu/core/qa-1'
-  );
+  assert.equal(siteUtils.getPermalink(post, { permalinkStructure: 'category' }), '/zangetsu/qa-1');
   assert.equal(siteUtils.getPermalink(post, { permalinkStructure: 'slug' }), '/zangetsu/qa-1');
   const rootUtils = load('src/utils/siteUtils.ts', React, {
+    ...categoryTextMock,
     '../config/site.config': { BASE_PATH: '/' },
   });
-  assert.equal(rootUtils.getPermalink(post, { permalinkStructure: 'category' }), '/core/qa-1');
+  assert.equal(rootUtils.getPermalink(post, { permalinkStructure: 'category' }), '/qa-1');
   assert.equal(rootUtils.getCategoryFolderConflict('Core'), 'core');
+  for (const [category, slug, conflict, fallbackPath] of [
+    ['admin', 'qa-1', true],
+    ['&#97;dmin', 'qa-1', true],
+    ['profile', 'qa-1', true],
+    ['post', '1', true],
+    ['blog', '1', true],
+    ['post', '0', false],
+    ['blog', '00123', false],
+    ['Admin News', 'qa-1', false],
+    ['temp_update', 'qa-1', false],
+    ['admin', 'login', true, '/post/1'],
+    ['core', 'admin', true, '/post/1'],
+    ['install', 'rss', true, '/post/1'],
+    ['Business', 'login', false],
+    ['admin', 'docs', true, '/post/1'],
+    ['api', 'FONTS', true, '/post/1'],
+    ['docs', 'themes', true, '/post/1'],
+    ['install', '%62ackups', true, '/post/1'],
+    ['Business', 'docs', false],
+    ['admin', 'docs-news', true],
+    ['admin', 'public', true, '/post/1'],
+    ['core', 'server', true, '/post/1'],
+    ['install', 'src', true, '/post/1'],
+    ['src', 'ordinary', false],
+  ]) {
+    const item = { ...posts[0], category, slug };
+    const html = render(PostEditor, { ...props, initialItem: item });
+    assert.equal(
+      html.includes('id="post-category-path-warning"'),
+      conflict,
+      JSON.stringify({ category, slug })
+    );
+    for (const [base, domain] of [
+      ['/', 'https://example.test'],
+      ['/', 'https://news.example.test'],
+      ['/zangetsu/', 'http://localhost/zangetsu'],
+      ['/news/cms/', 'https://example.test/news/cms'],
+    ]) {
+      const utils = load('src/utils/siteUtils.ts', React, {
+        ...categoryTextMock,
+        '../config/site.config': { BASE_PATH: base },
+      });
+      const expected =
+        fallbackPath || (conflict ? `/${slug}` : `/${utils.getCategorySlug(category)}/${slug}`);
+      assert.equal(
+        utils.getPermalink(item, { permalinkStructure: 'category' }),
+        base.replace(/\/$/, '') + expected
+      );
+      assert.equal(
+        utils.getPermalink(item, { permalinkStructure: 'category', domainUrl: domain }, true),
+        domain + expected
+      );
+      assert.equal(
+        utils.getPermalink(item, { permalinkStructure: 'category' }, false, true),
+        expected
+      );
+      assert.equal(item.category, category);
+    }
+  }
+  for (const base of ['/', '/zangetsu/', '/news/cms/']) {
+    const utils = load('src/utils/siteUtils.ts', React, {
+      ...categoryTextMock,
+      '../config/site.config': { BASE_PATH: base },
+    });
+    for (const [query, expected] of [
+      ['?voncms_page=1', true],
+      ['?utm_source=qa&voncms_page=1', true],
+      ['', false],
+      ['?voncms_page=0', false],
+      ['?voncms_page=1&voncms_page=0', false],
+      ['?voncms_page[]=1', false],
+    ])
+      assert.equal(utils.isExplicitPageIdRequest('/page/902', query), expected);
+    assert.equal(utils.isExplicitPageIdRequest('/admin/902', '?voncms_page=1'), false);
+    for (const slug of [
+      'docs',
+      'admin',
+      'login',
+      'rss',
+      'fonts',
+      'public',
+      'server',
+      'src',
+      'ordinary',
+      'docs-1',
+      '0',
+    ]) {
+      const item = { ...posts[0], slug, category: 'Business' };
+      const normal = ['ordinary', 'docs-1', '0'].includes(slug);
+      for (const mode of [
+        'slug',
+        'post_name',
+        'plain',
+        'date',
+        'day_name',
+        'month_name',
+        'category',
+      ]) {
+        const path =
+          mode === 'plain'
+            ? '/post/1'
+            : mode === 'category'
+              ? '/business/' + slug
+              : ['date', 'day_name'].includes(mode)
+                ? '/2026/10/01/' + slug
+                : mode === 'month_name'
+                  ? '/2026/10/' + slug
+                  : normal
+                    ? '/' + slug
+                    : '/post/1';
+        assert.equal(
+          utils.getPermalink(item, { permalinkStructure: mode }),
+          base.replace(/\/$/, '') + path,
+          mode + ' ' + slug
+        );
+        assert.equal(
+          utils.getPermalink(
+            item,
+            {
+              permalinkStructure: mode,
+              domainUrl: 'https://news.example.test' + base.replace(/\/$/, ''),
+            },
+            true
+          ),
+          'https://news.example.test' + base.replace(/\/$/, '') + path
+        );
+        assert.equal(item.slug, slug);
+      }
+      const page = { id: '1', slug, status: 'published' };
+      const pagePath = normal ? '/' + slug : '/page/1?voncms_page=1';
+      assert.equal(utils.getPagePermalink(page), base.replace(/\/$/, '') + pagePath);
+      assert.equal(
+        utils.getPublicNavigationHref({ url: 'page:1' }, settings, [], [page]),
+        base.replace(/\/$/, '') + pagePath
+      );
+    }
+    assert.equal(
+      utils.getPermalink(
+        { ...posts[0], category: 'page', slug: '1' },
+        { permalinkStructure: 'category' }
+      ),
+      base.replace(/\/$/, '') + '/page/1'
+    );
+    assert.equal(
+      utils.getPermalink(
+        { ...posts[0], category: 'page', slug: '0' },
+        { permalinkStructure: 'category' }
+      ),
+      base.replace(/\/$/, '') + '/page/0'
+    );
+  }
   console.log(
-    'PASS Category Folder Advisory: normalized folder matches, accessible editor warning, ordinary categories/pages, enabled Publish and unchanged root/subfolder permalink behavior.'
+    'PASS All-mode Permalink Fallback: Post/Page identity, safe root-slug fallback, category/date/ID modes, navigation, suffix lookalikes and root/subfolder absolute links are preserved.'
   );
 }
 
@@ -3189,6 +3395,19 @@ function checkDiscussionPostLinks() {
 
 async function checkAvatarState() {
   const profileUtils = load('src/utils/profileUtils.ts');
+  for (const basePath of ['/', '/zangetsu/']) {
+    const redirects = [];
+    const lifecycle = load(
+      'src/utils/profileUtils.ts',
+      React,
+      { '../config/site.config': { BASE_PATH: basePath } },
+      { window: { location: { assign: (url) => redirects.push(url) } } }
+    );
+    assert.equal(lifecycle.redirectAfterProfilePasswordChange(), false);
+    assert.equal(redirects.length, 0);
+    assert.equal(lifecycle.redirectAfterProfilePasswordChange('New1!fixture'), true);
+    assert.deepEqual(redirects, [basePath + 'login?reason=password-updated']);
+  }
   const original = { display_name: 'Old', bio: 'Old bio', avatar: 'http://qa.invalid/raw.webp' };
   const canonical = { display_name: 'Saved & Name', bio: 'Saved bio', avatar: '' };
   assert.equal(
@@ -3330,7 +3549,8 @@ async function checkAvatarState() {
   ]) {
     const h = harness(),
       published = [],
-      requests = [];
+      requests = [],
+      redirects = [];
     let ok = true,
       hold = false,
       release;
@@ -3359,7 +3579,19 @@ async function checkAvatarState() {
     const module = load(
       file,
       h.hooks,
-      { [prefix + 'utils/api']: transport },
+      {
+        [prefix + 'utils/api']: transport,
+        [prefix + 'utils/profileUtils']: {
+          ...profileUtils,
+          ...helpers,
+          redirectAfterProfilePasswordChange: load(
+            'src/utils/profileUtils.ts',
+            React,
+            { '../config/site.config': { BASE_PATH: '/zangetsu/' } },
+            { window: { location: { assign: (url) => redirects.push(url) } } }
+          ).redirectAfterProfilePasswordChange,
+        },
+      },
       {},
       name ? `\nexport { ${name} as AvatarProfileFixture };` : ''
     );
@@ -3465,6 +3697,26 @@ async function checkAvatarState() {
         'late profile response must not publish after navigation'
       );
     }
+    hold = false;
+    props.targetUser = target;
+    view = draw();
+    const passwordSlot = name ? 5 : 4;
+    h.slots[passwordSlot].value = true;
+    h.slots[passwordSlot + 1].value = 'Old1!fixture';
+    h.slots[passwordSlot + 2].value = 'New1!fixture';
+    h.slots[passwordSlot + 3].value = 'New1!fixture';
+    view = draw();
+    ok = false;
+    await save();
+    assert.equal(redirects.length, 0, file + ' rejected password must stay editable');
+    view = draw();
+    ok = true;
+    await save();
+    assert.deepEqual(
+      redirects,
+      ['/zangetsu/login?reason=password-updated'],
+      file + ' accepted password must reauthenticate'
+    );
   }
 
   assert.ok(
@@ -3968,7 +4220,7 @@ async function checkNativeCrawlerTracking() {
     }
   }
   assert.ok(
-    read('public/index.php').includes('echo voncms_tracking_document_meta();'),
+    read('public/index.php').includes('echo voncms_tracking_document_meta($voncmsStatelessRead);'),
     'PHP entry must emit its real shared document classification'
   );
   assert.ok(
@@ -4036,8 +4288,7 @@ function checkThemeStartupMetadata() {
         ],
         { input: JSON.stringify({ samples, ids }), encoding: 'utf8' }
       );
-      assert.equal(result.status, 0, result.stderr || result.stdout);
-      return JSON.parse(result.stdout);
+      return readPhpJson(result, 'Theme startup metadata');
     };
     let actual = run(['theme-fixture', '../fixture', 'theme-missing']);
     assert.deepEqual(actual.normalized, expected, 'PHP and React/Vite validate the same inputs');
@@ -4767,7 +5018,8 @@ async function checkDiscoveryRouteFetch() {
       dirty = false,
       result,
       timer = 0,
-      hold = false;
+      hold = false,
+      outcome = 'ok';
     const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
     const memo = (factory, deps) => {
       const i = cursor++;
@@ -4810,13 +5062,14 @@ async function checkDiscoveryRouteFetch() {
     };
     const query = new URLSearchParams();
     const response = (url) => ({
-      ok: true,
+      ok: outcome !== 'error',
       json: async () => {
         const page = Number(url.searchParams.get('page')),
           limit = Number(url.searchParams.get('limit'));
+        const available = outcome === 'empty' ? [] : posts;
         return {
-          posts: posts.slice((page - 1) * limit, page * limit),
-          meta: { page, limit, total: posts.length, hasMore: page * limit < posts.length },
+          posts: available.slice((page - 1) * limit, page * limit),
+          meta: { page, limit, total: available.length, hasMore: page * limit < available.length },
         };
       },
     });
@@ -4840,6 +5093,7 @@ async function checkDiscoveryRouteFetch() {
       {
         AbortController,
         URLSearchParams,
+        console: { ...console, error: noop },
         window: {
           setTimeout: (callback) => {
             timers.set(++timer, callback);
@@ -4875,6 +5129,9 @@ async function checkDiscoveryRouteFetch() {
       set hold(value) {
         hold = value;
       },
+      set outcome(value) {
+        outcome = value;
+      },
       searchTick: () => {
         const callbacks = [...timers.values()];
         timers.clear();
@@ -4904,6 +5161,60 @@ async function checkDiscoveryRouteFetch() {
         1,
         `${theme} pre-fix default must reproduce the unused fetch`
       );
+    }
+  }
+  let reentryCases = 0;
+  for (const prefix of ['', '/zangetsu']) {
+    for (const { theme, view, options } of captured.filter(({ view }) =>
+      ['page', 'single-post'].includes(view)
+    )) {
+      for (const initialPosts of [[], posts]) {
+        const disabled = { ...options, initialPosts, category: null, search: '', enabled: false };
+        const test = harness(disabled, prefix);
+        test.paint();
+        await test.flush();
+        assert.equal(test.requests.length, 0, `${theme}/${view}: no off-route fetch`);
+        for (let cycle = 0; cycle < 2; cycle++) {
+          test.hold = true;
+          test.paint({ ...disabled, enabled: true });
+          assert.ok(
+            test.value.posts.length > 0 || test.value.isLoading,
+            `${theme}/${view}/${prefix}: empty first Home render before request effects`
+          );
+          await test.flush();
+          assert.equal(test.requests.length, cycle + 1, 'One list request per Home entry');
+          assert.equal(test.value.error, null);
+          test.release();
+          await test.flush();
+          assert.equal(test.value.isLoading, false);
+          assert.ok(test.value.posts.length > 0, 'Home must display its successful response');
+          test.paint(disabled);
+          await test.flush();
+          assert.equal(test.requests.length, cycle + 1, 'Page/Post must not fetch a list');
+          reentryCases++;
+        }
+      }
+    }
+    for (const outcome of ['empty', 'error']) {
+      const options = { initialPosts: [], enabled: false, limit: 6, category: null, search: '' };
+      const test = harness(options, prefix);
+      test.paint();
+      await test.flush();
+      test.hold = true;
+      test.outcome = outcome;
+      test.paint({ ...options, enabled: true });
+      assert.equal(test.value.isLoading, true, 'Empty re-entry is pending immediately');
+      await test.flush();
+      test.release();
+      await test.flush();
+      assert.equal(
+        test.value.isLoading,
+        false,
+        'Empty/failure must not leave a perpetual skeleton'
+      );
+      assert.equal(test.value.posts.length, 0);
+      assert.equal(Boolean(test.value.error), outcome === 'error', 'Failure differs from empty');
+      reentryCases++;
     }
   }
   for (const prefix of ['', '/zangetsu']) {
@@ -4954,46 +5265,63 @@ async function checkDiscoveryRouteFetch() {
     assert.equal(test.value.error, null);
   }
   console.log(
-    'PASS Theme Discovery Routes: 20 actual layout/Hook cases, four pre-fix counterexamples, root/subfolder return-home, category, debounced search, Load More and pending-request cancellation. React lifecycle simulation; no installed data or requests.'
+    `PASS Theme Discovery Routes: 20 actual layout/Hook cases, ${reentryCases} first-render re-entry/settlement cases, four pre-fix unused-request counterexamples, root/subfolder return-home, category, debounced search, Load More and pending-request cancellation. React lifecycle simulation; no installed data or requests.`
   );
 }
 
-checkPromoBarOptionalCta();
-checkRelatedMemoOwnership();
-checkPortfolioNavigationResolver();
-checkGoogleTrackingRuntime();
-checkThemeStartupMetadata();
-checkContentManagerActions();
-checkContentManagerExcerpts();
-checkCategoryFolderAdvisory();
-checkPublicPluginHydration();
-checkLeanPublicThemeRendering();
-checkSettingsPresentation();
-checkAdsManager();
-checkAdminSettingsReadiness()
-  .then(checkNativeCrawlerTracking)
-  .then(checkDiscoveryRouteFetch)
-  .then(checkRelatedCandidateReliability)
-  .then(checkAiSettingsModels)
-  .then(checkSettingsDraftLifecycle)
-  .then(checkAiKeyStorageUi)
-  .then(checkAiKeyRotationUi)
-  .then(checkMediaSettingsRuntime)
-  .then(checkIndexNowReadOnly)
-  .then(checkAnalyticsReadOnly)
-  .then(checkPublicProfileArticles)
-  .then(checkSettings)
-  .then(checkOtherCustomizers)
-  .then(checkNewsletterPagination)
-  .then(checkNewsletterSaveResult)
-  .then(checkAvatarState)
-  .then(checkDiscussionPostLinks)
-  .then(() => {
-    console.log(
-      'PASS Theme Maintenance Runtime: global limits, account placeholders, comments, animations, Digest article retention, six independent customizers, legacy appearance migration, public settings projection, and latest-settings draft merge.'
-    );
-  })
-  .catch((error) => {
+const checkMaintenanceCorrections = () =>
+  require('./integration/maintenance/runtime.cjs')({
+    load,
+    React,
+    shared,
+    settings,
+    renderToStaticMarkup,
+  });
+
+if (process.argv.includes('--maintenance-qc')) {
+  checkMaintenanceCorrections().catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });
+} else {
+  checkPromoBarOptionalCta();
+  checkRelatedMemoOwnership();
+  checkPortfolioNavigationResolver();
+  checkGoogleTrackingRuntime();
+  checkThemeStartupMetadata();
+  checkContentManagerActions();
+  checkContentManagerExcerpts();
+  checkCategoryFolderAdvisory();
+  checkPublicPluginHydration();
+  checkLeanPublicThemeRendering();
+  checkSettingsPresentation();
+  checkAdsManager();
+  checkAdminSettingsReadiness()
+    .then(checkNativeCrawlerTracking)
+    .then(checkDiscoveryRouteFetch)
+    .then(checkRelatedCandidateReliability)
+    .then(checkAiSettingsModels)
+    .then(checkSettingsDraftLifecycle)
+    .then(checkAiKeyStorageUi)
+    .then(checkAiKeyRotationUi)
+    .then(checkMediaSettingsRuntime)
+    .then(checkIndexNowReadOnly)
+    .then(checkAnalyticsReadOnly)
+    .then(checkPublicProfileArticles)
+    .then(checkSettings)
+    .then(checkOtherCustomizers)
+    .then(checkNewsletterPagination)
+    .then(checkNewsletterSaveResult)
+    .then(checkAvatarState)
+    .then(checkDiscussionPostLinks)
+    .then(checkMaintenanceCorrections)
+    .then(() => {
+      console.log(
+        'PASS Theme Maintenance Runtime: global limits, account placeholders, comments, animations, Digest article retention, six independent customizers, legacy appearance migration, public settings projection, and latest-settings draft merge.'
+      );
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+}

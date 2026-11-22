@@ -22,6 +22,7 @@ const articleVisible =
 const reserved = [
   'admin',
   'api',
+  'api.php',
   'login',
   'install',
   'register',
@@ -29,6 +30,8 @@ const reserved = [
   'assets',
   'data',
   'core',
+  'index.php',
+  'index.html',
   'uploads',
   'temp_update',
   'profile',
@@ -85,17 +88,57 @@ const end = utils.indexOf('export const getPermalink', start);
 check(start !== -1 && end > start, 'Public route policy must be present');
 const policy = vm.runInNewContext(
   ts.transpileModule(
-    utils
-      .slice(start, end)
-      .replace('export const isPublicContentPath', 'const isPublicContentPath') +
-      '\nisPublicContentPath;',
+    utils.slice(start, end).replace(/\bexport const /g, 'const ') + '\nisPublicContentPath;',
     { compilerOptions: { target: ts.ScriptTarget.ES2022 } }
   ).outputText
 );
+const prefixForms = (prefix) => {
+  const first = '%' + prefix.charCodeAt(0).toString(16) + prefix.slice(1);
+  const encoded = [...prefix].map((char) => '%' + char.charCodeAt(0).toString(16)).join('');
+  return [
+    ...new Set([
+      prefix,
+      prefix.toUpperCase(),
+      [...prefix].map((char, index) => (index % 2 ? char.toUpperCase() : char)).join(''),
+      first,
+      encoded,
+      encoded.toUpperCase(),
+      first.replaceAll('%', '%25'),
+      first.replaceAll('%', '%2525'),
+    ]),
+  ];
+};
+const policyPrefixes = [
+  ...utils.slice(start, utils.indexOf('const ROOT_DOCUMENT_ROUTES', start)).matchAll(/'([^']+)'/g),
+].map((match) => match[1]);
+check(
+  JSON.stringify([...policyPrefixes].sort()) === JSON.stringify([...reserved].sort()),
+  'The complete system-prefix inventory must be exercised'
+);
+const parityPaths = new Set();
 for (const key of reserved) {
   for (const tail of [slug, 'business/' + slug, '2026/11/' + slug]) {
     if (key === 'profile' && tail === slug) continue;
     check(!policy('/' + key + '/' + tail), 'Public namespace accepted ' + key + '/' + tail);
+  }
+}
+for (const prefix of reserved) {
+  for (const form of prefixForms(prefix)) {
+    for (const tail of [slug, 'business/' + slug, '2026/11/' + slug]) {
+      const route = '/' + form + '/' + tail;
+      const publicProfile = decodeURIComponent(form).toLowerCase() === 'profile' && tail === slug;
+      check(policy(route) === publicProfile, 'Case/encoded namespace policy drifted: ' + route);
+      parityPaths.add(route);
+    }
+    parityPaths.add('/' + form);
+  }
+}
+const documentStart = utils.indexOf('const ROOT_DOCUMENT_ROUTES', start);
+const documentEnd = utils.indexOf('// Receives React Router', documentStart);
+for (const [, document] of utils.slice(documentStart, documentEnd).matchAll(/'([^']+)'/g)) {
+  for (const form of prefixForms(document)) {
+    parityPaths.add('/' + form);
+    parityPaths.add('/' + form + '/' + slug);
   }
 }
 for (const route of [
@@ -116,10 +159,15 @@ for (const route of [
   '/2026/04/31/' + slug,
   '/2026/11/00/' + slug,
   '/not-a-year/not-a-month/' + slug,
-])
+]) {
   check(!policy(route), 'Malformed/system route accepted: ' + route);
+  parityPaths.add(route);
+}
 for (const route of [
   '/',
+  '/0',
+  '/0/0',
+  '/profile/0',
   '/' + slug,
   '/business/' + slug,
   '/administrator/' + slug,
@@ -136,8 +184,62 @@ for (const route of [
   '/2026/11/' + slug,
   '/2024/02/29/' + slug,
   '/2026/11/14/' + slug,
-])
+]) {
   check(policy(route), 'Legitimate public route rejected: ' + route);
+  parityPaths.add(route);
+}
+for (const prefix of [
+  'administrator',
+  'admin-news',
+  'apiary',
+  'assets-news',
+  'core-news',
+  'data-science',
+  'index.php-news',
+  'installer',
+  'login-help',
+  'profile-card',
+  'register-news',
+  'reset-password-help',
+  'temp_update-news',
+  'uploads-news',
+]) {
+  check(policy('/' + prefix + '/' + slug), 'Legitimate namespace lookalike rejected: ' + prefix);
+  parityPaths.add('/' + prefix + '/' + slug);
+}
+for (const route of [
+  '//ADMIN/' + slug,
+  '/%2fADMIN/' + slug,
+  '/business/%FF',
+  '/business/%C2%80',
+  '/business/%ED%A0%80',
+  '/2024/02/29/' + slug,
+  '/1900/02/29/' + slug,
+  '/0001/01/01/' + slug,
+])
+  parityPaths.add(route);
+
+function phpPolicy() {
+  const php = require('./lint-php.cjs').findPhpBinary();
+  if (!php) throw new Error('NOT_RUN: PHP route-policy parity requires a supported PHP runtime');
+  const paths = [...parityPaths];
+  const code = [
+    "require $argv[1].'/public/seo_route_helper.php';",
+    '$paths=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);',
+    "echo json_encode(array_map('voncms_is_public_content_path',$paths),JSON_THROW_ON_ERROR);",
+  ].join('\n');
+  const probe = spawnSync(php, ['-r', code, root], {
+    input: JSON.stringify(paths),
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  assert.equal(probe.status, 0, probe.stderr || probe.stdout);
+  assert.equal(probe.stderr, '');
+  const results = JSON.parse(probe.stdout);
+  check(results.length === paths.length, 'PHP must classify every policy vector');
+  for (const [index, route] of paths.entries())
+    check(results[index] === policy(route), 'PHP/SPA policy mismatch: ' + route);
+}
 
 async function browser() {
   const chromePath =
@@ -159,7 +261,7 @@ async function browser() {
       const u=new URL(typeof input==='string'?input:input.url,location.href);
       if(!u.pathname.includes('/api/')&&!u.pathname.endsWith('/api.php'))return nativeFetch(input,options);
       const endpoint=u.pathname.split('/').pop();
-      window.__qaFetches.push({path:u.pathname,method:options.method||'GET'});
+      window.__qaFetches.push({path:u.pathname,query:u.search,method:options.method||'GET'});
       const reply=body=>new Response(JSON.stringify(body),{headers:{'Content-Type':'application/json'}});
       const post={id:'701',slug:'${slug}',title:'${headline}',content:'<p>Public fixture body.</p>',excerpt:'Public fixture',category:'Business',status:'published',author:'QA',author_id:1,created_at:'2026-11-14 10:00:00',updated_at:'2026-11-14 10:00:00'};
       const params=new URLSearchParams(location.search);
@@ -168,9 +270,23 @@ async function browser() {
       if(endpoint==='check_auth.php')return reply({success:true,authenticated:!!user,user,csrf_token:'fixture-only'});
       if(endpoint==='get_settings.php')return reply({...window.__INITIAL_SETTINGS__,_settingsScope:['Root','Admin'].includes(role)?'admin':'public'});
       if(endpoint==='api.php')return reply({success:true,csrf_token:'fixture-only',installed:true});
-      if(endpoint==='get_post.php')return reply({success:true,post});
+      if(endpoint==='get_post.php'){
+        const token=u.searchParams.get('slug');
+        if(token==='704')return reply({success:true,post:{...post,id:'705',slug:'704',category:'Page',title:'Legacy Page category article',content:'<p>Correct legacy category Post body.</p>'}});
+        if(params.get('qaType')==='fallback' && u.searchParams.get('id')==='704')return reply({success:true,post:{...post,id:'704',slug:'docs',title:'Fallback docs Post',content:'<p>Correct fallback Post body.</p>'}});
+        if(u.searchParams.get('id')==='0'||(token==='0'&&params.get('qaType')==='page'))return reply({success:false});
+        if(['0','00','0002','+1','1e3'].includes(token))return reply({success:true,post:{...post,id:'702',slug:token,title:'Literal slug '+token,content:'<p>Literal slug body '+token+'</p>'}});
+        return reply({success:true,post});
+      }
       if(endpoint==='get_posts.php')return reply({success:true,posts:[post],meta:{total:1,page:1,totalPages:1,hasMore:false,limit:6}});
-      if(endpoint==='get_pages.php')return reply({success:true,pages:[],meta:{total:0,totalPages:1,hasMore:false}});
+      if(endpoint==='get_pages.php'){
+        if(params.get('qaType')==='fallback'){
+          const pages=u.searchParams.get('id')==='704'?[{id:'704',slug:'login',title:'Fallback login Page',content:'<p>Correct fallback Page body.</p>',status:'published'}]:[];
+          return reply({success:true,pages,meta:{total:pages.length,totalPages:1,hasMore:false}});
+        }
+        const pages=params.get('qaType')==='page'&&u.searchParams.get('slug')==='0'?[{id:'703',slug:'0',title:'Literal zero Page',content:'<p>Literal zero Page body.</p>',status:'published'}]:[];
+        return reply({success:true,pages,meta:{total:pages.length,totalPages:1,hasMore:false}});
+      }
       if(endpoint==='get_public_profile.php')return reply({success:true,user:{username:'public-user',bio:'Public QA profile'}});
       if(endpoint==='get_comments.php')return reply({success:true,comments:[],meta:{total:0,hasMore:false}});
       if(endpoint==='get_users.php')return reply({success:true,users:[],meta:{total:0}});
@@ -229,7 +345,10 @@ async function browser() {
                 timeZone: 'UTC',
                 registrationEnabled: true,
                 discussionEnabled: false,
-                permalinkStructure: 'category',
+                permalinkStructure:
+                  new URL(req.url, 'http://fixture').searchParams.get('qaType') === 'fallback'
+                    ? 'slug'
+                    : 'category',
                 analytics: { cookieConsent: false, measurementMode: 'strict' },
                 theme: { primaryColor: '#123456' },
               };
@@ -379,14 +498,14 @@ async function browser() {
     const wait = async (expression) => {
       const until = Date.now() + 20000;
       while (Date.now() < until) {
-        if (await evaluate(expression)) return;
+        if (await evaluate('!!document.body && (' + expression + ')')) return;
         await pause(80);
       }
       throw new Error(
         'Browser condition failed: ' +
           expression +
           '; ' +
-          (await evaluate('document.body.innerText.slice(0,600)'))
+          (await evaluate('document.body?.innerText.slice(0,600) || "No document body"'))
       );
     };
     const navigate = async (url) => {
@@ -398,49 +517,109 @@ async function browser() {
       await wait('!!window.__qaFetches');
     };
     for (const base of ['', '/blog']) {
-      for (const actor of ['Guest', 'Root', 'Admin', 'Moderator', 'Writer', 'Member']) {
-        const query = '?actor=' + actor;
-        await navigate(base + '/admin/business/' + slug + query);
-        const staff = ['Root', 'Admin', 'Moderator', 'Writer'].includes(actor);
-        await wait(
-          staff
-            ? "document.body.innerText.includes('Admin page not found')"
-            : actor === 'Guest'
-              ? "!!document.querySelector('input[type=password]')"
-              : "document.body.innerText.includes('Routing QA')"
+      await navigate(base + '/');
+      await wait('document.body.innerText.includes(' + JSON.stringify(headline) + ')');
+      const categoryLinks = await evaluate(`(async()=>{
+        const utils=await import('/src/utils/siteUtils.ts');
+        return ${JSON.stringify([
+          ['admin', 'ordinary', '/ordinary'],
+          ['ADMIN', 'ordinary', '/ordinary'],
+          ['&#97;dmin', 'ordinary', '/ordinary'],
+          ['api', 'ordinary', '/ordinary'],
+          ['Core', 'ordinary', '/ordinary'],
+          ['install', 'ordinary', '/ordinary'],
+          ['profile', 'ordinary', '/ordinary'],
+          ['post', '1', '/1'],
+          ['blog', '1', '/1'],
+          ['post', '0', '/post/0'],
+          ['blog', '00123', '/blog/00123'],
+          ['post', '1e3', '/post/1e3'],
+          ['Business', 'ordinary', '/business/ordinary'],
+          ['Admin News', 'ordinary', '/admin-news/ordinary'],
+          ['admin', 'login', '/post/701'],
+          ['core', 'admin', '/post/701'],
+          ['install', 'rss', '/post/701'],
+          ['Business', 'login', '/business/login'],
+          ['admin', 'docs', '/post/701'],
+          ['api', 'FONTS', '/post/701'],
+          ['docs', 'themes', '/post/701'],
+          ['install', '%62ackups', '/post/701'],
+          ['Business', 'docs', '/business/docs'],
+          ['admin', 'docs-news', '/docs-news'],
+          ['admin', 'public', '/post/701'],
+          ['core', 'server', '/post/701'],
+          ['install', 'src', '/post/701'],
+          ['src', 'ordinary', '/src/ordinary'],
+        ])}.map(([category,slug,expected])=>{
+          const item={id:'701',slug,category};
+          const settings={permalinkStructure:'category',domainUrl:location.origin+${JSON.stringify(base)}};
+          return {category,slug,expected,path:utils.getPermalink(item,settings),absolute:utils.getPermalink(item,settings,true),stored:item.category};
+        });
+      })()`);
+      for (const row of categoryLinks) {
+        check(
+          row.path === base + row.expected,
+          'Browser category permalink mismatch: ' + JSON.stringify(row)
         );
-        check(!(await evaluate(articleVisible)), 'Actor escaped admin routing ' + actor);
+        check(
+          row.absolute === origin + base + row.expected,
+          'Browser absolute category URL mismatch'
+        );
+        check(row.stored === row.category, 'Browser category label was mutated');
+      }
+      for (const prefix of ['admin', 'ADMIN', '%61dmin'])
+        for (const actor of ['Guest', 'Root', 'Admin', 'Moderator', 'Writer', 'Member']) {
+          const query = '?actor=' + actor;
+          await navigate(base + '/' + prefix + '/business/' + slug + query);
+          const staff = ['Root', 'Admin', 'Moderator', 'Writer'].includes(actor);
+          await wait(
+            staff
+              ? "document.body.innerText.includes('Admin page not found')"
+              : actor === 'Guest'
+                ? "!!document.querySelector('input[type=password]')"
+                : "document.body.innerText.includes('Routing QA')"
+          );
+          check(!(await evaluate(articleVisible)), 'Actor escaped admin routing ' + actor);
+        }
+      await navigate(base + '/business/' + slug);
+      await wait(articleVisible);
+      for (const key of reserved.filter((key) => key !== 'admin'))
+        for (const form of [key, key.toUpperCase(), prefixForms(key)[3]]) {
+          const tail = key === 'profile' ? 'business/' + slug : slug;
+          await evaluate(
+            'history.pushState({usr:null,key:"routing-qa",idx:1},"",' +
+              JSON.stringify(base + '/' + form + '/' + tail) +
+              ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
+          );
+          await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+          check(!(await evaluate(articleVisible)), 'Stale public body at ' + form);
+          await send('Page.reload', { ignoreCache: true });
+          await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+          check(!(await evaluate(articleVisible)), 'Reload public body at ' + form);
+          await evaluate(
+            'history.pushState({usr:null,key:"routing-back",idx:2},"",' +
+              JSON.stringify(base + '/business/' + slug) +
+              ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
+          );
+          await wait(articleVisible);
+          check(true, 'Public recovery');
+        }
+      for (const invalid of [
+        '%2561dmin/' + slug,
+        '%252561dmin/' + slug,
+        'admin%2fordinary',
+        'admin%5cordinary',
+        'business//' + slug,
+      ]) {
+        await navigate(base + '/' + invalid);
+        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+        check(
+          !(await evaluate(articleVisible)),
+          'Malformed namespace displayed an article: ' + invalid
+        );
       }
       await navigate(base + '/business/' + slug);
       await wait(articleVisible);
-      for (const key of [
-        'login',
-        'install',
-        'register',
-        'reset-password',
-        'assets',
-        'api',
-        'profile',
-      ]) {
-        const tail = key === 'profile' ? 'business/' + slug : slug;
-        await evaluate(
-          'history.pushState({usr:null,key:"routing-qa",idx:1},"",' +
-            JSON.stringify(base + '/' + key + '/' + tail) +
-            ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
-        );
-        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
-        check(!(await evaluate(articleVisible)), 'Stale public body at ' + key);
-        await send('Page.reload', { ignoreCache: true });
-        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
-        check(!(await evaluate(articleVisible)), 'Reload public body at ' + key);
-        await evaluate(
-          'history.pushState({usr:null,key:"routing-back",idx:2},"",' +
-            JSON.stringify(base + '/business/' + slug) +
-            ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
-        );
-        await wait(articleVisible);
-        check(true, 'Public recovery');
-      }
       await evaluate('history.back()');
       await wait('document.body.innerText.includes("This Page Isn\'t Available")');
       check(
@@ -459,6 +638,123 @@ async function browser() {
       );
       await wait(articleVisible);
       check(true, 'Original 404 state must not poison a new valid route');
+
+      const spaNavigate = (url) =>
+        evaluate(
+          'history.pushState({usr:null,key:"zero-slug",idx:3},"",' +
+            JSON.stringify(url) +
+            ');window.dispatchEvent(new PopStateEvent("popstate",{state:history.state}));'
+        );
+      const literalVisible = (token) =>
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText===' +
+        JSON.stringify('Literal slug ' + token) +
+        ') && document.body.innerText.includes(' +
+        JSON.stringify('Literal slug body ' + token) +
+        ')';
+      for (const prefix of ['', '/post', '/blog']) {
+        // /blog is also this fixture's subfolder basename; disambiguate it by nesting.
+        if (!base && prefix === '/blog') continue;
+        for (const token of prefix ? ['0', '00', '0002', '+1', '1e3'] : ['0']) {
+          const target = base + prefix + '/' + encodeURIComponent(token);
+          for (const mode of ['direct', 'spa']) {
+            if (mode === 'direct') await navigate(target);
+            else {
+              await navigate(base + '/business/' + slug);
+              await wait(articleVisible);
+              await spaNavigate(target);
+            }
+            await wait(literalVisible(token));
+            check(
+              await evaluate(
+                'window.__qaFetches.some(r=>r.path.endsWith("/get_post.php") && new URLSearchParams(r.query).get("slug")===' +
+                  JSON.stringify(token) +
+                  ')'
+              ),
+              mode + ' must fetch exact slug ' + target
+            );
+            check(!(await evaluate(articleVisible)), 'Stale article at literal slug ' + target);
+          }
+        }
+      }
+      await navigate(base + '/post/701');
+      await wait(articleVisible);
+      check(
+        await evaluate(
+          'window.__qaFetches.some(r=>r.path.endsWith("/get_post.php") && new URLSearchParams(r.query).get("id")==="701")'
+        ),
+        'Positive canonical ID still uses id lookup'
+      );
+      const zeroPageVisible =
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText==="Literal zero Page") && document.body.innerText.includes("Literal zero Page body.")';
+      await navigate(base + '/0?qaType=page');
+      await wait(zeroPageVisible);
+      await send('Page.reload', { ignoreCache: true });
+      await wait(zeroPageVisible);
+      check(true, 'Zero Page supports direct load and hard reload');
+      await navigate(base + '/business/' + slug + '?qaType=page');
+      await wait(articleVisible);
+      await spaNavigate(base + '/0?qaType=page');
+      await wait(zeroPageVisible);
+      check(true, 'Zero Page supports SPA navigation');
+      for (const prefix of ['/post', ...(base ? ['/blog'] : [])]) {
+        await navigate(base + prefix + '/0?qaType=page');
+        await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+        check(!(await evaluate(zeroPageVisible)), 'Legacy Post-only route exposed a Page');
+      }
+      for (const [tail, title, body, endpoint] of [
+        ['/post/704', 'Fallback docs Post', 'Correct fallback Post body.', 'get_post.php'],
+        ['/page/704', 'Fallback login Page', 'Correct fallback Page body.', 'get_pages.php'],
+      ]) {
+        const marker = tail.startsWith('/page/') ? '&voncms_page=1' : '';
+        const target = base + tail + '?qaType=fallback' + marker;
+        const visible =
+          '[...document.querySelectorAll("h1")].some(h=>h.innerText===' +
+          JSON.stringify(title) +
+          ') && document.body.innerText.includes(' +
+          JSON.stringify(body) +
+          ')';
+        await navigate(target);
+        await wait(visible);
+        check(
+          await evaluate(
+            'window.__qaFetches.some(r=>r.path.endsWith(' +
+              JSON.stringify(endpoint) +
+              ')&&new URLSearchParams(r.query).get("id")==="704")'
+          ),
+          'Fallback ID reaches the correct API type'
+        );
+        await send('Page.reload', { ignoreCache: true });
+        await wait(visible);
+        check(true, 'Fallback ID hard reload retains identity');
+        await spaNavigate(base + '/business/' + slug + '?qaType=fallback');
+        await wait(articleVisible);
+        await spaNavigate(target);
+        await wait(visible);
+        check(true, 'Fallback ID SPA retains identity');
+      }
+      await navigate(base + '/page/999999?qaType=fallback&voncms_page=1');
+      await wait('document.body.innerText.includes("This Page Isn\'t Available")');
+      check(!(await evaluate(articleVisible)), 'Missing Page ID must not fall back to a Post');
+      const legacyVisible =
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText==="Legacy Page category article") && document.body.innerText.includes("Correct legacy category Post body.")';
+      for (const query of [
+        'qaType=fallback',
+        'qaType=fallback&voncms_page=0',
+        'qaType=fallback&voncms_page=1&voncms_page=0',
+      ]) {
+        await navigate(base + '/page/704?' + query);
+        await wait(legacyVisible);
+        check(true, 'Unmarked or invalid Page discriminator preserves legacy article');
+        await send('Page.reload', { ignoreCache: true });
+        await wait(legacyVisible);
+      }
+      await spaNavigate(base + '/page/704?qaType=fallback&voncms_page=1');
+      await wait(
+        '[...document.querySelectorAll("h1")].some(h=>h.innerText==="Fallback login Page")'
+      );
+      await spaNavigate(base + '/page/704?qaType=fallback');
+      await wait(legacyVisible);
+      check(true, 'Same-path query transitions preserve separate Page and legacy Post identities');
     }
     check(exceptions.length === 0, 'Unexpected browser exception: ' + exceptions.join('\n'));
   } finally {
@@ -497,12 +793,19 @@ async function apache() {
     /\$htaccessContent = <<<EOT\r?\n[\s\S]*?\r?\n[ \t]*EOT;/
   )?.[0];
   assert.ok(repair && installer, 'Actual installer/repair templates are required');
-  const render = (code) => {
-    const r = spawnSync(php, ['-r', code], { encoding: 'utf8', windowsHide: true });
+  const render = (code, ...args) => {
+    const r = spawnSync(php, ['-r', code, ...args], { encoding: 'utf8', windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stderr, '');
     return r.stdout;
   };
+  const categoryFallback = (id, slug) =>
+    render(
+      'require $argv[1]; echo buildCanonicalContentPath(["id"=>$argv[2],"category"=>"admin","slug"=>$argv[3]],"category");',
+      path.join(root, 'public', 'seo_route_helper.php'),
+      String(id),
+      slug
+    );
   const deploy = process.env.VONCMS_ROUTING_APACHE_BASELINE
     ? fs.readFileSync(process.env.VONCMS_ROUTING_APACHE_BASELINE, 'utf8')
     : read('public/.htaccess');
@@ -524,8 +827,12 @@ async function apache() {
   try {
     for (const [name, variant] of variants) {
       write(name + '/.htaccess', variant.rules);
+      write(name + '/docs/fixture.txt', 'DOCUMENTATION_FIXTURE');
       const pub = name + (variant.child ? '/public' : '');
-      if (variant.child) write(pub + '/.htaccess', variant.child);
+      if (variant.child) {
+        write(pub + '/.htaccess', variant.child);
+        write(name + '/src/fixture.txt', 'SOURCE_FIXTURE');
+      }
       for (const file of [
         'api/fixture.php',
         'api/system/fixture.php',
@@ -612,6 +919,32 @@ async function apache() {
       }
     }
     check(ready, 'Isolated Apache did not start');
+    for (const [prefix, slug, id, ordinaryPath] of [
+      ['', 'docs', 67, '/business/docs'],
+      ['/blog', 'docs', 67, '/business/docs'],
+      ['/source', 'src', 76, '/src/ordinary'],
+      ['/source-repaired', 'src', 76, '/src/ordinary'],
+    ]) {
+      const fallbackPath = categoryFallback(id, slug);
+      const folder = await fetch(origin + prefix + '/' + slug, { redirect: 'manual' });
+      const target = await fetch(origin + prefix + fallbackPath, { redirect: 'manual' });
+      const ordinary = await fetch(origin + prefix + ordinaryPath, { redirect: 'manual' });
+      check(
+        folder.status === 301 &&
+          new URL(folder.headers.get('location'), origin).pathname === prefix + '/' + slug + '/',
+        prefix + '/' + slug + ' is a real directory and must not be used for the article'
+      );
+      check(
+        fallbackPath === '/post/' + id &&
+          target.status === 200 &&
+          (await target.text()) === 'ROUTING_FIXTURE',
+        prefix + ' generated fallback must reach the document router instead of the directory'
+      );
+      check(
+        ordinary.status === 200 && (await ordinary.text()) === 'ROUTING_FIXTURE',
+        prefix + ordinaryPath + ' still reaches the document router'
+      );
+    }
     for (const prefix of ['', '/blog', '/source', '/installed', '/repaired', '/source-repaired']) {
       for (const [tail, expected] of [
         ['/api/fixture.php', 200],
@@ -658,6 +991,7 @@ async function apache() {
 }
 
 (async () => {
+  if (process.argv.includes('--php')) phpPolicy();
   if (process.argv.includes('--browser')) await browser();
   if (process.argv.includes('--apache')) await apache();
   console.log(

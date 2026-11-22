@@ -19,12 +19,18 @@ const useCalendar =
 const useDashboardReports = process.argv.includes('--dashboard-reports');
 const useDashboard = process.argv.includes('--dashboard') || useDashboardReports;
 const useSecurity = process.argv.includes('--security');
+const useToastLong = process.argv.includes('--toast-long');
+const useActivity = process.argv.includes('--activity');
+const useActivityLive = process.argv.includes('--activity-live');
+const useSvgLogo = process.argv.includes('--svg-logo');
 const useAuthFeedback = process.argv.includes('--auth-feedback');
 const legacyAuthFeedback = useAuthFeedback && process.argv.includes('--legacy-auth-feedback');
 const useAuth = process.argv.includes('--auth') || useAuthFeedback;
 const useUsers = process.argv.includes('--users');
 const useWpBridge = process.argv.includes('--wp-bridge');
-const useThemeHooks = process.argv.includes('--theme-hooks');
+const useThemeLogos = process.argv.includes('--theme-logos');
+const useTechPressLogo = process.argv.includes('--techpress-logo') || useThemeLogos;
+const useThemeHooks = process.argv.includes('--theme-hooks') || useTechPressLogo;
 const useTechPressFeed = process.argv.includes('--techpress-feed');
 const legacyTechPressFeed = useTechPressFeed && process.argv.includes('--legacy-techpress-feed');
 const useDigestFooter = process.argv.includes('--digest-footer');
@@ -33,7 +39,9 @@ const useRelatedPosts = process.argv.includes('--related-posts');
 const useNativeTracking = process.argv.includes('--native-tracking');
 const usePrismBoot = process.argv.includes('--prism-boot');
 const legacyPrismBoot = usePrismBoot && process.argv.includes('--legacy-prism-boot');
-const useDiscoveryLayout = process.argv.includes('--discovery-layout') || usePrismBoot;
+const useDiscoveryStress = process.argv.includes('--discovery-stress');
+const useDiscoveryLayout =
+  process.argv.includes('--discovery-layout') || usePrismBoot || useDiscoveryStress;
 const legacyDiscoveryLayout =
   useDiscoveryLayout && process.argv.includes('--legacy-discovery-layout');
 const useDeletePreview = process.argv.includes('--delete-preview');
@@ -43,6 +51,7 @@ const usePublicSettings = process.argv.includes('--public-settings');
 const useWarmActions = process.argv.includes('--warm-actions');
 const useAiDisclosure = process.argv.includes('--ai-disclosure');
 const useAdminQcFindings = process.argv.includes('--admin-qc-findings');
+const useMaintenanceUi = process.argv.includes('--maintenance-ui');
 const useEditActions = process.argv.includes('--edit-actions');
 const useTableRowHover = process.argv.includes('--table-row-hover');
 const useAdminNeutral =
@@ -64,6 +73,7 @@ async function main() {
   let server, chrome, socket;
   let closeBrowser = async () => {};
   let calendarFixture = null;
+  let activityLiveFixture = null;
   let calendarFault = '';
   let calendarDateProjection = null;
   let publicSettingsFixture = null;
@@ -415,11 +425,14 @@ async function main() {
     import {createRoot} from 'react-dom/client';
     import {BrowserRouter} from 'react-router';
     import TechPress from '/src/themes/techpress/Layout.tsx';
+    ${useThemeLogos ? "import DefaultTheme from '/src/themes/default/Layout.tsx'; import Digest from '/src/themes/digest/Layout.tsx'; import Portfolio from '/src/themes/portfolio/Layout.tsx'; import Prism from '/src/themes/prism/Layout.tsx'; import Corporate from '/src/themes/corporate-pro/Layout.tsx';" : ''}
     import Newsletter from '/src/plugins/von-core/features/newsletter/NewsletterManager.tsx';
     import AdBlock from '/src/themes/shared/components/AdBlock.tsx';
     import {sanitizeHtml} from '/src/utils/security.ts';
     import '/src/index.css';
     const base=location.pathname.startsWith('/zangetsu/')?'/zangetsu':'';
+    const themeId=new URLSearchParams(location.search).get('logoTheme')||'techpress';
+    const ActiveTheme={techpress:TechPress,${useThemeLogos ? "default:DefaultTheme,digest:Digest,portfolio:Portfolio,prism:Prism,'corporate-pro':Corporate" : ''}}[themeId];
     const avatar='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     const user={id:'9',username:'fixture-reader',email:'qa@example.invalid',role:'Admin',avatar};
     const settings={siteName:'Hooks fixture',siteDescription:'Local UI only',siteUrl:location.origin+base,
@@ -436,12 +449,18 @@ async function main() {
     const action=name=>(...args)=>window.__qaActions.push([name,...args]);
     function Fixture(){
       const [query,setQuery]=React.useState(''),[tick,setTick]=React.useState(0),[dark,setDark]=React.useState(false);
+      const [headerCase,setHeaderCase]=React.useState(null);
+      React.useEffect(()=>{document.documentElement.classList.toggle('dark',dark)},[dark]);
+      const headerSettings=headerCase?{...settings,headerIdentityMode:headerCase.mode,
+        logoUrl:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="'+(headerCase.shape==='square'?150:500)+'" height="150"><rect width="100%" height="100%" fill="black"/></svg>')}:settings;
+      const headerUser=!headerCase||headerCase.auth==='user'?user:null;
       const [ad,setAd]=React.useState('<script>document.body.textContent="QA frame"</script>');
-      React.useEffect(()=>{window.__qaRerender=()=>setTick(v=>v+1);window.__qaSetAd=setAd;window.__qaSanitizeHtml=sanitizeHtml;window.__qaReplaceAd=()=>setAd('<span>QA replacement banner</span>');window.__qaReady=true},[]);
+      React.useEffect(()=>{window.__qaRerender=()=>setTick(v=>v+1);window.__qaSetHeaderCase=setHeaderCase;window.__qaSetDark=setDark;window.__qaSetAd=setAd;window.__qaSanitizeHtml=sanitizeHtml;window.__qaReplaceAd=()=>setAd('<span>QA replacement banner</span>');window.__qaReady=true},[]);
       return React.createElement(React.Fragment,{},React.createElement('output',{id:'qa-render'},tick),
-        React.createElement(TechPress,{posts:[],pages:[],comments:[],allUsers:[user],settings,user,
+        React.createElement('output',{id:'qa-header-case',hidden:true},JSON.stringify(headerCase)),
+        React.createElement(ActiveTheme,{posts:[],pages:[],comments:[],allUsers:[user],settings:headerSettings,user:headerUser,
           currentView:'home',selectedPost:null,selectedPage:null,selectedProfile:null,
-          isDarkMode:dark,toggleDarkMode:()=>setDark(v=>!v),isAuthLoading:false,
+          isDarkMode:dark,toggleDarkMode:()=>setDark(v=>!v),isAuthLoading:headerCase?.auth==='loading',
           publicSearchQuery:query,onPublicSearchChange:setQuery,
           onPostClick:action('post'),onPageClick:action('page'),onBackToHome:action('home'),
           onCategoryClick:action('category'),onViewProfile:action('profile'),onNavigateAdmin:action('admin'),
@@ -1024,15 +1043,18 @@ async function main() {
       const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="800" height="450" fill="#64748b"/></svg>');
       const posts=Array.from({length:15},(_,index)=>({id:String(101+index),slug:'qa-story-'+index,title:'QA story '+index,category:'News',status:'published',author:'QA',author_data:{username:'QA'},createdAt:'2026-11-12T00:00:00Z',created_at:'2026-11-12T00:00:00Z',image,image_url:image,excerpt:'Fixture article excerpt.',content:'<p>Article fixture.</p>'.repeat(25)}));
       const page={...posts[0],id:'901',slug:'qa-page',title:'QA page'};
-      const initialPosts=params.get('start')==='warm'?posts:[];
+      ${useDiscoveryStress ? "posts.forEach(post=>post.title='W'.repeat(60)+' Stress title');" : ''}
+      const initialPosts=params.get('start')?.startsWith('warm')?posts:[];
       const settings={_settingsScope:'public',siteName:'Discovery layout QA',domainUrl:location.origin+base,siteDescription:'Isolated layout fixture',activeThemeId:theme,postsPerPage:15,permalinkStructure:'category',timeZone:'UTC',theme:{},activePlugins:[],pluginConfig:{},analytics:{cookieConsent:false},navigation:[{id:'home',label:'Home',url:'home',type:'internal'}],sidebarLayout:[],ads:{adsEnabled:false,popupEnabled:false},newsletter:{enabled:false},discussionEnabled:false};
       const dark=params.get('dark')==='1';document.documentElement.classList.toggle('dark',dark);
+      ${useDiscoveryStress ? "settings.sidebarLayout=[{id:'stress-trending',type:'trending',title:'Trending',isVisible:true,itemCount:3}];" : ''}
       window.__discovery={calls:[],pending:[],hold:false,outcome:'ok'};
       const qa=window.__discovery;
       window.fetch=async(input,options={})=>{
         const url=new URL(input,location.href),method=options.method||'GET';
         if(url.origin!==location.origin||method!=='GET')throw Error('Discovery fixture forbids external requests and writes');
         qa.calls.push(url.pathname+url.search);
+        if(${useDiscoveryStress ? 'true' : 'false'}&&url.pathname.endsWith('/get_comments.php'))return new Response(JSON.stringify({success:true,comments:[],meta:{page:1,limit:6,total:0,hasMore:false}}));
         if(!url.pathname.endsWith('/get_posts.php'))throw Error('Unexpected discovery request: '+url.pathname);
         if(qa.hold)await new Promise(resolve=>qa.pending.push(resolve));
         if(qa.outcome==='error')return new Response('Unavailable',{status:503});
@@ -1044,10 +1066,11 @@ async function main() {
         const location=useLocation(),navigate=useNavigate();
         const [visible,setVisible]=React.useState(true);
         qa.exit=()=>setVisible(false);
-        const view=location.pathname.endsWith('/qa-article')?'single-post':location.pathname.endsWith('/qa-page')?'page':'home';
+        const view=location.pathname.endsWith('/qa-article')?'single-post':location.pathname.endsWith('/qa-page')?'page':location.pathname.endsWith('/qa-profile')?'profile':'home';
         qa.view=view;qa.navigate=next=>navigate(next+location.search);
         if(!visible)return React.createElement('div',{id:'qa-private-state'},'Private route fixture');
-        return React.createElement(PublicSite,{posts:initialPosts,pages:[page],settings,user:null,isAuthLoading:false,comments:[],allUsers:[],currentView:view,selectedPost:view==='single-post'?posts[0]:null,selectedPage:view==='page'?page:null,selectedProfile:null,onAddComment:noop,onLikeComment:noop,onReplyComment:noop,onNavigateAdmin:noop,onLogin:noop,onLogout:noop,isDarkMode:dark,toggleDarkMode:noop,onPostClick:()=>qa.navigate('/qa-article'),onPageClick:()=>qa.navigate('/qa-page'),onViewProfile:noop,onBackToHome:()=>qa.navigate('/'),onPublicSearchChange:noop});
+        const profile=view==='profile'?{id:'9',username:'QA',role:'Writer',avatar:image,createdAt:'2026-11-12T00:00:00Z'}:null;
+        return React.createElement(PublicSite,{posts:initialPosts,pages:[page],settings,user:null,isAuthLoading:false,comments:[],allUsers:profile?[profile]:[],currentView:view,selectedPost:view==='single-post'?posts[0]:null,selectedPage:view==='page'?page:null,selectedProfile:profile?.username??null,resolvedProfile:profile,onAddComment:noop,onLikeComment:noop,onReplyComment:noop,onNavigateAdmin:noop,onLogin:noop,onLogout:noop,isDarkMode:dark,toggleDarkMode:noop,onPostClick:()=>qa.navigate('/qa-article'),onPageClick:()=>qa.navigate('/qa-page'),onViewProfile:noop,onBackToHome:()=>qa.navigate('/'),onPublicSearchChange:noop});
       }
       function ThemeHarness(){
         const [themeId,setThemeId]=React.useState(theme);
@@ -1123,9 +1146,69 @@ async function main() {
       prismBootShells[kind] = { css, guards, startups };
     }
   }
+  if (useActivity)
+    fixture = ts.transpileModule(require('./integration/activity/browser.cjs').fixture, {
+      fileName: 'activity-fixture.tsx',
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    }).outputText;
+  if (useSvgLogo) fixture = require('./integration/media/svg-browser.cjs').fixture;
+  if (useMaintenanceUi)
+    fixture = ts.transpileModule(require('./integration/maintenance/browser.cjs').fixture, {
+      fileName: 'maintenance-fixture.tsx',
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.ReactJSX,
+      },
+    }).outputText;
+  if (useActivityLive) fixture = require('./integration/activity/live.cjs').fixture;
+  if (useToastLong) {
+    const appAst = ts.createSourceFile(
+      'App.tsx',
+      app,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+    const toasters = [];
+    const findToaster = (node) => {
+      if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(appAst) === 'Toaster')
+        toasters.push(node.getText(appAst));
+      ts.forEachChild(node, findToaster);
+    };
+    findToaster(appAst);
+    assert.equal(toasters.length, 1, 'Exercise the actual single App Toaster configuration');
+    fixture = ts.transpileModule(
+      `import React from 'react';
+import {createRoot} from 'react-dom/client';
+import toast,{Toaster} from 'react-hot-toast';
+import '/src/index.css';
+window.__qaToast=(kind,message)=>{
+  toast.remove();
+  const options={duration:60000};
+  if(kind==='plain')toast(message,options);else toast[kind](message,options);
+};
+createRoot(document.getElementById('root')).render(<>${toasters[0]}</>);`,
+      {
+        fileName: 'toast-fixture.tsx',
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+          jsx: ts.JsxEmit.ReactJSX,
+        },
+      }
+    ).outputText;
+  }
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-navigation-'));
   try {
     calendarFixture = useCalendar ? require('./test-calendar.cjs').createCalendarFixture() : null;
+    activityLiveFixture = useActivityLive
+      ? require('./integration/activity/live.cjs').createFixture()
+      : null;
     server = await createServer({
       root,
       server: { host: '127.0.0.1', port: 0 },
@@ -1290,6 +1373,7 @@ async function main() {
           },
           configureServer(vite) {
             vite.middlewares.use(async (req, res, next) => {
+              if (activityLiveFixture && (await activityLiveFixture.handle(req, res))) return;
               if (
                 usePrismBoot &&
                 /^\/(?:zangetsu\/)?(?:qa-prism-boot|admin\/qa-prism-boot|login|install)(?:\?|$)/.test(
@@ -1412,7 +1496,7 @@ async function main() {
                 ) &&
                 !(
                   useDiscoveryLayout &&
-                  /^\/(?:zangetsu\/)?(?:qa-article|qa-page)?(?:\?|$)/.test(req.url || '')
+                  /^\/(?:zangetsu\/)?(?:qa-article|qa-page|qa-profile)?(?:\?|$)/.test(req.url || '')
                 ) &&
                 !(useUsers && /^\/(?:zangetsu\/)?login(?:\?|$)/.test(req.url || ''))
               )
@@ -1684,6 +1768,52 @@ async function main() {
     );
     assert.equal(await evaluate('globalThis.__qaArgumentExecuted'), undefined);
     console.log('PASS CDP argument transport: selectors and hostile/Unicode text remain data.');
+    if (useActivityLive) {
+      await require('./integration/activity/live.cjs').verify({
+        send,
+        evaluate,
+        wait,
+        port,
+        backend: activityLiveFixture,
+        errors,
+      });
+      return;
+    }
+    if (useMaintenanceUi) {
+      await require('./integration/maintenance/browser.cjs').verify({
+        send,
+        evaluate,
+        evaluateFunction,
+        wait,
+        metrics,
+        port,
+        errors,
+      });
+      return;
+    }
+    if (useSvgLogo) {
+      await require('./integration/media/svg-browser.cjs').verify({
+        send,
+        evaluate,
+        wait,
+        metrics,
+        port,
+        errors,
+      });
+      return;
+    }
+    if (useActivity) {
+      await require('./integration/activity/browser.cjs').verify({
+        send,
+        evaluate,
+        wait,
+        click,
+        metrics,
+        port,
+        errors,
+      });
+      return;
+    }
     if (useTechPressFeed) {
       let cases = 0;
       for (const base of ['', '/zangetsu'])
@@ -3853,13 +3983,64 @@ async function main() {
       );
       return;
     }
+    if (useDiscoveryStress) {
+      let cases = 0;
+      for (const base of ['', '/zangetsu']) {
+        for (const theme of [
+          'default',
+          'prism',
+          'techpress',
+          'portfolio',
+          'digest',
+          'corporate-pro',
+        ]) {
+          for (const width of [320, 375]) {
+            await send('Emulation.setDeviceMetricsOverride', {
+              width,
+              height: 900,
+              deviceScaleFactor: 1,
+              mobile: true,
+            });
+            for (const route of ['/qa-article', '/', '/qa-profile']) {
+              await send('Page.navigate', {
+                url: `http://127.0.0.1:${port}${base}${route}?theme=theme-${theme}&start=warm`,
+              });
+              try {
+                await wait(
+                  '!!document.querySelector("footer") && document.body.innerText.includes("Stress title")'
+                );
+              } catch (error) {
+                throw new Error(
+                  `${theme} ${base}${route} ${width}px: ${error.message}; ${await evaluate('document.body.innerText.slice(0,400)')}; ${JSON.stringify(errors)}`,
+                  { cause: error }
+                );
+              }
+              await pause(180);
+              const dimensions = await evaluate(
+                '({viewport:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth})'
+              );
+              assert.ok(
+                dimensions.scroll <= width,
+                `${theme} ${base}${route} ${width}px: ${JSON.stringify(dimensions)}`
+              );
+              cases++;
+            }
+          }
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Discovery stress: ${cases} Chrome real-theme Post/Home/Profile cases, 320/375px, root/subfolder, 60-character words. Synthetic content; no installed site.`
+      );
+      return;
+    }
     if (useDiscoveryLayout) {
       const themes = ['default', 'prism', 'techpress', 'portfolio', 'digest', 'corporate-pro'];
       const patched = new Set(['default', 'prism', 'techpress', 'digest']);
       let cases = 0;
       for (const base of ['', '/zangetsu']) {
         for (const theme of themes) {
-          for (const start of ['post', 'page', 'warm']) {
+          for (const start of ['post', 'page', 'warm', 'warm-page']) {
             const query = '?theme=theme-' + theme + '&start=' + start;
             await send('Emulation.setDeviceMetricsOverride', {
               width: 1440,
@@ -3872,38 +4053,62 @@ async function main() {
                 'http://127.0.0.1:' +
                 port +
                 base +
-                (start === 'warm' ? '/' : '/qa-' + (start === 'post' ? 'article' : 'page')) +
+                (start.startsWith('warm')
+                  ? '/'
+                  : '/qa-' + (start === 'post' ? 'article' : 'page')) +
                 query,
             });
             await wait('!!window.__discovery && !!document.querySelector("footer")');
             await pause(100);
-            if (start === 'warm') {
+            if (start.startsWith('warm')) {
               await wait('window.__discovery.calls.length>0');
-              await evaluate('window.__discovery.navigate("/qa-article")');
+              await evaluate(
+                `window.__discovery.navigate("${start === 'warm-page' ? '/qa-page' : '/qa-article'}")`
+              );
               await wait(
-                'window.__discovery.view==="single-post" && !!document.querySelector("footer")'
+                `window.__discovery.view==="${start === 'warm-page' ? 'page' : 'single-post'}" && !!document.querySelector("footer")`
+              );
+            } else {
+              assert.equal(
+                await evaluate('window.__discovery.calls.length'),
+                0,
+                'No Page/Post list fetch'
               );
             }
+            const slowCpu = theme === 'techpress' && start === 'page';
+            await send('Emulation.setCPUThrottlingRate', { rate: slowCpu ? 20 : 1 });
             await evaluateFunction(
               `function(base){
-              const qa=window.__discovery;qa.hold=true;qa.frames=[];const started=performance.now();
-              const sample=()=>{if(qa.view==='home'){const r=document.querySelector('footer')?.getBoundingClientRect();qa.frames.push({top:r?.top??null,busy:!!document.querySelector('[aria-busy="true"]')});}if(performance.now()-started<250)requestAnimationFrame(sample);};sample();
-              const links=[...document.querySelectorAll('a[href]')].filter(a=>new URL(a.href).pathname===(base||'')+'/'&&a.getClientRects().length>0);
-              const home=links.find(a=>/^Home$|Back.*Home/i.test(a.textContent.trim()))||links[0];
-              if(!home)throw Error('No visible actual Home link');home.click();
+              const qa=window.__discovery;qa.hold=true;qa.frames=[];qa.capture=true;
+              const sample=()=>{if(qa.view==='home'){const r=document.querySelector('footer')?.getBoundingClientRect();qa.frames.push({top:r?.top??null,busy:!!document.querySelector('[aria-busy="true"]'),empty:/No stories found|No articles found|No projects yet|No results found/.test(document.body.innerText)});}if(qa.capture)requestAnimationFrame(sample);};sample();
+              const links=[...document.querySelectorAll('a[href]')].filter(a=>{const url=new URL(a.href);return url.pathname===(base||'')+'/'&&!url.search&&a.getClientRects().length>0});
+              const home=links.find(a=>a.closest('header')&&!/^Home$/i.test(a.textContent.trim()))||links[0];
+              if(!home)throw Error('No visible actual Home link');qa.homeLink={href:home.href,label:home.textContent.trim()};home.click();
             }`,
               base
             );
-            await pause(280);
-            const frames = await evaluate('window.__discovery.frames');
+            try {
+              await wait('window.__discovery.view==="home"');
+            } catch (error) {
+              throw new Error(
+                `${theme}/${start}: ${error.message}; ${await evaluate('JSON.stringify({view:window.__discovery?.view,path:location.pathname,link:window.__discovery?.homeLink,calls:window.__discovery?.calls,text:document.body.innerText.slice(0,400)})')}`,
+                { cause: error }
+              );
+            }
+            await pause(slowCpu ? 900 : 280);
+            const frames = await evaluate(
+              '(window.__discovery.capture=false,window.__discovery.frames)'
+            );
+            await send('Emulation.setCPUThrottlingRate', { rate: 1 });
             assert.ok(frames.length > 0, `${theme}/${start}: actual Home rendered`);
             for (const frame of frames) {
+              assert.equal(frame.empty, false, `${theme}/${start}: premature empty-result message`);
               assert.ok(
                 frame.top !== null && frame.top >= 999,
                 `${theme}/${start}: footer must stay below the viewport before the discovery response: ${JSON.stringify(frame)}`
               );
             }
-            if (patched.has(theme) && start !== 'warm') {
+            if (patched.has(theme) && !start.startsWith('warm')) {
               assert.ok(
                 await evaluate('window.__discovery.pending.length>0'),
                 'Cold discovery must wait for its real list request'
@@ -3926,10 +4131,12 @@ async function main() {
             }
             cases++;
           }
-          console.log(`PASS Discovery layout ${base || '/'} ${theme}: Post/Page/warm return`);
+          console.log(
+            `PASS Discovery layout ${base || '/'} ${theme}: Post/Page/warm Post/warm Page logo return`
+          );
         }
       }
-      for (const theme of ['default', 'prism', 'techpress', 'digest']) {
+      for (const theme of themes) {
         for (const outcome of ['ok', 'empty', 'error']) {
           await send('Emulation.setDeviceMetricsOverride', {
             width: 390,
@@ -3944,6 +4151,13 @@ async function main() {
           await wait('!!window.__discovery && !!document.querySelector("footer")');
           await evaluate('window.__discovery.hold=true;window.__discovery.navigate("/")');
           await wait('window.__discovery.pending.length>0');
+          assert.equal(
+            await evaluate(
+              '/No stories found|No articles found|No projects yet|No results found/.test(document.body.innerText)'
+            ),
+            false,
+            `${theme}: pending discovery must not claim an empty result`
+          );
           assert.ok(
             await evaluate('document.querySelector("footer").getBoundingClientRect().top>=843'),
             `${theme}: phone loading footer below fold`
@@ -3953,6 +4167,23 @@ async function main() {
             outcome
           );
           await wait('!document.querySelector("[aria-busy=true]")');
+          if (outcome === 'error') {
+            assert.equal(
+              await evaluate(
+                '[...document.querySelectorAll("[role=alert]")].some(node=>node.textContent.includes("Failed to load posts"))'
+              ),
+              true,
+              `${theme}: failed request must be reported, not hidden as empty`
+            );
+          } else {
+            assert.equal(
+              await evaluate(
+                '[...document.querySelectorAll("[role=alert]")].some(node=>node.textContent.includes("Failed to load posts"))'
+              ),
+              false,
+              `${theme}: success/empty must not show a failure`
+            );
+          }
           assert.ok(
             await evaluate(
               '!!document.querySelector("footer") && document.documentElement.scrollHeight>=innerHeight'
@@ -3964,7 +4195,7 @@ async function main() {
       }
       assert.deepEqual(errors, []);
       console.log(
-        `PASS Discovery footer layout: ${cases} real-theme Chrome root/subfolder, direct Post/Page, warm-return and phone/dark/empty/error scenarios. Cold list replies held in fixture; no CMS writes or changed requests.`
+        `PASS Discovery footer layout: ${cases} real-theme Chrome six-theme root/subfolder, direct Post/Page, warm Post/Page logo-return and phone/dark/empty/error scenarios; TechPress Page re-entry also uses 20x CPU slowdown. Pending replies do not claim empty results, failed replies remain distinct. Cold list replies held in fixture; no CMS writes.`
       );
       return;
     }
@@ -4422,6 +4653,111 @@ async function main() {
         flatten: true,
       });
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+      if (useTechPressLogo) {
+        let cases = 0;
+        const themes = useThemeLogos
+          ? ['default', 'digest', 'portfolio', 'prism', 'corporate-pro', 'techpress']
+          : ['techpress'];
+        for (const theme of themes) {
+          for (const base of ['', '/zangetsu']) {
+            await send('Page.navigate', {
+              url: `http://127.0.0.1:${port}${base}/admin/hooks?logoTheme=${theme}`,
+            });
+            await wait('window.__qaReady && typeof window.__qaSetHeaderCase === "function"');
+            for (const width of [320, 390, 820, 1440]) {
+              await metrics(width, 900);
+              for (const dark of [false, true]) {
+                await evaluate(`window.__qaSetDark(${dark})`);
+                for (const config of [
+                  { mode: 'logo_only', shape: 'wide', auth: 'guest' },
+                  { mode: 'logo_only', shape: 'square', auth: 'guest' },
+                  { mode: 'logo_and_text', shape: 'wide', auth: 'guest' },
+                  { mode: 'text_only', shape: 'wide', auth: 'guest' },
+                  { mode: 'logo_only', shape: 'wide', auth: 'loading' },
+                  { mode: 'logo_only', shape: 'wide', auth: 'user' },
+                ]) {
+                  await evaluate(`window.__qaSetHeaderCase(${JSON.stringify(config)})`);
+                  await wait(
+                    `document.querySelector('#qa-header-case').textContent === ${JSON.stringify(JSON.stringify(config))}`
+                  );
+                  if (config.mode !== 'text_only')
+                    await wait(
+                      'document.querySelector("header a img,nav a img")?.complete && document.querySelector("header a img,nav a img").naturalWidth > 0'
+                    );
+                  await pause(200);
+                  const layout = await evaluate(`(() => {
+                  const header=document.querySelector('header,nav');
+                  const anchor=header.querySelector('a');
+                  const box=e=>{const b=e.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height};};
+                  const logo=anchor.querySelector('img');
+                  const controls=[...header.querySelectorAll('button,[data-auth-placeholder]')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0}).map(e=>({label:e.getAttribute('aria-label')||e.textContent.trim()||'auth placeholder',...box(e)}));
+                  return {anchor:box(anchor),logo:logo?{...box(logo),ratio:logo.naturalWidth/logo.naturalHeight}:null,controls,overflow:document.documentElement.scrollWidth>innerWidth,href:anchor.getAttribute('href')};
+                })()`);
+                  const label = `${theme} ${base || '/'} ${width}px ${dark ? 'dark' : 'light'} ${JSON.stringify(config)}`;
+                  assert.equal(layout.overflow, false, `${label}: page overflow`);
+                  assert.equal(layout.href, `${base}/`, `${label}: home link remains base-aware`);
+                  for (const control of layout.controls) {
+                    assert(
+                      control.left >= -0.5 && control.right <= width + 0.5,
+                      `${label}: ${control.label} outside viewport`
+                    );
+                    const identityOverlapX =
+                      Math.min(layout.anchor.right, control.right) -
+                      Math.max(layout.anchor.left, control.left);
+                    const identityOverlapY =
+                      Math.min(layout.anchor.bottom, control.bottom) -
+                      Math.max(layout.anchor.top, control.top);
+                    assert(
+                      identityOverlapX <= 0.5 || identityOverlapY <= 0.5,
+                      `${label}: identity overlaps ${control.label}`
+                    );
+                    if (layout.logo) {
+                      const overlapX =
+                        Math.min(layout.logo.right, control.right) -
+                        Math.max(layout.logo.left, control.left);
+                      const overlapY =
+                        Math.min(layout.logo.bottom, control.bottom) -
+                        Math.max(layout.logo.top, control.top);
+                      assert(
+                        overlapX <= 0.5 || overlapY <= 0.5,
+                        `${label}: logo overlaps ${control.label} by ${overlapX.toFixed(2)}px`
+                      );
+                    }
+                  }
+                  if (layout.logo) {
+                    assert(
+                      layout.logo.right <= layout.anchor.right + 0.5,
+                      `${label}: logo escapes identity anchor`
+                    );
+                    const maximum =
+                      config.mode === 'logo_only'
+                        ? width < 640
+                          ? 150
+                          : 180
+                        : width < 640
+                          ? 112
+                          : 140;
+                    assert(
+                      layout.logo.width <= maximum + 0.5,
+                      `${label}: existing logo width limit changed`
+                    );
+                    assert(
+                      Math.abs(layout.logo.width / layout.logo.height - layout.logo.ratio) < 0.03,
+                      `${label}: logo aspect ratio changed`
+                    );
+                  } else assert.equal(config.mode, 'text_only', `${label}: expected uploaded logo`);
+                  cases += 1;
+                }
+              }
+            }
+          }
+        }
+        assert.deepEqual(errors, []);
+        console.log(
+          `PASS ${useThemeLogos ? 'Six-theme' : 'TechPress'} header logo: ${cases} real-layout Chrome root/subfolder, light/dark, narrow/tablet/desktop, logo/text, guest/loading/user scenarios. Existing logo limits/aspect ratio retained; fixture transport only, no installed CMS writes.`
+        );
+        return;
+      }
       for (const base of ['', '/zangetsu']) {
         await metrics(1440, 900);
         await send('Page.navigate', { url: `http://127.0.0.1:${port}${base}/admin/hooks` });
@@ -5793,6 +6129,62 @@ async function main() {
       assert.deepEqual(errors, []);
       console.log(
         'PASS Auth browser: supplied four-path brand is black on light and white on dark at phone/desktop sizes in popup/standalone and root/subfolder; actual Login component/CSS, responsive registration and neutral placeholder; shared black headers/actions across login/recovery/reset/account-created states; registration, recovery error/retry, token URL cleanup, reset mismatch/error/retry/success/return-to-login, guest/unverified/resend/stale-response and successful login controls remain intact. Transport is mocked; no accounts, passwords or mail changed on an installed site.'
+      );
+      return;
+    }
+    if (useToastLong) {
+      let cases = 0;
+      const messages = [
+        ['ordinary', 'This is an ordinary notification with several words that should wrap.'],
+        ['IPv6', '2401:4900:8818:93f8:5d9a:2a03:6da7:1409'],
+        ['URL', 'https://example.invalid/' + 'a'.repeat(512)],
+        ['unbroken', 'X'.repeat(512)],
+        ['Unicode', '測試'.repeat(128)],
+        ['emoji', '😀'.repeat(128)],
+      ];
+      for (const base of ['', '/zangetsu']) {
+        await send('Page.navigate', {
+          url: `http://127.0.0.1:${port}${base}/admin/qa-toast`,
+        });
+        await wait('typeof window.__qaToast === "function"');
+        for (const width of [320, 768, 1440]) {
+          await metrics(width, 900);
+          for (const dark of [false, true]) {
+            await evaluate(`document.documentElement.classList.toggle('dark',${dark})`);
+            for (const [label, message] of messages) {
+              for (const kind of ['plain', 'success', 'error']) {
+                await evaluateFunction(
+                  `function(kind,message){window.__qaToast(kind,message);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));}`,
+                  kind,
+                  message
+                );
+                const layout = await evaluate(`(()=>{
+                  const value=document.querySelector('[role="status"]');
+                  if(!value)return null;
+                  const bar=value.parentElement,r=bar.getBoundingClientRect(),t=value.getBoundingClientRect(),style=getComputedStyle(bar);
+                  return {text:value.textContent,inViewport:r.left>=-1&&r.right<=innerWidth+1,textContained:t.left>=r.left-1&&t.right<=r.right+1&&bar.scrollWidth<=bar.clientWidth+1,background:style.backgroundColor,color:style.color,pageOverflow:document.documentElement.scrollWidth>innerWidth+1};
+                })()`);
+                assert.ok(layout, 'Toast message renders');
+                const scenario = `${base || '/'}/${width}/${dark}/${label}/${kind}`;
+                assert.equal(layout.text, message, scenario + ': full text preserved');
+                assert.equal(layout.inViewport, true, scenario + ': toast within viewport');
+                assert.equal(layout.textContained, true, scenario + ': text within toast');
+                assert.equal(layout.pageOverflow, false, scenario + ': no page overflow');
+                assert.equal(layout.background, 'rgb(51, 51, 51)', scenario + ': colour unchanged');
+                assert.equal(
+                  layout.color,
+                  'rgb(255, 255, 255)',
+                  scenario + ': text colour unchanged'
+                );
+                cases += 1;
+              }
+            }
+          }
+        }
+      }
+      assert.deepEqual(errors, []);
+      console.log(
+        `PASS Toast long text: ${cases} real Chrome root/subfolder, phone/tablet/desktop and light/dark cases; actual App Toaster with plain/success/error, IPv6, URL, unbroken text, Unicode and emoji retains text and colours without horizontal overflow. Synthetic messages; no installed data.`
       );
       return;
     }
@@ -8151,6 +8543,7 @@ async function main() {
     }
     if (server) await server.close();
     calendarFixture?.close();
+    activityLiveFixture?.close();
     if (
       path.dirname(profile) === os.tmpdir() &&
       path.basename(profile).startsWith('voncms-navigation-')

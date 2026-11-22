@@ -23,6 +23,7 @@ import {
   isOwnUserProfile,
   isStaffUser,
   getSavedProfileUpdates,
+  redirectAfterProfilePasswordChange,
 } from '../../../utils/profileUtils';
 
 interface PrismProfileProps {
@@ -142,6 +143,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
       const data = await response.json();
 
       if (response.ok && data.success) {
+        if (redirectAfterProfilePasswordChange(payload.new_password)) return;
         const savedUpdates = getSavedProfileUpdates(data.user, {
           display_name: editDisplayName,
           bio: editBio,
@@ -469,7 +471,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
         {/* Right Column: Activity / Posts */}
         <div className="lg:col-span-2">
           {/* Tabs Heading */}
-          <div className="flex gap-8 border-b border-white/10 mb-6">
+          <div className="flex flex-wrap gap-x-8 gap-y-3 border-b border-white/10 mb-6">
             <button
               onClick={() => setActiveTab('articles')}
               className={`pb-4 text-xl font-bold flex items-center gap-2 transition-all relative ${activeTab === 'articles' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
@@ -512,7 +514,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                       className="block bg-[#0a0a1f]/30 border border-white/5 rounded-xl p-5 hover:border-(--color-primary)/30 hover:bg-[#0a0a1f]/60 transition-all cursor-pointer group"
                     >
                       <div className="flex items-start justify-between gap-4">
-                        <div>
+                        <div className="min-w-0 flex-1 wrap-anywhere">
                           <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mb-2">
                             <span className="text-(--color-secondary)">{post.category}</span>
                             <span>//</span>
@@ -530,7 +532,7 @@ const PrismProfile: React.FC<PrismProfileProps> = ({
                           <p className="text-slate-400 text-sm line-clamp-2">{post.excerpt}</p>
                         </div>
                         {post.image && (
-                          <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0 border border-white/10">
+                          <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-lg overflow-hidden shrink-0 border border-white/10">
                             <img
                               {...getResponsiveImageAttributes(post, 'thumbnail96')}
                               alt={post.title}

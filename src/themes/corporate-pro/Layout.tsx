@@ -62,6 +62,7 @@ import {
   getProfileDisplayRole,
   isOwnUserProfile,
   getSavedProfileUpdates,
+  redirectAfterProfilePasswordChange,
 } from '../../utils/profileUtils';
 
 interface ThemeLayoutProps {
@@ -187,6 +188,7 @@ const CorporateProfile: React.FC<{
       const data = await response.json();
 
       if (response.ok && data.success) {
+        if (redirectAfterProfilePasswordChange(payload.new_password)) return;
         const savedUpdates = getSavedProfileUpdates(data.user, {
           display_name: editDisplayName,
           bio: editBio,
@@ -458,7 +460,7 @@ const CorporateProfile: React.FC<{
                   />
                 </div>
                 <div>
-                  <h4 className="font-bold group-hover:text-(--corporate-link) transition line-clamp-2 text-slate-900 dark:text-white">
+                  <h4 className="font-bold group-hover:text-(--corporate-link) transition line-clamp-2 text-slate-900 dark:text-white wrap-anywhere">
                     {decodeEntities(post.title)}
                   </h4>
                   <span className="text-xs text-slate-500">
@@ -1054,7 +1056,7 @@ const CorporateProLayout: React.FC<ThemeLayoutProps> = (props) => {
                           <span>{selectedPost.readTime || '5 min read'}</span>
                         </span>
                       </div>
-                      <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 leading-tight text-slate-900 dark:text-white">
+                      <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-6 leading-tight text-slate-900 dark:text-white wrap-anywhere">
                         {decodeEntities(selectedPost.title)}
                       </h1>
                     </header>

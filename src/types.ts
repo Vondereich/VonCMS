@@ -505,6 +505,7 @@ export interface SiteSettings {
   siteDescription: string;
   siteTagline?: string;
   postsPerPage: number;
+  metaDescriptionLimit?: number;
   maintenanceMode: boolean;
   emailSmtp: string;
   emailFrom?: string;
@@ -514,6 +515,7 @@ export interface SiteSettings {
   smtpPass?: string;
   smtpEncryption?: string;
   smtpFromName?: string;
+  smtpFromEmail?: string;
   ads: AdConfig;
   theme: ThemeConfig;
   activeThemeId?: string;

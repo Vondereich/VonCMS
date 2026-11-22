@@ -163,7 +163,11 @@ if (!function_exists('voncms_resolve_public_redirect')) {
   function voncms_resolve_public_redirect(PDO $pdo, $requestUri, $basePath, $currentHost): ?array
   {
     $path = voncms_normalize_public_redirect_path($requestUri, $basePath);
-    if (voncms_is_public_redirect_ignored_path($path)) {
+    $query = is_string($requestUri) ? (string) (parse_url($requestUri, PHP_URL_QUERY) ?? '') : '';
+    if (
+      voncms_is_explicit_page_id_request($path, $query) ||
+      voncms_is_public_redirect_ignored_path($path)
+    ) {
       return null;
     }
 

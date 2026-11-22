@@ -226,13 +226,15 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   name="generalsettings196"
                   type="file"
                   className="hidden"
-                  accept=".jpg,.jpeg,.png,.gif,.webp,.ico,image/jpeg,image/png,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
+                  accept=".svg,.jpg,.jpeg,.png,.gif,.webp,.ico,image/svg+xml,image/jpeg,image/png,image/gif,image/webp,image/x-icon,image/vnd.microsoft.icon"
                   onChange={(e) => handleFileUpload(e, 'logo')}
                   disabled={uploading === 'logo'}
                 />
               </label>
               <p className="text-xs text-slate-500 mt-2 dark:text-gray-400">
-                Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB.
+                Supported: JPG, PNG, GIF, WebP, or ICO, max 10MB. Static vector SVG: max 1MB; no
+                scripts, animation, embedded content or external resources. Existing theme logo size
+                limits still apply.
                 <br />
                 <span className="text-[10px] opacity-80">
                   Best size: <strong>200x50px</strong> (Landscape) or <strong>64x64px</strong>{' '}
@@ -590,7 +592,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
                   aria-label="SMTP Username / Email"
                   id="generalsettings-491"
                   name="generalsettings491"
-                  type="email"
+                  type="text"
                   value={settings.smtpUser || ''}
                   onChange={(e) => onChange('smtpUser', e.target.value)}
                   className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
@@ -654,6 +656,28 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             </div>
           )}
           {canManageSecrets && (
+            <div className="mt-3">
+              <label
+                htmlFor="smtp-from-email"
+                className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1"
+              >
+                SMTP From Email
+              </label>
+              <input
+                id="smtp-from-email"
+                type="email"
+                value={settings.smtpFromEmail || ''}
+                onChange={(e) => onChange('smtpFromEmail', e.target.value)}
+                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white text-sm"
+                placeholder="sender@example.com"
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                Required for provider usernames such as apikey or SES access keys. Leave empty to
+                keep using an email-address SMTP username as the sender.
+              </p>
+            </div>
+          )}
+          {canManageSecrets && (
             <p className="text-xs text-slate-500 mt-3 dark:text-gray-400">
               Configure SMTP for email verification and notifications. For Gmail, use App Password
               instead of regular password.
@@ -676,6 +700,28 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             onBlur={handlePostsPerPageBlur}
             className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
           />
+        </div>
+        <div className="flex items-center gap-3">
+          {canManageSecrets && (
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Meta Description Limit
+              <input
+                aria-label="Meta Description Limit"
+                id="meta-description-limit"
+                name="metaDescriptionLimit"
+                type="number"
+                min={1}
+                max={250}
+                value={settings.metaDescriptionLimit ?? 160}
+                onChange={(event) => onChange('metaDescriptionLimit', Number(event.target.value))}
+                className="mt-1 w-full p-2.5 rounded-lg border border-slate-300 dark:border-admin-border-strong bg-slate-50 dark:bg-admin-canvas dark:text-white"
+              />
+              <span className="block mt-1 text-xs text-slate-500 dark:text-gray-400">
+                Default 160; maximum 250 characters. Enforced for Post and Page saves. Excerpts
+                remain limited to 220.
+              </span>
+            </label>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <input

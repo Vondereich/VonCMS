@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../security.php';
+require_once __DIR__ . '/../core/SettingsStorage.php';
 require_once __DIR__ . '/settings_audit_helper.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/role_capability_helper.php';
@@ -148,10 +149,12 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
     'smtpPass',
     'smtpEncryption',
     'smtpFromName',
+    'smtpFromEmail',
     'emailSmtp',
     'indexnowEnabled',
     'indexnowKey',
     'domainUrl',
+    'metaDescriptionLimit',
     'adminProfile',
     'sidebarLayout',
     'media',
@@ -168,30 +171,6 @@ function voncms_guard_restricted_settings_for_non_primary_admin(array &$settings
   }
 
   return $ignoredKeys;
-}
-
-/**
- * Apply the public maintenance flag without allowing a silent filesystem failure.
- */
-function voncms_apply_maintenance_flag(string $flagFile, bool $enabled): void
-{
-  $flagDirectory = dirname($flagFile);
-
-  if ($enabled) {
-    if (!is_dir($flagDirectory) && !@mkdir($flagDirectory, 0755, true) && !is_dir($flagDirectory)) {
-      throw new RuntimeException('Maintenance mode storage is unavailable.');
-    }
-
-    $written = @file_put_contents($flagFile, "MAINTENANCE_ON\n", LOCK_EX);
-    if ($written === false || !is_file($flagFile)) {
-      throw new RuntimeException('Maintenance mode could not be enabled.');
-    }
-    return;
-  }
-
-  if (is_file($flagFile) && !@unlink($flagFile) && is_file($flagFile)) {
-    throw new RuntimeException('Maintenance mode could not be disabled.');
-  }
 }
 
 $ignoredSettingsKeys = [];
@@ -234,6 +213,33 @@ if (array_key_exists('smtpEncryption', $settings)) {
     ResponseHelper::sendError('SMTP authentication requires TLS or SSL encryption.', 400);
   }
   $settings['smtpEncryption'] = $smtpEncryption;
+}
+
+if (array_intersect(['smtpHost', 'smtpUser', 'smtpFromEmail'], array_keys($settings)) !== []) {
+  $currentSmtp = voncms_read_settings_mirror($pdo);
+  $smtpIdentity = array_replace($currentSmtp, $settings);
+  $smtpUser = trim(DataBoundary::inputText($smtpIdentity['smtpUser'] ?? ''));
+  $smtpFromEmail = trim(DataBoundary::inputText($smtpIdentity['smtpFromEmail'] ?? ''));
+  if ($smtpFromEmail !== '' && filter_var($smtpFromEmail, FILTER_VALIDATE_EMAIL) === false) {
+    ResponseHelper::sendError('SMTP From Email must be a valid email address.', 400);
+  }
+  if (
+    trim(DataBoundary::inputText($smtpIdentity['smtpHost'] ?? '')) !== '' &&
+    $smtpUser !== '' &&
+    !filter_var($smtpUser, FILTER_VALIDATE_EMAIL) &&
+    $smtpFromEmail === ''
+  ) {
+    ResponseHelper::sendError(
+      'Set SMTP From Email when the SMTP username is not an email address.',
+      400,
+    );
+  }
+  if (strlen($smtpUser) > 320 || preg_match('/[\r\n\0]/', $smtpUser)) {
+    ResponseHelper::sendError('Invalid SMTP username.', 400);
+  }
+  if (array_key_exists('smtpFromEmail', $settings)) {
+    $settings['smtpFromEmail'] = $smtpFromEmail;
+  }
 }
 
 $maintenanceFlagFile = __DIR__ . '/../data/maintenance.flag';
@@ -403,6 +409,63 @@ function voncms_validate_plugin_config_node(mixed $value, int $depth = 0): void
   }
 }
 
+/**
+ * @param array<array-key, mixed> $config
+ * @return array<array-key, mixed>
+ */
+function voncms_normalize_promo_schedule(array $config, string $timeZone): array
+{
+  try {
+    $zone = new DateTimeZone($timeZone);
+  } catch (Throwable $e) {
+    throw new InvalidArgumentException('The announcement timezone is invalid.');
+  }
+  foreach (['startsAt', 'endsAt'] as $key) {
+    if (!array_key_exists($key, $config)) {
+      continue;
+    }
+    if (!is_string($config[$key])) {
+      throw new InvalidArgumentException('Use a valid announcement date and time.');
+    }
+    $value = trim($config[$key]);
+    if ($value === '') {
+      $config[$key] = '';
+      continue;
+    }
+    if (
+      !preg_match(
+        '/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/',
+        $value,
+        $parts,
+      )
+    ) {
+      throw new InvalidArgumentException('Use a valid announcement date and time.');
+    }
+    $format =
+      '!Y-m-d\TH:i' .
+      (isset($parts[3]) && $parts[3] !== '' ? ':s' : '') .
+      (isset($parts[4]) && $parts[4] !== '' ? '.u' : '') .
+      (isset($parts[5]) ? 'P' : '');
+    $date = DateTimeImmutable::createFromFormat($format, str_replace(' ', 'T', $value), $zone);
+    $errors = DateTimeImmutable::getLastErrors();
+    $wallClock = $parts[1] . 'T' . $parts[2] . ':' . (($parts[3] ?? '') !== '' ? $parts[3] : '00');
+    if (
+      $date === false ||
+      ($errors !== false && ($errors['warning_count'] || $errors['error_count'])) ||
+      $date->format('Y-m-d\TH:i:s') !== $wallClock
+    ) {
+      throw new InvalidArgumentException('Use a valid announcement date and time.');
+    }
+    $config[$key] = $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.v\Z');
+  }
+  $start = $config['startsAt'] ?? '';
+  $end = $config['endsAt'] ?? '';
+  if ($start !== '' && $end !== '' && strcmp((string) $end, (string) $start) <= 0) {
+    throw new InvalidArgumentException('The announcement end must be after its start.');
+  }
+  return $config;
+}
+
 if (array_key_exists('activePlugins', $settings)) {
   $settings['activePlugins'] = voncms_normalize_active_plugins($settings['activePlugins']);
 }
@@ -417,6 +480,41 @@ if (array_key_exists('pluginConfig', $settings)) {
   }
 
   voncms_validate_plugin_config_node($settings['pluginConfig']);
+
+  if (isset($settings['pluginConfig']['vp_promo_bar'])) {
+    $promo = $settings['pluginConfig']['vp_promo_bar'];
+    if (!is_array($promo)) {
+      ResponseHelper::sendError('Invalid announcement configuration.', 400);
+    }
+    $storedPromoStmt = $pdo->prepare(
+      "SELECT setting_value FROM settings WHERE setting_group = 'plugins' AND setting_key = 'plugin_config' LIMIT 1",
+    );
+    $storedPromoStmt->execute();
+    $storedPluginsValue = $storedPromoStmt->fetchColumn();
+    $storedPlugins = is_string($storedPluginsValue) ? json_decode($storedPluginsValue, true) : [];
+    $storedPromo = is_array($storedPlugins) ? $storedPlugins['vp_promo_bar'] ?? null : null;
+    if (
+      $promo != $storedPromo &&
+      (array_key_exists('startsAt', $promo) || array_key_exists('endsAt', $promo))
+    ) {
+      $timeZoneStmt = $pdo->prepare(
+        "SELECT setting_value FROM settings WHERE setting_group = 'general' AND setting_key = 'time_zone' LIMIT 1",
+      );
+      $timeZoneStmt->execute();
+      $storedTimeZone = $timeZoneStmt->fetchColumn();
+      $timeZone = DataBoundary::inputText(
+        $settings['timeZone'] ?? (is_string($storedTimeZone) ? $storedTimeZone : 'UTC'),
+      );
+      try {
+        $settings['pluginConfig']['vp_promo_bar'] = voncms_normalize_promo_schedule(
+          $promo,
+          $timeZone,
+        );
+      } catch (InvalidArgumentException $e) {
+        ResponseHelper::sendError($e->getMessage(), 400);
+      }
+    }
+  }
 
   if (isset($settings['pluginConfig']['pluginStatus'])) {
     $pluginStatus = $settings['pluginConfig']['pluginStatus'];
@@ -531,105 +629,6 @@ if (array_key_exists('headerIdentityMode', $settings)) {
 // Remove metadata fields
 unset($settings['_source'], $settings['_access_level'], $settings['_warning']);
 
-/** SMTP fallback remains private; AI/IndexNow credentials have no mirror consumer.
- * @param array<array-key, mixed> $settings
- * @return array<array-key, mixed>
- */
-function voncms_filter_settings_mirror(array $settings): array
-{
-  foreach ($settings as $key => $value) {
-    if (
-      in_array(
-        strtolower(str_replace('_', '', (string) $key)),
-        ['aiapikey', 'indexnowkey', 'encryptstoredaikey', 'replaceaikey', 'aikeystorage'],
-        true,
-      )
-    ) {
-      unset($settings[$key]);
-    } elseif (is_array($value)) {
-      $settings[$key] = voncms_filter_settings_mirror($value);
-    }
-  }
-  return $settings;
-}
-
-/** @param array<array-key, mixed> $settingsForFile */
-function voncms_write_settings_json_mirror(string $settingsFile, array $settingsForFile): void
-{
-  $settingsDir = dirname($settingsFile);
-  if (!is_dir($settingsDir) && !mkdir($settingsDir, 0755, true) && !is_dir($settingsDir)) {
-    throw new Exception('Could not create settings data directory.');
-  }
-
-  $json = json_encode(
-    voncms_filter_settings_mirror($settingsForFile),
-    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-  );
-
-  if ($json === false || strlen($json) <= 2) {
-    throw new Exception('Could not encode settings mirror JSON.');
-  }
-
-  $tempFile = $settingsFile . '.' . bin2hex(random_bytes(6)) . '.tmp';
-
-  try {
-    // Create empty private staging before writing any credential bytes.
-    $previousUmask = umask(0077);
-    try {
-      $handle = fopen($tempFile, 'x+b');
-    } finally {
-      umask($previousUmask);
-    }
-    if ($handle === false) {
-      throw new Exception('Could not create private settings mirror.');
-    }
-    try {
-      if (!chmod($tempFile, 0600)) {
-        throw new Exception('Could not protect settings mirror.');
-      }
-      $written = 0;
-      while ($written < strlen($json)) {
-        $bytes = fwrite($handle, substr($json, $written));
-        if ($bytes === false || $bytes === 0) {
-          throw new Exception('Incomplete settings mirror write.');
-        }
-        $written += $bytes;
-      }
-      if (!fflush($handle)) {
-        throw new Exception('Could not flush settings mirror.');
-      }
-    } finally {
-      fclose($handle);
-    }
-    if (file_exists($settingsFile) && !chmod($settingsFile, 0600)) {
-      throw new Exception('Could not protect existing settings mirror.');
-    }
-    // Do not copy secret bytes into a potentially public destination on rename failure.
-    if (!rename($tempFile, $settingsFile)) {
-      throw new Exception('Failed to commit private settings mirror.');
-    }
-  } finally {
-    if (file_exists($tempFile)) {
-      @unlink($tempFile);
-    }
-  }
-}
-
-/** @param array<array-key, mixed> $settingsForFile
- * @return array<array-key, mixed>
- */
-function voncms_prepare_settings_domain_mirror(array $settingsForFile, string $domainUrl): array
-{
-  $settingsForFile['domainUrl'] = rtrim(trim($domainUrl), '/');
-  if (isset($settingsForFile['system']) && is_array($settingsForFile['system'])) {
-    unset($settingsForFile['system']['domainUrl']);
-    if ($settingsForFile['system'] === []) {
-      unset($settingsForFile['system']);
-    }
-  }
-  return $settingsForFile;
-}
-
 /** @param array<array-key, mixed> $settings */
 function voncms_preserve_admin_profile_email_placeholder(PDO $pdo, array &$settings): void
 {
@@ -672,6 +671,32 @@ function voncms_scrub_admin_profile_avatar(array &$settings): void
   );
 }
 
+/** Masked read values are never new data. Only theme placeholders can retain the
+ * same existing path; unknown secrets remain masked and cannot become stored placeholders.
+ * @param array<array-key, mixed> $incoming
+ * @param array<array-key, mixed> $stored
+ * @return array<array-key, mixed>
+ */
+function voncms_preserve_theme_placeholders(array $incoming, array $stored): array
+{
+  foreach ($incoming as $key => $value) {
+    if ($value === '******** (PROTECTED)') {
+      if (!array_key_exists($key, $stored)) {
+        throw new InvalidArgumentException(
+          'A protected theme field is unavailable. Reload Settings before saving.',
+        );
+      }
+      $incoming[$key] = $stored[$key];
+    } elseif (is_array($value)) {
+      $incoming[$key] = voncms_preserve_theme_placeholders(
+        $value,
+        is_array($stored[$key] ?? null) ? $stored[$key] : [],
+      );
+    }
+  }
+  return $incoming;
+}
+
 $apiCredentialFailureStatus = null;
 try {
   $pdo->beginTransaction();
@@ -696,72 +721,7 @@ try {
   $savedApiConfig = null;
 
   // Map settings to database structure
-  $mappings = [
-    // General
-    ['siteName', 'general', 'site_name', 'string'],
-    ['siteDescription', 'general', 'site_description', 'string'],
-    ['siteTagline', 'general', 'site_tagline', 'string'],
-    ['site_language', 'general', 'site_language', 'string'],
-    ['postsPerPage', 'general', 'posts_per_page', 'number'],
-    ['maintenanceMode', 'general', 'maintenance_mode', 'boolean'],
-    ['emailSmtp', 'general', 'email_smtp', 'string'],
-    ['logoUrl', 'general', 'logo_url', 'string'],
-    ['headerIdentityMode', 'general', 'header_identity_mode', 'string'],
-    ['useLogoAsTitle', 'general', 'use_logo_as_title', 'boolean'],
-    ['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean'],
-    ['faviconUrl', 'general', 'favicon_url', 'string'],
-    ['ogImageUrl', 'general', 'og_image_url', 'string'], // Social Share Image
-    ['ogImageSquareUrl', 'general', 'og_image_square_url', 'string'], // Social Share Square (WhatsApp)
-    ['discussionEnabled', 'general', 'discussion_enabled', 'boolean'],
-    ['registrationEnabled', 'general', 'registration_enabled', 'boolean'],
-    ['permalinkStructure', 'general', 'permalink_structure', 'string'],
-    ['spamKeywords', 'general', 'spam_keywords', 'string'],
-    ['domainUrl', 'general', 'domain_url', 'string'],
-    ['timeZone', 'general', 'time_zone', 'string'],
-    ['dateFormat', 'general', 'date_format', 'string'],
-    ['adminPalette', 'general', 'admin_palette', 'string'],
-    // SMTP Settings
-    ['smtpHost', 'smtp', 'smtpHost', 'string'],
-    ['smtpPort', 'smtp', 'smtpPort', 'number'],
-    ['smtpUser', 'smtp', 'smtpUser', 'string'],
-    ['smtpPass', 'smtp', 'smtpPass', 'string'],
-    ['smtpEncryption', 'smtp', 'smtpEncryption', 'string'],
-    ['smtpFromName', 'smtp', 'smtpFromName', 'string'],
-    // Share Settings
-    ['shareScript', 'share', 'shareScript', 'string'],
-    ['sharePlacement', 'share', 'share_placement', 'string'],
-    // Contact Settings
-    ['contactForms', 'contact', 'forms', 'json'],
-    // SEO & API
-    ['api', 'api', 'config', 'json'],
-    ['seo', 'seo', 'site_config', 'json'],
-    // IndexNow (Instant Indexing)
-    ['indexnowEnabled', 'seo', 'indexnow_enabled', 'boolean'],
-    ['indexnowKey', 'seo', 'indexnow_key', 'string'],
-    // Theme
-    ['activeThemeId', 'theme', 'active_theme_id', 'string'],
-    ['theme', 'theme', 'customization', 'json'],
-    // Navigation & Sidebar
-    ['navigation', 'navigation', 'menu_items', 'json'],
-    ['sidebarLayout', 'sidebar', 'layout', 'json'],
-    ['shareTemplates', 'share', 'templates', 'json'],
-    // Categories
-    ['categories', 'content', 'categories', 'json'],
-    // Plugins
-    ['activePlugins', 'plugins', 'active_plugins', 'json'],
-    ['customPlugins', 'plugins', 'custom_plugins', 'json'],
-    ['pluginConfig', 'plugins', 'plugin_config', 'json'],
-    // Footer
-    ['footerLinks', 'footer', 'links', 'json'],
-    // Admin Profile
-    ['adminProfile', 'general', 'admin_profile', 'json'],
-    // Ads Settings
-    ['ads', 'ads', 'ads_config', 'json'],
-    // Newsletter Settings
-    ['newsletter', 'newsletter', 'newsletter_config', 'json'],
-    // Analytics (Modern)
-    ['analytics', 'analytics', 'config', 'json'],
-  ];
+  $mappings = voncms_settings_mappings();
 
   foreach ($mappings as $mapping) {
     [$jsonKey, $group, $dbKey, $type] = $mapping;
@@ -775,6 +735,22 @@ try {
 
       if ($jsonKey === 'postsPerPage') {
         $value = max(6, min(50, DataBoundary::inputInt($value)));
+      }
+
+      if ($jsonKey === 'metaDescriptionLimit') {
+        $limit = is_int($value)
+          ? $value
+          : (is_string($value)
+            ? filter_var($value, FILTER_VALIDATE_INT)
+            : false);
+        if (!is_int($limit) || $limit < 1 || $limit > 250) {
+          ResponseHelper::sendError(
+            'Meta description limit must be a whole number from 1 to 250.',
+            400,
+          );
+        }
+        $value = $limit;
+        $settings[$jsonKey] = $limit;
       }
 
       if ($jsonKey === 'spamKeywords') {
@@ -794,7 +770,20 @@ try {
       }
 
       if ($jsonKey === 'theme' && is_array($value)) {
+        $themeStmt = $pdo->prepare(
+          "SELECT setting_value FROM settings WHERE setting_group = 'theme' AND setting_key = 'customization' FOR UPDATE",
+        );
+        $themeStmt->execute();
+        $storedTheme = $themeStmt->fetchColumn();
+        $storedTheme = is_string($storedTheme)
+          ? json_decode($storedTheme, true, 512, JSON_THROW_ON_ERROR)
+          : [];
+        $value = voncms_preserve_theme_placeholders(
+          $value,
+          is_array($storedTheme) ? $storedTheme : [],
+        );
         $value = voncms_remove_confirmed_legacy_theme_customizations($value);
+        $settings['theme'] = $value;
       }
 
       if ($jsonKey === 'navigation' && is_array($value)) {

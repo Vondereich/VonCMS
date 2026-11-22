@@ -151,6 +151,9 @@ mkdir($temp);
 $checkingImageDeprecations = false;
 try {
   eval(declaration($root . '/public/security.php', 'class CSRFProtection'));
+  // Token generation now ensures a native session; keep its storage isolated.
+  session_save_path($temp);
+  session_start();
   $savedRequestState = [$_SERVER, $_POST, $_SESSION ?? []];
   $csrfInput = new ReflectionProperty(CSRFProtection::class, 'cachedInput');
   $_SESSION = [];
@@ -642,6 +645,105 @@ try {
   $generateProbe = Closure::fromCallable('GeminiHeaderProbe\\voncms_ai_generate_with_fallback');
   $success = ['status' => 200, 'body' => '{"candidates":[]}'];
   foreach (
+    [
+      [
+        400,
+        ['status' => 'INVALID_ARGUMENT', 'details' => [['reason' => 'API_KEY_INVALID']]],
+        'AI_AUTH_FAILED',
+      ],
+      [
+        400,
+        ['status' => 'INVALID_ARGUMENT', 'details' => [['reason' => 'INVALID_FIELD']]],
+        'AI_PROVIDER_ERROR',
+      ],
+      [400, ['status' => 'INVALID_ARGUMENT', 'details' => 'API_KEY_INVALID'], 'AI_PROVIDER_ERROR'],
+      [400, ['details' => [null, 'API_KEY_INVALID', ['reason' => []]]], 'AI_PROVIDER_ERROR'],
+      [401, [], 'AI_AUTH_FAILED'],
+      [403, [], 'AI_AUTH_FAILED'],
+      [429, [], 'AI_QUOTA_EXCEEDED'],
+    ]
+    as [$status, $error, $expected]
+  ) {
+    $GLOBALS['gemini_calls'] = [];
+    $GLOBALS['gemini_responses'] = [
+      ['status' => $status, 'body' => json_encode(['error' => $error])],
+      $success,
+    ];
+    $result = $generateProbe('qa-fake-personal-key', 'gemini-3.8-flash', ['contents' => []], 12);
+    check(
+      !$result['ok'] && $result['error_code'] === $expected,
+      'Gemini error classification: ' . $expected,
+    );
+    check(
+      count($GLOBALS['gemini_calls']) === 1 && !$result['fallback_used'],
+      'Gemini errors must not silently retry another credential or model.',
+    );
+  }
+  loadFunction('public/api/save_settings.php', 'voncms_normalize_promo_schedule');
+  foreach (
+    [
+      ['UTC', '2099-12-31T09:00', '2099-12-31T09:00:00.000Z'],
+      ['Asia/Kuala_Lumpur', '2099-12-31T09:00Z', '2099-12-31T09:00:00.000Z'],
+      ['Asia/Kuala_Lumpur', '2099-12-31 09:00:00', '2099-12-31T01:00:00.000Z'],
+      ['America/New_York', '2099-12-31T09:00', '2099-12-31T14:00:00.000Z'],
+      ['Asia/Kuala_Lumpur', '2099-12-31T09:00:00Z', '2099-12-31T09:00:00.000Z'],
+      ['UTC', '2099-12-31T09:00:00.123+08:00', '2099-12-31T01:00:00.123Z'],
+    ]
+    as [$zone, $raw, $expected]
+  ) {
+    $config = ['startsAt' => $raw, 'text' => 'Keep campaign content'];
+    $normalized = voncms_normalize_promo_schedule($config, $zone);
+    check(
+      $normalized['startsAt'] === $expected && $normalized['text'] === $config['text'],
+      'Announcement timezone or content changed.',
+    );
+    check($config['startsAt'] === $raw, 'Announcement normalization mutated its input.');
+  }
+  foreach (
+    [
+      '31/12/2099 09:00',
+      '2099-02-31T09:00',
+      '2099-12-31T25:00',
+      '2099-12-31T09:00+24:00',
+      '2099-12-31T09:00+08:60',
+      'garbage',
+      null,
+      [],
+      true,
+    ]
+    as $raw
+  ) {
+    check(
+      rejected(fn() => voncms_normalize_promo_schedule(['startsAt' => $raw], 'UTC')),
+      'Invalid announcement date accepted.',
+    );
+  }
+  check(
+    rejected(
+      fn() => voncms_normalize_promo_schedule(
+        ['startsAt' => '2026-03-08T02:30'],
+        'America/New_York',
+      ),
+    ),
+    'Nonexistent DST wall-clock time accepted.',
+  );
+  check(
+    rejected(
+      fn() => voncms_normalize_promo_schedule(
+        ['startsAt' => '2099-12-31T10:00Z', 'endsAt' => '2099-12-31T09:00Z'],
+        'UTC',
+      ),
+    ),
+    'Inverted announcement window accepted.',
+  );
+  check(
+    voncms_normalize_promo_schedule(['startsAt' => '', 'endsAt' => ''], 'UTC') === [
+      'startsAt' => '',
+      'endsAt' => '',
+    ],
+    'Optional announcement schedule must remain optional.',
+  );
+  foreach (
     [[$success], [['status' => 404, 'body' => '{"error":{"status":"NOT_FOUND"}}'], $success]]
     as $responses
   ) {
@@ -842,6 +944,10 @@ try {
       'requireCompatibleImportSqlMode',
       'isSqlQuoteEscaped',
       'iterateSqlStatementsFromFile',
+      'getImportCreateDefinitions',
+      'decodeImportIdentifier',
+      'getImportGeneratedColumns',
+      'requireImportWritableColumns',
     ]
     as $name
   ) {
@@ -866,6 +972,12 @@ try {
     [
       'CREATE TABLE x (n INT) SELECT id FROM users',
       'CREATE TABLE x (n INT) AS SELECT id FROM users',
+      "CREATE TABLE x (n INT) ENGINE=FEDERATED CONNECTION='mysql://remote/table'",
+      'CREATE TABLE x (n INT) ENGINE FEDERATED',
+      'CREATE TABLE x (n INT) ENGINE=InnoDB ENGINE=FEDERATED',
+      "CREATE TABLE x (n INT) ENGINE=CONNECT FILE_NAME='/private/file'",
+      'CREATE TABLE x (n INT) ENGINE=MRG_MyISAM UNION=(other.items)',
+      'CREATE TABLE x (n INT, FOREIGN KEY(n) REFERENCES `other`.`items`(id))',
       'INSERT INTO posts (title) VALUES ((SELECT password FROM users LIMIT 1))',
       "INSERT INTO posts (title) VALUES (LOAD_FILE('/etc/passwd'))",
       "INSERT INTO posts (title) VALUES ('ok') ON DUPLICATE KEY UPDATE title='changed'",
@@ -881,6 +993,8 @@ try {
       "INSERT /* harmless */ INTO posts (title) VALUES ('ok')",
       "-- VonCMS backup\nINSERT INTO posts (title) VALUES ('multiline\ntext'), (NULL)",
       "CREATE TABLE x (n INT, title VARCHAR(255) DEFAULT 'SELECT') ENGINE=InnoDB",
+      'CREATE TABLE x (engine INT, n INT) ENGINE=InnoDB',
+      "CREATE TABLE x (n INT, title VARCHAR(255) COMMENT 'CONNECTION UNION FILE_NAME', FOREIGN KEY(n) REFERENCES local_items(id)) ENGINE=InnoDB",
       'CREATE TABLE ' . chr(96) . 'select' . chr(96) . ' (n INT)',
       'SET FOREIGN_KEY_CHECKS=0',
       'DROP TABLE IF EXISTS posts',
@@ -889,6 +1003,29 @@ try {
   ) {
     check(getAllowedImportStatementType($sql) !== '', 'Trusted backup rejected: ' . $sql);
   }
+  $generated = getImportGeneratedColumns([
+    "CREATE TABLE `posts` (`id` INT, `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, `text` VARCHAR(100) DEFAULT 'GENERATED ALWAYS AS (1)', `cast_value` INT DEFAULT (CAST('1' AS SIGNED)), `virtual_value` INT GENERATED ALWAYS AS (id + 1) VIRTUAL, `stored_value` INT AS (0) STORED)",
+  ]);
+  check(
+    $generated === ['posts' => ['virtual_value', 'stored_value']],
+    'Generated column preflight confused defaults or stored timestamps',
+  );
+  foreach (['virtual_value', 'stored_value'] as $column) {
+    check(
+      rejected(
+        fn() => requireImportWritableColumns(
+          'INSERT INTO `POSTS` (`id`, `' . $column . '`) VALUES (1,0)',
+          $generated,
+        ),
+      ),
+      'Legacy generated value was accepted',
+    );
+  }
+  requireImportWritableColumns(
+    "INSERT INTO posts (id, created_at, text) VALUES (1,'2001-01-01','ordinary')",
+    $generated,
+  );
+  check(true, 'Ordinary native INSERT accepted');
   foreach (
     [
       ["VALUES ('first','second'),(7,'third')", 'VALUES (0,0),(7,0)'],
@@ -1132,6 +1269,78 @@ try {
     'Independent IPv6 subnets combined.',
   );
   $registrationLedger = $temp . '/' . md5('registration-ledger:v1') . '.json';
+  $placement = new ReflectionMethod(RateLimiter::class, 'submissionShardIdentity');
+  $firstIdentity = 'contact:' . RateLimiter::normalizeLoginAddress('2001:db8:abcd:1::1');
+  $firstPlacement = $placement->invoke(null, $firstIdentity);
+  $firstShard = hash('sha256', $firstPlacement)[0];
+  check(
+    $firstPlacement ===
+      $placement->invoke(
+        null,
+        'contact:' . RateLimiter::normalizeLoginAddress('2001:db8:abcd:ffff::1'),
+      ),
+    'One IPv6 /48 can select multiple submission shards',
+  );
+  $fullSubmission = [];
+  for ($i = 0; $i < 4096; $i++) {
+    $fullSubmission[hash('sha256', 'synthetic-capacity:' . $i)] = [
+      'attempts' => 1,
+      'window_started_at' => time(),
+      'window_seconds' => 900,
+    ];
+  }
+  $submissionLedger = $temp . '/' . md5('submission-contact-ledger:v2:' . $firstShard) . '.json';
+  file_put_contents($submissionLedger, json_encode($fullSubmission));
+  check(
+    !RateLimiter::consumeAttempt('contact:2001:db8:abcd:1::1'),
+    'Saturated submission shard exceeded its bound',
+  );
+  for ($i = 1; $i < 256; $i++) {
+    $other = 'contact:2001:db8:' . dechex($i) . ':1::1';
+    $normalized =
+      'contact:' . RateLimiter::normalizeLoginAddress(substr($other, strlen('contact:')));
+    if (hash('sha256', $placement->invoke(null, $normalized))[0] !== $firstShard) {
+      break;
+    }
+  }
+  check(
+    RateLimiter::consumeAttempt($other),
+    'One saturated /48 blocked all other submission shards',
+  );
+  check(
+    RateLimiter::consumeAttempt('newsletter:2001:db8:abcd:1::1'),
+    'Contact saturation affected newsletter',
+  );
+  check(
+    RateLimiter::consumeAttempt('comment:user:785'),
+    'Guest submission capacity affected authenticated comments',
+  );
+  $legacyIdentity = 'comment:user:786';
+  $legacyCommentFile = $temp . '/' . md5('submission-comment-ledger:v1') . '.json';
+  file_put_contents(
+    $legacyCommentFile,
+    json_encode([
+      hash('sha256', $legacyIdentity) => [
+        'attempts' => 5,
+        'window_started_at' => time(),
+        'window_seconds' => 900,
+      ],
+    ]),
+  );
+  check(
+    !RateLimiter::consumeAttempt($legacyIdentity),
+    'Submission upgrade reset an active legacy member quota',
+  );
+  unlink($legacyCommentFile);
+  foreach ($fullSubmission as &$bucket) {
+    $bucket['window_started_at'] = time() - 901;
+  }
+  unset($bucket);
+  file_put_contents($submissionLedger, json_encode($fullSubmission));
+  check(
+    RateLimiter::consumeAttempt('contact:2001:db8:abcd:1::1'),
+    'Expired submission capacity was not reclaimed',
+  );
   $registrationFilesBefore = glob($temp . '/*.json') ?: [];
   for ($i = 1; $i <= 32; $i++) {
     $identifier =
@@ -1537,7 +1746,7 @@ try {
   );
 
   foreach (['voncms_filter_settings_mirror', 'voncms_write_settings_json_mirror'] as $name) {
-    loadFunction('public/api/save_settings.php', $name);
+    loadFunction('public/core/SettingsStorage.php', $name);
   }
   $settings = [
     'smtpHost' => 'mail.example.test',
@@ -1555,7 +1764,8 @@ try {
     'Unused secrets survive mirror.',
   );
   check(
-    $mirror['smtpPass'] === 'legacy-password' &&
+    !isset($mirror['smtpPass']) &&
+      $mirror['smtpHost'] === 'mail.example.test' &&
       $mirror['api']['enabled'] === false &&
       $mirror['zero'] === 0 &&
       $mirror['items'] === [],
@@ -1762,6 +1972,77 @@ try {
   imagejpeg($image, $temp . '/plain.jpg', 100);
   unset($image);
   $jpeg = file_get_contents($temp . '/plain.jpg');
+  $gpsTiff =
+    'II' . pack('vV', 42, 8) . pack('v', 1) . pack('vvVV', 0x8825, 4, 1, 26) . pack('V', 0);
+  $gpsTiff .=
+    pack('v', 4) .
+    pack('vvV', 1, 2, 2) .
+    "N\0\0\0" .
+    pack('vvVV', 2, 5, 3, 80) .
+    pack('vvV', 3, 2, 2) .
+    "E\0\0\0" .
+    pack('vvVV', 4, 5, 3, 104) .
+    pack('V', 0) .
+    pack('V*', 3, 1, 8, 1, 0, 1, 101, 1, 41, 1, 0, 1);
+  $gpsExif = "Exif\0\0" . $gpsTiff;
+  $gpsJpeg =
+    substr($jpeg, 0, 2) .
+    "\xff\xe1" .
+    pack('n', strlen($gpsExif) + 2) .
+    $gpsExif .
+    substr($jpeg, 2);
+  $oldMemoryLimit = ini_get('memory_limit');
+  ini_set('memory_limit', '128M');
+  foreach (['plain' => $jpeg, 'gps' => $gpsJpeg] as $kind => $bytes) {
+    $sof = strpos($bytes, "\xff\xc0");
+    check($sof !== false, 'Synthetic JPEG fixture has no SOF');
+    $largeBytes = substr_replace($bytes, pack('nn', 3000, 4000), $sof + 5, 4);
+    $path = $temp . '/large-' . $kind . '.jpg';
+    file_put_contents($path, $largeBytes);
+    $result = (new ImageProcessor(['generateResponsiveVariants' => false]))->processUpload($path);
+    check($result['success'], 'Valid large JPEG must remain accepted without re-encoding');
+    check(
+      $kind === 'plain'
+        ? file_get_contents($path) === $largeBytes
+        : empty(exif_read_data($path, null, true)['GPS']),
+      'Memory fallback changed plain pixels or kept GPS',
+    );
+    if ($kind === 'gps') {
+      check(
+        strpos(file_get_contents($path), "Exif\0\0") === false,
+        'GPS metadata block remains after cleanup',
+      );
+    }
+  }
+  file_put_contents($temp . '/small-gps.jpg', $gpsJpeg);
+  $result = (new ImageProcessor(['generateResponsiveVariants' => false]))->processUpload(
+    $temp . '/small-gps.jpg',
+  );
+  check(
+    $result['success'] && empty(exif_read_data($temp . '/small-gps.jpg', 'GPS', true)['GPS']),
+    'Normal GPS JPEG must be processed and lose GPS metadata',
+  );
+  $orientationExif =
+    "Exif\0\0II" . pack('vVv', 42, 8, 1) . pack('vvVv', 0x0112, 3, 1, 6) . "\0\0" . pack('V', 0);
+  $orientationJpeg =
+    substr($jpeg, 0, 2) .
+    "\xff\xe1" .
+    pack('n', strlen($orientationExif) + 2) .
+    $orientationExif .
+    substr($jpeg, 2);
+  $sof = strpos($orientationJpeg, "\xff\xc0");
+  $orientationJpeg = substr_replace($orientationJpeg, pack('nn', 3000, 4000), $sof + 5, 4);
+  file_put_contents($temp . '/large-orientation.jpg', $orientationJpeg);
+  $result = (new ImageProcessor(['generateResponsiveVariants' => false]))->processUpload(
+    $temp . '/large-orientation.jpg',
+  );
+  check(
+    $result['success'] &&
+      file_get_contents($temp . '/large-orientation.jpg') === $orientationJpeg &&
+      exif_read_data($temp . '/large-orientation.jpg')['Orientation'] === 6,
+    'Location-free fallback lost orientation metadata',
+  );
+  ini_set('memory_limit', $oldMemoryLimit);
   foreach (range(1, 8) as $orientation) {
     $tiff =
       'II' .
@@ -1816,6 +2097,9 @@ try {
   }
   echo "PASS security hardening: $checks assertions\n";
 } finally {
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+  }
   if ($checkingImageDeprecations) {
     restore_error_handler();
   }

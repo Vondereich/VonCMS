@@ -1958,7 +1958,7 @@ try {
 
     // Unsupported types and attachments returned above; only Post/Page reach this block.
     $title = mb_substr(trim((string) $sxe->title), 0, 255);
-    if (empty($slug)) {
+    if ($slug === '') {
       $slug = sanitize_title($title);
     }
     $slug = mb_substr(trim(sanitize_title($slug), '-'), 0, 255);

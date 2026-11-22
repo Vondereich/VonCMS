@@ -10,6 +10,7 @@ import { applyAdminPalette, normalizeAdminPalette } from '../../utils/adminPalet
 import {
   Gauge,
   ScrollText,
+  History,
   Files,
   Images,
   MessagesSquare,
@@ -33,7 +34,6 @@ import {
   NotebookTabs,
   Puzzle,
   Activity,
-  PenTool,
   ChevronDown,
   CirclePlus,
   FilePenLine,
@@ -296,6 +296,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       group: 'monitoring',
     },
     {
+      icon: <History size={20} />,
+      label: 'Activity Log',
+      path: '/admin/activity',
+      color: '#94a3b8',
+      allowedRoles: ['Admin'],
+      requiresPrimaryAdmin: true,
+      group: 'monitoring',
+    },
+    {
       icon: <SlidersHorizontal size={20} />,
       label: 'Settings',
       path: '/admin/settings',
@@ -311,19 +320,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({
       requiresPrimaryAdmin: true,
     },
   ];
-
-  // Inject Von Designer menu item if plugin is active
-  if (settings?.activePlugins?.includes('von-designer')) {
-    // Insert before "Users" or "Extensions" usually
-    // Let's put it after "Comments" (index 6) or before "Users"
-    menuItems.splice(7, 0, {
-      icon: <PenTool size={20} />,
-      label: 'Designer',
-      path: '/admin/designer', // Dashboard view for Designer
-      color: '#2dd4bf', // Teal 400
-      allowedRoles: ['Admin', 'Moderator'],
-    });
-  }
 
   // Filter menu items based on user role - Case Insensitive
   const isPrimaryAdmin = rawUserRole === 'root' || String(user?.id || '') === '1';

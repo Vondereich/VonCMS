@@ -6,6 +6,7 @@ import { Comment, User, SiteSettings } from '../../../../../types';
 import { MessageCircle, CornerDownRight, ThumbsUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, getPublicProfileHref } from '../../../../../utils/siteUtils';
 import { handleCrawlableLinkClick } from '../../../../../utils/linkEvents';
+import { getErrorMessage } from '../../../../../utils/api';
 
 // Utility to render User Avatar locally within component
 const UserAvatar: React.FC<{
@@ -139,25 +140,27 @@ export const VpComments: React.FC<CommentsProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newComment.trim()) {
+      const submittedContent = newComment;
       try {
-        await onAddComment(newComment);
-        setNewComment('');
+        await onAddComment(submittedContent);
+        setNewComment((current) => (current === submittedContent ? '' : current));
       } catch (err) {
         console.error('Failed to add comment', err);
-        toast.error('Failed to post comment');
+        toast.error(getErrorMessage(err, 'Failed to post comment'));
       }
     }
   };
 
   const handleReplySubmit = async (commentId: string) => {
     if (replyContent.trim()) {
+      const submittedContent = replyContent;
       try {
-        await onReplyComment(commentId, replyContent);
-        setReplyingTo(null);
-        setReplyContent('');
+        await onReplyComment(commentId, submittedContent);
+        setReplyingTo((current) => (current === commentId ? null : current));
+        setReplyContent((current) => (current === submittedContent ? '' : current));
       } catch (err) {
         console.error('Failed to post reply', err);
-        toast.error('Failed to post reply');
+        toast.error(getErrorMessage(err, 'Failed to post reply'));
       }
     }
   };

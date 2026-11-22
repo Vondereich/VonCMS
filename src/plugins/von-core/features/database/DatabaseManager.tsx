@@ -125,6 +125,11 @@ const DatabaseManager: React.FC = () => {
           ? ` Safety backup: ${data.safetyBackup.filename}`
           : '';
         toast.success(`Import successful! ${data.message}${backupNote}`);
+        if (data.repairRequired) {
+          window.alert(
+            'Import completed. Run Database Repair to refresh publication capabilities before checking public dates. Do not repeat the import.'
+          );
+        }
         // Refresh tables list
         window.location.reload();
         return;

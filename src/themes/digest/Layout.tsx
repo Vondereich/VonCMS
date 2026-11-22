@@ -84,6 +84,7 @@ import {
   getProfileDisplayRole,
   isOwnUserProfile,
   getSavedProfileUpdates,
+  redirectAfterProfilePasswordChange,
 } from '../../utils/profileUtils';
 
 // ==========================================
@@ -761,6 +762,7 @@ const DigestProfile: React.FC<{
       const data = await response.json();
 
       if (response.ok && data.success) {
+        if (redirectAfterProfilePasswordChange(payload.new_password)) return;
         const savedUpdates = getSavedProfileUpdates(data.user, {
           display_name: editDisplayName,
           bio: editBio,
@@ -1404,11 +1406,11 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
       }}
     >
       <div className="max-w-7xl mx-auto px-5 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           {/* Logo & Site Info */}
           <a
             href={getPublicHomeHref()}
-            className="flex items-center gap-3 cursor-pointer"
+            className="min-w-0 flex items-center gap-3 cursor-pointer"
             onClick={(event) => handleCrawlableLinkClick(event, handleReturnHome)}
           >
             {headerIdentity.showUploadedLogo ? (
@@ -1417,6 +1419,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                 alt={settings.siteName}
                 useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                 invertLogoInDarkMode={settings.invertLogoInDarkMode}
+                className="min-w-0 shrink!"
               />
             ) : headerIdentity.showFallbackMark ? (
               <VonLogo variant="default" className="w-10! h-10! mr-0!" />
@@ -1502,7 +1505,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           </nav>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
@@ -1715,7 +1718,7 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
                     colors={colors}
                   />
                   <h1
-                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mt-4 mb-6 leading-tight"
+                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mt-4 mb-6 leading-tight wrap-anywhere"
                     style={{ color: colors.text }}
                   >
                     {decodeEntities(selectedPost.title)}
@@ -2222,6 +2225,10 @@ const DigestLayout: React.FC<ThemeLayoutProps> = ({
           </div>
         ) : isSearching ? (
           <PublicDiscoverySkeleton />
+        ) : publicPosts.error ? (
+          <p role="alert" className="py-12 text-center text-sm" style={{ color: colors.textMuted }}>
+            {publicPosts.error}
+          </p>
         ) : (
           <div className="text-center py-20">
             <p className="text-lg" style={{ color: colors.textMuted }}>

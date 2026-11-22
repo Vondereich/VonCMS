@@ -91,6 +91,32 @@ if (in_array('--backup-mysql', $argv, true)) {
       'CREATE TABLE items (id INT PRIMARY KEY, body LONGTEXT, note TEXT NULL, number_value INT)',
     );
     $db->exec('CREATE TABLE empty_items (id INT PRIMARY KEY)');
+    $installer = file_get_contents($root . '/public/api/install.php');
+    foreach (['users', 'posts', 'pages'] as $table) {
+      check(
+        preg_match(
+          '/CREATE TABLE IF NOT EXISTS ' . $table . ' \(.*?\) ENGINE=InnoDB[^;\"]*/s',
+          $installer,
+          $ddl,
+        ) === 1,
+        'Installer table missing',
+      );
+      $db->exec($ddl[0]);
+    }
+    $db->exec(
+      'ALTER TABLE posts ADD COLUMN listing_at DATETIME GENERATED ALWAYS AS (COALESCE(published_at, scheduled_at, created_at)) VIRTUAL',
+    );
+    $db->exec('ALTER TABLE posts ADD COLUMN stored_zero INT GENERATED ALWAYS AS (0) STORED');
+    $db->exec(
+      "INSERT INTO users(username,email,password,created_at) VALUES ('backup-qa','qa@example.invalid','fixture only','2001-02-03 04:05:06')",
+    );
+    $db->exec(
+      "INSERT INTO posts(title,slug,status,author_id,published_at,created_at,updated_at) VALUES ('Restore QA','restore-qa','published',1,'2002-03-04 05:06:07','2001-02-03 04:05:06','2003-04-05 06:07:08')",
+    );
+    $db->exec(
+      "INSERT INTO pages(title,slug,status,author_id,published_at,created_at,updated_at) VALUES ('Restore Page QA','restore-page-qa','published',1,'2002-03-04 05:06:07','2001-02-03 04:05:06','2003-04-05 06:07:08')",
+    );
+    $nativeBefore = $db->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC);
     $insert = $db->prepare('INSERT INTO items VALUES (?, ?, ?, ?)');
     $body =
       'QA_ROW_FAIL_MARKER ' .
@@ -103,10 +129,30 @@ if (in_array('--backup-mysql', $argv, true)) {
     $backupSource = getenv('VONCMS_BACKUP_TEST_SOURCE') ?: $root . '/public/api/backup_db.php';
     copy($backupSource, $fixture . '/api/backup_db.php');
     copy($root . '/public/core/DataBoundary.php', $fixture . '/core/DataBoundary.php');
+    copy($root . '/public/core/DatabaseBackup.php', $fixture . '/core/DatabaseBackup.php');
+    foreach (
+      [
+        'import_db.php',
+        'public_cache_helper.php',
+        'publication_time_helper.php',
+        'schema_repair_helper.php',
+      ]
+      as $helper
+    ) {
+      $source =
+        $helper === 'import_db.php'
+          ? (getenv('VONCMS_IMPORT_TEST_SOURCE') ?:
+          $root . '/public/api/' . $helper)
+          : $root . '/public/api/' . $helper;
+      copy($source, $fixture . '/api/' . $helper);
+    }
+    mkdir($fixture . '/api/activity', 0700);
+    copy($root . '/public/api/activity/schema.php', $fixture . '/api/activity/schema.php');
     file_put_contents(
       $fixture . '/security.php',
       <<<'PHP'
       <?php
+      define('VONCMS_CORE_LOADED', true);
       $_SERVER['REQUEST_METHOD'] = 'POST';
       $_SERVER['HTTP_HOST'] = 'backup-qa.invalid';
       function sendApiHeaders($methods) {}
@@ -135,9 +181,13 @@ if (in_array('--backup-mysql', $argv, true)) {
         public array $streamModes = [];
         public function query(string $query, ?int $fetchMode = null, mixed ...$args): PDOStatement|false {
           global $attribute;
-          if (str_starts_with($query, 'SELECT * FROM ')) $this->streamModes[] = (bool) $this->getAttribute($attribute);
+          if (str_starts_with($query, 'SELECT `') || str_starts_with($query, 'SELECT * FROM ')) $this->streamModes[] = (bool) $this->getAttribute($attribute);
           if (getenv('VONCMS_BACKUP_SCENARIO') === 'count-failure' && str_starts_with($query, 'SELECT COUNT(*) FROM ')) throw new RuntimeException('Controlled count failure');
           return parent::query($query, $fetchMode, ...$args);
+        }
+        public function prepare(string $query, array $options = []): PDOStatement|false {
+          if (getenv('VONCMS_BACKUP_SCENARIO') === 'metadata-failure' && str_contains($query, 'information_schema.COLUMNS')) throw new RuntimeException('Controlled metadata failure');
+          return parent::prepare($query, $options);
         }
         public function quote(string $string, int $type = PDO::PARAM_STR): string|false {
           if (getenv('VONCMS_BACKUP_SCENARIO') === 'row-failure' && str_contains($string, 'QA_ROW_FAIL_MARKER')) throw new RuntimeException('Controlled row failure');
@@ -155,7 +205,7 @@ if (in_array('--backup-mysql', $argv, true)) {
       ,
     );
     chmod($fixture . '/von_config.php', 0600);
-    foreach (['success', 'count-failure', 'row-failure'] as $scenario) {
+    foreach (['success', 'count-failure', 'row-failure', 'metadata-failure'] as $scenario) {
       $statePath = $fixture . '/state-' . $scenario . '.json';
       $process = proc_open(
         [PHP_BINARY, $fixture . '/api/backup_db.php'],
@@ -182,7 +232,7 @@ if (in_array('--backup-mysql', $argv, true)) {
         check(str_ends_with($output, "-- End of backup\n"), 'Incomplete SQL download');
         check(strlen($output) > 5242880, 'Fixture did not exercise disk-spilled temporary output');
         check(
-          count($state['streamModes']) === 2 && !in_array(true, $state['streamModes'], true),
+          count($state['streamModes']) === 5 && !in_array(true, $state['streamModes'], true),
           'Backup stopped streaming table data',
         );
         $restore = new PDO(
@@ -205,13 +255,136 @@ if (in_array('--backup-mysql', $argv, true)) {
           $restore->query('SELECT setting_value FROM settings')->fetchColumn() === 'Backup QA',
           'Settings table missing from backup',
         );
+        check(
+          $restore->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC) === $nativeBefore,
+          'Generated columns or original timestamps changed',
+        );
+        check(
+          $restore->query('SELECT created_at FROM users')->fetchColumn() === '2001-02-03 04:05:06',
+          'DEFAULT_GENERATED ordinary column was lost',
+        );
+        file_put_contents($fixture . '/restore.sql', $output);
+        file_put_contents(
+          $fixture . '/restore-worker.php',
+          <<<'PHP'
+          <?php
+          $_POST['confirm_destructive_import'] = 'yes';
+          $sql = getenv('VONCMS_RESTORE_SQL');
+          $_FILES['sqlfile'] = ['name' => 'qa.sql', 'tmp_name' => $sql, 'size' => filesize($sql), 'error' => UPLOAD_ERR_OK];
+          register_shutdown_function(static function():void {
+            global $pdo;
+            try {
+              $expression=voncms_publication_expression_sql($pdo,'posts');
+              file_put_contents(__DIR__.'/publication-state.json',json_encode(['published'=>$pdo->query('SELECT '.$expression.' FROM posts LIMIT 1')->fetchColumn()]));
+            } catch (Throwable $error) {}
+          });
+          require __DIR__ . '/api/import_db.php';
+          PHP
+          ,
+        );
+        $restoreDsn = str_replace(';charset=', ";dbname=$restoreSchema;charset=", $serverDsn);
+        $runImport = static function (string $sql, string $scenario = 'success') use (
+          $fixture,
+          $restoreDsn,
+        ): array {
+          $process = proc_open(
+            [PHP_BINARY, $fixture . '/restore-worker.php'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            null,
+            array_merge(getenv(), [
+              'VONCMS_BACKUP_FIXTURE_DSN' => $restoreDsn,
+              'VONCMS_BACKUP_STATE' => $fixture . '/restore-state.json',
+              'VONCMS_BACKUP_SCENARIO' => $scenario,
+              'VONCMS_RESTORE_SQL' => $sql,
+            ]),
+          );
+          $output = stream_get_contents($pipes[1]);
+          $stderr = stream_get_contents($pipes[2]);
+          fclose($pipes[1]);
+          fclose($pipes[2]);
+          check(proc_close($process) === 0 && $stderr === '', 'Import worker failed: ' . $stderr);
+          return json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        };
+        $response = $runImport($fixture . '/restore.sql');
+        check(
+          ($response['success'] ?? false) === true,
+          'Actual restore rejected fresh backup: ' . json_encode($response),
+        );
+        check(
+          ($response['repairRequired'] ?? true) === false,
+          'Restored publication columns still require Repair',
+        );
+        $publicationState = json_decode(
+          file_get_contents($fixture . '/publication-state.json'),
+          true,
+          512,
+          JSON_THROW_ON_ERROR,
+        );
+        check(
+          ($publicationState['published'] ?? '') === '2002-03-04 05:06:07',
+          'Public publication expression fell back to creation after import',
+        );
+        $capabilities = json_decode(
+          file_get_contents($fixture . '/data/schema-capabilities.json'),
+          true,
+          512,
+          JSON_THROW_ON_ERROR,
+        );
+        check(
+          ($capabilities['published_at']['posts'] ?? false) === true &&
+            ($capabilities['published_at']['pages'] ?? false) === true,
+          'Import did not restore publication capabilities',
+        );
+        check(
+          $restore->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC) === $nativeBefore,
+          'Actual importer changed native post rows',
+        );
+        $safetyFiles = glob($fixture . '/data/backups/pre_import_*.sql');
+        check(count($safetyFiles) === 1, 'Safety backup missing');
+        $response = $runImport($safetyFiles[0]);
+        check(
+          ($response['success'] ?? false) === true &&
+            $restore->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC) === $nativeBefore,
+          'Safety backup was not restorable',
+        );
+        $safetyCount = count(glob($fixture . '/data/backups/pre_import_*.sql'));
+        $response = $runImport($fixture . '/restore.sql', 'metadata-failure');
+        check(
+          ($response['success'] ?? null) === false &&
+            str_contains($response['error'] ?? '', 'Controlled metadata failure'),
+          'Safety backup ignored metadata failure',
+        );
+        check(
+          $restore->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC) === $nativeBefore &&
+            count(glob($fixture . '/data/backups/pre_import_*.sql')) === $safetyCount,
+          'Failed safety backup changed rows or retained a partial SQL file',
+        );
+        file_put_contents(
+          $fixture . '/legacy.sql',
+          'DROP TABLE IF EXISTS posts; CREATE TABLE posts (id INT, generated_value INT GENERATED ALWAYS AS (0) VIRTUAL); INSERT INTO posts(id, generated_value) VALUES (1, 0);',
+        );
+        $response = $runImport($fixture . '/legacy.sql');
+        check(
+          ($response['success'] ?? null) === false &&
+            str_contains($response['error'] ?? '', 'generated column'),
+          'Unsafe legacy backup was accepted',
+        );
+        check(
+          $restore->query('SELECT * FROM posts')->fetchAll(PDO::FETCH_ASSOC) === $nativeBefore,
+          'Legacy rejection happened after destructive DDL',
+        );
       } else {
         $error = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
         check(
           ($error['success'] ?? null) === false &&
             str_contains(
               $error['error'] ?? '',
-              $scenario === 'count-failure' ? 'Controlled count failure' : 'Controlled row failure',
+              match ($scenario) {
+                'count-failure' => 'Controlled count failure',
+                'metadata-failure' => 'Controlled metadata failure',
+                default => 'Controlled row failure',
+              },
             ),
           'Wrong controlled failure: ' . substr($output, 0, 400),
         );
@@ -295,6 +468,53 @@ function rejects(callable $test, int $status): void
 }
 require $root . '/public/seo_schema_helper.php';
 eval(declaration($root . '/public/security.php', 'class SecurityHelper'));
+eval(
+  declaration(
+    $root . '/public/public_render_helper.php',
+    'function voncms_mask_settings_projection(',
+  )
+);
+eval(
+  declaration(
+    $root . '/public/api/save_settings.php',
+    'function voncms_preserve_theme_placeholders(',
+  )
+);
+$originalTheme = [
+  'corporatePro' => [
+    'contactEmail' => 'public@example.invalid',
+    'showAuthor' => false,
+    'customApiKey' => 'PRIVATE',
+    'heroTitle' => 'Original',
+  ],
+];
+$projection = ['theme' => $originalTheme, 'smtpPass' => 'PRIVATE_SMTP'];
+voncms_mask_settings_projection($projection);
+check(
+  $projection['theme']['corporatePro']['contactEmail'] === 'public@example.invalid',
+  'Public theme email was masked as a credential',
+);
+check(
+  $projection['smtpPass'] === '******** (PROTECTED)' &&
+    $projection['theme']['corporatePro']['customApiKey'] === '******** (PROTECTED)',
+  'Theme exception disclosed unrelated credentials',
+);
+$projection['theme']['corporatePro']['heroTitle'] = 'Edited heading';
+$savedTheme = voncms_preserve_theme_placeholders($projection['theme'], $originalTheme);
+check(
+  $savedTheme['corporatePro']['showAuthor'] === false &&
+    $savedTheme['corporatePro']['customApiKey'] === 'PRIVATE' &&
+    $savedTheme['corporatePro']['contactEmail'] === 'public@example.invalid' &&
+    $savedTheme['corporatePro']['heroTitle'] === 'Edited heading',
+  'Theme draft save persisted protected placeholders or discarded edits',
+);
+$placeholderRejected = false;
+try {
+  voncms_preserve_theme_placeholders(['unknown' => '******** (PROTECTED)'], []);
+} catch (InvalidArgumentException $error) {
+  $placeholderRejected = true;
+}
+check($placeholderRejected, 'New protected placeholder was silently stored');
 eval(
   str_replace(
     'class ResponseHelper',
@@ -449,7 +669,13 @@ $enabledAssignment = between(
   "      \$mediaSettings['maxWidth']",
 );
 foreach (
-  [[null, true], [[], true], [['enabled' => false], false], [['enabled' => true], true]]
+  [
+    [null, false],
+    [[], false],
+    [['enabled' => false], false],
+    [['enabled' => true], true],
+    [['enabled' => 'false'], false],
+  ]
   as [$opt, $expectedEnabled]
 ) {
   $mediaSettings = ['enabled' => $defaultEnabled];

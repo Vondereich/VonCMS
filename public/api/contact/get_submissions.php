@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../core/DataBoundary.php';
  * VonCMS - Get Contact Submissions (Leads)
  */
 require_once __DIR__ . '/../../security.php';
+require_once __DIR__ . '/../../core/CmsClock.php';
 sendApiHeaders('GET, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -23,10 +24,11 @@ if (file_exists(__DIR__ . '/../../von_config.php')) {
 
 SessionManager::requireAdmin();
 $pdo = DataBoundary::database($GLOBALS['pdo'] ?? null);
+voncms_apply_site_timezone($pdo);
 
 try {
   $pdo->exec('DELETE FROM contact_submissions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)');
-  $page = max(1, DataBoundary::inputInt($_GET['page'] ?? 1));
+  $page = min(1000000, max(1, DataBoundary::inputInt($_GET['page'] ?? 1)));
   $limit = min(100, max(10, DataBoundary::inputInt($_GET['limit'] ?? 20)));
   $offset = ($page - 1) * $limit;
 
@@ -37,16 +39,19 @@ try {
   $total = (int) (DataBoundary::row($countStmt->fetch(PDO::FETCH_ASSOC))['total'] ?? 0);
 
   $stmt = $pdo->query("
-        SELECT s.*, f.title as form_name 
+        SELECT s.*, UNIX_TIMESTAMP(s.created_at) AS _created_epoch, f.title as form_name
         FROM contact_submissions s
         LEFT JOIN contact_forms f ON s.form_id = f.id
-        ORDER BY s.created_at DESC
+        ORDER BY s.created_at DESC, s.id DESC
         LIMIT $limit OFFSET $offset
     ");
   if ($stmt === false) {
     throw new RuntimeException('Cannot read contact submissions.');
   }
-  $submissions = DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC));
+  $submissions = array_map(
+    'voncms_project_timestamp_row',
+    DataBoundary::rows($stmt->fetchAll(PDO::FETCH_ASSOC)),
+  );
 
   echo json_encode([
     'success' => true,

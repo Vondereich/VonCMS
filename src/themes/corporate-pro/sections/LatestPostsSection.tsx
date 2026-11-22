@@ -88,9 +88,11 @@ const LatestPostsSection = ({
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   Category: <span className="text-(--corporate-link)">{selectedCategory}</span>
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-neutral-400">
-                  Showing server-backed results beyond the homepage preload.
-                </p>
+                {visiblePosts.length > 0 && (
+                  <p className="text-sm text-slate-500 dark:text-neutral-400">
+                    Showing server-backed results beyond the homepage preload.
+                  </p>
+                )}
                 <PublicDiscoveryRefreshStatus
                   active={isCategoryRefreshing}
                   className="mt-3 text-(--corporate-link) dark:text-(--corporate-accent-light)"
@@ -110,6 +112,20 @@ const LatestPostsSection = ({
         )}
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />
+        ) : publicPosts.error && visiblePosts.length === 0 ? (
+          <p
+            role="alert"
+            className="py-12 text-center text-sm text-slate-600 dark:text-neutral-400"
+          >
+            {publicPosts.error}
+          </p>
+        ) : visiblePosts.length === 0 ? (
+          <p
+            role="status"
+            className="py-12 text-center text-sm text-slate-600 dark:text-neutral-400"
+          >
+            {selectedCategory ? 'No articles in this category yet.' : 'No articles published yet.'}
+          </p>
         ) : (
           <>
             <div className="grid md:grid-cols-3 gap-8">
@@ -148,7 +164,7 @@ const LatestPostsSection = ({
                         {post.category}
                       </a>
                     </div>
-                    <h3 className="text-xl font-bold mb-3 group-hover:text-(--corporate-link) transition-colors line-clamp-2 text-slate-900 dark:text-white">
+                    <h3 className="text-xl font-bold mb-3 group-hover:text-(--corporate-link) transition-colors line-clamp-2 text-slate-900 dark:text-white wrap-anywhere">
                       <a
                         href={getPermalink(post, settings)}
                         onClick={(event) => {

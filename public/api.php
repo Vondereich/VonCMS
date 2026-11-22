@@ -5,13 +5,24 @@
  */
 
 require_once __DIR__ . '/security.php';
-require_once __DIR__ . '/von_config.php';
 
 // Standardize Headers
 sendApiHeaders();
 
 $actionValue = $_GET['action'] ?? ($_POST['action'] ?? '');
 $action = is_scalar($actionValue) ? (string) $actionValue : '';
+
+if (is_file(__DIR__ . '/von_config.php')) {
+  require_once __DIR__ . '/von_config.php';
+} elseif ($action !== 'get_csrf_token') {
+  http_response_code(503);
+  echo json_encode([
+    'success' => false,
+    'error' => 'Installation required.',
+    'code' => 'INSTALL_REQUIRED',
+  ]);
+  exit();
+}
 
 switch ($action) {
   case 'get_settings':

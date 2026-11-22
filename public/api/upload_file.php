@@ -24,6 +24,9 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 
 require_once __DIR__ . '/../media_variants.php';
 require_once __DIR__ . '/ImageProcessor.php';
+require_once __DIR__ . '/media/LocationMetadata.php';
+require_once __DIR__ . '/../core/SettingsStorage.php';
+voncms_apply_site_timezone($pdo ?? null);
 
 function voncms_build_cdn_media_url(string $cdnUrl, string $relativePath): string
 {
@@ -91,6 +94,17 @@ $allSettings = is_file($settingsFile)
   ? json_decode((string) file_get_contents($settingsFile), true)
   : [];
 $allSettings = is_array($allSettings) ? $allSettings : [];
+// Committed DB preferences own uploads; the private mirror is only an availability fallback.
+if (isset($pdo) && $pdo instanceof PDO) {
+  try {
+    $committedSettings = voncms_read_settings_mirror($pdo);
+    $allSettings['media'] = is_array($committedSettings['media'] ?? null)
+      ? $committedSettings['media']
+      : [];
+  } catch (Throwable $settingsError) {
+    error_log('VonCMS media: committed settings unavailable; using compatibility mirror.');
+  }
+}
 $savedMedia = is_array($allSettings['media'] ?? null) ? $allSettings['media'] : [];
 $savedStorage = is_array($savedMedia['storage'] ?? null) ? $savedMedia['storage'] : [];
 $folderStructure = $_POST['folderStructure'] ?? ($savedStorage['folderStructure'] ?? 'year_month');
@@ -139,7 +153,10 @@ $standardImageTypes = [
   'ico' => ['image/x-icon', 'image/vnd.microsoft.icon'],
 ];
 $systemImageTypes = [
-  'logo' => $standardImageTypes,
+  'logo' => [
+    ...$standardImageTypes,
+    'svg' => ['image/svg+xml', 'application/xml', 'text/xml', 'text/plain'],
+  ],
   'favicon' => [
     'png' => ['image/png'],
     'ico' => ['image/x-icon', 'image/vnd.microsoft.icon'],
@@ -160,6 +177,10 @@ if ($isSystemUpload && !isset($systemImageTypes[$systemImageType])) {
   ResponseHelper::sendError('Invalid system image type.', 400);
 }
 $allowedImageTypes = $isSystemUpload ? $systemImageTypes[$systemImageType] : $standardImageTypes;
+$isSvgLogo = $isSystemUpload && $systemImageType === 'logo' && $extension === 'svg';
+if ($isSvgLogo) {
+  SessionManager::requireAdmin();
+}
 
 // Server-side MIME sniffing
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -176,15 +197,38 @@ if (
   ResponseHelper::sendError('Invalid or mismatched image file type.', 400);
 }
 
-$imageInfo = @getimagesize($file['tmp_name']);
-if ($imageInfo === false || empty($imageInfo[0]) || empty($imageInfo[1])) {
-  ResponseHelper::sendError('The uploaded file is not a readable image.', 400);
-}
-
 // Validate file size (max 10MB)
 $maxSize = 10 * 1024 * 1024; // 10MB
 if ($file['size'] > $maxSize) {
   ResponseHelper::sendError('File too large. Maximum size is 10MB.', 400);
+}
+
+if ($isSvgLogo) {
+  require_once __DIR__ . '/media/SvgLogo.php';
+  try {
+    $svgBytes = file_get_contents($file['tmp_name'], false, null, 0, SvgLogo::MAX_BYTES + 1);
+    if (!is_string($svgBytes)) {
+      throw new RuntimeException('Unable to read SVG logo.');
+    }
+    $safeSvg = SvgLogo::sanitize($svgBytes);
+    // Never move unvalidated XML into the public uploads directory, even briefly.
+    if (file_put_contents($file['tmp_name'], $safeSvg, LOCK_EX) !== strlen($safeSvg)) {
+      throw new RuntimeException('Unable to prepare SVG logo.');
+    }
+    $realMime = 'image/svg+xml';
+  } catch (InvalidArgumentException $error) {
+    ResponseHelper::sendError($error->getMessage(), 400);
+  } catch (Throwable $error) {
+    ResponseHelper::sendError(
+      'SVG logo processing unavailable. Check PHP DOM and mbstring support.',
+      503,
+    );
+  }
+} else {
+  $imageInfo = @getimagesize($file['tmp_name']);
+  if ($imageInfo === false || empty($imageInfo[0]) || empty($imageInfo[1])) {
+    ResponseHelper::sendError('The uploaded file is not a readable image.', 400);
+  }
 }
 
 // A rejected upload must not create filesystem entries.
@@ -212,7 +256,7 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
 
   // Load media optimization settings
   $mediaSettings = [
-    'enabled' => true, // Default ON (WebP auto-conversion spec)
+    'enabled' => false, // Match fresh-install and Settings defaults.
     'maxWidth' => 1920,
     'maxHeight' => 1080,
     'quality' => 85,
@@ -228,8 +272,8 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
   if ($allSettings !== []) {
     if (is_array($savedMedia['optimization'] ?? null)) {
       $opt = $savedMedia['optimization'];
-      $enabled = $opt['enabled'] ?? true;
-      $mediaSettings['enabled'] = is_scalar($enabled) ? (bool) $enabled : true;
+      $enabled = $opt['enabled'] ?? false;
+      $mediaSettings['enabled'] = filter_var($enabled, FILTER_VALIDATE_BOOLEAN);
       $mediaSettings['maxWidth'] = is_numeric($opt['maxWidth'] ?? null)
         ? (int) $opt['maxWidth']
         : 1920;
@@ -270,13 +314,26 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
 
   $mediaSettings['responsiveWidths'] = voncms_get_responsive_widths($mediaSettings['maxWidth']);
 
+  // Privacy does not depend on compression, GD availability or the pixel budget.
+  if (!$isSvgLogo) {
+    try {
+      VonCmsLocationMetadata::cleanFile($targetPath, $realMime);
+    } catch (RuntimeException $error) {
+      voncms_cleanup_failed_media_upload([$targetPath]);
+      ResponseHelper::sendError(
+        'Image metadata could not be cleaned safely. Please export the image again.',
+        400,
+      );
+    }
+  }
+
   // Process image if GD available and optimization enabled
   $webpUrl = null;
   $responsiveVariantStatus = !empty($mediaSettings['generateResponsiveVariants'])
     ? 'not_processed'
     : 'disabled';
   $responsiveVariantMessage = '';
-  if (ImageProcessor::isGdAvailable() && $mediaSettings['enabled']) {
+  if (!$isSvgLogo && ImageProcessor::isGdAvailable() && $mediaSettings['enabled']) {
     $processor = new ImageProcessor($mediaSettings);
     // Only these exact names can be created for this newly moved upload.
     $processingSources = [$targetPath];
@@ -366,9 +423,10 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
       // Check if media table exists
       $tableCheck = $pdo->query("SHOW TABLES LIKE 'media'");
       if ($tableCheck->rowCount() > 0) {
+        $uploadedAt = date('Y-m-d H:i:s');
         $stmt = $pdo->prepare(
-          'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by, alt_text, caption)
-           VALUES (:filename, :filepath, :filetype, :filesize, :user_id, :alt, :caption)',
+          'INSERT INTO media (filename, filepath, filetype, filesize, uploaded_by, alt_text, caption, uploaded_at, created_at)
+           VALUES (:filename, :filepath, :filetype, :filesize, :user_id, :alt, :caption, :uploaded_at, :created_at)',
         );
         $stmt->execute([
           'filename' => $filename,
@@ -378,6 +436,8 @@ if (move_uploaded_file($file['tmp_name'], $targetPath)) {
           'user_id' => DataBoundary::userText('id'),
           'alt' => pathinfo($filename, PATHINFO_FILENAME),
           'caption' => pathinfo($filename, PATHINFO_FILENAME),
+          'uploaded_at' => $uploadedAt,
+          'created_at' => $uploadedAt,
         ]);
         $mediaId = $pdo->lastInsertId();
       }

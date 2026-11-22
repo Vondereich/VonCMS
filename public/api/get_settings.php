@@ -147,6 +147,10 @@ try {
           $settings['siteUrl'] = ResponseHelper::scrubUrl((string) DataBoundary::scalar($value)); // Legacy support
         } elseif ($key === 'posts_per_page') {
           $settings['postsPerPage'] = max(6, min(50, (int) DataBoundary::scalar($value)));
+        } elseif ($key === 'meta_description_limit') {
+          $limit = filter_var($value, FILTER_VALIDATE_INT);
+          $settings['metaDescriptionLimit'] =
+            is_int($limit) && $limit >= 1 && $limit <= 250 ? $limit : 160;
         } elseif ($key === 'site_language') {
           // Maintain both for frontend state and internal consistency
           $settings['site_language'] = $value;
@@ -348,6 +352,7 @@ try {
   $settings['navigation'] = voncms_project_public_navigation_hrefs(
     $pdo,
     $settings['navigation'] ?? [],
+    false, // Public/staff projections already returned above; retain owner-editable legacy items.
   );
 
   // --- SMART BRIDGE: Fallback to JSON for Contact Forms if DB is empty ---
@@ -401,7 +406,7 @@ try {
 
   // SECURITY SCRUBBING: Appointed admins retain a complete but masked settings projection.
   if (!$isPrimaryAdmin) {
-    SecurityHelper::maskSensitiveData($settings);
+    voncms_mask_settings_projection($settings);
     if (
       $adminProfilePublicEmail !== null &&
       isset($settings['adminProfile']) &&

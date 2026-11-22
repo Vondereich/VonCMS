@@ -239,6 +239,8 @@ try {
         old_value LONGTEXT,
         new_value LONGTEXT,
         changed_by INT DEFAULT NULL,
+        actor_username VARCHAR(255) NOT NULL DEFAULT '',
+        actor_role VARCHAR(64) NOT NULL DEFAULT '',
         changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         change_type ENUM('INSERT', 'UPDATE', 'DELETE') DEFAULT 'UPDATE',
         ip_address VARCHAR(45) DEFAULT NULL,
@@ -441,51 +443,17 @@ $configContent =
   date('Y-m-d H:i:s') .
   "
 
-// Production Error Reporting (Security Enhancement)
-if (php_sapi_name() !== 'cli') {
-    // Fail closed unless the server owner explicitly opts into a development environment.
-    \$voncmsEnvironment = strtolower(trim((string) (getenv('VONCMS_ENV') ?: 'production')));
-    \$isDevelopment = in_array(\$voncmsEnvironment, ['development', 'dev', 'local'], true);
-    \$documentRoot = realpath((string) (\$_SERVER['DOCUMENT_ROOT'] ?? ''));
-    \$privateLogRoot = is_string(\$documentRoot) && \$documentRoot !== ''
-        ? dirname(\$documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'
-        : rtrim(sys_get_temp_dir(), '/\\\\') . DIRECTORY_SEPARATOR . 'voncms-logs';
-    \$logDir = \$privateLogRoot . DIRECTORY_SEPARATOR . substr(hash('sha256', __DIR__), 0, 16);
-    if (
-        (!is_dir(\$logDir) && !@mkdir(\$logDir, 0700, true) && !is_dir(\$logDir)) ||
-        !is_writable(\$logDir)
-    ) {
-        \$logDir = rtrim(sys_get_temp_dir(), '/\\\\')
-            . DIRECTORY_SEPARATOR . 'voncms-logs'
-            . DIRECTORY_SEPARATOR . substr(hash('sha256', __DIR__), 0, 16);
-        @mkdir(\$logDir, 0700, true);
-    }
-
-    if (!\$isDevelopment) {
-        // HIDE errors from user, but LOG them to file
-        error_reporting(E_ALL);
-        ini_set('display_errors', '0');
-        ini_set('log_errors', '1');
-        
-        \$logFile = \$logDir . '/php_error.log';
-        ini_set('error_log', \$logFile);
-        
-        // Log Rotation: Check if log file > 5MB
-        if (file_exists(\$logFile) && filesize(\$logFile) > 5 * 1024 * 1024) {
-            rename(\$logFile, \$logFile . '.bak');
-        }
-    } else {
-        error_reporting(E_ALL);
-        // FORCE HIDE ERRORS ON API REQUESTS TO PREVENT JSON BREAKAGE
-        if (strpos(\$_SERVER['REQUEST_URI'] ?? '', '/api/') !== false) {
-             ini_set('display_errors', '0');
-        } else {
-             ini_set('display_errors', '1');
-        }
-        ini_set('log_errors', '1');
-        ini_set('error_log', \$logDir . '/php_error_dev.log');
-    }
+// Keep safe host logging even during a files-only rollback without the optional helper.
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
 }
+\$runtimeLogging = __DIR__ . '/core/RuntimeLogging.php';
+if (is_file(\$runtimeLogging)) {
+    require_once \$runtimeLogging;
+    RuntimeLogging::configure(__DIR__);
+}
+unset(\$runtimeLogging);
 
 \$db_host = " .
   var_export($dbHost, true) .

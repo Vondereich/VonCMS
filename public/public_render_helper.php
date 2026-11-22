@@ -15,6 +15,19 @@ unset($publicRenderHelperPath, $requestedScriptPath);
 require_once __DIR__ . '/seo_route_helper.php';
 require_once __DIR__ . '/seo_schema_helper.php';
 
+/** Theme contact text is public content, not an SMTP/account credential.
+ * Preserve only this bundled, explicitly public path across the conservative secret scrub.
+ * @param array<string, mixed> $settings
+ */
+function voncms_mask_settings_projection(array &$settings): void
+{
+  $publicEmail = $settings['theme']['corporatePro']['contactEmail'] ?? null;
+  SecurityHelper::maskSensitiveData($settings);
+  if (is_string($publicEmail)) {
+    $settings['theme']['corporatePro']['contactEmail'] = $publicEmail;
+  }
+}
+
 if (!function_exists('voncms_project_public_admin_profile')) {
   function voncms_project_public_admin_profile(mixed $profile): ?array
   {
@@ -90,8 +103,11 @@ if (!function_exists('voncms_project_public_navigation_hrefs')) {
    * @param mixed $navigation
    * @return array<int, array<string, mixed>>
    */
-  function voncms_project_public_navigation_hrefs(PDO $pdo, $navigation): array
-  {
+  function voncms_project_public_navigation_hrefs(
+    PDO $pdo,
+    $navigation,
+    bool $publicOnly = true,
+  ): array {
     if (!is_array($navigation)) {
       return [];
     }
@@ -119,18 +135,33 @@ if (!function_exists('voncms_project_public_navigation_hrefs')) {
     $pageHrefs = [];
     if ($pageIds !== []) {
       try {
-        $ids = array_slice(array_keys($pageIds), 0, 100);
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $pdo->prepare(
-          "SELECT id, slug FROM pages WHERE id IN ($placeholders) AND (status = 'published' OR status IS NULL)",
-        );
-        $stmt->execute($ids);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $page) {
-          $slug = trim((string) ($page['slug'] ?? ''));
-          if ($slug !== '') {
-            $pageHrefs[(string) ($page['id'] ?? '')] = '/' . ltrim($slug, '/');
+        $pageIdHrefs = $pageSlugHrefs = [];
+        foreach (array_chunk(array_keys($pageIds), 100) as $ids) {
+          $numericIds = array_values(
+            array_filter(
+              $ids,
+              static fn($id): bool => preg_match('/^[1-9][0-9]*$/D', (string) $id) === 1,
+            ),
+          );
+          $placeholders = implode(',', array_fill(0, count($ids), '?'));
+          $idClause =
+            $numericIds === []
+              ? '1=0'
+              : 'id IN (' . implode(',', array_fill(0, count($numericIds), '?')) . ')';
+          $stmt = $pdo->prepare(
+            "SELECT id, slug FROM pages WHERE ($idClause OR slug IN ($placeholders)) AND (status = 'published' OR status IS NULL)",
+          );
+          $stmt->execute([...$numericIds, ...$ids]);
+          foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $page) {
+            $slug = trim((string) ($page['slug'] ?? ''));
+            if ($slug !== '') {
+              $href = buildCanonicalContentPath($page, 'slug', 'page');
+              $pageIdHrefs[(string) ($page['id'] ?? '')] = $href;
+              $pageSlugHrefs[$slug] = $href;
+            }
           }
         }
+        $pageHrefs = array_replace($pageSlugHrefs, $pageIdHrefs);
       } catch (Throwable $e) {
         $pageHrefs = [];
       }
@@ -139,44 +170,66 @@ if (!function_exists('voncms_project_public_navigation_hrefs')) {
     $postHrefs = [];
     if ($postIds !== []) {
       try {
-        $ids = array_slice(array_keys($postIds), 0, 100);
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $pdo->prepare(
-          "SELECT id FROM posts WHERE id IN ($placeholders) AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?)",
-        );
-        $stmt->execute([...$ids, date('Y-m-d H:i:s')]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $post) {
-          $postId = trim((string) ($post['id'] ?? ''));
-          if ($postId !== '') {
-            $postHrefs[$postId] = '/post/' . rawurlencode($postId);
+        $postIdHrefs = $postSlugHrefs = [];
+        foreach (array_chunk(array_keys($postIds), 100) as $ids) {
+          $numericIds = array_values(
+            array_filter(
+              $ids,
+              static fn($id): bool => preg_match('/^[1-9][0-9]*$/D', (string) $id) === 1,
+            ),
+          );
+          $placeholders = implode(',', array_fill(0, count($ids), '?'));
+          $idClause =
+            $numericIds === []
+              ? '1=0'
+              : 'id IN (' . implode(',', array_fill(0, count($numericIds), '?')) . ')';
+          $stmt = $pdo->prepare(
+            "SELECT id, slug FROM posts WHERE ($idClause OR slug IN ($placeholders)) AND (status = 'published' OR status IS NULL) AND (scheduled_at IS NULL OR scheduled_at <= ?)",
+          );
+          $stmt->execute([...$numericIds, ...$ids, date('Y-m-d H:i:s')]);
+          foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $post) {
+            $postId = trim((string) ($post['id'] ?? ''));
+            if ($postId !== '') {
+              $postIdHrefs[$postId] = '/post/' . rawurlencode($postId);
+              $postSlugHrefs[(string) ($post['slug'] ?? '')] = '/post/' . rawurlencode($postId);
+            }
           }
         }
+        $postHrefs = array_replace($postSlugHrefs, $postIdHrefs);
       } catch (Throwable $e) {
         $postHrefs = [];
       }
     }
 
-    return array_map(static function ($item) use ($pageHrefs, $postHrefs): array {
-      if (!is_array($item)) {
-        return [];
-      }
-      unset($item['resolvedHref']);
-      $target = trim((string) ($item['url'] ?? ''));
-      if ($target === 'home' || $target === '/') {
-        $item['resolvedHref'] = '/';
-      } elseif (str_starts_with($target, 'page:')) {
-        $pageId = trim(substr($target, 5));
-        if (isset($pageHrefs[$pageId])) {
-          $item['resolvedHref'] = $pageHrefs[$pageId];
-        }
-      } elseif (str_starts_with($target, 'post:')) {
-        $postId = trim(substr($target, 5));
-        if (isset($postHrefs[$postId])) {
-          $item['resolvedHref'] = $postHrefs[$postId];
-        }
-      }
-      return $item;
-    }, $navigation);
+    return array_values(
+      array_filter(
+        array_map(static function ($item) use ($pageHrefs, $postHrefs, $publicOnly): array {
+          if (!is_array($item)) {
+            return [];
+          }
+          unset($item['resolvedHref']);
+          $target = trim((string) ($item['url'] ?? ''));
+          if ($target === 'home' || $target === '/') {
+            $item['resolvedHref'] = '/';
+          } elseif (str_starts_with($target, 'page:')) {
+            $pageId = trim(substr($target, 5));
+            if (isset($pageHrefs[$pageId])) {
+              $item['resolvedHref'] = $pageHrefs[$pageId];
+            } elseif ($publicOnly) {
+              return [];
+            }
+          } elseif (str_starts_with($target, 'post:')) {
+            $postId = trim(substr($target, 5));
+            if (isset($postHrefs[$postId])) {
+              $item['resolvedHref'] = $postHrefs[$postId];
+            } elseif ($publicOnly) {
+              return [];
+            }
+          }
+          return $item;
+        }, $navigation),
+      ),
+    );
   }
 }
 
@@ -363,7 +416,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
          'logo_url', 'header_identity_mode', 'use_logo_as_title', 'invert_logo_in_dark_mode',
          'favicon_url', 'og_image_url', 'og_image_square_url', 'discussion_enabled',
          'registration_enabled', 'maintenance_mode', 'permalink_structure', 'time_zone',
-         'date_format', 'posts_per_page', 'admin_profile'
+         'date_format', 'posts_per_page', 'admin_profile', 'meta_description_limit'
        ))
        OR (setting_group = 'ads' AND setting_key IN ('ads_config', 'configuration'))
        OR (setting_group = 'analytics' AND setting_key = 'config')
@@ -401,6 +454,10 @@ if (!function_exists('voncms_build_public_settings_projection')) {
             $settings['siteUrl'] = ResponseHelper::scrubUrl($value);
           } elseif ($key === 'posts_per_page') {
             $settings['postsPerPage'] = max(6, min(50, (int) $value));
+          } elseif ($key === 'meta_description_limit') {
+            $limit = filter_var($value, FILTER_VALIDATE_INT);
+            $settings['metaDescriptionLimit'] =
+              is_int($limit) && $limit >= 1 && $limit <= 250 ? $limit : 160;
           } elseif ($key === 'site_language') {
             $settings['site_language'] = $value;
             $settings['siteLanguage'] = $value;
@@ -536,7 +593,7 @@ if (!function_exists('voncms_build_public_settings_projection')) {
       $publicAdminProfileEmail = (string) $settings['adminProfile']['email'];
     }
 
-    SecurityHelper::maskSensitiveData($settings);
+    voncms_mask_settings_projection($settings);
     $publicAdminProfile = voncms_project_public_admin_profile($settings['adminProfile'] ?? null);
     if ($publicAdminProfile !== null) {
       if ($publicAdminProfileEmail !== null) {
@@ -792,14 +849,41 @@ if (!function_exists('voncms_resolve_public_assets')) {
   {
     $jsFile = '';
     $cssFile = '';
+    $shell = dirname($assetsDir) . '/index.html';
+    if (is_file($shell) && filesize($shell) <= 1048576) {
+      $html = @file_get_contents($shell);
+      if (
+        is_string($html) &&
+        preg_match_all('~\b(?:src|href)\s*=\s*["\x27]([^"\x27]+)["\x27]~i', $html, $references)
+      ) {
+        foreach ($references[1] as $reference) {
+          $path = parse_url($reference, PHP_URL_PATH);
+          if (!is_string($path) || basename(str_replace('\\', '/', dirname($path))) !== 'assets') {
+            continue;
+          }
+          $file = basename($path);
+          if (!is_file($assetsDir . '/' . $file)) {
+            continue;
+          }
+          if (preg_match('/^index-[a-zA-Z0-9_-]+\.js$/D', $file)) {
+            $jsFile = $file;
+          }
+          if (preg_match('/^index-[a-zA-Z0-9_-]+\.css$/D', $file)) {
+            $cssFile = $file;
+          }
+        }
+      }
+    }
+    $jsFromShell = $jsFile !== '';
+    $cssFromShell = $cssFile !== '';
     if (is_dir($assetsDir)) {
       $files = scandir($assetsDir);
       if (is_array($files)) {
         foreach ($files as $file) {
-          if (preg_match('/^index-.*\.js$/', $file)) {
+          if (!$jsFromShell && preg_match('/^index-.*\.js$/', $file)) {
             $jsFile = $file;
           }
-          if (preg_match('/^index-.*\.css$/', $file)) {
+          if (!$cssFromShell && preg_match('/^index-.*\.css$/', $file)) {
             $cssFile = $file;
           }
         }

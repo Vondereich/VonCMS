@@ -2,6 +2,41 @@
 
 Most modern VonCMS installs can be updated from the admin panel.
 
+**v1.28.4 mail and mirror cleanup:** After applying the files, run Primary Admin **Database Repair** and check its warnings. Repair refreshes `data/site_settings.json` from the committed database without SMTP passwords; Save Settings also writes a credential-free mirror. A permission warning means old bytes may still remain: resolve the data-directory permissions and rerun Repair before considering the cleanup complete. SMTP now requires the database and does not use a mirrored password during database failure. Existing server rules protecting `data/` remain required for other private runtime files. Previously downloaded files or backups are not revoked or rewritten.
+
+**Image privacy:** Optimization remains OFF by default. New JPEG, PNG and WebP uploads remove EXIF/XMP blocks except for EXIF orientation, without decoding or re-encoding pixels. This also applies without GD and when compression exceeds the pixel-memory budget. Ordinary metadata-free files and animated GIFs remain unchanged. Malformed containers or unreadable metadata fail safely. Camera/capture metadata in those blocks is removed along with location; orientation, dimensions, format and pixel quality are retained on the unoptimized path. Existing uploads are not bulk-rewritten; replace older sensitive photos explicitly.
+
+**Content limits and category recovery:** Primary Admin can set **General > Meta Description Limit** from 1 to 250 (default 160); Post/Page API saves enforce that value and preserve unchanged longer legacy descriptions. Excerpts remain limited to 220. Category names retain the existing 100-character bound. Run Database Repair to recover old HTML-encoded category labels that match registered names; unrelated/literal entity labels are not rewritten.
+
+**Public reads:** Anonymous GET/HEAD responses on the public read allowlist can be cached for 60 seconds only when no session/remember-me cookie or authorization is present, no session is created and the response is successful without Set-Cookie. Authentication status (`check_auth.php`) is always private/no-store, even for guests. Shared guest HTML contains neither a CSRF token nor a User-Agent-specific tracking-exclusion marker; native tracking endpoints still filter declared automation. CSRF tokens remain private and are fetched on demand. Configure CDNs to bypass authentication/admin/API routes and requests carrying session/remember-me cookies rather than relying on `Vary` alone: Cloudflare ignores most `Vary` fields by default. Never override private/no-store with a blanket Cache Everything/Edge TTL rule. See [CDN boundaries](VPS.md#public-read-cdn-boundaries). New analytics day/time values follow the site timezone; historical visit buckets are not migrated.
+
+**Additional clocks:** New comment, user, subscription and Media local date fields follow the configured CMS timezone. Contact/Security/Settings TIMESTAMP history keeps the database instant and is converted for display; changing the site timezone does not migrate existing DATETIME history. Account-token expiry, Calendar event semantics and Activity retention remain unchanged.
+
+**Content Save clock:** New Post/Page creation, modification and first-publication timestamps now use the configured CMS clock even when MySQL uses another timezone. Ordinary updates do not rewrite existing creation/publication dates. No schema change, connection-wide SQL timezone setting or automatic conversion of historical local timestamps is added for this correction; changing the site's timezone still requires a separate historical-data policy.
+
+**v1.28.4 upgrade:** After updating an existing installation, Primary Admin must run **Database Repair** for the new `staff_activity_log` table, history indexes and Settings actor-snapshot columns before using **Monitoring > Activity Log**. Fresh installs create them automatically. New Settings events retain the account name and role recorded at the time of the action after Repair; before Repair, Settings saves retain their existing ID-only audit behavior. Original content, Settings and Calendar history is read in place, not copied or backfilled. Missing Media audit storage does not break ordinary Media deletion, but its unrecorded events cannot be reconstructed later. New Media/purge rows have a 90-day retention window; manual cleanup uses a confirmed preview and up to 500 rows per batch. Automatic cleanup uses the existing cron endpoint only with a configured valid `CRON_KEY` header; manual publish without a cron key does not purge Activity. Shared histories retain their own lifecycle. Back up before upgrading and review the [manual](MANUAL.md#staff-activity-log).
+
+The public submission quota component itself needs no database migration. It creates 16 fixed capacity shards per purpose during normal submissions, with separate signed-in Comment capacity. Existing public lockouts and v1 ledger counters are retained for their remaining windows; known legacy per-address files are retired after expiry without sweeping login/recovery or unknown state. Simultaneous old/new writers do not share one combined budget, so replace the runtime files coherently. Do not delete `data/rate_limits/` to apply this update. The ordinary v1.28.3 requirements below still apply when entering from an older release. Use a published package for production.
+
+**Database backups:** Generate a new SQL backup after applying these files and verify a restore in isolation. Manual and pre-import backups exclude computed columns (including repaired listing timestamps) but retain ordinary stored timestamps. Affected older dumps that insert generated values are rejected before DROP/CREATE; they must be regenerated or corrected using a trusted database tool. This is not an automatic conversion of old backups or an atomic DDL restore: keep an independent, verified recovery copy. Settings Rollback now refreshes maintenance state and the compatibility JSON; a mirror refresh warning means the database change succeeded but fallback readers may still be stale.
+
+**Installer and logging templates:** Pending installations now use `data/install_setup.key.php`; obsolete plaintext setup keys are not accepted. Existing installed accounts/database configuration are unchanged. New generated configurations and the manual sample use `core/RuntimeLogging.php`, which respects `open_basedir` and keeps the host's PHP log when no private application log directory is allowed. OTA does not rewrite your existing private `von_config.php`. If an older configuration reports `open_basedir` warnings in its logging block, back it up and replace only that block with the following; do not replace database credentials or other custom configuration:
+
+```php
+if (PHP_SAPI !== 'cli') {
+  ini_set('display_errors', '0');
+  ini_set('log_errors', '1');
+}
+$runtimeLogging = __DIR__ . '/core/RuntimeLogging.php';
+if (is_file($runtimeLogging)) {
+  require_once $runtimeLogging;
+  RuntimeLogging::configure(__DIR__);
+}
+unset($runtimeLogging);
+```
+
+Keep the web-server protection rules in place. The PHP guard on the setup key is an additional layer, not protection for every file under `data/`.
+
 **Managed routing:** After applying v1.28.3 through OTA or another update that preserves `.htaccess`, Primary Admin should run **System Tools > Repair `.htaccess`** once. This refreshes the managed rules while preserving hosting-specific directives outside the VonCMS block; the routing fix does not require a database migration.
 
 The v1.28.3 release introduces private personal Gemini keys. After applying the files, Primary Admin must run **Database Repair** to create `user_ai_keys` and the private API-settings lock anchor before using personal/shared credential actions. Fresh installations create both automatically. Existing shared credentials and expiry are preserved; no personal key is invented for existing users. Writer/Moderator gain only an own-account User Manager view, not general user-management permission. Analytics and publishing policy are unchanged. Use a published package for production.
@@ -101,6 +136,7 @@ Use the complete v1.27.12 Deploy ZIP for manual upgrades and keep the protected 
 1. Back up your database.
 2. Back up `uploads/` if you store media locally.
 3. If your hosting folder already has a host-generated `.htaccess`, keep a copy before updating.
+   Remove the old generated `assets/` directory before extracting the replacement Deploy assets. Do not remove `uploads/`, `data/` or the private configuration.
 4. If your current site is on an older version, use the latest published Deploy ZIP for the manual upgrade flow. OTA updates are available again from the `v1.24.10` baseline after the updater download and SHA256 verification flow was fixed. Sites on the affected `v1.25.11` through `v1.26.0` packages or the pre-fix `v1.26.1` package must complete this manual update once because Dashboard release discovery can be skipped.
 5. If you update to `v1.25.0` through OTA, open **System Tools** after the update and run **Repair `.htaccess`** once. The OTA updater protects the live `.htaccess` file, so this manual repair step applies the new v1.25.0 managed routing and sensitive-file rules while preserving host-specific rules outside the VonCMS block.
 6. If your site already passed the `v1.25.0` `.htaccess` repair step, update normally to the latest published release.

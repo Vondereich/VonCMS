@@ -28,6 +28,25 @@ function voncms_settings_audit_available(PDO $pdo): bool
   return $cache[$cacheKey];
 }
 
+function voncms_settings_audit_has_actor_snapshot(PDO $pdo): bool
+{
+  /** @var WeakMap<PDO, bool> $cache */
+  static $cache = new WeakMap();
+  if (isset($cache[$pdo])) {
+    return $cache[$pdo];
+  }
+  try {
+    $statement = $pdo->query('SELECT actor_username, actor_role FROM settings_audit_log WHERE 1=0');
+    if ($statement instanceof PDOStatement) {
+      $statement->closeCursor();
+      return $cache[$pdo] = true;
+    }
+  } catch (Throwable $error) {
+    // Legacy/partial schemas retain their ID-only history until explicit Repair.
+  }
+  return $cache[$pdo] = false;
+}
+
 function voncms_setting_audit_is_sensitive(string $group, string $key): bool
 {
   if (in_array($group, ['smtp', 'api', 'analytics', 'contact'], true)) {
@@ -118,6 +137,20 @@ function voncms_record_setting_audit(
       return;
     }
 
+    $actorColumns = '';
+    $actorPlaceholders = '';
+    $actorValues = [];
+    if (voncms_settings_audit_has_actor_snapshot($pdo)) {
+      $actor = DataBoundary::actor();
+      $sameActor = $changedBy !== null && $changedBy > 0 && $actor['id'] === (string) $changedBy;
+      $actorColumns = ', actor_username, actor_role';
+      $actorPlaceholders = ', ?, ?';
+      $actorValues = [
+        $sameActor ? trim($actor['username']) : '',
+        $sameActor ? strtolower(trim($actor['role'])) : '',
+      ];
+    }
+
     $stmt = $pdo->prepare(
       'INSERT INTO settings_audit_log (
         setting_id,
@@ -128,8 +161,12 @@ function voncms_record_setting_audit(
         changed_by,
         change_type,
         ip_address,
-        user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        user_agent' .
+        $actorColumns .
+        '
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?' .
+        $actorPlaceholders .
+        ')',
     );
     $stmt->execute([
       $settingId,
@@ -141,6 +178,7 @@ function voncms_record_setting_audit(
       $resolvedChangeType,
       $_SERVER['REMOTE_ADDR'] ?? null,
       $_SERVER['HTTP_USER_AGENT'] ?? null,
+      ...$actorValues,
     ]);
   } catch (Throwable $e) {
     error_log('Settings audit log write failed: ' . $e->getMessage());

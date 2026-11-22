@@ -312,7 +312,7 @@ const InstallWizard: React.FC = () => {
                       />
                     </div>
                     <p className="text-xs leading-5 text-slate-500">
-                      Open <code>data/install_setup.key</code> in your hosting File Manager and
+                      Open <code>data/install_setup.key.php</code> in your hosting File Manager and
                       paste its value here. VonCMS deletes the key after installation succeeds.
                     </p>
                   </div>

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { PluginDefinition, PluginLocation } from '../../../../../../types';
 import { Megaphone, X } from 'lucide-react';
 import { normalizeSiteUrl } from '../../../../../../utils/siteUtils';
+import { usePlugin } from '../../../../providers/VonProviders';
+import { campaignTimestamp } from './schedule';
 
 // Storage key for dismissed state
 const DISMISSED_KEY = 'voncms_promo_bar_dismissed';
@@ -21,25 +23,35 @@ const getReadableTextColor = (backgroundColor: string) => {
 
 const getDismissMs = (dismissHours: number) => Math.max(1, dismissHours || 24) * 60 * 60 * 1000;
 
-const isWithinCampaignWindow = (startsAt?: string, endsAt?: string): boolean => {
+const isWithinCampaignWindow = (startsAt?: string, endsAt?: string, timeZone = 'UTC'): boolean => {
   const now = Date.now();
-  const startTime = startsAt ? Date.parse(startsAt) : NaN;
-  const endTime = endsAt ? Date.parse(endsAt) : NaN;
-
-  if (!Number.isNaN(startTime) && now < startTime) return false;
-  if (!Number.isNaN(endTime) && now > endTime) return false;
-
-  return true;
+  try {
+    const startTime = campaignTimestamp(startsAt, timeZone);
+    const endTime = campaignTimestamp(endsAt, timeZone);
+    if (startTime !== null && endTime !== null && endTime <= startTime) return false;
+    return (startTime === null || now >= startTime) && (endTime === null || now < endTime);
+  } catch {
+    return false;
+  }
 };
 
 // Check if dismissed (persists for the configured campaign window)
-const isDismissed = (dismissHours: number): boolean => {
+const isDismissed = (campaignId: string, dismissHours: number): boolean => {
   try {
     const dismissed = localStorage.getItem(DISMISSED_KEY);
     if (!dismissed) return false;
-    const dismissedTime = parseInt(dismissed, 10);
+    const record = JSON.parse(dismissed);
+    if (
+      !record ||
+      typeof record !== 'object' ||
+      record.campaign !== campaignId ||
+      typeof record.at !== 'number' ||
+      !Number.isFinite(record.at)
+    )
+      return false;
+    const dismissedTime = record.at;
     const now = Date.now();
-    if (now - dismissedTime < getDismissMs(dismissHours)) return true;
+    if (dismissedTime <= now && now - dismissedTime < getDismissMs(dismissHours)) return true;
     // Expired, remove
     localStorage.removeItem(DISMISSED_KEY);
     return false;
@@ -49,9 +61,9 @@ const isDismissed = (dismissHours: number): boolean => {
 };
 
 // Set dismissed state
-const setDismissed = () => {
+const setDismissed = (campaignId: string) => {
   try {
-    localStorage.setItem(DISMISSED_KEY, Date.now().toString());
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify({ campaign: campaignId, at: Date.now() }));
   } catch {
     // Ignore storage errors
   }
@@ -59,6 +71,7 @@ const setDismissed = () => {
 
 // Promo Bar Component (internal)
 const PromoBarComponent: React.FC<{
+  campaignId: string;
   text: string;
   linkUrl: string;
   linkText: string;
@@ -69,6 +82,7 @@ const PromoBarComponent: React.FC<{
   endsAt?: string;
   targetBlank: boolean;
 }> = ({
+  campaignId,
   text,
   linkUrl,
   linkText,
@@ -79,17 +93,20 @@ const PromoBarComponent: React.FC<{
   endsAt,
   targetBlank,
 }) => {
-  const [dismissed, setDismissedState] = useState(() => allowDismiss && isDismissed(dismissHours));
+  const { timeZone } = usePlugin();
+  const [dismissed, setDismissedState] = useState(
+    () => allowDismiss && isDismissed(campaignId, dismissHours)
+  );
   const textColor = getReadableTextColor(backgroundColor);
 
   // Don't render if dismissed
   if (dismissed) return null;
-  if (!isWithinCampaignWindow(startsAt, endsAt)) return null;
+  if (!isWithinCampaignWindow(startsAt, endsAt, timeZone)) return null;
 
   const destination = normalizeSiteUrl(linkUrl);
 
   const handleDismiss = () => {
-    setDismissed();
+    setDismissed(campaignId);
     setDismissedState(true);
   };
 
@@ -146,10 +163,12 @@ export const PromoBarPlugin: PluginDefinition<import('../../../../../../types').
     const startsAt = props?.startsAt || '';
     const endsAt = props?.endsAt || '';
     const targetBlank = props?.targetBlank !== false && props?.targetBlank !== 'false';
+    const campaignId = JSON.stringify([text, linkUrl, linkText, startsAt, endsAt]);
 
     return (
       <PromoBarComponent
-        key={allowDismiss ? 'dismissible' : 'persistent'}
+        key={`${allowDismiss ? 'dismissible' : 'persistent'}:${campaignId}`}
+        campaignId={campaignId}
         text={text}
         linkUrl={linkUrl}
         linkText={linkText}

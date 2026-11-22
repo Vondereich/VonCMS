@@ -214,9 +214,10 @@ try {
     $newRole = $assignableRoles[$requestedRole];
     $isStaffRole = in_array($newRole, ['Admin', 'Root', 'Moderator', 'Writer'], true);
 
+    voncms_apply_site_timezone($pdo);
     // Insert new user (ID handled by DB AUTO_INCREMENT)
     $stmt = $pdo->prepare(
-      'INSERT INTO users (username, display_name, email, password, role, avatar, bio, email_verified, verification_token, verification_token_expires, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NOW())',
+      'INSERT INTO users (username, display_name, email, password, role, avatar, bio, email_verified, verification_token, verification_token_expires, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)',
     );
     $stmt->execute([
       $input['username'],
@@ -227,6 +228,7 @@ try {
       $input['avatar'] ?? '',
       $input['bio'] ?? '',
       $isStaffRole ? 1 : 0,
+      date('Y-m-d H:i:s'),
     ]);
 
     $userId = $pdo->lastInsertId();

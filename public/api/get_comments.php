@@ -71,6 +71,9 @@ try {
   // Authorization is captured above; count and list queries no longer hold the session lock.
   if (!$isStaff) {
     $where[] = "c.status = 'approved'";
+    // Approval of a reply does not make its hidden parent public.
+    $where[] =
+      "(c.parent_id IS NULL OR c.parent_id = 0 OR EXISTS (SELECT 1 FROM comments parent WHERE parent.id = c.parent_id AND parent.status = 'approved'))";
     $where[] =
       "EXISTS (SELECT 1 FROM posts p WHERE p.id = c.post_id AND (p.status = 'published' OR p.status IS NULL) AND (p.scheduled_at IS NULL OR p.scheduled_at <= ?))";
     $countParams[] = date('Y-m-d H:i:s');

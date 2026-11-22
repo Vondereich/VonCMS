@@ -431,7 +431,7 @@ Fill in:
 - admin username
 - admin email
 - admin password
-- the one-time value from `data/install_setup.key`, read through SSH or the hosting File Manager after the installer first opens
+- the one-time value from `data/install_setup.key.php`, read through SSH or the hosting File Manager after the installer first opens; copy only the 64-character line below the PHP guard, not the guard itself
 
 The admin password must be at least 8 characters and include an uppercase letter, a number, and one special character from `!@#$%^&*(),.?":{}|<>`. For example, `MyPass1!`. Weak passwords are rejected by the installer.
 
@@ -577,7 +577,7 @@ Check:
 - Nginx rewrite rules are present
 - PHP 8.3+ is selected
 - PHP-FPM can write `von_config.php` and `install.lock`
-- PHP-FPM can create and remove `data/install_setup.key`
+- PHP-FPM can create and remove `data/install_setup.key.php`
 - The extracted files have the correct owner
 - The Deploy ZIP contents are directly inside the site root
 
@@ -740,6 +740,17 @@ Cloudflare can also serve Brotli (`br`) compression at the edge even when the
 VonCMS `.htaccess` baseline only enables gzip. That is normal. Compression and
 static caching are server/CDN responsibilities; VonCMS only ships the safe
 portable baseline.
+
+#### Public Read CDN Boundaries
+
+Short public-read caching is not permission to cache every route. Before enabling HTML caching:
+
+- Bypass `/admin`, login/recovery/installer routes and `/api/` (including `/api.php` and `check_auth.php`), with the installation's subfolder prefix when applicable.
+- Bypass requests carrying the configured PHP session cookie (normally `PHPSESSID`), `voncms_remember`, or an Authorization header. Keep query strings in cache keys.
+- Respect origin `private` and `no-store`; do not override them with a forced Edge TTL. Purge older cached authentication/API/HTML responses when changing these rules.
+- Do not rely on `Vary: Cookie` alone: [Cloudflare ignores most Vary values by default](https://developers.cloudflare.com/cache/concepts/cache-control/). Use explicit bypass rules or an appropriately configured cache key. The CMS cannot enforce a remote CDN's override settings.
+
+Shared guest HTML contains no CSRF token or User-Agent-specific tracking marker. Authentication status remains private/no-store even without a cookie. Fingerprinted assets keep their separate long-cache policy.
 
 ### LiteSpeed Cache Notes
 

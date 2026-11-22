@@ -28,6 +28,10 @@ import { VonAnalyticsSettings } from './components/VonAnalyticsSettings';
 
 import { AISummarySettings } from '../plugins/built-in/ai-summary/SettingsModal';
 import { RelatedPostsSettings } from '../plugins/built-in/related-posts/SettingsModal';
+import {
+  campaignDateTimeInput,
+  normalizeCampaignSchedule,
+} from '../plugins/built-in/promo-bar/schedule';
 
 // Colorful gradient palette for extension cards
 const CARD_GRADIENTS = [
@@ -421,12 +425,21 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
       );
       if (!saved) return;
     } else {
+      let config = tempConfig;
+      if (configuringPluginId === 'vp_promo_bar') {
+        try {
+          config = normalizeCampaignSchedule(tempConfig, currentSettings.timeZone || 'UTC');
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Invalid announcement schedule.');
+          return;
+        }
+      }
       const saved = await persistSettings(
         {
           ...currentSettings,
           pluginConfig: {
             ...currentSettings.pluginConfig,
-            [configuringPluginId]: tempConfig,
+            [configuringPluginId]: config,
           },
         },
         configuringPluginId
@@ -585,6 +598,45 @@ const ExtensionsManager: React.FC<ExtensionsManagerProps> = ({ settings, onUpdat
                 {Object.keys(tempConfig).length > 0 ? (
                   Object.entries(tempConfig).map(([key, value]) => {
                     if (configuringPluginId === 'vp_promo_bar') {
+                      if (key === 'startsAt' || key === 'endsAt') {
+                        let inputValue = String(value || '');
+                        let invalidSavedDate = false;
+                        try {
+                          inputValue = campaignDateTimeInput(
+                            inputValue,
+                            settings.timeZone || 'UTC'
+                          );
+                        } catch {
+                          invalidSavedDate = true;
+                        }
+                        return (
+                          <label
+                            key={key}
+                            className="block space-y-2 text-sm text-slate-700 dark:text-slate-300"
+                          >
+                            <span>
+                              {key === 'startsAt' ? 'Starts at' : 'Ends at'} (
+                              {settings.timeZone || 'UTC'})
+                            </span>
+                            <input
+                              id={`promo-${key}`}
+                              name={key}
+                              type={invalidSavedDate ? 'text' : 'datetime-local'}
+                              step="1"
+                              value={inputValue}
+                              onChange={(event) =>
+                                setTempConfig({ ...tempConfig, [key]: event.target.value })
+                              }
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 dark:border-admin-border dark:bg-admin-canvas dark:text-white"
+                            />
+                            <span className="block text-xs text-slate-500 dark:text-gray-400">
+                              {invalidSavedDate
+                                ? 'Invalid saved date. Replace it with YYYY-MM-DDTHH:mm:ss, or clear it.'
+                                : 'Uses the site timezone. Leave blank for no limit.'}
+                            </span>
+                          </label>
+                        );
+                      }
                       if (key === 'allowDismiss') {
                         return (
                           <label

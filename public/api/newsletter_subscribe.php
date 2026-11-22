@@ -68,6 +68,11 @@ $honeypot = (string) $honeypot;
 
 // Honeypot check
 if ($honeypot !== '') {
+  require_once __DIR__ . '/security/SecurityLogger.php';
+  SecurityLogger::log('honeypot_caught', 'medium', [
+    'context' => 'newsletter',
+    'field' => 'hp_field',
+  ]);
   error_log(
     'Honeypot triggered during newsletter subscription from IP: ' .
       DataBoundary::serverString('REMOTE_ADDR', 'unknown'),
@@ -108,11 +113,12 @@ try {
     exit();
   }
 
+  voncms_apply_site_timezone($pdo);
   // Insert new subscriber
   $stmt = $pdo->prepare(
-    "INSERT INTO newsletter_subscribers (email, ip_address, source) VALUES (?, ?, 'widget')",
+    "INSERT INTO newsletter_subscribers (email, ip_address, source, subscribed_at) VALUES (?, ?, 'widget', ?)",
   );
-  $stmt->execute([$email, $clientIP]);
+  $stmt->execute([$email, $clientIP, date('Y-m-d H:i:s')]);
 
   echo json_encode([
     'success' => true,

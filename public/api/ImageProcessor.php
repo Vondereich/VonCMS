@@ -25,6 +25,7 @@ if (
 }
 
 require_once __DIR__ . '/../media_variants.php';
+require_once __DIR__ . '/media/LocationMetadata.php';
 
 /**
  * @phpstan-type Settings array{enabled: bool, maxWidth: int, maxHeight: int, quality: int, convertToWebP: bool, generateResponsiveVariants: bool, responsiveWidths: array<int,int>, skipAbsolute?: bool, compressionLevel?: string}
@@ -88,13 +89,6 @@ class ImageProcessor
       'responsiveVariantMessage' => '',
     ];
 
-    // Skip if processing disabled
-    if (!$this->settings['enabled']) {
-      $result['success'] = true;
-      $result['message'] = 'Processing disabled, file saved as-is.';
-      return $result;
-    }
-
     // Validate file exists
     if (!file_exists($filePath)) {
       $result['message'] = 'File not found.';
@@ -116,6 +110,18 @@ class ImageProcessor
     if (!isset(self::SUPPORTED_TYPES[$mimeType])) {
       $result['success'] = true;
       $result['message'] = 'Unsupported image type, saved as-is.';
+      return $result;
+    }
+
+    try {
+      VonCmsLocationMetadata::cleanFile($filePath, $mimeType);
+    } catch (RuntimeException $error) {
+      $result['message'] = $error->getMessage();
+      return $result;
+    }
+    if (!$this->settings['enabled']) {
+      $result['success'] = true;
+      $result['message'] = 'Optimization disabled; location metadata removed without re-encoding.';
       return $result;
     }
 
@@ -559,6 +565,81 @@ class ImageProcessor
     $availableBytes = max(0, $limitBytes - memory_get_usage(true) - 16 * 1024 * 1024);
 
     return $estimatedBytes <= $availableBytes;
+  }
+
+  /** Inspect bounded JPEG metadata segments without decoding pixels or rewriting orientation.
+   * Native EXIF owns TIFF/GPS parsing. Unverifiable metadata fails closed on as-is fallback only.
+   */
+  public static function canPreserveJpegMetadata(string $path): bool
+  {
+    $handle = @fopen($path, 'rb');
+    if ($handle === false) {
+      return false;
+    }
+    $hasExif = false;
+    try {
+      if (fread($handle, 2) !== "\xff\xd8") {
+        return false;
+      }
+      for ($segments = 0; $segments < 1024; $segments++) {
+        if (fread($handle, 1) !== "\xff") {
+          return false;
+        }
+        $marker = fread($handle, 1);
+        $padding = 0;
+        while ($marker === "\xff" && $padding++ < 1024) {
+          $marker = fread($handle, 1);
+        }
+        if ($marker === "\xda" || $marker === "\xd9") {
+          if (!$hasExif) {
+            return true;
+          }
+          if (!function_exists('exif_read_data')) {
+            return false;
+          }
+          // Requiring the GPS section returns false for valid orientation-only EXIF.
+          $metadata = @exif_read_data($path, null, true, false);
+          return is_array($metadata) && empty($metadata['GPS']);
+        }
+        if (!is_string($marker) || $marker === '' || $marker === "\x00") {
+          return false;
+        }
+        if ($marker === "\x01" || (ord($marker) >= 0xd0 && ord($marker) <= 0xd7)) {
+          continue;
+        }
+        $bytes = fread($handle, 2);
+        if (!is_string($bytes) || strlen($bytes) !== 2) {
+          return false;
+        }
+        $length = ((ord($bytes[0]) << 8) | ord($bytes[1])) - 2;
+        if ($length < 0) {
+          return false;
+        }
+        $data = $length > 0 ? fread($handle, $length) : '';
+        if (!is_string($data) || strlen($data) !== $length) {
+          return false;
+        }
+        if ($marker === "\xe1") {
+          if (str_starts_with($data, "Exif\0\0")) {
+            if ($hasExif) {
+              return false;
+            }
+            $hasExif = true;
+          } elseif (
+            !str_starts_with($data, "http://ns.adobe.com/xap/1.0/\0") ||
+            preg_match(
+              '/\b(?:GPSLatitude|GPSLongitude|GPSPosition|Latitude|Longitude|Location)\b/i',
+              $data,
+            )
+          ) {
+            return false;
+          }
+        }
+      }
+      return false;
+    } finally {
+      fclose($handle);
+    }
   }
   /**
    * Get settings

@@ -38,8 +38,8 @@ export const getCategorySlug = (category: string | null | undefined): string => 
   return slug || 'uncategorized';
 };
 
-// Advisory only: these public folders can collide with Category & Name permalinks.
-const CATEGORY_FOLDER_PATHS = new Set([
+// Built-in folders can take precedence over both category URLs and root-slug fallbacks.
+const BUNDLED_PERMALINK_FOLDERS = new Set([
   'api',
   'assets',
   'backups',
@@ -51,9 +51,19 @@ const CATEGORY_FOLDER_PATHS = new Set([
   'uploads',
 ]);
 
-export const getCategoryFolderConflict = (category: string | null | undefined): string | null => {
+// Source ZIP folders also claim exact root URLs, not their whole category namespace.
+const ROOT_PERMALINK_FOLDERS = new Set([...BUNDLED_PERMALINK_FOLDERS, 'public', 'server', 'src']);
+
+export const getCategoryFolderConflict = (
+  category: string | null | undefined,
+  postSlug?: string | null
+): string | null => {
   const slug = getCategorySlug(category);
-  return CATEGORY_FOLDER_PATHS.has(slug) ? slug : null;
+  const legacyIdConflict =
+    (slug === 'post' || slug === 'blog') && (postSlug == null || /^[1-9][0-9]*$/.test(postSlug));
+  return BUNDLED_PERMALINK_FOLDERS.has(slug) || SYSTEM_ROUTE_PREFIXES.has(slug) || legacyIdConflict
+    ? slug
+    : null;
 };
 
 const SYSTEM_ROUTE_PREFIXES = new Set([
@@ -110,6 +120,33 @@ export const isPublicContentPath = (pathname: string): boolean => {
   return date.getUTCFullYear() === Number(first) && date.getUTCMonth() === Number(month) - 1;
 };
 
+export const isExplicitPageIdRequest = (pathname: string, search: string): boolean => {
+  const query = search.replace(/^\?/, '');
+  return (
+    /^\/?page\/[1-9][0-9]*\/?$/i.test(pathname) &&
+    /(?:^|&)voncms_page=1(?:&|$)/.test(query) &&
+    [...query.matchAll(/(?:^|&)voncms_page(?:=|(?=&|$))/g)].length === 1
+  );
+};
+
+export const isSafeGeneratedContentPath = (path: string): boolean => {
+  if (!isPublicContentPath(path)) return false;
+  const parts = path.replace(/^\/+|\/+$/g, '').split('/');
+  return (
+    !!parts[0] &&
+    !(parts.length === 1 && ROOT_PERMALINK_FOLDERS.has(decodeURIComponent(parts[0]).toLowerCase()))
+  );
+};
+
+export const getPagePermalink = (
+  page: Pick<Page, 'id'> & Partial<Pick<Page, 'slug'>>,
+  noBase = false
+): string => {
+  const slug = page.slug ?? '';
+  const path = `/${slug}`;
+  return `${noBase ? '' : getBasePathPrefix()}${!slug.includes('/') && isSafeGeneratedContentPath(path) ? path : `/page/${page.id}?voncms_page=1`}`;
+};
+
 export const getPermalink = (
   post: Pick<Post, 'id'> &
     Partial<
@@ -156,7 +193,11 @@ export const getPermalink = (
     case 'category': {
       // Keep client links aligned with PHP canonical, sitemap, RSS, and llms category slugs.
       const category = getCategorySlug(post.category);
-      path = `/${category}/${slug}`;
+      path = getCategoryFolderConflict(post.category, slug)
+        ? isSafeGeneratedContentPath(`/${slug}`)
+          ? `/${slug}`
+          : `/post/${post.id}`
+        : `/${category}/${slug}`;
       break;
     }
     case 'post_name':
@@ -170,6 +211,8 @@ export const getPermalink = (
       path = `/${slug}`; // Fallback to slug (safer than /post/{id})
       break;
   }
+
+  if (String(slug).includes('/') || !isSafeGeneratedContentPath(path)) path = `/post/${post.id}`;
 
   // Path Agnosticism: Add basePath unless explicitly skipped (e.g., for navigation)
   // Or if domain already includes the basePath (avoid duplication)
@@ -275,7 +318,7 @@ export const getPublicNavigationHref = (
   if (target.startsWith('page:')) {
     const pageRef = target.slice(5).trim();
     const page = pages.find((candidate) => candidate.id === pageRef || candidate.slug === pageRef);
-    return page?.status === 'published' && page.slug ? normalizeSiteUrl(`/${page.slug}`) : null;
+    return page?.status === 'published' && page.slug ? getPagePermalink(page) : null;
   }
 
   if (target.startsWith('post:')) {

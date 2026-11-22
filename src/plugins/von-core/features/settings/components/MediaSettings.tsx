@@ -407,7 +407,8 @@ export const MediaSettings: React.FC<MediaSettingsProps> = ({ settings, onChange
                     Enable Image Optimization
                   </span>
                   <p className="text-xs text-slate-500 dark:text-gray-400">
-                    Automatically compress images on upload.
+                    Automatically compress images on upload. JPEG, PNG and WebP location metadata is
+                    removed automatically even when optimization is off.
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">

@@ -37,10 +37,23 @@ function uploadChecks() {
     fs.mkdirSync(path.join(fixture, 'php-tmp'));
     for (const file of ['upload_file.php', 'ImageProcessor.php'])
       fs.copyFileSync(path.join(root, 'public/api', file), path.join(api, file));
+    fs.mkdirSync(path.join(api, 'media'));
+    fs.copyFileSync(
+      path.join(root, 'public/api/media/LocationMetadata.php'),
+      path.join(api, 'media/LocationMetadata.php')
+    );
+    fs.copyFileSync(
+      path.join(root, 'public/api/media/SvgLogo.php'),
+      path.join(api, 'media/SvgLogo.php')
+    );
     fs.mkdirSync(path.join(site, 'core'));
     fs.copyFileSync(
       path.join(root, 'public/core/DataBoundary.php'),
       path.join(site, 'core/DataBoundary.php')
+    );
+    fs.copyFileSync(
+      path.join(root, 'public/core/SettingsStorage.php'),
+      path.join(site, 'core/SettingsStorage.php')
     );
     fs.copyFileSync(
       path.join(root, 'public/media_variants.php'),
@@ -49,14 +62,19 @@ function uploadChecks() {
     fs.writeFileSync(
       path.join(site, 'security.php'),
       `<?php
+define('VONCMS_CORE_LOADED',true);
 require_once __DIR__.'/core/DataBoundary.php';
 class ResponseHelper {
   static function sendError($error, $status=500) { http_response_code($status); echo json_encode(['success'=>false,'error'=>$error instanceof Throwable?'QA database failed':$error]); exit; }
   static function scrubUrl($url) { return $url; }
 }
-class SessionManager { static function requireValidSession() {} }
+class SessionManager {
+  static function requireValidSession() {}
+  static function requireAdmin() {if(!in_array(strtolower(getenv('QA_UPLOAD_ROLE')?:'admin'),['admin','root'],true))ResponseHelper::sendError('Admin access required',403);}
+}
 class CSRFProtection { static function requireToken() {} }
 function sendApiHeaders($methods) { header('Content-Type: application/json'); }
+function voncms_apply_site_timezone($pdo) {}
 $_SESSION=['user'=>['id'=>1,'role'=>'admin']];
 `
     );
@@ -81,6 +99,23 @@ class QaDatabase {
   function lastInsertId() { return '17'; }
 }
 $pdo=new QaDatabase;
+if (getenv('QA_DB_MEDIA')) {
+  class QaMediaPreferencesStatement extends PDOStatement {
+    public function rowCount():int {return str_contains($this->queryString,'sqlite_master')?count($this->fetchAll()):parent::rowCount();}
+  }
+  class QaMediaPreferencesPDO extends PDO {
+    public function query(string $sql, ?int $mode=null, mixed ...$args): PDOStatement|false {
+      if ($sql==="SHOW TABLES LIKE 'media'") $sql="SELECT name FROM sqlite_master WHERE name='media'";
+      return parent::query($sql,$mode,...$args);
+    }
+  }
+  $pdo=new QaMediaPreferencesPDO('sqlite::memory:',null,null,[PDO::ATTR_STATEMENT_CLASS=>[QaMediaPreferencesStatement::class]]);
+  $pdo->exec('CREATE TABLE media(filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,alt_text TEXT,caption TEXT,uploaded_at TEXT,created_at TEXT)');
+  $pdo->exec('CREATE TABLE settings(setting_group TEXT,setting_key TEXT,setting_value TEXT,setting_type TEXT)');
+  foreach(json_decode(getenv('QA_DB_MEDIA'),true) as $key=>$value) {
+    $pdo->prepare('INSERT INTO settings VALUES(?,?,?,?)')->execute(['media',$key,json_encode($value),'json']);
+  }
+}
 `
     );
     const image = path.join(fixture, 'sample.png');
@@ -101,9 +136,13 @@ $pdo=new QaDatabase;
       filename = 'test.png',
       bytes = png,
       expectedSuccess,
-      fileField = 'file'
+      fileField = 'file',
+      role = 'admin',
+      databaseMedia = null,
+      disableGd = false
     ) {
-      fs.writeFileSync(settingsPath, JSON.stringify(settings));
+      if (settings === null) fs.rmSync(settingsPath, { force: true });
+      else fs.writeFileSync(settingsPath, JSON.stringify(settings));
       const boundary = 'VonCMSMediaFixtureBoundary';
       const body = Buffer.concat([
         ...Object.entries(fields).map(([name, value]) =>
@@ -126,6 +165,8 @@ $pdo=new QaDatabase;
           '-d',
           'opcache.enable=0',
           '-d',
+          disableGd ? 'disable_functions=imagecreatetruecolor' : 'disable_functions=',
+          '-d',
           `upload_tmp_dir=${path.join(fixture, 'php-tmp')}`,
         ],
         {
@@ -142,6 +183,8 @@ $pdo=new QaDatabase;
             SCRIPT_NAME: scriptName,
             SERVER_PROTOCOL: 'HTTP/1.1',
             QA_DB_FAIL: failure ? '1' : '',
+            QA_UPLOAD_ROLE: role,
+            QA_DB_MEDIA: databaseMedia === null ? '' : JSON.stringify(databaseMedia),
           },
         }
       );
@@ -168,6 +211,45 @@ $pdo=new QaDatabase;
         optimization: { enabled: true, convertToWebP: true },
       },
     };
+    for (const base of ['', '/zangetsu']) {
+      for (const [databaseEnabled, mirrorEnabled] of [
+        [false, null],
+        [false, true],
+        [true, false],
+        [false, false],
+        [null, true],
+      ]) {
+        const snapshot =
+          mirrorEnabled === null
+            ? null
+            : {
+                media: {
+                  storage: { folderStructure: 'flat' },
+                  optimization: { enabled: mirrorEnabled },
+                },
+              };
+        const uploaded = upload(
+          snapshot,
+          base + '/api/upload_file.php',
+          {},
+          false,
+          'prefs.png',
+          png,
+          true,
+          'file',
+          'admin',
+          {
+            storage: { folderStructure: 'flat' },
+            ...(databaseEnabled === null ? {} : { optimization: { enabled: databaseEnabled } }),
+          }
+        );
+        assert.equal(
+          uploaded.processed !== null,
+          databaseEnabled === true,
+          'Upload ignored the committed DB media preference'
+        );
+      }
+    }
     for (const base of ['', '/zangetsu']) {
       for (const fields of [
         {},
@@ -290,6 +372,7 @@ $pdo=new QaDatabase;
         ]),
       ]);
     }
+    require('./integration/media/svg-upload.cjs')({ upload, flat, site, api, png, root });
     const before = fs.readdirSync(path.join(site, 'uploads'), { recursive: true }).sort();
     const malformed = upload(
       flat,
@@ -312,6 +395,257 @@ $pdo=new QaDatabase;
       Buffer.from('<?php echo "not an image";')
     );
     upload(flat, '/api/upload_file.php', {}, false, 'image.png.php');
+    // Construct a GPS-bearing JPEG with a large SOF header: no huge pixel buffer is allocated.
+    const gps = spawnSync(
+      php,
+      [
+        '-r',
+        `
+$image=imagecreatetruecolor(1,1);ob_start();imagejpeg($image);$jpeg=ob_get_clean();
+$tiff="II".pack('vV',42,8).pack('v',1).pack('vvVV',0x8825,4,1,26).pack('V',0);
+$tiff.=pack('v',4).pack('vvV',1,2,2)."N\\0\\0\\0".pack('vvVV',2,5,3,80).pack('vvV',3,2,2)."E\\0\\0\\0".pack('vvVV',4,5,3,104).pack('V',0).pack('V*',3,1,8,1,0,1,101,1,41,1,0,1);
+$exif="Exif\\0\\0".$tiff;$jpeg=substr($jpeg,0,2)."\\xff\\xe1".pack('n',strlen($exif)+2).$exif.substr($jpeg,2);
+$sof=strpos($jpeg,"\\xff\\xc0");echo base64_encode(substr_replace($jpeg,pack('nn',8000,8000),$sof+5,4));
+`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(gps.status, 0, gps.stderr);
+    const smallGps = Buffer.from(gps.stdout, 'base64');
+    const smallSof = smallGps.indexOf(Buffer.from([0xff, 0xc0]));
+    assert.ok(smallSof > 0);
+    smallGps.writeUInt16BE(1, smallSof + 5);
+    smallGps.writeUInt16BE(1, smallSof + 7);
+    const ordinaryJpeg = spawnSync(php, ['-r', '$im=imagecreatetruecolor(2,1);imagejpeg($im);'], {
+      encoding: null,
+    });
+    assert.equal(ordinaryJpeg.status, 0);
+    const orientation = Buffer.from(
+      '45786966000049492a0008000000010012010300010000000600000000000000',
+      'hex'
+    );
+    const app1 = Buffer.alloc(4);
+    app1[0] = 0xff;
+    app1[1] = 0xe1;
+    app1.writeUInt16BE(orientation.length + 2, 2);
+    const orientedJpeg = Buffer.concat([
+      ordinaryJpeg.stdout.subarray(0, 2),
+      app1,
+      orientation,
+      ordinaryJpeg.stdout.subarray(2),
+    ]);
+    const noExifPath = path.join(fixture, 'no-exif-orientation.jpg');
+    fs.writeFileSync(noExifPath, orientedJpeg);
+    const noExifResult = spawnSync(
+      php,
+      [
+        '-d',
+        'disable_functions=exif_read_data',
+        '-r',
+        'require $argv[1]; echo json_encode((new ImageProcessor(["generateResponsiveVariants"=>false]))->processUpload($argv[2]));',
+        path.join(root, 'public/api/ImageProcessor.php'),
+        noExifPath,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(noExifResult.status, 0, noExifResult.stderr);
+    assert.equal(
+      JSON.parse(noExifResult.stdout).success,
+      true,
+      'Valid oriented JPEG was refused without EXIF extension'
+    );
+    assert.deepEqual(
+      fs.readFileSync(noExifPath),
+      orientedJpeg,
+      'No-EXIF fallback lost orientation or compressed pixels'
+    );
+    const singleGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+    const metadataFormats = spawnSync(
+      php,
+      [
+        '-r',
+        `
+$tiff=base64_decode($argv[1]);$im=imagecreatetruecolor(1,1);ob_start();imagepng($im);$png=ob_get_clean();
+$xmp='<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:exif="http://ns.adobe.com/exif/1.0/" exif:GPSLatitude="3,8N" exif:GPSLongitude="101,41E"/>';
+$chunk=static fn($type,$data)=>pack('N',strlen($data)).$type.$data.pack('N',crc32($type.$data));
+$gpsPng=substr($png,0,33).$chunk('eXIf',$tiff).$chunk('iTXt',"XML:com.adobe.xmp\\0\\0\\0\\0\\0".$xmp).substr($png,33);
+$profile=static fn($bytes)=>chr(10).'exif'.chr(10).sprintf('%8d',strlen($bytes)).chr(10).chunk_split(bin2hex($bytes),72,chr(10));
+$raw=$profile("Exif\\0\\0".$tiff);
+$withText=static fn($type,$data)=>substr($png,0,33).$chunk($type,$data).substr($png,33);
+$rawPng=$withText('tEXt',"Raw profile type exif\\0".$raw);
+$zRawPng=$withText('zTXt',"Raw profile type exif\\0\\0".gzcompress($raw));
+$app1Png=$withText('tEXt',"Raw profile type APP1\\0".$raw);
+$app1XmpPng=$withText('tEXt',"Raw profile type APP1\\0".$profile("http://ns.adobe.com/xap/1.0/\\0".$xmp));
+$rawOrientedPng=$withText('tEXt',"Raw profile type exif\\0".$profile(base64_decode($argv[2])));
+$badRawPng=$withText('tEXt',"Raw profile type exif\\0".chr(10).'exif'.chr(10).'100'.chr(10).'1234');
+$hugeRawPng=$withText('zTXt',"Raw profile type exif\\0\\0".gzcompress(str_repeat('X',3000000)));
+ob_start();imagewebp($im);$webp=ob_get_clean();$chunk=static fn($type,$data)=>$type.pack('V',strlen($data)).$data.(strlen($data)%2?"\\0":'');
+$payload='WEBP'.$chunk('VP8X',"\\x0c".str_repeat("\\0",9)).substr($webp,12).$chunk('EXIF',$tiff).$chunk('XMP ',$xmp);
+echo json_encode(array_map('base64_encode',['png'=>$png,'gpsPng'=>$gpsPng,'webp'=>$webp,'gpsWebp'=>'RIFF'.pack('V',strlen($payload)).$payload,'rawPng'=>$rawPng,'zRawPng'=>$zRawPng,'app1Png'=>$app1Png,'app1XmpPng'=>$app1XmpPng,'rawOrientedPng'=>$rawOrientedPng,'badRawPng'=>$badRawPng,'hugeRawPng'=>$hugeRawPng]));
+`,
+        smallGps.subarray(12, 4 + smallGps.readUInt16BE(4)).toString('base64'),
+        orientation.toString('base64'),
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(metadataFormats.status, 0, metadataFormats.stderr);
+    const formatFixtures = JSON.parse(metadataFormats.stdout);
+    const frame = singleGif.subarray(singleGif.indexOf(0x2c), -1);
+    const animatedGif = Buffer.concat([
+      singleGif.subarray(0, singleGif.indexOf(0x2c)),
+      frame,
+      frame,
+      Buffer.from([0x3b]),
+    ]);
+    for (const base of ['', '/zangetsu']) {
+      for (const [name, key] of [
+        ['gps.png', 'gpsPng'],
+        ['gps.webp', 'gpsWebp'],
+        ['raw-gps.png', 'rawPng'],
+        ['compressed-raw-gps.png', 'zRawPng'],
+        ['app1-gps.png', 'app1Png'],
+        ['app1-xmp-gps.png', 'app1XmpPng'],
+      ]) {
+        const bytes = Buffer.from(formatFixtures[key], 'base64');
+        const cleaned = upload(null, base + '/api/upload_file.php', {}, false, name, bytes, true);
+        const cleanedPath = path.join(site, 'uploads', cleaned.path);
+        const stored = fs.readFileSync(cleanedPath);
+        assert.equal(stored.includes(Buffer.from('GPSLatitude')), false);
+        assert.equal(stored.includes(Buffer.from('GPSLongitude')), false);
+        assert.equal(stored.includes(Buffer.from('Exif\0\0')), false);
+        if (name.endsWith('.png'))
+          assert.deepEqual(
+            stored,
+            Buffer.from(formatFixtures.png, 'base64'),
+            'PNG pixel/container bytes changed beyond metadata'
+          );
+        const dimensions = spawnSync(
+          php,
+          ['-r', 'echo json_encode(getimagesize($argv[1]));', cleanedPath],
+          { encoding: 'utf8' }
+        );
+        assert.equal(dimensions.status, 0);
+        const size = JSON.parse(dimensions.stdout);
+        assert.deepEqual([size[0], size[1]], [1, 1]);
+        if (name.endsWith('.webp')) {
+          assert.equal(stored.includes(Buffer.from('EXIF')), false);
+          assert.equal(stored.includes(Buffer.from('XMP ')), false);
+          assert.ok(
+            stored.includes(Buffer.from(formatFixtures.webp, 'base64').subarray(12)),
+            'WebP compressed pixels changed'
+          );
+        }
+        fs.unlinkSync(cleanedPath);
+      }
+      const orientedPng = upload(
+        null,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'raw-oriented.png',
+        Buffer.from(formatFixtures.rawOrientedPng, 'base64'),
+        true
+      );
+      const orientedPngPath = path.join(site, 'uploads', orientedPng.path);
+      const pngBytes = fs.readFileSync(orientedPngPath);
+      assert.equal(pngBytes.includes(Buffer.from('Raw profile type exif')), false);
+      assert.ok(
+        pngBytes.includes(orientation.subarray(6)),
+        'PNG raw EXIF cleanup lost orientation'
+      );
+      fs.unlinkSync(orientedPngPath);
+      for (const key of ['badRawPng', 'hugeRawPng']) {
+        const refused = upload(
+          null,
+          base + '/api/upload_file.php',
+          {},
+          false,
+          key + '.png',
+          Buffer.from(formatFixtures[key], 'base64'),
+          false
+        );
+        assert.match(refused.error, /metadata.*cleaned safely/);
+      }
+      const sanitized = upload(
+        null,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'fresh-gps.jpg',
+        smallGps,
+        true,
+        'file',
+        'admin',
+        { storage: { folderStructure: 'flat' } }
+      );
+      const sanitizedPath = path.join(site, 'uploads', sanitized.path);
+      assert.equal(fs.readFileSync(sanitizedPath).includes(Buffer.from('Exif\0\0')), false);
+      fs.unlinkSync(sanitizedPath);
+      const noGd = upload(
+        flat,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'no-gd-gps.jpg',
+        smallGps,
+        true,
+        'file',
+        'admin',
+        null,
+        true
+      );
+      const noGdPath = path.join(site, 'uploads', noGd.path);
+      assert.equal(fs.readFileSync(noGdPath).includes(Buffer.from('Exif\0\0')), false);
+      fs.unlinkSync(noGdPath);
+      for (const [name, bytes] of [
+        ['oriented.jpg', orientedJpeg],
+        ['animated.gif', animatedGif],
+      ]) {
+        const keep = upload(null, base + '/api/upload_file.php', {}, false, name, bytes, true);
+        const keepPath = path.join(site, 'uploads', keep.path);
+        assert.deepEqual(
+          fs.readFileSync(keepPath),
+          bytes,
+          'As-is upload changed orientation or animation bytes'
+        );
+        fs.unlinkSync(keepPath);
+      }
+      const accepted = upload(
+        flat,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'optimized-gps.jpg',
+        smallGps,
+        true
+      );
+      const stored = fs.readFileSync(path.join(site, 'uploads', accepted.path));
+      assert.equal(
+        stored.includes(Buffer.from('Exif\0\0')),
+        false,
+        'Optimization retained JPEG EXIF/GPS'
+      );
+      // Successful control belongs to this case, not the following failed-upload inventory.
+      fs.unlinkSync(path.join(site, 'uploads', accepted.path));
+    }
+    for (const base of ['', '/zangetsu']) {
+      const kept = upload(
+        flat,
+        base + '/api/upload_file.php',
+        {},
+        false,
+        'gps-fallback.jpg',
+        Buffer.from(gps.stdout, 'base64'),
+        true
+      );
+      assert.equal(kept.processed.resized, false);
+      assert.equal(kept.responsiveVariantStatus, 'fallback_original');
+      assert.equal(
+        fs.readFileSync(path.join(site, 'uploads', kept.path)).includes(Buffer.from('Exif\0\0')),
+        false
+      );
+      fs.unlinkSync(path.join(site, 'uploads', kept.path));
+    }
     // Force a processor exception after it has written the canonical WebP and a variant.
     // Only this disposable copied class is replaced; the actual endpoint/CGI path is unchanged.
     const processorPath = path.join(api, 'ImageProcessor.php');
@@ -445,7 +779,7 @@ if(loadMediaCleanupPreview($reviewToken)!==null) throw new RuntimeException('Mal
 if(!is_file($probeSource)) throw new RuntimeException('Rejected media review touched an image');
 $pdo=new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
-$pdo->exec('CREATE TABLE media(id INTEGER PRIMARY KEY,filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,uploaded_at TEXT)');
+$pdo->exec('CREATE TABLE media(id INTEGER PRIMARY KEY,filename TEXT,filepath TEXT,filetype TEXT,filesize INT,uploaded_by INT,uploaded_at TEXT,created_at TEXT)');
 $pdo->exec('CREATE TABLE posts(image_url TEXT)');
 $synced=$skipped=$skippedVariants=0; $errors=[];
 $uploads=str_replace('\\\\','/',realpath(__DIR__.'/../uploads'));

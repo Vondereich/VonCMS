@@ -143,11 +143,19 @@ class RateLimiter
    */
   public static function consumeFixedWindows(array $limits, string $namespace = 'recovery'): bool
   {
-    $partitioned = in_array(
+    $submission = in_array(
       $namespace,
-      ['analytics-request', 'analytics-issue', 'analytics-session'],
+      [
+        'submission-contact',
+        'submission-comment',
+        'submission-newsletter',
+        'submission-comment-member',
+      ],
       true,
     );
+    $partitioned =
+      in_array($namespace, ['analytics-request', 'analytics-issue', 'analytics-session'], true) ||
+      $submission;
     if (
       $limits === [] ||
       count($limits) > 8 ||
@@ -163,6 +171,9 @@ class RateLimiter
             'verification-resend',
             'registration',
             'security-log',
+            'submission-contact',
+            'submission-comment',
+            'submission-newsletter',
           ],
           true,
         ))
@@ -177,9 +188,15 @@ class RateLimiter
       'verification-resend' => 'verification-resend-ledger:v1',
       'registration' => 'registration-ledger:v1',
       'security-log' => 'security-event-ledger:v1',
+      'submission-contact' => 'submission-contact-ledger:v1',
+      'submission-comment' => 'submission-comment-ledger:v1',
+      'submission-newsletter' => 'submission-newsletter-ledger:v1',
       default => 'fixed-window-ledger:v1',
     };
-    $shard = $partitioned ? hash('sha256', (string) array_key_first($limits))[0] : '';
+    $identifier = (string) array_key_first($limits);
+    $shard = $partitioned
+      ? hash('sha256', $submission ? self::submissionShardIdentity($identifier) : $identifier)[0]
+      : '';
     if ($partitioned) {
       // Fixed 16 shards per purpose, never a file per attacker-selected address.
       $ledger = $namespace . '-ledger:v2:' . $shard;
@@ -210,7 +227,7 @@ class RateLimiter
       }
       $now = time();
       $data = self::decodeFixedWindowLedger($raw, $now);
-      if ($partitioned && $raw === '') {
+      if ($partitioned && !$submission && $raw === '') {
         // Import once while holding this shard's lock. Nonempty JSON marks initialization,
         // even when this first request is denied. Old/rollback writers keep their own ledger.
         $legacyFile = self::$storageDir . md5('analytics-admission-ledger:v1') . '.json';
@@ -239,11 +256,44 @@ class RateLimiter
         }
         self::writeFixedWindowLedger($handle, $data);
       }
+      $legacySubmission = [];
+      if ($submission && !isset($data[hash('sha256', $identifier)])) {
+        // Preserve active pre-upgrade counters for this exact identity, not the
+        // old ledger's global capacity. Never allocate new keys in the old file.
+        $legacyPurpose =
+          $namespace === 'submission-comment-member' ? 'submission-comment' : $namespace;
+        $legacyFile = self::$storageDir . md5($legacyPurpose . '-ledger:v1') . '.json';
+        if (is_file($legacyFile)) {
+          $legacyHandle = @fopen($legacyFile, 'r');
+          if ($legacyHandle === false) {
+            throw new RuntimeException('Unreadable legacy submission ledger.');
+          }
+          try {
+            if (!@flock($legacyHandle, LOCK_SH)) {
+              throw new RuntimeException('Unavailable legacy submission lock.');
+            }
+            $legacyRaw = stream_get_contents($legacyHandle, 1048577);
+            if (!is_string($legacyRaw)) {
+              throw new RuntimeException('Unreadable legacy submission ledger.');
+            }
+            $legacySubmission = self::decodeFixedWindowLedger($legacyRaw, $now);
+          } finally {
+            @flock($legacyHandle, LOCK_UN);
+            @fclose($legacyHandle);
+          }
+        }
+      }
       $pending = [];
       foreach ($limits as $identifier => [$maxAttempts, $windowSeconds]) {
         $maxAttempts = max(1, (int) $maxAttempts);
         $windowSeconds = max(1, (int) $windowSeconds);
         $key = hash('sha256', (string) $identifier);
+        if (!isset($data[$key]) && isset($legacySubmission[$key])) {
+          if (count($data) >= 4096) {
+            return false;
+          }
+          $data[$key] = $legacySubmission[$key];
+        }
         if (isset($data[$key])) {
           if ($data[$key]['attempts'] >= $maxAttempts) {
             return false;
@@ -441,9 +491,71 @@ class RateLimiter
   }
 
   /**
-   * Reserve one authentication attempt under an exclusive lock.
+   * These prefixes are server-owned public submission identities, never namespaces
+   * chosen by request data. Keep authenticated comment authors separate from guests.
+   * @return array{identifier: string, namespace: string}|null
+   */
+  private static function getPublicSubmissionQuota(string $identifier): ?array
+  {
+    foreach (
+      [
+        'contact:' => 'submission-contact',
+        'comment:ip:' => 'submission-comment',
+        'newsletter:' => 'submission-newsletter',
+      ]
+      as $prefix => $namespace
+    ) {
+      if (str_starts_with($identifier, $prefix)) {
+        return [
+          'identifier' =>
+            $prefix . self::normalizeLoginAddress(substr($identifier, strlen($prefix))),
+          'namespace' => $namespace,
+        ];
+      }
+    }
+    return str_starts_with($identifier, 'comment:user:')
+      ? ['identifier' => $identifier, 'namespace' => 'submission-comment-member']
+      : null;
+  }
+
+  /** One rotating IPv6 /48 (or IPv4 /24) cannot choose all purpose shards.
+   * Individual quotas remain /64/address; this is capacity placement, not a subnet ban.
+   */
+  private static function submissionShardIdentity(string $identifier): string
+  {
+    foreach (['contact:', 'comment:ip:', 'newsletter:'] as $prefix) {
+      if (!str_starts_with($identifier, $prefix)) {
+        continue;
+      }
+      $address = substr($identifier, strlen($prefix));
+      if (preg_match('/^[a-f0-9]{16}\/64$/D', $address)) {
+        return $prefix . substr($address, 0, 12) . '/48';
+      }
+      $packed = @inet_pton($address);
+      return $packed !== false && strlen($packed) === 4
+        ? $prefix . bin2hex(substr($packed, 0, 3)) . '/24'
+        : $identifier;
+    }
+    return $identifier;
+  }
+
+  /** @param array{identifier: string, namespace: string} $quota */
+  private static function consumePublicSubmissionQuota(array $quota): bool
+  {
+    return self::consumeFixedWindow(
+      $quota['identifier'],
+      self::$maxAttempts,
+      self::$lockoutTime,
+      $quota['namespace'],
+    );
+  }
+
+  /**
+   * Reserve an attempt under an exclusive lock. Public submissions use bounded
+   * ledgers; an existing legacy public quota is additionally enforced until its
+   * lockout expires. Never create a legacy file for a new submission identity.
    * The threshold attempt is allowed, then the escalating lockout applies.
-   * Storage faults retain the existing fail-open availability contract.
+   * Only authentication retains its existing fail-open storage contract.
    *
    * @param string|null $identifier
    * @return bool
@@ -451,28 +563,53 @@ class RateLimiter
   public static function consumeAttempt($identifier = null)
   {
     $identifier = $identifier ?? self::getClientIP();
-    $file = self::getFilePath($identifier);
+    $publicQuota = self::getPublicSubmissionQuota($identifier);
+    $failOpen = $publicQuota === null;
+    $file = self::getFilePath($identifier, $failOpen);
     if ($file === null) {
-      return true;
+      return $failOpen;
     }
-    $handle = @fopen($file, 'c+');
+    if ($publicQuota !== null && (is_link($file) || (file_exists($file) && !is_file($file)))) {
+      self::reportStorageFailure('public legacy path', false);
+      return false;
+    }
+    $handle = $publicQuota === null ? @fopen($file, 'c+') : @fopen($file, 'r+');
     if ($handle === false) {
-      self::reportStorageFailure('attempt open');
-      return true;
+      if ($publicQuota !== null && !file_exists($file) && !is_link($file)) {
+        return self::consumePublicSubmissionQuota($publicQuota);
+      }
+      self::reportStorageFailure('attempt open', $failOpen);
+      return $failOpen;
     }
 
     if (!@flock($handle, LOCK_EX)) {
-      self::reportStorageFailure('attempt lock');
+      self::reportStorageFailure('attempt lock', $failOpen);
       @fclose($handle);
-      return true;
+      return $failOpen;
     }
 
     $accepted = true;
     $loginThrottleEvent = null;
     try {
       rewind($handle);
-      $raw = stream_get_contents($handle);
+      $raw =
+        $publicQuota === null ? stream_get_contents($handle) : @stream_get_contents($handle, 1025);
       $existing = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+      if (
+        $publicQuota !== null &&
+        (!is_string($raw) ||
+          strlen($raw) > 1024 ||
+          !is_array($existing) ||
+          !is_int($existing['attempts'] ?? null) ||
+          $existing['attempts'] < 0 ||
+          !is_int($existing['lockout_until'] ?? null) ||
+          $existing['lockout_until'] < 0 ||
+          !is_int($existing['penalty_level'] ?? 0) ||
+          ($existing['penalty_level'] ?? 0) < 0)
+      ) {
+        self::reportStorageFailure('public legacy state', false);
+        return false;
+      }
       $data = is_array($existing)
         ? $existing
         : ['attempts' => 0, 'lockout_until' => 0, 'penalty_level' => 0];
@@ -495,6 +632,24 @@ class RateLimiter
           ];
         }
         return false;
+      }
+
+      if ($publicQuota !== null) {
+        if ($lockoutUntil > 0 || $data['attempts'] === 0) {
+          // This exact public identity is known and its legacy quota has expired.
+          // No directory scan or deletion of login/recovery/unknown quota files.
+          // A deferred unlink is safe: the expired file still cannot bypass the ledger.
+          @unlink($file);
+          return self::consumePublicSubmissionQuota($publicQuota);
+        }
+        if (
+          $data['attempts'] >= self::$maxAttempts ||
+          !self::consumePublicSubmissionQuota($publicQuota)
+        ) {
+          return false;
+        }
+        // Both budgets must admit the request. The legacy lock stays held through
+        // its reservation, retaining the old last allowance and active penalties.
       }
 
       if ($lockoutUntil > 0) {
@@ -521,7 +676,10 @@ class RateLimiter
         @fwrite($handle, $payload) === strlen($payload) &&
         @fflush($handle);
       if (!$stored) {
-        self::reportStorageFailure('attempt write');
+        self::reportStorageFailure('attempt write', $failOpen);
+        if (!$failOpen) {
+          return false;
+        }
       }
     } finally {
       @flock($handle, LOCK_UN);

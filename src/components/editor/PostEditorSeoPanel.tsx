@@ -16,6 +16,7 @@ interface PostEditorSeoPanelProps {
   setItem: React.Dispatch<React.SetStateAction<Post | Page | null>>;
   isRestoring: boolean;
   result: SEOAnalysisResult | null;
+  metaDescriptionLimit?: number;
 }
 
 const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
@@ -23,6 +24,7 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
   setItem,
   isRestoring,
   result,
+  metaDescriptionLimit = 160,
 }) => (
   <div className="bg-white dark:bg-admin-panel p-5 rounded-xl border border-slate-200 dark:border-admin-border shadow-xs space-y-4">
     <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -38,7 +40,9 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         </label>
         <button
           onClick={() => {
-            const description = item.content ? getPostEditorAutofillText(item.content, 160) : '';
+            const description = item.content
+              ? getPostEditorAutofillText(item.content, metaDescriptionLimit)
+              : '';
             if (description) {
               setItem((previous) =>
                 previous ? { ...previous, metaDescription: description } : null
@@ -60,17 +64,17 @@ const PostEditorSeoPanel: React.FC<PostEditorSeoPanelProps> = ({
         id="post-meta-desc"
         name="metaDescription"
         className="w-full p-2 rounded-lg border border-slate-200 dark:border-admin-border bg-slate-50 dark:bg-admin-canvas text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 h-24 text-sm dark:focus:ring-gray-400/20 dark:focus:border-gray-400"
-        placeholder="Brief summary for search engines (max 160 chars)..."
+        placeholder={`Brief summary for search engines (max ${metaDescriptionLimit} chars)...`}
         value={item.metaDescription || ''}
         onChange={(event) =>
           setItem((previous) =>
             previous ? { ...previous, metaDescription: event.target.value } : null
           )
         }
-        maxLength={160}
+        maxLength={metaDescriptionLimit}
       />
       <p className="text-xs text-slate-400 mt-1 dark:text-gray-400">
-        {(item.metaDescription || '').length}/160 characters
+        {(item.metaDescription || '').length}/{metaDescriptionLimit} characters
       </p>
     </div>
     <div>

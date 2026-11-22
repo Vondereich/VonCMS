@@ -243,34 +243,7 @@ try {
      * @return string
      */
     function ($post) use ($domainUrl, $permalinkStyle) {
-      $slugOrId = $post['slug'] ?: $post['id'];
-      switch ($permalinkStyle) {
-        case 'date':
-        case 'day_name':
-          $d = new DateTime($post['created_at'] ?? 'now');
-          return $domainUrl .
-            '/' .
-            $d->format('Y') .
-            '/' .
-            $d->format('m') .
-            '/' .
-            $d->format('d') .
-            '/' .
-            $slugOrId;
-        case 'month_name':
-          $d = new DateTime($post['created_at'] ?? 'now');
-          return $domainUrl . '/' . $d->format('Y') . '/' . $d->format('m') . '/' . $slugOrId;
-        case 'category':
-          $cat = voncms_category_slug($post['category'] ?? 'uncategorized');
-          return $domainUrl . '/' . $cat . '/' . $slugOrId;
-        case 'post_name':
-        case 'slug':
-          return $domainUrl . '/' . $slugOrId;
-        case 'plain':
-          return $domainUrl . '/post/' . $post['id'];
-        default:
-          return $domainUrl . '/' . $slugOrId;
-      }
+      return $domainUrl . buildCanonicalContentPath($post, $permalinkStyle);
     };
 
   // Query posts
@@ -283,14 +256,14 @@ try {
     : 'u.username';
   $authorDisplayNameSql = $hasDisplayNameColumn ? 'u.display_name' : 'NULL';
 
-  if ($category) {
+  if ($category !== null) {
     $where .= ' AND p.category = :category';
   }
 
   $countSql = "SELECT COUNT(*) FROM posts p $where";
   $countStmt = $pdo->prepare($countSql);
   $countStmt->bindValue(':currentTime', $currentTime);
-  if ($category) {
+  if ($category !== null) {
     $countStmt->bindValue(':category', $category);
   }
   $countStmt->execute();
@@ -303,7 +276,7 @@ try {
 
   $stmt = $pdo->prepare($sql);
   $stmt->bindValue(':currentTime', $currentTime);
-  if ($category) {
+  if ($category !== null) {
     $stmt->bindValue(':category', $category);
   }
   $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -331,8 +304,8 @@ try {
   ) {
     $rssUrl .= '?' . $queryString;
   }
-  $feedTitle = $category ? "$category - $siteName" : $siteName;
-  $feedDesc = $category ? "Latest posts in $category" : $siteDesc;
+  $feedTitle = $category !== null ? "$category - $siteName" : $siteName;
+  $feedDesc = $category !== null ? "Latest posts in $category" : $siteDesc;
 
   echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
   ?>

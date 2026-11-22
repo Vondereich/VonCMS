@@ -20,6 +20,7 @@ if (
  */
 class InstallBootstrap
 {
+  private const KEY_PREFIX = "<?php http_response_code(403); exit; ?>\n";
   /** @var resource|null $claimHandle */
   private static $claimHandle = null;
 
@@ -29,7 +30,27 @@ class InstallBootstrap
       return (string) constant('VONCMS_INSTALL_SETUP_KEY_PATH');
     }
 
-    return dirname(__DIR__) . '/data/install_setup.key';
+    return dirname(__DIR__) . '/data/install_setup.key.php';
+  }
+
+  private static function decodeKey(string $value): string
+  {
+    if (!str_starts_with($value, self::KEY_PREFIX)) {
+      return '';
+    }
+    $key = strtolower(trim(substr($value, strlen(self::KEY_PREFIX))));
+    return preg_match('/^[a-f0-9]{64}$/', $key) === 1 ? $key : '';
+  }
+
+  private static function retireLegacyKey(): void
+  {
+    if (defined('VONCMS_INSTALL_SETUP_KEY_PATH')) {
+      return;
+    }
+    $path = dirname(__DIR__) . '/data/install_setup.key';
+    if (is_file($path) && !@unlink($path)) {
+      error_log('VonCMS Installer: an obsolete setup key file could not be removed.');
+    }
   }
 
   private static function readKey(): string
@@ -40,13 +61,13 @@ class InstallBootstrap
     }
 
     $value = @file_get_contents($path);
-    $key = is_string($value) ? strtolower(trim($value)) : '';
-    return preg_match('/^[a-f0-9]{64}$/', $key) === 1 ? $key : '';
+    return is_string($value) ? self::decodeKey($value) : '';
   }
 
   public static function ensureKey(): bool
   {
     if (self::readKey() !== '') {
+      self::retireLegacyKey();
       return true;
     }
 
@@ -62,8 +83,9 @@ class InstallBootstrap
     }
 
     $key = bin2hex(random_bytes(32));
-    $written = @fwrite($handle, $key . "\n");
-    $flushed = $written === 65 && @fflush($handle);
+    $contents = self::KEY_PREFIX . $key . "\n";
+    $written = @fwrite($handle, $contents);
+    $flushed = $written === strlen($contents) && @fflush($handle);
     @fclose($handle);
     if (!$flushed) {
       @unlink($path);
@@ -71,6 +93,7 @@ class InstallBootstrap
     }
 
     @chmod($path, 0600);
+    self::retireLegacyKey();
     return true;
   }
 
@@ -113,7 +136,7 @@ class InstallBootstrap
 
     @rewind($handle);
     $value = stream_get_contents($handle);
-    $expected = is_string($value) ? strtolower(trim($value)) : '';
+    $expected = is_string($value) ? self::decodeKey($value) : '';
     if (preg_match('/^[a-f0-9]{64}$/', $expected) !== 1 || !hash_equals($expected, $candidate)) {
       @flock($handle, LOCK_UN);
       @fclose($handle);
@@ -139,5 +162,6 @@ class InstallBootstrap
     if (is_file($path) && !@unlink($path)) {
       error_log('VonCMS Installer: setup key could not be removed after installation.');
     }
+    self::retireLegacyKey();
   }
 }

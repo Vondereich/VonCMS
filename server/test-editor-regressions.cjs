@@ -62,6 +62,125 @@ function handler(file, name, scope) {
   compile(`globalThis.actualHandler = ${initializer.getText(ast)};`, scope, file);
   return scope.actualHandler;
 }
+
+function checkFeaturedImageCapability() {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const loadView = (file, dependencies = {}) => {
+    const module = { exports: {} };
+    compile(
+      read(file),
+      {
+        React,
+        module,
+        exports: module.exports,
+        require: (name) => {
+          assert.ok(name in dependencies, `unexpected view dependency: ${name}`);
+          return dependencies[name];
+        },
+      },
+      file
+    );
+    return module.exports;
+  };
+  const primitives = loadView('src/components/editor/EditorToolbarPrimitives.tsx');
+  const { EditorImageBubble } = loadView('src/components/editor/EditorBubbleMenus.tsx', {
+    'lucide-react': require('lucide-react'),
+    './EditorToolbarPrimitives': primitives,
+  });
+  const renderActualElement = (file, tag, scope) => {
+    const ast = ts.createSourceFile(
+      file,
+      read(file),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+    let element;
+    const visit = (node) => {
+      if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === tag) element = node;
+      ts.forEachChild(node, visit);
+    };
+    visit(ast);
+    assert.ok(element, `missing actual ${tag} element`);
+    compile(`globalThis.element = (${element.getText(ast)});`, scope, file);
+    return scope.element;
+  };
+
+  for (const isPage of [false, true]) {
+    let item = { id: 'qa-draft', content: '<p>Draft</p>' };
+    let selectedImage = { src: '/uploads/qa-featured.webp' };
+    const parentScope = {
+      React: { ...React, useCallback: (callback) => callback },
+      Editor: noop,
+      isPage,
+      item,
+      editorContentRevision: 0,
+      handleEditorChange: noop,
+      handleEditorImmediateChange: noop,
+      isWriterLocked: false,
+      isSaving: false,
+      setItem: (update) => (item = update(item)),
+      notify: { success: noop },
+    };
+    parentScope.handleEditorImageClick = handler(
+      'src/components/PostEditor.tsx',
+      'handleEditorImageClick',
+      parentScope
+    );
+    const editor = renderActualElement('src/components/PostEditor.tsx', 'Editor', parentScope);
+    const bubbleScope = {
+      React,
+      EditorImageBubble,
+      onImageClick: editor.props.onImageClick,
+      selectedImage,
+      setSelectedImage: (value) => (selectedImage = value),
+      bubblePosition: { top: 0, left: 0 },
+      selectedImageAlignment: 'left',
+      selectedImageSize: 'medium',
+      bubbleAlt: 'QA image',
+      bubbleCredit: 'QA credit',
+      alignImage: noop,
+      resizeImage: noop,
+      setBubbleAlt: noop,
+      setBubbleCredit: noop,
+      updateImageAlt: noop,
+      updateImageCredit: noop,
+      removeSelectedImage: noop,
+    };
+    bubbleScope.setAsFeaturedIndex = handler(
+      'src/components/Editor.tsx',
+      'setAsFeaturedIndex',
+      bubbleScope
+    );
+    const bubble = renderActualElement(
+      'src/components/Editor.tsx',
+      'EditorImageBubble',
+      bubbleScope
+    );
+    const html = renderToStaticMarkup(bubble);
+    for (const control of ['Remove image', 'Save Alt Text', 'Save Credit', 'Align Left'])
+      assert.ok(html.includes(control), `ordinary image tool missing: ${control}`);
+    assert.equal(
+      html.includes('Set as Featured Image'),
+      !isPage,
+      isPage
+        ? 'Page exposes an ineffective featured-image action'
+        : 'Post lost featured-image action'
+    );
+    if (!isPage) {
+      bubble.props.setAsFeaturedIndex();
+      assert.equal(item.image, '/uploads/qa-featured.webp');
+      assert.equal(selectedImage, null, 'Post image bubble must close after selection');
+    } else {
+      assert.equal(item.image, undefined);
+    }
+  }
+  console.log(
+    'PASS Featured Image Capability: actual Post/Page JSX wiring and image bubble render; Post selection works, Page hides the action, ordinary image tools remain.'
+  );
+}
+
 const helpers = load('src/components/editor/postEditorSaveHelpers.ts', {
   '../../utils/security': { htmlToPlainText: (text) => text || '' },
 });
@@ -183,6 +302,7 @@ for (const isPage of [false, true]) {
       const scope = {
         item,
         EXCERPT_RECOMMENDED_MAX_LENGTH: 200,
+        metaDescriptionLimit: 160,
         getPostEditorCleanText: textHelpers.getPostEditorCleanText,
         getPostEditorAutofillText: textHelpers.getPostEditorAutofillText,
         setItem: (update) => {
@@ -326,6 +446,210 @@ for (const input of [
   assert.equal(links.normalizeEditorUrl(input), input);
 }
 assert.equal(links.normalizeEditorUrl('example.test/path'), 'https://example.test/path');
+
+function checkLinkQualifierEditing() {
+  const file = 'src/components/Editor.tsx';
+  const ast = ts.createSourceFile(
+    file,
+    read(file),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  );
+  let relationshipExpression;
+  const visit = (node) => {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === 'EditorInsertModal') {
+      const attribute = node.attributes.properties.find(
+        (property) =>
+          ts.isJsxAttribute(property) && property.name.getText(ast) === 'onRelationshipChange'
+      );
+      relationshipExpression = attribute?.initializer?.expression;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(ast);
+  assert.ok(relationshipExpression, 'actual relationship-change callback is required');
+
+  const fixture = (rel, { active = true, empty = false } = {}) => {
+    let attributes = active ? { href: 'https://example.test/old', rel } : {};
+    const writes = [];
+    const chain = {
+      focus() {
+        return this;
+      },
+      extendMarkRange() {
+        return this;
+      },
+      setLink(value) {
+        attributes = { ...value };
+        writes.push(attributes);
+        active = true;
+        return this;
+      },
+      insertContent(value) {
+        return this.setLink(value.marks[0].attrs);
+      },
+      run() {
+        return true;
+      },
+    };
+    const scope = {
+      ...links,
+      activeModal: null,
+      modalInput: '',
+      modalInput2: '',
+      modalError: '',
+      linkRelationship: 'normal',
+      preservedLinkRelRef: { current: null },
+      mediaRequestIdRef: { current: 0 },
+      savedSelection: { current: null },
+      setSelectedImage: noop,
+      setSelectedVideoEmbed: noop,
+      setSelectedTable: noop,
+      restoreSavedSelection: noop,
+      editor: {
+        state: { selection: { from: 1, to: 5, empty } },
+        getAttributes: () => attributes,
+        isActive: () => active,
+        chain: () => chain,
+      },
+    };
+    for (const [setter, state] of [
+      ['setActiveModal', 'activeModal'],
+      ['setModalInput', 'modalInput'],
+      ['setModalInput2', 'modalInput2'],
+      ['setModalError', 'modalError'],
+      ['setLinkRelationship', 'linkRelationship'],
+    ])
+      scope[setter] = (value) => (scope[state] = value);
+    for (const name of ['insertSafeLink', 'closeModal', 'openModal', 'handleModalConfirm'])
+      scope[name] = handler(file, name, scope);
+    compile(`globalThis.changeRelationship = ${relationshipExpression.getText(ast)};`, scope, file);
+    return {
+      scope,
+      writes,
+      attributes: () => attributes,
+      open: () => scope.openModal('link'),
+      choose: (value) => scope.changeRelationship(value),
+      confirm: (url = 'https://example.test/new') => {
+        scope.modalInput = url;
+        scope.handleModalConfirm();
+      },
+    };
+  };
+
+  let cases = 0;
+  const qualifiers = ['sponsored', 'nofollow', 'ugc'];
+  const existing = Array.from({ length: 8 }, (_, mask) =>
+    qualifiers.filter((_, index) => mask & (1 << index)).join(' ')
+  ).concat([
+    'SPONSORED NOFOLLOW UGC',
+    'nofollow sponsored nofollow',
+    'noopener\tnoreferrer\nugc nofollow',
+    'external sponsored nofollow unsupported',
+  ]);
+  for (const rel of existing) {
+    const test = fixture(rel);
+    test.open();
+    assert.equal(test.writes.length, 0, 'opening a dialog must not change the link');
+    test.confirm();
+    assert.equal(test.attributes().href, 'https://example.test/new');
+    assert.equal(
+      test.attributes().rel,
+      links.normalizeEditorLinkRel(rel, true),
+      `URL-only edit lost qualifiers: ${rel}`
+    );
+    assert.equal(test.attributes().target, '_blank');
+    assert.equal(test.scope.activeModal, null);
+    assert.equal(test.scope.preservedLinkRelRef.current, null, 'close must clear the snapshot');
+    cases++;
+  }
+  for (const choice of ['normal', ...qualifiers]) {
+    const test = fixture('sponsored nofollow ugc');
+    test.open();
+    test.choose(choice);
+    test.confirm();
+    assert.equal(test.attributes().rel, links.normalizeEditorLinkRel(choice, true));
+    cases++;
+  }
+  {
+    const test = fixture('sponsored nofollow');
+    test.open();
+    test.choose('ugc');
+    test.choose('sponsored');
+    test.confirm();
+    assert.equal(
+      test.attributes().rel,
+      'noopener noreferrer sponsored',
+      'an explicit change back to Sponsored must apply the chosen single policy'
+    );
+    cases++;
+  }
+  for (const empty of [false, true]) {
+    for (const choice of ['normal', ...qualifiers]) {
+      const test = fixture('', { active: false, empty });
+      test.open();
+      test.choose(choice);
+      test.confirm();
+      assert.equal(test.attributes().rel, links.normalizeEditorLinkRel(choice, true));
+      cases++;
+    }
+  }
+  {
+    const test = fixture('sponsored nofollow');
+    test.open();
+    test.choose('normal');
+    test.scope.closeModal();
+    assert.equal(test.writes.length, 0, 'cancel must not apply the chosen relationship');
+    test.open();
+    test.confirm();
+    assert.equal(test.attributes().rel, 'noopener noreferrer sponsored nofollow');
+    test.open();
+    test.confirm('https://example.test/reopened');
+    assert.equal(test.attributes().rel, 'noopener noreferrer sponsored nofollow');
+    cases++;
+  }
+  {
+    const test = fixture('sponsored nofollow');
+    test.open();
+    test.confirm('javascript:alert(1)');
+    assert.equal(test.writes.length, 0);
+    assert.match(test.scope.modalError, /valid/);
+    assert.equal(test.scope.activeModal, 'link');
+    test.confirm();
+    assert.equal(test.attributes().rel, 'noopener noreferrer sponsored nofollow');
+    cases++;
+  }
+  for (const url of [
+    '/zangetsu/story',
+    '#section',
+    'mailto:qa@example.test',
+    'tel:+60123456789',
+    links.COMPLEX_QUERY_STRING_LINK_SMOKE_URL,
+  ]) {
+    const test = fixture('nofollow ugc');
+    test.open();
+    test.confirm(url);
+    assert.equal(test.attributes().href, url);
+    assert.equal(test.attributes().rel, 'noopener noreferrer nofollow ugc');
+    cases++;
+  }
+  {
+    const test = fixture('sponsored nofollow');
+    test.open();
+    test.scope.insertSafeLink('https://example.test/paste');
+    assert.equal(
+      test.attributes().rel,
+      'noopener noreferrer',
+      'direct insertion must not inherit a dialog-only relationship snapshot'
+    );
+    cases++;
+  }
+  console.log(
+    `PASS Editor Link Qualifiers: ${cases} actual dialog/apply callback cases cover URL-only combined rel, explicit policy changes, new links, cancel/reopen, invalid URL retry and safe URL forms. Simulated TipTap transport; no stored content is changed.`
+  );
+}
+checkLinkQualifierEditing();
 
 // Run the real raw-DOM sync handler. The clone has one authored break and two view-only nodes.
 let removed = 0;
@@ -492,17 +816,48 @@ async function saveCase(isPage, isAutoSave, edited) {
 }
 async function checkSaveErrors() {
   const reason = 'Upload the image through the Media Library before saving.';
+  let checked = 0;
   assert.equal(helpers.buildSaveStatusLabel('error', null, 60, reason), `Save failed: ${reason}`);
   assert.equal(helpers.buildSaveStatusLabel('error', null, 60, ''), 'Save failed. Try again.');
   for (const isPage of [false, true]) {
     for (const isAutoSave of [false, true]) {
       for (const { error, expectedReason, conflict } of [
         { error: new Error(reason), expectedReason: reason, conflict: false },
-        { error: { status: 409 }, expectedReason: helpers.SAVE_CONFLICT_MESSAGE, conflict: true },
+        ...[
+          'This slug is already reserved by a post. Choose a different slug.',
+          'This slug is already reserved by a page. Choose a different slug.',
+          'The new permalink already has a redirect. Review that rule before changing the slug.',
+          'The old permalink already has a redirect. Review that rule before changing the slug.',
+          'The new page permalink already has a redirect. Review that rule before changing the slug.',
+          'The old page permalink already has a redirect. Review that rule before changing the slug.',
+          'A redirect for this permalink appeared while saving. Review the redirects and try again.',
+          'A redirect for this page permalink appeared while saving. Review the redirects and try again.',
+          'Post status changed. Reload before applying this workflow action.',
+          'Failed to save content',
+          'The title contains "Content changed in another tab".',
+        ].map((message) => ({
+          error: Object.assign(new Error(message), { status: 409 }),
+          expectedReason: message,
+          conflict: false,
+        })),
+        {
+          error: Object.assign(
+            new Error('Content changed in another tab. Reload before saving again.'),
+            { status: 409 }
+          ),
+          expectedReason: helpers.SAVE_CONFLICT_MESSAGE,
+          conflict: true,
+        },
         {
           error: { message: 'Content changed in another tab. Reload before saving again.' },
           expectedReason: helpers.SAVE_CONFLICT_MESSAGE,
           conflict: true,
+        },
+        { error: { status: 409 }, expectedReason: '', conflict: false },
+        {
+          error: { status: 409, message: `  ${reason}  ` },
+          expectedReason: reason,
+          conflict: false,
         },
         { error: { status: '409', message: 123 }, expectedReason: '', conflict: false },
         { error: null, expectedReason: '', conflict: false },
@@ -546,18 +901,27 @@ async function checkSaveErrors() {
         const save = handler('src/components/PostEditor.tsx', 'handleSave', scope);
         assert.equal(await save(undefined, isAutoSave), null);
         assert.equal(scope.status, 'error');
-        assert.equal(scope.reason, expectedReason);
+        assert.equal(
+          scope.reason,
+          expectedReason,
+          `${isPage ? 'Page' : 'Post'} save must preserve the actual reason: ${getErrorMessage(error)}`
+        );
         assert.equal(scope.contentRef.current, original.content);
         assert.equal(scope.initialItemRef.current, original);
         assert.equal(scope.saved, undefined);
         assert.equal(scope.isSavingRef.current, false);
         assert.ok(cleared.includes(41), 'an old success timer must not erase this failure');
         if (isAutoSave && !conflict) assert.equal(notices.length, 0);
-        if (conflict) assert.ok(notices.includes(helpers.SAVE_CONFLICT_MESSAGE));
+        if (conflict) assert.deepEqual(notices, [helpers.SAVE_CONFLICT_MESSAGE]);
+        else if (!isAutoSave)
+          assert.deepEqual(notices, [
+            expectedReason ? `Save failed: ${expectedReason}` : 'Save failed. Try again.',
+          ]);
         rejectSave = false;
         await save(undefined, isAutoSave);
         assert.equal(scope.reason, '');
         assert.equal(scope.status, 'saved');
+        checked++;
       }
     }
   }
@@ -594,6 +958,7 @@ async function checkSaveErrors() {
   assert.ok(!html.includes('truncate'));
   assert.ok(html.includes('&lt;img'));
   assert.ok(!html.includes('<img'));
+  return checked;
 }
 async function checkWrapperRecovery() {
   for (const isPage of [false, true]) {
@@ -1592,6 +1957,7 @@ async function checkSavedAiReadiness() {
 }
 
 (async () => {
+  checkFeaturedImageCapability();
   await checkExtensionLifecycle();
   await checkSavedAiReadiness();
   checkTypedContracts();
@@ -1606,7 +1972,7 @@ async function checkSavedAiReadiness() {
   );
   await checkInstallerErrors();
   await checkContactReceipts();
-  await checkSaveErrors();
+  const saveErrorCases = await checkSaveErrors();
   for (const isPage of [false, true])
     for (const isAutoSave of [false, true])
       for (const edited of [false, true]) await saveCase(isPage, isAutoSave, edited);
@@ -1622,7 +1988,7 @@ async function checkSavedAiReadiness() {
   assert.equal(newer.slug, 'draft');
   assert.equal(newer.content, 'New body');
   console.log(
-    `PASS Editor Regressions Runtime: 20 actual save-failure/retry cases plus escaped wrapping status markup; 5 Contact receipt/validation-message handler cases; ${autoFillCases} editor-only Auto Fill formatter/button cases; ${publicationCases} rendered publication cells across 3 locales plus schedule/draft/fallback controls; 15 URL cases, actual DOM-sync/image-selection handlers, 8 deferred actual-save-handler cases, and 4 actual-wrapper local/API post/page recovery cases preserve newer typing, editor identity and server metadata.`
+    `PASS Editor Regressions Runtime: ${saveErrorCases} actual save-failure/retry cases plus escaped wrapping status markup; 5 Contact receipt/validation-message handler cases; ${autoFillCases} editor-only Auto Fill formatter/button cases; ${publicationCases} rendered publication cells across 3 locales plus schedule/draft/fallback controls; 15 URL cases, actual DOM-sync/image-selection handlers, 8 deferred actual-save-handler cases, and 4 actual-wrapper local/API post/page recovery cases preserve newer typing, editor identity and server metadata.`
   );
 })().catch((error) => {
   console.error(error);

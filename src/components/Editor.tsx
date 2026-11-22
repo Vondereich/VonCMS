@@ -179,6 +179,7 @@ const Editor: React.FC<EditorProps> = ({
   const [modalInput2, setModalInput2] = useState('');
   const [modalError, setModalError] = useState('');
   const [linkRelationship, setLinkRelationship] = useState<EditorLinkRelationship>('normal');
+  const preservedLinkRelRef = useRef<string | null>(null);
   const mediaRequestIdRef = useRef(0);
 
   // Keep authored editor HTML inside the shared content allowlist.
@@ -265,12 +266,13 @@ const Editor: React.FC<EditorProps> = ({
 
   const insertSafeLink = (
     normalizedUrl: string,
-    relationship: EditorLinkRelationship = 'normal'
+    relationship: EditorLinkRelationship = 'normal',
+    preservedRel: string | null = null
   ) => {
     if (!editor) return;
 
     const linkAttrs = {
-      ...buildEditorLinkAttrs(normalizedUrl, relationship),
+      ...buildEditorLinkAttrs(normalizedUrl, relationship, preservedRel),
       href: normalizedUrl,
     };
     const chain = editor.chain().focus();
@@ -680,7 +682,7 @@ const Editor: React.FC<EditorProps> = ({
         return;
       }
       restoreSavedSelection();
-      insertSafeLink(normalizedUrl, linkRelationship);
+      insertSafeLink(normalizedUrl, linkRelationship, preservedLinkRelRef.current);
     } else if (activeModal === 'image') {
       const normalizedImageUrl = normalizeImageSource(modalInput);
       if (!normalizedImageUrl) {
@@ -732,6 +734,7 @@ const Editor: React.FC<EditorProps> = ({
 
   const closeModal = () => {
     mediaRequestIdRef.current += 1;
+    preservedLinkRelRef.current = null;
     setActiveModal(null);
     setModalInput('');
     setModalInput2('');
@@ -747,15 +750,15 @@ const Editor: React.FC<EditorProps> = ({
       };
     }
 
+    preservedLinkRelRef.current =
+      type === 'link' ? String(editor?.getAttributes('link')['rel'] || '') : null;
     setSelectedImage(null);
     setSelectedVideoEmbed(null);
     setSelectedTable(null);
     setActiveModal(type);
     setModalInput(type === 'link' ? String(editor?.getAttributes('link')['href'] || '') : '');
     setLinkRelationship(
-      type === 'link'
-        ? editorLinkRelationshipFromRel(String(editor?.getAttributes('link')['rel'] || ''))
-        : 'normal'
+      type === 'link' ? editorLinkRelationshipFromRel(preservedLinkRelRef.current) : 'normal'
     );
     setModalInput2('');
     setModalError('');
@@ -1925,7 +1928,10 @@ const Editor: React.FC<EditorProps> = ({
           setModalInput2(value);
           setModalError('');
         }}
-        onRelationshipChange={setLinkRelationship}
+        onRelationshipChange={(value) => {
+          preservedLinkRelRef.current = null;
+          setLinkRelationship(value);
+        }}
         onConfirm={handleModalConfirm}
         onRemoveLink={removeSelectedLink}
         onClose={closeModal}
@@ -1959,7 +1965,7 @@ const Editor: React.FC<EditorProps> = ({
           setBubbleCredit={setBubbleCredit}
           updateImageAlt={updateImageAlt}
           updateImageCredit={updateImageCredit}
-          setAsFeaturedIndex={setAsFeaturedIndex}
+          setAsFeaturedIndex={onImageClick ? setAsFeaturedIndex : undefined}
           removeSelectedImage={removeSelectedImage}
           onClose={() => setSelectedImage(null)}
         />

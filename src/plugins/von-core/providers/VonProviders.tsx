@@ -12,11 +12,13 @@ export const useTheme = useNewTheme;
 interface PluginContextType {
   activePlugins: string[];
   pluginConfig: NonNullable<SiteSettings['pluginConfig']>;
+  timeZone: string;
 }
 
 const PluginContext = createContext<PluginContextType>({
   activePlugins: [],
   pluginConfig: {},
+  timeZone: 'UTC',
 });
 
 export const usePlugin = () => useContext(PluginContext);
@@ -36,6 +38,7 @@ export const VonProviders: React.FC<{ settings: SiteSettings; children: React.Re
         value={{
           activePlugins: settings.activePlugins || [],
           pluginConfig: settings.pluginConfig || {},
+          timeZone: settings.timeZone || 'UTC',
         }}
       >
         {analyticsPluginActive && <AnalyticsInjector analytics={settings.analytics} />}

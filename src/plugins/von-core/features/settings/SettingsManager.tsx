@@ -54,6 +54,26 @@ const legacyAiModels = [
 ];
 const supportedAiModels = [...currentAiModels.map(({ value }) => value), ...legacyAiModels];
 
+type MenuContentItem = { id: string; title: string; status?: string | null };
+
+const readMenuContent = (value: unknown): MenuContentItem[] => {
+  if (!Array.isArray(value)) throw new Error('Invalid menu content response.');
+  return value.flatMap((item: unknown) => {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      !('id' in item) ||
+      !('title' in item) ||
+      !['string', 'number'].includes(typeof item.id) ||
+      typeof item.title !== 'string'
+    ) {
+      throw new Error('Invalid menu content response.');
+    }
+    if ('status' in item && item.status != null && item.status !== 'published') return [];
+    return [{ id: String(item.id), title: item.title }];
+  });
+};
+
 const isSavedAiKeyExpired = (api?: SiteSettings['api']) => {
   const aiKeyExpiresAt = api?.aiKeyExpiresAt?.trim();
   const aiKeyExpiresAtTime = aiKeyExpiresAt ? Date.parse(aiKeyExpiresAt) : Number.NaN;
@@ -188,6 +208,42 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       setActiveTab('general');
     }
   }, [activeTab, canManageSecrets]);
+
+  const [menuPosts, setMenuPosts] = useState<MenuContentItem[]>(posts);
+  const [menuPages, setMenuPages] = useState<MenuContentItem[]>(pages);
+  const [menuStatus, setMenuStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [menuRetry, setMenuRetry] = useState(0);
+
+  useEffect(() => {
+    if (activeTab !== 'menu') return;
+    const controller = new AbortController();
+    setMenuStatus('loading');
+    const loadMenuContent = async () => {
+      try {
+        const [postResponse, pageResponse] = await Promise.all([
+          vonFetch(`${API.getPosts}?limit=20&includeTotal=false&status=published`, {
+            signal: controller.signal,
+          }),
+          vonFetch(`${API.getPages}?limit=200&view=menu&status=published`, {
+            signal: controller.signal,
+          }),
+        ]);
+        if (!postResponse.ok || !pageResponse.ok)
+          throw new Error('Menu content could not be loaded.');
+        const [postData, pageData] = await Promise.all([postResponse.json(), pageResponse.json()]);
+        const nextPosts = readMenuContent(Array.isArray(postData) ? postData : postData.posts);
+        const nextPages = readMenuContent(Array.isArray(pageData) ? pageData : pageData.pages);
+        if (controller.signal.aborted) return;
+        setMenuPosts(nextPosts);
+        setMenuPages(nextPages);
+        setMenuStatus('ready');
+      } catch {
+        if (!controller.signal.aborted) setMenuStatus('error');
+      }
+    };
+    void loadMenuContent();
+    return () => controller.abort();
+  }, [activeTab, menuRetry]);
 
   const handleChange = (section: 'ads' | 'api' | null, key: string, value: unknown) => {
     setTempSettings((prev) => {
@@ -651,143 +707,161 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               <h3 className="font-bold mb-4 dark:text-white flex items-center gap-2">
                 <Zap size={18} className="text-amber-500" /> Quick Add Pages & Posts
               </h3>
-              <div className="h-[400px] overflow-y-auto space-y-4 pr-2">
-                {/* Pages List */}
-                <div>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10 dark:text-gray-400">
-                    Pages
-                  </h4>
-                  <div className="space-y-1">
-                    {(pages || []).map((page) => {
-                      const isLinked = tempSettings.navigation.some(
-                        (n) => n.url === `page:${page.id}`
-                      );
-                      const pageInputId = `settings-menu-page-${page.id}`;
-                      return (
-                        <label
-                          key={page.id}
-                          className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-gray-400"
-                        >
-                          <div className="flex items-center gap-3">
-                            <input
-                              id={pageInputId}
-                              name={pageInputId}
-                              type="checkbox"
-                              checked={isLinked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setTempSettings({
-                                    ...tempSettings,
-                                    navigation: [
-                                      ...tempSettings.navigation,
-                                      {
-                                        id: `nav-${Date.now()}`,
-                                        label: page.title,
-                                        url: `page:${page.id}`,
-                                        type: 'internal',
-                                      },
-                                    ],
-                                  });
-                                } else {
-                                  setTempSettings({
-                                    ...tempSettings,
-                                    navigation: tempSettings.navigation.filter(
-                                      (n) => n.url !== `page:${page.id}`
-                                    ),
-                                  });
-                                }
-                              }}
-                              aria-label={`Add page ${page.title} to menu`}
-                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500 dark:accent-gray-400"
-                            />
-                            <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
-                              {decodeEntities(page.title)}
-                            </span>
-                          </div>
-                          {isLinked && (
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-                              ADDED
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })}
-                    {(!pages || pages.length === 0) && (
-                      <p className="text-slate-400 text-xs italic dark:text-gray-400">
-                        No pages found.
-                      </p>
-                    )}
-                  </div>
+              <p className="mb-3 text-xs text-slate-500 dark:text-gray-400">
+                Up to 200 recent Pages and 20 latest articles. Other links can be added manually.
+              </p>
+              {menuStatus === 'loading' && <p role="status">Loading menu content...</p>}
+              {menuStatus === 'error' && (
+                <div role="alert">
+                  <p>Menu content could not be loaded.</p>
+                  <button
+                    type="button"
+                    onClick={() => setMenuRetry((value) => value + 1)}
+                    className="mt-2 text-primary-600 underline"
+                  >
+                    Retry
+                  </button>
                 </div>
+              )}
+              {menuStatus === 'ready' && (
+                <div className="h-[400px] overflow-y-auto space-y-4 pr-2">
+                  {/* Pages List */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10 dark:text-gray-400">
+                      Pages
+                    </h4>
+                    <div className="space-y-1">
+                      {menuPages.map((page) => {
+                        const isLinked = tempSettings.navigation.some(
+                          (n) => n.url === `page:${page.id}`
+                        );
+                        const pageInputId = `settings-menu-page-${page.id}`;
+                        return (
+                          <label
+                            key={page.id}
+                            className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-gray-400"
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                id={pageInputId}
+                                name={pageInputId}
+                                type="checkbox"
+                                checked={isLinked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setTempSettings({
+                                      ...tempSettings,
+                                      navigation: [
+                                        ...tempSettings.navigation,
+                                        {
+                                          id: `nav-${Date.now()}`,
+                                          label: page.title,
+                                          url: `page:${page.id}`,
+                                          type: 'internal',
+                                        },
+                                      ],
+                                    });
+                                  } else {
+                                    setTempSettings({
+                                      ...tempSettings,
+                                      navigation: tempSettings.navigation.filter(
+                                        (n) => n.url !== `page:${page.id}`
+                                      ),
+                                    });
+                                  }
+                                }}
+                                aria-label={`Add page ${page.title} to menu`}
+                                className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500 dark:accent-gray-400"
+                              />
+                              <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                                {decodeEntities(page.title)}
+                              </span>
+                            </div>
+                            {isLinked && (
+                              <span className="text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                                ADDED
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                      {menuPages.length === 0 && (
+                        <p className="text-slate-400 text-xs italic dark:text-gray-400">
+                          No pages found.
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Posts List */}
-                <div className="pt-4 border-t border-slate-100 dark:border-admin-border">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10 dark:text-gray-400">
-                    Latest Articles
-                  </h4>
-                  <div className="space-y-1">
-                    {(posts || []).map((post) => {
-                      const isLinked = tempSettings.navigation.some(
-                        (n) => n.url === `post:${post.id}`
-                      );
-                      const postInputId = `settings-menu-post-${post.id}`;
-                      return (
-                        <label
-                          key={post.id}
-                          className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-gray-400"
-                        >
-                          <div className="flex items-center gap-3">
-                            <input
-                              id={postInputId}
-                              name={postInputId}
-                              type="checkbox"
-                              checked={isLinked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setTempSettings({
-                                    ...tempSettings,
-                                    navigation: [
-                                      ...tempSettings.navigation,
-                                      {
-                                        id: `nav-${Date.now()}`,
-                                        label: post.title,
-                                        url: `post:${post.id}`,
-                                        type: 'internal',
-                                      },
-                                    ],
-                                  });
-                                } else {
-                                  setTempSettings({
-                                    ...tempSettings,
-                                    navigation: tempSettings.navigation.filter(
-                                      (n) => n.url !== `post:${post.id}`
-                                    ),
-                                  });
-                                }
-                              }}
-                              aria-label={`Add post ${post.title} to menu`}
-                              className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500 dark:accent-gray-400"
-                            />
-                            <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
-                              {decodeEntities(post.title)}
-                            </span>
-                          </div>
-                          {isLinked && (
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-                              ADDED
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })}
-                    {(!posts || posts.length === 0) && (
-                      <p className="text-slate-400 text-xs italic dark:text-gray-400">
-                        No posts found.
-                      </p>
-                    )}
+                  {/* Posts List */}
+                  <div className="pt-4 border-t border-slate-100 dark:border-admin-border">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sticky top-0 bg-white dark:bg-admin-panel py-2 z-10 dark:text-gray-400">
+                      Latest Articles
+                    </h4>
+                    <div className="space-y-1">
+                      {menuPosts.map((post) => {
+                        const isLinked = tempSettings.navigation.some(
+                          (n) => n.url === `post:${post.id}`
+                        );
+                        const postInputId = `settings-menu-post-${post.id}`;
+                        return (
+                          <label
+                            key={post.id}
+                            className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-admin-hover rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-gray-400"
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                id={postInputId}
+                                name={postInputId}
+                                type="checkbox"
+                                checked={isLinked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setTempSettings({
+                                      ...tempSettings,
+                                      navigation: [
+                                        ...tempSettings.navigation,
+                                        {
+                                          id: `nav-${Date.now()}`,
+                                          label: post.title,
+                                          url: `post:${post.id}`,
+                                          type: 'internal',
+                                        },
+                                      ],
+                                    });
+                                  } else {
+                                    setTempSettings({
+                                      ...tempSettings,
+                                      navigation: tempSettings.navigation.filter(
+                                        (n) => n.url !== `post:${post.id}`
+                                      ),
+                                    });
+                                  }
+                                }}
+                                aria-label={`Add post ${post.title} to menu`}
+                                className="w-4 h-4 text-primary-600 rounded-sm border-slate-300 focus:ring-primary-500 dark:accent-gray-400"
+                              />
+                              <span className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                                {decodeEntities(post.title)}
+                              </span>
+                            </div>
+                            {isLinked && (
+                              <span className="text-[10px] font-bold text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                                ADDED
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                      {menuPosts.length === 0 && (
+                        <p className="text-slate-400 text-xs italic dark:text-gray-400">
+                          No posts found.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

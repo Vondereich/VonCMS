@@ -85,33 +85,27 @@ if (!$row) {
 }
 $id = (int) $row['id'];
 
-$altText =
-  isset($input['alt_text']) && is_scalar($input['alt_text'])
-    ? mb_substr(strip_tags(trim((string) $input['alt_text'])), 0, 255)
-    : '';
-$caption =
-  isset($input['caption']) && is_scalar($input['caption'])
-    ? mb_substr(strip_tags(trim((string) $input['caption'])), 0, 5000)
-    : '';
-$description =
-  isset($input['description']) && is_scalar($input['description'])
-    ? mb_substr(strip_tags(trim((string) $input['description'])), 0, 10000)
-    : '';
+$updates = [];
+$values = [':id' => $id];
+foreach (['alt_text' => 255, 'caption' => 5000, 'description' => 10000] as $field => $limit) {
+  if (!array_key_exists($field, $input)) {
+    continue;
+  }
+  if (!is_string($input[$field])) {
+    ResponseHelper::sendError('Media metadata must be text', 400);
+  }
+  $updates[] = $field . ' = :' . $field;
+  $values[':' . $field] = mb_substr(strip_tags(trim($input[$field])), 0, $limit);
+}
+if ($updates === []) {
+  ResponseHelper::sendError('No media metadata supplied', 400);
+}
 
 // 3. Update Database
 try {
-  $stmt = $pdo->prepare("
-        UPDATE media 
-        SET alt_text = :alt, caption = :caption, description = :desc 
-        WHERE id = :id
-    ");
-
-  $result = $stmt->execute([
-    ':alt' => $altText,
-    ':caption' => $caption,
-    ':desc' => $description,
-    ':id' => $id,
-  ]);
+  // Column names come only from the fixed allowlist above. Omitted fields stay unchanged.
+  $stmt = $pdo->prepare('UPDATE media SET ' . implode(', ', $updates) . ' WHERE id = :id');
+  $result = $stmt->execute($values);
 
   if ($result) {
     echo json_encode(['success' => true, 'message' => 'Media updated successfully']);

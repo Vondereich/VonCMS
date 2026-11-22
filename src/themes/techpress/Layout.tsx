@@ -718,7 +718,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
     >
       <ProseDarkModeStyles />
       <div className="max-w-7xl mx-auto px-5 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <a
             href={getPublicHomeHref()}
             className="min-w-0 max-w-[58%] md:max-w-[320px] flex items-center gap-3 cursor-pointer"
@@ -730,7 +730,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                 alt={settings.siteName}
                 useLogoAsTitle={headerIdentity.logoUsesTitleSlot}
                 invertLogoInDarkMode={settings.invertLogoInDarkMode}
-                className="transition-all"
+                className="min-w-0 shrink! transition-all"
               />
             ) : headerIdentity.showFallbackMark ? (
               <VonLogo variant="default" className="w-10! h-10! md:w-12! md:h-12! mr-0! shrink-0" />
@@ -817,7 +817,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
             )}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             {isAuthLoading ? (
               <span
                 className="block h-10 w-24 shrink-0 rounded-lg border pointer-events-none"
@@ -1156,7 +1156,7 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
                     {selectedPost.category || 'Lifestyle'}
                   </a>
                   <h1
-                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-8 leading-tight tracking-tight"
+                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-8 leading-tight tracking-tight wrap-anywhere"
                     style={{ color: colors.text }}
                   >
                     {decodeEntities(selectedPost.title)}
@@ -1659,6 +1659,14 @@ const TechPressLayout: React.FC<ThemeLayoutProps> = ({
       >
         {isInitialDiscoveryLoading ? (
           <PublicDiscoverySkeleton />
+        ) : publicPosts.error && paginatedPosts.length === 0 ? (
+          <p
+            role="alert"
+            className="py-12 text-center text-sm"
+            style={{ color: colors.textSecondary }}
+          >
+            {publicPosts.error}
+          </p>
         ) : hasNoDiscoveryPosts ? (
           <div
             className="py-20 px-6 text-center border rounded-2xl"

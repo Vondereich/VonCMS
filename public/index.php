@@ -91,7 +91,7 @@ if (!file_exists($configFile)) {
 
   if (!InstallBootstrap::ensureKey()) {
     http_response_code(500);
-    die('<h1>Installer unavailable</h1><p>VonCMS could not create <code>data/install_setup.key</code>. Check that the data directory is writable, then reload this page.</p>');
+    die('<h1>Installer unavailable</h1><p>VonCMS could not create <code>data/install_setup.key.php</code>. Check that the data directory is writable, then reload this page.</p>');
   }
 
   // Allow only: /install, /api/*, /assets/*
@@ -506,16 +506,18 @@ try {
 
       // Parse URL to detect post/page slug
       $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-      $path = (string)(parse_url($requestUri, PHP_URL_PATH) ?? '');
+      $path = voncms_request_path($requestUri);
 
       // Remove base path from URL
       if ($basePath !== '/' && strpos($path, $basePath) === 0) {
         $path = substr($path, strlen($basePath));
       }
       $path = trim($path, '/');
+      $publicRouteSegments = voncms_public_route_segments($path);
+      $isPublicContentRoute = voncms_is_public_content_path($path);
 
       // Check for /post/{slug} or /blog/{slug} pattern
-      if (preg_match('/^(post|blog)\/([^\/]+)$/i', $path, $matches)) {
+      if ($isPublicContentRoute && preg_match('/^(post|blog)\/([^\/]+)$/i', $path, $matches)) {
         $slugOrId = $matches[2];
         // Only canonical integer tokens can be legacy IDs; leading zeros/exponents are slugs.
         $isId = preg_match('/^[1-9][0-9]*$/D', $slugOrId) === 1;
@@ -532,7 +534,7 @@ try {
         if ($post) {
           // Collapse any legacy /post|/blog route to the configured canonical permalink,
           // but avoid redirecting when the request is already on the canonical path.
-          if (!empty($post['slug'])) {
+          if ((string) ($post['slug'] ?? '') !== '') {
             $targetPath = buildCanonicalContentPath(
               $post,
               $permalinkStructureValue,
@@ -590,8 +592,12 @@ try {
 
       // Check for public profile route. Keep SSR profile SEO on public-safe fields only:
       // username, display_name, avatar, and bio. Do not expose role/email/joined date/internal IDs here.
-      elseif (preg_match('/^profile\/([^\/]+)$/i', $path, $profileMatches)) {
-        $profileUsername = rawurldecode($profileMatches[1]);
+      elseif (
+        $publicRouteSegments !== null &&
+        count($publicRouteSegments) === 2 &&
+        strtolower($publicRouteSegments[0]) === 'profile'
+      ) {
+        $profileUsername = $publicRouteSegments[1];
         $profileSelect = $hasDisplayNameColumn
           ? 'SELECT username, display_name, avatar, bio FROM users WHERE username = ? LIMIT 1'
           : 'SELECT username, NULL AS display_name, avatar, bio FROM users WHERE username = ? LIMIT 1';
@@ -644,16 +650,16 @@ try {
       }
 
       // Check for plain slug (could be post or page)
-      // Reserved words: only actual PHP endpoints (admin, api, login, etc.)
-      // NOT SPA routes: search, tags, category, page are handled by React SPA
-      elseif (!empty($path) && !preg_match('/^(admin|api|login|install|assets|profile|register|reset-password)(\/|$)/', $path)) {
+      // Apply the same normalized admission policy as the SPA before basename lookup.
+      elseif ($path !== '' && $isPublicContentRoute) {
         // Handle Permalink Structures (Date/Category/Plain)
         // e.g. /2023/12/my-slug or /category/my-slug -> extract 'my-slug'
         $slugOrId = basename($path);
         $resolvedContentType = 'post';
 
-        // Slug/category/date routes use exact slugs, even when they look like an existing ID.
-        $post = voncms_fetch_public_post(
+        // Only the Page fallback namespace uses Page IDs; ordinary numeric slugs stay exact.
+        $pageIdRoute = voncms_is_explicit_page_id_request($path, (string) ($_SERVER['QUERY_STRING'] ?? ''));
+        $post = $pageIdRoute ? false : voncms_fetch_public_post(
           $pdo,
           $slugOrId,
           false,
@@ -665,10 +671,11 @@ try {
         if (!$post) {
           // Try pages
           $pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');
+          $pageLookup = $pageIdRoute ? 'p.id = ?' : 'p.slug = ?';
           $stmt = $pdo->prepare(
-            "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, {$pagePublishedAtSql}, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p LEFT JOIN users u ON p.author_id = u.id WHERE p.slug = ? AND p.status = 'published' LIMIT 1"
+            "SELECT p.id, p.title, p.slug, p.content, p.excerpt, p.author, p.author_id, p.meta_description, p.keywords, p.created_at, p.updated_at, {$pagePublishedAtSql}, p.status, $authorNameSql AS author_name, u.username AS author_username, $authorDisplayNameSql AS author_display_name, u.avatar AS author_avatar FROM pages p LEFT JOIN users u ON p.author_id = u.id WHERE {$pageLookup} AND p.status = 'published' LIMIT 1"
           );
-          $stmt->execute([$path]);
+          $stmt->execute([$pageIdRoute ? $slugOrId : $path]);
           $post = $stmt->fetch(PDO::FETCH_ASSOC);
           if ($post) {
             $resolvedContentType = 'page';
@@ -713,6 +720,9 @@ try {
             $seoUrl = $domainUrl . $canonicalPath;
           } else {
             $canonicalPath = buildCanonicalContentPath($post, 'slug', 'page');
+            if ('/' . ltrim($path, '/') !== parse_url($canonicalPath, PHP_URL_PATH)) {
+              voncms_send_redirect($domainUrl . $canonicalPath);
+            }
             $seoUrl = $domainUrl . $canonicalPath;
           }
           $seoOgType = $resolvedContentType === 'page' ? 'website' : 'article';
@@ -731,7 +741,7 @@ try {
       }
 
       $isPreheadNotFoundRoute =
-        !empty($path) &&
+        $path !== '' &&
         empty($post) &&
         empty($profileUser) &&
         !voncms_is_spa_shell_route($path);
@@ -743,7 +753,7 @@ try {
       // ============================================
       // HOMEPAGE SEO: Latest posts for noscript + Schema
       // ============================================
-      if (empty($path)) {
+      if ($path === '') {
         try {
           $publicListing = voncms_fetch_public_listing_page(
             $pdo,
@@ -858,7 +868,7 @@ $cssFile = $publicAssets['cssFile'];
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <?php echo voncms_tracking_document_meta(); ?>
+  <?php echo voncms_tracking_document_meta($voncmsStatelessRead); ?>
   <meta name="robots" content="<?php echo htmlspecialchars($seoRobots, ENT_COMPAT, 'UTF-8', false); ?>"
     data-voncms-ssr-route="<?php echo htmlspecialchars((string) ($_SERVER['REQUEST_URI'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>"
     data-voncms-ssr-robots="<?php echo htmlspecialchars($seoRobots, ENT_QUOTES, 'UTF-8'); ?>"
@@ -878,7 +888,9 @@ $cssFile = $publicAssets['cssFile'];
 
   <!-- Dynamic SEO Meta Tags -->
   <title><?php echo htmlspecialchars($seoTitle, ENT_COMPAT, 'UTF-8'); ?></title>
+  <?php if (session_status() === PHP_SESSION_ACTIVE): ?>
   <meta name="csrf-token" content="<?php echo CSRFProtection::getToken(); ?>">
+  <?php endif; ?>
   <meta name="description" content="<?php echo htmlspecialchars($seoDescription, ENT_COMPAT, 'UTF-8', false); ?>">
   <?php if (isset($post) && (!empty($post['author_name']) || !empty($post['author']))): ?>
     <meta name="author" content="<?php echo htmlspecialchars($post['author_name'] ?? $post['author'], ENT_COMPAT, 'UTF-8', false); ?>">
@@ -1085,7 +1097,7 @@ $cssFile = $publicAssets['cssFile'];
   // ============================================================
   $initialState = ['status' => 'idle', 'contentType' => null, 'post' => null, 'page' => null];
 
-  if (!empty($path) && isset($post) && $post) {
+  if ($path !== '' && isset($post) && $post) {
     $hydratedType = ($resolvedContentType ?? 'post') === 'page' ? 'page' : 'post';
 
     if ($hydratedType === 'page') {
@@ -1151,7 +1163,7 @@ $cssFile = $publicAssets['cssFile'];
         'page'        => null,
       ];
     }
-  } elseif (!empty($path) && empty($post) && empty($profileUser)) {
+  } elseif ($path !== '' && empty($post) && empty($profileUser)) {
     // SPA ROUTE SAFETY CHECK:
     // Don't mark as 404 if it's a known React shell route. Auth/setup routes are exact.
     // This prevents "Killer 404" where /login renders the NotFound page while

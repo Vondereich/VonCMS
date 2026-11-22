@@ -9,6 +9,7 @@ require_once __DIR__ . '/../core/DataBoundary.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/public_cache_helper.php';
 require_once __DIR__ . '/publication_time_helper.php';
+require_once __DIR__ . '/schema_repair_helper.php';
 sendApiHeaders('POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -34,6 +35,7 @@ CSRFProtection::requireToken();
 
 // Owner-only: database imports can overwrite the whole CMS state.
 SessionManager::requirePrimaryAdmin();
+require_once __DIR__ . '/../core/DatabaseBackup.php';
 
 // Check for uploaded file
 $file = $_FILES['sqlfile'] ?? null;
@@ -373,6 +375,29 @@ function getAllowedImportStatementType($statement)
 
   $identifier = '(?:`(?:``|[^`])+`|[a-zA-Z0-9_$]+)';
   $columnList = $identifier . '(?:\s*,\s*' . $identifier . ')*';
+  // ENGINE is a table/partition option, not an unquoted column named "engine".
+  $options = $structure;
+  if (preg_match('/^CREATE\s+TABLE\b/i', $structure)) {
+    $open = strpos($structure, '(');
+    if ($open !== false) {
+      $depth = 0;
+      for ($i = $open, $length = strlen($structure); $i < $length; $i++) {
+        if ($structure[$i] === '(') {
+          $depth++;
+        } elseif ($structure[$i] === ')' && --$depth === 0) {
+          $options = substr($structure, $i + 1);
+          break;
+        }
+      }
+    }
+  }
+  preg_match_all('/\bENGINE\s*(?:=\s*)?(\w+)/i', $options, $engines);
+  $unsupportedEngines = array_diff(array_map('strtolower', $engines[1]), [
+    'innodb',
+    'myisam',
+    'memory',
+    'aria',
+  ]);
 
   if (preg_match('/^DROP\s+TABLE\s+IF\s+EXISTS\s+' . $identifier . '\s*$/is', $statement)) {
     return 'drop_table';
@@ -383,7 +408,12 @@ function getAllowedImportStatementType($statement)
       '/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?' . $identifier . '\s*\(/is',
       $statement,
     ) &&
-    !preg_match('/\b(?:SELECT|DATA\s+DIRECTORY|INDEX\s+DIRECTORY|TABLESPACE)\b/i', $structure)
+    !preg_match(
+      '/\b(?:SELECT|DATA\s+DIRECTORY|INDEX\s+DIRECTORY|TABLESPACE|CONNECTION|FILE_NAME|UNION|ENGINE_ATTRIBUTE|SECONDARY_ENGINE(?:_ATTRIBUTE)?)\b/i',
+      $structure,
+    ) &&
+    !preg_match('/\bREFERENCES\s+\w+\s*\./i', $structure) &&
+    $unsupportedEngines === []
   ) {
     return 'create_table';
   }
@@ -412,6 +442,141 @@ function getAllowedImportStatementType($statement)
   }
 
   return '';
+}
+
+/** @return list<string> Quoted SQL is opaque; commas inside types/expressions are not separators. */
+function getImportCreateDefinitions(string $statement): array
+{
+  if (
+    !preg_match(
+      '/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`(?:``|[^`])+`|[a-zA-Z0-9_$]+)\s*\(/i',
+      $statement,
+      $prefix,
+    )
+  ) {
+    throw new RuntimeException('Invalid backup table definition.');
+  }
+  $offset = strlen($prefix[0]) - 1;
+  $definitions = [];
+  $start = $offset + 1;
+  $depth = 1;
+  $quote = null;
+  $length = strlen($statement);
+  for ($i = $start; $i < $length; $i++) {
+    $char = $statement[$i];
+    if ($quote !== null) {
+      if ($char === '\\' && $quote !== '`') {
+        $i++;
+      } elseif ($char === $quote) {
+        if (($statement[$i + 1] ?? '') === $quote) {
+          $i++;
+        } else {
+          $quote = null;
+        }
+      }
+      continue;
+    }
+    if (in_array($char, ["'", '"', '`'], true)) {
+      $quote = $char;
+    } elseif ($char === '(') {
+      $depth++;
+    } elseif ($char === ')') {
+      if (--$depth === 0) {
+        $definitions[] = trim(substr($statement, $start, $i - $start));
+        return $definitions;
+      }
+    } elseif ($char === ',' && $depth === 1) {
+      $definitions[] = trim(substr($statement, $start, $i - $start));
+      $start = $i + 1;
+    }
+  }
+  throw new RuntimeException('Incomplete backup table definition.');
+}
+
+function decodeImportIdentifier(string $identifier): string
+{
+  return strtolower(
+    $identifier[0] === '`' ? str_replace('``', '`', substr($identifier, 1, -1)) : $identifier,
+  );
+}
+
+/** Generated columns are never valid stored INSERT values.
+ * @param iterable<string> $statements
+ * @return array<string, list<string>>
+ */
+function getImportGeneratedColumns(iterable $statements): array
+{
+  $tables = [];
+  $identifier = '(?:`(?:``|[^`])+`|[a-zA-Z0-9_$]+)';
+  foreach ($statements as $rawStatement) {
+    $statement = stripLeadingSqlComments($rawStatement);
+    if (
+      !preg_match(
+        '/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(' . $identifier . ')/i',
+        $statement,
+        $table,
+      )
+    ) {
+      continue;
+    }
+    $columns = [];
+    foreach (getImportCreateDefinitions($statement) as $definition) {
+      if (!preg_match('/^(' . $identifier . ')\s+(.+)$/s', $definition, $column)) {
+        continue;
+      }
+      $structure = maskImportSqlQuotes($column[2]);
+      $topLevel = '';
+      $depth = 0;
+      for ($i = 0, $length = strlen($structure); $i < $length; $i++) {
+        $char = $structure[$i];
+        if ($char === '(') {
+          $depth++;
+        } elseif ($char === ')') {
+          $depth--;
+        } elseif ($depth === 0) {
+          $topLevel .= $char;
+        }
+      }
+      if (preg_match('/\bAS\b/i', $topLevel)) {
+        $columns[] = decodeImportIdentifier($column[1]);
+      }
+    }
+    $name = decodeImportIdentifier($table[1]);
+    $tables[$name] = array_values(array_unique(array_merge($tables[$name] ?? [], $columns)));
+  }
+  return $tables;
+}
+
+/** Reject legacy generated-value dumps before DROP/CREATE can implicitly commit.
+ * @param array<string, list<string>> $generatedColumns
+ */
+function requireImportWritableColumns(string $statement, array $generatedColumns): void
+{
+  $identifier = '(?:`(?:``|[^`])+`|[a-zA-Z0-9_$]+)';
+  if (
+    !preg_match(
+      '/^INSERT\s+INTO\s+(' .
+        $identifier .
+        ')\s*\(\s*(' .
+        $identifier .
+        '(?:\s*,\s*' .
+        $identifier .
+        ')*)\s*\)/is',
+      $statement,
+      $insert,
+    )
+  ) {
+    return;
+  }
+  $generated = $generatedColumns[decodeImportIdentifier($insert[1])] ?? [];
+  preg_match_all('/' . $identifier . '/', $insert[2], $columns);
+  foreach ($columns[0] as $column) {
+    if (in_array(decodeImportIdentifier($column), $generated, true)) {
+      throw new RuntimeException(
+        'This legacy backup inserts generated column values. No data was imported. Generate a new backup or correct the trusted SQL before restoring.',
+      );
+    }
+  }
 }
 
 /**
@@ -604,10 +769,11 @@ function createPreImportSafetyBackup($pdo)
         writePreImportSafetyBackupData($handle, "DROP TABLE IF EXISTS {$quotedTable};\n");
         writePreImportSafetyBackupData($handle, $createRow['Create Table'] . ";\n\n");
 
-        $stmt = DataBoundary::statement($pdo->query("SELECT * FROM {$quotedTable}"));
+        $columns = VonCMSDatabaseBackup::writableColumns($pdo, $table);
+        $quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);
+        $columnList = implode(', ', $quotedColumns);
+        $stmt = DataBoundary::statement($pdo->query("SELECT {$columnList} FROM {$quotedTable}"));
         while ($row = DataBoundary::row($stmt->fetch(PDO::FETCH_ASSOC))) {
-          $columns = array_keys($row);
-          $quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);
           $values = [];
           foreach ($row as $value) {
             $values[] = $value === null ? 'NULL' : $pdo->quote((string) $value);
@@ -693,6 +859,7 @@ try {
   $executed = 0;
   $safetyBackup = null;
   $hasExecutableStatements = false;
+  $generatedColumns = getImportGeneratedColumns(iterateSqlStatementsFromFile($file['tmp_name']));
 
   foreach (iterateSqlStatementsFromFile($file['tmp_name']) as $rawStatement) {
     $statement = stripLeadingSqlComments($rawStatement);
@@ -707,6 +874,7 @@ try {
         403,
       );
     }
+    requireImportWritableColumns($statement, $generatedColumns);
   }
 
   if (!$hasExecutableStatements) {
@@ -783,6 +951,25 @@ try {
   if ($pdo->inTransaction()) {
     $pdo->commit();
   }
+  $repairRequired = false;
+  if ($destructiveSummary['count'] > 0) {
+    try {
+      if (
+        voncms_schema_missing_columns($pdo, 'posts', ['published_at']) === [] &&
+        voncms_schema_missing_columns($pdo, 'pages', ['published_at']) === []
+      ) {
+        voncms_mark_publication_columns_ready(
+          voncms_schema_listing_capabilities($pdo),
+          voncms_schema_has_capability($pdo, 'post_daily_views'),
+        );
+      } else {
+        $repairRequired = true;
+      }
+    } catch (Throwable $capabilityError) {
+      $repairRequired = true;
+      error_log('VonCMS SQL restore: publication capability refresh requires Database Repair.');
+    }
+  }
   voncms_public_cache_clear();
 
   echo json_encode([
@@ -790,6 +977,7 @@ try {
     'message' => "Import complete. Executed $executed statements.",
     'executed' => $executed,
     'safetyBackup' => $safetyBackup,
+    'repairRequired' => $repairRequired,
   ]);
 } catch (Exception $e) {
   // Always re-enable FK checks even if something unexpected fails

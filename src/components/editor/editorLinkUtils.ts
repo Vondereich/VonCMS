@@ -37,9 +37,10 @@ export const normalizeEditorLinkRel = (rel: string | null | undefined, newTab: b
 
 export const buildEditorLinkAttrs = (
   href: string,
-  relationship: EditorLinkRelationship = 'normal'
+  relationship: EditorLinkRelationship = 'normal',
+  preservedRel?: string | null
 ) => ({
   href,
   target: '_blank',
-  rel: normalizeEditorLinkRel(relationship, true),
+  rel: normalizeEditorLinkRel(preservedRel ?? relationship, true),
 });

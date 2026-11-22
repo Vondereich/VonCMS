@@ -29,6 +29,7 @@ if (file_exists(__DIR__ . '/../von_config.php')) {
 if (!isset($pdo)) {
   ResponseHelper::sendError('Database not configured', 503);
 }
+voncms_apply_site_timezone($pdo);
 
 // 0. Enforce CSRF
 CSRFProtection::requireToken();
@@ -116,9 +117,7 @@ if ($recordAnalytics && is_string($analyticsMode)) {
   // Maintenance failure must not change the acknowledgement of an already committed visit.
   if (rand(1, 100) === 1) {
     try {
-      $pdo->exec(
-        'DELETE FROM analytics WHERE visit_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) ORDER BY visit_date, id LIMIT 1000',
-      );
+      voncms_prune_native_visits($pdo);
       if ($analyticsMode !== 'strict') {
         voncms_prune_analytics_sessions($pdo, time());
       }

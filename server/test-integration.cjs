@@ -15,6 +15,7 @@ const read = (file) => fs.readFileSync(resolveFromRoot(file), 'utf8');
 const coreSecurityModules = [
   'DataBoundary',
   'InstallBootstrap',
+  'PublicRead',
   'ContentViewDeduplicator',
   'RateLimiter',
   'ResponseHelper',
@@ -58,12 +59,19 @@ function warn(message) {
 
 try {
   const { createRequire } = require('node:module');
-  for (const consumer of [
-    'eslint',
-    '@eslint/config-array',
-    '@typescript-eslint/typescript-estree',
-  ]) {
-    const { Minimatch, minimatch } = createRequire(require.resolve(consumer))('minimatch');
+  const eslintRequire = createRequire(require.resolve('eslint'));
+  const typescriptEslintRequire = createRequire(require.resolve('typescript-eslint'));
+  const parserRequire = createRequire(typescriptEslintRequire.resolve('@typescript-eslint/parser'));
+  const minimatchConsumers = [
+    ['eslint', eslintRequire],
+    ['@eslint/config-array', createRequire(eslintRequire.resolve('@eslint/config-array'))],
+    [
+      '@typescript-eslint/typescript-estree',
+      createRequire(parserRequire.resolve('@typescript-eslint/typescript-estree')),
+    ],
+  ];
+  for (const [consumer, consumerRequire] of minimatchConsumers) {
+    const { Minimatch, minimatch } = consumerRequire('minimatch');
     const pattern =
       Array.from({ length: 8 }, (_, index) => `**/../part${index}`).join('/') + '/*.ts';
     let amplified;
@@ -1385,6 +1393,8 @@ try {
 
 const releasePathPolicy = require(resolveFromRoot('server/release-path-policy.cjs'));
 const forbiddenReleasePolicyFixtures = [
+  'public/data/install_setup.key.php',
+  'data/install_setup.key.php.partial',
   'public/von_config.php',
   'public/data/site_settings.json',
   'public/data/site_settings.json.a1b2c3.tmp',
@@ -1402,6 +1412,7 @@ const forbiddenReleasePolicyFixtures = [
   'public/database.sqlite',
 ];
 const allowedReleasePolicyFixtures = [
+  'public/core/RuntimeLogging.php',
   'public/von_config.sample.php',
   'public/install.sql',
   'src/data/site_settings.json',
@@ -2257,7 +2268,7 @@ assertExcludes(
 assertIncludes(
   'Security Logs Pagination Contract',
   securityLogsContent,
-  ['$page = max(1,', '$limit = min(100, max(1,', '$offset = ($page - 1) * $limit;'],
+  ['$page = min(1000000, max(1,', '$limit = min(100, max(1,', '$offset = ($page - 1) * $limit;'],
   'Security Logs Pagination Contract: admin security logs clamp page and limit before querying.',
   'Security Logs Pagination Contract: admin security logs still trust raw page/limit query values.'
 );
@@ -2340,8 +2351,8 @@ assertIncludes(
     'overrides.includeStats === true ||',
     "$includeStats = isset($_GET['include_stats']) ? $_GET['include_stats'] === '1' : $page === 1;",
     'if ($includeStats)',
-    'SUM(created_at >= CURDATE() AND blocked = 1) AS blocked_today',
-    "SUM(created_at >= CURDATE() AND severity IN ('high', 'critical')) AS high_severity_today",
+    'SUM(created_at >= FROM_UNIXTIME($todayEpoch) AND blocked = 1) AS blocked_today',
+    "SUM(created_at >= FROM_UNIXTIME($todayEpoch) AND severity IN ('high', 'critical')) AS high_severity_today",
     'WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)',
     "toast.success(data.message || 'Security log maintenance completed.');",
   ],
@@ -3952,7 +3963,7 @@ assertIncludes(
 
 assertIncludes(
   'Session Cookie Base Path Contract',
-  securityContent,
+  securityContent + read('public/core/PublicRead.php'),
   [
     'function voncms_detect_session_cookie_path()',
     "preg_replace('#/api(/.*)?$#i', '', $scriptName)",
@@ -4118,23 +4129,21 @@ if (
     'Configuration Sample Direct Guard: the tracked configuration template can execute directly or its guard runs too late.'
   );
 }
+const runtimeLoggingContent = read('public/core/RuntimeLogging.php');
 const runtimeStoragePathsArePrivate =
   read('public/core/RateLimiter.php').includes("__DIR__ . '/../data/rate_limits/'") &&
   !read('public/security.php').includes("__DIR__ . '/../data/rate_limits/'") &&
-  configSampleContent.includes("$_SERVER['DOCUMENT_ROOT']") &&
-  configSampleContent.includes("dirname($documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
-  configSampleContent.includes("rtrim(sys_get_temp_dir(), '/\\\\')") &&
-  configSampleContent.includes("substr(hash('sha256', __DIR__), 0, 16)") &&
-  configSampleContent.includes('@mkdir($logDir, 0700, true)') &&
-  configSampleContent.includes("$logDir . '/php_error_dev.log'") &&
-  configSampleContent.includes("getenv('VONCMS_ENV') ?: 'production'") &&
-  installContent.includes("\\$_SERVER['DOCUMENT_ROOT']") &&
-  installContent.includes("dirname(\\$documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
-  installContent.includes("rtrim(sys_get_temp_dir(), '/\\\\\\\\')") &&
-  installContent.includes("substr(hash('sha256', __DIR__), 0, 16)") &&
-  installContent.includes('@mkdir(\\$logDir, 0700, true)') &&
-  installContent.includes("\\$logDir . '/php_error_dev.log'") &&
-  installContent.includes("getenv('VONCMS_ENV') ?: 'production'");
+  [configSampleContent, installContent].every(
+    (source) =>
+      source.includes('RuntimeLogging::configure(__DIR__);') &&
+      source.includes('/core/RuntimeLogging.php')
+  ) &&
+  runtimeLoggingContent.includes("dirname($documentRoot) . DIRECTORY_SEPARATOR . 'voncms-logs'") &&
+  runtimeLoggingContent.includes("substr(hash('sha256', $installationRoot), 0, 16)") &&
+  runtimeLoggingContent.includes("ini_get('open_basedir')") &&
+  /if \(!self::allowedPath\(\$logDir\)\)\s*\{\s*continue;/.test(runtimeLoggingContent) &&
+  runtimeLoggingContent.includes('@mkdir($logDir, 0700, true)') &&
+  runtimeLoggingContent.includes("getenv('VONCMS_ENV') ?: 'production'");
 if (runtimeStoragePathsArePrivate) {
   pass(
     'Private Runtime Storage: rate limits remain under denied application data while PHP error logs use a private per-install directory outside the document root with a private temporary fallback, and development display requires an explicit environment opt-in.'
@@ -5047,7 +5056,7 @@ try {
     ]) {
       assert.equal(paths.includes(path), mayAdmin, `${role}: ${path}`);
     }
-    for (const path of ['/admin/gallery', '/admin/widgets', '/admin/database']) {
+    for (const path of ['/admin/gallery', '/admin/widgets', '/admin/database', '/admin/activity']) {
       assert.equal(paths.includes(path), mayPrimary, `${role}: ${path}`);
     }
     assert.equal(!!button(nodes, 'Extensions'), mayAdmin);
@@ -5055,10 +5064,18 @@ try {
     assert.equal(!!button(nodes, 'Create'), mayStaff);
     assert.equal(paths.includes('/admin/calendar'), mayPage);
     assert.equal(paths.includes('/admin/calendar?new=event'), mayPage);
-    assert.ok(!paths.some((path) => /status|activity/.test(path)));
+    assert.ok(!paths.some((path) => /status/.test(path)));
   }
   pass(
     'Admin Navigation Runtime: six role/owner cases retain route boundaries and hide empty/future groups and creation actions.'
+  );
+  const activityNavigation = makeNavigation('Admin', '1', '/admin/activity').render();
+  assert.equal(button(activityNavigation, 'Monitoring').props['aria-expanded'], true);
+  assert.deepEqual(
+    activityNavigation
+      .filter((node) => node.props['aria-current'] === 'page')
+      .map((node) => node.props.to),
+    ['/admin/activity']
   );
   const controls = makeNavigation('root', '1')
     .render()
@@ -5668,7 +5685,7 @@ assertIncludes(
     "'voncms:public-categories-invalidated'",
     'const handlePublicCategoriesInvalidated = () => {',
     'void loadSettings(true);',
-    'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
+    'SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
     '$previousScheduledAt !== $savedScheduledAt',
     "'public_categories_changed' => $publicCategoriesChanged",
     "typeof data.public_categories_changed === 'boolean'",
@@ -5985,6 +6002,7 @@ if (
 }
 
 const saveSettingsContent = read('public/api/save_settings.php');
+const settingsStorageContent = read('public/core/SettingsStorage.php');
 const getSettingsContent = read('public/api/get_settings.php');
 const getSettingsPublicContractContent =
   getSettingsContent + '\n' + read('public/public_render_helper.php');
@@ -5996,6 +6014,7 @@ const dateFormatSettingsContract = [
   dateFormatUtilityContent,
   read('src/utils/siteUtils.ts'),
   saveSettingsContent,
+  settingsStorageContent,
   getSettingsContent,
   read('public/public_render_helper.php'),
   installContent,
@@ -6274,9 +6293,11 @@ if (
 }
 
 const settingsMirrorUsesUniqueTemp =
-  saveSettingsContent.includes("'.' . bin2hex(random_bytes(6)) . '.tmp'") &&
-  saveSettingsContent.includes('LOCK_EX') &&
-  !saveSettingsContent.includes("$tempFile = $settingsFile . '.tmp';");
+  settingsStorageContent.includes("'.' . bin2hex(random_bytes(6)) . '.tmp'") &&
+  settingsStorageContent.includes('LOCK_EX') &&
+  settingsStorageContent.includes('@rename($tempFile, $settingsFile)') &&
+  saveSettingsContent.includes("require_once __DIR__ . '/../core/SettingsStorage.php';") &&
+  !settingsStorageContent.includes("$tempFile = $settingsFile . '.tmp';");
 const settingsMirrorFailureIsNonBlocking =
   saveSettingsContent.includes('$mirrorWarning = null;') &&
   saveSettingsContent.includes("error_log('Settings JSON mirror write failed: '") &&
@@ -6719,8 +6740,8 @@ assertIncludes(
     'Content was updated elsewhere. Reload the editor before saving again.',
     'const error = Object.assign(',
     '{ status: res.status }',
-    "'status' in err && err.status === 409",
-    "getErrorMessage(err).includes('Content changed in another tab')",
+    'const errorMessage = getErrorMessage(err).trim();',
+    "errorMessage === 'Content changed in another tab. Reload before saving again.'",
     'notify.error(SAVE_CONFLICT_MESSAGE);',
     "updated_at' => $savedUpdatedAt",
     "updatedAt' => $savedUpdatedAt",
@@ -6732,7 +6753,7 @@ assertIncludes(
   'Page Editor Atomic Conflict Guard',
   savePageApiContent,
   [
-    'SELECT author_id, status, slug, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
+    'SELECT id, author_id, status, slug, meta_description, updated_at, {$publishedAtSelect} FROM pages WHERE id = ? FOR UPDATE',
   ],
   'Page Editor Atomic Conflict Guard: page updates lock the current row before comparing updated_at.',
   'Page Editor Atomic Conflict Guard: simultaneous page saves can both pass the stale-content check before overwriting each other.'
@@ -7192,8 +7213,9 @@ if (
   saveSettingsContent.includes(
     "ResponseHelper::sendError('Primary Admin permission is required for these settings.', 403);"
   ) &&
-  saveSettingsContent.includes("['activePlugins', 'plugins', 'active_plugins', 'json']") &&
-  saveSettingsContent.includes("['pluginConfig', 'plugins', 'plugin_config', 'json']") &&
+  settingsStorageContent.includes("['activePlugins', 'plugins', 'active_plugins', 'json']") &&
+  settingsStorageContent.includes("['pluginConfig', 'plugins', 'plugin_config', 'json']") &&
+  saveSettingsContent.includes('$mappings = voncms_settings_mappings();') &&
   appointedAdminSettingsCommit >= 0 &&
   appointedAdminSettingsCachePurge > appointedAdminSettingsCommit &&
   saveSettingsContent.includes("'ignored' => $ignoredSettingsKeys,") &&
@@ -7992,7 +8014,7 @@ assertIncludes(
 
 assertIncludes(
   'Maintenance Flag Persistence Contract',
-  saveSettingsContent,
+  saveSettingsContent + read('public/core/SettingsStorage.php'),
   [
     'function voncms_apply_maintenance_flag(string $flagFile, bool $enabled): void',
     'LOCK_EX',
@@ -8306,7 +8328,8 @@ assertIncludes(
     '$quotedTable = quoteImportBackupMysqlIdentifier($table);',
     "$quotedColumns = array_map('quoteImportBackupMysqlIdentifier', $columns);",
     'SHOW CREATE TABLE {$quotedTable}',
-    'SELECT * FROM {$quotedTable}',
+    'SELECT {$columnList} FROM {$quotedTable}',
+    'VonCMSDatabaseBackup::writableColumns($pdo, $table)',
     'DROP TABLE IF EXISTS {$quotedTable}',
     'function sanitizeImportBackupCommentLabel(string $value): string',
   ],
@@ -8885,7 +8908,8 @@ assertIncludes(
     "$quotedColumns = array_map('quoteDatabaseBackupMysqlIdentifier', $columns);",
     'SHOW CREATE TABLE {$quotedTable}',
     'SELECT COUNT(*) FROM {$quotedTable}',
-    'SELECT * FROM {$quotedTable}',
+    'SELECT {$columnList} FROM {$quotedTable}',
+    'VonCMSDatabaseBackup::writableColumns($pdo, $table)',
     'DROP TABLE IF EXISTS {$quotedTable}',
     'function sanitizeDatabaseBackupCommentLabel(string $value): string',
   ],
@@ -8943,7 +8967,8 @@ if (
     backupDbContent.indexOf('$countQuery =') &&
   backupDbContent.includes('$countQuery->closeCursor();') &&
   backupDbContent.indexOf('$countQuery->closeCursor();') <
-    backupDbContent.indexOf('$stmt = $pdo->query("SELECT *') &&
+    backupDbContent.indexOf('$stmt = $pdo->query("SELECT {$columnList}') &&
+  read('public/core/DatabaseBackup.php').includes('$statement->closeCursor();') &&
   backupDbContent.includes('$stmt->closeCursor();') &&
   backupDbContent.includes('$activeStatement->closeCursor();')
 ) {
@@ -9188,7 +9213,8 @@ if (
   ) &&
   updateMediaContent.includes('CSRFProtection::requireToken();') &&
   updateMediaContent.includes("ResponseHelper::sendError('Media item not found', 404);") &&
-  updateMediaContent.includes('mb_substr(strip_tags(trim((string) $input') &&
+  updateMediaContent.includes('mb_substr(strip_tags(trim($input[$field]))') &&
+  updateMediaContent.includes('if (!array_key_exists($field, $input))') &&
   !updateMediaContent.includes('filepath LIKE ?')
 ) {
   pass(
@@ -9566,7 +9592,8 @@ assertIncludes(
   [
     'published_at = CASE WHEN :publish_now = 1 AND published_at IS NULL THEN :publication_now ELSE published_at END',
     'CASE WHEN :publish_now = 1 THEN :publication_now ELSE NULL END',
-    "['publication_now'] = date('Y-m-d H:i:s');",
+    "['publication_now'] = $writeTime;",
+    "$writeTime = date('Y-m-d H:i:s');",
     'published_at = COALESCE(published_at, scheduled_at)',
     '$postPublishedColumn',
     '$pagePublishedColumn',
@@ -10620,8 +10647,12 @@ assertIncludes(
     phpSeoSchemaHelperContent,
   [
     'function voncms_is_spa_shell_route($path)',
-    "in_array($normalizedPath, ['login', 'install'], true)",
-    "preg_match('#^admin(/|$)#i', $normalizedPath)",
+    'function voncms_public_route_segments($path): ?array',
+    'voncms_public_route_segments($path) === [] || voncms_is_private_spa_shell_route($path)',
+    '$parts = voncms_public_route_segments($path);',
+    '$first = strtolower($parts[0]);',
+    "return $first === 'admin' ||",
+    "count($parts) === 1 && in_array($first, ['login', 'install'], true)",
     '$isPreheadNotFoundRoute',
     'empty($profileUser)',
     '!voncms_is_spa_shell_route($path)',
@@ -11056,7 +11087,11 @@ assertIncludes(
   'Public Profile SSR SEO Contract',
   indexContent,
   [
-    "preg_match('/^profile\\/([^\\/]+)$/i', $path, $profileMatches)",
+    '$publicRouteSegments = voncms_public_route_segments($path);',
+    '$publicRouteSegments !== null &&',
+    'count($publicRouteSegments) === 2 &&',
+    "strtolower($publicRouteSegments[0]) === 'profile'",
+    '$profileUsername = $publicRouteSegments[1];',
     'SELECT username, display_name, avatar, bio FROM users WHERE username = ? LIMIT 1',
     "ResponseHelper::scrubAvatarUrl((string) ($profileUser['avatar'] ?? ''))",
     "$seoOgType = 'profile';",
@@ -12661,7 +12696,7 @@ assertIncludes(
 );
 assertIncludes(
   'Admin Palette Server Allowlist Contract',
-  saveSettingsContent + '\n' + getSettingsContent,
+  saveSettingsContent + '\n' + settingsStorageContent + '\n' + getSettingsContent,
   [
     "['charcoal-blue', 'meadow-gold', 'harbour-amber']",
     "['adminPalette', 'general', 'admin_palette', 'string']",
@@ -13027,8 +13062,8 @@ if (exists(publicPostsQueryHookPath)) {
     ) &&
     publicPostsQueryContent.includes('fallbackPostsRef.current = fallbackPosts;') &&
     publicPostsQueryContent.includes('if (hasShortSearch || hasPendingSearchDebounce) return;') &&
-    publicPostsQueryContent.includes(
-      '[category, enabled, hasShortSearch, limit, normalizedSearch, settledFallbackPosts]'
+    /\[\s*category,\s*enabled,\s*hasShortSearch,\s*limit,\s*normalizedSearch,\s*requestScope,\s*settledFallbackPosts,?\s*\]/.test(
+      publicPostsQueryContent
     ) &&
     !publicPostsQueryContent.includes(
       '[category, enabled, fallbackPosts, hasShortSearch, limit, normalizedSearch]'
@@ -13037,7 +13072,9 @@ if (exists(publicPostsQueryHookPath)) {
     publicPostsQueryContent.includes('const abortController = new AbortController();') &&
     publicPostsQueryContent.includes('signal: abortController.signal') &&
     publicPostsQueryContent.includes("(err as Error)?.name === 'AbortError'") &&
-    publicPostsQueryContent.includes('isLoading: isLoading || isDebouncingSearch') &&
+    publicPostsQueryContent.includes('isLoading: isDiscoveryLoading') &&
+    publicPostsQueryContent.includes('isDebouncingSearch ||') &&
+    publicPostsQueryContent.includes('settledRequestScope !== requestScope') &&
     !publicPostsQueryContent.includes('hasShortSearch ? search.trim() : normalizedSearch') &&
     !publicPostsQueryContent.includes('value.trim().slice(0, PUBLIC_SEARCH_MAX_LENGTH)')
   ) {
@@ -13425,9 +13462,9 @@ if (
 }
 
 if (
-  appContent.includes(
-    'const fallbackPost = posts.find((p: Post) => p.id === id || p.slug === slug) || null;'
-  ) &&
+  appContent.includes('const fallbackPost =') &&
+  appContent.includes('(postIdToFetch && p.id === postIdToFetch)') &&
+  appContent.includes('(postSlugToFetch && p.slug === postSlugToFetch)') &&
   appContent.includes('!isLoadingPost ? fallbackPost : null') &&
   !appContent.includes('(fullPostMatchesCurrentRoute ? fullPost : null) ||\n      posts.find')
 ) {
@@ -15393,7 +15430,8 @@ assertIncludes(
     '$stmt->execute();',
     'voncms_fetch_public_post(',
     "$pagePublishedAtSql = voncms_publication_column_sql($pdo, 'pages', 'p');",
-    "WHERE p.slug = ? AND p.status = 'published' LIMIT 1",
+    "$pageLookup = $pageIdRoute ? 'p.id = ?' : 'p.slug = ?';",
+    "WHERE {$pageLookup} AND p.status = 'published' LIMIT 1",
     'function voncms_fetch_public_listing_page(',
     "WHERE p.status = 'published'",
     'AND (p.scheduled_at IS NULL OR p.scheduled_at <= :currentTime)',
@@ -15665,7 +15703,7 @@ if (mutatingMethodGuardMissing.length === 0) {
 }
 
 const postOwnerGuardIndex = savePostContent.indexOf(
-  'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
+  'SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE'
 );
 const postOwnershipDecisionIndex = savePostContent.indexOf(
   "ResponseHelper::sendError('Not authorized to edit this post', 403);"
@@ -17044,7 +17082,7 @@ const headerIdentityPersistenceMarkers = [
   generalSettingsContent.includes('<option value="text_only">Text Only</option>'),
   generalSettingsContent.includes("onChange('useLogoAsTitle', mode === 'logo_only')"),
   saveSettingsContent.includes("['logo_and_text', 'logo_only', 'text_only']"),
-  saveSettingsContent.includes(
+  read('public/core/SettingsStorage.php').includes(
     "['headerIdentityMode', 'general', 'header_identity_mode', 'string']"
   ),
   saveSettingsContent.includes(
@@ -17134,7 +17172,7 @@ if (
   useSettingsContent.includes('invertLogoInDarkMode: _s?.invertLogoInDarkMode ?? false') &&
   logoGeneralSettingsContent.includes("onChange('invertLogoInDarkMode', e.target.checked)") &&
   logoGeneralSettingsContent.includes('Invert logo in dark mode') &&
-  saveSettingsContent.includes(
+  read('public/core/SettingsStorage.php').includes(
     "['invertLogoInDarkMode', 'general', 'invert_logo_in_dark_mode', 'boolean']"
   ) &&
   getSettingsPublicContractContent.includes("'invert_logo_in_dark_mode'") &&
@@ -18597,7 +18635,7 @@ if (
   v1268SiteUtilsContent.includes('export const getPublicNavigationHref') &&
   phpPublicRenderHelperContent.includes('function voncms_project_public_navigation_hrefs') &&
   phpPublicRenderHelperContent.includes(
-    "$postHrefs[$postId] = '/post/' . rawurlencode($postId);"
+    "$postIdHrefs[$postId] = '/post/' . rawurlencode($postId);"
   ) &&
   v1268PublicNavigationRuntimePass &&
   v1268SaveSettingsContent.includes('function voncms_strip_navigation_runtime_projection') &&
@@ -18753,6 +18791,96 @@ if (phpBinary) {
   else fail('Internal Core Modules: ' + (coreProbe.stderr || coreProbe.stdout).trim());
 }
 if (phpBinary) {
+  const submissionQuotaProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/public-submission-quotas.php')],
+    { encoding: 'utf8' }
+  );
+  if (
+    submissionQuotaProbe.status === 0 &&
+    submissionQuotaProbe.stdout.startsWith('PASS ') &&
+    !submissionQuotaProbe.stderr.trim()
+  ) {
+    pass(submissionQuotaProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail(
+      'Public submission quotas: ' +
+        (submissionQuotaProbe.stderr || submissionQuotaProbe.stdout).trim()
+    );
+  }
+}
+if (phpBinary) {
+  const installerProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/maintenance/installer.cjs')],
+    {
+      encoding: 'utf8',
+      timeout: 120000,
+    }
+  );
+  if (installerProbe.status === 0 && installerProbe.stdout.startsWith('PASS ')) {
+    pass(installerProbe.stdout.trim().replace(/^PASS /, ''));
+  } else {
+    fail(
+      'Installer HTTP boundaries: ' +
+        (
+          installerProbe.stderr ||
+          installerProbe.stdout ||
+          installerProbe.error?.message ||
+          'No result'
+        ).trim()
+    );
+  }
+}
+if (phpBinary) {
+  const probe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/maintenance/php-json.cjs')],
+    { encoding: 'utf8' }
+  );
+  if (probe.status === 0) pass(probe.stdout.trim().replace(/^PASS /, ''));
+  else fail('PHP JSON probe diagnostics: ' + (probe.stderr || probe.stdout).trim());
+}
+if (phpBinary) {
+  for (const file of ['s4-regressions.cjs', 'smtp-fixture.cjs']) {
+    const probe = spawnSync(
+      process.execPath,
+      [resolveFromRoot(`server/integration/maintenance/${file}`)],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PHP_BIN: phpBinary },
+      }
+    );
+    if (probe.status === 0 && probe.stdout.startsWith('PASS ') && !probe.stderr.trim())
+      pass(probe.stdout.trim().replace(/^PASS /, ''));
+    else fail('S4 regression: ' + (probe.stderr || probe.stdout || probe.error).toString());
+  }
+}
+if (phpBinary) {
+  for (const file of ['run.php', 'endpoint.php']) {
+    const probe = spawnSync(phpBinary, [resolveFromRoot(`server/integration/activity/${file}`)], {
+      encoding: 'utf8',
+    });
+    if (probe.status === 0 && probe.stdout.startsWith('PASS ') && !probe.stderr.trim()) {
+      pass(probe.stdout.trim().replace(/^PASS /, ''));
+    } else fail('Staff Activity Log: ' + (probe.stderr || probe.stdout).trim());
+  }
+}
+if (phpBinary) {
+  const svgLogoProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/media/svg-logo.php')],
+    { encoding: 'utf8' }
+  );
+  if (
+    svgLogoProbe.status === 0 &&
+    svgLogoProbe.stdout.startsWith('PASS ') &&
+    !svgLogoProbe.stderr.trim()
+  )
+    pass(svgLogoProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('SVG logo profile: ' + (svgLogoProbe.stderr || svgLogoProbe.stdout).trim());
+}
+if (phpBinary) {
   const hardeningProbe = spawnSync(
     process.execPath,
     [resolveFromRoot('server/test-security-hardening.cjs'), phpBinary],
@@ -18777,6 +18905,19 @@ if (phpBinary) {
   );
   if (personalProbe.status === 0) pass(personalProbe.stdout.trim().replace(/^PASS /, ''));
   else fail('Personal AI Keys: ' + (personalProbe.stderr || personalProbe.stdout).trim());
+  const developerToolsProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/developer-tools.cjs')],
+    { encoding: 'utf8', env: { ...process.env, PHP_BIN: phpBinary } }
+  );
+  if (
+    developerToolsProbe.status === 0 &&
+    developerToolsProbe.stdout.startsWith('PASS ') &&
+    !developerToolsProbe.stderr.trim()
+  )
+    pass(developerToolsProbe.stdout.trim().replace(/^PASS /, ''));
+  else
+    fail('Developer tools: ' + (developerToolsProbe.stderr || developerToolsProbe.stdout).trim());
   const credentialProbe = spawnSync(
     phpBinary,
     [resolveFromRoot('server/integration/credential-storage.php')],
@@ -18794,6 +18935,20 @@ if (phpBinary) {
   if (maintenanceProbe.status === 0) pass(maintenanceProbe.stdout.trim().replace(/^PASS /, ''));
   else
     fail('Maintenance Boundaries: ' + (maintenanceProbe.stderr || maintenanceProbe.stdout).trim());
+  const publicReadProbe = spawnSync(
+    process.execPath,
+    [resolveFromRoot('server/integration/maintenance/public-read.cjs')],
+    { encoding: 'utf8', env: { ...process.env, PHP_BIN: phpBinary } }
+  );
+  if (publicReadProbe.status === 0) pass(publicReadProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('Public read sessions: ' + (publicReadProbe.stderr || publicReadProbe.stdout).trim());
+  const metadataProbe = spawnSync(
+    phpBinary,
+    [resolveFromRoot('server/integration/api-action-boundaries.php'), '--round3-metadata'],
+    { encoding: 'utf8' }
+  );
+  if (metadataProbe.status === 0) pass(metadataProbe.stdout.trim().replace(/^PASS /, ''));
+  else fail('Round-3 metadata: ' + (metadataProbe.stderr || metadataProbe.stdout).trim());
 }
 if (phpBinary) {
   const actionBoundariesProbe = spawnSync(
@@ -18933,12 +19088,14 @@ if (!phpBinary) {
   // Login CSRF and legacy comment payload runtime boundary.
   const loginCommentFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-auth-comment-'));
   try {
-    for (const directory of ['api/security', 'core', 'data', 'sessions', 'rate']) {
+    for (const directory of ['api/security', 'api/activity', 'core', 'data', 'sessions', 'rate']) {
       fs.mkdirSync(path.join(loginCommentFixture, directory), { recursive: true });
     }
     for (const relativePath of [
       'security.php',
       ...coreSecurityModules.map((name) => 'core/' + name + '.php'),
+      'core/ContentMetadata.php',
+      'core/SettingsStorage.php',
       'api/login.php',
       'api/save_comments.php',
       'api/register.php',
@@ -18946,6 +19103,7 @@ if (!phpBinary) {
       'api/reset_password.php',
       'api/mail_helper.php',
       'api/schema_repair_helper.php',
+      'api/activity/schema.php',
       'api/security/SecurityLogger.php',
       'api.php',
       'post.php',
@@ -18984,7 +19142,8 @@ if (!phpBinary) {
       ['comment-mixed-updateStatus', 400, false],
       ['comment-guest-bulk', 401, false],
       ['comment-member-bulk', 403, false],
-      ['comment-admin-bulk', 200, true],
+      ['comment-admin-bulk', 403, false],
+      ['comment-owner-bulk', 200, true],
       ['comment-guest-add', 200, true],
     ];
     const loginCommentResults = loginCommentCases.map(([mode, expectedStatus, expectedSuccess]) => {
@@ -19036,8 +19195,8 @@ if (!str_starts_with($mode, 'comment-mixed-') && $mode !== 'comment-guest-bulk')
   $pdo->exec('CREATE TABLE comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER, user_id INTEGER, parent_id INTEGER, user_name TEXT, user_avatar TEXT, content TEXT, likes INTEGER, status TEXT, created_at TEXT)');
 }
 $GLOBALS['fixturePdo'] = $pdo;
-if (in_array($mode, ['comment-admin-bulk', 'comment-member-bulk'], true)) {
-  $role = $mode === 'comment-admin-bulk' ? 'admin' : 'member';
+if (in_array($mode, ['comment-admin-bulk', 'comment-member-bulk', 'comment-owner-bulk'], true)) {
+  $role = $mode === 'comment-owner-bulk' ? 'root' : ($mode === 'comment-admin-bulk' ? 'admin' : 'member');
   $pdo->prepare('UPDATE users SET role = ? WHERE id = 7')->execute([$role]);
   SessionManager::establishAuthenticatedSession(['id' => 7, 'username' => 'fixture', 'role' => $role], $passwordHash);
 }
@@ -19085,7 +19244,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEP
         (!mode.startsWith('login-') || result.authenticated === expectedSuccess) &&
         result?.rememberRows === (mode === 'login-remember' ? 1 : 0) &&
         result?.commentRows ===
-          (['comment-admin-bulk', 'comment-guest-add'].includes(mode) ? 1 : 0) &&
+          (['comment-owner-bulk', 'comment-guest-add'].includes(mode) ? 1 : 0) &&
         fs.readFileSync(path.join(loginCommentFixture, 'data/comments.json'), 'utf8') ===
           legacySentinel;
       if (!matches)
@@ -19096,7 +19255,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api'))} . DIRECTORY_SEP
     });
     if (loginCommentResults.every(Boolean)) {
       pass(
-        'Login/Comment Boundary Runtime: cross-site plain and tokenless login fail; normal login, remember-me, guest comments, and admin-only migration remain valid; mixed payloads cannot write legacy JSON.'
+        'Login/Comment Boundary Runtime: cross-site plain and tokenless login fail; normal login, remember-me, guest comments, and Primary-Admin migration remain valid; appointed Admin migration is refused and mixed payloads cannot write legacy JSON.'
       );
     }
     const legacyShimCases = [
@@ -19364,7 +19523,7 @@ require ${JSON.stringify(path.join(loginCommentFixture, 'api/reset_password.php'
     'function voncms_guard_restricted_settings_for_non_primary_admin'
   );
   const domainMirrorNormalizer = extractPhpFunctionSource(
-    saveSettingsContent,
+    read('public/core/SettingsStorage.php'),
     'function voncms_prepare_settings_domain_mirror'
   );
   const domainUrlValidation = sliceBetween(
@@ -19450,7 +19609,7 @@ $_SERVER['SCRIPT_NAME'] = '/installer-proxy-boundary-probe.php';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $fixtureDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'voncms-installer-key-' . bin2hex(random_bytes(6));
 if (!mkdir($fixtureDir, 0700, true)) exit(2);
-$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key';
+$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key.php';
 define('VONCMS_INSTALL_SETUP_KEY_PATH', $keyPath);
 require ${JSON.stringify(resolveFromRoot('public/security.php'))};
 register_shutdown_function(static function () use ($keyPath, $fixtureDir) {
@@ -19458,7 +19617,7 @@ register_shutdown_function(static function () use ($keyPath, $fixtureDir) {
   @rmdir($fixtureDir);
 });
 if (!InstallBootstrap::ensureKey()) exit(3);
-$key = trim((string) file_get_contents($keyPath));
+$key = trim(explode("\n", (string) file_get_contents($keyPath), 2)[1] ?? '');
 if (!preg_match('/^[a-f0-9]{64}$/', $key) || !InstallBootstrap::claim($key)) exit(4);
 if (InstallBootstrap::claim($key) || InstallBootstrap::validate(str_repeat('0', 64))) exit(5);
 InstallBootstrap::consume();
@@ -19521,10 +19680,10 @@ echo 'ok';`,
 if (!mkdir($fixtureDir, 0700, true)) exit(2);
 $sessionDir = $fixtureDir . DIRECTORY_SEPARATOR . 'sessions';
 if (!mkdir($sessionDir, 0700, true)) exit(3);
-$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key';
+$keyPath = $fixtureDir . DIRECTORY_SEPARATOR . 'install_setup.key.php';
 $workerPath = $fixtureDir . DIRECTORY_SEPARATOR . 'worker.php';
 $key = str_repeat('a', 64);
-$keyContents = $key . PHP_EOL;
+$keyContents = '<?php http_response_code(403); exit; ?>' . "\n" . $key . "\n";
 if (file_put_contents($keyPath, $keyContents, LOCK_EX) !== strlen($keyContents)) exit(4);
 $securityPath = ${JSON.stringify(resolveFromRoot('public/security.php'))};
 $worker = '<?php\n'
@@ -19534,7 +19693,7 @@ $worker = '<?php\n'
   . '$_SERVER["REQUEST_METHOD"] = "GET";\n'
   . 'define("VONCMS_INSTALL_SETUP_KEY_PATH", $argv[1]);\n'
   . 'require ' . var_export($securityPath, true) . ';\n'
-  . '$key = trim((string) @file_get_contents($argv[1]));\n'
+  . '$key = str_repeat("a", 64);\n'
   . 'if (!InstallBootstrap::claim($key)) exit(20);\n'
   . 'echo "claimed\\n"; flush();\n'
   . 'if (($argv[2] ?? "") === "hold") { fgets(STDIN); exit(0); }\n'
@@ -20393,19 +20552,19 @@ require ${JSON.stringify(resolveFromRoot('public/public_render_helper.php'))};
 if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) { echo 'skip'; exit; }
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('CREATE TABLE pages (id TEXT PRIMARY KEY, slug TEXT, status TEXT NULL)');
-$pdo->exec('CREATE TABLE posts (id TEXT PRIMARY KEY, status TEXT NULL, scheduled_at TEXT NULL)');
-$pdo->exec("INSERT INTO pages (id, slug, status) VALUES ('page-live', 'about', 'published'), ('page-draft', 'draft-page', 'draft')");
-$pdo->exec("INSERT INTO posts (id, status, scheduled_at) VALUES ('post-live', 'published', NULL), ('post-null', NULL, NULL), ('post-future', 'published', '2999-01-01 00:00:00'), ('post-draft', 'draft', NULL)");
+$pdo->exec('CREATE TABLE pages (id INTEGER PRIMARY KEY, slug TEXT, status TEXT NULL)');
+$pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY, slug TEXT, status TEXT NULL, scheduled_at TEXT NULL)');
+$pdo->exec("INSERT INTO pages (id, slug, status) VALUES (1, 'about', 'published'), (2, 'draft-page', 'draft')");
+$pdo->exec("INSERT INTO posts (id, slug, status, scheduled_at) VALUES (3, 'post-live', 'published', NULL), (4, 'post-null', NULL, NULL), (5, 'post-future', 'published', '2999-01-01 00:00:00'), (6, 'post-draft', 'draft', NULL)");
 $navigation = [
   ['id' => 'home', 'url' => 'home'],
-  ['id' => 'page-live', 'url' => 'page:page-live'],
-  ['id' => 'page-draft', 'url' => 'page:page-draft', 'resolvedHref' => '/stale-page'],
-  ['id' => 'post-live', 'url' => 'post:post-live'],
-  ['id' => 'post-null', 'url' => 'post:post-null'],
-  ['id' => 'post-future', 'url' => 'post:post-future'],
-  ['id' => 'post-draft', 'url' => 'post:post-draft', 'resolvedHref' => '/stale-post'],
-  ['id' => 'post-missing', 'url' => 'post:post-missing'],
+  ['id' => 'page-live', 'url' => 'page:1'],
+  ['id' => 'page-draft', 'url' => 'page:2', 'resolvedHref' => '/stale-page'],
+  ['id' => 'post-live', 'url' => 'post:3'],
+  ['id' => 'post-null', 'url' => 'post:4'],
+  ['id' => 'post-future', 'url' => 'post:5'],
+  ['id' => 'post-draft', 'url' => 'post:6', 'resolvedHref' => '/stale-post'],
+  ['id' => 'post-missing', 'url' => 'post:7'],
 ];
 $projected = voncms_project_public_navigation_hrefs($pdo, $navigation);
 $byId = [];
@@ -20414,8 +20573,8 @@ if (
   ($byId['home']['resolvedHref'] ?? '') !== '/' ||
   ($byId['page-live']['resolvedHref'] ?? '') !== '/about' ||
   isset($byId['page-draft']['resolvedHref']) ||
-  ($byId['post-live']['resolvedHref'] ?? '') !== '/post/post-live' ||
-  ($byId['post-null']['resolvedHref'] ?? '') !== '/post/post-null' ||
+  ($byId['post-live']['resolvedHref'] ?? '') !== '/post/3' ||
+  ($byId['post-null']['resolvedHref'] ?? '') !== '/post/4' ||
   isset($byId['post-future']['resolvedHref']) ||
   isset($byId['post-draft']['resolvedHref']) ||
   isset($byId['post-missing']['resolvedHref'])
@@ -21262,6 +21421,11 @@ require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
     ['admin', { id: 223 }, 1, 1, 1, 200, 223, false],
     ['moderator', { id: 223 }, 1, 1, 1, 200, 223, false],
     ['root', {}, 200, 224, 1, 200, 224, true],
+    ['root', { view: 'menu', limit: 200 }, 200, 222, 1, 200, 222, true],
+    ['admin', { view: 'menu', limit: 200 }, 200, 222, 1, 200, 222, true],
+    ['moderator', { view: 'menu', limit: 200 }, 200, 222, 1, 200, 222, true],
+    ['writer', { view: 'menu', limit: 20 }, 20, 222, 1, 20, 222, true],
+    ['guest', { view: 'menu', limit: 20 }, 20, 222, 1, 20, 222, true],
   ];
   for (const [role, query, count, total, page, limit, firstId, hasMore] of pageReadCases) {
     const pageReadProbe = spawnSync(
@@ -21294,7 +21458,7 @@ require ${JSON.stringify(resolveFromRoot('public/api/save_comments.php'))};`,
       (firstId === null || pageReadRows[0]?.id === String(firstId)) &&
       pageReadRows.every(
         (row) =>
-          row.content === 'Complete page body 😀. '.repeat(40) &&
+          row.content === (query.view === 'menu' ? '' : 'Complete page body 😀. '.repeat(40)) &&
           row.excerpt === 'Page excerpt 中文 😀' &&
           row.meta_description === 'Explicit page meta description.' &&
           (['root', 'admin', 'moderator'].includes(role) ||
@@ -23572,7 +23736,7 @@ const cacheFiles = () => fs.existsSync(storage)
       "$expectedStatus = is_scalar($input['expectedStatus'] ?? null)",
       'Post status changed. Reload before applying this workflow action.',
       "$statusOnlyTransition = $workflow['status_only'];",
-      'SELECT id, author_id, title, status, slug, category, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
+      'SELECT id, author_id, title, status, slug, category, meta_description, created_at, scheduled_at, updated_at, image_url, {$publishedAtSelect} FROM posts WHERE id = ? FOR UPDATE',
       '!voncms_is_post_workflow_action($requestedWorkflowAction)',
       'Post version is required for this legacy workflow action.',
       '$serverTimestamp !== $clientTimestamp',
@@ -23839,9 +24003,10 @@ else fail('Calendar fixture: ' + (calendarProbe.stderr || calendarProbe.stdout).
 
 const publicRoutingProbe = spawnSync(
   process.execPath,
-  [resolveFromRoot('server/test-public-routing.cjs')],
+  [resolveFromRoot('server/test-public-routing.cjs'), '--php'],
   {
     encoding: 'utf8',
+    env: { ...process.env, PHP_BIN: phpBinary || '' },
     maxBuffer: 1024 * 1024,
   }
 );

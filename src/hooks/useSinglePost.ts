@@ -125,7 +125,9 @@ export const useSinglePost = (
       abortControllerRef.current = abortController;
       setIsLoading(true);
       try {
-        const endpoint = postId ? `${API.getPost}?id=${postId}` : `${API.getPost}?slug=${postSlug}`;
+        const endpoint = postId
+          ? `${API.getPost}?id=${encodeURIComponent(postId)}`
+          : `${API.getPost}?slug=${encodeURIComponent(postSlug || '')}`;
 
         const res = await vonFetch(endpoint, { signal: abortController.signal });
         const data = await res.json();

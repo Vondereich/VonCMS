@@ -924,6 +924,16 @@ function voncms_ai_generate_with_fallback(
     $providerStatus = is_string($providerError['status'] ?? null)
       ? strtoupper($providerError['status'])
       : '';
+    $invalidApiKey = false;
+    foreach (
+      is_array($providerError['details'] ?? null) ? $providerError['details'] : []
+      as $detail
+    ) {
+      if (is_array($detail) && ($detail['reason'] ?? null) === 'API_KEY_INVALID') {
+        $invalidApiKey = true;
+        break;
+      }
+    }
     $canFallback =
       $index === 0 && count($models) > 1 && $httpCode === 404 && $providerStatus === 'NOT_FOUND';
     if ($canFallback) {
@@ -936,10 +946,11 @@ function voncms_ai_generate_with_fallback(
       'data' => [],
       'model' => $candidateModel,
       'fallback_used' => $index > 0,
-      'error_code' => match ($httpCode) {
-        401, 403 => 'AI_AUTH_FAILED',
-        429 => 'AI_QUOTA_EXCEEDED',
-        404 => 'AI_MODEL_UNAVAILABLE',
+      'error_code' => match (true) {
+        in_array($httpCode, [401, 403], true) || ($httpCode === 400 && $invalidApiKey)
+          => 'AI_AUTH_FAILED',
+        $httpCode === 429 => 'AI_QUOTA_EXCEEDED',
+        $httpCode === 404 => 'AI_MODEL_UNAVAILABLE',
         default => 'AI_PROVIDER_ERROR',
       },
     ];
