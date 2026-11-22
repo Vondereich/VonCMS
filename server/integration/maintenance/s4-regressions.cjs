@@ -9,14 +9,15 @@ const php = process.env.PHP_BIN;
 assert.ok(php, 'Set PHP_BIN to supported 64-bit PHP');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'voncms-s4-'));
 let checks = 0;
-function run(source, args = [], expectedHttpStatus = null) {
+function run(source, args = [], expectedHttpStatus = null, expectedStderr = '') {
   const script = path.join(temp, 'worker.php');
   fs.writeFileSync(script, '<?php\n' + source);
   const binary =
     expectedHttpStatus === null
       ? php
       : path.join(path.dirname(php), process.platform === 'win32' ? 'php-cgi.exe' : 'php-cgi');
-  const result = spawnSync(binary, [script, ...args], {
+  // Keep PHP diagnostics observable and independent of the host's php.ini log destination.
+  const result = spawnSync(binary, ['-d', 'log_errors=1', '-d', 'error_log=', script, ...args], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -29,7 +30,7 @@ function run(source, args = [], expectedHttpStatus = null) {
     },
   });
   assert.equal(result.status, 0, result.stderr + result.stdout);
-  assert.equal(result.stderr, '', result.stderr);
+  assert.equal(result.stderr.replace(/\r\n/g, '\n'), expectedStderr, result.stderr);
   if (expectedHttpStatus !== null) {
     const split = result.stdout.search(/\r?\n\r?\n/);
     assert.ok(split >= 0, result.stdout);
@@ -47,6 +48,25 @@ function run(source, args = [], expectedHttpStatus = null) {
 }
 const quoted = (value) => "'" + value.replaceAll('\\', '\\\\').replaceAll("'", "\\'") + "'";
 try {
+  assert.equal(run("echo 'clean';"), 'clean');
+  assert.throws(() => run("error_log('QA unexpected diagnostic');"), /QA unexpected diagnostic/);
+  assert.throws(
+    () => run("trigger_error('QA unexpected warning', E_USER_WARNING);"),
+    /QA unexpected warning/
+  );
+  const expectedMediaLog = 'VonCMS API Error: Invalid media path\n';
+  assert.throws(() => run("echo 'clean';", [], null, expectedMediaLog), /Invalid media path/);
+  assert.throws(
+    () =>
+      run(
+        "error_log('VonCMS API Error: Invalid media path'); trigger_error('QA warning after expected log', E_USER_WARNING);",
+        [],
+        null,
+        expectedMediaLog
+      ),
+    /QA warning after expected log/
+  );
+  checks += 5;
   // Native sessions + actual bootstrap: changed UA remains denied for API, HTML becomes Guest.
   fs.mkdirSync(path.join(temp, 'sessions'));
   for (const base of ['', '/zangetsu']) {
@@ -144,22 +164,28 @@ class QaMediaStatement extends PDOStatement {
 class QaMediaPDO extends PDO {
   public function query(string $sql,?int $mode=null,mixed ...$args):PDOStatement|false {
     if($sql==="SHOW TABLES LIKE 'media'")$sql="SELECT name FROM sqlite_master WHERE type='table' AND name='media'";
+    if($sql==='SHOW COLUMNS FROM media')$sql="SELECT name AS Field FROM pragma_table_info('media')";
     return parent::query($sql,$mode,...$args);
   }
 }
 $pdo=new QaMediaPDO('sqlite:' . __DIR__ . '/qa.sqlite',null,null,[PDO::ATTR_STATEMENT_CLASS=>[QaMediaStatement::class]]);
-$pdo->exec('CREATE TABLE IF NOT EXISTS media(filepath TEXT)');
+$pdo->exec('CREATE TABLE IF NOT EXISTS media(id INTEGER,filename TEXT,filepath TEXT)');
 $pdo->exec('CREATE TABLE IF NOT EXISTS posts(image_url TEXT,content TEXT)');
 $pdo->exec('CREATE TABLE IF NOT EXISTS pages(content TEXT)');
 `
   );
-  const remove = (mediaPath, confirmReferenced = false) => {
-    const result = run(`
+  const remove = (mediaPath, confirmReferenced = false, expectedStderr = '') => {
+    const result = run(
+      `
 $_SERVER['REQUEST_METHOD']='POST'; $GLOBALS['qa_path']=${quoted(mediaPath)};
 $GLOBALS['qa_confirm']=${confirmReferenced ? 'true' : 'false'};
 register_shutdown_function(static function(){echo "\\nSTATUS=".(http_response_code()?:200);});
 require ${quoted(path.join(site, 'api/delete_media.php'))};
-`);
+`,
+      [],
+      null,
+      expectedStderr
+    );
     const [body, status] = result.split('\nSTATUS=');
     return { body: JSON.parse(body), status: Number(status) };
   };
@@ -167,9 +193,11 @@ require ${quoted(path.join(site, 'api/delete_media.php'))};
     const shield = path.join(site, 'uploads', relative);
     fs.mkdirSync(path.dirname(shield), { recursive: true });
     fs.writeFileSync(shield, 'QA protection');
-    assert.equal(remove(relative).status, 400, relative);
+    const rejected = remove(relative, false, expectedMediaLog);
+    assert.equal(rejected.status, 400, relative);
+    assert.equal(rejected.body.error, 'Invalid media path');
     assert.ok(fs.existsSync(shield));
-    checks += 2;
+    checks += 3;
   }
   fs.writeFileSync(path.join(site, 'uploads/ordinary.jpg'), 'QA image');
   const ordinaryDelete = remove('ordinary.jpg');
